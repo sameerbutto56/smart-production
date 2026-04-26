@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id          String   @id @default(uuid())
+  name        String
+  email       String   @unique
+  password    String
+  role        String
+  employeeId  String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  assignedStages OrderStage[]
+}
+
+model Order {
+  id                String      @id @default(uuid())
+  shopifyId         String?     @unique
+  customerName      String
+  type              String      @default("SIMPLE")
+  urgent            Boolean     @default(false)
+  customization     String?     // Stringified JSON for SQLite
+  sizeData          String?     // Stringified JSON for SQLite
+  currentStage      String      @default("STORE")
+  status            String      @default("IN_PROGRESS")
+  advancePaid       Boolean     @default(false)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  stages            OrderStage[]
+  auditLogs         AuditLog[]
+}
+
+model OrderStage {
+  id                String      @id @default(uuid())
+  orderId           String
+  order             Order       @relation(fields: [orderId], references: [id])
+  stageName         String
+  assignedEmployeeId String?
+  assignedEmployee   User?       @relation(fields: [assignedEmployeeId], references: [id])
+  status            String      @default("PENDING")
+  startedAt         DateTime?
+  completedAt       DateTime?
+  deadlineAt        DateTime?
+  
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id])
+  action      String
+  performedBy String
+  timestamp   DateTime @default(now())
+}

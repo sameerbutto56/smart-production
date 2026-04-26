@@ -1,0 +1,85 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id          String   @id @default(uuid())
+  name        String
+  email       String   @unique
+  password    String
+  role        String   @default("ORDER_EMPLOYEE")
+  employeeId  String?  @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  stages      OrderStage[]
+  auditLogs   AuditLog[]
+}
+
+model Order {
+  id              String       @id @default(uuid())
+  orderNumber     String?      @unique
+  shopifyOrderId  String?      @unique
+  customerName    String
+  type            String       @default("simple") // simple, custom
+  urgent          Boolean      @default(false)
+  logoDesign      String?
+  logoName        String?
+  customization   String?      // Stores structured JSON
+  productDetails  String?      // Stores structured JSON
+  sizeData        String?      // Stores structured JSON
+  currentStage    String       @default("ORDER_ENTRY")
+  status          String       @default("PENDING")
+  advancePaid     Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  stages          OrderStage[]
+  auditLogs       AuditLog[]
+}
+
+model OrderStage {
+  id                 String      @id @default(uuid())
+  orderId            String
+  order              Order       @relation(fields: [orderId], references: [id])
+  stageName          String
+  assignedEmployeeId String?
+  assignedEmployee   User?       @relation(fields: [assignedEmployeeId], references: [id])
+  status             String      @default("PENDING")
+  startedAt          DateTime?
+  completedAt        DateTime?
+  deadlineAt         DateTime?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  @@index([orderId])
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id])
+  action      String
+  performedBy String
+  user        User     @relation(fields: [performedBy], references: [id])
+  timestamp   DateTime @default(now())
+
+  @@index([orderId])
+}
+
+model InventoryItem {
+  id          String   @id @default(uuid())
+  name        String
+  category    String   // e.g., SCRUBS, COAT, FABRIC, COLOR
+  color       String?  // New field
+  fabric      String?  // New field
+  stock       Int      @default(0)
+  price       Float?
+  metadata    String?  // JSON string for additional properties
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
