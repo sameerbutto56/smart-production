@@ -33,6 +33,7 @@ const SmartOrderForm = () => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedProductCategory, setSelectedProductCategory] = useState('SCRUBS');
 
   const [formData, setFormData] = useState({
@@ -119,6 +120,7 @@ const SmartOrderForm = () => {
     if (activeTab === 'basic') {
       if (!formData.orderNumber.trim()) return 'Order ID is required.';
       if (!formData.customerName.trim()) return 'Customer Name is required.';
+      if (formData.type === 'custom' && !formData.advancePaid) return 'Advance payment is compulsory for custom orders.';
     }
     if (activeTab === 'product') {
       if (!formData.productType) return 'Please select a Product Base (Step 1).';
@@ -141,11 +143,13 @@ const SmartOrderForm = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return; // Prevent double submit
     const errMsg = validateCurrentTab();
     if (errMsg) {
       setError(errMsg);
       return;
     }
+    setIsSubmitting(true);
     setLoading(true);
     try {
       const payload = {
@@ -177,11 +181,37 @@ const SmartOrderForm = () => {
 
       await axios.post(`${API_URL}/api/orders`, payload);
       setSuccess(true);
+      // Reset form after successful submission
+      setFormData({
+        orderNumber: '',
+        customerName: '',
+        type: 'simple',
+        urgent: false,
+        advancePaid: false,
+        productType: '',
+        fabricType: '',
+        color: '',
+        size: '',
+        logoDesign: '',
+        logoName: '',
+        nameSpelling: '',
+        nameColor: '',
+        logoColor: '',
+        logoPlacement: '',
+        stitchingStyle: '',
+        fitType: 'Regular',
+        designNotes: '',
+        additionalFeatures: [],
+        measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hips: '' }
+      });
+      setActiveTab('basic');
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
       console.error('Error creating order:', error);
+      setError(error.response?.data?.message || 'Error creating order. Please try again.');
     }
     setLoading(false);
+    setIsSubmitting(false);
   };
 
   const OptionCard = ({ label, value, current, onClick, icon: Icon, sublabel, color }) => (
@@ -321,14 +351,14 @@ const SmartOrderForm = () => {
                   <div className="flex p-2 bg-gray-950 rounded-2xl border-2 border-gray-800 shadow-inner">
                     <button
                       type="button"
-                      onClick={() => setFormData({...formData, type: 'simple'})}
+                      onClick={() => setFormData({...formData, type: 'simple', advancePaid: false})}
                       className={`flex-1 py-4 rounded-xl text-xs font-black transition-all ${formData.type === 'simple' ? 'bg-blue-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'}`}
                     >
                       SIMPLE
                     </button>
                     <button
                       type="button"
-                      onClick={() => setFormData({...formData, type: 'custom'})}
+                      onClick={() => setFormData({...formData, type: 'custom', advancePaid: true})}
                       className={`flex-1 py-4 rounded-xl text-xs font-black transition-all ${formData.type === 'custom' ? 'bg-purple-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'}`}
                     >
                       CUSTOM
@@ -349,17 +379,28 @@ const SmartOrderForm = () => {
                       <input type="checkbox" checked={formData.urgent} onChange={(e) => setFormData({...formData, urgent: e.target.checked})} className="w-6 h-6 rounded-lg border-2 border-gray-700 bg-gray-900 checked:bg-blue-600 transition-all cursor-pointer" />
                     </label>
 
-                    <label className="flex items-center justify-between p-6 bg-gray-950 rounded-[1.5rem] border-2 border-gray-800 cursor-pointer hover:border-emerald-500/30 transition-all group">
+                    <label className={`flex items-center justify-between p-6 bg-gray-950 rounded-[1.5rem] border-2 ${formData.type === 'custom' ? 'border-emerald-500/30' : 'border-gray-800'} cursor-pointer hover:border-emerald-500/30 transition-all group`}>
                       <div className="flex items-center space-x-4">
                         <div className={`p-4 rounded-xl transition-all ${formData.advancePaid ? 'bg-emerald-600 text-white shadow-lg' : 'bg-gray-800 text-gray-600'}`}>
                           <CheckCircle2 size={20} />
                         </div>
                         <div>
                           <p className="font-black text-sm uppercase text-emerald-400">Paid</p>
-                          <p className="text-[10px] text-gray-600 font-bold">READY TO CUT</p>
+                          <p className="text-[10px] text-gray-600 font-bold">
+                            {formData.type === 'custom' ? 'REQUIRED FOR CUSTOM' : 'READY TO CUT'}
+                          </p>
                         </div>
                       </div>
-                      <input type="checkbox" checked={formData.advancePaid} onChange={(e) => setFormData({...formData, advancePaid: e.target.checked})} className="w-6 h-6 rounded-lg border-2 border-gray-700 bg-gray-900 checked:bg-emerald-600 transition-all cursor-pointer" />
+                      <input 
+                        type="checkbox" 
+                        checked={formData.advancePaid} 
+                        onChange={(e) => {
+                          if (formData.type === 'custom') return; // Can't uncheck for custom
+                          setFormData({...formData, advancePaid: e.target.checked});
+                        }} 
+                        disabled={formData.type === 'custom'}
+                        className="w-6 h-6 rounded-lg border-2 border-gray-700 bg-gray-900 checked:bg-emerald-600 transition-all cursor-pointer disabled:opacity-70" 
+                      />
                     </label>
                   </div>
                 </div>
@@ -777,10 +818,10 @@ const SmartOrderForm = () => {
             ) : (
               <button
                 type="submit"
-                disabled={loading}
-                className="flex-1 sm:px-24 py-6 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl shadow-blue-900/50 hover:scale-[1.03] hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 disabled:opacity-50"
+                disabled={loading || isSubmitting}
+                className="flex-1 sm:px-24 py-6 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl shadow-blue-900/50 hover:scale-[1.03] hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 disabled:opacity-50 disabled:hover:scale-100 disabled:hover:translate-y-0"
               >
-                {loading ? 'PROCESSING...' : (
+                {loading || isSubmitting ? 'PROCESSING...' : (
                   <>
                     <ShoppingCart size={24} />
                     <span>FINALIZE & DEPLOY ORDER</span>

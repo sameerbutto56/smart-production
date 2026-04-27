@@ -187,7 +187,7 @@ const AdminDashboard = () => {
           </div>
           <div>
             <h3 className="font-bold text-lg">Track Order</h3>
-            <p className="text-gray-500 text-xs">Enter order number or customer name to track in real-time</p>
+            <p className="text-gray-500 text-xs">Enter order ID to track in real-time</p>
           </div>
         </div>
 
@@ -196,7 +196,7 @@ const AdminDashboard = () => {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
             <input
               type="text"
-              placeholder="Enter order number or customer name..."
+              placeholder="Enter order ID (e.g. ORD-772)..."
               value={trackingQuery}
               onChange={(e) => setTrackingQuery(e.target.value)}
               onKeyDown={(e) => {
@@ -205,15 +205,14 @@ const AdminDashboard = () => {
                   if (!query) return;
                   const found = allOrders.find(o =>
                     o.id.toLowerCase().includes(query) ||
-                    (o.orderNumber && o.orderNumber.toLowerCase().includes(query)) ||
-                    o.customerName.toLowerCase().includes(query)
+                    (o.orderNumber && o.orderNumber.toLowerCase().includes(query))
                   );
                   if (found) {
                     setTrackedOrder(found);
                     setTrackingError('');
                   } else {
                     setTrackedOrder(null);
-                    setTrackingError('No order found with that number or name.');
+                    setTrackingError('No order found with that ID.');
                   }
                 }
               }}
@@ -226,15 +225,14 @@ const AdminDashboard = () => {
               if (!query) return;
               const found = allOrders.find(o =>
                 o.id.toLowerCase().includes(query) ||
-                (o.orderNumber && o.orderNumber.toLowerCase().includes(query)) ||
-                o.customerName.toLowerCase().includes(query)
+                (o.orderNumber && o.orderNumber.toLowerCase().includes(query))
               );
               if (found) {
                 setTrackedOrder(found);
                 setTrackingError('');
               } else {
                 setTrackedOrder(null);
-                setTrackingError('No order found with that number or name.');
+                setTrackingError('No order found with that ID.');
               }
             }}
             className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold text-sm transition-colors flex items-center gap-2"
