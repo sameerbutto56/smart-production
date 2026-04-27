@@ -1,0 +1,7 @@
+{
+  "name": "enamels",
+  "framework": "vite",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
