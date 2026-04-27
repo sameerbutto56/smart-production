@@ -65,7 +65,7 @@ const Sidebar = ({ isOpen, toggle }) => {
           </button>
         </div>
         
-        <nav className="flex-1 px-4 space-y-2">
+        <nav className="flex-1 px-4 space-y-2 overflow-y-auto custom-scrollbar">
           {filteredNavItems.map((item) => (
             <Link
               key={item.path}
