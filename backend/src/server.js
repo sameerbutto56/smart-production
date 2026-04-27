@@ -23,6 +23,10 @@ const prisma = new PrismaClient();
 app.use(cors({ origin: frontendUrl }));
 app.use(express.json());
 
+app.get('/', (req, res) => {
+  res.send('<h1>Smart Production Backend is LIVE!</h1><p>Health check at <a href="/health">/health</a></p>');
+});
+
 const authRoutes = require('./routes/auth.routes');
 const orderRoutes = require('./routes/order.routes');
 const inventoryRoutes = require('./routes/inventory.routes');
