@@ -25,7 +25,7 @@ const Sidebar = ({ isOpen, toggle }) => {
   };
 
   const navItems = [
-    { name: 'Dashboard', path: '/', icon: LayoutDashboard, roles: ['ADMIN', 'MAIN_EMPLOYEE'] },
+    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'MAIN_EMPLOYEE'] },
     { name: 'Inventory', path: '/inventory', icon: Package, roles: ['ADMIN'] },
     { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['ORDER_EMPLOYEE', 'CUTTING_EMPLOYEE', 'STITCHING_EMPLOYEE', 'QUALITY_CHECK_EMPLOYEE', 'PRESSING_EMPLOYEE', 'PACKAGING_EMPLOYEE'] },
     { name: 'Order Entry', path: '/order-entry', icon: ClipboardList, roles: ['ADMIN', 'ORDER_EMPLOYEE'] },

@@ -20,11 +20,11 @@ const ProtectedRoute = ({ children }) => {
 
 const AuthRedirectHandler = () => {
   const { user } = useAuth();
-  if (user?.email === 'bigscreen@smartpro.com') {
+  if (user?.name === 'Big Screen Monitor') {
     return <Navigate to="/progress" />;
   }
   if (user?.role === 'ADMIN' || user?.role === 'MAIN_EMPLOYEE') {
-    return <AdminDashboard />;
+    return <Navigate to="/dashboard" replace={true} />;
   }
   return <Navigate to="/tasks" />;
 };
@@ -36,6 +36,12 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           
+          <Route path="/progress" element={
+            <ProtectedRoute>
+              <ProgressChart />
+            </ProtectedRoute>
+          } />
+          
           <Route path="/" element={
             <ProtectedRoute>
               <Layout />
@@ -44,12 +50,12 @@ function App() {
             <Route index element={
               <AuthRedirectHandler />
             } />
+            <Route path="dashboard" element={<AdminDashboard />} />
             <Route path="inventory" element={<InventoryManagement />} />
             <Route path="tasks" element={<MyTasks />} />
             <Route path="order-entry" element={<OrderEntry />} />
             <Route path="orders" element={<AllOrders />} />
             <Route path="history" element={<History />} />
-            <Route path="progress" element={<ProgressChart />} />
           </Route>
         </Routes>
       </Router>
