@@ -82,7 +82,7 @@ const AdminDashboard = () => {
   };
 
   const getNextStage = (current) => {
-    const pipeline = ['STORE', 'CUTTING', 'STITCHING', 'QUALITY_CHECK', 'PRESSING', 'PACKAGING', 'DISPATCH', 'DELIVERED'];
+    const pipeline = ['STORE', 'CUTTING', 'STITCHING', 'QUALITY_CHECK', 'PRESSING', 'PACKAGING', 'DISPATCH'];
     const index = pipeline.indexOf(current);
     return index < pipeline.length - 1 ? pipeline[index + 1] : null;
   };

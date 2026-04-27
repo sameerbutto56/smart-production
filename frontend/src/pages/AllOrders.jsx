@@ -7,7 +7,8 @@ import {
   MoreVertical, 
   ChevronRight,
   Download,
-  RefreshCcw
+  RefreshCcw,
+  Truck
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -30,6 +31,34 @@ const AllOrders = () => {
       console.error('Error fetching orders:', error);
     }
     setLoading(false);
+  };
+
+  const handleSendForDelivery = async (orderId) => {
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const token = localStorage.getItem('token');
+      await axios.put(`${API_URL}/api/orders/${orderId}/send-for-delivery`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchOrders();
+    } catch (error) {
+      console.error('Error sending for delivery:', error);
+    }
+  };
+
+  const getStatusStyle = (status) => {
+    switch (status) {
+      case 'COMPLETED':
+        return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
+      case 'READY_FOR_DELIVERY':
+        return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+      case 'OUT_FOR_DELIVERY':
+        return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+      case 'REJECTED':
+        return 'bg-red-500/10 text-red-500 border-red-500/20';
+      default:
+        return 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20';
+    }
   };
 
   const filteredOrders = orders.filter(order => 
@@ -132,7 +161,7 @@ const AllOrders = () => {
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-2">
                         <span className="bg-gray-800 px-2 py-1 rounded-md text-[10px] font-bold text-gray-300 border border-gray-700 uppercase">
-                          {order.currentStage.replace('_', ' ')}
+                          {order.currentStage.replace(/_/g, ' ')}
                         </span>
                       </div>
                     </td>
@@ -147,23 +176,29 @@ const AllOrders = () => {
                       )}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase border ${
-                        order.status === 'COMPLETED' 
-                          ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' 
-                          : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
-                      }`}>
-                        {order.status}
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase border ${getStatusStyle(order.status)}`}>
+                        {order.status.replace(/_/g, ' ')}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white transition-colors">
-                          <MoreVertical size={18} />
+                      {order.status === 'READY_FOR_DELIVERY' ? (
+                        <button 
+                          onClick={() => handleSendForDelivery(order.id)}
+                          className="bg-emerald-600/10 hover:bg-emerald-600 text-emerald-500 hover:text-white px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center space-x-2 ml-auto"
+                        >
+                          <Truck size={16} />
+                          <span>Send for Delivery</span>
                         </button>
-                        <button className="p-2 hover:bg-blue-600 rounded-lg text-gray-400 hover:text-white transition-colors">
-                          <ChevronRight size={18} />
-                        </button>
-                      </div>
+                      ) : (
+                        <div className="flex items-center justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button className="p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white transition-colors">
+                            <MoreVertical size={18} />
+                          </button>
+                          <button className="p-2 hover:bg-blue-600 rounded-lg text-gray-400 hover:text-white transition-colors">
+                            <ChevronRight size={18} />
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))

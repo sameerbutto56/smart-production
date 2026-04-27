@@ -118,8 +118,8 @@ const updateStage = async (req, res) => {
       updatedOrder = await prisma.order.update({
         where: { id: orderId },
         data: { 
-          currentStage: 'OUT_FOR_DELIVERY',
-          status: 'OUT_FOR_DELIVERY'
+          currentStage: 'READY_FOR_DELIVERY',
+          status: 'READY_FOR_DELIVERY'
         }
       });
     } else if (status === 'REJECTED') {
@@ -151,4 +151,31 @@ const updateStage = async (req, res) => {
   }
 };
 
-module.exports = { createOrder, getOrders, updateStage };
+const sendForDelivery = async (req, res) => {
+  const { orderId } = req.params;
+
+  try {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+
+    if (!order || order.status !== 'READY_FOR_DELIVERY') {
+      return res.status(400).json({ message: 'Order is not ready for delivery' });
+    }
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        currentStage: 'OUT_FOR_DELIVERY',
+        status: 'OUT_FOR_DELIVERY'
+      }
+    });
+
+    const io = req.app.get('io');
+    io.emit('order-updated', updatedOrder);
+
+    res.json({ message: 'Order sent for delivery', order: updatedOrder });
+  } catch (error) {
+    res.status(500).json({ message: 'Error sending for delivery', error: error.message });
+  }
+};
+
+module.exports = { createOrder, getOrders, updateStage, sendForDelivery };

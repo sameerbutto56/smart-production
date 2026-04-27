@@ -9,8 +9,7 @@ import {
   Activity,
   History,
   Menu,
-  X,
-  Monitor
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -30,7 +29,6 @@ const Sidebar = ({ isOpen, toggle }) => {
     { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['ORDER_EMPLOYEE', 'CUTTING_EMPLOYEE', 'STITCHING_EMPLOYEE', 'QUALITY_CHECK_EMPLOYEE', 'PRESSING_EMPLOYEE', 'PACKAGING_EMPLOYEE'] },
     { name: 'Order Entry', path: '/order-entry', icon: ClipboardList, roles: ['ADMIN', 'ORDER_EMPLOYEE'] },
     { name: 'All Orders', path: '/orders', icon: Package, roles: ['ADMIN'] },
-    { name: 'Command Center', path: '/progress', icon: Monitor, roles: ['ADMIN', 'MAIN_EMPLOYEE'] },
     { name: 'History', path: '/history', icon: History, roles: ['ADMIN', 'MAIN_EMPLOYEE'] },
   ];
 
