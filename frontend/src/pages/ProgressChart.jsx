@@ -61,9 +61,9 @@ const ProgressChart = () => {
   }).sort((a, b) => new Date(a.stages?.[0]?.deadlineAt) - new Date(b.stages?.[0]?.deadlineAt));
 
   return (
-    <div className="h-screen bg-black text-white p-6 font-sans overflow-hidden flex flex-col">
-      {/* Header section - Compact */}
-      <div className="flex justify-between items-center mb-6">
+    <div className="min-h-screen lg:h-screen bg-black text-white p-4 lg:p-6 font-sans overflow-y-auto lg:overflow-hidden flex flex-col">
+      {/* Header section */}
+      <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4 mb-6">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-[0_0_30px_rgba(37,99,235,0.3)]">
             <Zap size={24} className="text-white fill-current" />
@@ -89,11 +89,11 @@ const ProgressChart = () => {
         </div>
       </div>
 
-      {/* Main Grid - Forced to fit screen */}
-      <div className="grid grid-cols-12 gap-6 flex-1 min-h-0">
+      {/* Main Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0">
         
-        {/* Floor Status - Left Sidebar (2 cols) */}
-        <div className="col-span-2 glass-dark p-6 rounded-[2rem] border border-white/5 flex flex-col overflow-hidden">
+        {/* Floor Status - Left Sidebar */}
+        <div className="lg:col-span-2 glass-dark p-6 rounded-[2rem] border border-white/5 flex flex-col overflow-hidden min-h-[300px] lg:min-h-0">
           <div className="flex items-center gap-3 mb-6">
             <Layers className="text-blue-500" size={20} />
             <h2 className="text-sm font-black uppercase tracking-wider">Floor Load</h2>
@@ -123,15 +123,15 @@ const ProgressChart = () => {
           </div>
         </div>
 
-        {/* Live Stream - Center (7 cols) */}
-        <div className="col-span-7 flex flex-col gap-6 overflow-hidden">
+        {/* Live Stream - Center */}
+        <div className="lg:col-span-7 flex flex-col gap-6 overflow-hidden min-h-[400px] lg:min-h-0">
           <div className="glass-dark p-6 rounded-[2rem] border border-white/5 flex-1 flex flex-col overflow-hidden">
             <div className="flex items-center gap-3 mb-4">
               <Activity className="text-indigo-500" size={20} />
               <h2 className="text-sm font-black uppercase tracking-wider">Active Batch Stream</h2>
             </div>
             
-            <div className="grid grid-cols-2 gap-4 overflow-hidden">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 overflow-hidden">
               {orders.filter(o => o.status !== 'COMPLETED' && o.status !== 'OUT_FOR_DELIVERY').slice(0, 6).map((order) => (
                 <div key={order.id} className="bg-white/5 p-4 rounded-2xl border border-white/5 flex flex-col justify-between h-32">
                   <div>
@@ -171,8 +171,8 @@ const ProgressChart = () => {
           </div>
         </div>
 
-        {/* Alerts & Personnel - Right Sidebar (3 cols) */}
-        <div className="col-span-3 flex flex-col gap-6 overflow-hidden">
+        {/* Alerts & Personnel - Right Sidebar */}
+        <div className="lg:col-span-3 flex flex-col gap-6 overflow-hidden min-h-[400px] lg:min-h-0">
           <div className="glass-dark p-6 rounded-[2rem] border border-red-500/20 bg-red-500/5 flex-1 flex flex-col overflow-hidden">
             <div className="flex items-center gap-3 mb-4 text-red-500">
               <AlertCircle size={20} />
