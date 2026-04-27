@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { 
   BarChart3, 
   Clock, 
@@ -9,7 +11,8 @@ import {
   Activity,
   Layers,
   Zap,
-  CheckCircle2
+  CheckCircle2,
+  LogOut
 } from 'lucide-react';
 import { io } from 'socket.io-client';
 
@@ -20,6 +23,14 @@ const ProgressChart = () => {
   const [orders, setOrders] = useState([]);
   const [stats, setStats] = useState({});
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   const pipeline = ['STORE', 'CUTTING', 'STITCHING', 'QUALITY_CHECK', 'PRESSING', 'PACKAGING', 'DISPATCH'];
 
@@ -78,7 +89,7 @@ const ProgressChart = () => {
         </div>
         
         <div className="flex items-center gap-8">
-          <div className="text-right">
+          <div className="text-right hidden sm:block">
             <div className="text-4xl font-black tracking-tighter font-mono leading-none">
               {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
             </div>
@@ -86,6 +97,13 @@ const ProgressChart = () => {
               {currentTime.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })}
             </div>
           </div>
+          <button 
+            onClick={handleLogout}
+            className="p-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-xl text-red-500 transition-colors flex items-center justify-center"
+            title="Logout"
+          >
+            <LogOut size={24} />
+          </button>
         </div>
       </div>
 
