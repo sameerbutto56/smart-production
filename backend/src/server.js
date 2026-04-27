@@ -23,6 +23,11 @@ const prisma = new PrismaClient();
 app.use(cors({ origin: frontendUrl }));
 app.use(express.json());
 
+// ⚡️ IMMEDIATE HEALTH CHECK (Before anything else)
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', message: 'Backend is alive!', time: new Date().toISOString() });
+});
+
 app.get('/', (req, res) => {
   res.send('<h1>Smart Production Backend is LIVE!</h1><p>Health check at <a href="/health">/health</a></p>');
 });
@@ -34,11 +39,6 @@ const inventoryRoutes = require('./routes/inventory.routes');
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/inventory', inventoryRoutes);
-
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
 
 // Socket.io logic
 io.on('connection', (socket) => {
