@@ -51,8 +51,7 @@ const AdminDashboard = () => {
       const response = await axios.get(`${API_URL}/api/orders`);
       const orders = response.data;
       
-      const dispatchOrders = orders.filter(o => o.currentStage === 'DISPATCH' && o.status !== 'COMPLETED' && o.status !== 'READY_FOR_DELIVERY' && o.status !== 'OUT_FOR_DELIVERY');
-      setRecentOrders(dispatchOrders);
+      setRecentOrders(orders.slice(0, 5));
       setStats({
         totalOrders: orders.length,
         urgentOrders: orders.filter(o => o.urgent).length,
@@ -94,6 +93,12 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error('Error sending to order list:', error);
     }
+  };
+
+  const getNextStage = (current) => {
+    const pipeline = ['STORE', 'CUTTING', 'STITCHING', 'QUALITY_CHECK', 'PRESSING', 'PACKAGING', 'DISPATCH'];
+    const index = pipeline.indexOf(current);
+    return index < pipeline.length - 1 ? pipeline[index + 1] : null;
   };
 
   const handleClearData = async (e) => {
@@ -161,69 +166,78 @@ const AdminDashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 glass rounded-2xl overflow-hidden">
           <div className="p-6 border-b border-gray-700 flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <Truck className="text-blue-400" size={20} />
-              <h3 className="font-bold">Orders Ready for Dispatch</h3>
-            </div>
-            <span className="text-xs text-gray-500 bg-gray-800 px-3 py-1 rounded-full">{recentOrders.length} orders</span>
+            <h3 className="font-bold">Recent Production Orders</h3>
+            <button className="text-blue-400 text-sm hover:underline">View All</button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
                 <tr className="text-gray-400 text-xs uppercase border-b border-gray-700">
                   <th className="px-6 py-4">Customer</th>
+                  <th className="px-6 py-4">Current Stage</th>
                   <th className="px-6 py-4">Priority</th>
                   <th className="px-6 py-4">Status</th>
                   <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-700">
-                {recentOrders.length === 0 ? (
-                  <tr>
-                    <td colSpan="4" className="px-6 py-12 text-center text-gray-500 text-sm">
-                      No orders at dispatch stage
-                    </td>
-                  </tr>
-                ) : (
-                  recentOrders.map((order) => {
-                    const currentStageObj = order.stages?.[0];
-                    
-                    return (
-                      <tr key={order.id} className="hover:bg-white/5 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="font-medium">{order.customerName}</div>
-                          <div className="text-xs text-gray-500">#{order.id.substring(0, 8)}</div>
-                        </td>
-                        <td className="px-6 py-4">
-                          {order.urgent ? (
-                            <span className="text-blue-400 text-xs font-bold flex items-center">
-                              <span className="w-2 h-2 bg-blue-400 rounded-full mr-2 animate-pulse"></span>
-                              Urgent
-                            </span>
-                          ) : (
-                            <span className="text-gray-500 text-xs">Standard</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="bg-gray-800 px-2 py-1 rounded border border-gray-700 uppercase text-[10px] font-bold">
-                            DISPATCH
+                {recentOrders.map((order) => {
+                  const currentStageObj = order.stages?.[0];
+                  const nextStage = currentStageObj ? getNextStage(currentStageObj.stageName) : null;
+                  const isDispatch = order.currentStage === 'DISPATCH';
+                  
+                  return (
+                    <tr key={order.id} className="hover:bg-white/5 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="font-medium">{order.customerName}</div>
+                        <div className="text-xs text-gray-500">#{order.id.substring(0, 8)}</div>
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        <span className="bg-gray-800 px-2 py-1 rounded border border-gray-700 uppercase text-[10px]">
+                          {order.currentStage.replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {order.urgent ? (
+                          <span className="text-blue-400 text-xs font-bold flex items-center">
+                            <span className="w-2 h-2 bg-blue-400 rounded-full mr-2 animate-pulse"></span>
+                            Urgent
                           </span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          {currentStageObj && (
-                            <button 
-                              onClick={() => handleSendToOrderList(order.id, currentStageObj.id)}
-                              className="bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center space-x-2 ml-auto"
-                            >
-                              <ClipboardList size={14} />
-                              <span>Send to Order List</span>
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
+                        ) : (
+                          <span className="text-gray-500 text-xs">Standard</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`text-xs px-2 py-1 rounded-full ${
+                          order.status === 'COMPLETED' || order.status === 'OUT_FOR_DELIVERY' ? 'bg-emerald-400/10 text-emerald-400' 
+                          : order.status === 'READY_FOR_DELIVERY' ? 'bg-blue-400/10 text-blue-400'
+                          : 'bg-yellow-400/10 text-yellow-400'
+                        }`}>
+                          {order.status.replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        {isDispatch && order.status !== 'COMPLETED' && order.status !== 'READY_FOR_DELIVERY' && currentStageObj ? (
+                          <button 
+                            onClick={() => handleSendToOrderList(order.id, currentStageObj.id)}
+                            className="bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center space-x-1 ml-auto"
+                          >
+                            <ClipboardList size={14} />
+                            <span>Send to Order List</span>
+                          </button>
+                        ) : order.status !== 'COMPLETED' && order.status !== 'READY_FOR_DELIVERY' && order.status !== 'OUT_FOR_DELIVERY' && currentStageObj && nextStage ? (
+                          <button 
+                            onClick={() => handleUpdateStage(order.id, currentStageObj.id, nextStage)}
+                            className="bg-emerald-600/10 hover:bg-emerald-600 text-emerald-500 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center space-x-1 ml-auto"
+                          >
+                            <span>Move to {nextStage.replace(/_/g, ' ')}</span>
+                            <ArrowUpRight size={14} />
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
