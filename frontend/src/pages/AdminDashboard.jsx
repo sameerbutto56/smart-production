@@ -11,7 +11,9 @@ import {
   Trash2,
   Lock,
   ShieldAlert,
-  X
+  X,
+  ClipboardList,
+  Truck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { io } from 'socket.io-client';
@@ -49,7 +51,8 @@ const AdminDashboard = () => {
       const response = await axios.get(`${API_URL}/api/orders`);
       const orders = response.data;
       
-      setRecentOrders(orders.slice(0, 5));
+      const dispatchOrders = orders.filter(o => o.currentStage === 'DISPATCH' && o.status !== 'COMPLETED' && o.status !== 'READY_FOR_DELIVERY' && o.status !== 'OUT_FOR_DELIVERY');
+      setRecentOrders(dispatchOrders);
       setStats({
         totalOrders: orders.length,
         urgentOrders: orders.filter(o => o.urgent).length,
@@ -81,10 +84,16 @@ const AdminDashboard = () => {
     }
   };
 
-  const getNextStage = (current) => {
-    const pipeline = ['STORE', 'CUTTING', 'STITCHING', 'QUALITY_CHECK', 'PRESSING', 'PACKAGING', 'DISPATCH'];
-    const index = pipeline.indexOf(current);
-    return index < pipeline.length - 1 ? pipeline[index + 1] : null;
+  const handleSendToOrderList = async (orderId, stageId) => {
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      await axios.put(`${API_URL}/api/orders/${orderId}/stages/${stageId}`, {
+        status: 'COMPLETED'
+      });
+      fetchDashboardData();
+    } catch (error) {
+      console.error('Error sending to order list:', error);
+    }
   };
 
   const handleClearData = async (e) => {
@@ -152,67 +161,69 @@ const AdminDashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 glass rounded-2xl overflow-hidden">
           <div className="p-6 border-b border-gray-700 flex justify-between items-center">
-            <h3 className="font-bold">Recent Production Orders</h3>
-            <button className="text-blue-400 text-sm hover:underline">View All</button>
+            <div className="flex items-center gap-3">
+              <Truck className="text-blue-400" size={20} />
+              <h3 className="font-bold">Orders Ready for Dispatch</h3>
+            </div>
+            <span className="text-xs text-gray-500 bg-gray-800 px-3 py-1 rounded-full">{recentOrders.length} orders</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
                 <tr className="text-gray-400 text-xs uppercase border-b border-gray-700">
                   <th className="px-6 py-4">Customer</th>
-                  <th className="px-6 py-4">Current Stage</th>
                   <th className="px-6 py-4">Priority</th>
                   <th className="px-6 py-4">Status</th>
                   <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-700">
-                {recentOrders.map((order) => {
-                  const currentStageObj = order.stages?.[0];
-                  const nextStage = currentStageObj ? getNextStage(currentStageObj.stageName) : null;
-                  
-                  return (
-                    <tr key={order.id} className="hover:bg-white/5 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="font-medium">{order.customerName}</div>
-                        <div className="text-xs text-gray-500">#{order.id.substring(0, 8)}</div>
-                      </td>
-                      <td className="px-6 py-4 text-sm">
-                        <span className="bg-gray-800 px-2 py-1 rounded border border-gray-700 uppercase text-[10px]">
-                          {order.currentStage.replace('_', ' ')}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        {order.urgent ? (
-                          <span className="text-blue-400 text-xs font-bold flex items-center">
-                            <span className="w-2 h-2 bg-blue-400 rounded-full mr-2 animate-pulse"></span>
-                            Urgent
+                {recentOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan="4" className="px-6 py-12 text-center text-gray-500 text-sm">
+                      No orders at dispatch stage
+                    </td>
+                  </tr>
+                ) : (
+                  recentOrders.map((order) => {
+                    const currentStageObj = order.stages?.[0];
+                    
+                    return (
+                      <tr key={order.id} className="hover:bg-white/5 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="font-medium">{order.customerName}</div>
+                          <div className="text-xs text-gray-500">#{order.id.substring(0, 8)}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          {order.urgent ? (
+                            <span className="text-blue-400 text-xs font-bold flex items-center">
+                              <span className="w-2 h-2 bg-blue-400 rounded-full mr-2 animate-pulse"></span>
+                              Urgent
+                            </span>
+                          ) : (
+                            <span className="text-gray-500 text-xs">Standard</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="bg-gray-800 px-2 py-1 rounded border border-gray-700 uppercase text-[10px] font-bold">
+                            DISPATCH
                           </span>
-                        ) : (
-                          <span className="text-gray-500 text-xs">Standard</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`text-xs px-2 py-1 rounded-full ${
-                          order.status === 'COMPLETED' ? 'bg-emerald-400/10 text-emerald-400' : 'bg-yellow-400/10 text-yellow-400'
-                        }`}>
-                          {order.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        {order.status !== 'COMPLETED' && currentStageObj && nextStage && (
-                          <button 
-                            onClick={() => handleUpdateStage(order.id, currentStageObj.id, nextStage)}
-                            className="bg-emerald-600/10 hover:bg-emerald-600 text-emerald-500 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center space-x-1 ml-auto"
-                          >
-                            <span>Move to {nextStage}</span>
-                            <ArrowUpRight size={14} />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          {currentStageObj && (
+                            <button 
+                              onClick={() => handleSendToOrderList(order.id, currentStageObj.id)}
+                              className="bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center space-x-2 ml-auto"
+                            >
+                              <ClipboardList size={14} />
+                              <span>Send to Order List</span>
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
