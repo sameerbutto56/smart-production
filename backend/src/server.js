@@ -14,13 +14,26 @@ const frontendUrl = process.env.FRONTEND_URL || "*";
 const io = socketIo(server, {
   cors: {
     origin: frontendUrl,
-    methods: ["GET", "POST", "PUT", "DELETE"]
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: frontendUrl !== "*"
   }
+});
+
+// Global Error Handler to prevent process crashes
+process.on('uncaughtException', (err) => {
+  console.error('🔥 UNCAUGHT EXCEPTION:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('🔥 UNHANDLED REJECTION at:', promise, 'reason:', reason);
 });
 
 const prisma = new PrismaClient();
 
-app.use(cors({ origin: frontendUrl }));
+app.use(cors({ 
+  origin: frontendUrl,
+  credentials: frontendUrl !== "*"
+}));
 app.use(express.json());
 
 // ⚡️ IMMEDIATE HEALTH CHECK (Before anything else)
