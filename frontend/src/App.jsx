@@ -20,6 +20,9 @@ const ProtectedRoute = ({ children }) => {
 
 const AuthRedirectHandler = () => {
   const { user } = useAuth();
+  if (user?.email === 'bigscreen@smartpro.com') {
+    return <Navigate to="/progress" />;
+  }
   if (user?.role === 'ADMIN' || user?.role === 'MAIN_EMPLOYEE') {
     return <AdminDashboard />;
   }

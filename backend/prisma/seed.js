@@ -11,6 +11,7 @@ async function main() {
 
   // --- USERS / EMPLOYEES ---
   const users = [
+    { name: 'Big Screen Monitor', email: 'bigscreen@smartpro.com', role: 'MAIN_EMPLOYEE' },
     { name: 'Admin Boss', email: 'admin@smartpro.com', role: 'ADMIN' },
     { name: 'Order Entry', email: 'order@smartpro.com', role: 'ORDER_EMPLOYEE' },
     { name: 'Store Keeper', email: 'store@smartpro.com', role: 'STORE_EMPLOYEE' },
