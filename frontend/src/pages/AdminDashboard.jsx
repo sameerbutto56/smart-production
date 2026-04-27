@@ -13,7 +13,12 @@ import {
   ShieldAlert,
   X,
   ClipboardList,
-  Truck
+  Truck,
+  Search,
+  MapPin,
+  CheckCircle2,
+  Circle,
+  Package
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { io } from 'socket.io-client';
@@ -29,10 +34,14 @@ const AdminDashboard = () => {
     completedToday: 0
   });
   const [recentOrders, setRecentOrders] = useState([]);
+  const [allOrders, setAllOrders] = useState([]);
   const [showClearModal, setShowClearModal] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [isClearing, setIsClearing] = useState(false);
   const [error, setError] = useState('');
+  const [trackingQuery, setTrackingQuery] = useState('');
+  const [trackedOrder, setTrackedOrder] = useState(null);
+  const [trackingError, setTrackingError] = useState('');
 
   useEffect(() => {
     fetchDashboardData();
@@ -51,13 +60,20 @@ const AdminDashboard = () => {
       const response = await axios.get(`${API_URL}/api/orders`);
       const orders = response.data;
       
+      setAllOrders(orders);
       setRecentOrders(orders.slice(0, 5));
       setStats({
         totalOrders: orders.length,
         urgentOrders: orders.filter(o => o.urgent).length,
-        delayedOrders: 0, // Logic for delay check would go here
+        delayedOrders: 0,
         completedToday: orders.filter(o => o.status === 'COMPLETED').length
       });
+
+      // Update tracked order in real-time
+      if (trackedOrder) {
+        const updated = orders.find(o => o.id === trackedOrder.id);
+        if (updated) setTrackedOrder(updated);
+      }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     }
@@ -161,6 +177,250 @@ const AdminDashboard = () => {
             <p className="text-2xl font-bold mt-1">{stat.value}</p>
           </motion.div>
         ))}
+      </div>
+
+      {/* Order Tracking Section */}
+      <div className="glass rounded-2xl p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 bg-blue-500/10 rounded-xl">
+            <MapPin className="text-blue-400" size={22} />
+          </div>
+          <div>
+            <h3 className="font-bold text-lg">Track Order</h3>
+            <p className="text-gray-500 text-xs">Enter order number or customer name to track in real-time</p>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-3 mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+            <input
+              type="text"
+              placeholder="Enter order number or customer name..."
+              value={trackingQuery}
+              onChange={(e) => setTrackingQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const query = trackingQuery.trim().toLowerCase();
+                  if (!query) return;
+                  const found = allOrders.find(o =>
+                    o.id.toLowerCase().includes(query) ||
+                    (o.orderNumber && o.orderNumber.toLowerCase().includes(query)) ||
+                    o.customerName.toLowerCase().includes(query)
+                  );
+                  if (found) {
+                    setTrackedOrder(found);
+                    setTrackingError('');
+                  } else {
+                    setTrackedOrder(null);
+                    setTrackingError('No order found with that number or name.');
+                  }
+                }
+              }}
+              className="w-full bg-gray-800/50 border border-gray-700 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-blue-500 transition-all text-sm"
+            />
+          </div>
+          <button
+            onClick={() => {
+              const query = trackingQuery.trim().toLowerCase();
+              if (!query) return;
+              const found = allOrders.find(o =>
+                o.id.toLowerCase().includes(query) ||
+                (o.orderNumber && o.orderNumber.toLowerCase().includes(query)) ||
+                o.customerName.toLowerCase().includes(query)
+              );
+              if (found) {
+                setTrackedOrder(found);
+                setTrackingError('');
+              } else {
+                setTrackedOrder(null);
+                setTrackingError('No order found with that number or name.');
+              }
+            }}
+            className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold text-sm transition-colors flex items-center gap-2"
+          >
+            <Search size={16} />
+            Track
+          </button>
+        </div>
+
+        {trackingError && (
+          <div className="text-center py-6 text-red-400 text-sm font-medium">
+            {trackingError}
+          </div>
+        )}
+
+        {trackedOrder && (() => {
+          const pipeline = ['STORE', 'CUTTING', 'STITCHING', 'QUALITY_CHECK', 'PRESSING', 'PACKAGING', 'DISPATCH'];
+          const finalStatuses = ['READY_FOR_DELIVERY', 'OUT_FOR_DELIVERY', 'COMPLETED'];
+          const isFinal = finalStatuses.includes(trackedOrder.status);
+          const currentIndex = isFinal ? pipeline.length : pipeline.indexOf(trackedOrder.currentStage);
+
+          // Build stage info from order stages
+          const stageMap = {};
+          if (trackedOrder.stages) {
+            trackedOrder.stages.forEach(s => {
+              stageMap[s.stageName] = s;
+            });
+          }
+
+          return (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-gray-800/30 rounded-2xl p-6 border border-gray-700/50"
+            >
+              {/* Order Info Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-emerald-500 rounded-2xl flex items-center justify-center font-black text-lg shadow-lg">
+                    {trackedOrder.customerName.charAt(0)}
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-lg">{trackedOrder.customerName}</h4>
+                    <p className="text-xs text-gray-500">Order #{trackedOrder.orderNumber || trackedOrder.id.substring(0, 8)}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  {trackedOrder.urgent && (
+                    <span className="text-blue-400 text-xs font-bold flex items-center bg-blue-400/10 px-3 py-1.5 rounded-full">
+                      <span className="w-2 h-2 bg-blue-400 rounded-full mr-2 animate-pulse"></span>
+                      URGENT
+                    </span>
+                  )}
+                  <span className={`text-xs font-bold px-3 py-1.5 rounded-full border ${
+                    isFinal ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                    : 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+                  }`}>
+                    {trackedOrder.status.replace(/_/g, ' ')}
+                  </span>
+                </div>
+              </div>
+
+              {/* Visual Pipeline Map */}
+              <div className="relative">
+                {/* Desktop: Horizontal */}
+                <div className="hidden md:flex items-start justify-between relative">
+                  {/* Connection line */}
+                  <div className="absolute top-5 left-[5%] right-[5%] h-1 bg-gray-700 rounded-full z-0">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${currentIndex >= 0 ? (currentIndex / (pipeline.length - 1)) * 100 : 0}%` }}
+                      transition={{ duration: 1, ease: 'easeInOut' }}
+                      className="h-full bg-gradient-to-r from-blue-500 to-emerald-500 rounded-full"
+                    />
+                  </div>
+
+                  {pipeline.map((stage, index) => {
+                    const isCompleted = index < currentIndex;
+                    const isCurrent = index === currentIndex && !isFinal;
+                    const isPending = index > currentIndex;
+                    const stageData = stageMap[stage];
+
+                    return (
+                      <div key={stage} className="flex flex-col items-center relative z-10" style={{ width: `${100 / pipeline.length}%` }}>
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ delay: index * 0.1 }}
+                          className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all ${
+                            isCompleted ? 'bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-500/30'
+                            : isCurrent ? 'bg-blue-500 border-blue-500 text-white shadow-lg shadow-blue-500/40 animate-pulse'
+                            : 'bg-gray-800 border-gray-600 text-gray-500'
+                          }`}
+                        >
+                          {isCompleted ? <CheckCircle2 size={18} /> : isCurrent ? <Package size={18} /> : <Circle size={14} />}
+                        </motion.div>
+                        <p className={`text-[10px] font-bold mt-2 text-center uppercase tracking-tight ${
+                          isCompleted ? 'text-emerald-400' : isCurrent ? 'text-blue-400' : 'text-gray-600'
+                        }`}>
+                          {stage.replace(/_/g, ' ')}
+                        </p>
+                        {stageData && stageData.completedAt && (
+                          <p className="text-[8px] text-gray-600 mt-1">
+                            {new Date(stageData.completedAt).toLocaleDateString([], { day: 'numeric', month: 'short' })}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Final: Delivery */}
+                  <div className="flex flex-col items-center relative z-10" style={{ width: `${100 / pipeline.length}%` }}>
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ delay: pipeline.length * 0.1 }}
+                      className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all ${
+                        isFinal ? 'bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-500/30'
+                        : 'bg-gray-800 border-gray-600 text-gray-500'
+                      }`}
+                    >
+                      <Truck size={18} />
+                    </motion.div>
+                    <p className={`text-[10px] font-bold mt-2 text-center uppercase tracking-tight ${
+                      isFinal ? 'text-emerald-400' : 'text-gray-600'
+                    }`}>
+                      DELIVERY
+                    </p>
+                  </div>
+                </div>
+
+                {/* Mobile: Vertical */}
+                <div className="md:hidden space-y-1">
+                  {pipeline.map((stage, index) => {
+                    const isCompleted = index < currentIndex;
+                    const isCurrent = index === currentIndex && !isFinal;
+                    const stageData = stageMap[stage];
+
+                    return (
+                      <div key={stage} className="flex items-center gap-4">
+                        <div className="flex flex-col items-center">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${
+                            isCompleted ? 'bg-emerald-500 border-emerald-500 text-white'
+                            : isCurrent ? 'bg-blue-500 border-blue-500 text-white animate-pulse'
+                            : 'bg-gray-800 border-gray-600 text-gray-500'
+                          }`}>
+                            {isCompleted ? <CheckCircle2 size={14} /> : isCurrent ? <Package size={14} /> : <Circle size={10} />}
+                          </div>
+                          {index < pipeline.length - 1 && (
+                            <div className={`w-0.5 h-6 ${
+                              isCompleted ? 'bg-emerald-500' : 'bg-gray-700'
+                            }`} />
+                          )}
+                        </div>
+                        <div className="pb-6">
+                          <p className={`text-xs font-bold uppercase ${
+                            isCompleted ? 'text-emerald-400' : isCurrent ? 'text-blue-400' : 'text-gray-600'
+                          }`}>
+                            {stage.replace(/_/g, ' ')}
+                          </p>
+                          {stageData && stageData.completedAt && (
+                            <p className="text-[9px] text-gray-600">
+                              {new Date(stageData.completedAt).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {/* Final delivery node */}
+                  <div className="flex items-center gap-4">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${
+                      isFinal ? 'bg-emerald-500 border-emerald-500 text-white'
+                      : 'bg-gray-800 border-gray-600 text-gray-500'
+                    }`}>
+                      <Truck size={14} />
+                    </div>
+                    <p className={`text-xs font-bold uppercase ${
+                      isFinal ? 'text-emerald-400' : 'text-gray-600'
+                    }`}>DELIVERY</p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          );
+        })()}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
