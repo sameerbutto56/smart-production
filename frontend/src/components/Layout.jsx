@@ -9,7 +9,8 @@ import {
   Activity,
   History,
   Menu,
-  X
+  X,
+  Monitor
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -29,6 +30,7 @@ const Sidebar = ({ isOpen, toggle }) => {
     { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['ORDER_EMPLOYEE', 'CUTTING_EMPLOYEE', 'STITCHING_EMPLOYEE', 'QUALITY_CHECK_EMPLOYEE', 'PRESSING_EMPLOYEE', 'PACKAGING_EMPLOYEE'] },
     { name: 'Order Entry', path: '/order-entry', icon: ClipboardList, roles: ['ADMIN', 'ORDER_EMPLOYEE'] },
     { name: 'All Orders', path: '/orders', icon: Package, roles: ['ADMIN'] },
+    { name: 'Command Center', path: '/progress', icon: Monitor, roles: ['ADMIN', 'MAIN_EMPLOYEE'] },
     { name: 'History', path: '/history', icon: History, roles: ['ADMIN', 'MAIN_EMPLOYEE'] },
   ];
 
@@ -56,7 +58,7 @@ const Sidebar = ({ isOpen, toggle }) => {
       `}>
         <div className="p-8 flex items-center justify-between">
           <h1 className="text-2xl font-black bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent italic">
-            SmartPro
+            Enamels
           </h1>
           <button onClick={toggle} className="lg:hidden text-gray-400 hover:text-white">
             <X size={24} />
@@ -115,7 +117,7 @@ const Layout = () => {
         {/* Mobile Top Bar */}
         <header className="lg:hidden h-16 border-b border-gray-800 bg-gray-900 flex items-center px-6 justify-between flex-shrink-0">
           <h1 className="text-xl font-black bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent italic">
-            SmartPro
+            Enamels
           </h1>
           <button 
             onClick={() => setIsSidebarOpen(true)}

@@ -13,7 +13,11 @@ import {
   ShieldAlert,
   X
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { io } from 'socket.io-client';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const socket = io(API_URL);
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState({
@@ -30,11 +34,18 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     fetchDashboardData();
+
+    socket.on('order-updated', fetchDashboardData);
+    socket.on('new-order', fetchDashboardData);
+
+    return () => {
+      socket.off('order-updated');
+      socket.off('new-order');
+    };
   }, []);
 
   const fetchDashboardData = async () => {
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
       const response = await axios.get(`${API_URL}/api/orders`);
       const orders = response.data;
       

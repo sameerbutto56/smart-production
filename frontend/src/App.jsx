@@ -9,6 +9,7 @@ import OrderEntry from './pages/OrderEntry';
 import InventoryManagement from './pages/InventoryManagement';
 import AllOrders from './pages/AllOrders';
 import History from './pages/History';
+import ProgressChart from './pages/ProgressChart';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -45,6 +46,7 @@ function App() {
             <Route path="order-entry" element={<OrderEntry />} />
             <Route path="orders" element={<AllOrders />} />
             <Route path="history" element={<History />} />
+            <Route path="progress" element={<ProgressChart />} />
           </Route>
         </Routes>
       </Router>
