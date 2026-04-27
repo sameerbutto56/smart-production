@@ -67,8 +67,14 @@ setTimeout(() => {
 
 const PORT = process.env.PORT || 5000;
 
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+server.listen(PORT, '0.0.0.0', async () => {
+  console.log(`🚀 Server is running on http://0.0.0.0:${PORT}`);
+  try {
+    await prisma.$connect();
+    console.log('✅ Connected to the database successfully');
+  } catch (err) {
+    console.error('❌ Database connection failed:', err.message);
+  }
 });
 
 module.exports = { app, io, prisma };
