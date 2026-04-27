@@ -71,14 +71,25 @@ setTimeout(() => {
 
 const PORT = process.env.PORT || 5000;
 
-server.listen(PORT, '0.0.0.0', async () => {
-  console.log(`🚀 Server is running on http://0.0.0.0:${PORT}`);
-  try {
-    await prisma.$connect();
-    console.log('✅ Connected to the database successfully');
-  } catch (err) {
-    console.error('❌ Database connection failed:', err.message);
+// Connect to DB with a slight delay if needed
+const connectDB = async (retries = 5) => {
+  while (retries) {
+    try {
+      await prisma.$connect();
+      console.log('✅ Connected to the database successfully');
+      break;
+    } catch (err) {
+      console.error(`❌ Database connection failed (Retries left: ${retries - 1}):`, err.message);
+      retries -= 1;
+      await new Promise(res => setTimeout(res, 5000));
+    }
   }
+};
+
+connectDB();
+
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server is running on http://0.0.0.0:${PORT}`);
 });
 
 module.exports = { app, io, prisma };
