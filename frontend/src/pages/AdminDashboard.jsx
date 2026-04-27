@@ -7,7 +7,11 @@ import {
   AlertTriangle, 
   ArrowUpRight, 
   ArrowDownRight,
-  MoreVertical
+  MoreVertical,
+  Trash2,
+  Lock,
+  ShieldAlert,
+  X
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -19,6 +23,10 @@ const AdminDashboard = () => {
     completedToday: 0
   });
   const [recentOrders, setRecentOrders] = useState([]);
+  const [showClearModal, setShowClearModal] = useState(false);
+  const [adminPassword, setAdminPassword] = useState('');
+  const [isClearing, setIsClearing] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     fetchDashboardData();
@@ -66,6 +74,31 @@ const AdminDashboard = () => {
     const pipeline = ['STORE', 'CUTTING', 'STITCHING', 'QUALITY_CHECK', 'PRESSING', 'PACKAGING', 'DISPATCH', 'DELIVERED'];
     const index = pipeline.indexOf(current);
     return index < pipeline.length - 1 ? pipeline[index + 1] : null;
+  };
+
+  const handleClearData = async (e) => {
+    e.preventDefault();
+    setIsClearing(true);
+    setError('');
+    
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const token = localStorage.getItem('token');
+      
+      await axios.post(`${API_URL}/api/admin/clear-data`, 
+        { password: adminPassword },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      setShowClearModal(false);
+      setAdminPassword('');
+      alert('System data cleared successfully.');
+      fetchDashboardData();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to clear data');
+    } finally {
+      setIsClearing(false);
+    }
   };
 
   return (
@@ -214,6 +247,105 @@ const AdminDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Danger Zone */}
+      <div className="mt-12 p-8 border-2 border-red-500/20 bg-red-500/5 rounded-3xl">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-red-500/10 rounded-2xl">
+              <ShieldAlert className="text-red-500" size={32} />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-white mb-1">Danger Zone</h3>
+              <p className="text-gray-400 text-sm max-w-xl">
+                Clearing all data will permanently delete all orders, inventory items, and logs. 
+                This action is irreversible. Use with extreme caution.
+              </p>
+            </div>
+          </div>
+          <button 
+            onClick={() => setShowClearModal(true)}
+            className="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-2xl font-bold transition-all whitespace-nowrap"
+          >
+            <Trash2 size={20} />
+            Wipe System Data
+          </button>
+        </div>
+      </div>
+
+      {/* Clear Data Modal */}
+      {showClearModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            onClick={() => !isClearing && setShowClearModal(false)}
+          />
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="relative w-full max-w-md glass p-8 rounded-3xl border border-red-500/30 shadow-2xl shadow-red-500/10"
+          >
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-red-500/20 rounded-lg">
+                  <Lock className="text-red-500" size={20} />
+                </div>
+                <h3 className="text-xl font-bold">Admin Verification</h3>
+              </div>
+              {!isClearing && (
+                <button onClick={() => setShowClearModal(false)} className="text-gray-400 hover:text-white">
+                  <X size={24} />
+                </button>
+              )}
+            </div>
+
+            <form onSubmit={handleClearData} className="space-y-6">
+              <p className="text-gray-400 text-sm">
+                Please enter your admin password to confirm the permanent deletion of all system data.
+              </p>
+
+              {error && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 text-sm text-center">
+                  {error}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">Password</label>
+                <input 
+                  type="password"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-red-500/50 transition-colors text-white"
+                  placeholder="Enter admin password"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-4 pt-2">
+                <button 
+                  type="button"
+                  disabled={isClearing}
+                  onClick={() => setShowClearModal(false)}
+                  className="flex-1 bg-white/5 hover:bg-white/10 text-white font-bold py-3 rounded-2xl transition-all disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  disabled={isClearing || !adminPassword}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-2xl transition-all shadow-lg shadow-red-600/20 disabled:opacity-50"
+                >
+                  {isClearing ? 'Clearing...' : 'Confirm Wipe'}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };

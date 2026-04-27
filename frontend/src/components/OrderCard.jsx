@@ -17,7 +17,10 @@ const OrderCard = ({ order, onUpdateStage }) => {
       const diff = deadline - now;
 
       if (diff <= 0) {
-        setTimeLeft('DELAYED');
+        const absoluteDiff = Math.abs(diff);
+        const h = Math.floor(absoluteDiff / (1000 * 60 * 60));
+        const m = Math.floor((absoluteDiff % (1000 * 60 * 60)) / (1000 * 60));
+        setTimeLeft(`DELAYED: ${h}h ${m}m`);
         setIsDelayed(true);
         return;
       }

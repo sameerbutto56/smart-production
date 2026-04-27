@@ -48,10 +48,12 @@ app.get('/', (req, res) => {
 const authRoutes = require('./routes/auth.routes');
 const orderRoutes = require('./routes/order.routes');
 const inventoryRoutes = require('./routes/inventory.routes');
+const adminRoutes = require('./routes/admin.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/inventory', inventoryRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Socket.io logic
 io.on('connection', (socket) => {

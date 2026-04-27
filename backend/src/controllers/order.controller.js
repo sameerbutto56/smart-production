@@ -118,7 +118,8 @@ const updateStage = async (req, res) => {
       updatedOrder = await prisma.order.update({
         where: { id: orderId },
         data: { 
-          status: 'OUT FOR DELIVERY'
+          currentStage: 'OUT_FOR_DELIVERY',
+          status: 'OUT_FOR_DELIVERY'
         }
       });
     } else if (status === 'REJECTED') {
