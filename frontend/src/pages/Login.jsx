@@ -38,8 +38,8 @@ const Login = () => {
         className="w-full max-w-md glass p-8 rounded-2xl shadow-2xl relative z-10"
       >
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent mb-2">
-            Smart Production
+          <h1 className="text-4xl font-black bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent mb-2 uppercase italic tracking-tighter">
+            Enamels
           </h1>
           <p className="text-gray-400 text-sm">Order Tracking & Workflow Management</p>
         </div>
