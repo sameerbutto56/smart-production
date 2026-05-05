@@ -144,7 +144,6 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
     ));
   };
 
-  const isFaisal = ['FAISAL', 'SUPER_ADMIN', 'ADMIN'].includes(userRole);
   const isWaitingApproval = currentStage?.status === 'WAITING_APPROVAL';
 
   return (

@@ -9,16 +9,16 @@ datasource db {
 }
 
 model User {
-  id          String   @id @default(uuid())
-  name        String
-  email       String   @unique
-  password    String
-  role        String   @default("ORDER_ENTRY") // ORDER_ENTRY, FAISAL, SUPER_ADMIN, STORE, CUTTING, STITCHING, QA, PRESSING_PACKING, NAME_LOGO, CUSTOM_LOGO, DISPATCH
-  employeeId  String?  @unique
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  stages      OrderStage[]
-  auditLogs   AuditLog[]
+  id         String       @id @default(uuid())
+  name       String
+  email      String       @unique
+  password   String
+  role       String       @default("ORDER_ENTRY")
+  employeeId String?      @unique
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  auditLogs  AuditLog[]
+  stages     OrderStage[]
 }
 
 model Order {
@@ -26,39 +26,39 @@ model Order {
   orderNumber     String?      @unique
   shopifyOrderId  String?      @unique
   customerName    String
-  type            String       @default("STANDARD") // STANDARD, READY_LOGO, FULL_CUSTOM
+  type            String       @default("STANDARD")
   urgent          Boolean      @default(false)
   logoDesign      String?
   logoName        String?
-  customization   String?      // Stores structured JSON
-  productDetails  String?      // Stores structured JSON
-  sizeData        String?      // Stores structured JSON
+  customization   String?
+  productDetails  String?
+  sizeData        String?
   currentStage    String       @default("ORDER_ENTRY")
-  status          String       @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED, CANCELLED, DELAYED
-  paymentStatus   String       @default("PENDING") // PENDING, ADVANCE_PAID, FULL_PAID
-  paymentDeadline DateTime?
+  status          String       @default("PENDING")
   advancePaid     Boolean      @default(false)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
-  stages          OrderStage[]
+  paymentDeadline DateTime?
+  paymentStatus   String       @default("PENDING")
   auditLogs       AuditLog[]
+  stages          OrderStage[]
 }
 
 model OrderStage {
-  id                 String      @id @default(uuid())
+  id                 String    @id @default(uuid())
   orderId            String
-  order              Order       @relation(fields: [orderId], references: [id])
   stageName          String
   assignedEmployeeId String?
-  assignedEmployee   User?       @relation(fields: [assignedEmployeeId], references: [id])
-  status             String      @default("PENDING") // PENDING, IN_PROGRESS, WAITING_APPROVAL, COMPLETED, REJECTED
-  requestNextStep    Boolean     @default(false)
-  rejectionReason    String?
+  status             String    @default("PENDING")
   startedAt          DateTime?
   completedAt        DateTime?
   deadlineAt         DateTime?
-  createdAt          DateTime    @default(now())
-  updatedAt          DateTime    @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  rejectionReason    String?
+  requestNextStep    Boolean   @default(false)
+  assignedEmployee   User?     @relation(fields: [assignedEmployeeId], references: [id])
+  order              Order     @relation(fields: [orderId], references: [id])
 
   @@index([orderId])
 }
@@ -66,31 +66,32 @@ model OrderStage {
 model AuditLog {
   id          String   @id @default(uuid())
   orderId     String
-  order       Order    @relation(fields: [orderId], references: [id])
   action      String
   performedBy String
-  user        User     @relation(fields: [performedBy], references: [id])
   timestamp   DateTime @default(now())
+  order       Order    @relation(fields: [orderId], references: [id])
+  user        User     @relation(fields: [performedBy], references: [id])
 
   @@index([orderId])
 }
 
 model InventoryItem {
-  id          String   @id @default(uuid())
-  name        String
-  category    String   // e.g., SCRUBS, COAT, FABRIC, COLOR
-  color       String?  // New field
-  fabric      String?  // New field
-  stock       Int      @default(0)
-  price       Float?
-  metadata    String?  // JSON string for additional properties
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(uuid())
+  name      String
+  category  String
+  color     String?
+  fabric    String?
+  stock     Int      @default(0)
+  price     Float?
+  metadata  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
+
 model SystemSetting {
   id        String   @id @default(uuid())
   key       String   @unique
-  value     String   // Stores JSON or simple values
+  value     String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
