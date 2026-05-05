@@ -171,7 +171,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
               <p className="text-sm text-gray-400 font-bold tracking-wide">{order.customerName}</p>
             </div>
             <div className={`px-4 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-lg ${isDelayed ? 'bg-red-500/20 text-red-500 border border-red-500/20' : 'bg-blue-500/20 text-blue-400 border border-blue-500/20'}`}>
-              {currentStage?.stageName.replace('_', ' ')}
+              {isWaitingApproval ? `WAITING: ${currentStage?.stageName.replace('_', ' ')}` : currentStage?.stageName.replace('_', ' ')}
             </div>
           </div>
 
