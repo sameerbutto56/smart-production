@@ -4,11 +4,17 @@ import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X 
 import axios from 'axios';
 
 const OrderCard = ({ order, onUpdateStage, userRole }) => {
-  const currentStage = order.stages[0]; // Assuming stages are sorted by date desc
+  const currentStage = order.stages.find(s => s.status === 'WAITING_APPROVAL') || 
+                      order.stages.find(s => s.status === 'IN_PROGRESS') || 
+                      order.stages.find(s => s.status === 'PENDING') || 
+                      order.stages[0];
+
+  const isFaisal = ['FAISAL', 'SUPER_ADMIN', 'ADMIN'].includes(userRole);
   const [timeLeft, setTimeLeft] = useState('');
   const [isDelayed, setIsDelayed] = useState(false);
   const [showFullSheet, setShowFullSheet] = useState(false);
   const [urgencyColor, setUrgencyColor] = useState('text-blue-400');
+  const [inventory, setInventory] = useState([]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -138,7 +144,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
     ));
   };
 
-  const isFaisal = userRole === 'FAISAL' || userRole === 'SUPER_ADMIN';
+  const isFaisal = ['FAISAL', 'SUPER_ADMIN', 'ADMIN'].includes(userRole);
   const isWaitingApproval = currentStage?.status === 'WAITING_APPROVAL';
 
   return (
