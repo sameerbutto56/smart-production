@@ -155,10 +155,10 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
         className={`glass rounded-3xl overflow-hidden mb-6 ${order.urgent ? 'card-urgent' : isDelayed ? 'card-delayed' : 'border border-gray-800'} ${order.status === 'REJECTED' ? 'border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.1)]' : ''}`}
       >
         <div className="p-6">
-          <div className="flex justify-between items-start mb-6">
-            <div>
-              <div className="flex items-center space-x-3 mb-1">
-                <h3 className="font-black text-3xl tracking-tighter text-white">#{order.orderNumber || order.id.substring(0, 8)}</h3>
+          <div className="flex justify-between items-start mb-6 gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <h3 className="font-black text-2xl tracking-tighter text-white whitespace-nowrap truncate">#{order.orderNumber || order.id.substring(0, 8)}</h3>
                 {order.urgent && (
                   <span className="bg-blue-600 text-[10px] font-black px-2 py-0.5 rounded-full animate-pulse uppercase tracking-tighter">Urgent</span>
                 )}
@@ -168,10 +168,10 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                   {order.type}
                 </span>
               </div>
-              <p className="text-sm text-gray-400 font-bold tracking-wide">{order.customerName}</p>
+              <p className="text-sm text-gray-400 font-bold tracking-wide truncate">{order.customerName}</p>
             </div>
-            <div className={`px-4 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-lg ${isDelayed ? 'bg-red-500/20 text-red-500 border border-red-500/20' : 'bg-blue-500/20 text-blue-400 border border-blue-500/20'}`}>
-              {isWaitingApproval ? `WAITING: ${currentStage?.stageName.replace('_', ' ')}` : currentStage?.stageName.replace('_', ' ')}
+            <div className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider shadow-lg max-w-[45%] text-center leading-tight ${isDelayed ? 'bg-red-500/20 text-red-500 border border-red-500/20' : 'bg-blue-500/20 text-blue-400 border border-blue-500/20'}`}>
+              {isWaitingApproval ? `WAITING:\n${currentStage?.stageName.replace('_', ' ')}` : currentStage?.stageName.replace('_', ' ')}
             </div>
           </div>
 
