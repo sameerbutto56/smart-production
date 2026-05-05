@@ -148,6 +148,10 @@ const SmartOrderForm = () => {
     return null;
   };
 
+  const preventEnterSubmit = (e) => {
+    if (e.key === 'Enter') e.preventDefault();
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isSubmitting) return; // Prevent double submit
@@ -211,7 +215,9 @@ const SmartOrderForm = () => {
         fitType: 'Regular',
         designNotes: '',
         additionalFeatures: [],
-        measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hips: '' }
+        measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hips: '' },
+        gender: 'Male',
+        femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long' }
       });
       setActiveTab('basic');
       setTimeout(() => setSuccess(false), 3000);
@@ -727,21 +733,21 @@ const SmartOrderForm = () => {
                     <div className="group relative flex flex-col items-center md:items-end">
                       <label className="block text-[11px] font-black text-gray-500 uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Shoulder</label>
                       <div className="relative flex items-end w-48 bg-gray-900/80 p-4 rounded-2xl border border-gray-800 shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
-                        <input type="number" step="0.1" value={formData.measurements.shoulder} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, shoulder: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-right" placeholder="00" />
+                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.shoulder} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, shoulder: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-right" placeholder="00" />
                         <span className="absolute right-4 bottom-5 text-[10px] font-black text-emerald-500/50">IN</span>
                       </div>
                     </div>
                     <div className="group relative flex flex-col items-center md:items-end">
                       <label className="block text-[11px] font-black text-gray-500 uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Chest</label>
                       <div className="relative flex items-end w-48 bg-gray-900/80 p-4 rounded-2xl border border-gray-800 shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
-                        <input type="number" step="0.1" value={formData.measurements.chest} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, chest: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-right" placeholder="00" />
+                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.chest} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, chest: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-right" placeholder="00" />
                         <span className="absolute right-4 bottom-5 text-[10px] font-black text-emerald-500/50">IN</span>
                       </div>
                     </div>
                     <div className="group relative flex flex-col items-center md:items-end">
                       <label className="block text-[11px] font-black text-gray-500 uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Sleeve</label>
                       <div className="relative flex items-end w-48 bg-gray-900/80 p-4 rounded-2xl border border-gray-800 shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
-                        <input type="number" step="0.1" value={formData.measurements.sleeve} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, sleeve: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-right" placeholder="00" />
+                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.sleeve} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, sleeve: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-right" placeholder="00" />
                         <span className="absolute right-4 bottom-5 text-[10px] font-black text-emerald-500/50">IN</span>
                       </div>
                     </div>
@@ -749,7 +755,7 @@ const SmartOrderForm = () => {
 
                   {/* Center Silhouette */}
                   <div className="hidden md:flex relative w-1/3 justify-center items-center min-h-[500px]">
-                    <img src="/silhouette.png" alt="Tailor Silhouette" className="h-[550px] object-contain opacity-60 filter drop-shadow-[0_0_30px_rgba(16,185,129,0.2)]" />
+                    <img src={formData.gender === 'Female' ? '/silhouette-female.png' : '/silhouette.png'} alt="Tailor Silhouette" className="h-[550px] object-contain opacity-60 filter drop-shadow-[0_0_30px_rgba(16,185,129,0.2)]" />
                     
                     {/* Connecting Lines */}
                     <div className="absolute top-[20%] left-[10%] w-[40%] border-t border-dashed border-emerald-500/40"></div>
@@ -766,21 +772,21 @@ const SmartOrderForm = () => {
                     <div className="group relative flex flex-col items-center md:items-start">
                       <label className="block text-[11px] font-black text-gray-500 uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Waist</label>
                       <div className="relative flex items-end w-48 bg-gray-900/80 p-4 rounded-2xl border border-gray-800 shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
-                        <input type="number" step="0.1" value={formData.measurements.waist} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, waist: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder="00" />
+                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.waist} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, waist: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder="00" />
                         <span className="absolute right-4 bottom-5 text-[10px] font-black text-emerald-500/50">IN</span>
                       </div>
                     </div>
                     <div className="group relative flex flex-col items-center md:items-start">
                       <label className="block text-[11px] font-black text-gray-500 uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Hips</label>
                       <div className="relative flex items-end w-48 bg-gray-900/80 p-4 rounded-2xl border border-gray-800 shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
-                        <input type="number" step="0.1" value={formData.measurements.hips} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, hips: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder="00" />
+                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.hips} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, hips: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder="00" />
                         <span className="absolute right-4 bottom-5 text-[10px] font-black text-emerald-500/50">IN</span>
                       </div>
                     </div>
                     <div className="group relative flex flex-col items-center md:items-start">
                       <label className="block text-[11px] font-black text-gray-500 uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Length</label>
                       <div className="relative flex items-end w-48 bg-gray-900/80 p-4 rounded-2xl border border-gray-800 shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
-                        <input type="number" step="0.1" value={formData.measurements.length} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, length: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder="00" />
+                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.length} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, length: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder="00" />
                         <span className="absolute right-4 bottom-5 text-[10px] font-black text-emerald-500/50">IN</span>
                       </div>
                     </div>
