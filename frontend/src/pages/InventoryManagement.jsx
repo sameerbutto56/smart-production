@@ -215,7 +215,7 @@ const InventoryManagement = () => {
               initial={{ opacity: 0, scale: 0.9, y: 30 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 30 }}
-              className="glass max-w-xl w-full p-10 rounded-[3rem] border-2 border-gray-800 shadow-[0_50px_100px_rgba(0,0,0,0.5)] relative overflow-hidden"
+              className="glass max-w-xl w-full max-h-[90vh] overflow-y-auto custom-scrollbar p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] border-2 border-gray-800 shadow-[0_50px_100px_rgba(0,0,0,0.5)] relative"
             >
               <div className="absolute top-0 right-0 p-10 opacity-5 rotate-12 pointer-events-none">
                 <Package size={200} />
@@ -247,7 +247,7 @@ const InventoryManagement = () => {
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-3">
                       <label className="text-xs font-black text-gray-600 uppercase tracking-widest ml-1">Universal Category</label>
                       <select
@@ -270,8 +270,20 @@ const InventoryManagement = () => {
                         type="number"
                         required
                         value={formData.stock}
-                        onChange={(e) => setFormData({...formData, stock: parseInt(e.target.value)})}
+                        onChange={(e) => setFormData({...formData, stock: parseInt(e.target.value) || 0})}
                         className="w-full bg-gray-950 border-2 border-gray-800 rounded-2xl py-5 px-6 focus:border-blue-600 outline-none font-black text-xl"
+                      />
+                    </div>
+                    <div className="space-y-3">
+                      <label className="text-xs font-black text-gray-600 uppercase tracking-widest ml-1">Unit Price ($)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        required
+                        value={formData.price}
+                        onChange={(e) => setFormData({...formData, price: parseFloat(e.target.value) || 0})}
+                        className="w-full bg-gray-950 border-2 border-gray-800 rounded-2xl py-5 px-6 focus:border-emerald-600 outline-none font-black text-xl text-emerald-400"
                       />
                     </div>
                   </div>
