@@ -11,6 +11,7 @@ import AllOrders from './pages/AllOrders';
 import History from './pages/History';
 import ProgressChart from './pages/ProgressChart';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
+import { Toaster } from 'react-hot-toast';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -36,6 +37,7 @@ const AuthRedirectHandler = () => {
 function App() {
   return (
     <AuthProvider>
+      <Toaster position="top-right" reverseOrder={false} />
       <Router>
         <Routes>
           <Route path="/login" element={<Login />} />

@@ -202,6 +202,7 @@ const rejectStageCompletion = async (req, res) => {
 
     const io = req.app.get('io');
     io.emit('stage-rejected', { orderId, stage, reason });
+    io.emit('order-updated', { orderId }); // Ensure general update is also sent
 
     res.json({ message: 'Stage rejected and sent back to employee', stage });
   } catch (error) {
@@ -245,7 +246,8 @@ const updatePaymentStatus = async (req, res) => {
     }
 
     const io = req.app.get('io');
-    io.emit('order-updated', { orderId });
+    io.emit('order-updated', { orderId, paymentStatus: order.paymentStatus });
+    io.emit('payment-updated', { orderId, order });
 
     res.json({ message: 'Payment status updated', order });
   } catch (error) {

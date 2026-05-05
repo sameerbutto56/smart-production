@@ -15,9 +15,9 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { io } from 'socket.io-client';
+import socket from '../socket';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-const socket = io(API_URL);
 
 const SuperAdminDashboard = () => {
   const [analytics, setAnalytics] = useState(null);
@@ -114,16 +114,8 @@ const SuperAdminDashboard = () => {
             <h1 className="text-4xl font-black text-white tracking-tight">Super Admin Portal</h1>
             <p className="text-gray-400 font-bold uppercase tracking-widest text-xs mt-1">Global System Oversight</p>
           </div>
-        </div>
-        <div className="flex space-x-4">
-          <button className="bg-gray-800 hover:bg-gray-700 text-white p-4 rounded-2xl transition-all border border-gray-700">
-            <Settings size={20} />
-          </button>
-          <button className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl shadow-blue-900/40">
-            System Settings
-          </button>
-        </div>
       </div>
+
 
       {/* Main Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">

@@ -3,11 +3,11 @@ import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import OrderCard from '../components/OrderCard';
 import { useAuth } from '../context/AuthContext';
-import { Search, Filter, Loader2, Sparkles } from 'lucide-react';
-import { io } from 'socket.io-client';
+import { Search, Filter, Loader2, Sparkles, AlertCircle } from 'lucide-react';
+import socket from '../socket';
+import toast from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-const socket = io(API_URL);
 
 const MyTasks = () => {
   const { user } = useAuth();
@@ -22,8 +22,17 @@ const MyTasks = () => {
       fetchTasks();
     });
 
+    socket.on('stage-rejected', (data) => {
+      fetchTasks();
+      toast.error(`Task Rejected: Order #${data.orderId.substring(0, 8)}`, {
+        duration: 8000,
+        icon: <AlertCircle className="text-red-500" />
+      });
+    });
+
     return () => {
       socket.off('order-updated');
+      socket.off('stage-rejected');
     };
   }, []);
 

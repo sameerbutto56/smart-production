@@ -11,6 +11,8 @@ import {
   Truck
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import socket from '../socket';
+import toast from 'react-hot-toast';
 
 const AllOrders = () => {
   const [orders, setOrders] = useState([]);
@@ -19,6 +21,17 @@ const AllOrders = () => {
 
   useEffect(() => {
     fetchOrders();
+
+    socket.on('order-updated', fetchOrders);
+    socket.on('new-order', () => {
+      fetchOrders();
+      toast('New order created', { icon: '📦' });
+    });
+
+    return () => {
+      socket.off('order-updated');
+      socket.off('new-order');
+    };
   }, []);
 
   const fetchOrders = async () => {

@@ -19,12 +19,13 @@ import {
   Circle 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { io } from 'socket.io-client';
+import socket from '../socket';
 import OrderCard from '../components/OrderCard';
 import { useAuth } from '../context/AuthContext';
+import toast from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-const socket = io(API_URL);
+const NOTIFICATION_SOUND = 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
 
 const AdminDashboard = () => {
   const { user } = useAuth();
@@ -48,23 +49,64 @@ const AdminDashboard = () => {
     fetchDashboardData();
     fetchAnalytics();
 
-    socket.on('order-updated', () => {
+    const playNotification = () => {
+      const audio = new Audio(NOTIFICATION_SOUND);
+      audio.play().catch(e => console.error('Audio play failed:', e));
+    };
+
+    socket.on('order-updated', (data) => {
       fetchDashboardData();
       fetchAnalytics();
+      if (data?.paymentStatus) {
+        toast.success(`Payment updated: ${data.paymentStatus}`);
+      }
     });
-    socket.on('new-order', () => {
+
+    socket.on('new-order', (order) => {
       fetchDashboardData();
       fetchAnalytics();
+      toast.success(`New Order Received: #${order.orderNumber || order.id.substring(0, 8)}`, {
+        icon: '🛍️',
+        duration: 5000
+      });
+      playNotification();
     });
-    socket.on('stage-completion-requested', () => {
+
+    socket.on('stage-completion-requested', (data) => {
       fetchDashboardData();
       fetchAnalytics();
+      toast.custom((t) => (
+        <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-gray-900 shadow-2xl rounded-[1.5rem] pointer-events-auto flex ring-1 ring-emerald-500/50 border border-emerald-500/20 p-4`}>
+          <div className="flex-1 w-0 p-1">
+            <div className="flex items-start">
+              <div className="flex-shrink-0 pt-0.5">
+                <div className="h-10 w-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <ClipboardList size={20} />
+                </div>
+              </div>
+              <div className="ml-3 flex-1">
+                <p className="text-sm font-black text-white uppercase tracking-tight">New Approval Request</p>
+                <p className="mt-1 text-xs text-gray-400 font-bold uppercase tracking-widest">
+                  {data.stage?.stageName?.replace('_', ' ')} completed for Order #{data.orderId?.substring(0, 8)}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      ), { duration: 6000 });
+      playNotification();
+    });
+
+    socket.on('payment-updated', (data) => {
+        fetchDashboardData();
+        toast.success(`Order #${data.orderId?.substring(0, 8)}: Payment ${data.order.paymentStatus}`, { icon: '💰' });
     });
 
     return () => {
       socket.off('order-updated');
       socket.off('new-order');
       socket.off('stage-completion-requested');
+      socket.off('payment-updated');
     };
   }, []);
 
@@ -155,13 +197,8 @@ const AdminDashboard = () => {
         <div>
           <h1 className="text-4xl font-black text-white tracking-tight">Faisal Control Center</h1>
           <p className="text-gray-400 font-bold uppercase tracking-widest text-xs mt-2">Production Approval Hub</p>
-        </div>
-        <div className="flex items-center space-x-4">
-          <button className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-blue-900/40">
-            System Report
-          </button>
-        </div>
       </div>
+
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">

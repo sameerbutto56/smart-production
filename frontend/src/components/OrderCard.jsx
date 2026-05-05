@@ -246,9 +246,16 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                     <button
                       onClick={() => {
                         const status = order.paymentStatus === 'PENDING' ? 'ADVANCE_PAID' : 'FULL_PAID';
-                        axios.put(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/orders/${order.id}/payment`, { paymentStatus: status }, {
+                        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                        axios.put(`${API_URL}/api/orders/${order.id}/payment`, { paymentStatus: status }, {
                           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-                        }).then(() => window.location.reload());
+                        }).then(() => {
+                          // No reload needed! The socket will trigger re-fetch in parent
+                          // but we can add a local feedback too
+                        }).catch(err => {
+                          console.error('Payment update failed:', err);
+                          alert('Payment update failed');
+                        });
                       }}
                       className="p-4 bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white rounded-2xl transition-all border border-yellow-500/20 active:scale-95"
                       title="Update Payment"
@@ -279,7 +286,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
         {/* Progress Bar */}
         <div className="h-1.5 bg-gray-900 flex px-1 pb-1">
           <div 
-            className="h-full bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full transition-all duration-1000 shadow-[0_0_15px_rgba(59,130,246,0.5)]" 
+            className="h-full bg-gradient-to-r from-emerald-500 to-green-500 rounded-full transition-all duration-1000 shadow-[0_0_15px_rgba(16,185,129,0.5)]" 
             style={{ width: `${(currentPipeline.indexOf(currentStage?.stageName) + 1) / currentPipeline.length * 100}%` }}
           ></div>
         </div>
