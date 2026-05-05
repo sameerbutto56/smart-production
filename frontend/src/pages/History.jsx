@@ -13,6 +13,8 @@ import { motion } from 'framer-motion';
 const History = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedAuditLog, setSelectedAuditLog] = useState(null);
+  const [isClearing, setIsClearing] = useState(false);
 
   useEffect(() => {
     fetchHistory();
@@ -22,8 +24,8 @@ const History = () => {
     try {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
       const response = await axios.get(`${API_URL}/api/orders`);
-      // In a real app, you'd filter for COMPLETED/CANCELLED or fetch from a dedicated endpoint
-      setOrders(response.data);
+      const completedOrders = response.data.filter(order => ['COMPLETED', 'DELIVERED'].includes(order.status));
+      setOrders(completedOrders);
     } catch (error) {
       console.error('Error fetching history:', error);
     }
@@ -32,14 +34,37 @@ const History = () => {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center space-x-3">
-        <div className="p-3 bg-indigo-600 rounded-xl shadow-lg shadow-indigo-900/20">
-          <HistoryIcon className="text-white" size={24} />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <div className="p-3 bg-indigo-600 rounded-xl shadow-lg shadow-indigo-900/20">
+            <HistoryIcon className="text-white" size={24} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold">Production History</h1>
+            <p className="text-gray-400 text-sm">Review past completed orders and performance logs</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold">Production History</h1>
-          <p className="text-gray-400 text-sm">Review past orders and performance logs</p>
-        </div>
+        <button 
+          onClick={async () => {
+            if (window.confirm('Are you sure you want to clear all history? This cannot be undone.')) {
+              setIsClearing(true);
+              try {
+                const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                const token = localStorage.getItem('token');
+                await axios.delete(`${API_URL}/api/orders/history`, { headers: { Authorization: `Bearer ${token}` } });
+                fetchHistory();
+              } catch (error) {
+                console.error('Error clearing history:', error);
+                alert('Failed to clear history');
+              }
+              setIsClearing(false);
+            }
+          }}
+          disabled={isClearing || orders.length === 0}
+          className="bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white px-6 py-3 rounded-xl font-bold text-sm uppercase tracking-widest transition-all disabled:opacity-50"
+        >
+          {isClearing ? 'Clearing...' : 'Clear History'}
+        </button>
       </div>
 
       <div className="grid grid-cols-1 gap-6">
@@ -85,7 +110,10 @@ const History = () => {
                 }`}>
                   {order.status}
                 </div>
-                <button className="p-2 bg-indigo-600/10 text-indigo-400 rounded-lg hover:bg-indigo-600 hover:text-white transition-all text-xs font-bold px-4">
+                <button 
+                  onClick={() => setSelectedAuditLog(order)}
+                  className="p-2 bg-indigo-600/10 text-indigo-400 rounded-lg hover:bg-indigo-600 hover:text-white transition-all text-xs font-bold px-4"
+                >
                   View Audit Log
                 </button>
               </div>
@@ -93,6 +121,44 @@ const History = () => {
           ))
         )}
       </div>
+
+      {/* Audit Log Modal */}
+      {selectedAuditLog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md" onClick={() => setSelectedAuditLog(null)}>
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-gray-900 border border-gray-800 rounded-[2rem] p-8 max-w-2xl w-full max-h-[80vh] overflow-y-auto custom-scrollbar"
+          >
+            <div className="flex justify-between items-center mb-8">
+              <h3 className="text-2xl font-black text-white uppercase tracking-tight">
+                Audit Log: #{selectedAuditLog.orderNumber || selectedAuditLog.id.substring(0, 8)}
+              </h3>
+              <button onClick={() => setSelectedAuditLog(null)} className="text-gray-500 hover:text-white">
+                <FileText size={24} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              {selectedAuditLog.auditLogs && selectedAuditLog.auditLogs.length > 0 ? (
+                selectedAuditLog.auditLogs.map((log) => (
+                  <div key={log.id} className="flex space-x-4 p-4 bg-gray-900/50 rounded-2xl border border-gray-800">
+                    <div className="text-indigo-400 mt-1"><Clock size={16} /></div>
+                    <div>
+                      <p className="text-sm text-gray-300 font-bold">{log.action}</p>
+                      <p className="text-xs text-gray-500 mt-1">By: {log.user?.name || log.performedBy}</p>
+                      <p className="text-xs text-gray-600 mt-1">{new Date(log.timestamp).toLocaleString()}</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-gray-500 text-center py-10">No audit logs found for this order.</p>
+              )}
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };

@@ -6,13 +6,17 @@ const {
   approveStageCompletion, 
   rejectStageCompletion,
   updatePaymentStatus,
-  getAnalytics
+  getAnalytics,
+  clearHistory
 } = require('../controllers/order.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 const router = express.Router();
 
 // Order Entry
 router.post('/', authenticate, authorize(['SUPER_ADMIN', 'FAISAL', 'ORDER_ENTRY']), createOrder);
+
+// Clear history
+router.delete('/history', authenticate, authorize(['SUPER_ADMIN', 'FAISAL']), clearHistory);
 
 // List all orders (available to all authenticated users)
 router.get('/', authenticate, getOrders);
