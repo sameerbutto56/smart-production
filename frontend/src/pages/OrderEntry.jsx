@@ -575,7 +575,7 @@ const SmartOrderForm = () => {
             </motion.div>
           )}
 
-          {activeTab === 'custom' && formData.type === 'custom' && (
+          {activeTab === 'custom' && (formData.type === 'FULL_CUSTOM' || formData.type === 'READY_LOGO') && (
             <motion.div
               key="custom"
               initial={{ opacity: 0, scale: 0.9 }}
@@ -699,7 +699,7 @@ const SmartOrderForm = () => {
             </motion.div>
           )}
 
-          {activeTab === 'sizes' && formData.type === 'custom' && (
+          {activeTab === 'sizes' && formData.type === 'FULL_CUSTOM' && (
             <motion.div
               key="sizes"
               initial={{ opacity: 0, y: 50 }}
