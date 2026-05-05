@@ -386,29 +386,7 @@ const SmartOrderForm = () => {
                       <input type="checkbox" checked={formData.urgent} onChange={(e) => setFormData({...formData, urgent: e.target.checked})} className="w-6 h-6 rounded-lg border-2 border-gray-700 bg-gray-900 checked:bg-blue-600 transition-all cursor-pointer" />
                     </label>
 
-                    <label className={`flex items-center justify-between p-6 bg-gray-950 rounded-[1.5rem] border-2 ${formData.type === 'custom' ? 'border-emerald-500/30' : 'border-gray-800'} cursor-pointer hover:border-emerald-500/30 transition-all group`}>
-                      <div className="flex items-center space-x-4">
-                        <div className={`p-4 rounded-xl transition-all ${formData.advancePaid ? 'bg-emerald-600 text-white shadow-lg' : 'bg-gray-800 text-gray-600'}`}>
-                          <CheckCircle2 size={20} />
-                        </div>
-                        <div>
-                          <p className="font-black text-sm uppercase text-emerald-400">Paid</p>
-                          <p className="text-[10px] text-gray-600 font-bold">
-                            {formData.type === 'custom' ? 'REQUIRED FOR CUSTOM' : 'READY TO CUT'}
-                          </p>
-                        </div>
-                      </div>
-                      <input 
-                        type="checkbox" 
-                        checked={formData.advancePaid} 
-                        onChange={(e) => {
-                          if (formData.type === 'custom') return; // Can't uncheck for custom
-                          setFormData({...formData, advancePaid: e.target.checked});
-                        }} 
-                        disabled={formData.type === 'custom'}
-                        className="w-6 h-6 rounded-lg border-2 border-gray-700 bg-gray-900 checked:bg-emerald-600 transition-all cursor-pointer disabled:opacity-70" 
-                      />
-                    </label>
+
                   </div>
                 </div>
               </div>
