@@ -70,7 +70,14 @@ const SmartOrderForm = () => {
       length: '',
       sleeve: '',
       waist: '',
+      waist: '',
       hips: ''
+    },
+    gender: 'Male',
+    femaleOptions: {
+      dupatta: false,
+      sleeves: 'full',
+      shirtLength: 'long'
     }
   });
 
@@ -164,7 +171,9 @@ const SmartOrderForm = () => {
           productType: formData.productType,
           fabricType: formData.fabricType,
           color: formData.color,
-          size: formData.size
+          size: formData.size,
+          gender: formData.gender,
+          femaleOptions: formData.gender === 'Female' ? formData.femaleOptions : null
         },
         customization: {
           nameSpelling: formData.nameSpelling,
@@ -338,6 +347,45 @@ const SmartOrderForm = () => {
                       />
                     </div>
                   </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                  <div className="space-y-4">
+                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-2">Gender Option</label>
+                    <div className="flex p-2 bg-gray-950 rounded-[1.5rem] border-2 border-gray-800 shadow-inner">
+                      <button
+                        type="button"
+                        onClick={() => setFormData({...formData, gender: 'Male'})}
+                        className={`flex-1 py-4 rounded-xl text-sm font-black transition-all ${formData.gender === 'Male' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-600 hover:text-white'}`}
+                      >
+                        MALE
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({...formData, gender: 'Female'})}
+                        className={`flex-1 py-4 rounded-xl text-sm font-black transition-all ${formData.gender === 'Female' ? 'bg-pink-600 text-white shadow-lg' : 'text-gray-600 hover:text-white'}`}
+                      >
+                        FEMALE
+                      </button>
+                    </div>
+                  </div>
+
+                  {formData.gender === 'Female' && formData.type !== 'FULL_CUSTOM' && (
+                    <div className="space-y-4">
+                      <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-2">Add-ons</label>
+                      <label className="flex items-center justify-between p-4 bg-gray-950 rounded-[1.5rem] border-2 border-gray-800 cursor-pointer hover:border-pink-500/30 transition-all group h-full">
+                        <div className="flex items-center space-x-4">
+                          <div className={`p-3 rounded-xl transition-all ${formData.femaleOptions.dupatta ? 'bg-pink-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
+                            <Layers size={18} />
+                          </div>
+                          <div>
+                            <p className="font-black text-sm uppercase">Include Dupatta</p>
+                          </div>
+                        </div>
+                        <input type="checkbox" checked={formData.femaleOptions.dupatta} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, dupatta: e.target.checked}})} className="w-5 h-5 rounded border-2 border-gray-700 bg-gray-900 checked:bg-pink-600 transition-all cursor-pointer" />
+                      </label>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -738,6 +786,48 @@ const SmartOrderForm = () => {
                     </div>
                   </div>
                 </div>
+
+                {formData.gender === 'Female' && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12 bg-gray-900/50 p-8 rounded-[3rem] border border-gray-800">
+                    <div className="space-y-4">
+                      <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-2">Include Dupatta</label>
+                      <label className="flex items-center justify-between p-4 bg-gray-950 rounded-[1.5rem] border-2 border-gray-800 cursor-pointer hover:border-pink-500/30 transition-all group h-full">
+                        <div className="flex items-center space-x-4">
+                          <div className={`p-3 rounded-xl transition-all ${formData.femaleOptions.dupatta ? 'bg-pink-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
+                            <Layers size={18} />
+                          </div>
+                          <div>
+                            <p className="font-black text-sm uppercase">Dupatta</p>
+                          </div>
+                        </div>
+                        <input type="checkbox" checked={formData.femaleOptions.dupatta} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, dupatta: e.target.checked}})} className="w-5 h-5 rounded border-2 border-gray-700 bg-gray-900 checked:bg-pink-600 transition-all cursor-pointer" />
+                      </label>
+                    </div>
+                    <div className="space-y-4">
+                      <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-2">Sleeves Length</label>
+                      <select
+                        value={formData.femaleOptions.sleeves}
+                        onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, sleeves: e.target.value}})}
+                        className="w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-5 px-6 outline-none font-bold text-gray-300 appearance-none h-full"
+                      >
+                        <option value="half">Half Sleeves</option>
+                        <option value="medium">Medium Sleeves</option>
+                        <option value="full">Full Sleeves</option>
+                      </select>
+                    </div>
+                    <div className="space-y-4">
+                      <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-2">Shirt Length</label>
+                      <select
+                        value={formData.femaleOptions.shirtLength}
+                        onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, shirtLength: e.target.value}})}
+                        className="w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-5 px-6 outline-none font-bold text-gray-300 appearance-none h-full"
+                      >
+                        <option value="short">Short Shirt</option>
+                        <option value="long">Long Shirt</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
 
                 <div className="mt-16 bg-emerald-500/5 border-2 border-emerald-500/10 rounded-[3rem] p-10 flex flex-col md:flex-row items-center md:items-start gap-8 shadow-inner">
                   <div className="p-6 bg-emerald-600 rounded-[2rem] shadow-2xl shadow-emerald-900/50 rotate-6">

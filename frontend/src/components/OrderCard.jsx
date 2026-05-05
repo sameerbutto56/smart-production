@@ -336,8 +336,10 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                     { label: 'Fabric Type', val: product?.fabricType },
                     { label: 'Primary Color', val: product?.color },
                     { label: 'Order Size', val: product?.size },
+                    { label: 'Gender', val: product?.gender },
+                    ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
                     { label: 'Payment', val: order.paymentStatus }
-                  ].map((item, i) => (
+                  ].filter(i => i.val).map((item, i) => (
                     <div key={i} className="bg-gray-950/50 p-6 rounded-3xl border border-gray-800/50">
                       <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-2">{item.label}</p>
                       <p className="text-lg font-bold text-gray-200">{item.val || 'STANDARD'}</p>
@@ -356,6 +358,18 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                         <p className="text-xl font-black text-blue-400">{val}"</p>
                       </div>
                     ))}
+                    {product?.gender === 'Female' && product?.femaleOptions?.sleeves && (
+                      <div className="text-center p-4 bg-gray-900 rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
+                        <p className="text-[9px] text-pink-500 font-black uppercase tracking-tighter mb-1">SLEEVES</p>
+                        <p className="text-sm font-black text-white uppercase">{product.femaleOptions.sleeves}</p>
+                      </div>
+                    )}
+                    {product?.gender === 'Female' && product?.femaleOptions?.shirtLength && (
+                      <div className="text-center p-4 bg-gray-900 rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
+                        <p className="text-[9px] text-pink-500 font-black uppercase tracking-tighter mb-1">SHIRT LENGTH</p>
+                        <p className="text-sm font-black text-white uppercase">{product.femaleOptions.shirtLength}</p>
+                      </div>
+                    )}
                   </div>
                 </section>
               )}
