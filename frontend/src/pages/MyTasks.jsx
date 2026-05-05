@@ -38,28 +38,31 @@ const MyTasks = () => {
     }
   };
 
-  const handleUpdateStage = async (orderId, stageId, status, nextStage) => {
+  const handleAction = async (orderId, stageId, action, payload = {}) => {
     try {
-      await axios.put(`${API_URL}/api/orders/${orderId}/stages/${stageId}`, {
-        status,
-        nextStage
+      const token = localStorage.getItem('token');
+      const endpoint = `${API_URL}/api/orders/${orderId}/stages/${stageId}/${action}`;
+      await axios.put(endpoint, payload, {
+        headers: { Authorization: `Bearer ${token}` }
       });
       fetchTasks();
     } catch (error) {
-      console.error('Error updating stage:', error);
+      console.error(`Error performing ${action}:`, error);
+      alert(error.response?.data?.message || 'Action failed');
     }
   };
 
   const shouldShowOrder = (order) => {
     if (!user) return false;
     const stageRoleMap = {
-      'ORDER_EMPLOYEE': ['ORDER_ENTRY', 'OUT_FOR_DELIVERY'],
-      'STORE_EMPLOYEE': ['STORE'],
-      'CUTTING_EMPLOYEE': ['CUTTING'],
-      'STITCHING_EMPLOYEE': ['STITCHING'],
-      'QUALITY_CHECK_EMPLOYEE': ['QUALITY_CHECK'],
-      'PRESSING_EMPLOYEE': ['PRESSING'],
-      'PACKAGING_EMPLOYEE': ['PACKAGING'],
+      'STORE': ['STORE'],
+      'CUTTING': ['CUTTING'],
+      'STITCHING': ['STITCHING'],
+      'QA': ['QA'],
+      'PRESSING_PACKING': ['PRESSING_PACKING'],
+      'NAME_LOGO': ['NAME_LOGO'],
+      'CUSTOM_LOGO': ['CUSTOM_LOGO'],
+      'DISPATCH': ['DISPATCH'],
     };
 
     const targetStages = stageRoleMap[user.role] || [];
@@ -69,7 +72,8 @@ const MyTasks = () => {
   const filteredOrders = orders.filter(order => 
     shouldShowOrder(order) && 
     (order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-     order.id.toLowerCase().includes(searchTerm.toLowerCase()))
+     order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+     (order.orderNumber && order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase())))
   );
 
   return (
@@ -109,7 +113,8 @@ const MyTasks = () => {
               <OrderCard 
                 key={order.id} 
                 order={order} 
-                onUpdateStage={handleUpdateStage}
+                userRole={user?.role}
+                onUpdateStage={handleAction}
               />
             ))}
           </AnimatePresence>

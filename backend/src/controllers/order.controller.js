@@ -1,51 +1,73 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { calculateDeadline } = require('../utils/deadline');
+
+const getStageDurations = async () => {
+  const settings = await prisma.systemSetting.findUnique({
+    where: { key: 'STAGE_DURATIONS' }
+  });
+  
+  if (settings) {
+    try {
+      return JSON.parse(settings.value);
+    } catch (e) {
+      console.error('Error parsing durations setting:', e);
+    }
+  }
+  
+  // Default values
+  return {
+    'STORE': 2,
+    'CUTTING': 24,
+    'STITCHING': 96,
+    'QA': 2,
+    'PRESSING_PACKING': 2,
+    'NAME_LOGO': 2,
+    'CUSTOM_LOGO': 2,
+    'DISPATCH': 2,
+    'FAISAL_APPROVAL': 2
+  };
+};
+
+const NEXT_STAGES = {
+  'STANDARD': ['STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH'],
+  'READY_LOGO': ['STORE', 'NAME_LOGO', 'DISPATCH'],
+  'FULL_CUSTOM': ['STORE', 'CUTTING', 'STITCHING', 'QA', 'CUSTOM_LOGO', 'DISPATCH']
+};
 
 const createOrder = async (req, res) => {
-  const { orderNumber, customerName, type, urgent, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, shopifyOrderId } = req.body;
+  const { orderNumber, customerName, type, urgent, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, shopifyOrderId, paymentDeadline } = req.body;
 
   try {
+    // Check if advance payment is required for FULL_CUSTOM
+    const initialStatus = (type === 'FULL_CUSTOM' && !advancePaid) ? 'WAITING_PAYMENT' : 'PENDING';
+
     const order = await prisma.order.create({
       data: {
         orderNumber,
         customerName,
-        type,
-        urgent,
+        type: type || 'STANDARD',
+        urgent: urgent || false,
         logoDesign,
         logoName,
         customization: customization ? JSON.stringify(customization) : null,
         productDetails: productDetails ? JSON.stringify(productDetails) : null,
         sizeData: sizeData ? JSON.stringify(sizeData) : null,
-        advancePaid,
+        advancePaid: advancePaid || false,
         shopifyOrderId,
-        currentStage: 'STORE',
-        status: 'PENDING'
+        paymentDeadline: paymentDeadline ? new Date(paymentDeadline) : (type === 'READY_LOGO' ? new Date(Date.now() + 48 * 60 * 60 * 1000) : null),
+        currentStage: 'ORDER_ENTRY',
+        status: initialStatus
       }
     });
 
-    // Inventory Update Logic
-    if (productDetails) {
-      const itemsToDecrement = [
-        productDetails.productType,
-        productDetails.fabricType,
-        productDetails.color
-      ].filter(Boolean);
-
-      for (const itemName of itemsToDecrement) {
-        await prisma.inventoryItem.updateMany({
-          where: { name: itemName },
-          data: { stock: { decrement: 1 } }
-        });
-      }
-    }
-
-    // Initialize first stage
+    // Initial stage is Faisal's review after Order Entry
     await prisma.orderStage.create({
       data: {
         orderId: order.id,
-        stageName: 'STORE',
-        status: 'PENDING',
-        deadlineAt: new Date(Date.now() + 2 * 60 * 60 * 1000) // 2 hours from now
+        stageName: 'ORDER_ENTRY',
+        status: 'COMPLETED',
+        completedAt: new Date()
       }
     });
 
@@ -74,108 +96,211 @@ const getOrders = async (req, res) => {
   }
 };
 
-const updateStage = async (req, res) => {
+const requestStageCompletion = async (req, res) => {
   const { orderId, stageId } = req.params;
-  const { status, nextStage } = req.body;
 
   try {
-    const currentStage = await prisma.orderStage.update({
+    const durations = await getStageDurations();
+    const approvalDuration = durations['FAISAL_APPROVAL'] || 2; // Default 2 hours
+    const deadline = calculateDeadline(new Date(), approvalDuration);
+
+    const stage = await prisma.orderStage.update({
       where: { id: stageId },
       data: {
-        status,
-        completedAt: status === 'COMPLETED' ? new Date() : null,
-        assignedEmployeeId: req.user.id
+        requestNextStep: true,
+        status: 'WAITING_APPROVAL',
+        assignedEmployeeId: req.user.id,
+        deadlineAt: deadline // Faisal's deadline to approve
       }
     });
 
-    let updatedOrder = await prisma.order.findUnique({ where: { id: orderId } });
+    const io = req.app.get('io');
+    io.emit('stage-completion-requested', { orderId, stage });
 
-    if (status === 'COMPLETED' && nextStage) {
-      // Logic for next stage deadline
-      let deadline = new Date();
-      if (nextStage === 'CUTTING') deadline = new Date(Date.now() + 24 * 60 * 60 * 1000); // 1 day
-      else if (nextStage === 'STITCHING') deadline = new Date(Date.now() + 96 * 60 * 60 * 1000); // 4 days
-      else deadline = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours default
+    res.json({ message: 'Completion requested from Faisal', stage });
+  } catch (error) {
+    res.status(500).json({ message: 'Error requesting completion', error: error.message });
+  }
+};
+
+const approveStageCompletion = async (req, res) => {
+  const { orderId, stageId } = req.params;
+  const { nextStage, skipStages } = req.body; // Faisal can choose to skip stages (e.g. Store -> Dispatch)
+
+  try {
+    const currentStageRecord = await prisma.orderStage.update({
+      where: { id: stageId },
+      data: {
+        status: 'COMPLETED',
+        completedAt: new Date()
+      }
+    });
+
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    
+    let actualNextStage = nextStage;
+    if (!actualNextStage) {
+      const stages = NEXT_STAGES[order.type];
+      const currentIndex = stages.indexOf(currentStageRecord.stageName);
+      actualNextStage = stages[currentIndex + 1];
+    }
+
+    if (actualNextStage) {
+      const durations = await getStageDurations();
+      const duration = durations[actualNextStage] || 2;
+      const deadline = calculateDeadline(new Date(), duration);
 
       await prisma.orderStage.create({
         data: {
           orderId,
-          stageName: nextStage,
+          stageName: actualNextStage,
           status: 'PENDING',
           deadlineAt: deadline
         }
       });
 
-      updatedOrder = await prisma.order.update({
+      await prisma.order.update({
         where: { id: orderId },
         data: { 
-          currentStage: nextStage,
-          status: 'PENDING' // Reset to PENDING if it was REJECTED
+          currentStage: actualNextStage,
+          status: 'IN_PROGRESS'
         }
       });
-    } else if (status === 'COMPLETED' && !nextStage) {
+    } else {
       // Final completion
-      updatedOrder = await prisma.order.update({
+      await prisma.order.update({
         where: { id: orderId },
         data: { 
-          currentStage: 'READY_FOR_DELIVERY',
-          status: 'READY_FOR_DELIVERY'
-        }
-      });
-    } else if (status === 'REJECTED') {
-      // Send back to Order Entry with a new stage record
-      await prisma.orderStage.create({
-        data: {
-          orderId,
-          stageName: 'ORDER_ENTRY',
-          status: 'PENDING',
-          deadlineAt: new Date(Date.now() + 2 * 60 * 60 * 1000)
-        }
-      });
-
-      updatedOrder = await prisma.order.update({
-        where: { id: orderId },
-        data: { 
-          currentStage: 'ORDER_ENTRY',
-          status: 'REJECTED'
+          currentStage: 'COMPLETED',
+          status: 'COMPLETED'
         }
       });
     }
 
     const io = req.app.get('io');
-    io.emit('order-updated', updatedOrder);
+    io.emit('order-updated', { orderId });
 
-    res.json({ message: 'Stage updated successfully', order: updatedOrder });
+    res.json({ message: 'Stage approved and moved forward' });
   } catch (error) {
-    res.status(500).json({ message: 'Error updating stage', error: error.message });
+    res.status(500).json({ message: 'Error approving stage', error: error.message });
   }
 };
 
-const sendForDelivery = async (req, res) => {
-  const { orderId } = req.params;
+const rejectStageCompletion = async (req, res) => {
+  const { orderId, stageId } = req.params;
+  const { reason } = req.body;
 
   try {
-    const order = await prisma.order.findUnique({ where: { id: orderId } });
-
-    if (!order || order.status !== 'READY_FOR_DELIVERY') {
-      return res.status(400).json({ message: 'Order is not ready for delivery' });
-    }
-
-    const updatedOrder = await prisma.order.update({
-      where: { id: orderId },
+    const stage = await prisma.orderStage.update({
+      where: { id: stageId },
       data: {
-        currentStage: 'OUT_FOR_DELIVERY',
-        status: 'OUT_FOR_DELIVERY'
+        status: 'REJECTED',
+        requestNextStep: false,
+        rejectionReason: reason
       }
     });
 
     const io = req.app.get('io');
-    io.emit('order-updated', updatedOrder);
+    io.emit('stage-rejected', { orderId, stage, reason });
 
-    res.json({ message: 'Order sent for delivery', order: updatedOrder });
+    res.json({ message: 'Stage rejected and sent back to employee', stage });
   } catch (error) {
-    res.status(500).json({ message: 'Error sending for delivery', error: error.message });
+    res.status(500).json({ message: 'Error rejecting stage', error: error.message });
   }
 };
 
-module.exports = { createOrder, getOrders, updateStage, sendForDelivery };
+const updatePaymentStatus = async (req, res) => {
+  const { orderId } = req.params;
+  const { paymentStatus } = req.body;
+
+  try {
+    const order = await prisma.order.update({
+      where: { id: orderId },
+      data: { 
+        paymentStatus,
+        advancePaid: paymentStatus === 'ADVANCE_PAID' || paymentStatus === 'FULL_PAID'
+      }
+    });
+
+    // If it was waiting for payment and now advance is paid, move to first module (STORE)
+    if (order.status === 'WAITING_PAYMENT' && order.advancePaid) {
+      const durations = await getStageDurations();
+      const deadline = calculateDeadline(new Date(), durations['STORE']);
+      await prisma.orderStage.create({
+        data: {
+          orderId,
+          stageName: 'STORE',
+          status: 'PENDING',
+          deadlineAt: deadline
+        }
+      });
+      
+      await prisma.order.update({
+        where: { id: orderId },
+        data: { 
+          status: 'IN_PROGRESS',
+          currentStage: 'STORE'
+        }
+      });
+    }
+
+    const io = req.app.get('io');
+    io.emit('order-updated', { orderId });
+
+    res.json({ message: 'Payment status updated', order });
+  } catch (error) {
+    res.status(500).json({ message: 'Error updating payment', error: error.message });
+  }
+};
+
+const getAnalytics = async (req, res) => {
+  try {
+    const orders = await prisma.order.findMany({
+      include: { stages: true }
+    });
+
+    const analytics = {
+      totalOrders: orders.length,
+      completedOrders: orders.filter(o => o.status === 'COMPLETED').length,
+      inProgressOrders: orders.filter(o => o.status === 'IN_PROGRESS').length,
+      urgentOrders: orders.filter(o => o.urgent).length,
+      stagePerformance: {}
+    };
+
+    // Calculate average time per stage
+    const stageStats = {};
+    orders.forEach(order => {
+      order.stages.forEach(stage => {
+        if (stage.status === 'COMPLETED' && stage.completedAt) {
+          if (!stageStats[stage.stageName]) {
+            stageStats[stage.stageName] = { totalTime: 0, count: 0 };
+          }
+          const duration = new Date(stage.completedAt) - new Date(stage.createdAt);
+          stageStats[stage.stageName].totalTime += duration;
+          stageStats[stage.stageName].count += 1;
+        }
+      });
+    });
+
+    for (const [stage, stats] of Object.entries(stageStats)) {
+      analytics.stagePerformance[stage] = {
+        avgHours: (stats.totalTime / stats.count / (1000 * 60 * 60)).toFixed(1),
+        count: stats.count
+      };
+    }
+
+    res.json(analytics);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching analytics', error: error.message });
+  }
+};
+
+module.exports = { 
+  createOrder, 
+  getOrders, 
+  requestStageCompletion, 
+  approveStageCompletion, 
+  rejectStageCompletion,
+  updatePaymentStatus,
+  getAnalytics
+};

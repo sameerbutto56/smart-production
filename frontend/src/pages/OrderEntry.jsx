@@ -39,7 +39,7 @@ const SmartOrderForm = () => {
   const [formData, setFormData] = useState({
     orderNumber: '',
     customerName: '',
-    type: 'simple',
+    type: 'STANDARD', // STANDARD, READY_LOGO, FULL_CUSTOM
     urgent: false,
     advancePaid: false,
     
@@ -120,7 +120,7 @@ const SmartOrderForm = () => {
     if (activeTab === 'basic') {
       if (!formData.orderNumber.trim()) return 'Order ID is required.';
       if (!formData.customerName.trim()) return 'Customer Name is required.';
-      if (formData.type === 'custom' && !formData.advancePaid) return 'Advance payment is compulsory for custom orders.';
+      if (formData.type === 'FULL_CUSTOM' && !formData.advancePaid) return 'Advance payment is compulsory for custom orders.';
     }
     if (activeTab === 'product') {
       if (!formData.productType) return 'Please select a Product Base (Step 1).';
@@ -129,10 +129,10 @@ const SmartOrderForm = () => {
       if (!accessory && !formData.size) return 'Please select a Standard Size (Step 3).';
     }
     if (activeTab === 'custom') {
-      if (!formData.stitchingStyle) return 'Please select a Stitch Pattern in Advanced Stitching.';
-      if (!formData.fitType) return 'Please select a Fit Profile in Advanced Stitching.';
+      if (formData.type === 'FULL_CUSTOM' && !formData.stitchingStyle) return 'Please select a Stitch Pattern.';
+      if (formData.type === 'FULL_CUSTOM' && !formData.fitType) return 'Please select a Fit Profile.';
     }
-    if (activeTab === 'sizes' && formData.type === 'custom' && !accessory) {
+    if (activeTab === 'sizes' && formData.type === 'FULL_CUSTOM' && !accessory) {
       const m = formData.measurements;
       if (!m.chest || !m.shoulder || !m.length || !m.sleeve || !m.waist || !m.hips) {
         return 'All precise measurements are required for custom tailoring.';
@@ -185,7 +185,7 @@ const SmartOrderForm = () => {
       setFormData({
         orderNumber: '',
         customerName: '',
-        type: 'simple',
+        type: 'STANDARD',
         urgent: false,
         advancePaid: false,
         productType: '',
@@ -257,8 +257,8 @@ const SmartOrderForm = () => {
   ];
 
   const filteredTabs = allTabs.filter(tab => {
-    if (tab.customOnly && formData.type !== 'custom') return false;
-    if (tab.id === 'sizes' && isAccessory(selectedProductCategory)) return false;
+    if (tab.customOnly && formData.type === 'STANDARD') return false;
+    if (tab.id === 'sizes' && (isAccessory(selectedProductCategory) || formData.type !== 'FULL_CUSTOM')) return false;
     return true;
   });
 
@@ -351,15 +351,22 @@ const SmartOrderForm = () => {
                   <div className="flex p-2 bg-gray-950 rounded-2xl border-2 border-gray-800 shadow-inner">
                     <button
                       type="button"
-                      onClick={() => setFormData({...formData, type: 'simple', advancePaid: false})}
-                      className={`flex-1 py-4 rounded-xl text-xs font-black transition-all ${formData.type === 'simple' ? 'bg-blue-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'}`}
+                      onClick={() => setFormData({...formData, type: 'STANDARD', advancePaid: false})}
+                      className={`flex-1 py-4 rounded-xl text-[10px] font-black transition-all ${formData.type === 'STANDARD' ? 'bg-blue-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'}`}
                     >
-                      SIMPLE
+                      STANDARD
                     </button>
                     <button
                       type="button"
-                      onClick={() => setFormData({...formData, type: 'custom', advancePaid: true})}
-                      className={`flex-1 py-4 rounded-xl text-xs font-black transition-all ${formData.type === 'custom' ? 'bg-purple-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'}`}
+                      onClick={() => setFormData({...formData, type: 'READY_LOGO', advancePaid: false})}
+                      className={`flex-1 py-4 rounded-xl text-[10px] font-black transition-all ${formData.type === 'READY_LOGO' ? 'bg-purple-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'}`}
+                    >
+                      LOGO
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({...formData, type: 'FULL_CUSTOM', advancePaid: true})}
+                      className={`flex-1 py-4 rounded-xl text-[10px] font-black transition-all ${formData.type === 'FULL_CUSTOM' ? 'bg-indigo-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'}`}
                     >
                       CUSTOM
                     </button>

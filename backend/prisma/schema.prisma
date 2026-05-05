@@ -13,7 +13,7 @@ model User {
   name        String
   email       String   @unique
   password    String
-  role        String   @default("ORDER_EMPLOYEE")
+  role        String   @default("ORDER_ENTRY") // ORDER_ENTRY, FAISAL, SUPER_ADMIN, STORE, CUTTING, STITCHING, QA, PRESSING_PACKING, NAME_LOGO, CUSTOM_LOGO, DISPATCH
   employeeId  String?  @unique
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -26,7 +26,7 @@ model Order {
   orderNumber     String?      @unique
   shopifyOrderId  String?      @unique
   customerName    String
-  type            String       @default("simple") // simple, custom
+  type            String       @default("STANDARD") // STANDARD, READY_LOGO, FULL_CUSTOM
   urgent          Boolean      @default(false)
   logoDesign      String?
   logoName        String?
@@ -34,7 +34,9 @@ model Order {
   productDetails  String?      // Stores structured JSON
   sizeData        String?      // Stores structured JSON
   currentStage    String       @default("ORDER_ENTRY")
-  status          String       @default("PENDING")
+  status          String       @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED, CANCELLED, DELAYED
+  paymentStatus   String       @default("PENDING") // PENDING, ADVANCE_PAID, FULL_PAID
+  paymentDeadline DateTime?
   advancePaid     Boolean      @default(false)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
@@ -49,7 +51,9 @@ model OrderStage {
   stageName          String
   assignedEmployeeId String?
   assignedEmployee   User?       @relation(fields: [assignedEmployeeId], references: [id])
-  status             String      @default("PENDING")
+  status             String      @default("PENDING") // PENDING, IN_PROGRESS, WAITING_APPROVAL, COMPLETED, REJECTED
+  requestNextStep    Boolean     @default(false)
+  rejectionReason    String?
   startedAt          DateTime?
   completedAt        DateTime?
   deadlineAt         DateTime?
@@ -82,4 +86,11 @@ model InventoryItem {
   metadata    String?  // JSON string for additional properties
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+model SystemSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String   // Stores JSON or simple values
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

@@ -1,17 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList } from 'lucide-react';
+import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X } from 'lucide-react';
 import axios from 'axios';
 
-const OrderCard = ({ order, onUpdateStage }) => {
+const OrderCard = ({ order, onUpdateStage, userRole }) => {
   const currentStage = order.stages[0]; // Assuming stages are sorted by date desc
   const [timeLeft, setTimeLeft] = useState('');
   const [isDelayed, setIsDelayed] = useState(false);
   const [showFullSheet, setShowFullSheet] = useState(false);
-  const [inventory, setInventory] = useState([]);
+  const [urgencyColor, setUrgencyColor] = useState('text-blue-400');
 
   useEffect(() => {
     const timer = setInterval(() => {
+      if (!currentStage?.deadlineAt || currentStage.status === 'COMPLETED') {
+        setTimeLeft('--:--');
+        setUrgencyColor('text-gray-600');
+        return;
+      }
       const deadline = new Date(currentStage.deadlineAt).getTime();
       const now = new Date().getTime();
       const diff = deadline - now;
@@ -22,6 +27,7 @@ const OrderCard = ({ order, onUpdateStage }) => {
         const m = Math.floor((absoluteDiff % (1000 * 60 * 60)) / (1000 * 60));
         setTimeLeft(`DELAYED: ${h}h ${m}m`);
         setIsDelayed(true);
+        setUrgencyColor('text-red-500 font-black animate-pulse');
         return;
       }
 
@@ -30,19 +36,24 @@ const OrderCard = ({ order, onUpdateStage }) => {
       const seconds = Math.floor((diff % (1000 * 60)) / 1000);
 
       setTimeLeft(`${hours}h ${minutes}m ${seconds}s`);
+      
+      // Dynamic color based on time left
+      if (hours < 1) setUrgencyColor('text-red-400 font-black');
+      else if (hours < 4) setUrgencyColor('text-yellow-400 font-bold');
+      else setUrgencyColor('text-blue-400');
     }, 1000);
 
     return () => clearInterval(timer);
   }, [currentStage]);
 
   useEffect(() => {
-    if (currentStage.stageName === 'STORE') {
+    if (currentStage?.stageName === 'STORE') {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
       axios.get(`${API_URL}/api/inventory`)
         .then(res => setInventory(res.data))
         .catch(err => console.error('Error fetching inventory:', err));
     }
-  }, [currentStage.stageName]);
+  }, [currentStage?.stageName]);
 
   const getStockStatus = (itemName) => {
     if (!itemName || itemName === 'N/A') return null;
@@ -63,18 +74,16 @@ const OrderCard = ({ order, onUpdateStage }) => {
   const custom = parseJSON(order.customization);
   const sizes = parseJSON(order.sizeData);
 
-  const pipeline = ['STORE', 'CUTTING', 'STITCHING', 'QUALITY_CHECK', 'PRESSING', 'PACKAGING', 'OUT_FOR_DELIVERY'];
-
-  const getNextStage = (current) => {
-    if (current === 'ORDER_ENTRY') return 'STORE';
-    const index = pipeline.indexOf(current);
-    return index < pipeline.length - 1 ? pipeline[index + 1] : null;
+  const pipelines = {
+    'STANDARD': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH'],
+    'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'NAME_LOGO', 'DISPATCH'],
+    'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'CUSTOM_LOGO', 'DISPATCH']
   };
 
-  const nextStageName = getNextStage(currentStage.stageName);
+  const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
 
   const renderTasks = () => {
-    const stage = currentStage.stageName;
+    const stage = currentStage?.stageName;
     if (stage === 'STORE') {
       const items = [
         { label: 'Fabric', val: product?.fabricType },
@@ -113,9 +122,11 @@ const OrderCard = ({ order, onUpdateStage }) => {
     }
 
     const stageMap = {
-      'STITCHING': ['Fit Check', 'Stitching Style', 'Embroidery Detail'],
-      'QUALITY_CHECK': ['Check Specs', 'Check Stitches', 'Final Visual Audit'],
-      'PACKAGING': ['Final Bagging', 'Labeling']
+      'STITCHING': ['Fit Check', 'Stitching Style', 'Tailoring Specs'],
+      'QA': ['Check Specs', 'Check Stitches', 'Visual Audit'],
+      'PRESSING_PACKING': ['Final Press', 'Bagging', 'Labeling'],
+      'NAME_LOGO': ['Name Embroidery', 'Color Check'],
+      'CUSTOM_LOGO': ['Logo Design Apply', 'Custom Pattern']
     };
 
     const tasks = stageMap[stage] || ['Follow Standard Protocol'];
@@ -127,11 +138,8 @@ const OrderCard = ({ order, onUpdateStage }) => {
     ));
   };
 
-  const handleReject = () => {
-    onUpdateStage(order.id, currentStage.id, 'REJECTED', 'ORDER_ENTRY');
-  };
-
-  const isOrderEntry = currentStage.stageName === 'ORDER_ENTRY';
+  const isFaisal = userRole === 'FAISAL' || userRole === 'SUPER_ADMIN';
+  const isWaitingApproval = currentStage?.status === 'WAITING_APPROVAL';
 
   return (
     <>
@@ -149,14 +157,16 @@ const OrderCard = ({ order, onUpdateStage }) => {
                 {order.urgent && (
                   <span className="bg-blue-600 text-[10px] font-black px-2 py-0.5 rounded-full animate-pulse uppercase tracking-tighter">Urgent</span>
                 )}
-                {order.status === 'REJECTED' && (
-                  <span className="bg-red-600 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter">Correction</span>
-                )}
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${
+                  order.type === 'FULL_CUSTOM' ? 'bg-indigo-600' : order.type === 'READY_LOGO' ? 'bg-purple-600' : 'bg-gray-700'
+                }`}>
+                  {order.type}
+                </span>
               </div>
               <p className="text-sm text-gray-400 font-bold tracking-wide">{order.customerName}</p>
             </div>
             <div className={`px-4 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-lg ${isDelayed ? 'bg-red-500/20 text-red-500 border border-red-500/20' : 'bg-blue-500/20 text-blue-400 border border-blue-500/20'}`}>
-              {currentStage.stageName.replace('_', ' ')}
+              {currentStage?.stageName.replace('_', ' ')}
             </div>
           </div>
 
@@ -165,16 +175,15 @@ const OrderCard = ({ order, onUpdateStage }) => {
               <div className={`p-2 rounded-lg ${isDelayed ? 'bg-red-500/10' : 'bg-gray-800/50'}`}>
                 <Clock size={18} className={isDelayed ? 'text-red-500' : 'text-blue-400'} />
               </div>
-              <span className={`font-mono text-base tracking-tighter ${isDelayed ? 'text-red-500 font-black' : 'text-gray-200'}`}>
+              <span className={`font-mono text-base tracking-tighter ${urgencyColor}`}>
                 {timeLeft}
               </span>
             </div>
             <div className="text-[10px] text-gray-500 font-black uppercase tracking-widest bg-gray-900 px-3 py-1 rounded-lg">
-              {new Date(currentStage.deadlineAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {currentStage?.deadlineAt ? new Date(currentStage.deadlineAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'NO DEADLINE'}
             </div>
           </div>
 
-          {/* Clickable Short Summary Card */}
           <motion.div 
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
@@ -189,16 +198,18 @@ const OrderCard = ({ order, onUpdateStage }) => {
                 <ClipboardList size={16} className="text-blue-400" />
               </div>
               <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] group-hover:text-blue-300 transition-colors">
-                {isOrderEntry ? 'Rework Summary' : 'Current Task Sheet'}
+                Job Sheet Summary
               </h4>
             </div>
             <ul className="space-y-3">
-              {isOrderEntry ? (
-                <li className="text-xs text-red-400 font-bold bg-red-400/5 p-3 rounded-xl border border-red-500/10">
-                  Order was rejected. Click to see details & fix.
-                </li>
-              ) : renderTasks()}
+              {renderTasks()}
             </ul>
+            {currentStage?.rejectionReason && (
+              <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
+                <p className="text-[10px] text-red-400 font-black uppercase tracking-widest mb-1">Faisal Rejection Reason:</p>
+                <p className="text-xs text-gray-300 italic">{currentStage.rejectionReason}</p>
+              </div>
+            )}
             <div className="mt-5 pt-4 border-t border-gray-800 flex items-center justify-between">
               <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Click to Expand Job Sheet</span>
               <div className="h-1.5 w-1.5 bg-blue-500 rounded-full animate-pulse shadow-[0_0_10px_#3b82f6]"></div>
@@ -206,60 +217,56 @@ const OrderCard = ({ order, onUpdateStage }) => {
           </motion.div>
 
           <div className="flex space-x-3">
-            {currentStage.stageName === 'STORE' ? (
-              <>
-                {order.type === 'simple' ? (
-                  <>
-                    <button
-                      onClick={() => onUpdateStage(order.id, currentStage.id, 'COMPLETED', 'CUTTING')}
-                      className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-lg"
-                    >
-                      <span>Fabric: To Cutting</span>
-                    </button>
-                    <button
-                      onClick={() => onUpdateStage(order.id, currentStage.id, 'COMPLETED', 'PACKAGING')}
-                      className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-lg"
-                    >
-                      <CheckCircle size={14} />
-                      <span>Ready: To Packing</span>
-                    </button>
-                  </>
-                ) : (
+            {isWaitingApproval ? (
+              isFaisal ? (
+                <>
                   <button
-                    onClick={() => onUpdateStage(order.id, currentStage.id, 'COMPLETED', 'CUTTING')}
-                    className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-4 rounded-2xl text-xs font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center space-x-3 active:scale-95 shadow-lg shadow-emerald-900/20"
+                    onClick={() => onUpdateStage(order.id, currentStage.id, 'approve')}
+                    className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-lg"
                   >
-                    <CheckCircle size={18} />
-                    <span>Approve & Move</span>
+                    <Check size={14} />
+                    <span>Approve to Next</span>
                   </button>
-                )}
-              </>
-            ) : currentStage.stageName === 'OUT_FOR_DELIVERY' ? (
-              <button
-                onClick={() => onUpdateStage(order.id, currentStage.id, 'COMPLETED', null)}
-                className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-4 rounded-2xl text-xs font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center space-x-3 active:scale-95 shadow-lg shadow-emerald-900/20"
-              >
-                <CheckCircle size={18} />
-                <span>Mark Out for Delivery</span>
-              </button>
+                  <button
+                    onClick={() => {
+                      const reason = prompt("Enter rejection reason:");
+                      if (reason) onUpdateStage(order.id, currentStage.id, 'reject', { reason });
+                    }}
+                    className="flex-1 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 border border-red-500/20"
+                  >
+                    <X size={14} />
+                    <span>Reject</span>
+                  </button>
+                  {order.paymentStatus !== 'FULL_PAID' && (
+                    <button
+                      onClick={() => {
+                        const status = order.paymentStatus === 'PENDING' ? 'ADVANCE_PAID' : 'FULL_PAID';
+                        axios.put(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/orders/${order.id}/payment`, { paymentStatus: status }, {
+                          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                        }).then(() => window.location.reload());
+                      }}
+                      className="p-4 bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white rounded-2xl transition-all border border-yellow-500/20 active:scale-95"
+                      title="Update Payment"
+                    >
+                      <span className="text-[10px] font-black">PAY</span>
+                    </button>
+                  )}
+                </>
+              ) : (
+                <div className="flex-1 bg-gray-800 text-gray-500 py-4 rounded-2xl text-[10px] font-black uppercase text-center border border-gray-700 italic">
+                  Waiting for Faisal Approval...
+                </div>
+              )
             ) : (
-              <button
-                onClick={() => onUpdateStage(order.id, currentStage.id, 'COMPLETED', nextStageName)}
-                className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-4 rounded-2xl text-xs font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center space-x-3 active:scale-95 shadow-lg shadow-emerald-900/20"
-              >
-                <CheckCircle size={18} />
-                <span>{isOrderEntry ? 'Send Again to Store' : 'Approve & Move'}</span>
-              </button>
-            )}
-
-            {!isOrderEntry && currentStage.stageName !== 'OUT_FOR_DELIVERY' && (
-              <button 
-                onClick={handleReject}
-                title="Reject & Send back to Entry"
-                className="p-4 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white rounded-2xl transition-all border border-red-500/20 active:scale-95 shadow-lg"
-              >
-                <AlertCircle size={20} />
-              </button>
+              !isFaisal && currentStage?.status !== 'COMPLETED' && (
+                <button
+                  onClick={() => onUpdateStage(order.id, currentStage.id, 'request')}
+                  className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-2xl text-xs font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center space-x-3 active:scale-95 shadow-lg shadow-blue-900/20"
+                >
+                  <CheckCircle size={18} />
+                  <span>Request Next Step</span>
+                </button>
+              )
             )}
           </div>
         </div>
@@ -268,7 +275,7 @@ const OrderCard = ({ order, onUpdateStage }) => {
         <div className="h-1.5 bg-gray-900 flex px-1 pb-1">
           <div 
             className="h-full bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full transition-all duration-1000 shadow-[0_0_15px_rgba(59,130,246,0.5)]" 
-            style={{ width: `${(pipeline.indexOf(currentStage.stageName) + 1) / 8 * 100}%` }}
+            style={{ width: `${(currentPipeline.indexOf(currentStage?.stageName) + 1) / currentPipeline.length * 100}%` }}
           ></div>
         </div>
       </motion.div>
@@ -302,14 +309,13 @@ const OrderCard = ({ order, onUpdateStage }) => {
                 onClick={() => setShowFullSheet(false)}
                 className="p-4 hover:bg-gray-800 rounded-full text-gray-400 transition-colors"
               >
-                <AlertCircle size={24} className="rotate-45" />
+                <X size={24} />
               </button>
             </div>
 
             {/* Modal Content */}
             <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
               
-              {/* Material & Product Section */}
               <section>
                 <h4 className="text-[11px] font-black text-blue-500 uppercase tracking-[0.3em] mb-6">01. Material & Product Specs</h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -318,7 +324,7 @@ const OrderCard = ({ order, onUpdateStage }) => {
                     { label: 'Fabric Type', val: product?.fabricType },
                     { label: 'Primary Color', val: product?.color },
                     { label: 'Order Size', val: product?.size },
-                    { label: 'Quantity', val: '1 UNIT' }
+                    { label: 'Payment', val: order.paymentStatus }
                   ].map((item, i) => (
                     <div key={i} className="bg-gray-950/50 p-6 rounded-3xl border border-gray-800/50">
                       <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-2">{item.label}</p>
@@ -328,20 +334,20 @@ const OrderCard = ({ order, onUpdateStage }) => {
                 </div>
               </section>
 
-              {/* Measurements Section */}
-              <section className="bg-blue-600/5 p-8 rounded-[2rem] border border-blue-500/10">
-                <h4 className="text-[11px] font-black text-blue-400 uppercase tracking-[0.3em] mb-6">02. Precise Measurements (Inches)</h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                  {Object.entries(sizes || {}).map(([key, val], i) => (
-                    <div key={i} className="text-center p-4 bg-gray-900 rounded-2xl border border-gray-800 shadow-sm">
-                      <p className="text-[9px] text-gray-500 font-black uppercase tracking-tighter mb-1">{key}</p>
-                      <p className="text-xl font-black text-blue-400">{val}"</p>
-                    </div>
-                  ))}
-                </div>
-              </section>
+              {order.type === 'FULL_CUSTOM' && (
+                <section className="bg-blue-600/5 p-8 rounded-[2rem] border border-blue-500/10">
+                  <h4 className="text-[11px] font-black text-blue-400 uppercase tracking-[0.3em] mb-6">02. Precise Measurements (Inches)</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    {Object.entries(sizes || {}).map(([key, val], i) => (
+                      <div key={i} className="text-center p-4 bg-gray-900 rounded-2xl border border-gray-800 shadow-sm">
+                        <p className="text-[9px] text-gray-500 font-black uppercase tracking-tighter mb-1">{key}</p>
+                        <p className="text-xl font-black text-blue-400">{val}"</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
 
-              {/* Customization Section */}
               <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div>
                   <h4 className="text-[11px] font-black text-emerald-500 uppercase tracking-[0.3em] mb-6">03. Branding & Tailoring</h4>
@@ -370,12 +376,11 @@ const OrderCard = ({ order, onUpdateStage }) => {
 
             </div>
 
-            {/* Modal Footer */}
             <div className="p-8 bg-gray-950/80 border-t border-gray-800 flex justify-between items-center">
               <div className="flex items-center space-x-4 text-[10px] text-gray-500 font-black uppercase tracking-widest">
                 <span>Created: {new Date(order.createdAt).toLocaleDateString()}</span>
                 <span className="w-1.5 h-1.5 bg-gray-700 rounded-full"></span>
-                <span>Stage: {currentStage.stageName}</span>
+                <span>Stage: {currentStage?.stageName}</span>
               </div>
               <button 
                 onClick={() => setShowFullSheet(false)}

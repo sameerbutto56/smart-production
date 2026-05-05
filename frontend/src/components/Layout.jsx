@@ -24,12 +24,13 @@ const Sidebar = ({ isOpen, toggle }) => {
   };
 
   const navItems = [
-    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'MAIN_EMPLOYEE'] },
-    { name: 'Inventory', path: '/inventory', icon: Package, roles: ['ADMIN'] },
-    { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['ORDER_EMPLOYEE', 'CUTTING_EMPLOYEE', 'STITCHING_EMPLOYEE', 'QUALITY_CHECK_EMPLOYEE', 'PRESSING_EMPLOYEE', 'PACKAGING_EMPLOYEE'] },
-    { name: 'Order Entry', path: '/order-entry', icon: ClipboardList, roles: ['ADMIN', 'ORDER_EMPLOYEE'] },
-    { name: 'All Orders', path: '/orders', icon: Package, roles: ['ADMIN'] },
-    { name: 'History', path: '/history', icon: History, roles: ['ADMIN', 'MAIN_EMPLOYEE'] },
+    { name: 'Admin Portal', path: '/admin', icon: LayoutDashboard, roles: ['SUPER_ADMIN'] },
+    { name: 'Control Center', path: '/dashboard', icon: LayoutDashboard, roles: ['FAISAL', 'SUPER_ADMIN'] },
+    { name: 'Order Entry', path: '/order-entry', icon: ClipboardList, roles: ['ORDER_ENTRY', 'SUPER_ADMIN'] },
+    { name: 'Inventory', path: '/inventory', icon: Package, roles: ['SUPER_ADMIN', 'FAISAL'] },
+    { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'NAME_LOGO', 'CUSTOM_LOGO', 'DISPATCH'] },
+    { name: 'All Orders', path: '/orders', icon: Package, roles: ['SUPER_ADMIN', 'FAISAL'] },
+    { name: 'History', path: '/history', icon: History, roles: ['SUPER_ADMIN', 'FAISAL'] },
   ];
 
   const filteredNavItems = navItems.filter(item => item.roles.includes(user?.role));

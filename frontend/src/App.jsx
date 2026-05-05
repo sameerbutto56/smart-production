@@ -10,6 +10,7 @@ import InventoryManagement from './pages/InventoryManagement';
 import AllOrders from './pages/AllOrders';
 import History from './pages/History';
 import ProgressChart from './pages/ProgressChart';
+import SuperAdminDashboard from './pages/SuperAdminDashboard';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -20,13 +21,16 @@ const ProtectedRoute = ({ children }) => {
 
 const AuthRedirectHandler = () => {
   const { user } = useAuth();
-  if (user?.name === 'Big Screen Monitor') {
-    return <Navigate to="/progress" />;
+  if (user?.role === 'SUPER_ADMIN') {
+    return <Navigate to="/admin" replace={true} />;
   }
-  if (user?.role === 'ADMIN' || user?.role === 'MAIN_EMPLOYEE') {
+  if (user?.role === 'FAISAL') {
     return <Navigate to="/dashboard" replace={true} />;
   }
-  return <Navigate to="/tasks" />;
+  if (user?.role === 'ORDER_ENTRY') {
+    return <Navigate to="/order-entry" replace={true} />;
+  }
+  return <Navigate to="/tasks" replace={true} />;
 };
 
 function App() {
@@ -51,6 +55,7 @@ function App() {
               <AuthRedirectHandler />
             } />
             <Route path="dashboard" element={<AdminDashboard />} />
+            <Route path="admin" element={<SuperAdminDashboard />} />
             <Route path="inventory" element={<InventoryManagement />} />
             <Route path="tasks" element={<MyTasks />} />
             <Route path="order-entry" element={<OrderEntry />} />
