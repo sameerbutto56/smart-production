@@ -197,6 +197,7 @@ const AdminDashboard = () => {
         <div>
           <h1 className="text-4xl font-black text-white tracking-tight">Faisal Control Center</h1>
           <p className="text-gray-400 font-bold uppercase tracking-widest text-xs mt-2">Production Approval Hub</p>
+        </div>
       </div>
 
 
