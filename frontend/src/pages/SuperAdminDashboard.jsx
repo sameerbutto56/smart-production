@@ -189,11 +189,11 @@ const SuperAdminDashboard = () => {
           <div className="space-y-6">
             {inventory.slice(0, 8).map(item => (
               <div key={item.id} className="flex items-center justify-between p-4 bg-gray-900/50 rounded-2xl border border-gray-800">
-                <div className="flex flex-col">
-                  <span className="text-xs font-black text-white tracking-tight truncate max-w-[120px]">{item.name}</span>
-                  <span className="text-[9px] font-bold text-gray-500 uppercase">{item.category}</span>
+                <div className="flex flex-col flex-1 min-w-0 mr-4">
+                  <span className="text-xs font-black text-white tracking-tight truncate">{item.name}</span>
+                  <span className="text-[9px] font-bold text-gray-500 uppercase mt-0.5">{item.category}</span>
                 </div>
-                <div className="text-right">
+                <div className="text-right flex-shrink-0 whitespace-nowrap">
                   <span className={`text-sm font-black ${item.stock < 10 ? 'text-red-500' : 'text-emerald-400'}`}>
                     {item.stock}
                   </span>
