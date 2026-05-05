@@ -309,7 +309,7 @@ const SmartOrderForm = () => {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-10">
+      <form onSubmit={(e) => e.preventDefault()} className="space-y-10">
         <AnimatePresence mode="wait">
           {activeTab === 'basic' && (
             <motion.div
@@ -902,7 +902,8 @@ const SmartOrderForm = () => {
               </button>
             ) : (
               <button
-                type="submit"
+                type="button"
+                onClick={handleSubmit}
                 disabled={loading || isSubmitting}
                 className="flex-1 sm:px-24 py-6 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl shadow-blue-900/50 hover:scale-[1.03] hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 disabled:opacity-50 disabled:hover:scale-100 disabled:hover:translate-y-0"
               >
