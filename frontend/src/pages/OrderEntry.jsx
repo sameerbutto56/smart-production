@@ -294,6 +294,7 @@ const SmartOrderForm = () => {
           {filteredTabs.map((tab, index) => (
             <button
               key={tab.id}
+              type="button"
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center space-x-3 px-8 py-4 rounded-2xl text-sm font-black transition-all duration-500 ${
                 activeTab === tab.id 
@@ -331,6 +332,7 @@ const SmartOrderForm = () => {
                       <Hash className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-500 transition-colors" size={24} />
                       <input
                         type="text"
+                        onKeyDown={preventEnterSubmit}
                         value={formData.orderNumber}
                         onChange={(e) => setFormData({...formData, orderNumber: e.target.value})}
                         className="w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-6 pl-16 pr-8 focus:border-blue-500 focus:ring-8 focus:ring-blue-500/5 outline-none transition-all text-xl font-bold text-white placeholder-gray-700"
@@ -345,6 +347,7 @@ const SmartOrderForm = () => {
                       <User className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-500 transition-colors" size={24} />
                       <input
                         type="text"
+                        onKeyDown={preventEnterSubmit}
                         value={formData.customerName}
                         onChange={(e) => setFormData({...formData, customerName: e.target.value})}
                         className="w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-6 pl-16 pr-8 focus:border-blue-500 focus:ring-8 focus:ring-blue-500/5 outline-none transition-all text-xl font-bold text-white placeholder-gray-700"
@@ -607,6 +610,7 @@ const SmartOrderForm = () => {
                       <Type className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-purple-500 transition-colors" size={24} />
                       <input
                         type="text"
+                        onKeyDown={preventEnterSubmit}
                         value={formData.nameSpelling}
                         onChange={(e) => setFormData({...formData, nameSpelling: e.target.value})}
                         className="w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-6 pl-16 pr-8 focus:border-purple-500 focus:ring-8 focus:ring-purple-500/5 outline-none transition-all font-black text-xl text-white"
