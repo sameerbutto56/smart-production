@@ -89,16 +89,26 @@ const MyTasks = () => {
   };
 
   const filteredOrders = orders.filter(order => {
+    // 1. Check if order should be visible to this role
     if (!shouldShowOrder(order)) return false;
     
-    const searchLower = (searchTerm || '').toLowerCase();
-    if (!searchLower) return true;
+    // 2. If no search term, show everything
+    if (!searchTerm || searchTerm.trim() === "") return true;
 
-    const matchName = order.customerName?.toLowerCase().includes(searchLower);
-    const matchId = order.id?.toLowerCase().includes(searchLower);
-    const matchOrderNum = order.orderNumber?.toLowerCase().includes(searchLower);
+    const searchLower = searchTerm.toLowerCase().trim();
 
-    return matchName || matchId || matchOrderNum;
+    // 3. Check for matches (safely)
+    const nameMatch = (order.customerName || "").toLowerCase().includes(searchLower);
+    const idMatch = (order.id || "").toLowerCase().includes(searchLower);
+    const orderNumMatch = (order.orderNumber || "").toLowerCase().includes(searchLower);
+
+    return nameMatch || idMatch || orderNumMatch;
+  });
+
+  console.log("MyTasks Debug:", { 
+    totalOrders: orders.length, 
+    filteredCount: filteredOrders.length, 
+    userRole: user?.role 
   });
 
   return (
