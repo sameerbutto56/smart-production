@@ -88,12 +88,18 @@ const MyTasks = () => {
     return true;
   };
 
-  const filteredOrders = orders.filter(order => 
-    shouldShowOrder(order) && 
-    (order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-     order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-     (order.orderNumber && order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase())))
-  );
+  const filteredOrders = orders.filter(order => {
+    if (!shouldShowOrder(order)) return false;
+    
+    const searchLower = (searchTerm || '').toLowerCase();
+    if (!searchLower) return true;
+
+    const matchName = order.customerName?.toLowerCase().includes(searchLower);
+    const matchId = order.id?.toLowerCase().includes(searchLower);
+    const matchOrderNum = order.orderNumber?.toLowerCase().includes(searchLower);
+
+    return matchName || matchId || matchOrderNum;
+  });
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
