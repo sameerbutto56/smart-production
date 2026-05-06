@@ -80,13 +80,22 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
     try {
       return typeof data === 'string' ? JSON.parse(data) : data;
     } catch (e) {
-      return null;
+      return {};
     }
   };
 
+  const standardMeasurements = {
+    'S': { chest: '36', shoulder: '14.5', length: '26', sleeve: '22', waist: '30', hips: '38' },
+    'M': { chest: '38', shoulder: '15', length: '27', sleeve: '23', waist: '32', hips: '40' },
+    'L': { chest: '40', shoulder: '16', length: '28', sleeve: '24', waist: '34', hips: '42' },
+    'XL': { chest: '44', shoulder: '17', length: '29', sleeve: '25', waist: '38', hips: '46' },
+    '2XL': { chest: '48', shoulder: '18', length: '30', sleeve: '26', waist: '42', hips: '50' }
+  };
+
   const product = parseJSON(order.productDetails);
+  const rawSizes = parseJSON(order.sizeData);
+  const sizes = (rawSizes && Object.keys(rawSizes).length > 0) ? rawSizes : (standardMeasurements[product?.size] || {});
   const custom = parseJSON(order.customization);
-  const sizes = parseJSON(order.sizeData);
 
   const pipelines = {
     'STANDARD': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
