@@ -79,6 +79,34 @@ const AllOrders = () => {
     }
   };
 
+  const handleExportCSV = () => {
+    const headers = ['Order Number', 'Customer', 'Product', 'Color', 'Type', 'Status', 'Stage', 'Created At'];
+    const csvRows = filteredOrders.map(order => {
+      const product = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+      return [
+        `"${order.orderNumber || order.id}"`,
+        `"${order.customerName}"`,
+        `"${product?.productType || 'N/A'}"`,
+        `"${product?.color || 'N/A'}"`,
+        `"${order.type}"`,
+        `"${order.status}"`,
+        `"${order.currentStage}"`,
+        `"${new Date(order.createdAt).toLocaleDateString()}"`
+      ].join(',');
+    });
+
+    const csvContent = [headers.join(','), ...csvRows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.setAttribute('hidden', '');
+    a.setAttribute('href', url);
+    a.setAttribute('download', `production_orders_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   const filteredOrders = orders.filter(order => 
     order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     order.id.toLowerCase().includes(searchTerm.toLowerCase())
@@ -98,7 +126,10 @@ const AllOrders = () => {
           >
             <RefreshCcw size={20} className={loading ? 'animate-spin' : ''} />
           </button>
-          <button className="flex items-center space-x-2 bg-gray-800 border border-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
+          <button 
+            onClick={handleExportCSV}
+            className="flex items-center space-x-2 bg-gray-800 border border-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
+          >
             <Download size={18} />
             <span>Export CSV</span>
           </button>
