@@ -17,6 +17,9 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
   const [inventory, setInventory] = useState([]);
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [customizationAmount, setCustomizationAmount] = useState('0');
+  const [nextStage, setNextStage] = useState('');
+  const [showRejectionDialog, setShowRejectionDialog] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -224,7 +227,15 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
           </motion.div>
 
           <div className="flex space-x-3">
-            {isWaitingApproval ? (
+            {isFaisal && order.status === 'WAITING_APPROVAL' && currentStage?.status === 'COMPLETED' ? (
+              <button
+                onClick={() => setShowApprovalDialog(true)}
+                className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-xl shadow-blue-900/20"
+              >
+                <ChevronRight size={14} />
+                <span>Initiate Next Phase</span>
+              </button>
+            ) : isWaitingApproval ? (
               isFaisal ? (
                 <>
                   <button
@@ -232,13 +243,10 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                     className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-lg"
                   >
                     <Check size={14} />
-                    <span>Approve to Next</span>
+                    <span>Approve to Hub</span>
                   </button>
                   <button
-                    onClick={() => {
-                      const reason = prompt("Enter rejection reason:");
-                      if (reason) onUpdateStage(order.id, currentStage.id, 'reject', { reason });
-                    }}
+                    onClick={() => setShowRejectionDialog(true)}
                     className="flex-1 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 border border-red-500/20"
                   >
                     <X size={14} />
@@ -429,37 +437,100 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
             animate={{ opacity: 1, scale: 1 }}
             className="glass max-w-sm w-full p-8 rounded-[2rem] border-2 border-gray-800 shadow-2xl"
           >
-            <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-4 text-center">Confirm Module Approval</h3>
-            <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest text-center mb-8">Move to {currentPipeline[currentPipeline.indexOf(currentStage?.stageName) + 1] || 'Final Stage'}</p>
+            <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-4 text-center">Approve & Send To...</h3>
+            <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest text-center mb-8">Current Stage: {currentStage?.stageName.replace('_', ' ')} Complete</p>
             
-            <div className="space-y-4 mb-8">
-              <label className="text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-1">Add Customization Amount ($)</label>
-              <div className="relative">
-                <span className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-500 font-black">$</span>
-                <input 
-                  type="number"
-                  value={customizationAmount}
-                  onChange={(e) => setCustomizationAmount(e.target.value)}
-                  className="w-full bg-gray-950 border-2 border-gray-800 rounded-2xl py-4 pl-12 pr-6 outline-none focus:border-emerald-500 transition-all text-white font-black text-xl"
-                  placeholder="0"
-                />
+            <div className="space-y-6 mb-8">
+              {/* Next Stage Selection */}
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-blue-500 uppercase tracking-widest ml-1">Destination Stage</label>
+                <select 
+                  className="w-full bg-gray-950 border-2 border-gray-800 rounded-2xl py-4 px-6 outline-none focus:border-blue-500 transition-all text-white font-bold text-sm appearance-none"
+                  onChange={(e) => setNextStage(e.target.value)}
+                  value={nextStage || ''}
+                >
+                  <option value="">Select Next Hub/Spoke...</option>
+                  <option value="STORE">Send to STORE</option>
+                  <option value="CUTTING">Send to MANUFACTURING (Cutter)</option>
+                  <option value="CUSTOM_LOGO">Send to CUSTOM LOGO</option>
+                  <option value="NAME_LOGO">Send to NAME/LOGO</option>
+                  <option value="DISPATCH">Send to DISPATCH</option>
+                </select>
               </div>
-              <p className="text-[9px] text-gray-500 italic text-center">Leave 0 if no extra charge applies</p>
+
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-1">Add Customization Amount ($)</label>
+                <div className="relative">
+                  <span className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-500 font-black">$</span>
+                  <input 
+                    type="number"
+                    value={customizationAmount}
+                    onChange={(e) => setCustomizationAmount(e.target.value)}
+                    className="w-full bg-gray-950 border-2 border-gray-800 rounded-2xl py-4 pl-12 pr-6 outline-none focus:border-emerald-500 transition-all text-white font-black text-xl"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="flex flex-col space-y-3">
               <button 
+                disabled={!nextStage && currentStage?.stageName !== 'DISPATCH'}
                 onClick={() => {
-                  onUpdateStage(order.id, currentStage.id, 'approve', { customizationPrice: customizationAmount });
+                  onUpdateStage(order.id, currentStage.id, 'approve', { 
+                    nextStage, 
+                    customizationPrice: customizationAmount 
+                  });
                   setShowApprovalDialog(false);
                   setCustomizationAmount('0');
+                  setNextStage('');
                 }}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest transition-all"
+                className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black py-5 rounded-xl text-xs uppercase tracking-widest transition-all shadow-xl shadow-blue-900/20"
               >
-                Approve & Record Cost
+                Confirm & Send
               </button>
               <button 
                 onClick={() => setShowApprovalDialog(false)}
+                className="w-full bg-gray-900 hover:bg-gray-800 text-gray-500 py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+              >
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+      {/* --- REJECTION DIALOG --- */}
+      {showRejectionDialog && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="glass max-w-sm w-full p-8 rounded-[2rem] border-2 border-red-500/30 shadow-2xl"
+          >
+            <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-4 text-center">Reject & Return</h3>
+            <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest text-center mb-8">Provide a reason for the worker</p>
+            
+            <textarea 
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              className="w-full bg-gray-950 border-2 border-gray-800 rounded-2xl py-4 px-6 outline-none focus:border-red-500 transition-all text-white font-bold text-sm min-h-[120px] mb-8"
+              placeholder="Explain what needs to be fixed..."
+            />
+
+            <div className="flex flex-col space-y-3">
+              <button 
+                disabled={!rejectionReason.trim()}
+                onClick={() => {
+                  onUpdateStage(order.id, currentStage.id, 'reject', { reason: rejectionReason });
+                  setShowRejectionDialog(false);
+                  setRejectionReason('');
+                }}
+                className="w-full bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-black py-5 rounded-xl text-xs uppercase tracking-widest transition-all shadow-xl shadow-red-900/20"
+              >
+                Confirm Rejection
+              </button>
+              <button 
+                onClick={() => setShowRejectionDialog(false)}
                 className="w-full bg-gray-900 hover:bg-gray-800 text-gray-500 py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
               >
                 Cancel

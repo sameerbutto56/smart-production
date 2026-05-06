@@ -157,6 +157,15 @@ const requestStageCompletion = async (req, res) => {
   }
 };
 
+const NEXT_STAGES = {
+  'STANDARD': ['STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH'],
+  'READY_LOGO': ['STORE', 'NAME_LOGO', 'DISPATCH'],
+  'FULL_CUSTOM': ['STORE', 'CUTTING', 'STITCHING', 'QA', 'CUSTOM_LOGO', 'DISPATCH']
+};
+
+// Stages that move automatically to the next one without Faisal's intermediate approval
+const AUTO_TRANSITION_STAGES = ['CUTTING', 'STITCHING', 'QA'];
+
 const approveStageCompletion = async (req, res) => {
   const { orderId, stageId } = req.params;
   const { nextStage, customizationPrice } = req.body; 
@@ -203,12 +212,22 @@ const approveStageCompletion = async (req, res) => {
       }
     }
 
-    let actualNextStage = nextStage;
-    if (!actualNextStage) {
-      const stages = NEXT_STAGES[order.type];
+    let actualNextStage = null;
+
+    // HUB-AND-SPOKE LOGIC
+    // 1. If the stage is one that auto-transitions, move to the next in sequence
+    if (AUTO_TRANSITION_STAGES.includes(currentStageRecord.stageName)) {
+      const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
       const currentIndex = stages.indexOf(currentStageRecord.stageName);
       actualNextStage = stages[currentIndex + 1];
+    } 
+    // 2. If Faisal explicitly specified a next stage in the approval dialog
+    else if (nextStage) {
+      actualNextStage = nextStage;
     }
+    // 3. Otherwise, it defaults to Faisal's control (the hub)
+    // In this case, actualNextStage remains null, and the order stays in Faisal's list 
+    // waiting for him to "Initiate" the next stage.
 
     if (actualNextStage) {
       const durations = await getStageDurations();
@@ -232,24 +251,34 @@ const approveStageCompletion = async (req, res) => {
         }
       });
     } else {
-      // Final completion
-      await prisma.order.update({
-        where: { id: orderId },
-        data: { 
-          currentStage: 'COMPLETED',
-          status: 'COMPLETED'
-        }
-      });
+      // It returns to Faisal or is finished
+      if (currentStageRecord.stageName === 'DISPATCH') {
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { 
+            currentStage: 'COMPLETED',
+            status: 'COMPLETED'
+          }
+        });
+      } else {
+        // Returned to Faisal (WAITING_APPROVAL/HUB state)
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { 
+            status: 'WAITING_APPROVAL' // Or a special HUB status
+          }
+        });
+      }
     }
 
-    await createAuditLog(orderId, 'STAGE_APPROVED', `${currentStageRecord.stageName} approved by Faisal. Next: ${actualNextStage || 'FINAL'}${customizationPrice ? ` | Added Cost: $${customizationPrice}` : ''}`, req.user.id);
+    await createAuditLog(orderId, 'STAGE_APPROVED', `${currentStageRecord.stageName} approved. ${actualNextStage ? `Sent to: ${actualNextStage}` : 'Returned to Faisal Control Center'}${customizationPrice ? ` | Added Cost: $${customizationPrice}` : ''}`, req.user.id);
 
     const io = req.app.get('io');
     io.emit('order-updated', { orderId });
 
-    res.json({ message: 'Stage approved and moved forward' });
+    res.json({ message: 'Stage processed successfully', nextStage: actualNextStage });
   } catch (error) {
-    res.status(500).json({ message: 'Error approving stage', error: error.message });
+    res.status(500).json({ message: 'Error processing stage transition', error: error.message });
   }
 };
 

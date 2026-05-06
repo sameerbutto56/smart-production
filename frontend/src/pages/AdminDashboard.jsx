@@ -188,7 +188,10 @@ const AdminDashboard = () => {
     { title: 'Completed Today', value: stats.completedToday, icon: Users, color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
   ];
 
-  const approvalQueue = allOrders.filter(o => o.stages?.some(s => s.status === 'WAITING_APPROVAL'));
+  const approvalQueue = allOrders.filter(o => 
+    o.status === 'WAITING_APPROVAL' || 
+    o.stages?.some(s => s.status === 'WAITING_APPROVAL')
+  );
 
   return (
     <div className="space-y-12 pb-24">
