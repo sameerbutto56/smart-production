@@ -147,7 +147,11 @@ const AllOrders = () => {
                   </td>
                 </tr>
               ) : (
-                filteredOrders.map((order) => (
+                filteredOrders.map((order) => {
+                  const product = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+                  const isWaitingApproval = order.stages?.some(s => s.status === 'WAITING_APPROVAL' && s.stageName === order.currentStage);
+                  
+                  return (
                   <tr key={order.id} className="hover:bg-white/5 transition-colors group">
                     <td className="px-6 py-4">
                       <div className="font-bold text-lg text-white group-hover:text-blue-400 transition-colors">
@@ -158,38 +162,49 @@ const AllOrders = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm">
-                        {order.type === 'custom' ? (
-                          <span className="text-purple-400 flex items-center space-x-1">
-                            <span>Custom Design</span>
-                          </span>
-                        ) : (
-                          <span className="text-gray-400">Standard Product</span>
+                      <div className="text-sm font-bold text-gray-200">
+                        {product?.productType || 'Standard Item'}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
+                        <span className="text-[10px] text-gray-500 font-medium bg-gray-800/50 px-2 py-0.5 rounded border border-gray-700/50">
+                          {product?.fabricType || 'STD FABRIC'}
+                        </span>
+                        {product?.color && (
+                          <div className="flex items-center space-x-1 bg-gray-800/50 px-2 py-0.5 rounded border border-gray-700/50">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: product.color.toLowerCase().replace(' ', '') }}></div>
+                            <span className="text-[10px] text-gray-500 font-medium uppercase">{product.color}</span>
+                          </div>
+                        )}
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase ${product?.gender === 'Female' ? 'bg-pink-500/10 text-pink-500' : 'bg-blue-500/10 text-blue-400'}`}>
+                          {product?.gender || 'MALE'}
+                        </span>
+                        {product?.femaleOptions?.dupatta && (
+                          <span className="text-[9px] font-black bg-pink-600 text-white px-1.5 py-0.5 rounded uppercase">Dupatta</span>
                         )}
                       </div>
-                      <div className="text-xs text-gray-500">
+                      <div className="text-[10px] text-gray-500 mt-1">
                         {order.advancePaid ? 'Payment: Advance' : 'Payment: Pending'}
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-2">
-                        <span className="bg-gray-800 px-2 py-1 rounded-md text-[10px] font-bold text-gray-300 border border-gray-700 uppercase">
-                          {order.currentStage.replace(/_/g, ' ')}
+                        <span className={`bg-gray-800 px-2 py-1 rounded-md text-[10px] font-black border border-gray-700 uppercase tracking-wider ${isWaitingApproval ? 'text-yellow-400 border-yellow-400/30' : 'text-gray-300'}`}>
+                          {isWaitingApproval ? `WAITING: ${order.currentStage.replace(/_/g, ' ')}` : order.currentStage.replace(/_/g, ' ')}
                         </span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       {order.urgent ? (
-                        <div className="flex items-center space-x-2 text-blue-400 text-xs font-bold">
+                        <div className="flex items-center space-x-2 text-blue-400 text-[10px] font-black uppercase tracking-widest">
                           <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
                           <span>URGENT</span>
                         </div>
                       ) : (
-                        <span className="text-gray-500 text-xs">Standard</span>
+                        <span className="text-gray-500 text-[10px] font-black uppercase tracking-widest">Standard</span>
                       )}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase border ${getStatusStyle(order.status)}`}>
+                      <span className={`text-[10px] font-black px-2 py-1 rounded-full uppercase border ${getStatusStyle(order.status)}`}>
                         {order.status.replace(/_/g, ' ')}
                       </span>
                     </td>
