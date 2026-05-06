@@ -225,8 +225,6 @@ const AdminDashboard = () => {
           </motion.div>
         ))}
       </div>
-
-      </section>
       
       {/* Stock Awareness Alert */}
       {allOrders.filter(o => o.currentStage === 'STORE').length > 0 && (
@@ -246,12 +244,12 @@ const AdminDashboard = () => {
               </p>
             </div>
           </div>
-          <Link 
-            to="/inventory" 
+          <button 
+            onClick={() => window.location.href = '/inventory'}
             className="px-8 py-4 bg-amber-600 hover:bg-amber-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-amber-900/20"
           >
             Check Inventory Stock
-          </Link>
+          </button>
         </motion.div>
       )}
 
@@ -406,8 +404,6 @@ const AdminDashboard = () => {
             </motion.div>
           )}
         </AnimatePresence>
-      </section>
-
       </section>
       
       {/* Quick Payment Management */}
@@ -573,6 +569,8 @@ const AdminDashboard = () => {
           </motion.div>
         </div>
       )}
+    </div>
+  );      )}
     </div>
   );
 };
