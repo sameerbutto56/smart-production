@@ -9,7 +9,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                       order.stages.find(s => s.status === 'PENDING') || 
                       order.stages[0];
 
-  const isFaisal = ['FAISAL', 'SUPER_ADMIN', 'ADMIN'].includes(userRole);
+  const isFaisal = ['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY'].includes(userRole);
   const [timeLeft, setTimeLeft] = useState('');
   const [isDelayed, setIsDelayed] = useState(false);
   const [showFullSheet, setShowFullSheet] = useState(false);

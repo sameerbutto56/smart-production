@@ -229,32 +229,7 @@ const AdminDashboard = () => {
         ))}
       </div>
       
-      {/* Stock Awareness Alert */}
-      {allOrders.filter(o => o.currentStage === 'STORE').length > 0 && (
-        <motion.div 
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="bg-amber-500/5 border border-amber-500/20 rounded-[2.5rem] p-8 flex flex-col md:flex-row items-center justify-between gap-6"
-        >
-          <div className="flex items-center space-x-6">
-            <div className="p-4 bg-amber-500/10 rounded-2xl">
-              <Package className="text-amber-500" size={32} />
-            </div>
-            <div>
-              <h3 className="text-xl font-black text-white uppercase tracking-tight">Stock Review Needed</h3>
-              <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mt-1">
-                {allOrders.filter(o => o.currentStage === 'STORE').length} Orders waiting for material verification in STORE
-              </p>
-            </div>
-          </div>
-          <button 
-            onClick={() => window.location.href = '/inventory'}
-            className="px-8 py-4 bg-amber-600 hover:bg-amber-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-amber-900/20"
-          >
-            Check Inventory Stock
-          </button>
-        </motion.div>
-      )}
+
 
       {/* Approval Queue */}
       <section>
@@ -467,111 +442,6 @@ const AdminDashboard = () => {
           </table>
         </div>
       </section>
-
-      {/* Efficiency & Danger Zone */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-        <div className="glass p-10 rounded-[3rem] border border-gray-800">
-            <h3 className="text-xl font-black text-white uppercase tracking-tight mb-8">Stage Performance (Avg Time)</h3>
-            <div className="space-y-6">
-                {analytics?.stagePerformance ? Object.entries(analytics.stagePerformance).map(([stage, stats]) => (
-                    <div key={stage}>
-                        <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">
-                            <span>{stage.replace(/_/g, ' ')}</span>
-                            <span className="text-blue-400">{stats.avgHours} hrs</span>
-                        </div>
-                        <div className="h-2 bg-gray-900 rounded-full overflow-hidden p-0.5 border border-gray-800">
-                            <motion.div 
-                                initial={{ width: 0 }}
-                                animate={{ width: `${Math.min(100, (parseFloat(stats.avgHours) / 48) * 100)}%` }}
-                                className={`h-full ${parseFloat(stats.avgHours) > 24 ? 'bg-red-500' : 'bg-blue-500'} rounded-full`}
-                            />
-                        </div>
-                    </div>
-                )) : (
-                    <p className="text-gray-600 text-sm italic">Gathering performance data...</p>
-                )}
-            </div>
-        </div>
-
-        <div className="border-2 border-red-500/20 bg-red-500/5 rounded-[3rem] p-10 flex flex-col justify-between">
-            <div>
-                <div className="flex items-center space-x-4 mb-6">
-                    <div className="p-3 bg-red-500/10 rounded-2xl">
-                        <ShieldAlert className="text-red-500" size={24} />
-                    </div>
-                    <h3 className="text-xl font-black text-white uppercase tracking-tight">Danger Zone</h3>
-                </div>
-                <p className="text-gray-500 text-sm font-bold uppercase tracking-wide leading-relaxed">
-                    Wiping system data is permanent. This will delete all order history, logs, and tracking data.
-                </p>
-            </div>
-            <button 
-                onClick={() => setShowClearModal(true)}
-                className="mt-8 w-full bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white py-5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all border border-red-500/20"
-            >
-                Wipe All Production Data
-            </button>
-        </div>
-      </div>
-
-      {/* Modal remains same but with updated styles */}
-      {showClearModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="absolute inset-0 bg-black/90 backdrop-blur-md"
-            onClick={() => !isClearing && setShowClearModal(false)}
-          />
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="relative w-full max-w-md bg-gray-900 border border-red-500/30 p-10 rounded-[2.5rem] shadow-2xl"
-          >
-            <div className="flex justify-between items-center mb-8">
-              <h3 className="text-2xl font-black text-white uppercase tracking-tight">Authorize Wipe</h3>
-              {!isClearing && (
-                <button onClick={() => setShowClearModal(false)} className="text-gray-500 hover:text-white">
-                  <X size={24} />
-                </button>
-              )}
-            </div>
-
-            <form onSubmit={handleClearData} className="space-y-8">
-              <div className="space-y-3">
-                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Admin Password</label>
-                <input 
-                  type="password"
-                  value={adminPassword}
-                  onChange={(e) => setAdminPassword(e.target.value)}
-                  className="w-full bg-gray-800 border-2 border-gray-700 rounded-2xl px-6 py-4 outline-none focus:border-red-500 transition-all text-white font-bold"
-                  placeholder="••••••••"
-                  required
-                  autoFocus
-                />
-              </div>
-
-              <div className="flex gap-4">
-                <button 
-                  type="button"
-                  disabled={isClearing}
-                  onClick={() => setShowClearModal(false)}
-                  className="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest transition-all"
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit"
-                  disabled={isClearing || !adminPassword}
-                  className="flex-1 bg-red-600 hover:bg-red-500 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest transition-all shadow-lg shadow-red-900/20"
-                >
-                  {isClearing ? 'Wiping...' : 'Confirm'}
-                </button>
-              </div>
-            </form>
-          </motion.div>
-        </div>
-      )}
     </div>
   );
 };
