@@ -128,8 +128,49 @@ const requestStageCompletion = async (req, res) => {
   const { orderId, stageId } = req.params;
 
   try {
+    const currentStage = await prisma.orderStage.findUnique({ where: { id: stageId } });
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+
+    // If it's an auto-transition stage, move it immediately
+    if (AUTO_TRANSITION_STAGES.includes(currentStage.stageName)) {
+      await prisma.orderStage.update({
+        where: { id: stageId },
+        data: { status: 'COMPLETED', completedAt: new Date() }
+      });
+
+      const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
+      const currentIndex = stages.indexOf(currentStage.stageName);
+      const actualNextStage = stages[currentIndex + 1];
+
+      if (actualNextStage) {
+        const durations = await getStageDurations();
+        const deadline = calculateDeadline(new Date(), durations[actualNextStage] || 2);
+
+        await prisma.orderStage.create({
+          data: {
+            orderId,
+            stageName: actualNextStage,
+            status: 'PENDING',
+            deadlineAt: deadline
+          }
+        });
+
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { currentStage: actualNextStage }
+        });
+
+        await createAuditLog(orderId, 'STAGE_AUTO_TRANSITION', `${currentStage.stageName} completed by worker. Auto-moved to ${actualNextStage}`, req.user.id);
+      }
+      
+      const io = req.app.get('io');
+      io.emit('order-updated', { orderId });
+      return res.json({ message: 'Auto-moved to next stage', nextStage: actualNextStage });
+    }
+
+    // Otherwise, go to Faisal for approval (Hub Pattern)
     const durations = await getStageDurations();
-    const approvalDuration = durations['FAISAL_APPROVAL'] || 2; // Default 2 hours
+    const approvalDuration = durations['FAISAL_APPROVAL'] || 2; 
     const deadline = calculateDeadline(new Date(), approvalDuration);
 
     const stage = await prisma.orderStage.update({
@@ -138,14 +179,15 @@ const requestStageCompletion = async (req, res) => {
         requestNextStep: true,
         status: 'WAITING_APPROVAL',
         assignedEmployeeId: req.user.id,
-        deadlineAt: deadline // Faisal's deadline to approve
+        deadlineAt: deadline 
       }
     });
 
     const io = req.app.get('io');
     io.emit('stage-completion-requested', { orderId, stage });
+    io.emit('order-updated', { orderId });
 
-    await createAuditLog(orderId, 'STAGE_COMPLETION_REQUESTED', `Completion requested for ${stage.stageName}`, req.user.id);
+    await createAuditLog(orderId, 'STAGE_COMPLETION_REQUESTED', `Completion requested for ${stage.stageName}. Waiting for Faisal.`, req.user.id);
 
     res.json({ message: 'Completion requested from Faisal', stage });
   } catch (error) {
