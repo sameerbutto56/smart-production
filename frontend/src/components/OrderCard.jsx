@@ -349,7 +349,11 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                       className="flex-[2] bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-2xl text-xs font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center space-x-3 active:scale-95 shadow-lg shadow-blue-900/20"
                     >
                       <CheckCircle size={18} />
-                      <span>COMPLETE TASK</span>
+                      <span>{(() => {
+                        const nextStageIdx = currentPipeline.indexOf(currentStage?.stageName) + 1;
+                        const nextStage = currentPipeline[nextStageIdx];
+                        return nextStage ? `MOVE TO ${nextStage.replace(/_/g, ' ')}` : 'COMPLETE TASK';
+                      })()}</span>
                     </button>
                     <button
                       onClick={() => setShowProblemModal(true)}
