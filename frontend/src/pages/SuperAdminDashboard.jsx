@@ -99,9 +99,21 @@ const SuperAdminDashboard = () => {
   };
 
   const statCards = [
-    { title: 'Total Revenue Est.', value: '$24,500', icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
+    { 
+      title: "Today's Revenue", 
+      value: analytics?.todayRevenue ? `$${analytics.todayRevenue.toFixed(2)}` : '$0.00', 
+      icon: TrendingUp, 
+      color: 'text-emerald-400', 
+      bg: 'bg-emerald-400/10' 
+    },
     { title: 'Total Orders', value: analytics?.totalOrders || 0, icon: FileText, color: 'text-blue-400', bg: 'bg-blue-400/10' },
-    { title: 'Inventory Value', value: `$${inventory.reduce((acc, item) => acc + (item.stock * (item.price || 0)), 0).toLocaleString()}`, icon: Package, color: 'text-purple-400', bg: 'bg-purple-400/10' },
+    { 
+      title: 'Avg Lead Time', 
+      value: analytics?.stagePerformance ? `${(Object.values(analytics.stagePerformance).reduce((acc, curr) => acc + parseFloat(curr.avgHours), 0) / Object.keys(analytics.stagePerformance).length).toFixed(1)}h` : '0.0h', 
+      icon: Timer, 
+      color: 'text-purple-400', 
+      bg: 'bg-purple-400/10' 
+    },
     { title: 'Delayed Tasks', value: '12', icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-400/10' },
   ];
 

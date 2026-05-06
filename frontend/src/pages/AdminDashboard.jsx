@@ -198,34 +198,6 @@ const AdminDashboard = () => {
           <h1 className="text-4xl font-black text-white tracking-tight">Faisal Control Center</h1>
           <p className="text-gray-400 font-bold uppercase tracking-widest text-xs mt-2">Production Approval Hub</p>
         </div>
-        
-        {/* Executive Summary Bar */}
-        <div className="flex bg-gray-900/50 backdrop-blur-xl rounded-[2rem] p-2 border border-gray-800 shadow-2xl">
-          <div className="px-8 py-4 border-r border-gray-800">
-            <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-1">Today's Revenue</p>
-            <p className="text-2xl font-black text-emerald-400 tracking-tighter">
-              ${allOrders.filter(o => {
-                const today = new Date().toISOString().split('T')[0];
-                return o.updatedAt.split('T')[0] === today;
-              }).reduce((acc, curr) => acc + (curr.customizationPrice || 0), 0).toFixed(2)}
-            </p>
-          </div>
-          <div className="px-8 py-4 border-r border-gray-800">
-            <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-1">Approvals Done</p>
-            <p className="text-2xl font-black text-blue-400 tracking-tighter">
-              {allOrders.filter(o => {
-                const today = new Date().toISOString().split('T')[0];
-                return o.updatedAt.split('T')[0] === today && o.status !== 'PENDING';
-              }).length}
-            </p>
-          </div>
-          <div className="px-8 py-4 hidden md:block">
-            <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-1">Avg Lead Time</p>
-            <p className="text-2xl font-black text-purple-400 tracking-tighter">
-              {analytics?.stagePerformance ? (Object.values(analytics.stagePerformance).reduce((acc, curr) => acc + parseFloat(curr.avgHours), 0) / Object.keys(analytics.stagePerformance).length).toFixed(1) : '0.0'}h
-            </p>
-          </div>
-        </div>
       </div>
 
 

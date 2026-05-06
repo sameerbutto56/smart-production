@@ -328,12 +328,25 @@ const updatePaymentStatus = async (req, res) => {
 
 const getAnalytics = async (req, res) => {
   try {
-    const [totalOrders, completedOrders, inProgressOrders, urgentOrders] = await Promise.all([
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const [totalOrders, completedOrders, inProgressOrders, urgentOrders, todayRevenueData] = await Promise.all([
       prisma.order.count(),
       prisma.order.count({ where: { status: 'COMPLETED' } }),
       prisma.order.count({ where: { status: 'IN_PROGRESS' } }),
-      prisma.order.count({ where: { urgent: true } })
+      prisma.order.count({ where: { urgent: true } }),
+      prisma.order.aggregate({
+        where: {
+          updatedAt: { gte: today }
+        },
+        _sum: {
+          customizationPrice: true
+        }
+      })
     ]);
+
+    const todayRevenue = todayRevenueData._sum.customizationPrice || 0;
 
     // For stage performance, we still need completed stages, but we can filter specifically
     const completedStages = await prisma.orderStage.findMany({
@@ -371,6 +384,7 @@ const getAnalytics = async (req, res) => {
       completedOrders,
       inProgressOrders,
       urgentOrders,
+      todayRevenue,
       stagePerformance
     });
   } catch (error) {
