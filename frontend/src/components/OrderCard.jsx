@@ -160,14 +160,23 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
               </div>
             ))}
           </div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1 bg-gray-950/50 p-3 rounded-xl border border-gray-800/50">
-            {measurements.filter(s => s.v).map((s, i) => (
-              <div key={i} className="text-[11px] text-gray-300 flex items-center justify-between border-b border-gray-800/30 pb-1">
-                <span className="font-bold text-gray-500">{s.l}:</span>
-                <span className="text-white font-black">{s.v}"</span>
-              </div>
-            ))}
-          </div>
+          
+          {order.type === 'STANDARD' || order.type === 'READY_LOGO' ? (
+            <div className="bg-gray-950/50 p-6 rounded-xl border border-gray-800/50 flex flex-col items-center justify-center">
+               <p className="text-[10px] text-gray-500 font-black uppercase tracking-[0.2em] mb-1">Standard Size</p>
+               <p className="text-4xl font-black text-blue-400">{product?.size || 'N/A'}</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 bg-gray-950/50 p-3 rounded-xl border border-gray-800/50">
+              {measurements.filter(s => s.v).map((s, i) => (
+                <div key={i} className="text-[11px] text-gray-300 flex items-center justify-between border-b border-gray-800/30 pb-1">
+                  <span className="font-bold text-gray-500">{s.l}:</span>
+                  <span className="text-white font-black">{s.v}"</span>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-2">
             {tailoring.filter(t => t.v).map((t, i) => (
               <div key={i} className="px-2 py-1 bg-gray-800 rounded text-[9px] font-black uppercase tracking-tighter text-gray-400 border border-gray-700">
