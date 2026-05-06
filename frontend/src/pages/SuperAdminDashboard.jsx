@@ -9,9 +9,10 @@ import {
   ShieldCheck, 
   Settings, 
   Trash2, 
-  Package, 
-  FileText, 
-  RefreshCcw 
+  RefreshCcw,
+  Zap,
+  Layout,
+  Timer
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { io } from 'socket.io-client';
@@ -209,40 +210,153 @@ const SuperAdminDashboard = () => {
           </div>
         </div>
 
-        {/* Deadline Configuration */}
-        <div className="glass rounded-[3rem] p-12 border border-gray-800">
-          <div className="flex items-center justify-between mb-12">
-            <h3 className="text-2xl font-black text-white uppercase tracking-tight">Deadline Config</h3>
-            <Clock className="text-yellow-500" size={32} />
-          </div>
-
-          <div className="space-y-6">
-            {Object.entries(durations).map(([stage, hrs]) => (
-              <div key={stage} className="space-y-2">
-                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">{stage.replace(/_/g, ' ')}</label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    value={hrs}
-                    onChange={(e) => setDurations({...durations, [stage]: parseInt(e.target.value)})}
-                    className="w-full bg-gray-900 border border-gray-800 rounded-xl py-3 px-4 focus:border-yellow-500 outline-none font-bold text-white text-sm"
-                  />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-gray-600 uppercase">Hours</span>
+        {/* --- ENHANCED DEADLINE CONFIGURATION --- */}
+        <div className="lg:col-span-3">
+          <div className="glass rounded-[3.5rem] p-12 border border-gray-800 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-yellow-500/5 blur-[100px] -mr-32 -mt-32 rounded-full" />
+            
+            <div className="flex flex-col md:flex-row md:items-center justify-between mb-16 gap-6 relative z-10">
+              <div className="flex items-center space-x-6">
+                <div className="p-5 bg-gradient-to-tr from-yellow-500 to-amber-600 rounded-[2rem] shadow-xl shadow-yellow-900/20">
+                  <Timer className="text-white" size={32} />
+                </div>
+                <div>
+                  <h3 className="text-3xl font-black text-white tracking-tight uppercase">Production Deadlines</h3>
+                  <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mt-1">Configure time limits & track performance</p>
                 </div>
               </div>
-            ))}
-            <button 
-              onClick={handleUpdateDurations}
-              disabled={isUpdatingDurations}
-              className="w-full mt-6 bg-yellow-600 hover:bg-yellow-500 text-white font-black py-4 rounded-2xl transition-all shadow-xl shadow-yellow-900/20 text-xs uppercase tracking-widest disabled:opacity-50"
-            >
-              {isUpdatingDurations ? 'Saving...' : 'Update Production Deadlines'}
-            </button>
+              
+              <button 
+                onClick={handleUpdateDurations}
+                disabled={isUpdatingDurations}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-10 py-5 rounded-2xl transition-all shadow-xl shadow-emerald-900/20 text-xs uppercase tracking-widest disabled:opacity-50 flex items-center space-x-3 active:scale-95"
+              >
+                {isUpdatingDurations ? <RefreshCcw className="animate-spin" size={18} /> : <Zap size={18} />}
+                <span>{isUpdatingDurations ? 'Syncing...' : 'Save All Deadlines'}</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-12 relative z-10">
+              {/* Group 1: Setup & Intake */}
+              <div className="space-y-8 p-8 bg-gray-950/40 rounded-[2.5rem] border border-gray-800/50">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="w-2 h-8 bg-blue-500 rounded-full" />
+                  <h4 className="text-[10px] font-black text-blue-400 uppercase tracking-[0.3em]">Phase 1: Intake</h4>
+                </div>
+                {['STORE', 'FAISAL_APPROVAL'].map(stage => (
+                  <DeadlineItem 
+                    key={stage} 
+                    stage={stage} 
+                    val={durations[stage]} 
+                    avg={analytics?.stagePerformance?.[stage]?.avgHours}
+                    onChange={(v) => setDurations({...durations, [stage]: v})}
+                  />
+                ))}
+              </div>
+
+              {/* Group 2: Combined Manufacturing (The Request) */}
+              <div className="space-y-8 p-8 bg-gray-950/60 rounded-[2.5rem] border-2 border-yellow-500/20 shadow-inner relative">
+                <div className="absolute -top-4 left-12 px-6 py-1 bg-yellow-500 rounded-full text-[9px] font-black text-black uppercase tracking-widest shadow-lg">
+                  Combined Production Cycle
+                </div>
+                <div className="flex items-center justify-between mb-4 pt-2">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-2 h-8 bg-yellow-500 rounded-full" />
+                    <h4 className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.3em]">Phase 2: Manufacturing</h4>
+                  </div>
+                </div>
+
+                <div className="space-y-4 mb-6">
+                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Quick Set Total Cycle Hours</label>
+                  <div className="relative group/total">
+                    <input
+                      type="number"
+                      placeholder="Bulk set total..."
+                      onChange={(e) => {
+                        const total = parseInt(e.target.value) || 0;
+                        const share = Math.floor(total / 4);
+                        setDurations({
+                          ...durations,
+                          'CUTTING': share,
+                          'STITCHING': share,
+                          'QA': share,
+                          'PRESSING_PACKING': share + (total % 4) // Add remainder to last
+                        });
+                      }}
+                      className="w-full bg-yellow-500/10 border-2 border-yellow-500/20 rounded-2xl py-4 px-6 outline-none focus:border-yellow-500 transition-all font-black text-yellow-500 text-lg pr-20"
+                    />
+                    <Zap className="absolute right-6 top-1/2 -translate-y-1/2 text-yellow-500" size={18} />
+                  </div>
+                  <p className="text-[9px] text-gray-600 italic px-2">Sets Cutting, Stitching, QC, and Pressing at once</p>
+                </div>
+                
+                <div className="grid grid-cols-1 gap-6">
+                  {['CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING'].map(stage => (
+                    <DeadlineItem 
+                      key={stage} 
+                      stage={stage} 
+                      val={durations[stage]} 
+                      avg={analytics?.stagePerformance?.[stage]?.avgHours}
+                      onChange={(v) => setDurations({...durations, [stage]: v})}
+                    />
+                  ))}
+                  
+                  <div className="mt-4 pt-6 border-t border-gray-800">
+                    <div className="flex justify-between items-center px-2">
+                      <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Total Combined Cycle</span>
+                      <span className="text-xl font-black text-yellow-500 tracking-tighter">
+                        {['CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING'].reduce((acc, s) => acc + (durations[s] || 0), 0)} Hours
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Group 3: Finishing & Logistics */}
+              <div className="space-y-8 p-8 bg-gray-950/40 rounded-[2.5rem] border border-gray-800/50">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="w-2 h-8 bg-purple-500 rounded-full" />
+                  <h4 className="text-[10px] font-black text-purple-400 uppercase tracking-[0.3em]">Phase 3: Finishing</h4>
+                </div>
+                {['NAME_LOGO', 'CUSTOM_LOGO', 'DISPATCH'].map(stage => (
+                  <DeadlineItem 
+                    key={stage} 
+                    stage={stage} 
+                    val={durations[stage]} 
+                    avg={analytics?.stagePerformance?.[stage]?.avgHours}
+                    onChange={(v) => setDurations({...durations, [stage]: v})}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>
   );
 };
+
+const DeadlineItem = ({ stage, val, avg, onChange }) => (
+  <div className="group space-y-3">
+    <div className="flex justify-between items-center px-1">
+      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest group-hover:text-white transition-colors">{stage.replace(/_/g, ' ')}</label>
+      {avg && (
+        <div className="flex items-center space-x-1.5 px-2 py-0.5 rounded-full bg-gray-900 border border-gray-800">
+          <Clock size={10} className="text-emerald-500" />
+          <span className="text-[9px] font-bold text-gray-500 tracking-tighter">Avg: {avg}h</span>
+        </div>
+      )}
+    </div>
+    <div className="relative group/input">
+      <input
+        type="number"
+        value={val || 0}
+        onChange={(e) => onChange(parseInt(e.target.value) || 0)}
+        className="w-full bg-gray-950 border-2 border-gray-900 rounded-2xl py-4 px-6 outline-none focus:border-blue-500/50 transition-all font-black text-white text-lg pr-20 shadow-inner group-hover/input:border-gray-800"
+      />
+      <span className="absolute right-6 top-1/2 -translate-y-1/2 text-[10px] font-black text-gray-600 uppercase tracking-widest">Hrs</span>
+    </div>
+  </div>
+);
 
 export default SuperAdminDashboard;
