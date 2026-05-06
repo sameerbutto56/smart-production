@@ -41,7 +41,10 @@ const InventoryManagement = () => {
     setLoading(true);
     try {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      const response = await axios.get(`${API_URL}/api/inventory`);
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/api/inventory`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setItems(response.data);
     } catch (error) {
       console.error('Error fetching inventory:', error);
@@ -71,10 +74,12 @@ const InventoryManagement = () => {
     e.preventDefault();
     try {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
       if (editingItem) {
-        await axios.put(`${API_URL}/api/inventory/${editingItem.id}`, formData);
+        await axios.put(`${API_URL}/api/inventory/${editingItem.id}`, formData, { headers });
       } else {
-        await axios.post(`${API_URL}/api/inventory`, formData);
+        await axios.post(`${API_URL}/api/inventory`, formData, { headers });
       }
       fetchInventory();
       setIsModalOpen(false);

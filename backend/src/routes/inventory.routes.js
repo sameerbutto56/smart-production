@@ -4,7 +4,7 @@ const { authenticate, authorize } = require('../middleware/auth.middleware');
 const router = express.Router();
 
 router.get('/', authenticate, getInventory);
-router.post('/', authenticate, authorize(['ADMIN']), createInventoryItem);
-router.put('/:id', authenticate, authorize(['ADMIN']), updateInventoryItem);
+router.post('/', authenticate, authorize(['ADMIN', 'FAISAL', 'SUPER_ADMIN']), createInventoryItem);
+router.put('/:id', authenticate, authorize(['ADMIN', 'FAISAL', 'SUPER_ADMIN']), updateInventoryItem);
 
 module.exports = router;
