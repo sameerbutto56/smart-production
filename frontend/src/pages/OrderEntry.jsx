@@ -222,7 +222,7 @@ const SmartOrderForm = () => {
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
       console.error('Error creating order:', error);
-      const serverMsg = error.response?.data?.error || error.response?.data?.message;
+      const serverMsg = error.response?.data?.message || error.response?.data?.error;
       setError(serverMsg || 'Error creating order. Please try again.');
     }
     setLoading(false);
