@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X } from 'lucide-react';
+import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw } from 'lucide-react';
 import axios from 'axios';
 
 const OrderCard = ({ order, onUpdateStage, userRole }) => {
@@ -247,13 +247,23 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                     <Check size={14} />
                     <span>Approve</span>
                   </button>
-                  <button
-                    onClick={() => setShowRejectionDialog(true)}
-                    className="flex-1 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col xl:flex-row items-center justify-center gap-1 active:scale-95 border border-red-500/20"
-                  >
-                    <X size={14} />
-                    <span>Reject</span>
-                  </button>
+                  {currentStage?.rejectionReason?.includes('Out of Stock') ? (
+                    <button
+                      onClick={() => onUpdateStage(order.id, currentStage.id, 'reject', { reason: 'Stock Replenished - Please Check Again' })}
+                      className="flex-1 bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col xl:flex-row items-center justify-center gap-1 active:scale-95 border border-yellow-500/20"
+                    >
+                      <RefreshCcw size={14} />
+                      <span>Send Again</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setShowRejectionDialog(true)}
+                      className="flex-1 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col xl:flex-row items-center justify-center gap-1 active:scale-95 border border-red-500/20"
+                    >
+                      <X size={14} />
+                      <span>Reject</span>
+                    </button>
+                  )}
                   {order.paymentStatus !== 'FULL_PAID' && (
                     <button
                       onClick={() => {
