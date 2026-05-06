@@ -23,6 +23,9 @@ const AllOrders = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [filterStatus, setFilterStatus] = useState('ALL');
+  const [filterType, setFilterType] = useState('ALL');
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     fetchOrders();
@@ -107,10 +110,15 @@ const AllOrders = () => {
     document.body.removeChild(a);
   };
 
-  const filteredOrders = orders.filter(order => 
-    order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    order.id.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredOrders = orders.filter(order => {
+    const matchesSearch = order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (order.orderNumber && order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesStatus = filterStatus === 'ALL' || order.status === filterStatus;
+    const matchesType = filterType === 'ALL' || order.type === filterType;
+    
+    return matchesSearch && matchesStatus && matchesType;
+  });
 
   return (
     <div className="space-y-6">
@@ -147,10 +155,63 @@ const AllOrders = () => {
             className="w-full bg-gray-800 border border-gray-700 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-blue-500 transition-all"
           />
         </div>
-        <button className="flex items-center space-x-2 bg-gray-800 border border-gray-700 px-6 py-3 rounded-xl hover:bg-gray-700 transition-colors">
-          <Filter size={18} />
-          <span>Filters</span>
-        </button>
+        <div className="relative">
+          <button 
+            onClick={() => setShowFilters(!showFilters)}
+            className={`flex items-center space-x-2 bg-gray-800 border px-6 py-3 rounded-xl transition-all ${showFilters ? 'border-blue-500 text-blue-400' : 'border-gray-700 hover:bg-gray-700 text-gray-300'}`}
+          >
+            <Filter size={18} />
+            <span>Filters</span>
+            {(filterStatus !== 'ALL' || filterType !== 'ALL') && (
+              <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+            )}
+          </button>
+
+          {showFilters && (
+            <div className="absolute right-0 mt-3 w-72 bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl p-6 z-50 space-y-6">
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Order Status</label>
+                <select 
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-xs text-gray-300 outline-none focus:border-blue-500"
+                >
+                  <option value="ALL">All Statuses</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="IN_PROGRESS">In Progress</option>
+                  <option value="READY_FOR_DELIVERY">Ready for Delivery</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="REJECTED">Rejected</option>
+                </select>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Order Type</label>
+                <select 
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value)}
+                  className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-xs text-gray-300 outline-none focus:border-blue-500"
+                >
+                  <option value="ALL">All Types</option>
+                  <option value="STANDARD">Standard</option>
+                  <option value="FULL_CUSTOM">Full Custom</option>
+                  <option value="READY_LOGO">Ready with Logo</option>
+                </select>
+              </div>
+
+              <button 
+                onClick={() => {
+                  setFilterStatus('ALL');
+                  setFilterType('ALL');
+                  setShowFilters(false);
+                }}
+                className="w-full py-2 text-[10px] font-black uppercase text-gray-500 hover:text-white transition-colors"
+              >
+                Reset Filters
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="glass rounded-2xl overflow-hidden">
