@@ -226,7 +226,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
             </div>
           </motion.div>
 
-          <div className="flex space-x-3">
+          <div className="flex gap-2">
             {isFaisal && order.status === 'WAITING_APPROVAL' && currentStage?.status === 'COMPLETED' ? (
               <button
                 onClick={() => setShowApprovalDialog(true)}
@@ -240,14 +240,14 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                 <>
                   <button
                     onClick={() => setShowApprovalDialog(true)}
-                    className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-lg"
+                    className="flex-[1.5] bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col xl:flex-row items-center justify-center gap-1 active:scale-95 shadow-lg"
                   >
                     <Check size={14} />
-                    <span>Approve to Hub</span>
+                    <span>Approve</span>
                   </button>
                   <button
                     onClick={() => setShowRejectionDialog(true)}
-                    className="flex-1 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 border border-red-500/20"
+                    className="flex-1 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col xl:flex-row items-center justify-center gap-1 active:scale-95 border border-red-500/20"
                   >
                     <X size={14} />
                     <span>Reject</span>
@@ -267,7 +267,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                           alert('Payment update failed');
                         });
                       }}
-                      className="p-4 bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white rounded-2xl transition-all border border-yellow-500/20 active:scale-95"
+                      className="flex-1 py-3 px-2 bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white rounded-xl transition-all border border-yellow-500/20 active:scale-95 flex items-center justify-center"
                       title="Update Payment"
                     >
                       <span className="text-[10px] font-black">PAY</span>
