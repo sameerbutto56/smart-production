@@ -132,7 +132,7 @@ const AllOrders = () => {
                 <th className="px-6 py-4">Current Stage</th>
                 <th className="px-6 py-4">Priority</th>
                 <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4 text-right">Actions</th>
+                <th className="px-6 py-4 text-right"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
@@ -157,7 +157,14 @@ const AllOrders = () => {
                   const isWaitingApproval = order.stages?.some(s => s.status === 'WAITING_APPROVAL' && s.stageName === order.currentStage);
                   
                   return (
-                  <tr key={order.id} className="hover:bg-white/5 transition-colors group">
+                  <tr 
+                    key={order.id} 
+                    onClick={() => {
+                      setSelectedOrder(order);
+                      setShowModal(true);
+                    }}
+                    className="hover:bg-white/5 transition-colors group cursor-pointer"
+                  >
                     <td className="px-6 py-4">
                       <div className="font-bold text-lg text-white group-hover:text-blue-400 transition-colors">
                         #{order.orderNumber || order.id.substring(0, 8)}
@@ -216,7 +223,10 @@ const AllOrders = () => {
                     <td className="px-6 py-4 text-right">
                       {order.status === 'READY_FOR_DELIVERY' ? (
                         <button 
-                          onClick={() => handleSendForDelivery(order.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSendForDelivery(order.id);
+                          }}
                           className="bg-emerald-600/10 hover:bg-emerald-600 text-emerald-500 hover:text-white px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center space-x-2 ml-auto"
                         >
                           <Truck size={16} />
@@ -224,24 +234,7 @@ const AllOrders = () => {
                         </button>
                       ) : (
                         <div className="flex items-center justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button 
-                            onClick={() => {
-                              setSelectedOrder(order);
-                              setShowModal(true);
-                            }}
-                            className="p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white transition-colors"
-                          >
-                            <MoreVertical size={18} />
-                          </button>
-                          <button 
-                            onClick={() => {
-                              setSelectedOrder(order);
-                              setShowModal(true);
-                            }}
-                            className="p-2 hover:bg-blue-600 rounded-lg text-gray-400 hover:text-white transition-colors"
-                          >
-                            <ChevronRight size={18} />
-                          </button>
+                          <ChevronRight size={18} className="text-gray-500" />
                         </div>
                       )}
                     </td>
