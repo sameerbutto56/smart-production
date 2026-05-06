@@ -458,7 +458,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                 </select>
               </div>
 
-              {order.type !== 'STANDARD' && currentStage?.stageName === 'STORE' && (
+              {(order.type === 'FULL_CUSTOM' || order.type === 'READY_LOGO') && currentStage?.stageName === 'STORE' && (
                 <div className="space-y-3">
                   <label className="text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-1">Add Customization Amount ($)</label>
                   <div className="relative">
