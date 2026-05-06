@@ -23,6 +23,8 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { io } from 'socket.io-client';
+import silhouetteMale from '../assets/silhouette.png';
+import silhouetteFemale from '../assets/silhouette-female.png';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const socket = io(API_URL);
@@ -759,7 +761,12 @@ const SmartOrderForm = () => {
 
                   {/* Center Silhouette */}
                   <div className="hidden md:flex relative w-1/3 justify-center items-center min-h-[500px]">
-                    <img src={formData.gender === 'Female' ? '/silhouette-female.png' : '/silhouette.png'} alt="Tailor Silhouette" className="h-[550px] object-contain opacity-60 filter drop-shadow-[0_0_30px_rgba(16,185,129,0.2)]" />
+                    <img 
+                      src={formData.gender === 'Female' ? silhouetteFemale : silhouetteMale} 
+                      alt="Tailor Silhouette" 
+                      className="h-[550px] object-contain opacity-60 filter drop-shadow-[0_0_30px_rgba(16,185,129,0.2)]" 
+                      loading="lazy"
+                    />
                     
                     {/* Connecting Lines */}
                     <div className="absolute top-[20%] left-[10%] w-[40%] border-t border-dashed border-emerald-500/40"></div>
