@@ -483,8 +483,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                   <option value="">Select Next Hub/Spoke...</option>
                   <option value="STORE">Send to STORE</option>
                   <option value="CUTTING">Send to MANUFACTURING (Cutter)</option>
-                  <option value="CUSTOM_LOGO">Send to CUSTOM LOGO</option>
-                  <option value="NAME_LOGO">Send to NAME/LOGO</option>
+                  <option value="LOGO_DESIGN">Send to LOGO & NAME DESIGN</option>
                   <option value="DISPATCH">Send to DISPATCH</option>
                 </select>
               </div>
