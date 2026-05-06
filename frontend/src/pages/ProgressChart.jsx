@@ -32,7 +32,7 @@ const ProgressChart = () => {
     navigate('/login');
   };
 
-  const pipeline = ['STORE', 'CUTTING', 'STITCHING', 'QUALITY_CHECK', 'PRESSING', 'PACKAGING', 'DISPATCH'];
+  const pipeline = ['STORE', 'CUTTING', 'STITCHING', 'QA', 'LOGO_DESIGN', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'];
 
   useEffect(() => {
     fetchData();

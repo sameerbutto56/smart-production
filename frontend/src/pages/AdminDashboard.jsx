@@ -360,26 +360,72 @@ const AdminDashboard = () => {
               </div>
 
               {/* Order Flow Visual */}
-              <div className="relative pt-8 pb-4 px-4">
-                <div className="absolute top-[50px] left-0 right-0 h-1 bg-gray-800 rounded-full overflow-hidden">
-                    <div 
-                        className="h-full bg-blue-500 shadow-[0_0_15px_#3b82f6]" 
-                        style={{ width: `${(trackedOrder.stages?.length / 8) * 100}%` }}
-                    />
+              <div className="mt-8 space-y-6">
+                <div className="flex justify-between items-center mb-4">
+                  <span className="text-xs font-black text-blue-400 uppercase tracking-widest">Production Timeline</span>
+                  <span className="text-xs font-black text-gray-500 uppercase tracking-widest">
+                    Step {trackedOrder.stages?.filter(s => s.status === 'COMPLETED').length + 1} of {
+                      (() => {
+                        const pipelines = {
+                          'STANDARD': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                          'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                          'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY']
+                        };
+                        return pipelines[trackedOrder.type]?.length || 8;
+                      })()
+                    }
+                  </span>
                 </div>
-                <div className="flex justify-between relative z-10">
-                    {['ENTRY', 'STORE', 'CUTTING', 'STITCH', 'QA', 'PACK', 'DISPATCH'].map((s, i) => (
-                        <div key={s} className="flex flex-col items-center">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all ${
-                                i < trackedOrder.stages?.length ? 'bg-blue-600 border-blue-600 text-white' : 'bg-gray-900 border-gray-800 text-gray-600'
+
+                <div className="space-y-4">
+                  {(() => {
+                    const pipelines = {
+                      'STANDARD': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                      'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                      'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY']
+                    };
+                    const currentPipeline = pipelines[trackedOrder.type] || pipelines['STANDARD'];
+                    
+                    return currentPipeline.map((stageName, i) => {
+                      const stageData = trackedOrder.stages?.find(s => s.stageName === stageName);
+                      const isCompleted = stageData?.status === 'COMPLETED';
+                      const isCurrent = trackedOrder.currentStage === stageName;
+                      
+                      return (
+                        <div key={stageName} className="flex items-center gap-4 group">
+                          <div className="flex flex-col items-center">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${
+                              isCompleted ? 'bg-emerald-600 border-emerald-600 text-white shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 
+                              isCurrent ? 'bg-blue-600 border-blue-600 text-white animate-pulse shadow-[0_0_15px_rgba(37,99,235,0.3)]' :
+                              'bg-gray-950 border-gray-800 text-gray-700'
                             }`}>
-                                {i < trackedOrder.stages?.length ? <CheckCircle2 size={20} /> : <Circle size={12} />}
+                              {isCompleted ? <CheckCircle2 size={16} /> : <Circle size={8} />}
                             </div>
-                            <span className={`text-[9px] font-black uppercase tracking-tighter mt-3 ${i < trackedOrder.stages?.length ? 'text-blue-400' : 'text-gray-600'}`}>
-                                {s}
-                            </span>
+                            {i < currentPipeline.length - 1 && (
+                              <div className={`w-0.5 h-8 ${isCompleted ? 'bg-emerald-600' : 'bg-gray-800'}`} />
+                            )}
+                          </div>
+                          
+                          <div className="flex-1 pb-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                              <span className={`text-[11px] font-black uppercase tracking-widest ${isCompleted ? 'text-emerald-400' : isCurrent ? 'text-blue-400' : 'text-gray-600'}`}>
+                                {stageName.replace(/_/g, ' ')}
+                              </span>
+                              <span className="text-[10px] font-bold font-mono text-gray-500">
+                                {isCompleted ? (
+                                  `Finished: ${new Date(stageData.completedAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}`
+                                ) : stageData?.deadlineAt ? (
+                                  `Target: ${new Date(stageData.deadlineAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}`
+                                ) : (
+                                  'Pending'
+                                )}
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                    ))}
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             </motion.div>

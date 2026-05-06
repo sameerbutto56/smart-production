@@ -469,6 +469,68 @@ const AllOrders = () => {
                     </div>
                   </div>
                 </section>
+
+                <section>
+                   <div className="flex justify-between items-center mb-6">
+                      <h4 className="text-[11px] font-black text-blue-500 uppercase tracking-[0.3em]">05. Production Timeline</h4>
+                      <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest bg-gray-950 px-3 py-1 rounded-full border border-gray-800">
+                        Total Workflow: {
+                          (() => {
+                            const pipelines = {
+                              'STANDARD': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                              'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                              'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY']
+                            };
+                            return pipelines[selectedOrder.type]?.length || 8;
+                          })()
+                        } Steps
+                      </span>
+                   </div>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {(() => {
+                        const pipelines = {
+                          'STANDARD': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                          'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                          'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY']
+                        };
+                        const currentPipeline = pipelines[selectedOrder.type] || pipelines['STANDARD'];
+                        
+                        return currentPipeline.map((stageName, i) => {
+                          const stageData = selectedOrder.stages?.find(s => s.stageName === stageName);
+                          const isCompleted = stageData?.status === 'COMPLETED';
+                          const isCurrent = selectedOrder.currentStage === stageName;
+                          
+                          return (
+                            <div key={stageName} className={`p-4 rounded-2xl border transition-all flex items-center justify-between gap-4 ${
+                              isCompleted ? 'bg-emerald-500/5 border-emerald-500/20 opacity-60' : 
+                              isCurrent ? 'bg-blue-600/10 border-blue-500 animate-pulse' : 
+                              'bg-gray-950/50 border-gray-800'
+                            }`}>
+                              <div className="flex items-center gap-3">
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${
+                                  isCompleted ? 'bg-emerald-500 text-white' : 
+                                  isCurrent ? 'bg-blue-500 text-white' : 
+                                  'bg-gray-800 text-gray-500'
+                                }`}>
+                                  {i + 1}
+                                </div>
+                                <span className={`text-[10px] font-black uppercase tracking-widest ${isCompleted ? 'text-emerald-400' : isCurrent ? 'text-blue-400' : 'text-gray-500'}`}>
+                                  {stageName.replace(/_/g, ' ')}
+                                </span>
+                              </div>
+                              <span className="text-[9px] font-bold font-mono text-gray-600 whitespace-nowrap">
+                                {isCompleted ? (
+                                  new Date(stageData.completedAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })
+                                ) : stageData?.deadlineAt ? (
+                                  new Date(stageData.deadlineAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })
+                                ) : 'TBD'}
+                              </span>
+                            </div>
+                          );
+                        });
+                      })()}
+                   </div>
+                </section>
               </div>
 
               <div className="p-8 bg-gray-950/80 border-t border-gray-800 flex justify-between items-center">
