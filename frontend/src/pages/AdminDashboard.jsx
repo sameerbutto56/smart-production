@@ -571,9 +571,6 @@ const AdminDashboard = () => {
             </form>
           </motion.div>
         </div>
-      )}
-    </div>
-  );      )}
     </div>
   );
 };

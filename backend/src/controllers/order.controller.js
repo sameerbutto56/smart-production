@@ -51,11 +51,7 @@ const createAuditLog = async (orderId, action, details, userId) => {
   }
 };
 
-const NEXT_STAGES = {
-  'STANDARD': ['STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH'],
-  'READY_LOGO': ['STORE', 'NAME_LOGO', 'DISPATCH'],
-  'FULL_CUSTOM': ['STORE', 'CUTTING', 'STITCHING', 'QA', 'CUSTOM_LOGO', 'DISPATCH']
-};
+
 
 const createOrder = async (req, res) => {
   const { orderNumber, customerName, type, urgent, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, shopifyOrderId, paymentDeadline } = req.body;
