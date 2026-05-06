@@ -458,19 +458,21 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                 </select>
               </div>
 
-              <div className="space-y-3">
-                <label className="text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-1">Add Customization Amount ($)</label>
-                <div className="relative">
-                  <span className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-500 font-black">$</span>
-                  <input 
-                    type="number"
-                    value={customizationAmount}
-                    onChange={(e) => setCustomizationAmount(e.target.value)}
-                    className="w-full bg-gray-950 border-2 border-gray-800 rounded-2xl py-4 pl-12 pr-6 outline-none focus:border-emerald-500 transition-all text-white font-black text-xl"
-                    placeholder="0"
-                  />
+              {order.type !== 'STANDARD' && currentStage?.stageName === 'STORE' && (
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-1">Add Customization Amount ($)</label>
+                  <div className="relative">
+                    <span className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-500 font-black">$</span>
+                    <input 
+                      type="number"
+                      value={customizationAmount}
+                      onChange={(e) => setCustomizationAmount(e.target.value)}
+                      className="w-full bg-gray-950 border-2 border-gray-800 rounded-2xl py-4 pl-12 pr-6 outline-none focus:border-emerald-500 transition-all text-white font-black text-xl"
+                      placeholder="0"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="flex flex-col space-y-3">
