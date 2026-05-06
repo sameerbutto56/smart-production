@@ -328,41 +328,51 @@ const updatePaymentStatus = async (req, res) => {
 
 const getAnalytics = async (req, res) => {
   try {
-    const orders = await prisma.order.findMany({
-      include: { stages: true }
+    const [totalOrders, completedOrders, inProgressOrders, urgentOrders] = await Promise.all([
+      prisma.order.count(),
+      prisma.order.count({ where: { status: 'COMPLETED' } }),
+      prisma.order.count({ where: { status: 'IN_PROGRESS' } }),
+      prisma.order.count({ where: { urgent: true } })
+    ]);
+
+    // For stage performance, we still need completed stages, but we can filter specifically
+    const completedStages = await prisma.orderStage.findMany({
+      where: { 
+        status: 'COMPLETED',
+        completedAt: { not: null }
+      },
+      select: {
+        stageName: true,
+        createdAt: true,
+        completedAt: true
+      }
     });
 
-    const analytics = {
-      totalOrders: orders.length,
-      completedOrders: orders.filter(o => o.status === 'COMPLETED').length,
-      inProgressOrders: orders.filter(o => o.status === 'IN_PROGRESS').length,
-      urgentOrders: orders.filter(o => o.urgent).length,
-      stagePerformance: {}
-    };
-
-    // Calculate average time per stage
     const stageStats = {};
-    orders.forEach(order => {
-      order.stages.forEach(stage => {
-        if (stage.status === 'COMPLETED' && stage.completedAt) {
-          if (!stageStats[stage.stageName]) {
-            stageStats[stage.stageName] = { totalTime: 0, count: 0 };
-          }
-          const duration = new Date(stage.completedAt) - new Date(stage.createdAt);
-          stageStats[stage.stageName].totalTime += duration;
-          stageStats[stage.stageName].count += 1;
-        }
-      });
+    completedStages.forEach(stage => {
+      if (!stageStats[stage.stageName]) {
+        stageStats[stage.stageName] = { totalTime: 0, count: 0 };
+      }
+      const duration = new Date(stage.completedAt) - new Date(stage.createdAt);
+      stageStats[stage.stageName].totalTime += duration;
+      stageStats[stage.stageName].count += 1;
     });
 
+    const stagePerformance = {};
     for (const [stage, stats] of Object.entries(stageStats)) {
-      analytics.stagePerformance[stage] = {
+      stagePerformance[stage] = {
         avgHours: (stats.totalTime / stats.count / (1000 * 60 * 60)).toFixed(1),
         count: stats.count
       };
     }
 
-    res.json(analytics);
+    res.json({
+      totalOrders,
+      completedOrders,
+      inProgressOrders,
+      urgentOrders,
+      stagePerformance
+    });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching analytics', error: error.message });
   }
