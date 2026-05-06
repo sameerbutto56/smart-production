@@ -75,7 +75,17 @@ const MyTasks = () => {
     };
 
     const targetStages = stageRoleMap[user.role] || [];
-    return targetStages.includes(order.currentStage) && order.status !== 'COMPLETED';
+    
+    if (!targetStages.includes(order.currentStage) || order.status === 'COMPLETED') {
+      return false;
+    }
+
+    const currentStageData = order.stages?.find(s => s.stageName === order.currentStage);
+    if (currentStageData && currentStageData.status === 'WAITING_APPROVAL') {
+      return false;
+    }
+
+    return true;
   };
 
   const filteredOrders = orders.filter(order => 
