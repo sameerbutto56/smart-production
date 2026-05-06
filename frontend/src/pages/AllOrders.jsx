@@ -8,7 +8,10 @@ import {
   ChevronRight,
   Download,
   RefreshCcw,
-  Truck
+  Truck,
+  X,
+  Layers,
+  ClipboardList
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import socket from '../socket';
@@ -18,6 +21,8 @@ const AllOrders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
     fetchOrders();
@@ -219,10 +224,22 @@ const AllOrders = () => {
                         </button>
                       ) : (
                         <div className="flex items-center justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button className="p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white transition-colors">
+                          <button 
+                            onClick={() => {
+                              setSelectedOrder(order);
+                              setShowModal(true);
+                            }}
+                            className="p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white transition-colors"
+                          >
                             <MoreVertical size={18} />
                           </button>
-                          <button className="p-2 hover:bg-blue-600 rounded-lg text-gray-400 hover:text-white transition-colors">
+                          <button 
+                            onClick={() => {
+                              setSelectedOrder(order);
+                              setShowModal(true);
+                            }}
+                            className="p-2 hover:bg-blue-600 rounded-lg text-gray-400 hover:text-white transition-colors"
+                          >
                             <ChevronRight size={18} />
                           </button>
                         </div>
@@ -236,6 +253,136 @@ const AllOrders = () => {
           </table>
         </div>
       </div>
+
+      {/* --- JOB SHEET MODAL --- */}
+      {showModal && selectedOrder && (() => {
+        const product = typeof selectedOrder.productDetails === 'string' ? JSON.parse(selectedOrder.productDetails) : selectedOrder.productDetails;
+        const custom = typeof selectedOrder.customization === 'string' ? JSON.parse(selectedOrder.customization) : selectedOrder.customization;
+        const sizes = typeof selectedOrder.sizeData === 'string' ? JSON.parse(selectedOrder.sizeData) : selectedOrder.sizeData;
+        
+        return (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="absolute inset-0 bg-gray-950/90 backdrop-blur-xl"
+              onClick={() => setShowModal(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              className="relative w-full max-w-4xl bg-gray-900 border border-gray-800 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              {/* Modal Header */}
+              <div className="p-8 border-b border-gray-800 flex justify-between items-center bg-gray-900/50 backdrop-blur-md sticky top-0 z-10">
+                <div>
+                  <div className="flex items-center space-x-4 mb-2">
+                    <h2 className="text-4xl font-black tracking-tighter text-white">#{selectedOrder.orderNumber || selectedOrder.id.substring(0, 8)}</h2>
+                    <span className="px-3 py-1 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase tracking-widest rounded-lg">
+                      Full Production Job Sheet
+                    </span>
+                  </div>
+                  <p className="text-gray-400 font-bold tracking-wide">{selectedOrder.customerName}</p>
+                </div>
+                <button 
+                  onClick={() => setShowModal(false)}
+                  className="p-4 hover:bg-gray-800 rounded-full text-gray-400 transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              {/* Modal Content */}
+              <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar text-white">
+                
+                <section>
+                  <h4 className="text-[11px] font-black text-blue-500 uppercase tracking-[0.3em] mb-6">01. Material & Product Specs</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {[
+                      { label: 'Product Base', val: product?.productType },
+                      { label: 'Fabric Type', val: product?.fabricType },
+                      { label: 'Primary Color', val: product?.color },
+                      { label: 'Order Size', val: product?.size },
+                      { label: 'Gender', val: product?.gender },
+                      ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
+                      { label: 'Payment', val: selectedOrder.paymentStatus || (selectedOrder.advancePaid ? 'ADVANCE' : 'PENDING') }
+                    ].filter(i => i.val).map((item, i) => (
+                      <div key={i} className="bg-gray-950/50 p-6 rounded-3xl border border-gray-800/50">
+                        <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-2">{item.label}</p>
+                        <p className="text-lg font-bold text-gray-200">{item.val || 'STANDARD'}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="bg-blue-600/5 p-8 rounded-[2rem] border border-blue-500/10">
+                  <h4 className="text-[11px] font-black text-blue-400 uppercase tracking-[0.3em] mb-6">02. Precise Measurements (Inches)</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    {Object.entries(sizes || {}).map(([key, val], i) => (
+                      <div key={i} className="text-center p-4 bg-gray-900 rounded-2xl border border-gray-800 shadow-sm">
+                        <p className="text-[9px] text-gray-500 font-black uppercase tracking-tighter mb-1">{key.replace(/([A-Z])/g, ' $1')}</p>
+                        <p className="text-xl font-black text-blue-400">{val}"</p>
+                      </div>
+                    ))}
+                    {product?.gender === 'Female' && product?.femaleOptions?.sleeves && (
+                      <div className="text-center p-4 bg-gray-900 rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
+                        <p className="text-[9px] text-pink-500 font-black uppercase tracking-tighter mb-1">SLEEVES</p>
+                        <p className="text-sm font-black text-white uppercase">{product.femaleOptions.sleeves}</p>
+                      </div>
+                    )}
+                    {product?.gender === 'Female' && product?.femaleOptions?.shirtLength && (
+                      <div className="text-center p-4 bg-gray-900 rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
+                        <p className="text-[9px] text-pink-500 font-black uppercase tracking-tighter mb-1">SHIRT LENGTH</p>
+                        <p className="text-sm font-black text-white uppercase">{product.femaleOptions.shirtLength}</p>
+                      </div>
+                    )}
+                  </div>
+                </section>
+
+                <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  <div>
+                    <h4 className="text-[11px] font-black text-emerald-500 uppercase tracking-[0.3em] mb-6">03. Branding & Tailoring</h4>
+                    <div className="space-y-4">
+                      {[
+                        { l: 'Branding Name', v: custom?.nameSpelling },
+                        { l: 'Embroidery Color', v: custom?.nameColor },
+                        { l: 'Logo Location', v: custom?.logoPlacement },
+                        { l: 'Fit Type', v: custom?.fitType },
+                        { l: 'Stitching Style', v: custom?.stitchingStyle }
+                      ].map((item, i) => (
+                        <div key={i} className="flex justify-between items-center p-4 bg-gray-950/30 rounded-2xl border border-gray-800/30">
+                          <span className="text-[11px] text-gray-500 font-bold uppercase tracking-widest">{item.l}</span>
+                          <span className="text-sm font-black text-emerald-400">{item.v || 'N/A'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-[11px] font-black text-yellow-500 uppercase tracking-[0.3em] mb-6">04. Design Notes</h4>
+                    <div className="h-full min-h-[150px] bg-yellow-500/5 p-8 rounded-3xl border border-yellow-500/10 italic text-gray-300 leading-relaxed text-sm shadow-inner">
+                      {custom?.designNotes || 'No special design notes provided.'}
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div className="p-8 bg-gray-950/80 border-t border-gray-800 flex justify-between items-center">
+                <div className="flex items-center space-x-4 text-[10px] text-gray-500 font-black uppercase tracking-widest">
+                  <span>Created: {new Date(selectedOrder.createdAt).toLocaleDateString()}</span>
+                  <span className="w-1.5 h-1.5 bg-gray-700 rounded-full"></span>
+                  <span>Stage: {selectedOrder.currentStage}</span>
+                </div>
+                <button 
+                  onClick={() => setShowModal(false)}
+                  className="bg-gray-800 hover:bg-gray-700 text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all"
+                >
+                  Close Job Sheet
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        );
+      })()}
     </div>
   );
 };
