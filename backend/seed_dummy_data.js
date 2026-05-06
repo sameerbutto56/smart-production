@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
@@ -62,38 +63,43 @@ async function seed() {
   ];
 
   const orderTypes = ['STANDARD', 'READY_LOGO', 'FULL_CUSTOM'];
-  const stages = ['STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH'];
+  const pipelines = {
+    'STANDARD': ['STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH'],
+    'READY_LOGO': ['STORE', 'LOGO_DESIGN', 'DISPATCH'],
+    'FULL_CUSTOM': ['STORE', 'CUTTING', 'STITCHING', 'QA', 'LOGO_DESIGN', 'DISPATCH']
+  };
 
   console.log('📋 Seeding orders...');
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 40; i++) {
     const type = orderTypes[Math.floor(Math.random() * orderTypes.length)];
-    const status = i < 5 ? 'COMPLETED' : i < 15 ? 'IN_PROGRESS' : 'PENDING';
+    const stages = pipelines[type];
+    const status = i < 5 ? 'COMPLETED' : i < 25 ? 'IN_PROGRESS' : 'PENDING';
     const currentStage = status === 'COMPLETED' ? 'DISPATCH' : stages[Math.floor(Math.random() * stages.length)];
     
     const order = await prisma.order.create({
       data: {
-        orderNumber: `ORD-${700 + i}`,
+        orderNumber: `ORD-${800 + i}`,
         customerName: customers[Math.floor(Math.random() * customers.length)],
         type: type,
-        urgent: Math.random() > 0.8,
+        urgent: Math.random() > 0.7,
         status: status,
         currentStage: currentStage,
         advancePaid: type === 'FULL_CUSTOM' || Math.random() > 0.5,
-        paymentStatus: i < 10 ? 'FULL_PAID' : 'ADVANCE_PAID',
+        paymentStatus: i < 15 ? 'FULL_PAID' : 'ADVANCE_PAID',
         productDetails: JSON.stringify({
           productType: 'Standard Scrub',
           fabricType: 'Cotton Blend',
           color: 'Royal Blue',
           size: 'M'
         }),
-        createdAt: new Date(Date.now() - Math.random() * 10 * 24 * 60 * 60 * 1000)
+        createdAt: new Date(Date.now() - Math.random() * 15 * 24 * 60 * 60 * 1000)
       }
     });
 
     const stageIndex = stages.indexOf(currentStage);
     for (let j = 0; j <= stageIndex; j++) {
       const isCurrent = j === stageIndex;
-      const isWaiting = isCurrent && i % 3 === 0 && status !== 'COMPLETED';
+      const isWaiting = isCurrent && i % 4 === 0 && status !== 'COMPLETED';
 
       await prisma.orderStage.create({
         data: {
@@ -104,6 +110,46 @@ async function seed() {
           completedAt: (j < stageIndex || status === 'COMPLETED') ? new Date(order.createdAt.getTime() + (j + 1) * 3600000 * 24) : null,
           deadlineAt: new Date(Date.now() + 3600000 * 48),
           createdAt: new Date(order.createdAt.getTime() + j * 3600000 * 12)
+        }
+      });
+    }
+  }
+
+  console.log('🎨 Seeding specific Logo Design tasks...');
+  for (let i = 0; i < 15; i++) {
+    const type = i % 2 === 0 ? 'READY_LOGO' : 'FULL_CUSTOM';
+    const order = await prisma.order.create({
+      data: {
+        orderNumber: `LOGO-PROD-${100 + i}`,
+        customerName: customers[Math.floor(Math.random() * customers.length)],
+        type: type,
+        urgent: i < 5,
+        status: 'IN_PROGRESS',
+        currentStage: 'LOGO_DESIGN',
+        advancePaid: true,
+        paymentStatus: 'FULL_PAID',
+        productDetails: JSON.stringify({
+          productType: 'Premium Scrub',
+          fabricType: 'Spandex Flex',
+          color: 'Navy Blue',
+          size: 'L'
+        }),
+        createdAt: new Date(Date.now() - i * 3600000 * 4)
+      }
+    });
+
+    const pipeline = pipelines[type];
+    const logoIndex = pipeline.indexOf('LOGO_DESIGN');
+
+    for (let j = 0; j <= logoIndex; j++) {
+      await prisma.orderStage.create({
+        data: {
+          orderId: order.id,
+          stageName: pipeline[j],
+          status: j < logoIndex ? 'COMPLETED' : 'IN_PROGRESS',
+          completedAt: j < logoIndex ? new Date(order.createdAt.getTime() + j * 3600000) : null,
+          deadlineAt: new Date(Date.now() + 3600000 * 24),
+          createdAt: new Date(order.createdAt.getTime() + j * 3600000)
         }
       });
     }

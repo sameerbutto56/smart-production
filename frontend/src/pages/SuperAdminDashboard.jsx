@@ -17,6 +17,7 @@ import {
   Package
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import socket from '../socket';
 
@@ -28,6 +29,7 @@ const SuperAdminDashboard = () => {
   const [durations, setDurations] = useState({});
   const [isUpdatingDurations, setIsUpdatingDurations] = useState(false);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchData();
@@ -43,7 +45,7 @@ const SuperAdminDashboard = () => {
 
   const fetchDurations = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token');
       const response = await axios.get(`${API_URL}/api/settings`, { headers: { Authorization: `Bearer ${token}` } });
       if (response.data.STAGE_DURATIONS) {
         setDurations(response.data.STAGE_DURATIONS);
@@ -68,7 +70,7 @@ const SuperAdminDashboard = () => {
   const handleUpdateDurations = async () => {
     setIsUpdatingDurations(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token');
       await axios.post(`${API_URL}/api/settings`, {
         key: 'STAGE_DURATIONS',
         value: durations
@@ -83,7 +85,7 @@ const SuperAdminDashboard = () => {
 
   const fetchData = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token');
       const [analyticsRes, inventoryRes] = await Promise.all([
         axios.get(`${API_URL}/api/orders/analytics`, { headers: { Authorization: `Bearer ${token}` } }),
         axios.get(`${API_URL}/api/inventory`, { headers: { Authorization: `Bearer ${token}` } })
@@ -103,17 +105,35 @@ const SuperAdminDashboard = () => {
       value: analytics?.todayRevenue ? `$${analytics.todayRevenue.toFixed(2)}` : '$0.00', 
       icon: TrendingUp, 
       color: 'text-emerald-400', 
-      bg: 'bg-emerald-400/10' 
+      bg: 'bg-emerald-400/10',
+      path: '/orders',
+      state: { filterStatus: 'COMPLETED' }
     },
-    { title: 'Total Orders', value: analytics?.totalOrders || 0, icon: FileText, color: 'text-blue-400', bg: 'bg-blue-400/10' },
+    { 
+      title: 'Total Orders', 
+      value: analytics?.totalOrders || 0, 
+      icon: FileText, 
+      color: 'text-blue-400', 
+      bg: 'bg-blue-400/10',
+      path: '/orders'
+    },
     { 
       title: 'Avg Lead Time', 
       value: analytics?.stagePerformance ? `${(Object.values(analytics.stagePerformance).reduce((acc, curr) => acc + parseFloat(curr.avgHours), 0) / Object.keys(analytics.stagePerformance).length).toFixed(1)}h` : '0.0h', 
       icon: Timer, 
       color: 'text-purple-400', 
-      bg: 'bg-purple-400/10' 
+      bg: 'bg-purple-400/10',
+      path: '/progress'
     },
-    { title: 'Delayed Tasks', value: '12', icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-400/10' },
+    { 
+      title: 'Delayed Tasks', 
+      value: '12', 
+      icon: AlertTriangle, 
+      color: 'text-red-400', 
+      bg: 'bg-red-400/10',
+      path: '/orders',
+      state: { filterUrgent: true }
+    },
   ];
 
   return (
@@ -140,7 +160,8 @@ const SuperAdminDashboard = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="glass p-8 rounded-[2.5rem] border border-gray-800 hover:border-gray-700 transition-all group"
+            onClick={() => stat.path && navigate(stat.path, { state: stat.state })}
+            className="glass p-8 rounded-[2.5rem] border border-gray-800 hover:border-blue-500/50 hover:scale-[1.02] transition-all group cursor-pointer active:scale-95"
           >
             <div className="flex justify-between items-start mb-6">
               <div className={`p-4 rounded-2xl ${stat.bg} group-hover:scale-110 transition-transform`}>

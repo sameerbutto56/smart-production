@@ -50,7 +50,7 @@ const History = () => {
               setIsClearing(true);
               try {
                 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-                const token = localStorage.getItem('token');
+                const token = sessionStorage.getItem('token');
                 await axios.delete(`${API_URL}/api/orders/history`, { headers: { Authorization: `Bearer ${token}` } });
                 fetchHistory();
               } catch (error) {

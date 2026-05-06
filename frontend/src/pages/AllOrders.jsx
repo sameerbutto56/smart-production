@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { 
   Package, 
@@ -25,9 +26,16 @@ const AllOrders = () => {
   const [showModal, setShowModal] = useState(false);
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [filterType, setFilterType] = useState('ALL');
+  const [filterUrgent, setFilterUrgent] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const location = useLocation();
 
   useEffect(() => {
+    if (location.state) {
+      if (location.state.filterStatus) setFilterStatus(location.state.filterStatus);
+      if (location.state.filterUrgent !== undefined) setFilterUrgent(location.state.filterUrgent);
+      if (location.state.searchTerm) setSearchTerm(location.state.searchTerm);
+    }
     fetchOrders();
 
     socket.on('order-updated', fetchOrders);
@@ -40,7 +48,7 @@ const AllOrders = () => {
       socket.off('order-updated');
       socket.off('new-order');
     };
-  }, []);
+  }, [location.state]);
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -57,7 +65,7 @@ const AllOrders = () => {
   const handleSendForDelivery = async (orderId) => {
     try {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token');
       await axios.put(`${API_URL}/api/orders/${orderId}/send-for-delivery`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -116,8 +124,9 @@ const AllOrders = () => {
                          (order.orderNumber && order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesStatus = filterStatus === 'ALL' || order.status === filterStatus;
     const matchesType = filterType === 'ALL' || order.type === filterType;
+    const matchesUrgent = !filterUrgent || order.urgent;
     
-    return matchesSearch && matchesStatus && matchesType;
+    return matchesSearch && matchesStatus && matchesType && matchesUrgent;
   });
 
   return (
@@ -199,10 +208,21 @@ const AllOrders = () => {
                 </select>
               </div>
 
+              <div className="flex items-center justify-between p-4 bg-gray-950 border border-gray-800 rounded-xl">
+                <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Urgent Only</span>
+                <button 
+                  onClick={() => setFilterUrgent(!filterUrgent)}
+                  className={`w-10 h-5 rounded-full transition-all relative ${filterUrgent ? 'bg-blue-600' : 'bg-gray-800'}`}
+                >
+                  <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${filterUrgent ? 'right-1' : 'left-1'}`} />
+                </button>
+              </div>
+
               <button 
                 onClick={() => {
                   setFilterStatus('ALL');
                   setFilterType('ALL');
+                  setFilterUrgent(false);
                   setShowFilters(false);
                 }}
                 className="w-full py-2 text-[10px] font-black uppercase text-gray-500 hover:text-white transition-colors"

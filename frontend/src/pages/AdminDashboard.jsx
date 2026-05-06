@@ -19,6 +19,7 @@ import {
   Circle 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import socket from '../socket';
 import OrderCard from '../components/OrderCard';
 import { useAuth } from '../context/AuthContext';
@@ -29,6 +30,7 @@ const NOTIFICATION_SOUND = 'https://assets.mixkit.co/active_storage/sfx/2869/286
 
 const AdminDashboard = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalOrders: 0,
     urgentOrders: 0,
@@ -112,7 +114,7 @@ const AdminDashboard = () => {
 
   const fetchAnalytics = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token');
       const response = await axios.get(`${API_URL}/api/orders/analytics`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -146,7 +148,7 @@ const AdminDashboard = () => {
 
   const handleAction = async (orderId, stageId, action, payload = {}) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token');
       const endpoint = `${API_URL}/api/orders/${orderId}/stages/${stageId}/${action}`;
       await axios.put(endpoint, payload, {
         headers: { Authorization: `Bearer ${token}` }
@@ -164,7 +166,7 @@ const AdminDashboard = () => {
     setError('');
     
     try {
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token');
       await axios.post(`${API_URL}/api/admin/clear-data`, 
         { password: adminPassword },
         { headers: { Authorization: `Bearer ${token}` } }
@@ -182,10 +184,10 @@ const AdminDashboard = () => {
   };
 
   const statCards = [
-    { title: 'Total Active Orders', value: stats.totalOrders, icon: BarChart3, color: 'text-blue-400', bg: 'bg-blue-400/10' },
-    { title: 'Urgent Priority', value: stats.urgentOrders, icon: AlertTriangle, color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
-    { title: 'Delayed Stages', value: stats.delayedOrders, icon: Clock, color: 'text-red-400', bg: 'bg-red-400/10' },
-    { title: 'Completed Today', value: stats.completedToday, icon: Users, color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
+    { title: 'Total Active Orders', value: stats.totalOrders, icon: BarChart3, color: 'text-blue-400', bg: 'bg-blue-400/10', path: '/orders' },
+    { title: 'Urgent Priority', value: stats.urgentOrders, icon: AlertTriangle, color: 'text-yellow-400', bg: 'bg-yellow-400/10', path: '/orders', state: { filterUrgent: true } },
+    { title: 'Delayed Stages', value: stats.delayedOrders, icon: Clock, color: 'text-red-400', bg: 'bg-red-400/10', path: '/orders', state: { filterUrgent: true } },
+    { title: 'Completed Today', value: stats.completedToday, icon: Users, color: 'text-emerald-400', bg: 'bg-emerald-400/10', path: '/orders', state: { filterStatus: 'COMPLETED' } },
   ];
 
   const approvalQueue = allOrders.filter(o => 
@@ -212,7 +214,8 @@ const AdminDashboard = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="glass p-8 rounded-[2rem] border border-gray-800 hover:border-gray-700 transition-all group"
+            onClick={() => stat.path && navigate(stat.path, { state: stat.state })}
+            className="glass p-8 rounded-[2rem] border border-gray-800 hover:border-blue-500/50 hover:scale-[1.02] transition-all group cursor-pointer active:scale-95"
           >
             <div className="flex justify-between items-start mb-6">
               <div className={`p-4 rounded-[1.25rem] ${stat.bg} group-hover:scale-110 transition-transform`}>

@@ -49,7 +49,7 @@ const MyTasks = () => {
 
   const handleAction = async (orderId, stageId, action, payload = {}) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token');
       const endpoint = `${API_URL}/api/orders/${orderId}/stages/${stageId}/${action}`;
       await axios.put(endpoint, payload, {
         headers: { Authorization: `Bearer ${token}` }

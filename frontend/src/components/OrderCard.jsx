@@ -14,6 +14,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
   const [isDelayed, setIsDelayed] = useState(false);
   const [showFullSheet, setShowFullSheet] = useState(false);
   const [urgencyColor, setUrgencyColor] = useState('text-blue-400');
+
   const [inventory, setInventory] = useState([]);
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [customizationAmount, setCustomizationAmount] = useState('0');
@@ -87,8 +88,8 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
 
   const pipelines = {
     'STANDARD': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH'],
-    'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'NAME_LOGO', 'DISPATCH'],
-    'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'CUSTOM_LOGO', 'DISPATCH']
+    'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'DISPATCH'],
+    'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'LOGO_DESIGN', 'DISPATCH']
   };
 
   const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
@@ -161,6 +162,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
       >
         <div className="p-6">
           <div className="flex justify-between items-start mb-6 gap-3">
+            <div className="text-[8px] text-gray-700 absolute top-2 right-4">v1.1</div>
             <div className="flex-1 min-w-0">
               <div className="flex flex-wrap items-center gap-2 mb-1">
                 <h3 className="font-black text-2xl tracking-tighter text-white whitespace-nowrap truncate">#{order.orderNumber || order.id.substring(0, 8)}</h3>
@@ -270,7 +272,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                         const status = order.paymentStatus === 'PENDING' ? 'ADVANCE_PAID' : 'FULL_PAID';
                         const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
                         axios.put(`${API_URL}/api/orders/${order.id}/payment`, { paymentStatus: status }, {
-                          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                          headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
                         }).then(() => {
                           // No reload needed! The socket will trigger re-fetch in parent
                           // but we can add a local feedback too
@@ -310,14 +312,40 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                       <span>Missing</span>
                     </button>
                   </div>
+                ) : ['LOGO_DESIGN', 'NAME_LOGO', 'CUSTOM_LOGO'].includes(currentStage?.stageName) ? (
+                  <div className="flex w-full space-x-2">
+                    <button
+                      onClick={() => onUpdateStage(order.id, currentStage.id, 'request')}
+                      className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex flex-col xl:flex-row items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
+                    >
+                      <CheckCircle size={14} />
+                      <span>Design Complete</span>
+                    </button>
+                    <button
+                      onClick={() => onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Correction Required' })}
+                      className="flex-1 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex flex-col xl:flex-row items-center justify-center gap-1 active:scale-95 shadow-lg shadow-red-900/20"
+                    >
+                      <AlertCircle size={14} />
+                      <span>Design Problem</span>
+                    </button>
+                  </div>
                 ) : (
-                  <button
-                    onClick={() => onUpdateStage(order.id, currentStage.id, 'request')}
-                    className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-2xl text-xs font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center space-x-3 active:scale-95 shadow-lg shadow-blue-900/20"
-                  >
-                    <CheckCircle size={18} />
-                    <span>Request Next Step</span>
-                  </button>
+                  <div className="flex w-full space-x-2">
+                    <button
+                      onClick={() => onUpdateStage(order.id, currentStage.id, 'request')}
+                      className="flex-[2] bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-2xl text-xs font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center space-x-3 active:scale-95 shadow-lg shadow-blue-900/20"
+                    >
+                      <CheckCircle size={18} />
+                      <span>COMPLETE TASK</span>
+                    </button>
+                    <button
+                      onClick={() => onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Production Issue' })}
+                      className="flex-1 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white py-4 rounded-2xl text-xs font-black uppercase transition-all flex items-center justify-center space-x-2 border border-red-500/20 active:scale-95"
+                    >
+                      <AlertCircle size={16} />
+                      <span>PROBLEM</span>
+                    </button>
+                  </div>
                 )
               )
             )}
