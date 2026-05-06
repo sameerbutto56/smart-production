@@ -197,8 +197,76 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
       );
     }
 
+    if (stage === 'STITCHING') {
+      const custom = parseJSON(order.customization);
+      const product = parseJSON(order.productDetails);
+      const female = product?.femaleOptions || {};
+
+      return (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-indigo-600/10 p-3 rounded-xl border border-indigo-600/20 text-center">
+              <p className="text-[8px] text-indigo-400 font-black uppercase tracking-widest">Stitching Style</p>
+              <p className="text-sm font-black text-white">{custom?.stitchingStyle || 'STANDARD'}</p>
+            </div>
+            <div className="bg-purple-600/10 p-3 rounded-xl border border-purple-600/20 text-center">
+              <p className="text-[8px] text-purple-400 font-black uppercase tracking-widest">Fit Profile</p>
+              <p className="text-sm font-black text-white">{custom?.fitType || 'REGULAR'}</p>
+            </div>
+          </div>
+
+          <div className="bg-gray-950/50 p-3 rounded-xl border border-gray-800/50">
+            <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-2 px-1">Critical Measurements</p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+              {[
+                { l: 'Chest', v: sizes?.chest },
+                { l: 'Shoulder', v: sizes?.shoulder },
+                { l: 'Length', v: sizes?.length },
+                { l: 'Sleeve', v: sizes?.sleeve }
+              ].filter(s => s.v).map((s, i) => (
+                <div key={i} className="text-[11px] text-gray-300 flex items-center justify-between border-b border-gray-800/30 pb-1">
+                  <span className="font-bold text-gray-500">{s.l}:</span>
+                  <span className="text-white font-black">{s.v}"</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {custom?.designNotes && (
+            <div className="bg-yellow-500/5 p-3 rounded-xl border border-yellow-500/10">
+              <p className="text-[8px] text-yellow-500 font-black uppercase tracking-widest mb-1 flex items-center space-x-1">
+                <MessageSquare size={10} />
+                <span>Special Tailor Notes:</span>
+              </p>
+              <p className="text-[11px] text-gray-300 italic font-medium leading-tight">"{custom.designNotes}"</p>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            <div className="px-2 py-1 bg-gray-800 rounded text-[9px] font-black uppercase tracking-tighter text-gray-400 border border-gray-700">
+              FABRIC: <span className="text-blue-400">{product?.fabricType}</span>
+            </div>
+            <div className="px-2 py-1 bg-gray-800 rounded text-[9px] font-black uppercase tracking-tighter text-gray-400 border border-gray-700">
+              COLOR: <span className="text-blue-400">{product?.color}</span>
+            </div>
+            {product?.gender === 'Female' && (
+              <>
+                <div className="px-2 py-1 bg-pink-900/20 rounded text-[9px] font-black uppercase tracking-tighter text-pink-400 border border-pink-500/20">
+                  SHIRT: {female.shirtLength}
+                </div>
+                {female.dupatta && (
+                  <div className="px-2 py-1 bg-pink-900/20 rounded text-[9px] font-black uppercase tracking-tighter text-pink-400 border border-pink-500/20">
+                    + DUPATTA
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     const stageMap = {
-      'STITCHING': ['Fit Check', 'Stitching Style', 'Tailoring Specs'],
       'QA': ['Check Specs', 'Check Stitches', 'Visual Audit'],
       'PRESSING_PACKING': ['Final Press', 'Bagging', 'Labeling'],
       'NAME_LOGO': ['Name Embroidery', 'Color Check'],
