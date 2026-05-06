@@ -384,64 +384,7 @@ const AdminDashboard = () => {
         </AnimatePresence>
       </section>
       
-      {/* Quick Payment Management */}
-      <section className="glass rounded-[3rem] p-12 border border-gray-800">
-        <div className="flex items-center space-x-4 mb-10">
-          <div className="p-3 bg-emerald-500/10 rounded-2xl">
-            <CheckCircle2 className="text-emerald-400" size={24} />
-          </div>
-          <div>
-            <h2 className="text-2xl font-black text-white uppercase tracking-tight">Payment Tracker</h2>
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Unpaid customization fees and balances</p>
-          </div>
-        </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b border-gray-800">
-                <th className="pb-6 text-[10px] font-black text-gray-500 uppercase tracking-widest px-4">Order #</th>
-                <th className="pb-6 text-[10px] font-black text-gray-500 uppercase tracking-widest px-4">Customer</th>
-                <th className="pb-6 text-[10px] font-black text-gray-500 uppercase tracking-widest px-4">Custom Fee</th>
-                <th className="pb-6 text-[10px] font-black text-gray-500 uppercase tracking-widest px-4">Status</th>
-                <th className="pb-6 text-[10px] font-black text-gray-500 uppercase tracking-widest px-4 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-800/50">
-              {allOrders.filter(o => o.paymentStatus !== 'FULL_PAID' && o.customizationPrice > 0).map(order => (
-                <tr key={order.id} className="group hover:bg-white/5 transition-colors">
-                  <td className="py-6 px-4 font-black text-blue-400">#{order.orderNumber || order.id.substring(0, 8)}</td>
-                  <td className="py-6 px-4 font-bold">{order.customerName}</td>
-                  <td className="py-6 px-4 font-black text-emerald-400">${order.customizationPrice.toFixed(2)}</td>
-                  <td className="py-6 px-4">
-                    <span className={`text-[9px] font-black px-2 py-1 rounded-lg uppercase ${order.paymentStatus === 'ADVANCE_PAID' ? 'bg-blue-500/10 text-blue-400' : 'bg-red-500/10 text-red-400'}`}>
-                      {order.paymentStatus}
-                    </span>
-                  </td>
-                  <td className="py-6 px-4 text-right">
-                    <button 
-                      onClick={() => {
-                        const status = order.paymentStatus === 'PENDING' ? 'ADVANCE_PAID' : 'FULL_PAID';
-                        axios.put(`${API_URL}/api/orders/${order.id}/payment`, { paymentStatus: status }, {
-                          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-                        }).then(() => fetchDashboardData());
-                      }}
-                      className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all shadow-lg shadow-emerald-900/20"
-                    >
-                      Mark as {order.paymentStatus === 'PENDING' ? 'Advance' : 'Paid'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {allOrders.filter(o => o.paymentStatus !== 'FULL_PAID' && o.customizationPrice > 0).length === 0 && (
-                <tr>
-                  <td colSpan="5" className="py-12 text-center text-gray-500 font-bold uppercase tracking-widest text-xs">All accounts settled.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
     </div>
   );
 };

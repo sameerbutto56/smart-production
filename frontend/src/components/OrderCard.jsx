@@ -215,8 +215,10 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
               {renderTasks()}
             </ul>
             {currentStage?.rejectionReason && (
-              <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
-                <p className="text-[10px] text-red-400 font-black uppercase tracking-widest mb-1">Faisal Rejection Reason:</p>
+              <div className={`mt-4 p-3 rounded-xl border ${currentStage.rejectionReason.includes('Available') ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
+                <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${currentStage.rejectionReason.includes('Available') ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {currentStage.rejectionReason.includes('Inventory') ? 'Store Inventory Check:' : 'Faisal Rejection Reason:'}
+                </p>
                 <p className="text-xs text-gray-300 italic">{currentStage.rejectionReason}</p>
               </div>
             )}
@@ -281,13 +283,32 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
               )
             ) : (
               !isFaisal && currentStage?.status !== 'COMPLETED' && (
-                <button
-                  onClick={() => onUpdateStage(order.id, currentStage.id, 'request')}
-                  className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-2xl text-xs font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center space-x-3 active:scale-95 shadow-lg shadow-blue-900/20"
-                >
-                  <CheckCircle size={18} />
-                  <span>Request Next Step</span>
-                </button>
+                currentStage?.stageName === 'STORE' ? (
+                  <div className="flex w-full space-x-2">
+                    <button
+                      onClick={() => onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Available' })}
+                      className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex flex-col xl:flex-row items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
+                    >
+                      <CheckCircle size={14} />
+                      <span>Have It</span>
+                    </button>
+                    <button
+                      onClick={() => onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Out of Stock' })}
+                      className="flex-1 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex flex-col xl:flex-row items-center justify-center gap-1 active:scale-95 shadow-lg shadow-red-900/20"
+                    >
+                      <AlertCircle size={14} />
+                      <span>Missing</span>
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => onUpdateStage(order.id, currentStage.id, 'request')}
+                    className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-2xl text-xs font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center space-x-3 active:scale-95 shadow-lg shadow-blue-900/20"
+                  >
+                    <CheckCircle size={18} />
+                    <span>Request Next Step</span>
+                  </button>
+                )
               )
             )}
           </div>

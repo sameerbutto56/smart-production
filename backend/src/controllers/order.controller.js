@@ -126,6 +126,7 @@ const getOrders = async (req, res) => {
 
 const requestStageCompletion = async (req, res) => {
   const { orderId, stageId } = req.params;
+  const { inventoryStatus } = req.body;
 
   try {
     const currentStage = await prisma.orderStage.findUnique({ where: { id: stageId } });
@@ -179,7 +180,8 @@ const requestStageCompletion = async (req, res) => {
         requestNextStep: true,
         status: 'WAITING_APPROVAL',
         assignedEmployeeId: req.user.id,
-        deadlineAt: deadline 
+        deadlineAt: deadline,
+        ...(inventoryStatus && { rejectionReason: `Inventory Check: ${inventoryStatus}` })
       }
     });
 
