@@ -15,7 +15,6 @@ const getStageDurations = async () => {
     }
   }
   
-  // Default values
   return {
     'STORE': 2,
     'CUTTING': 24,
@@ -27,6 +26,22 @@ const getStageDurations = async () => {
     'DISPATCH': 2,
     'FAISAL_APPROVAL': 2
   };
+};
+
+const createAuditLog = async (orderId, action, details, userId) => {
+  try {
+    await prisma.auditLog.create({
+      data: {
+        orderId,
+        action,
+        details,
+        userId: userId || null,
+        timestamp: new Date()
+      }
+    });
+  } catch (error) {
+    console.error('Audit Log Error:', error);
+  }
 };
 
 const NEXT_STAGES = {
@@ -70,6 +85,8 @@ const createOrder = async (req, res) => {
         completedAt: new Date()
       }
     });
+
+    await createAuditLog(order.id, 'ORDER_CREATED', `Order initiated with status: ${initialStatus}`, req.user?.id);
 
     const io = req.app.get('io');
     io.emit('new-order', order);
@@ -119,6 +136,8 @@ const requestStageCompletion = async (req, res) => {
 
     const io = req.app.get('io');
     io.emit('stage-completion-requested', { orderId, stage });
+
+    await createAuditLog(orderId, 'STAGE_COMPLETION_REQUESTED', `Completion requested for ${stage.stageName}`, req.user.id);
 
     res.json({ message: 'Completion requested from Faisal', stage });
   } catch (error) {
@@ -180,6 +199,8 @@ const approveStageCompletion = async (req, res) => {
       });
     }
 
+    await createAuditLog(orderId, 'STAGE_APPROVED', `${currentStageRecord.stageName} approved by Faisal. Next: ${actualNextStage || 'FINAL'}`, req.user.id);
+
     const io = req.app.get('io');
     io.emit('order-updated', { orderId });
 
@@ -206,6 +227,8 @@ const rejectStageCompletion = async (req, res) => {
     const io = req.app.get('io');
     io.emit('stage-rejected', { orderId, stage, reason });
     io.emit('order-updated', { orderId }); // Ensure general update is also sent
+
+    await createAuditLog(orderId, 'STAGE_REJECTED', `${stage.stageName} rejected by Faisal. Reason: ${reason}`, req.user.id);
 
     res.json({ message: 'Stage rejected and sent back to employee', stage });
   } catch (error) {
@@ -251,6 +274,8 @@ const updatePaymentStatus = async (req, res) => {
     const io = req.app.get('io');
     io.emit('order-updated', { orderId, paymentStatus: order.paymentStatus });
     io.emit('payment-updated', { orderId, order });
+
+    await createAuditLog(orderId, 'PAYMENT_UPDATED', `Payment status changed to: ${paymentStatus}`, req.user.id);
 
     res.json({ message: 'Payment status updated', order });
   } catch (error) {
