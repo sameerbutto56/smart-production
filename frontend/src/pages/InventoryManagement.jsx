@@ -177,7 +177,7 @@ const InventoryManagement = () => {
               transition={{ delay: i * 0.03 }}
               className="glass p-8 rounded-[2.5rem] border-2 border-gray-900 hover:border-emerald-500/40 transition-all group relative overflow-hidden"
             >
-              <div className="absolute -right-6 -top-6 w-32 h-32 bg-gradient-to-br from-emerald-500/10 to-blue-500/10 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+              <div className="absolute -right-6 -top-6 w-32 h-32 bg-gradient-to-br from-emerald-500/10 to-blue-500/10 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
               
               <div className="flex justify-between items-start mb-6">
                 <div className={`p-4 rounded-2xl shadow-xl ${
@@ -188,7 +188,7 @@ const InventoryManagement = () => {
                   {['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS'].includes(item.category) ? <Package size={24} /> : 
                    item.category === 'FABRIC' ? <Layers size={24} /> : <Palette size={24} />}
                 </div>
-                <div className="flex space-x-2">
+                <div className="flex space-x-2 relative z-10">
                   <button onClick={(e) => { e.stopPropagation(); handleOpenModal(item); }} className="p-2.5 bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white rounded-xl transition-all">
                     <Edit2 size={16} />
                   </button>
