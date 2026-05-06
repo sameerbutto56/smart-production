@@ -663,11 +663,14 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
         </div>
         
         {/* Progress Bar */}
-        <div className="h-1.5 bg-gray-900 flex px-1 pb-1">
-          <div 
-            className="h-full bg-gradient-to-r from-emerald-500 to-green-500 rounded-full transition-all duration-1000 shadow-[0_0_15px_rgba(16,185,129,0.5)]" 
-            style={{ width: `${(currentPipeline.indexOf(currentStage?.stageName) + 1) / currentPipeline.length * 100}%` }}
-          ></div>
+        <div className="h-2 bg-gray-800/50 w-full overflow-hidden">
+          <motion.div 
+            initial={{ width: 0 }}
+            animate={{ 
+              width: `${Math.max(5, (currentPipeline.indexOf(currentStage?.stageName) + 1) / currentPipeline.length * 100)}%` 
+            }}
+            className="h-full bg-gradient-to-r from-emerald-500 via-green-400 to-emerald-600 transition-all duration-1000 shadow-[0_0_10px_rgba(16,185,129,0.4)]"
+          />
         </div>
       </motion.div>
 

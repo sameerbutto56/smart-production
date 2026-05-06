@@ -315,6 +315,25 @@ const AllOrders = () => {
                         <span className={`bg-gray-800 px-2 py-1 rounded-md text-[10px] font-black border border-gray-700 uppercase tracking-wider ${isWaitingApproval ? 'text-yellow-400 border-yellow-400/30' : 'text-gray-300'}`}>
                           {isWaitingApproval ? `WAITING: ${order.currentStage.replace(/_/g, ' ')}` : order.currentStage.replace(/_/g, ' ')}
                         </span>
+                        
+                        {/* Progress Bar under stage */}
+                        <div className="w-24 h-1 bg-gray-800 rounded-full mt-2 overflow-hidden border border-gray-700/50">
+                          <div 
+                            className="h-full bg-gradient-to-r from-emerald-500 to-green-400 shadow-[0_0_8px_rgba(16,185,129,0.3)] transition-all duration-1000"
+                            style={{ 
+                              width: (() => {
+                                const pipelines = {
+                                  'STANDARD': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                                  'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                                  'READY_LOGO': ['ORDER_ENTRY', 'LOGO_DESIGN', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY']
+                                };
+                                const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
+                                const progress = ((currentPipeline.indexOf(order.currentStage) + 1) / currentPipeline.length) * 100;
+                                return `${Math.max(5, progress)}%`;
+                              })()
+                            }}
+                          />
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
