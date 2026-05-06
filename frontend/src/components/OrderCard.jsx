@@ -122,25 +122,59 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
 
     if (stage === 'CUTTING') {
       const custom = parseJSON(order.customization);
-      const specs = [
+      const product = parseJSON(order.productDetails);
+      const female = product?.femaleOptions || {};
+
+      const materials = [
+        { l: 'Fabric', v: product?.fabricType },
+        { l: 'Color', v: product?.color },
+        { l: 'Gender', v: product?.gender }
+      ];
+
+      const measurements = [
         { l: 'Chest', v: sizes?.chest },
         { l: 'Shoulder', v: sizes?.shoulder },
         { l: 'Length', v: sizes?.length },
         { l: 'Sleeve', v: sizes?.sleeve },
         { l: 'Waist', v: sizes?.waist },
-        { l: 'Hips', v: sizes?.hips },
-        { l: 'Fit', v: custom?.fitType },
-        { l: 'Style', v: custom?.stitchingStyle }
+        { l: 'Hips', v: sizes?.hips }
       ];
+
+      const tailoring = [
+        { l: 'Fit', v: custom?.fitType },
+        { l: 'Style', v: custom?.stitchingStyle },
+        ...(product?.gender === 'Female' ? [
+          { l: 'Sleeves', v: female.sleeves },
+          { l: 'Shirt L.', v: female.shirtLength },
+          { l: 'Dupatta', v: female.dupatta ? 'YES' : 'NO' }
+        ] : [])
+      ];
+
       return (
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-          {specs.filter(s => s.v).map((s, i) => (
-            <div key={i} className="text-[11px] text-gray-300 flex items-center space-x-2">
-              <span className="text-emerald-500 font-black">•</span>
-              <span className="font-bold">{s.l}:</span>
-              <span className="text-white font-black">{s.v}{!['Fit', 'Style'].includes(s.l) ? '"' : ''}</span>
-            </div>
-          ))}
+        <div className="space-y-4">
+          <div className="grid grid-cols-3 gap-2">
+            {materials.filter(m => m.v).map((m, i) => (
+              <div key={i} className="bg-blue-500/5 p-2 rounded-lg border border-blue-500/10 text-center">
+                <p className="text-[7px] text-blue-400 font-black uppercase">{m.l}</p>
+                <p className="text-[10px] font-black text-white truncate">{m.v}</p>
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 bg-gray-950/50 p-3 rounded-xl border border-gray-800/50">
+            {measurements.filter(s => s.v).map((s, i) => (
+              <div key={i} className="text-[11px] text-gray-300 flex items-center justify-between border-b border-gray-800/30 pb-1">
+                <span className="font-bold text-gray-500">{s.l}:</span>
+                <span className="text-white font-black">{s.v}"</span>
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {tailoring.filter(t => t.v).map((t, i) => (
+              <div key={i} className="px-2 py-1 bg-gray-800 rounded text-[9px] font-black uppercase tracking-tighter text-gray-400 border border-gray-700">
+                {t.l}: <span className="text-blue-400">{t.v}</span>
+              </div>
+            ))}
+          </div>
         </div>
       );
     }
