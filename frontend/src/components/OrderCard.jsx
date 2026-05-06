@@ -369,28 +369,30 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
             {/* Modal Content */}
             <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
               
-              <section>
-                <h4 className="text-[11px] font-black text-blue-500 uppercase tracking-[0.3em] mb-6">01. Material & Product Specs</h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {[
-                    { label: 'Product Base', val: product?.productType },
-                    { label: 'Fabric Type', val: product?.fabricType },
-                    { label: 'Primary Color', val: product?.color },
-                    { label: 'Order Size', val: product?.size },
-                    { label: 'Gender', val: product?.gender },
-                    ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
-                    { label: 'Customization Charge', val: `$${order.customizationPrice || 0}` },
-                    { label: 'Payment', val: order.paymentStatus }
-                  ].filter(i => i.val).map((item, i) => (
-                    <div key={i} className="bg-gray-950/50 p-6 rounded-3xl border border-gray-800/50">
-                      <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-2">{item.label}</p>
-                      <p className="text-lg font-bold text-gray-200">{item.val || 'STANDARD'}</p>
-                    </div>
-                  ))}
-                </div>
-              </section>
+              {userRole !== 'LOGO_DESIGN' && (
+                <section>
+                  <h4 className="text-[11px] font-black text-blue-500 uppercase tracking-[0.3em] mb-6">01. Material & Product Specs</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {[
+                      { label: 'Product Base', val: product?.productType },
+                      { label: 'Fabric Type', val: product?.fabricType },
+                      { label: 'Primary Color', val: product?.color },
+                      { label: 'Order Size', val: product?.size },
+                      { label: 'Gender', val: product?.gender },
+                      ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
+                      { label: 'Customization Charge', val: `$${order.customizationPrice || 0}` },
+                      { label: 'Payment', val: order.paymentStatus }
+                    ].filter(i => i.val).map((item, i) => (
+                      <div key={i} className="bg-gray-950/50 p-6 rounded-3xl border border-gray-800/50">
+                        <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-2">{item.label}</p>
+                        <p className="text-lg font-bold text-gray-200">{item.val || 'STANDARD'}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
 
-              {order.type === 'FULL_CUSTOM' && (
+              {userRole !== 'LOGO_DESIGN' && order.type === 'FULL_CUSTOM' && (
                 <section className="bg-blue-600/5 p-8 rounded-[2rem] border border-blue-500/10">
                   <h4 className="text-[11px] font-black text-blue-400 uppercase tracking-[0.3em] mb-6">02. Precise Measurements (Inches)</h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
