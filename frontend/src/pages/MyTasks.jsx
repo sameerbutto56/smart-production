@@ -69,8 +69,7 @@ const MyTasks = () => {
       'STITCHING': ['STITCHING'],
       'QA': ['QA'],
       'PRESSING_PACKING': ['PRESSING_PACKING'],
-      'NAME_LOGO': ['NAME_LOGO'],
-      'CUSTOM_LOGO': ['CUSTOM_LOGO'],
+      'LOGO_DESIGN': ['LOGO_DESIGN'],
       'DISPATCH': ['DISPATCH'],
     };
 

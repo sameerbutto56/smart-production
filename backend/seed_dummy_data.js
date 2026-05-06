@@ -16,8 +16,7 @@ async function seed() {
         'STITCHING': 48,
         'QA': 4,
         'PRESSING_PACKING': 4,
-        'NAME_LOGO': 8,
-        'CUSTOM_LOGO': 12,
+        'LOGO_DESIGN': 8,
         'DISPATCH': 2,
         'FAISAL_APPROVAL': 2
       })

@@ -55,8 +55,7 @@ const SuperAdminDashboard = () => {
           'STITCHING': 96,
           'QA': 2,
           'PRESSING_PACKING': 2,
-          'NAME_LOGO': 2,
-          'CUSTOM_LOGO': 2,
+          'LOGO_DESIGN': 2,
           'DISPATCH': 2,
           'FAISAL_APPROVAL': 2
         });
@@ -332,7 +331,7 @@ const SuperAdminDashboard = () => {
                   <div className="w-2 h-8 bg-purple-500 rounded-full" />
                   <h4 className="text-[10px] font-black text-purple-400 uppercase tracking-[0.3em]">Phase 3: Finishing</h4>
                 </div>
-                {['NAME_LOGO', 'CUSTOM_LOGO', 'DISPATCH'].map(stage => (
+                {['LOGO_DESIGN', 'DISPATCH'].map(stage => (
                   <DeadlineItem 
                     key={stage} 
                     stage={stage} 

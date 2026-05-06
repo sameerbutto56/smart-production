@@ -21,8 +21,7 @@ const getStageDurations = async () => {
     'STITCHING': 96,
     'QA': 2,
     'PRESSING_PACKING': 2,
-    'NAME_LOGO': 2,
-    'CUSTOM_LOGO': 2,
+    'LOGO_DESIGN': 2,
     'DISPATCH': 2,
     'FAISAL_APPROVAL': 2
   };
@@ -199,8 +198,8 @@ const requestStageCompletion = async (req, res) => {
 
 const NEXT_STAGES = {
   'STANDARD': ['STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH'],
-  'READY_LOGO': ['STORE', 'NAME_LOGO', 'DISPATCH'],
-  'FULL_CUSTOM': ['STORE', 'CUTTING', 'STITCHING', 'QA', 'CUSTOM_LOGO', 'DISPATCH']
+  'READY_LOGO': ['STORE', 'LOGO_DESIGN', 'DISPATCH'],
+  'FULL_CUSTOM': ['STORE', 'CUTTING', 'STITCHING', 'QA', 'LOGO_DESIGN', 'DISPATCH']
 };
 
 // Stages that move automatically to the next one without Faisal's intermediate approval
