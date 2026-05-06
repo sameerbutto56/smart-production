@@ -25,13 +25,13 @@ router.get('/', authenticate, getOrders);
 router.put('/:orderId/stages/:stageId/request', authenticate, requestStageCompletion);
 
 // Faisal: Approve or Reject
-router.put('/:orderId/stages/:stageId/approve', authenticate, authorize(['FAISAL', 'SUPER_ADMIN']), approveStageCompletion);
-router.put('/:orderId/stages/:stageId/reject', authenticate, authorize(['FAISAL', 'SUPER_ADMIN']), rejectStageCompletion);
+router.put('/:orderId/stages/:stageId/approve', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ORDER_ENTRY']), approveStageCompletion);
+router.put('/:orderId/stages/:stageId/reject', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ORDER_ENTRY']), rejectStageCompletion);
 
 // Faisal/Admin: Update payment status
-router.put('/:orderId/payment', authenticate, authorize(['FAISAL', 'SUPER_ADMIN']), updatePaymentStatus);
+router.put('/:orderId/payment', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ORDER_ENTRY']), updatePaymentStatus);
 
 // Faisal/Admin: Get production analytics
-router.get('/analytics', authenticate, authorize(['FAISAL', 'SUPER_ADMIN']), getAnalytics);
+router.get('/analytics', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ORDER_ENTRY']), getAnalytics);
 
 module.exports = router;
