@@ -12,7 +12,9 @@ import {
   RefreshCcw,
   Zap,
   Layout,
-  Timer
+  Timer,
+  FileText,
+  Package
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { io } from 'socket.io-client';
