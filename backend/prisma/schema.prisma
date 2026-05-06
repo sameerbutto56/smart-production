@@ -40,6 +40,7 @@ model Order {
   updatedAt       DateTime     @updatedAt
   paymentDeadline DateTime?
   paymentStatus   String       @default("PENDING")
+  customizationPrice Float?    @default(0)
   auditLogs       AuditLog[]
   stages          OrderStage[]
 }

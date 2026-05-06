@@ -15,6 +15,8 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
   const [showFullSheet, setShowFullSheet] = useState(false);
   const [urgencyColor, setUrgencyColor] = useState('text-blue-400');
   const [inventory, setInventory] = useState([]);
+  const [showApprovalDialog, setShowApprovalDialog] = useState(false);
+  const [customizationAmount, setCustomizationAmount] = useState('0');
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -226,7 +228,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
               isFaisal ? (
                 <>
                   <button
-                    onClick={() => onUpdateStage(order.id, currentStage.id, 'approve')}
+                    onClick={() => setShowApprovalDialog(true)}
                     className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-lg"
                   >
                     <Check size={14} />
@@ -338,6 +340,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                     { label: 'Order Size', val: product?.size },
                     { label: 'Gender', val: product?.gender },
                     ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
+                    { label: 'Customization Charge', val: `$${order.customizationPrice || 0}` },
                     { label: 'Payment', val: order.paymentStatus }
                   ].filter(i => i.val).map((item, i) => (
                     <div key={i} className="bg-gray-950/50 p-6 rounded-3xl border border-gray-800/50">
@@ -413,6 +416,53 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                 className="bg-gray-800 hover:bg-gray-700 text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all"
               >
                 Close Job Sheet
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+      {/* --- APPROVAL DIALOG --- */}
+      {showApprovalDialog && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="glass max-w-sm w-full p-8 rounded-[2rem] border-2 border-gray-800 shadow-2xl"
+          >
+            <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-4 text-center">Confirm Module Approval</h3>
+            <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest text-center mb-8">Move to {currentPipeline[currentPipeline.indexOf(currentStage?.stageName) + 1] || 'Final Stage'}</p>
+            
+            <div className="space-y-4 mb-8">
+              <label className="text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-1">Add Customization Amount ($)</label>
+              <div className="relative">
+                <span className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-500 font-black">$</span>
+                <input 
+                  type="number"
+                  value={customizationAmount}
+                  onChange={(e) => setCustomizationAmount(e.target.value)}
+                  className="w-full bg-gray-950 border-2 border-gray-800 rounded-2xl py-4 pl-12 pr-6 outline-none focus:border-emerald-500 transition-all text-white font-black text-xl"
+                  placeholder="0"
+                />
+              </div>
+              <p className="text-[9px] text-gray-500 italic text-center">Leave 0 if no extra charge applies</p>
+            </div>
+
+            <div className="flex flex-col space-y-3">
+              <button 
+                onClick={() => {
+                  onUpdateStage(order.id, currentStage.id, 'approve', { customizationPrice: customizationAmount });
+                  setShowApprovalDialog(false);
+                  setCustomizationAmount('0');
+                }}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest transition-all"
+              >
+                Approve & Record Cost
+              </button>
+              <button 
+                onClick={() => setShowApprovalDialog(false)}
+                className="w-full bg-gray-900 hover:bg-gray-800 text-gray-500 py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+              >
+                Cancel
               </button>
             </div>
           </motion.div>

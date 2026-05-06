@@ -234,26 +234,36 @@ const InventoryManagement = () => {
                   </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-8">
-                  <div className="space-y-3">
-                    <label className="text-xs font-black text-gray-600 uppercase tracking-widest ml-1">Product Description</label>
+                <form onSubmit={handleSubmit} className="space-y-10">
+                  <div className="space-y-4">
+                    <div className="flex items-center space-x-3 mb-1">
+                      <div className="p-2 bg-blue-500/10 rounded-lg">
+                        <ClipboardList size={16} className="text-blue-400" />
+                      </div>
+                      <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Product Specification</label>
+                    </div>
                     <input
                       type="text"
                       required
                       value={formData.name}
                       onChange={(e) => setFormData({...formData, name: e.target.value})}
-                      className="w-full bg-gray-950 border-2 border-gray-800 rounded-2xl py-5 px-6 focus:border-blue-600 outline-none transition-all font-bold text-lg"
+                      className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-[1.5rem] py-5 px-8 focus:border-blue-500 outline-none transition-all font-bold text-lg text-white shadow-inner"
                       placeholder="e.g. Ultra-Flex Scrub Top"
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="space-y-3">
-                      <label className="text-xs font-black text-gray-600 uppercase tracking-widest ml-1">Universal Category</label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-3 mb-1">
+                        <div className="p-2 bg-purple-500/10 rounded-lg">
+                          <Layers size={16} className="text-purple-400" />
+                        </div>
+                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Category</label>
+                      </div>
                       <select
                         value={formData.category}
                         onChange={(e) => setFormData({...formData, category: e.target.value})}
-                        className="w-full bg-gray-950 border-2 border-gray-800 rounded-2xl py-5 px-6 outline-none font-bold text-gray-300 appearance-none"
+                        className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-[1.25rem] py-4 px-6 outline-none font-bold text-gray-300 appearance-none cursor-pointer focus:border-purple-500"
                       >
                         <option value="SCRUBS">Scrubs</option>
                         <option value="COAT">Coat</option>
@@ -264,49 +274,71 @@ const InventoryManagement = () => {
                         <option value="COLOR">Color</option>
                       </select>
                     </div>
-                    <div className="space-y-3">
-                      <label className="text-xs font-black text-gray-600 uppercase tracking-widest ml-1">Current Stock Level</label>
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-3 mb-1">
+                        <div className="p-2 bg-emerald-500/10 rounded-lg">
+                          <Package size={16} className="text-emerald-400" />
+                        </div>
+                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Stock Count</label>
+                      </div>
                       <input
                         type="number"
                         required
                         value={formData.stock}
                         onChange={(e) => setFormData({...formData, stock: parseInt(e.target.value) || 0})}
-                        className="w-full bg-gray-950 border-2 border-gray-800 rounded-2xl py-5 px-6 focus:border-blue-600 outline-none font-black text-xl"
+                        className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-[1.25rem] py-4 px-6 focus:border-emerald-500 outline-none font-black text-xl text-white shadow-inner"
                       />
                     </div>
-                    <div className="space-y-3">
-                      <label className="text-xs font-black text-gray-600 uppercase tracking-widest ml-1">Unit Price ($)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        required
-                        value={formData.price}
-                        onChange={(e) => setFormData({...formData, price: parseFloat(e.target.value) || 0})}
-                        className="w-full bg-gray-950 border-2 border-gray-800 rounded-2xl py-5 px-6 focus:border-emerald-600 outline-none font-black text-xl text-emerald-400"
-                      />
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-3 mb-1">
+                        <div className="p-2 bg-emerald-500/10 rounded-lg">
+                          <Save size={16} className="text-emerald-400" />
+                        </div>
+                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Unit Price</label>
+                      </div>
+                      <div className="relative">
+                        <span className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-500 font-bold">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          required
+                          value={formData.price}
+                          onChange={(e) => setFormData({...formData, price: parseFloat(e.target.value) || 0})}
+                          className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-[1.25rem] py-4 pl-12 pr-6 focus:border-emerald-500 outline-none font-black text-xl text-emerald-400 shadow-inner"
+                        />
+                      </div>
                     </div>
                   </div>
 
-                  {/* New Fields: Color & Fabric */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="space-y-3">
-                      <label className="text-xs font-black text-gray-600 uppercase tracking-widest ml-1 text-purple-400">Fixed Color</label>
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-3 mb-1">
+                        <div className="p-2 bg-pink-500/10 rounded-lg">
+                          <Palette size={16} className="text-pink-400" />
+                        </div>
+                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Primary Color</label>
+                      </div>
                       <input
                         type="text"
                         value={formData.color}
                         onChange={(e) => setFormData({...formData, color: e.target.value})}
-                        className="w-full bg-gray-950 border-2 border-gray-800 rounded-2xl py-5 px-6 focus:border-purple-600 outline-none transition-all font-bold"
+                        className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-[1.25rem] py-4 px-6 focus:border-pink-500 outline-none transition-all font-bold text-white shadow-inner"
                         placeholder="e.g. Royal Blue"
                       />
                     </div>
-                    <div className="space-y-3">
-                      <label className="text-xs font-black text-gray-600 uppercase tracking-widest ml-1 text-emerald-400">Fixed Fabric</label>
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-3 mb-1">
+                        <div className="p-2 bg-indigo-500/10 rounded-lg">
+                          <Layers size={16} className="text-indigo-400" />
+                        </div>
+                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Material/Fabric</label>
+                      </div>
                       <input
                         type="text"
                         value={formData.fabric}
                         onChange={(e) => setFormData({...formData, fabric: e.target.value})}
-                        className="w-full bg-gray-950 border-2 border-gray-800 rounded-2xl py-5 px-6 focus:border-emerald-600 outline-none transition-all font-bold"
+                        className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-[1.25rem] py-4 px-6 focus:border-indigo-500 outline-none transition-all font-bold text-white shadow-inner"
                         placeholder="e.g. Cotton Blend"
                       />
                     </div>
@@ -314,10 +346,10 @@ const InventoryManagement = () => {
 
                   <button 
                     type="submit"
-                    className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-6 rounded-2xl shadow-[0_20px_40px_rgba(37,99,235,0.3)] transition-all flex items-center justify-center space-x-3 active:scale-95 text-sm uppercase tracking-widest"
+                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black py-6 rounded-[1.5rem] shadow-[0_20px_50px_rgba(37,99,235,0.3)] transition-all flex items-center justify-center space-x-4 active:scale-[0.98] text-sm uppercase tracking-[0.2em]"
                   >
-                    <Save size={24} />
-                    <span>{editingItem ? 'Update Master Catalog' : 'Initialize Stock Asset'}</span>
+                    <CheckCircle2 size={24} />
+                    <span>{editingItem ? 'Finalize Master Update' : 'Initialize Stock Asset'}</span>
                   </button>
                 </form>
               </div>

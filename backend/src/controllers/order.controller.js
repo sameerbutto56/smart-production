@@ -147,7 +147,7 @@ const requestStageCompletion = async (req, res) => {
 
 const approveStageCompletion = async (req, res) => {
   const { orderId, stageId } = req.params;
-  const { nextStage, skipStages } = req.body; // Faisal can choose to skip stages (e.g. Store -> Dispatch)
+  const { nextStage, customizationPrice } = req.body; 
 
   try {
     const currentStageRecord = await prisma.orderStage.update({
@@ -160,6 +160,37 @@ const approveStageCompletion = async (req, res) => {
 
     const order = await prisma.order.findUnique({ where: { id: orderId } });
     
+    // Update Customization Price if provided
+    if (customizationPrice && parseFloat(customizationPrice) > 0) {
+      await prisma.order.update({
+        where: { id: orderId },
+        data: {
+          customizationPrice: (order.customizationPrice || 0) + parseFloat(customizationPrice)
+        }
+      });
+    }
+
+    // --- INVENTORY DEDUCTION ---
+    if (currentStageRecord.stageName === 'STORE') {
+      const product = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+      if (product?.productType) {
+        const inventoryItem = await prisma.inventoryItem.findFirst({
+          where: { 
+            name: { contains: product.productType, mode: 'insensitive' },
+            category: { not: 'FABRIC' }
+          }
+        });
+
+        if (inventoryItem && inventoryItem.stock > 0) {
+          await prisma.inventoryItem.update({
+            where: { id: inventoryItem.id },
+            data: { stock: { decrement: 1 } }
+          });
+          await createAuditLog(orderId, 'INVENTORY_DEDUCTED', `Deducted 1 unit of ${inventoryItem.name} from stock.`, req.user.id);
+        }
+      }
+    }
+
     let actualNextStage = nextStage;
     if (!actualNextStage) {
       const stages = NEXT_STAGES[order.type];
@@ -199,7 +230,7 @@ const approveStageCompletion = async (req, res) => {
       });
     }
 
-    await createAuditLog(orderId, 'STAGE_APPROVED', `${currentStageRecord.stageName} approved by Faisal. Next: ${actualNextStage || 'FINAL'}`, req.user.id);
+    await createAuditLog(orderId, 'STAGE_APPROVED', `${currentStageRecord.stageName} approved by Faisal. Next: ${actualNextStage || 'FINAL'}${customizationPrice ? ` | Added Cost: $${customizationPrice}` : ''}`, req.user.id);
 
     const io = req.app.get('io');
     io.emit('order-updated', { orderId });
