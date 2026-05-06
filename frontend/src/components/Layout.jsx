@@ -26,7 +26,7 @@ const Sidebar = ({ isOpen, toggle }) => {
   const navItems = [
     { name: 'Admin Portal', path: '/admin', icon: LayoutDashboard, roles: ['SUPER_ADMIN'] },
     { name: 'Control Center', path: '/dashboard', icon: LayoutDashboard, roles: ['FAISAL', 'SUPER_ADMIN'] },
-    { name: 'Order Entry', path: '/order-entry', icon: ClipboardList, roles: ['ORDER_ENTRY', 'SUPER_ADMIN'] },
+    { name: 'Order Entry', path: '/order-entry', icon: ClipboardList, roles: ['ORDER_ENTRY', 'FAISAL', 'SUPER_ADMIN'] },
     { name: 'Inventory', path: '/inventory', icon: Package, roles: ['SUPER_ADMIN'] },
     { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'NAME_LOGO', 'CUSTOM_LOGO', 'DISPATCH'] },
     { name: 'All Orders', path: '/orders', icon: Package, roles: ['SUPER_ADMIN'] },
