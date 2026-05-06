@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw, MessageSquare } from 'lucide-react';
 import axios from 'axios';
 
 const OrderCard = ({ order, onUpdateStage, userRole }) => {
@@ -12,6 +12,8 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
   const isFaisal = ['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY'].includes(userRole);
   const [timeLeft, setTimeLeft] = useState('');
   const [isDelayed, setIsDelayed] = useState(false);
+  const [showProblemModal, setShowProblemModal] = useState(false);
+  const [problemNote, setProblemNote] = useState('');
   const [showFullSheet, setShowFullSheet] = useState(false);
   const [urgencyColor, setUrgencyColor] = useState('text-blue-400');
 
@@ -228,11 +230,11 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
               {renderTasks()}
             </ul>
             {currentStage?.rejectionReason && (
-              <div className={`mt-4 p-3 rounded-xl border ${currentStage.rejectionReason.includes('Available') ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
-                <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${currentStage.rejectionReason.includes('Available') ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {currentStage.rejectionReason.includes('Inventory') ? 'Store Inventory Check:' : 'Faisal Rejection Reason:'}
+              <div className={`mt-4 p-3 rounded-xl border ${currentStage.rejectionReason.includes('Available') ? 'bg-emerald-500/10 border-emerald-500/20' : currentStage.rejectionReason.includes('PROBLEM') ? 'bg-orange-500/10 border-orange-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
+                <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${currentStage.rejectionReason.includes('Available') ? 'text-emerald-400' : currentStage.rejectionReason.includes('PROBLEM') ? 'text-orange-400' : 'text-red-400'}`}>
+                  {currentStage.rejectionReason.includes('Inventory') ? 'Store Inventory Check:' : currentStage.rejectionReason.includes('PROBLEM') ? 'Worker Reported Problem:' : 'Faisal Rejection Reason:'}
                 </p>
-                <p className="text-xs text-gray-300 italic">{currentStage.rejectionReason}</p>
+                <p className="text-xs text-gray-300 italic">{currentStage.rejectionReason.replace('PROBLEM:', '')}</p>
               </div>
             )}
             <div className="mt-5 pt-4 border-t border-gray-800 flex items-center justify-between">
@@ -260,9 +262,9 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                     <Check size={14} />
                     <span>Approve</span>
                   </button>
-                  {currentStage?.rejectionReason?.includes('Out of Stock') ? (
+                  {(currentStage?.rejectionReason?.includes('Out of Stock') || currentStage?.rejectionReason?.includes('PROBLEM')) ? (
                     <button
-                      onClick={() => onUpdateStage(order.id, currentStage.id, 'reject', { reason: 'Stock Replenished - Please Check Again' })}
+                      onClick={() => onUpdateStage(order.id, currentStage.id, 'reject', { reason: 'Problem Resolved - Please Proceed' })}
                       className="flex-1 bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col xl:flex-row items-center justify-center gap-1 active:scale-95 border border-yellow-500/20"
                     >
                       <RefreshCcw size={14} />
@@ -350,7 +352,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                       <span>COMPLETE TASK</span>
                     </button>
                     <button
-                      onClick={() => onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Production Issue' })}
+                      onClick={() => setShowProblemModal(true)}
                       className="flex-1 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white py-4 rounded-2xl text-xs font-black uppercase transition-all flex items-center justify-center space-x-2 border border-red-500/20 active:scale-95"
                     >
                       <AlertCircle size={16} />
@@ -361,6 +363,68 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
               )
             )}
           </div>
+
+          {/* Problem Reporting Modal */}
+          <AnimatePresence>
+            {showProblemModal && (
+              <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 bg-gray-950/90 backdrop-blur-sm"
+                  onClick={() => setShowProblemModal(false)}
+                />
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                  className="relative w-full max-w-lg bg-gray-900 border border-red-500/30 rounded-[2.5rem] p-8 shadow-2xl"
+                >
+                  <div className="flex items-center space-x-4 mb-6">
+                    <div className="p-3 bg-red-500/20 rounded-2xl text-red-500">
+                      <AlertCircle size={24} />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-black text-white uppercase tracking-tight">Report Problem</h3>
+                      <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">Sent directly to Faisal Control Center</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Describe what's wrong</label>
+                    <textarea 
+                      autoFocus
+                      className="w-full bg-gray-950 border-2 border-gray-800 rounded-2xl p-6 text-white text-sm font-bold outline-none focus:border-red-500/50 transition-all min-h-[120px] resize-none"
+                      placeholder="e.g. Fabric is torn, Measurement mismatch, Thread color unavailable..."
+                      value={problemNote}
+                      onChange={(e) => setProblemNote(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="flex gap-4 mt-8">
+                    <button 
+                      onClick={() => setShowProblemModal(false)}
+                      className="flex-1 py-4 rounded-2xl text-xs font-black uppercase text-gray-500 hover:bg-gray-800 transition-all"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      disabled={!problemNote.trim()}
+                      onClick={() => {
+                        onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: `PROBLEM: ${problemNote}` });
+                        setShowProblemModal(false);
+                        setProblemNote('');
+                      }}
+                      className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:hover:bg-red-600 text-white py-4 rounded-2xl text-xs font-black uppercase shadow-xl shadow-red-900/20 transition-all"
+                    >
+                      Send to Faisal
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
         </div>
         
         {/* Progress Bar */}
