@@ -331,8 +331,54 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
       );
     }
 
+    if (stage === 'PRESSING_PACKING') {
+      const product = parseJSON(order.productDetails);
+      const custom = parseJSON(order.customization);
+      const female = product?.femaleOptions || {};
+
+      return (
+        <div className="space-y-4">
+          <div className="bg-blue-600/10 p-4 rounded-2xl border border-blue-500/20 text-center">
+             <p className="text-[8px] text-blue-400 font-black uppercase tracking-[0.2em] mb-1">Final Packing ID</p>
+             <h4 className="text-xl font-black text-white">#{order.orderNumber}</h4>
+             <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">{order.customerName}</p>
+          </div>
+
+          <div className="bg-gray-950/50 p-3 rounded-xl border border-gray-800/50">
+            <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-3 px-1">Packing Checklist</p>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-[11px] text-gray-300 bg-gray-900/50 p-2 rounded-lg border border-gray-800">
+                <span className="font-bold">Product:</span>
+                <span className="text-white font-black">{product?.productType} ({product?.size})</span>
+              </div>
+              <div className="flex items-center justify-between text-[11px] text-gray-300 bg-gray-900/50 p-2 rounded-lg border border-gray-800">
+                <span className="font-bold">Color:</span>
+                <span className="text-white font-black">{product?.color}</span>
+              </div>
+              <div className="flex items-center justify-between text-[11px] text-gray-300 bg-gray-900/50 p-2 rounded-lg border border-gray-800">
+                <span className="font-bold text-orange-400">Ironing Fabric:</span>
+                <span className="text-white font-black">{product?.fabricType}</span>
+              </div>
+              {product?.gender === 'Female' && female.dupatta && (
+                <div className="flex items-center justify-between text-[11px] text-emerald-400 bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20">
+                  <span className="font-bold italic underline">⚠️ INCLUDE DUPATTA</span>
+                  <span className="font-black">REQUIRED</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {custom?.designNotes && (
+            <div className="bg-gray-800/50 p-2 rounded-lg border border-gray-700">
+              <p className="text-[7px] text-gray-500 font-black uppercase">Special Request Note</p>
+              <p className="text-[10px] text-gray-400 italic">"{custom.designNotes.substring(0, 50)}..."</p>
+            </div>
+          )}
+        </div>
+      );
+    }
+
     const stageMap = {
-      'PRESSING_PACKING': ['Final Press', 'Bagging', 'Labeling'],
       'NAME_LOGO': ['Name Embroidery', 'Color Check'],
       'CUSTOM_LOGO': ['Logo Design Apply', 'Custom Pattern']
     };
@@ -536,6 +582,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                       <span>{(() => {
                         const nextStageIdx = currentPipeline.indexOf(currentStage?.stageName) + 1;
                         const nextStage = currentPipeline[nextStageIdx];
+                        if (currentStage?.stageName === 'PRESSING_PACKING') return 'PROCESS COMPLETE';
                         return nextStage ? `MOVE TO ${nextStage.replace(/_/g, ' ')}` : 'COMPLETE TASK';
                       })()}</span>
                     </button>
