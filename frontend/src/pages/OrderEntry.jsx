@@ -70,7 +70,6 @@ const SmartOrderForm = () => {
       length: '',
       sleeve: '',
       waist: '',
-      waist: '',
       hips: ''
     },
     gender: 'Male',
@@ -223,7 +222,8 @@ const SmartOrderForm = () => {
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
       console.error('Error creating order:', error);
-      setError(error.response?.data?.message || 'Error creating order. Please try again.');
+      const serverMsg = error.response?.data?.error || error.response?.data?.message;
+      setError(serverMsg || 'Error creating order. Please try again.');
     }
     setLoading(false);
     setIsSubmitting(false);

@@ -30,12 +30,19 @@ const getStageDurations = async () => {
 
 const createAuditLog = async (orderId, action, details, userId) => {
   try {
+    // If no userId, we can't create the log because it's required in schema
+    // In production, everything should be authenticated, but we'll fallback to a known ID if possible
+    if (!userId) {
+      console.warn('Audit Log: No userId provided for action:', action);
+      return; 
+    }
+
     await prisma.auditLog.create({
       data: {
         orderId,
         action,
         details,
-        userId: userId || null,
+        performedBy: userId,
         timestamp: new Date()
       }
     });
@@ -93,7 +100,12 @@ const createOrder = async (req, res) => {
 
     res.status(201).json(order);
   } catch (error) {
-    res.status(500).json({ message: 'Error creating order', error: error.message });
+    console.error('Error creating order:', error);
+    let message = 'Error creating order';
+    if (error.code === 'P2002') {
+      message = 'Order ID already exists. Please use a unique ID.';
+    }
+    res.status(500).json({ message, error: error.message });
   }
 };
 

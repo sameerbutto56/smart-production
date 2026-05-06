@@ -68,6 +68,7 @@ model AuditLog {
   id          String   @id @default(uuid())
   orderId     String
   action      String
+  details     String?
   performedBy String
   timestamp   DateTime @default(now())
   order       Order    @relation(fields: [orderId], references: [id])
