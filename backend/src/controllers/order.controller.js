@@ -197,9 +197,9 @@ const requestStageCompletion = async (req, res) => {
 };
 
 const NEXT_STAGES = {
-  'STANDARD': ['STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH'],
-  'READY_LOGO': ['STORE', 'LOGO_DESIGN', 'DISPATCH'],
-  'FULL_CUSTOM': ['STORE', 'CUTTING', 'STITCHING', 'QA', 'LOGO_DESIGN', 'DISPATCH']
+  'STANDARD': ['STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+  'READY_LOGO': ['STORE', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+  'FULL_CUSTOM': ['STORE', 'CUTTING', 'STITCHING', 'QA', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY']
 };
 
 // Stages that move automatically to the next one without Faisal's intermediate approval

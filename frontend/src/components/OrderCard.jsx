@@ -87,9 +87,9 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
   const sizes = parseJSON(order.sizeData);
 
   const pipelines = {
-    'STANDARD': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH'],
-    'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'DISPATCH'],
-    'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'LOGO_DESIGN', 'DISPATCH']
+    'STANDARD': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+    'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+    'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY']
   };
 
   const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
@@ -177,9 +177,10 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
               </div>
               <p className="text-sm text-gray-400 font-bold tracking-wide truncate">{order.customerName}</p>
             </div>
-            <div className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider shadow-lg max-w-[45%] text-center leading-tight ${isDelayed ? 'bg-red-500/20 text-red-500 border border-red-500/20' : 'bg-blue-500/20 text-blue-400 border border-blue-500/20'}`}>
-              {isWaitingApproval ? `${currentStage?.stageName.replace('_', ' ')}\nCOMPLETE` : currentStage?.stageName.replace('_', ' ')}
-            </div>
+                <span className={`px-3 py-1 rounded-full text-[10px] font-black tracking-widest ${isWaitingApproval ? 'bg-orange-500 text-white animate-pulse' : 'bg-blue-500/10 text-blue-400'} border border-current flex items-center gap-1`}>
+                  {isWaitingApproval && <AlertCircle size={10} />}
+                  {currentStage?.stageName?.replace(/_/g, ' ')}
+                </span>
           </div>
 
           <div className="flex items-center justify-between bg-gray-950/50 p-4 rounded-2xl border border-gray-800/50 mb-6">
