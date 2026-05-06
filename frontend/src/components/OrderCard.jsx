@@ -266,8 +266,72 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
       );
     }
 
+    if (stage === 'QA') {
+      const custom = parseJSON(order.customization);
+      const product = parseJSON(order.productDetails);
+
+      return (
+        <div className="space-y-4">
+          <div className="bg-emerald-600/10 p-3 rounded-xl border border-emerald-600/20">
+            <p className="text-[8px] text-emerald-400 font-black uppercase tracking-widest mb-2 flex items-center space-x-2">
+              <CheckCircle size={10} />
+              <span>Branding Verification</span>
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-gray-950/50 p-2 rounded-lg">
+                <p className="text-[7px] text-gray-500 font-black uppercase">Name Spelling</p>
+                <p className="text-[10px] font-black text-white">{custom?.nameSpelling || 'NONE'}</p>
+              </div>
+              <div className="bg-gray-950/50 p-2 rounded-lg">
+                <p className="text-[7px] text-gray-500 font-black uppercase">Logo Detail</p>
+                <p className="text-[10px] font-black text-white">{order.logoName || 'N/A'}</p>
+              </div>
+              <div className="bg-gray-950/50 p-2 rounded-lg">
+                <p className="text-[7px] text-gray-500 font-black uppercase">Thread Color</p>
+                <p className="text-[10px] font-black text-white">{custom?.nameColor || 'WHITE'}</p>
+              </div>
+              <div className="bg-gray-950/50 p-2 rounded-lg">
+                <p className="text-[7px] text-gray-500 font-black uppercase">Placement</p>
+                <p className="text-[10px] font-black text-white">{custom?.logoPlacement || 'LEFT CHEST'}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-950/50 p-3 rounded-xl border border-gray-800/50">
+            <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-2 px-1">Measurement Check</p>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { l: 'Chst', v: sizes?.chest },
+                { l: 'Shld', v: sizes?.shoulder },
+                { l: 'Lnth', v: sizes?.length },
+                { l: 'Slve', v: sizes?.sleeve },
+                { l: 'Wst', v: sizes?.waist },
+                { l: 'Hips', v: sizes?.hips }
+              ].filter(s => s.v).map((s, i) => (
+                <div key={i} className="text-center p-1 bg-gray-900 rounded border border-gray-800">
+                  <p className="text-[7px] text-gray-500 font-bold uppercase">{s.l}</p>
+                  <p className="text-[10px] font-black text-white">{s.v}"</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <div className="px-2 py-1 bg-gray-800 rounded text-[9px] font-black uppercase tracking-tighter text-gray-400 border border-gray-700">
+              FIT: {custom?.fitType || 'REGULAR'}
+            </div>
+            <div className="px-2 py-1 bg-gray-800 rounded text-[9px] font-black uppercase tracking-tighter text-gray-400 border border-gray-700">
+              STITCH: {custom?.stitchingStyle || 'STD'}
+            </div>
+            <div className="px-2 py-1 bg-gray-800 rounded text-[9px] font-black uppercase tracking-tighter text-gray-400 border border-gray-700">
+              FABRIC: {product?.fabricType}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     const stageMap = {
-      'QA': ['Check Specs', 'Check Stitches', 'Visual Audit'],
       'PRESSING_PACKING': ['Final Press', 'Bagging', 'Labeling'],
       'NAME_LOGO': ['Name Embroidery', 'Color Check'],
       'CUSTOM_LOGO': ['Logo Design Apply', 'Custom Pattern']
