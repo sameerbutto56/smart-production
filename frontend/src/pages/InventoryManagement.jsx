@@ -143,7 +143,7 @@ const InventoryManagement = () => {
           />
         </div>
         <div className="flex bg-gray-950 border-2 border-gray-900 rounded-2xl p-1.5 overflow-x-auto no-scrollbar">
-          {['ALL', 'SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS', 'FABRIC', 'COLOR'].map(cat => (
+          {['ALL', 'SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS', 'FABRIC'].map(cat => (
             <button 
               key={cat} 
               onClick={() => setSearchTerm(cat === 'ALL' ? '' : cat)}
@@ -291,7 +291,6 @@ const InventoryManagement = () => {
                         <option value="SOCKS">Socks</option>
                         <option value="CAPS">Caps</option>
                         <option value="FABRIC">Fabric</option>
-                        <option value="COLOR">Color</option>
                       </select>
                     </div>
                     <div className="space-y-4">
