@@ -119,18 +119,28 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
     }
 
     if (stage === 'CUTTING') {
+      const custom = parseJSON(order.customization);
       const specs = [
         { l: 'Chest', v: sizes?.chest },
         { l: 'Shoulder', v: sizes?.shoulder },
         { l: 'Length', v: sizes?.length },
-        { l: 'Sleeve', v: sizes?.sleeve }
+        { l: 'Sleeve', v: sizes?.sleeve },
+        { l: 'Waist', v: sizes?.waist },
+        { l: 'Hips', v: sizes?.hips },
+        { l: 'Fit', v: custom?.fitType },
+        { l: 'Style', v: custom?.stitchingStyle }
       ];
-      return specs.filter(s => s.v).map((s, i) => (
-        <li key={i} className="text-xs text-gray-300 flex items-center space-x-2">
-          <span className="text-blue-500 font-black">•</span>
-          <span>{s.l}: {s.v}"</span>
-        </li>
-      ));
+      return (
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+          {specs.filter(s => s.v).map((s, i) => (
+            <div key={i} className="text-[11px] text-gray-300 flex items-center space-x-2">
+              <span className="text-emerald-500 font-black">•</span>
+              <span className="font-bold">{s.l}:</span>
+              <span className="text-white font-black">{s.v}{!['Fit', 'Style'].includes(s.l) ? '"' : ''}</span>
+            </div>
+          ))}
+        </div>
+      );
     }
 
     const stageMap = {
