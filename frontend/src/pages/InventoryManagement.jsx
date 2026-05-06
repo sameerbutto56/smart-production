@@ -94,6 +94,20 @@ const InventoryManagement = () => {
     (item.color && item.color.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this item?')) return;
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const token = localStorage.getItem('token');
+      await axios.delete(`${API_URL}/api/inventory/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchInventory();
+    } catch (error) {
+      console.error('Error deleting inventory item:', error);
+    }
+  };
+
   return (
     <div className="space-y-8 pb-20 px-4">
       {/* Header Section */}
@@ -174,11 +188,11 @@ const InventoryManagement = () => {
                   {['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS'].includes(item.category) ? <Package size={24} /> : 
                    item.category === 'FABRIC' ? <Layers size={24} /> : <Palette size={24} />}
                 </div>
-                <div className="flex space-x-2 opacity-0 group-hover:opacity-100 transition-all">
-                  <button onClick={() => handleOpenModal(item)} className="p-2.5 bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white rounded-xl transition-all">
+                <div className="flex space-x-2">
+                  <button onClick={(e) => { e.stopPropagation(); handleOpenModal(item); }} className="p-2.5 bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white rounded-xl transition-all">
                     <Edit2 size={16} />
                   </button>
-                  <button className="p-2.5 bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white rounded-xl transition-all">
+                  <button onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }} className="p-2.5 bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white rounded-xl transition-all">
                     <Trash2 size={16} />
                   </button>
                 </div>

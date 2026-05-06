@@ -46,4 +46,18 @@ const updateInventoryItem = async (req, res) => {
   }
 };
 
-module.exports = { getInventory, createInventoryItem, updateInventoryItem };
+const deleteInventoryItem = async (req, res) => {
+  const { id } = req.params;
+  try {
+    await prisma.inventoryItem.delete({ where: { id } });
+    
+    const io = req.app.get('io');
+    if (io) io.emit('inventory-updated', { deleted: id });
+    
+    res.json({ message: 'Item deleted' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting inventory item', error: error.message });
+  }
+};
+
+module.exports = { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem };
