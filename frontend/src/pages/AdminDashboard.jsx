@@ -13,10 +13,12 @@ import {
   ClipboardList, 
   MapPin, 
   Search, 
+  AlertTriangle,
   CheckCircle2, 
   Package, 
   Truck, 
-  Circle 
+  Circle,
+  Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -47,6 +49,8 @@ const AdminDashboard = () => {
   const [trackingError, setTrackingError] = useState('');
   const [analytics, setAnalytics] = useState(null);
   const [filterStage, setFilterStage] = useState('ALL');
+  const [loading, setLoading] = useState(true);
+  const [fetchingError, setFetchingError] = useState(false);
 
   const stageList = [
     { id: 'ORDER_ENTRY', icon: ClipboardList },
@@ -128,18 +132,29 @@ const AdminDashboard = () => {
   const fetchAnalytics = async () => {
     try {
       const token = sessionStorage.getItem('token');
+      if (!token) return;
       const response = await axios.get(`${API_URL}/api/orders/analytics`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setAnalytics(response.data);
     } catch (error) {
       console.error('Error fetching analytics:', error);
+      if (error.response?.status === 401) {
+        toast.error('Session expired. Please login again.');
+        navigate('/login');
+      }
     }
   };
 
   const fetchDashboardData = async () => {
+    setLoading(true);
+    setFetchingError(false);
     try {
       const token = sessionStorage.getItem('token');
+      if (!token) {
+        navigate('/login');
+        return;
+      }
       const response = await axios.get(`${API_URL}/api/orders`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -148,9 +163,9 @@ const AdminDashboard = () => {
       setAllOrders(orders);
       setStats({
         totalOrders: orders.length,
-        urgentOrders: orders.filter(o => o.urgent).length,
+        urgentOrders: orders.filter(o => o?.urgent).length,
         delayedOrders: 0,
-        completedToday: orders.filter(o => o.status === 'COMPLETED').length
+        completedToday: orders.filter(o => o?.status === 'COMPLETED').length
       });
 
       if (trackedOrder) {
@@ -159,6 +174,12 @@ const AdminDashboard = () => {
       }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+      setFetchingError(true);
+      if (error.response?.status === 401) {
+        navigate('/login');
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -224,6 +245,33 @@ const AdminDashboard = () => {
     if (filterStage === 'ALL') return [];
     return allOrders.filter(o => o.currentStage === filterStage && o.status !== 'COMPLETED');
   }, [allOrders, filterStage]);
+
+  if (loading && allOrders.length === 0) {
+    return (
+      <div className="h-[80vh] flex flex-col items-center justify-center space-y-4">
+        <Loader2 className="animate-spin text-blue-500" size={48} />
+        <p className="text-gray-500 font-black uppercase tracking-[0.3em] text-xs">Syncing Production Hub...</p>
+      </div>
+    );
+  }
+
+  if (fetchingError && allOrders.length === 0) {
+    return (
+      <div className="h-[80vh] flex flex-col items-center justify-center space-y-6 glass rounded-[3rem] border-2 border-red-500/20">
+        <AlertTriangle className="text-red-500" size={64} />
+        <div className="text-center">
+          <h2 className="text-2xl font-black text-white uppercase italic">Connection Fragmented</h2>
+          <p className="text-gray-500 mt-2 font-bold">The production server is currently unreachable.</p>
+        </div>
+        <button 
+          onClick={fetchDashboardData}
+          className="px-10 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-blue-500 transition-all active:scale-95 shadow-xl shadow-blue-900/40"
+        >
+          Re-Initialize
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-12">
