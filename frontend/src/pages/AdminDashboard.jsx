@@ -46,6 +46,18 @@ const AdminDashboard = () => {
   const [trackedOrder, setTrackedOrder] = useState(null);
   const [trackingError, setTrackingError] = useState('');
   const [analytics, setAnalytics] = useState(null);
+  const [filterStage, setFilterStage] = useState('ALL');
+
+  const stageList = [
+    { id: 'STORE', icon: Package },
+    { id: 'CUTTING', icon: Circle },
+    { id: 'STITCHING', icon: Circle },
+    { id: 'QA', icon: CheckCircle2 },
+    { id: 'LOGO_DESIGN', icon: Circle },
+    { id: 'PRESSING_PACKING', icon: Package },
+    { id: 'DISPATCH', icon: Truck },
+    { id: 'OUT_FOR_DELIVERY', icon: Truck },
+  ];
 
   useEffect(() => {
     fetchDashboardData();
@@ -231,6 +243,83 @@ const AdminDashboard = () => {
           </motion.div>
         ))}
       </div>
+      
+      {/* Phase Filter Bar */}
+      <div className="bg-gray-900/50 p-4 rounded-[2rem] border border-gray-800 overflow-x-auto no-scrollbar">
+        <div className="flex items-center space-x-3 min-w-max">
+          <button
+            onClick={() => setFilterStage('ALL')}
+            className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+              filterStage === 'ALL' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' : 'bg-gray-950 text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            All Phases ({allOrders.filter(o => o.status !== 'COMPLETED').length})
+          </button>
+          <div className="w-px h-8 bg-gray-800 mx-2"></div>
+          {stageList.map((stage) => {
+            const count = allOrders.filter(o => o.currentStage === stage.id && o.status !== 'COMPLETED').length;
+            return (
+              <button
+                key={stage.id}
+                onClick={() => setFilterStage(stage.id)}
+                className={`flex items-center space-x-3 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
+                  filterStage === stage.id 
+                    ? 'bg-blue-600/10 border-blue-500 text-blue-400 shadow-lg shadow-blue-900/10' 
+                    : 'bg-gray-950 border-transparent text-gray-600 hover:border-gray-800 hover:text-gray-400'
+                }`}
+              >
+                <stage.icon size={14} />
+                <span>{stage.id.replace(/_/g, ' ')}</span>
+                <span className={`ml-2 px-2 py-0.5 rounded-md ${filterStage === stage.id ? 'bg-blue-500 text-white' : 'bg-gray-800 text-gray-500'}`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Filtered Orders List */}
+      {filterStage !== 'ALL' && (
+        <section className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="p-3 bg-blue-500/10 rounded-2xl">
+                <Package className="text-blue-400" size={24} />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-white uppercase tracking-tight">{filterStage.replace(/_/g, ' ')} Orders</h2>
+                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Active orders in this phase</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => setFilterStage('ALL')}
+              className="text-gray-500 hover:text-white transition-colors text-xs font-black uppercase tracking-widest flex items-center gap-2"
+            >
+              <X size={14} /> Close Filter
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+            {allOrders.filter(o => o.currentStage === filterStage && o.status !== 'COMPLETED').length > 0 ? (
+              allOrders.filter(o => o.currentStage === filterStage && o.status !== 'COMPLETED').map(order => (
+                <OrderCard 
+                  key={order.id} 
+                  order={order} 
+                  userRole={user?.role}
+                  onUpdateStage={handleAction}
+                />
+              ))
+            ) : (
+              <div className="col-span-full py-20 text-center glass rounded-[3rem] border border-gray-800">
+                <Package className="mx-auto text-gray-800 mb-4" size={48} />
+                <h3 className="text-gray-500 font-black uppercase">No orders in this phase</h3>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
       
 
 

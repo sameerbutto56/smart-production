@@ -12,17 +12,18 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
   const isFaisal = ['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY'].includes(userRole);
   const [timeLeft, setTimeLeft] = useState('');
   const [isDelayed, setIsDelayed] = useState(false);
-  const [showProblemModal, setShowProblemModal] = useState(false);
-  const [problemNote, setProblemNote] = useState('');
   const [showFullSheet, setShowFullSheet] = useState(false);
   const [urgencyColor, setUrgencyColor] = useState('text-blue-400');
-
   const [inventory, setInventory] = useState([]);
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
-  const [customizationAmount, setCustomizationAmount] = useState('0');
-  const [nextStage, setNextStage] = useState('');
   const [showRejectionDialog, setShowRejectionDialog] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [nextStage, setNextStage] = useState('');
+  const [customizationAmount, setCustomizationAmount] = useState('0');
   const [rejectionReason, setRejectionReason] = useState('');
+  const [cancelReason, setCancelReason] = useState('');
+  const [showProblemModal, setShowProblemModal] = useState(false);
+  const [problemNote, setProblemNote] = useState('');
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -579,6 +580,14 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                       <span>Reject</span>
                     </button>
                   )}
+                  <button
+                    onClick={() => setShowCancelDialog(true)}
+                    className="flex-1 bg-red-950/20 hover:bg-red-900 text-red-500 py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col xl:flex-row items-center justify-center gap-1 active:scale-95 border border-red-500/20"
+                    title="Cancel Order Permanently"
+                  >
+                    <Trash2 size={14} />
+                    <span>Cancel</span>
+                  </button>
                   {order.paymentStatus !== 'FULL_PAID' && (
                     <button
                       onClick={() => {
@@ -587,8 +596,6 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                         axios.put(`${API_URL}/api/orders/${order.id}/payment`, { paymentStatus: status }, {
                           headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
                         }).then(() => {
-                          // No reload needed! The socket will trigger re-fetch in parent
-                          // but we can add a local feedback too
                         }).catch(err => {
                           console.error('Payment update failed:', err);
                           alert('Payment update failed');
@@ -669,7 +676,6 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
             )}
           </div>
 
-          {/* Problem Reporting Modal */}
           <AnimatePresence>
             {showProblemModal && (
               <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
@@ -732,7 +738,6 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
           </AnimatePresence>
         </div>
         
-        {/* Progress Bar */}
         <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
@@ -746,7 +751,6 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                 </span>
               </div>
 
-              {/* Combined Production Goal */}
               {isCurrentlyInProduction && productionDeadline && (
                 <div className="p-4 bg-indigo-600/5 rounded-2xl border border-indigo-600/10 relative overflow-hidden group/goal">
                   <div className="absolute top-0 right-0 p-2 opacity-10 group-hover/goal:opacity-30 transition-opacity">
@@ -787,7 +791,6 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
             </div>
       </motion.div>
 
-      {/* --- FULL JOB SHEET MODAL --- */}
       {showFullSheet && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8">
           <motion.div 
@@ -801,7 +804,6 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             className="relative w-full max-w-4xl bg-gray-900 border border-gray-800 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
           >
-            {/* Modal Header */}
             <div className="p-8 border-b border-gray-800 flex justify-between items-center bg-gray-900/50 backdrop-blur-md sticky top-0 z-10">
               <div>
                 <div className="flex items-center space-x-4 mb-2">
@@ -820,9 +822,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
               </button>
             </div>
 
-            {/* Modal Content */}
             <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
-              
               {userRole !== 'LOGO_DESIGN' && (
                 <section>
                   <h4 className="text-[11px] font-black text-blue-500 uppercase tracking-[0.3em] mb-6">01. Material & Product Specs</h4>
@@ -897,7 +897,6 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                   </div>
                 </div>
               </section>
-
             </div>
 
             <div className="p-8 bg-gray-950/80 border-t border-gray-800 flex justify-between items-center">
@@ -916,7 +915,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
           </motion.div>
         </div>
       )}
-      {/* --- APPROVAL DIALOG --- */}
+
       {showApprovalDialog && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
           <motion.div 
@@ -928,7 +927,6 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
             <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest text-center mb-8">Current Stage: {currentStage?.stageName.replace('_', ' ')} Complete</p>
             
             <div className="space-y-6 mb-8">
-              {/* Next Stage Selection */}
               <div className="space-y-3">
                 <label className="text-[10px] font-black text-blue-500 uppercase tracking-widest ml-1">Destination Stage</label>
                 <select 
@@ -941,6 +939,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                   <option value="CUTTING">Send to MANUFACTURING (Cutter)</option>
                   <option value="LOGO_DESIGN">Send to LOGO & NAME DESIGN</option>
                   <option value="DISPATCH">Send to DISPATCH</option>
+                  <option value="OUT_FOR_DELIVERY">Send to DELIVERY PARTNER</option>
                 </select>
               </div>
 
@@ -1022,6 +1021,61 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                 className="w-full bg-gray-900 hover:bg-gray-800 text-gray-500 py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
               >
                 Cancel
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+        </div>
+      )}
+      {/* --- CANCEL DIALOG --- */}
+      {showCancelDialog && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="glass max-w-sm w-full p-8 rounded-[2rem] border-2 border-red-900/50 shadow-2xl"
+          >
+            <div className="flex items-center justify-center mb-6">
+              <div className="p-4 bg-red-500/20 rounded-full text-red-500">
+                <ShieldAlert size={32} />
+              </div>
+            </div>
+            <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-4 text-center">Cancel Order?</h3>
+            <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest text-center mb-8">This will permanently stop production and notify the customer.</p>
+            
+            <textarea 
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              className="w-full bg-gray-950 border-2 border-gray-800 rounded-2xl py-4 px-6 outline-none focus:border-red-500 transition-all text-white font-bold text-sm min-h-[100px] mb-8"
+              placeholder="Reason for cancellation..."
+            />
+
+            <div className="flex flex-col space-y-3">
+              <button 
+                disabled={!cancelReason.trim()}
+                onClick={async () => {
+                  try {
+                    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                    await axios.put(`${API_URL}/api/orders/${order.id}/cancel`, { reason: cancelReason }, {
+                      headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
+                    });
+                    setShowCancelDialog(false);
+                    setCancelReason('');
+                  } catch (error) {
+                    console.error('Cancellation failed:', error);
+                    alert('Cancellation failed');
+                  }
+                }}
+                className="w-full bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-black py-5 rounded-xl text-xs uppercase tracking-widest transition-all shadow-xl shadow-red-900/20"
+              >
+                Permanently Cancel Order
+              </button>
+              <button 
+                onClick={() => setShowCancelDialog(false)}
+                className="w-full bg-gray-900 hover:bg-gray-800 text-gray-500 py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+              >
+                Keep Order
               </button>
             </div>
           </motion.div>

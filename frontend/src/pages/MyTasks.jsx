@@ -71,6 +71,8 @@ const MyTasks = () => {
       'PRESSING_PACKING': ['PRESSING_PACKING'],
       'LOGO_DESIGN': ['LOGO_DESIGN'],
       'DISPATCH': ['DISPATCH'],
+      'MAIN_EMPLOYEE': ['DISPATCH'], // For compatibility with existing seed
+      'OUT_FOR_DELIVERY': ['OUT_FOR_DELIVERY'],
     };
 
     const targetStages = stageRoleMap[user.role] || [];

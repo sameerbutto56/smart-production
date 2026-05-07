@@ -28,7 +28,7 @@ const Sidebar = ({ isOpen, toggle }) => {
     { name: 'Control Center', path: '/dashboard', icon: LayoutDashboard, roles: ['FAISAL', 'SUPER_ADMIN', 'ORDER_ENTRY'] },
     { name: 'Order Entry', path: '/order-entry', icon: ClipboardList, roles: ['ORDER_ENTRY', 'FAISAL', 'SUPER_ADMIN'] },
     { name: 'Inventory', path: '/inventory', icon: Package, roles: ['SUPER_ADMIN'] },
-    { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'LOGO_DESIGN', 'DISPATCH'] },
+    { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'] },
     { name: 'All Orders', path: '/orders', icon: Package, roles: ['SUPER_ADMIN'] },
     { name: 'History', path: '/history', icon: History, roles: ['SUPER_ADMIN'] },
   ];

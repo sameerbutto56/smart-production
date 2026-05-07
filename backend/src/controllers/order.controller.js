@@ -461,23 +461,33 @@ const getAnalytics = async (req, res) => {
   }
 };
 
-const clearHistory = async (req, res) => {
-  try {
-    const completedOrders = await prisma.order.findMany({
-      where: { status: { in: ['COMPLETED', 'DELIVERED'] } }
-    });
-    const orderIds = completedOrders.map(o => o.id);
-    
-    if (orderIds.length > 0) {
-      await prisma.orderStage.deleteMany({ where: { orderId: { in: orderIds } } });
-      await prisma.auditLog.deleteMany({ where: { orderId: { in: orderIds } } });
-      await prisma.order.deleteMany({ where: { id: { in: orderIds } } });
-    }
+const cancelOrder = async (req, res) => {
+  const { orderId } = req.params;
+  const { reason } = req.body;
 
-    res.json({ message: 'History cleared successfully', count: orderIds.length });
+  try {
+    const order = await prisma.order.update({
+      where: { id: orderId },
+      data: { 
+        status: 'REJECTED',
+        currentStage: 'CANCELLED'
+      }
+    });
+
+    // Also mark current active stage as REJECTED
+    await prisma.orderStage.updateMany({
+      where: { orderId, status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] } },
+      data: { status: 'REJECTED', rejectionReason: `ORDER CANCELLED: ${reason}` }
+    });
+
+    const io = req.app.get('io');
+    io.emit('order-updated', { orderId });
+
+    await createAuditLog(orderId, 'ORDER_CANCELLED', `Order permanently cancelled by Faisal. Reason: ${reason}`, req.user.id);
+
+    res.json({ message: 'Order cancelled successfully', order });
   } catch (error) {
-    console.error('Clear history error:', error);
-    res.status(500).json({ message: 'Error clearing history', error: error.message });
+    res.status(500).json({ message: 'Error cancelling order', error: error.message });
   }
 };
 
@@ -489,5 +499,6 @@ module.exports = {
   rejectStageCompletion,
   updatePaymentStatus,
   getAnalytics,
-  clearHistory
+  clearHistory,
+  cancelOrder
 };
