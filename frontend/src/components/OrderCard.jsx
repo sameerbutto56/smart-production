@@ -415,43 +415,43 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
         animate={{ opacity: 1, scale: 1 }}
         className={`glass rounded-3xl overflow-hidden mb-6 ${order.urgent ? 'card-urgent' : isDelayed ? 'card-delayed' : 'border border-gray-800'} ${order.status === 'REJECTED' ? 'border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.1)]' : ''}`}
       >
-        <div className="p-6">
-          <div className="flex justify-between items-start mb-6 gap-3">
-            <div className="text-[8px] text-gray-700 absolute top-2 right-4">v1.1</div>
+        <div className="p-4">
+          <div className="flex justify-between items-start mb-4 gap-2">
+            <div className="text-[7px] text-gray-700 absolute top-1 right-3">v1.1</div>
             <div className="flex-1 min-w-0">
-              <div className="flex flex-wrap items-center gap-2 mb-1">
-                <h3 className="font-black text-xl tracking-tighter text-white break-all">#{order.orderNumber || order.id.substring(0, 8)}</h3>
+              <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
+                <h3 className="font-black text-lg tracking-tighter text-white break-all">#{order.orderNumber || order.id.substring(0, 8)}</h3>
                 {order.urgent && (
-                  <span className="bg-blue-600 text-[10px] font-black px-2 py-0.5 rounded-full animate-pulse uppercase tracking-tighter">Urgent</span>
+                   <span className="bg-blue-600 text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse uppercase tracking-tighter">Urgent</span>
                 )}
-                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${
+                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter ${
                   order.type === 'FULL_CUSTOM' ? 'bg-indigo-600' : order.type === 'READY_LOGO' ? 'bg-purple-600' : 'bg-gray-700'
                 }`}>
                   {order.type}
                 </span>
               </div>
-              <p className="text-sm text-gray-400 font-bold tracking-wide truncate">{order.customerName}</p>
+              <p className="text-xs text-gray-400 font-bold tracking-wide truncate">{order.customerName}</p>
             </div>
-                <span className={`px-3 py-1 rounded-full text-[10px] font-black tracking-widest ${isWaitingApproval ? 'bg-orange-500 text-white animate-pulse' : 'bg-blue-500/10 text-blue-400'} border border-current flex items-center gap-1`}>
-                  {isWaitingApproval && <AlertCircle size={10} />}
+                <span className={`px-2 py-0.5 rounded-full text-[8px] font-black tracking-widest ${isWaitingApproval ? 'bg-orange-500 text-white animate-pulse' : 'bg-blue-500/10 text-blue-400'} border border-current flex items-center gap-1`}>
+                  {isWaitingApproval && <AlertCircle size={8} />}
                   {currentStage?.stageName?.replace(/_/g, ' ')}
                 </span>
           </div>
 
-          <div className="flex flex-col bg-gray-950/50 p-4 rounded-2xl border border-gray-800/50 mb-6 gap-3">
+          <div className="flex flex-col bg-gray-950/50 p-3 rounded-xl border border-gray-800/50 mb-4 gap-2">
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className={`p-2 rounded-lg ${isDelayed ? 'bg-red-500/10' : 'bg-gray-800/50'}`}>
-                  <Clock size={18} className={isDelayed ? 'text-red-500' : 'text-blue-400'} />
+              <div className="flex items-center space-x-2">
+                <div className={`p-1.5 rounded-lg ${isDelayed ? 'bg-red-500/10' : 'bg-gray-800/50'}`}>
+                  <Clock size={14} className={isDelayed ? 'text-red-500' : 'text-blue-400'} />
                 </div>
                 <div className="flex flex-col">
-                  <span className={`font-mono text-base tracking-tighter leading-none ${urgencyColor}`}>
+                  <span className={`font-mono text-sm tracking-tighter leading-none ${urgencyColor}`}>
                     {timeLeft}
                   </span>
-                  <span className="text-[8px] text-gray-500 font-black uppercase mt-1">Stage Time Remaining</span>
+                  <span className="text-[7px] text-gray-500 font-black uppercase mt-0.5">Time Left</span>
                 </div>
               </div>
-              <div className="text-[10px] text-gray-500 font-black uppercase tracking-widest bg-gray-900 px-3 py-1 rounded-lg">
+              <div className="text-[8px] text-gray-500 font-black uppercase tracking-widest bg-gray-900 px-2 py-0.5 rounded-md">
                 {currentStage?.deadlineAt ? new Date(currentStage.deadlineAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'NO DEADLINE'}
               </div>
             </div>

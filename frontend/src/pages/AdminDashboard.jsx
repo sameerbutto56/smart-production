@@ -196,18 +196,18 @@ const AdminDashboard = () => {
   );
 
   return (
-    <div className="space-y-12 pb-24">
+    <div className="space-y-6 pb-12">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-black text-white tracking-tight">Faisal Control Center</h1>
-          <p className="text-gray-400 font-bold uppercase tracking-widest text-xs mt-2">Production Approval Hub</p>
+          <h1 className="text-3xl font-black text-white tracking-tight">Faisal Control Center</h1>
+          <p className="text-gray-400 font-bold uppercase tracking-widest text-[10px] mt-1">Production Approval Hub</p>
         </div>
       </div>
 
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map((stat, i) => (
           <motion.div
             key={stat.title}
@@ -215,19 +215,19 @@ const AdminDashboard = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
             onClick={() => stat.path && navigate(stat.path, { state: stat.state })}
-            className="glass p-8 rounded-[2rem] border border-gray-800 hover:border-blue-500/50 hover:scale-[1.02] transition-all group cursor-pointer active:scale-95"
+            className="glass p-6 rounded-[1.5rem] border border-gray-800 hover:border-blue-500/50 hover:scale-[1.02] transition-all group cursor-pointer active:scale-95"
           >
-            <div className="flex justify-between items-start mb-6">
-              <div className={`p-4 rounded-[1.25rem] ${stat.bg} group-hover:scale-110 transition-transform`}>
-                <stat.icon className={stat.color} size={28} />
+            <div className="flex justify-between items-start mb-4">
+              <div className={`p-3 rounded-xl ${stat.bg} group-hover:scale-110 transition-transform`}>
+                <stat.icon className={stat.color} size={22} />
               </div>
-              <span className="flex items-center text-emerald-400 text-[10px] font-black bg-emerald-400/10 px-3 py-1.5 rounded-full uppercase tracking-widest">
-                <ArrowUpRight size={12} className="mr-1" />
+              <span className="flex items-center text-emerald-400 text-[9px] font-black bg-emerald-400/10 px-2 py-1 rounded-full uppercase tracking-widest">
+                <ArrowUpRight size={10} className="mr-1" />
                 Live
               </span>
             </div>
-            <h3 className="text-gray-500 text-[11px] font-black uppercase tracking-[0.2em]">{stat.title}</h3>
-            <p className="text-4xl font-black text-white mt-2 tracking-tighter">{stat.value}</p>
+            <h3 className="text-gray-500 text-[9px] font-black uppercase tracking-[0.2em]">{stat.title}</h3>
+            <p className="text-3xl font-black text-white mt-1 tracking-tighter">{stat.value}</p>
           </motion.div>
         ))}
       </div>
@@ -235,18 +235,18 @@ const AdminDashboard = () => {
 
 
       {/* Order Tracking - Moved below stats */}
-      <section className="glass rounded-[3rem] p-12 border border-gray-800 relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-12 opacity-5">
-            <MapPin size={200} />
+      <section className="glass rounded-[2rem] p-6 md:p-10 border border-gray-800 relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-8 opacity-5">
+            <MapPin size={120} />
         </div>
         
-        <div className="flex items-center space-x-4 mb-10">
-          <div className="p-3 bg-blue-500/10 rounded-2xl">
-            <Search className="text-blue-400" size={24} />
+        <div className="flex items-center space-x-4 mb-6">
+          <div className="p-3 bg-blue-500/10 rounded-xl">
+            <Search className="text-blue-400" size={20} />
           </div>
           <div>
-            <h2 className="text-2xl font-black text-white uppercase tracking-tight">Advanced Tracking</h2>
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Search and track any order across the production line</p>
+            <h2 className="text-xl font-black text-white uppercase tracking-tight">Advanced Tracking</h2>
+            <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">Search across the production line</p>
           </div>
         </div>
 

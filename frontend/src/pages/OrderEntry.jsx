@@ -282,51 +282,51 @@ const SmartOrderForm = () => {
   });
 
   return (
-    <div className="max-w-7xl mx-auto pb-24 px-6">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-12 gap-8">
-        <div className="flex items-center space-x-5">
-          <div className="p-5 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-[2rem] shadow-2xl shadow-blue-900/40 rotate-3">
-            <Sparkles className="text-white" size={32} />
+    <div className="max-w-7xl mx-auto pb-12 px-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-6">
+        <div className="flex items-center space-x-4">
+          <div className="p-4 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl shadow-2xl shadow-blue-900/40 rotate-3">
+            <Sparkles className="text-white" size={24} />
           </div>
           <div>
-            <h1 className="text-4xl font-black text-white tracking-tight">Smart Order Flow</h1>
-            <p className="text-gray-400 text-sm font-semibold uppercase tracking-[0.2em] mt-1">Conveyor Belt Intelligence</p>
+            <h1 className="text-3xl font-black text-white tracking-tight">Smart Order Flow</h1>
+            <p className="text-gray-400 text-[10px] font-semibold uppercase tracking-[0.2em] mt-0.5">Conveyor Belt Intelligence</p>
           </div>
         </div>
         
-        <div className="flex p-2 bg-gray-900/90 backdrop-blur-xl rounded-3xl border-2 border-gray-800 shadow-2xl">
+        <div className="flex p-1.5 bg-gray-900/90 backdrop-blur-xl rounded-2xl border-2 border-gray-800 shadow-2xl overflow-x-auto no-scrollbar">
           {filteredTabs.map((tab, index) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center space-x-3 px-8 py-4 rounded-2xl text-sm font-black transition-all duration-500 ${
+              className={`flex items-center space-x-2 px-6 py-3 rounded-xl text-xs font-black transition-all duration-300 ${
                 activeTab === tab.id 
-                  ? 'bg-blue-600 text-white shadow-2xl shadow-blue-900/60 scale-105' 
+                  ? 'bg-blue-600 text-white shadow-lg scale-105' 
                   : 'text-gray-500 hover:text-white hover:bg-gray-800/50'
               }`}
             >
-              <tab.icon size={20} />
-              <span className="hidden sm:inline">{`${index + 1}. ${tab.label.split('. ')[1] || tab.label}`.toUpperCase()}</span>
+              <tab.icon size={16} />
+              <span className="hidden sm:inline">{(tab.label.split('. ')[1] || tab.label).toUpperCase()}</span>
             </button>
           ))}
         </div>
       </div>
 
-      <form onSubmit={(e) => e.preventDefault()} className="space-y-10">
+      <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
         <AnimatePresence mode="wait">
           {activeTab === 'basic' && (
             <motion.div
               key="basic"
-              initial={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 1.05 }}
-              className="grid grid-cols-1 lg:grid-cols-12 gap-8"
+              exit={{ opacity: 0, scale: 1.02 }}
+              className="grid grid-cols-1 lg:grid-cols-12 gap-6"
             >
-              <div className="lg:col-span-8 glass p-12 rounded-[3.5rem] space-y-10 border border-gray-800 shadow-2xl">
-                <div className="flex items-center space-x-4">
-                  <div className="w-2 h-10 bg-blue-500 rounded-full shadow-[0_0_15px_rgba(59,130,246,0.5)]" />
-                  <h3 className="text-3xl font-black text-white">Identity Hub</h3>
+              <div className="lg:col-span-8 glass p-8 rounded-[2.5rem] space-y-8 border border-gray-800 shadow-2xl">
+                <div className="flex items-center space-x-3">
+                  <div className="w-1.5 h-8 bg-blue-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
+                  <h3 className="text-2xl font-black text-white">Identity Hub</h3>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10">

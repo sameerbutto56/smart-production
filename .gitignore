@@ -5,3 +5,5 @@ dev.db-journal
 dist/
 build/
 .DS_Store
+
+.vercel

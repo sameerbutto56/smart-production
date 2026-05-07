@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const prisma = new PrismaClient();
 
 async function main() {
-  const hashedPassword = await bcrypt.hash('password123', 10);
+  const hashedPassword = await bcrypt.hash('enamels1212', 10);
 
   // Clear existing for a fresh seed
   await prisma.user.deleteMany({});
@@ -13,7 +13,7 @@ async function main() {
   const users = [
     { name: 'Big Screen Monitor', email: 'bigscreen@smartpro.com', role: 'MAIN_EMPLOYEE' },
     { name: 'Admin Boss', email: 'admin@smartpro.com', role: 'ADMIN' },
-    { name: 'Order Entry', email: 'order@smartpro.com', role: 'ORDER_EMPLOYEE' },
+    { name: 'Faisal Control', email: 'order@smartpro.com', role: 'FAISAL' },
     { name: 'Store Keeper', email: 'store@smartpro.com', role: 'STORE_EMPLOYEE' },
     { name: 'Master Cutter', email: 'cutting@smartpro.com', role: 'CUTTING_EMPLOYEE' },
     { name: 'Lead Tailor', email: 'stitching@smartpro.com', role: 'STITCHING_EMPLOYEE' },
@@ -71,7 +71,7 @@ async function main() {
   }
 
   console.log('Seed completed: All Employees and Mega Inventory Initialized.');
-  console.log('Use "password123" for all accounts.');
+  console.log('Use "enamels1212" for all accounts.');
 }
 
 main()
