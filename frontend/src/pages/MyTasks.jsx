@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import OrderCard from '../components/OrderCard';
@@ -89,28 +89,24 @@ const MyTasks = () => {
     return true;
   };
 
-  const filteredOrders = orders.filter(order => {
-    // 1. Check if order should be visible to this role
-    if (!shouldShowOrder(order)) return false;
-    
-    // 2. If no search term, show everything
-    if (!searchTerm || searchTerm.trim() === "") return true;
+  const filteredOrders = useMemo(() => {
+    return orders.filter(order => {
+      // 1. Check if order should be visible to this role
+      if (!shouldShowOrder(order)) return false;
+      
+      // 2. If no search term, show everything
+      if (!searchTerm || searchTerm.trim() === "") return true;
 
-    const searchLower = searchTerm.toLowerCase().trim();
+      const searchLower = searchTerm.toLowerCase().trim();
 
-    // 3. Check for matches (safely)
-    const nameMatch = (order.customerName || "").toLowerCase().includes(searchLower);
-    const idMatch = (order.id || "").toLowerCase().includes(searchLower);
-    const orderNumMatch = (order.orderNumber || "").toLowerCase().includes(searchLower);
+      // 3. Check for matches (safely)
+      const nameMatch = (order.customerName || "").toLowerCase().includes(searchLower);
+      const idMatch = (order.id || "").toLowerCase().includes(searchLower);
+      const orderNumMatch = (order.orderNumber || "").toLowerCase().includes(searchLower);
 
-    return nameMatch || idMatch || orderNumMatch;
-  });
-
-  console.log("MyTasks Debug:", { 
-    totalOrders: orders.length, 
-    filteredCount: filteredOrders.length, 
-    userRole: user?.role 
-  });
+      return nameMatch || idMatch || orderNumMatch;
+    });
+  }, [orders, searchTerm, user]);
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">

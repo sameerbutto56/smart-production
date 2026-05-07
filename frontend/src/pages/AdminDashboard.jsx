@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import axios from 'axios';
 import { 
   BarChart3, 
@@ -202,10 +202,24 @@ const AdminDashboard = () => {
     { title: 'Completed Today', value: stats.completedToday, icon: Users, color: 'text-emerald-400', bg: 'bg-emerald-400/10', path: '/orders', state: { filterStatus: 'COMPLETED' } },
   ];
 
-  const approvalQueue = allOrders.filter(o => 
-    o.status === 'WAITING_APPROVAL' || 
-    o.stages?.some(s => s.status === 'WAITING_APPROVAL')
-  );
+  const approvalQueue = useMemo(() => 
+    allOrders.filter(o => 
+      o.status === 'WAITING_APPROVAL' || 
+      o.stages?.some(s => s.status === 'WAITING_APPROVAL')
+    ), [allOrders]);
+
+  const activeOrdersCount = useMemo(() => 
+    allOrders.filter(o => o.status !== 'COMPLETED').length
+  , [allOrders]);
+
+  const getStageCount = useCallback((stageId) => {
+    return allOrders.filter(o => o.currentStage === stageId && o.status !== 'COMPLETED').length;
+  }, [allOrders]);
+
+  const filteredOrdersByStage = useMemo(() => {
+    if (filterStage === 'ALL') return [];
+    return allOrders.filter(o => o.currentStage === filterStage && o.status !== 'COMPLETED');
+  }, [allOrders, filterStage]);
 
   return (
     <div className="space-y-6 pb-12">
@@ -253,11 +267,11 @@ const AdminDashboard = () => {
               filterStage === 'ALL' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' : 'bg-gray-950 text-gray-500 hover:text-gray-300'
             }`}
           >
-            All Phases ({allOrders.filter(o => o.status !== 'COMPLETED').length})
+            All Phases ({activeOrdersCount})
           </button>
           <div className="w-px h-8 bg-gray-800 mx-2"></div>
           {stageList.map((stage) => {
-            const count = allOrders.filter(o => o.currentStage === stage.id && o.status !== 'COMPLETED').length;
+            const count = getStageCount(stage.id);
             return (
               <button
                 key={stage.id}
@@ -301,8 +315,8 @@ const AdminDashboard = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-            {allOrders.filter(o => o.currentStage === filterStage && o.status !== 'COMPLETED').length > 0 ? (
-              allOrders.filter(o => o.currentStage === filterStage && o.status !== 'COMPLETED').map(order => (
+            {filteredOrdersByStage.length > 0 ? (
+              filteredOrdersByStage.map(order => (
                 <OrderCard 
                   key={order.id} 
                   order={order} 

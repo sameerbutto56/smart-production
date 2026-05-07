@@ -44,6 +44,9 @@ model Order {
   totalPrice      Float?       @default(0)
   auditLogs       AuditLog[]
   stages          OrderStage[]
+
+  @@index([status])
+  @@index([currentStage])
 }
 
 model OrderStage {
@@ -63,6 +66,8 @@ model OrderStage {
   order              Order     @relation(fields: [orderId], references: [id])
 
   @@index([orderId])
+  @@index([status])
+  @@index([stageName])
 }
 
 model AuditLog {
