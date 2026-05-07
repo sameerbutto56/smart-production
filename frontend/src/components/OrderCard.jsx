@@ -63,7 +63,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
 
   useEffect(() => {
     if (currentStage?.stageName === 'STORE') {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
       axios.get(`${API_URL}/api/inventory`)
         .then(res => setInventory(res.data))
         .catch(err => console.error('Error fetching inventory:', err));
@@ -394,7 +394,9 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
 
     const stageMap = {
       'NAME_LOGO': ['Name Embroidery', 'Color Check'],
-      'CUSTOM_LOGO': ['Logo Design Apply', 'Custom Pattern']
+      'CUSTOM_LOGO': ['Logo Design Apply', 'Custom Pattern'],
+      'DISPATCH': ['Verify Packing ID', 'Attach Shipping Label', 'Assign to Delivery Partner'],
+      'OUT_FOR_DELIVERY': ['Contact Customer', 'Verify Address', 'Deliver Package']
     };
 
     const tasks = stageMap[stage] || ['Follow Standard Protocol'];
@@ -592,7 +594,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                     <button
                       onClick={() => {
                         const status = order.paymentStatus === 'PENDING' ? 'ADVANCE_PAID' : 'FULL_PAID';
-                        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                        const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
                         axios.put(`${API_URL}/api/orders/${order.id}/payment`, { paymentStatus: status }, {
                           headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
                         }).then(() => {
@@ -659,7 +661,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                       <span>{(() => {
                         const nextStageIdx = currentPipeline.indexOf(currentStage?.stageName) + 1;
                         const nextStage = currentPipeline[nextStageIdx];
-                        if (currentStage?.stageName === 'PRESSING_PACKING') return 'PROCESS COMPLETE';
+                        if (currentStage?.stageName === 'OUT_FOR_DELIVERY') return 'DELIVERY COMPLETE';
                         return nextStage ? `MOVE TO ${nextStage.replace(/_/g, ' ')}` : 'COMPLETE TASK';
                       })()}</span>
                     </button>
@@ -1054,7 +1056,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                 disabled={!cancelReason.trim()}
                 onClick={async () => {
                   try {
-                    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                    const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
                     await axios.put(`${API_URL}/api/orders/${order.id}/cancel`, { reason: cancelReason }, {
                       headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
                     });

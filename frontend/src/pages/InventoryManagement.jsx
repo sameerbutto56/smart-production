@@ -40,7 +40,7 @@ const InventoryManagement = () => {
   const fetchInventory = async () => {
     setLoading(true);
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
       const token = sessionStorage.getItem('token');
       const response = await axios.get(`${API_URL}/api/inventory`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -73,7 +73,7 @@ const InventoryManagement = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
       const token = sessionStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
       if (editingItem) {
@@ -97,7 +97,7 @@ const InventoryManagement = () => {
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this item?')) return;
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
       const token = sessionStorage.getItem('token');
       await axios.delete(`${API_URL}/api/inventory/${id}`, {
         headers: { Authorization: `Bearer ${token}` }

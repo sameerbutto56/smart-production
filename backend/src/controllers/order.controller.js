@@ -292,7 +292,7 @@ const approveStageCompletion = async (req, res) => {
       });
     } else {
       // It returns to Faisal or is finished
-      if (currentStageRecord.stageName === 'DISPATCH') {
+      if (currentStageRecord.stageName === 'OUT_FOR_DELIVERY') {
         await prisma.order.update({
           where: { id: orderId },
           data: { 

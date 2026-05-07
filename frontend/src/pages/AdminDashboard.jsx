@@ -13,7 +13,6 @@ import {
   ClipboardList, 
   MapPin, 
   Search, 
-  AlertTriangle,
   CheckCircle2, 
   Package, 
   Truck, 
@@ -27,7 +26,7 @@ import OrderCard from '../components/OrderCard';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
 const NOTIFICATION_SOUND = 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
 
 const AdminDashboard = () => {

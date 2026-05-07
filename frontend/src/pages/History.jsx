@@ -27,7 +27,7 @@ const History = () => {
 
   const fetchHistory = async () => {
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
       const response = await axios.get(`${API_URL}/api/orders`);
       const completedOrders = response.data.filter(order => ['COMPLETED', 'DELIVERED', 'DISPATCHED'].includes(order.status));
       setOrders(completedOrders);
@@ -73,7 +73,7 @@ const History = () => {
                 if (window.confirm('Are you sure you want to clear all history? This cannot be undone.')) {
                   setIsClearing(true);
                   try {
-                    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                    const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
                     const token = sessionStorage.getItem('token');
                     await axios.delete(`${API_URL}/api/orders/history`, { headers: { Authorization: `Bearer ${token}` } });
                     fetchHistory();

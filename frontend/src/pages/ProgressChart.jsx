@@ -17,7 +17,7 @@ import {
 import { io } from 'socket.io-client';
 import socket from '../socket';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
 
 const ProgressChart = () => {
   const [orders, setOrders] = useState([]);
