@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw, MessageSquare } from 'lucide-react';
+import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw, MessageSquare, History, Target } from 'lucide-react';
 import axios from 'axios';
 
 const OrderCard = ({ order, onUpdateStage, userRole }) => {
@@ -104,6 +104,10 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
   };
 
   const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
+
+  const productionStages = ['CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING'];
+  const productionDeadline = order.stages?.find(s => s.stageName === 'PRESSING_PACKING')?.deadlineAt;
+  const isCurrentlyInProduction = productionStages.includes(currentStage?.stageName);
 
   const renderTasks = () => {
     const stage = currentStage?.stageName;
@@ -425,20 +429,36 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                 </span>
           </div>
 
-          <div className="flex items-center justify-between bg-gray-950/50 p-4 rounded-2xl border border-gray-800/50 mb-6">
-            <div className="flex items-center space-x-3">
-              <div className={`p-2 rounded-lg ${isDelayed ? 'bg-red-500/10' : 'bg-gray-800/50'}`}>
-                <Clock size={18} className={isDelayed ? 'text-red-500' : 'text-blue-400'} />
+          <div className="flex flex-col bg-gray-950/50 p-4 rounded-2xl border border-gray-800/50 mb-6 gap-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className={`p-2 rounded-lg ${isDelayed ? 'bg-red-500/10' : 'bg-gray-800/50'}`}>
+                  <Clock size={18} className={isDelayed ? 'text-red-500' : 'text-blue-400'} />
+                </div>
+                <div className="flex flex-col">
+                  <span className={`font-mono text-base tracking-tighter leading-none ${urgencyColor}`}>
+                    {timeLeft}
+                  </span>
+                  <span className="text-[8px] text-gray-500 font-black uppercase mt-1">Stage Time Remaining</span>
+                </div>
               </div>
-              <span className={`font-mono text-base tracking-tighter ${urgencyColor}`}>
-                {timeLeft}
-              </span>
+              <div className="text-[10px] text-gray-500 font-black uppercase tracking-widest bg-gray-900 px-3 py-1 rounded-lg">
+                {currentStage?.deadlineAt ? new Date(currentStage.deadlineAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'NO DEADLINE'}
+              </div>
             </div>
-            <div className="text-[10px] text-gray-500 font-black uppercase tracking-widest bg-gray-900 px-3 py-1 rounded-lg">
-              {currentStage?.deadlineAt ? new Date(currentStage.deadlineAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'NO DEADLINE'}
-            </div>
-          </div>
 
+            {isCurrentlyInProduction && productionDeadline && (
+              <div className="pt-3 border-t border-gray-800 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Target size={12} className="text-emerald-500" />
+                  <span className="text-[9px] text-emerald-500 font-black uppercase">Production Goal:</span>
+                </div>
+                <span className="text-[10px] text-white font-black">
+                  {new Date(productionDeadline).toLocaleDateString()} {new Date(productionDeadline).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+            )}
+          </div>
           <motion.div 
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
@@ -472,6 +492,39 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
               <div className="h-1.5 w-1.5 bg-blue-500 rounded-full animate-pulse shadow-[0_0_10px_#3b82f6]"></div>
             </div>
           </motion.div>
+
+          {/* Production Tracking Timeline */}
+          {order.stages?.some(s => s.status === 'COMPLETED') && (
+            <div className="mb-6 px-4 py-3 bg-gray-950/30 rounded-2xl border border-gray-800/50">
+              <h5 className="text-[8px] font-black text-gray-500 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                <History size={10} />
+                Production History
+              </h5>
+              <div className="space-y-2 relative">
+                {order.stages
+                  .filter(s => s.status === 'COMPLETED')
+                  .sort((a, b) => new Date(a.completedAt) - new Date(b.completedAt))
+                  .map((s, idx) => (
+                    <div key={idx} className="flex items-start gap-3">
+                      <div className="flex flex-col items-center">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                        {idx !== order.stages.filter(s => s.status === 'COMPLETED').length - 1 && (
+                          <div className="w-[1px] h-4 bg-gray-800"></div>
+                        )}
+                      </div>
+                      <div className="flex-1 flex justify-between items-center">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
+                          {s.stageName.replace(/_/g, ' ')}
+                        </span>
+                        <span className="text-[9px] text-gray-600 font-medium">
+                          {new Date(s.completedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} | {new Date(s.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
 
           <div className="flex gap-2">
             {isFaisal && order.status === 'WAITING_APPROVAL' && currentStage?.status === 'COMPLETED' ? (
