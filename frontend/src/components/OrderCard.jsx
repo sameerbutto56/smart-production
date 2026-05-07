@@ -120,15 +120,24 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
       return items.map((item, idx) => {
         const status = getStockStatus(item.val);
         return (
-          <li key={idx} className="text-xs flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <span className="text-blue-500 font-black">•</span>
-              <span className="text-gray-300">{item.label}: {item.val || 'N/A'}</span>
+          <motion.li 
+            key={idx}
+            initial={{ opacity: 0, x: -5 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: idx * 0.1 }}
+            className="text-[11px] flex items-center justify-between p-2 bg-gray-900/50 rounded-lg border border-gray-800/50 hover:border-blue-500/30 transition-all group/item"
+          >
+            <div className="flex items-center space-x-3">
+              <div className={`w-1.5 h-1.5 rounded-full ${status === 'IN_STOCK' ? 'bg-emerald-500 shadow-[0_0_8px_#10b98166]' : 'bg-blue-500 shadow-[0_0_8px_#3b82f666]'}`} />
+              <span className="text-gray-400 font-bold group-hover/item:text-gray-200 transition-colors uppercase tracking-tighter">{item.label}: {item.val || 'N/A'}</span>
             </div>
-            {status === 'IN_STOCK' && <span className="text-[9px] bg-emerald-500/10 text-emerald-500 px-1.5 py-0.5 rounded font-bold uppercase">Available</span>}
-            {status === 'OUT_OF_STOCK' && <span className="text-[9px] bg-red-500/10 text-red-500 px-1.5 py-0.5 rounded font-bold uppercase">Out of Stock</span>}
-            {status === 'NOT_FOUND' && <span className="text-[9px] bg-yellow-500/10 text-yellow-500 px-1.5 py-0.5 rounded font-bold uppercase">Check Inv</span>}
-          </li>
+            <div className="flex items-center gap-2">
+              {status === 'IN_STOCK' && <span className="text-[8px] bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded-full font-black uppercase tracking-widest border border-emerald-500/20">Ready</span>}
+              {status === 'OUT_OF_STOCK' && <span className="text-[8px] bg-red-500/10 text-red-500 px-2 py-0.5 rounded-full font-black uppercase tracking-widest border border-red-500/20">Empty</span>}
+              {status === 'NOT_FOUND' && <span className="text-[8px] bg-yellow-500/10 text-yellow-500 px-2 py-0.5 rounded-full font-black uppercase tracking-widest border border-yellow-500/20">Check</span>}
+              <ChevronRight size={10} className="text-gray-700 group-hover/item:text-blue-500 transition-colors" />
+            </div>
+          </motion.li>
         );
       });
     }
@@ -716,15 +725,58 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
         </div>
         
         {/* Progress Bar */}
-        <div className="h-2 bg-gray-800/50 w-full overflow-hidden">
-          <motion.div 
-            initial={{ width: 0 }}
-            animate={{ 
-              width: `${Math.max(5, (currentPipeline.indexOf(currentStage?.stageName) + 1) / currentPipeline.length * 100)}%` 
-            }}
-            className="h-full bg-gradient-to-r from-emerald-500 via-green-400 to-emerald-600 transition-all duration-1000 shadow-[0_0_10px_rgba(16,185,129,0.4)]"
-          />
-        </div>
+        <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className={`w-2 h-2 rounded-full animate-pulse ${isDelayed ? 'bg-red-500' : 'bg-blue-500'}`}></div>
+                  <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
+                    {currentStage?.status === 'WAITING_APPROVAL' ? 'Authorization Pending' : 'Current Stage Limit'}
+                  </span>
+                </div>
+                <span className={`text-sm font-black font-mono ${urgencyColor}`}>
+                  {timeLeft}
+                </span>
+              </div>
+
+              {/* Combined Production Goal */}
+              {isCurrentlyInProduction && productionDeadline && (
+                <div className="p-4 bg-indigo-600/5 rounded-2xl border border-indigo-600/10 relative overflow-hidden group/goal">
+                  <div className="absolute top-0 right-0 p-2 opacity-10 group-hover/goal:opacity-30 transition-opacity">
+                    <Target size={32} />
+                  </div>
+                  <div className="flex justify-between items-center relative z-10">
+                    <div className="flex items-center gap-2">
+                      <Target size={14} className="text-indigo-400" />
+                      <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Production Goal</span>
+                    </div>
+                    <span className="text-[10px] font-black text-gray-300 font-mono">
+                      {new Date(productionDeadline).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <div className="mt-2 h-1 bg-gray-900 rounded-full overflow-hidden">
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ width: '100%' }}
+                      transition={{ duration: 2, ease: "easeOut" }}
+                      className="h-full bg-gradient-to-r from-indigo-600 to-blue-500 shadow-[0_0_10px_#4f46e566]"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="w-full h-3 bg-gray-950 rounded-full overflow-hidden border border-gray-800 shadow-inner p-[2px]">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ 
+                    width: `${Math.max(5, ((currentPipeline.indexOf(currentStage?.stageName) + 1) / currentPipeline.length) * 100)}%`
+                  }}
+                  transition={{ duration: 1, ease: "easeOut" }}
+                  className={`h-full rounded-full bg-gradient-to-r ${isDelayed ? 'from-red-600 to-orange-500' : 'from-blue-600 to-emerald-500'} shadow-lg relative`}
+                >
+                  <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                </motion.div>
+              </div>
+            </div>
       </motion.div>
 
       {/* --- FULL JOB SHEET MODAL --- */}

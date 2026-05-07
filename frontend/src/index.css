@@ -3,27 +3,64 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --primary: #3b82f6;
+    --primary-glow: rgba(59, 130, 246, 0.5);
+    --secondary: #10b981;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+    --background: #030712;
+    --card-bg: rgba(17, 24, 39, 0.7);
+  }
+
   body {
-    @apply bg-gray-900 text-white font-sans antialiased;
+    @apply text-white font-sans antialiased;
+    background: radial-gradient(circle at top left, #1e1b4b, #030712 40%),
+                radial-gradient(circle at bottom right, #064e3b, #030712 40%);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-800 rounded-full hover:bg-gray-700 transition-colors;
   }
 }
 
 .glass {
-  @apply bg-white bg-opacity-10 backdrop-blur-md border border-white border-opacity-20;
+  @apply backdrop-blur-xl border border-white/10;
+  background: rgba(17, 24, 39, 0.6);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
 }
 
 .card-urgent {
-  @apply border-l-4 border-urgent shadow-[0_0_15px_rgba(59,130,246,0.3)];
-}
-
-.card-completed {
-  @apply border-l-4 border-completed shadow-[0_0_15px_rgba(16,185,129,0.3)];
+  @apply border-l-4 border-blue-500 shadow-[0_0_25px_rgba(59,130,246,0.15)];
 }
 
 .card-delayed {
-  @apply border-l-4 border-delayed shadow-[0_0_15px_rgba(239,68,68,0.3)];
+  @apply border-l-4 border-red-500 shadow-[0_0_25px_rgba(239,68,68,0.15)];
 }
 
-.card-progress {
-  @apply border-l-4 border-progress shadow-[0_0_15px_rgba(245,158,11,0.3)];
+.glass-panel {
+  @apply glass rounded-[2.5rem] p-8;
+}
+
+.btn-primary {
+  @apply bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 
+         text-white font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-blue-900/20;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 15px rgba(59, 130, 246, 0.2); }
+  50% { box-shadow: 0 0 30px rgba(59, 130, 246, 0.4); }
+}
+
+.animate-glow {
+  animation: pulse-glow 3s infinite;
 }

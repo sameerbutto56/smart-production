@@ -44,6 +44,7 @@ const SmartOrderForm = () => {
     type: 'STANDARD', // STANDARD, READY_LOGO, FULL_CUSTOM
     urgent: false,
     advancePaid: false,
+    totalPrice: '',
     
     // Product Selection
     productType: '',
@@ -190,7 +191,8 @@ const SmartOrderForm = () => {
           designNotes: formData.designNotes,
           additionalFeatures: formData.additionalFeatures
         },
-        sizeData: formData.measurements
+        sizeData: formData.measurements,
+        totalPrice: parseFloat(formData.totalPrice) || 0
       };
 
       await axios.post(`${API_URL}/api/orders`, payload);
@@ -445,6 +447,21 @@ const SmartOrderForm = () => {
                       <input type="checkbox" checked={formData.urgent} onChange={(e) => setFormData({...formData, urgent: e.target.checked})} className="w-6 h-6 rounded-lg border-2 border-gray-700 bg-gray-900 checked:bg-blue-600 transition-all cursor-pointer" />
                     </label>
 
+
+                    {/* Total Price */}
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-2">Total Order Price (PKR)</label>
+                      <div className="relative">
+                        <span className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-500 font-black text-lg">₨</span>
+                        <input 
+                          type="number"
+                          value={formData.totalPrice}
+                          onChange={(e) => setFormData({...formData, totalPrice: e.target.value})}
+                          className="w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-5 pl-14 pr-8 outline-none focus:border-emerald-500 transition-all text-white font-black text-xl placeholder-gray-800"
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
 
                   </div>
                 </div>

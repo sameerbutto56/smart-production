@@ -57,7 +57,6 @@ const AllOrders = () => {
       const response = await axios.get(`${API_URL}/api/orders`);
       setOrders(response.data);
     } catch (error) {
-      console.error('Error fetching orders:', error);
     }
     setLoading(false);
   };
@@ -317,10 +316,10 @@ const AllOrders = () => {
                         </span>
                         
                         {/* Progress Bar under stage */}
-                        <div className="w-24 h-1 bg-gray-800 rounded-full mt-2 overflow-hidden border border-gray-700/50">
-                          <div 
-                            className="h-full bg-gradient-to-r from-emerald-500 to-green-400 shadow-[0_0_8px_rgba(16,185,129,0.3)] transition-all duration-1000"
-                            style={{ 
+                        <div className="w-24 h-2 bg-gray-800 rounded-full mt-2 overflow-hidden border border-gray-700/50 shadow-inner">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ 
                               width: (() => {
                                 const pipelines = {
                                   'STANDARD': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
@@ -332,6 +331,7 @@ const AllOrders = () => {
                                 return `${Math.max(5, progress)}%`;
                               })()
                             }}
+                            className="h-full bg-gradient-to-r from-blue-500 to-emerald-400 shadow-[0_0_12px_#3b82f666] transition-all duration-1000"
                           />
                         </div>
                       </div>
@@ -524,10 +524,23 @@ const AllOrders = () => {
                         };
                         const currentPipeline = pipelines[selectedOrder.type] || pipelines['STANDARD'];
                         
+                        // Count how many times order came to Faisal (WAITING_APPROVAL stages)
+                        const faisalApprovals = selectedOrder.stages?.filter(s => s.status === 'COMPLETED' || s.status === 'WAITING_APPROVAL').length || 0;
+                        
                         return currentPipeline.map((stageName, i) => {
                           const stageData = selectedOrder.stages?.find(s => s.stageName === stageName);
                           const isCompleted = stageData?.status === 'COMPLETED';
                           const isCurrent = selectedOrder.currentStage === stageName;
+                          const isOrderEntry = stageName === 'ORDER_ENTRY';
+                          
+                          // For ORDER_ENTRY, show the order creation time
+                          const displayTime = isCompleted ? (
+                            new Date(stageData.completedAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })
+                          ) : isOrderEntry ? (
+                            `Created: ${new Date(selectedOrder.createdAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}`
+                          ) : stageData?.deadlineAt ? (
+                            `Target: ${new Date(stageData.deadlineAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}`
+                          ) : 'TBD';
                           
                           return (
                             <div key={stageName} className={`p-4 rounded-2xl border transition-all flex items-center justify-between gap-4 ${
@@ -547,17 +560,29 @@ const AllOrders = () => {
                                   {stageName.replace(/_/g, ' ')}
                                 </span>
                               </div>
-                              <span className="text-[9px] font-bold font-mono text-gray-600 whitespace-nowrap">
-                                {isCompleted ? (
-                                  new Date(stageData.completedAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })
-                                ) : stageData?.deadlineAt ? (
-                                  new Date(stageData.deadlineAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })
-                                ) : 'TBD'}
+                              <span className={`text-[9px] font-bold font-mono whitespace-nowrap ${isCompleted ? 'text-emerald-600' : isOrderEntry ? 'text-gray-400' : 'text-gray-600'}`}>
+                                {displayTime}
                               </span>
                             </div>
                           );
                         });
                       })()}
+                   </div>
+                   
+                   {/* Faisal Approval Summary */}
+                   <div className="mt-6 p-4 bg-yellow-500/5 rounded-2xl border border-yellow-500/10 flex items-center justify-between">
+                     <div className="flex items-center gap-3">
+                       <div className="w-8 h-8 bg-yellow-500/10 rounded-xl flex items-center justify-center">
+                         <span className="text-yellow-500 text-sm">👨‍💼</span>
+                       </div>
+                       <div>
+                         <p className="text-[10px] font-black text-yellow-500 uppercase tracking-widest">Faisal Approvals</p>
+                         <p className="text-[9px] text-gray-500 font-bold">Times this order came for review</p>
+                       </div>
+                     </div>
+                     <span className="text-2xl font-black text-yellow-400">
+                       {selectedOrder.stages?.filter(s => s.status === 'COMPLETED' && s.stageName !== 'ORDER_ENTRY').length || 0}x
+                     </span>
                    </div>
                 </section>
               </div>

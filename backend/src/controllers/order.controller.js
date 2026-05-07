@@ -71,6 +71,7 @@ const createOrder = async (req, res) => {
         productDetails: productDetails ? JSON.stringify(productDetails) : null,
         sizeData: sizeData ? JSON.stringify(sizeData) : null,
         advancePaid: advancePaid || false,
+        totalPrice: parseFloat(req.body.totalPrice) || 0,
         shopifyOrderId,
         paymentDeadline: paymentDeadline ? new Date(paymentDeadline) : (type === 'READY_LOGO' ? new Date(Date.now() + 48 * 60 * 60 * 1000) : null),
         currentStage: 'ORDER_ENTRY',
@@ -409,12 +410,12 @@ const getAnalytics = async (req, res) => {
           updatedAt: { gte: today }
         },
         _sum: {
-          customizationPrice: true
+          totalPrice: true
         }
       })
     ]);
 
-    const todayRevenue = todayRevenueData._sum.customizationPrice || 0;
+    const todayRevenue = todayRevenueData._sum.totalPrice || 0;
 
     // For stage performance, we still need completed stages, but we can filter specifically
     const completedStages = await prisma.orderStage.findMany({

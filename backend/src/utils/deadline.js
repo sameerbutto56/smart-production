@@ -14,13 +14,13 @@ const calculateDeadline = (startDate, durationHours) => {
   const WORK_END = 20;
 
   while (remainingHours > 0) {
-    // If it's outside working hours or weekend, move to next working start
-    if (currentDate.getHours() >= WORK_END || currentDate.getHours() < WORK_START || isWeekend(currentDate)) {
+    // If it's outside working hours or Sunday, move to next working start
+    if (currentDate.getHours() >= WORK_END || currentDate.getHours() < WORK_START || currentDate.getDay() === 0) {
       currentDate = addDays(currentDate, 1);
       currentDate = setHours(currentDate, WORK_START);
       currentDate = setMinutes(currentDate, 0);
       currentDate = setSeconds(currentDate, 0);
-      if (isWeekend(currentDate)) continue;
+      if (currentDate.getDay() === 0) continue;
     }
 
     // How many hours left today?

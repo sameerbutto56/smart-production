@@ -41,6 +41,7 @@ model Order {
   paymentDeadline DateTime?
   paymentStatus   String       @default("PENDING")
   customizationPrice Float?    @default(0)
+  totalPrice      Float?       @default(0)
   auditLogs       AuditLog[]
   stages          OrderStage[]
 }
