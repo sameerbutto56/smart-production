@@ -143,7 +143,7 @@ const AdminDashboard = () => {
       const response = await axios.get(`${API_URL}/api/orders`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const orders = response.data;
+      const orders = Array.isArray(response.data) ? response.data : [];
       
       setAllOrders(orders);
       setStats({
