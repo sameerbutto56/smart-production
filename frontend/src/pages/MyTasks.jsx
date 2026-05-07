@@ -38,7 +38,10 @@ const MyTasks = () => {
 
   const fetchTasks = async () => {
     try {
-      const response = await axios.get(`${API_URL}/api/orders`);
+      const token = sessionStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/api/orders`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setOrders(response.data);
     } catch (error) {
       console.error('Error fetching tasks:', error);

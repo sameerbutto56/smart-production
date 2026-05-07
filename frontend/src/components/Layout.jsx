@@ -29,8 +29,8 @@ const Sidebar = ({ isOpen, toggle }) => {
     { name: 'Order Entry', path: '/order-entry', icon: ClipboardList, roles: ['ORDER_ENTRY', 'FAISAL', 'SUPER_ADMIN'] },
     { name: 'Inventory', path: '/inventory', icon: Package, roles: ['SUPER_ADMIN'] },
     { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'] },
-    { name: 'All Orders', path: '/orders', icon: Package, roles: ['SUPER_ADMIN'] },
-    { name: 'History', path: '/history', icon: History, roles: ['SUPER_ADMIN'] },
+    { name: 'All Orders', path: '/orders', icon: Package, roles: ['SUPER_ADMIN', 'FAISAL'] },
+    { name: 'History', path: '/history', icon: History, roles: ['SUPER_ADMIN', 'FAISAL'] },
   ];
 
   const filteredNavItems = navItems.filter(item => item.roles.includes(user?.role));

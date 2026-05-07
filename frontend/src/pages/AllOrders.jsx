@@ -53,8 +53,10 @@ const AllOrders = () => {
   const fetchOrders = async () => {
     setLoading(true);
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      const response = await axios.get(`${API_URL}/api/orders`);
+      const token = sessionStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/api/orders`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setOrders(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Error fetching orders:', error);

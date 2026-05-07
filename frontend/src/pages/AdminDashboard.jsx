@@ -49,6 +49,7 @@ const AdminDashboard = () => {
   const [filterStage, setFilterStage] = useState('ALL');
 
   const stageList = [
+    { id: 'ORDER_ENTRY', icon: ClipboardList },
     { id: 'STORE', icon: Package },
     { id: 'CUTTING', icon: Circle },
     { id: 'STITCHING', icon: Circle },
@@ -138,7 +139,10 @@ const AdminDashboard = () => {
 
   const fetchDashboardData = async () => {
     try {
-      const response = await axios.get(`${API_URL}/api/orders`);
+      const token = sessionStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/api/orders`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       const orders = response.data;
       
       setAllOrders(orders);
