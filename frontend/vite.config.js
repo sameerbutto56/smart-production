@@ -15,7 +15,7 @@ export default defineConfig({
             if (id.includes('framer-motion') || id.includes('lucide-react') || id.includes('react-hot-toast')) {
               return 'vendor-ui';
             }
-            if (id.includes('axios')) {
+            if (id.includes('axios') || id.includes('date-fns')) {
               return 'vendor-utils';
             }
             return 'vendor';

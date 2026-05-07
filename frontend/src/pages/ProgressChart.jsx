@@ -98,6 +98,13 @@ const ProgressChart = () => {
             </div>
           </div>
           <button 
+            onClick={() => window.history.length > 1 ? window.history.back() : window.location.href = '/'}
+            className="p-3 bg-gray-500/10 hover:bg-gray-500/20 border border-gray-500/20 rounded-xl text-gray-400 hover:text-white transition-colors flex items-center justify-center font-bold text-sm space-x-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            <span className="hidden sm:inline">Back</span>
+          </button>
+          <button 
             onClick={handleLogout}
             className="p-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-xl text-red-500 transition-colors flex items-center justify-center"
             title="Logout"

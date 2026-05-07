@@ -635,7 +635,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                       <span>Design Complete</span>
                     </button>
                     <button
-                      onClick={() => onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Correction Required' })}
+                      onClick={() => setShowProblemModal(true)}
                       className="flex-1 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex flex-col xl:flex-row items-center justify-center gap-1 active:scale-95 shadow-lg shadow-red-900/20"
                     >
                       <AlertCircle size={14} />
