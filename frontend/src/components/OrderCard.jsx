@@ -420,7 +420,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
             <div className="text-[8px] text-gray-700 absolute top-2 right-4">v1.1</div>
             <div className="flex-1 min-w-0">
               <div className="flex flex-wrap items-center gap-2 mb-1">
-                <h3 className="font-black text-2xl tracking-tighter text-white whitespace-nowrap truncate">#{order.orderNumber || order.id.substring(0, 8)}</h3>
+                <h3 className="font-black text-xl tracking-tighter text-white break-all">#{order.orderNumber || order.id.substring(0, 8)}</h3>
                 {order.urgent && (
                   <span className="bg-blue-600 text-[10px] font-black px-2 py-0.5 rounded-full animate-pulse uppercase tracking-tighter">Urgent</span>
                 )}
@@ -505,9 +505,14 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
           {/* Production Tracking Timeline */}
           {order.stages?.some(s => s.status === 'COMPLETED') && (
             <div className="mb-6 px-4 py-3 bg-gray-950/30 rounded-2xl border border-gray-800/50">
-              <h5 className="text-[8px] font-black text-gray-500 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
-                <History size={10} />
-                Production History
+              <h5 className="text-[8px] font-black text-gray-500 uppercase tracking-[0.2em] mb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <History size={10} />
+                  Production History
+                </div>
+                <span className="text-[8px] text-yellow-500 font-black">
+                  👨‍💼 {order.stages.filter(s => s.status === 'COMPLETED' && s.stageName !== 'ORDER_ENTRY').length}x to Faisal
+                </span>
               </h5>
               <div className="space-y-2 relative">
                 {order.stages
@@ -522,9 +527,12 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                         )}
                       </div>
                       <div className="flex-1 flex justify-between items-center">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
-                          {s.stageName.replace(/_/g, ' ')}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
+                            {s.stageName.replace(/_/g, ' ')}
+                          </span>
+                          <span className="text-[8px] text-yellow-500/60">→ Faisal</span>
+                        </div>
                         <span className="text-[9px] text-gray-600 font-medium">
                           {new Date(s.completedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} | {new Date(s.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>

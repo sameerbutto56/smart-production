@@ -234,46 +234,7 @@ const AdminDashboard = () => {
       
 
 
-      {/* Approval Queue */}
-      <section>
-        <div className="flex items-center space-x-4 mb-8">
-          <div className="p-3 bg-emerald-500/10 rounded-2xl">
-            <ClipboardList className="text-emerald-400" size={24} />
-          </div>
-          <div>
-            <h2 className="text-2xl font-black text-white uppercase tracking-tight">Approval Queue</h2>
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Module requests waiting for your authorization</p>
-          </div>
-          {approvalQueue.length > 0 && (
-            <span className="bg-emerald-600 text-white px-3 py-1 rounded-full text-[10px] font-black animate-pulse">
-              {approvalQueue.length} NEW
-            </span>
-          )}
-        </div>
-
-        {approvalQueue.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-            {approvalQueue.map(order => (
-              <OrderCard 
-                key={order.id} 
-                order={order} 
-                userRole={user?.role}
-                onUpdateStage={handleAction}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="glass p-16 rounded-[3rem] border border-gray-800 text-center space-y-4">
-            <div className="w-20 h-20 bg-gray-900 rounded-full flex items-center justify-center mx-auto border-2 border-gray-800">
-              <CheckCircle2 className="text-gray-700" size={40} />
-            </div>
-            <h3 className="text-xl font-black text-gray-500 uppercase">All clear</h3>
-            <p className="text-gray-600 text-sm font-bold max-w-xs mx-auto uppercase tracking-widest">No pending module requests.</p>
-          </div>
-        )}
-      </section>
-
-      {/* Order Tracking */}
+      {/* Order Tracking - Moved below stats */}
       <section className="glass rounded-[3rem] p-12 border border-gray-800 relative overflow-hidden">
         <div className="absolute top-0 right-0 p-12 opacity-5">
             <MapPin size={200} />
@@ -341,7 +302,7 @@ const AdminDashboard = () => {
               animate={{ opacity: 1, y: 0 }}
               className="bg-gray-900/50 rounded-[2.5rem] p-10 border border-gray-800"
             >
-              {/* Simplified Tracking UI */}
+              {/* Tracked Order Header */}
               <div className="flex justify-between items-start mb-12">
                 <div className="flex items-center space-x-6">
                   <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-3xl flex items-center justify-center font-black text-2xl shadow-xl">
@@ -352,10 +313,15 @@ const AdminDashboard = () => {
                     <p className="text-gray-500 font-bold uppercase tracking-widest text-[10px] mt-1">Order #{trackedOrder.orderNumber || trackedOrder.id.substring(0, 8)}</p>
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="text-right space-y-2">
                     <span className="bg-blue-500/10 text-blue-400 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border border-blue-500/20">
                         {trackedOrder.status.replace(/_/g, ' ')}
                     </span>
+                    <div className="flex items-center gap-2 justify-end mt-2">
+                      <span className="text-[9px] text-yellow-500 font-black bg-yellow-500/10 px-3 py-1 rounded-full border border-yellow-500/20">
+                        👨‍💼 {trackedOrder.stages?.filter(s => s.status === 'COMPLETED' && s.stageName !== 'ORDER_ENTRY').length || 0}x to Faisal
+                      </span>
+                    </div>
                 </div>
               </div>
 
@@ -390,6 +356,15 @@ const AdminDashboard = () => {
                       const stageData = trackedOrder.stages?.find(s => s.stageName === stageName);
                       const isCompleted = stageData?.status === 'COMPLETED';
                       const isCurrent = trackedOrder.currentStage === stageName;
+                      const isOrderEntry = stageName === 'ORDER_ENTRY';
+                      
+                      const displayTime = isCompleted ? (
+                        `Finished: ${new Date(stageData.completedAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}`
+                      ) : isOrderEntry ? (
+                        `Created: ${new Date(trackedOrder.createdAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}`
+                      ) : stageData?.deadlineAt ? (
+                        `Target: ${new Date(stageData.deadlineAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}`
+                      ) : 'Waiting';
                       
                       return (
                         <div key={stageName} className="flex items-center gap-4 group">
@@ -408,17 +383,16 @@ const AdminDashboard = () => {
                           
                           <div className="flex-1 pb-4">
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                              <span className={`text-[11px] font-black uppercase tracking-widest ${isCompleted ? 'text-emerald-400' : isCurrent ? 'text-blue-400' : 'text-gray-600'}`}>
-                                {stageName.replace(/_/g, ' ')}
-                              </span>
-                              <span className="text-[10px] font-bold font-mono text-gray-500">
-                                {isCompleted ? (
-                                  `Finished: ${new Date(stageData.completedAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}`
-                                ) : stageData?.deadlineAt ? (
-                                  `Target: ${new Date(stageData.deadlineAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}`
-                                ) : (
-                                  'Pending'
+                              <div className="flex items-center gap-2">
+                                <span className={`text-[11px] font-black uppercase tracking-widest ${isCompleted ? 'text-emerald-400' : isCurrent ? 'text-blue-400' : 'text-gray-600'}`}>
+                                  {stageName.replace(/_/g, ' ')}
+                                </span>
+                                {isCompleted && stageName !== 'ORDER_ENTRY' && (
+                                  <span className="text-[8px] text-yellow-500/60">→ Faisal</span>
                                 )}
+                              </div>
+                              <span className={`text-[10px] font-bold font-mono ${isCompleted ? 'text-emerald-600' : isOrderEntry ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {displayTime}
                               </span>
                             </div>
                           </div>
@@ -433,6 +407,45 @@ const AdminDashboard = () => {
         </AnimatePresence>
       </section>
       
+
+      {/* Approval Queue */}
+      <section>
+        <div className="flex items-center space-x-4 mb-8">
+          <div className="p-3 bg-emerald-500/10 rounded-2xl">
+            <ClipboardList className="text-emerald-400" size={24} />
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-white uppercase tracking-tight">Approval Queue</h2>
+            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Module requests waiting for your authorization</p>
+          </div>
+          {approvalQueue.length > 0 && (
+            <span className="bg-emerald-600 text-white px-3 py-1 rounded-full text-[10px] font-black animate-pulse">
+              {approvalQueue.length} NEW
+            </span>
+          )}
+        </div>
+
+        {approvalQueue.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+            {approvalQueue.map(order => (
+              <OrderCard 
+                key={order.id} 
+                order={order} 
+                userRole={user?.role}
+                onUpdateStage={handleAction}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="glass p-16 rounded-[3rem] border border-gray-800 text-center space-y-4">
+            <div className="w-20 h-20 bg-gray-900 rounded-full flex items-center justify-center mx-auto border-2 border-gray-800">
+              <CheckCircle2 className="text-gray-700" size={40} />
+            </div>
+            <h3 className="text-xl font-black text-gray-500 uppercase">All clear</h3>
+            <p className="text-gray-600 text-sm font-bold max-w-xs mx-auto uppercase tracking-widest">No pending module requests.</p>
+          </div>
+        )}
+      </section>
 
     </div>
   );
