@@ -55,8 +55,10 @@ const AllOrders = () => {
     try {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
       const response = await axios.get(`${API_URL}/api/orders`);
-      setOrders(response.data);
+      setOrders(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
+      console.error('Error fetching orders:', error);
+      toast.error('Failed to connect to production server');
     }
     setLoading(false);
   };
@@ -71,6 +73,7 @@ const AllOrders = () => {
       fetchOrders();
     } catch (error) {
       console.error('Error sending for delivery:', error);
+      toast.error('Failed to send for delivery');
     }
   };
 
@@ -95,7 +98,7 @@ const AllOrders = () => {
       const product = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
       return [
         `"${order.orderNumber || order.id}"`,
-        `"${order.customerName}"`,
+        `"${order.customerName || 'Unknown'}"`,
         `"${product?.productType || 'N/A'}"`,
         `"${product?.color || 'N/A'}"`,
         `"${order.type}"`,
@@ -117,10 +120,14 @@ const AllOrders = () => {
     document.body.removeChild(a);
   };
 
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch = order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (order.orderNumber && order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredOrders = (orders || []).filter(order => {
+    if (!order) return false;
+    const name = (order.customerName || '').toLowerCase();
+    const id = (order.id || '').toLowerCase();
+    const orderNum = (order.orderNumber || '').toLowerCase();
+    const search = (searchTerm || '').toLowerCase();
+
+    const matchesSearch = name.includes(search) || id.includes(search) || orderNum.includes(search);
     const matchesStatus = filterStatus === 'ALL' || order.status === filterStatus;
     const matchesType = filterType === 'ALL' || order.type === filterType;
     const matchesUrgent = !filterUrgent || order.urgent;
