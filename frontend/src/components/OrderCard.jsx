@@ -1026,8 +1026,6 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
           </motion.div>
         </div>
       )}
-        </div>
-      )}
       {/* --- CANCEL DIALOG --- */}
       {showCancelDialog && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
