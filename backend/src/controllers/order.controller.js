@@ -461,6 +461,26 @@ const getAnalytics = async (req, res) => {
   }
 };
 
+const clearHistory = async (req, res) => {
+  try {
+    const completedOrders = await prisma.order.findMany({
+      where: { status: { in: ['COMPLETED', 'DELIVERED', 'REJECTED'] } }
+    });
+    const orderIds = completedOrders.map(o => o.id);
+    
+    if (orderIds.length > 0) {
+      await prisma.orderStage.deleteMany({ where: { orderId: { in: orderIds } } });
+      await prisma.auditLog.deleteMany({ where: { orderId: { in: orderIds } } });
+      await prisma.order.deleteMany({ where: { id: { in: orderIds } } });
+    }
+
+    res.json({ message: 'History cleared successfully', count: orderIds.length });
+  } catch (error) {
+    console.error('Clear history error:', error);
+    res.status(500).json({ message: 'Error clearing history', error: error.message });
+  }
+};
+
 const cancelOrder = async (req, res) => {
   const { orderId } = req.params;
   const { reason } = req.body;
