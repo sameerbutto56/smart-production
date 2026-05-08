@@ -18,6 +18,8 @@ import { motion } from 'framer-motion';
 import socket from '../socket';
 import toast from 'react-hot-toast';
 
+const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
+
 const AllOrders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -67,7 +69,6 @@ const AllOrders = () => {
 
   const handleSendForDelivery = async (orderId) => {
     try {
-      const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
       const token = sessionStorage.getItem('token');
       await axios.put(`${API_URL}/api/orders/${orderId}/send-for-delivery`, {}, {
         headers: { Authorization: `Bearer ${token}` }

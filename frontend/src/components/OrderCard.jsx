@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw, MessageSquare, History, Target, Trash2 } from 'lucide-react';
 import axios from 'axios';
 
+const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
+
 const OrderCard = ({ order, onUpdateStage, userRole }) => {
   const currentStage = order.stages.find(s => s.status === 'WAITING_APPROVAL') || 
                       order.stages.find(s => s.status === 'IN_PROGRESS') || 
@@ -63,7 +65,6 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
 
   useEffect(() => {
     if (currentStage?.stageName === 'STORE') {
-      const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
       axios.get(`${API_URL}/api/inventory`)
         .then(res => setInventory(res.data))
         .catch(err => console.error('Error fetching inventory:', err));
@@ -594,7 +595,6 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                     <button
                       onClick={() => {
                         const status = order.paymentStatus === 'PENDING' ? 'ADVANCE_PAID' : 'FULL_PAID';
-                        const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
                         axios.put(`${API_URL}/api/orders/${order.id}/payment`, { paymentStatus: status }, {
                           headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
                         }).then(() => {
@@ -1056,7 +1056,6 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                 disabled={!cancelReason.trim()}
                 onClick={async () => {
                   try {
-                    const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
                     await axios.put(`${API_URL}/api/orders/${order.id}/cancel`, { reason: cancelReason }, {
                       headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
                     });
