@@ -22,6 +22,7 @@ const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'l
 const ProgressChart = () => {
   const [orders, setOrders] = useState([]);
   const [stats, setStats] = useState({});
+  const [analytics, setAnalytics] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const navigate = useNavigate();
@@ -50,9 +51,15 @@ const ProgressChart = () => {
 
   const fetchData = async () => {
     try {
-      const response = await axios.get(`${API_URL}/api/orders`);
-      const data = response.data;
+      const token = sessionStorage.getItem('token');
+      const [ordersRes, analyticsRes] = await Promise.all([
+        axios.get(`${API_URL}/api/orders`, { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get(`${API_URL}/api/orders/analytics`, { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+      
+      const data = ordersRes.data;
       setOrders(data);
+      setAnalytics(analyticsRes.data);
 
       const stageStats = {};
       pipeline.forEach(stage => {
@@ -142,9 +149,11 @@ const ProgressChart = () => {
             ))}
           </div>
 
-          <div className="mt-6 p-4 bg-blue-600/10 border border-blue-500/20 rounded-2xl">
-            <p className="text-[8px] text-blue-400 font-black uppercase mb-1">Shift Efficiency</p>
-            <p className="text-2xl font-black italic tracking-tighter">98.2%</p>
+          <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl">
+            <p className="text-[8px] text-yellow-500 font-black uppercase mb-1">Avg Lead Time</p>
+            <p className="text-2xl font-black italic tracking-tighter text-white">
+              {analytics?.stagePerformance ? (Object.values(analytics.stagePerformance).reduce((acc, curr) => acc + parseFloat(curr.avgHours), 0) / Object.keys(analytics.stagePerformance).length).toFixed(1) : '0.0'}h
+            </p>
           </div>
         </div>
 

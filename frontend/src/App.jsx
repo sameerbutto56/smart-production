@@ -28,6 +28,9 @@ const AuthRedirectHandler = () => {
   if (user?.role === 'FAISAL' || user?.role === 'ORDER_ENTRY') {
     return <Navigate to="/dashboard" replace={true} />;
   }
+  if (user?.role === 'MAIN_EMPLOYEE') {
+    return <Navigate to="/progress" replace={true} />;
+  }
   return <Navigate to="/tasks" replace={true} />;
 };
 
