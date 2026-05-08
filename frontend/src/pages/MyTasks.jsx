@@ -109,6 +109,35 @@ const MyTasks = () => {
 
       return nameMatch || idMatch || orderNumMatch;
     });
+
+    // Sort: Urgent first, then Delayed, then normally by createdAt
+    result.sort((a, b) => {
+      // 1. URGENT
+      const aUrgent = a.urgency === 'URGENT';
+      const bUrgent = b.urgency === 'URGENT';
+      if (aUrgent && !bUrgent) return -1;
+      if (!aUrgent && bUrgent) return 1;
+
+      // 2. Delayed
+      const getDelay = (order) => {
+        const stage = order.stages?.find(s => s.stageName === order.currentStage);
+        if (!stage?.deadlineAt || stage.status === 'COMPLETED') return 0;
+        const diff = new Date(stage.deadlineAt).getTime() - new Date().getTime();
+        return diff < 0 ? Math.abs(diff) : 0; // The larger the positive delay, the more delayed
+      };
+
+      const aDelay = getDelay(a);
+      const bDelay = getDelay(b);
+      
+      if (aDelay > 0 || bDelay > 0) {
+        return bDelay - aDelay; // Most delayed first
+      }
+
+      // 3. Fallback to createdAt (oldest first)
+      return new Date(a.createdAt) - new Date(b.createdAt);
+    });
+
+    return result;
   }, [orders, searchTerm, user]);
 
   return (
