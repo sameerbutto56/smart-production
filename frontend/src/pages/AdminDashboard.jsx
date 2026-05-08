@@ -47,17 +47,10 @@ const AdminDashboard = () => {
   const [isClearing, setIsClearing] = useState(false);
   const [error, setError] = useState('');
   const { searchTerm: contextSearch, setSearchTerm: setContextSearch } = useSearch();
-  const [trackingQuery, setTrackingQuery] = useState(contextSearch);
   const [trackedOrder, setTrackedOrder] = useState(null);
   const [trackingError, setTrackingError] = useState('');
 
-  // Sync with context
-  useEffect(() => {
-    setTrackingQuery(contextSearch);
-  }, [contextSearch]);
-
   const handleDashboardSearch = (val) => {
-    setTrackingQuery(val);
     setContextSearch(val);
   };
   const [approvalSearch, setApprovalSearch] = useState('');
@@ -249,16 +242,15 @@ const AdminDashboard = () => {
       if (approvalUrgencyFilter === 'URGENT' && !o.urgent) return false;
       if (approvalUrgencyFilter === 'STANDARD' && o.urgent) return false;
 
-      // Use trackingQuery as the primary filter if present
-      const activeSearch = trackingQuery || approvalSearch;
-      if (!activeSearch) return true;
-      const search = activeSearch.toLowerCase();
+      // Use contextSearch as the primary filter
+      if (!contextSearch && !approvalSearch) return true;
+      const search = (contextSearch || approvalSearch).toLowerCase();
       return o.id.toLowerCase().includes(search) || 
              (o.orderNumber && o.orderNumber.toLowerCase().includes(search)) || 
              (o.customerName && o.customerName.toLowerCase().includes(search));
     }).sort((a, b) => {
       // 0. Search Match Priority (Boost to top)
-      const activeSearch = (trackingQuery || approvalSearch)?.toLowerCase();
+      const activeSearch = (contextSearch || approvalSearch)?.toLowerCase();
       if (activeSearch) {
         const aMatch = a.orderNumber?.toLowerCase().includes(activeSearch) || a.id.toLowerCase().includes(activeSearch);
         const bMatch = b.orderNumber?.toLowerCase().includes(activeSearch) || b.id.toLowerCase().includes(activeSearch);
@@ -286,14 +278,14 @@ const AdminDashboard = () => {
 
       // 3. Fallback to createdAt (oldest first)
       return new Date(a.createdAt) - new Date(b.createdAt);
-    }), [allOrders, approvalSearch, trackingQuery, approvalUrgencyFilter]);
+    }), [allOrders, approvalSearch, contextSearch, approvalUrgencyFilter]);
 
   const initiationQueue = useMemo(() => 
     allOrders.filter(o => {
       const isPending = o.status === 'PENDING' || o.status === 'WAITING_PAYMENT';
       if (!isPending) return false;
       
-      const activeSearch = trackingQuery || approvalSearch;
+      const activeSearch = contextSearch || approvalSearch;
       if (!activeSearch) return true;
       const search = activeSearch.toLowerCase();
       return o.id.toLowerCase().includes(search) || 
@@ -301,7 +293,7 @@ const AdminDashboard = () => {
              (o.customerName && o.customerName.toLowerCase().includes(search));
     }).sort((a, b) => {
       // Search Match Priority
-      const activeSearch = (trackingQuery || approvalSearch)?.toLowerCase();
+      const activeSearch = (contextSearch || approvalSearch)?.toLowerCase();
       if (activeSearch) {
         const aMatch = a.orderNumber?.toLowerCase().includes(activeSearch) || a.id.toLowerCase().includes(activeSearch);
         const bMatch = b.orderNumber?.toLowerCase().includes(activeSearch) || b.id.toLowerCase().includes(activeSearch);
@@ -310,7 +302,7 @@ const AdminDashboard = () => {
       }
       return new Date(b.createdAt) - new Date(a.createdAt);
     })
-  , [allOrders, approvalSearch, trackingQuery]);
+  , [allOrders, approvalSearch, contextSearch]);
 
   const activeOrdersCount = useMemo(() => 
     allOrders.filter(o => o.status !== 'COMPLETED').length
@@ -397,11 +389,11 @@ const AdminDashboard = () => {
             <input
               type="text"
               placeholder="ENTER ORDER NUMBER (e.g. 070) OR CUSTOMER NAME..."
-              value={trackingQuery}
+              value={contextSearch}
               onChange={(e) => handleDashboardSearch(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
-                   const query = trackingQuery.trim().toLowerCase();
+                   const query = contextSearch.trim().toLowerCase();
                    const found = allOrders.find(o => 
                     o.orderNumber?.toLowerCase().includes(query) || 
                     o.id.toLowerCase().includes(query) ||

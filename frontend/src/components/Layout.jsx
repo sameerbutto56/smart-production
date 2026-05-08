@@ -150,11 +150,10 @@ const Layout = () => {
     e.preventDefault();
     if (!globalSearch.trim()) return;
     
-    // If we are on dashboard or tasks, just update the context search
-    if (location.pathname === '/dashboard' || location.pathname === '/tasks') {
-        setContextSearch(globalSearch);
-    } else {
-        navigate('/orders', { state: { searchTerm: globalSearch } });
+    // Always update the context search to enable cross-page filtering
+    setContextSearch(globalSearch);
+    if (location.pathname !== '/dashboard' && location.pathname !== '/tasks' && location.pathname !== '/orders') {
+        navigate('/orders');
     }
     setLocalSearch('');
   };
@@ -251,9 +250,7 @@ const Layout = () => {
                   value={globalSearch}
                   onChange={(e) => {
                     setLocalSearch(e.target.value);
-                    if (location.pathname === '/dashboard' || location.pathname === '/tasks') {
-                        setContextSearch(e.target.value);
-                    }
+                    setContextSearch(e.target.value);
                   }}
                   className="w-full bg-gray-900/50 border border-gray-800 rounded-xl py-2.5 pl-12 pr-4 focus:outline-none focus:border-blue-500/50 transition-all text-[11px] font-black uppercase tracking-widest text-white shadow-inner"
                 />
