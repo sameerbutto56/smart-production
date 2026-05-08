@@ -142,8 +142,16 @@ const Layout = () => {
 
   useEffect(() => {
     const handleGlobalAlert = (data) => {
-      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-      audio.play().catch(e => console.error('Audio play failed:', e));
+      // Play sound (wrapped in a check for user interaction)
+      const playSound = () => {
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+        audio.play().catch(() => {
+          console.log('Audio autoplay blocked by browser. Click anywhere on the page to enable sounds.');
+        });
+      };
+      
+      playSound();
+
       toast.success(`${data.title}: ${data.message}`, {
         duration: 8000,
         position: 'top-center',
@@ -151,15 +159,43 @@ const Layout = () => {
           background: '#030712',
           color: '#fff',
           border: '1px solid #10b981',
+          padding: '16px',
+          borderRadius: '24px',
           fontWeight: '900',
-          textTransform: 'uppercase'
+          textTransform: 'uppercase',
+          boxShadow: '0 10px 40px rgba(0,0,0,0.5)'
         }
       });
     };
 
     socket.on('global-alert', handleGlobalAlert);
+    socket.on('new-order', (order) => {
+      handleGlobalAlert({
+        title: 'New Order Received',
+        message: `Order #${order.orderNumber || order.id.substring(0, 8)} is now in the system.`,
+        type: 'NEW_ORDER'
+      });
+    });
+    socket.on('stage-completion-requested', (data) => {
+      handleGlobalAlert({
+        title: 'Approval Required',
+        message: `${data.stageName.replace('_', ' ')} stage completed. Waiting for approval.`,
+        type: 'APPROVAL_REQUIRED'
+      });
+    });
+    socket.on('status-update', (data) => {
+      handleGlobalAlert({
+        title: 'Status Updated',
+        message: `Order #${data.orderNumber} is now ${data.status.replace('_', ' ')}.`,
+        type: 'STATUS_UPDATE'
+      });
+    });
+
     return () => {
       socket.off('global-alert', handleGlobalAlert);
+      socket.off('new-order');
+      socket.off('stage-completion-requested');
+      socket.off('status-update');
     };
   }, []);
 

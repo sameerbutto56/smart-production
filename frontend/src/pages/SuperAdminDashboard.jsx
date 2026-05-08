@@ -11,7 +11,6 @@ import {
   Trash2, 
   RefreshCcw,
   Zap,
-  Layout,
   Timer,
   FileText,
   Package

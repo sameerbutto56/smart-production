@@ -163,27 +163,40 @@ const AllOrders = () => {
       </div>
 
       <div className="flex flex-col md:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+        <div className="flex-1 max-w-2xl relative">
+          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500" size={18} />
           <input 
-            type="text" 
+            type="text"
             placeholder="Search by customer name or order ID..."
+            className="w-full bg-gray-900 border border-gray-800 rounded-2xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm font-bold"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-gray-800 border border-gray-700 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-blue-500 transition-all"
           />
         </div>
-        <div className="relative">
+        
+        <div className="flex items-center gap-3">
+            <select 
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-2.5 text-sm font-black outline-none focus:ring-2 focus:ring-blue-500 uppercase tracking-widest"
+            >
+              <option value="ALL">All Status</option>
+              <option value="IN_PROGRESS">In Progress</option>
+              <option value="WAITING_APPROVAL">Pending Approval</option>
+              <option value="READY_FOR_DELIVERY">Ready for Delivery</option>
+              <option value="OUT_FOR_DELIVERY">Out for Delivery</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="REJECTED">Rejected</option>
+            </select>
+
           <button 
             onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center space-x-2 bg-gray-800 border px-6 py-3 rounded-xl transition-all ${showFilters ? 'border-blue-500 text-blue-400' : 'border-gray-700 hover:bg-gray-700 text-gray-300'}`}
+            className={`p-3 rounded-xl border transition-all flex items-center gap-2 ${showFilters ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-900 border-gray-800 text-gray-400 hover:text-white'}`}
           >
             <Filter size={18} />
-            <span>Filters</span>
-            {(filterStatus !== 'ALL' || filterType !== 'ALL') && (
-              <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-            )}
+            <span className="text-xs font-black uppercase tracking-widest hidden sm:inline">Filters</span>
           </button>
+        </div>
 
           {showFilters && (
             <div className="absolute right-0 mt-3 w-72 bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl p-6 z-50 space-y-6">
@@ -241,7 +254,6 @@ const AllOrders = () => {
             </div>
           )}
         </div>
-      </div>
 
       <div className="glass rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
