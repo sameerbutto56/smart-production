@@ -365,18 +365,171 @@ const AdminDashboard = () => {
               placeholder="ENTER ORDER NUMBER (e.g. 070) OR CUSTOMER NAME..."
               value={trackingQuery}
               onChange={(e) => setTrackingQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && navigate('/orders', { state: { searchTerm: trackingQuery } })}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                   const query = trackingQuery.trim().toLowerCase();
+                   const found = allOrders.find(o => 
+                    o.orderNumber?.toLowerCase().includes(query) || 
+                    o.id.toLowerCase().includes(query) ||
+                    o.customerName?.toLowerCase().includes(query)
+                  );
+                  if (found) {
+                    setTrackedOrder(found);
+                    setTrackingError('');
+                  } else {
+                    setTrackedOrder(null);
+                    setTrackingError('No order found.');
+                  }
+                }
+              }}
               className="w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-6 pl-16 pr-8 focus:outline-none focus:border-blue-500 transition-all text-xl font-black tracking-widest placeholder:text-gray-700 shadow-inner"
             />
           </div>
           
           <button
-            onClick={() => navigate('/orders', { state: { searchTerm: trackingQuery } })}
+            onClick={() => {
+              const query = trackingQuery.trim().toLowerCase();
+              if (!query) return;
+              const found = allOrders.find(o => 
+                o.orderNumber?.toLowerCase().includes(query) || 
+                o.id.toLowerCase().includes(query) ||
+                o.customerName?.toLowerCase().includes(query)
+              );
+              if (found) {
+                setTrackedOrder(found);
+                setTrackingError('');
+              } else {
+                setTrackedOrder(null);
+                setTrackingError('No order found with that ID or Name.');
+              }
+            }}
             className="px-10 py-6 bg-blue-600 text-white rounded-[1.5rem] font-black uppercase tracking-[0.2em] hover:bg-blue-500 transition-all active:scale-95 shadow-xl shadow-blue-900/40 shrink-0 text-sm"
           >
             Track Order
           </button>
         </div>
+
+        {/* Restore Result Section inside the Search Box glass */}
+        <AnimatePresence mode="wait">
+          {trackingError && (
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="mt-8 text-center py-6 bg-red-500/5 rounded-3xl border border-red-500/10 text-red-400 font-bold"
+            >
+              {trackingError}
+            </motion.div>
+          )}
+
+          {trackedOrder && (
+            <motion.div
+              key={trackedOrder.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-12 bg-gray-900/50 rounded-[2.5rem] p-10 border border-gray-800 shadow-2xl"
+            >
+              <div className="flex justify-between items-start mb-12">
+                <div className="flex items-center space-x-6">
+                  <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-3xl flex items-center justify-center font-black text-2xl shadow-xl">
+                    {trackedOrder.customerName.charAt(0)}
+                  </div>
+                  <div>
+                    <h4 className="text-2xl font-black text-white tracking-tight">{trackedOrder.customerName}</h4>
+                    <p className="text-gray-500 font-bold uppercase tracking-widest text-[10px] mt-1">Order #{trackedOrder.orderNumber || trackedOrder.id.substring(0, 8)}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                    <span className="bg-blue-500/10 text-blue-400 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border border-blue-500/20">
+                        {trackedOrder.status.replace(/_/g, ' ')}
+                    </span>
+                    <p className="text-[10px] text-gray-500 font-black mt-2 uppercase tracking-widest">{trackedOrder.currentStage.replace(/_/g, ' ')} Phase</p>
+                </div>
+              </div>
+
+              <div className="mt-8 space-y-6">
+                <div className="flex justify-between items-center mb-4">
+                  <span className="text-xs font-black text-blue-400 uppercase tracking-widest">Production Timeline</span>
+                  <span className="text-xs font-black text-gray-500 uppercase tracking-widest">
+                    Step {trackedOrder.stages?.filter(s => s.status === 'COMPLETED').length + 1} of {
+                      (() => {
+                        const pipelines = {
+                          'STANDARD': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                          'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                          'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY']
+                        };
+                        return pipelines[trackedOrder.type]?.length || 8;
+                      })()
+                    }
+                  </span>
+                </div>
+
+                <div className="space-y-4">
+                  {(() => {
+                    const pipelines = {
+                      'STANDARD': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                      'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                      'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY']
+                    };
+                    const currentPipeline = pipelines[trackedOrder.type] || pipelines['STANDARD'];
+                    
+                    return currentPipeline.map((stageName, i) => {
+                      const stageData = trackedOrder.stages?.find(s => s.stageName === stageName);
+                      const isCompleted = stageData?.status === 'COMPLETED';
+                      const isCurrent = trackedOrder.currentStage === stageName;
+                      const isOrderEntry = stageName === 'ORDER_ENTRY';
+                      
+                      const displayTime = isCompleted ? (
+                        `Finished: ${new Date(stageData.completedAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}`
+                      ) : isOrderEntry ? (
+                        `Created: ${new Date(trackedOrder.createdAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}`
+                      ) : stageData?.deadlineAt ? (
+                        `Target: ${new Date(stageData.deadlineAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}`
+                      ) : 'Waiting';
+                      
+                      return (
+                        <div key={stageName} className="flex items-center gap-4 group">
+                          <div className="flex flex-col items-center">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${
+                              isCompleted ? 'bg-emerald-600 border-emerald-600 text-white shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 
+                              isCurrent ? 'bg-blue-600 border-blue-600 text-white animate-pulse shadow-[0_0_15px_rgba(37,99,235,0.3)]' :
+                              'bg-gray-950 border-gray-800 text-gray-700'
+                            }`}>
+                              {isCompleted ? <CheckCircle2 size={16} /> : <Circle size={8} />}
+                            </div>
+                            {i < currentPipeline.length - 1 && (
+                              <div className={`w-0.5 h-8 ${isCompleted ? 'bg-emerald-600' : 'bg-gray-800'}`} />
+                            )}
+                          </div>
+                          
+                          <div className="flex-1 pb-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-[11px] font-black uppercase tracking-widest ${isCompleted ? 'text-emerald-400' : isCurrent ? 'text-blue-400' : 'text-gray-600'}`}>
+                                  {stageName.replace(/_/g, ' ')}
+                                </span>
+                              </div>
+                              <span className={`text-[10px] font-bold font-mono ${isCompleted ? 'text-emerald-600' : isOrderEntry ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {displayTime}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+                
+                <button
+                  onClick={() => navigate('/orders', { state: { searchTerm: trackedOrder.orderNumber } })}
+                  className="w-full mt-6 py-4 bg-gray-800 hover:bg-gray-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
+                >
+                  View Full Detailed Job Sheet
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </section>
 
 
