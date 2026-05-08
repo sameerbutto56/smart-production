@@ -34,8 +34,11 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     { name: 'All Orders', path: '/orders', icon: Package, roles: ['SUPER_ADMIN', 'FAISAL'] },
     { name: 'History', path: '/history', icon: History, roles: ['SUPER_ADMIN', 'FAISAL'] },
   ];
-
+  
+  const isBigScreen = user?.role === 'MAIN_EMPLOYEE';
   const filteredNavItems = navItems.filter(item => item.roles.includes(user?.role));
+
+  if (isBigScreen) return null;
 
   return (
     <>
@@ -133,10 +136,8 @@ const Layout = () => {
   const { user } = useAuth();
 
   useEffect(() => {
-    if (user) {
-      document.title = `${user.role?.replace('_', ' ')} - ENAMELS PRODUCTION`;
-    } else {
-      document.title = '--- ENAMELS PRODUCTION ---';
+    if (user?.role) {
+      document.title = `${user.role.replace(/_/g, ' ')} - ENAMELS PRODUCTION`;
     }
   }, [user]);
 
@@ -170,13 +171,15 @@ const Layout = () => {
 
     socket.on('global-alert', handleGlobalAlert);
     socket.on('new-order', (order) => {
+      if (!order) return;
       handleGlobalAlert({
         title: 'New Order Received',
-        message: `Order #${order.orderNumber || order.id.substring(0, 8)} is now in the system.`,
+        message: `Order #${order.orderNumber || (order.id ? order.id.substring(0, 8) : 'N/A')} is now in the system.`,
         type: 'NEW_ORDER'
       });
     });
     socket.on('stage-completion-requested', (data) => {
+      if (!data?.stageName) return;
       handleGlobalAlert({
         title: 'Approval Required',
         message: `${data.stageName.replace('_', ' ')} stage completed. Waiting for approval.`,
@@ -184,9 +187,10 @@ const Layout = () => {
       });
     });
     socket.on('status-update', (data) => {
+      if (!data?.status) return;
       handleGlobalAlert({
         title: 'Status Updated',
-        message: `Order #${data.orderNumber} is now ${data.status.replace('_', ' ')}.`,
+        message: `Order #${data.orderNumber || 'N/A'} is now ${data.status.replace('_', ' ')}.`,
         type: 'STATUS_UPDATE'
       });
     });
@@ -223,15 +227,6 @@ const Layout = () => {
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
-          <div className="mb-4">
-            <button 
-              onClick={() => window.history.length > 1 ? window.history.back() : window.location.href = '/'}
-              className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors text-sm font-bold bg-gray-900/50 hover:bg-gray-800 px-4 py-2 rounded-xl border border-gray-800"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-              <span>Back</span>
-            </button>
-          </div>
           <Outlet />
         </main>
       </div>
