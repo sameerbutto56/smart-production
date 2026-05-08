@@ -1,6 +1,14 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { calculateDeadline } = require('../utils/deadline');
+ 
+const NEXT_STAGES = {
+  'STANDARD': ['STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+  'READY_LOGO': ['STORE', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+  'FULL_CUSTOM': ['STORE', 'CUTTING', 'STITCHING', 'QA', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY']
+};
+ 
+const AUTO_TRANSITION_STAGES = ['CUTTING', 'STITCHING', 'QA'];
 
 const getStageDurations = async () => {
   const settings = await prisma.systemSetting.findUnique({
@@ -26,6 +34,8 @@ const getStageDurations = async () => {
     'FAISAL_APPROVAL': 2
   };
 };
+ 
+
 
 const createAuditLog = async (orderId, action, details, userId) => {
   try {
@@ -88,6 +98,34 @@ const createOrder = async (req, res) => {
         completedAt: new Date()
       }
     });
+ 
+    // Automatically start the first stage for STANDARD and READY_LOGO orders
+    if (type !== 'FULL_CUSTOM' || (type === 'FULL_CUSTOM' && advancePaid)) {
+      const stages = NEXT_STAGES[type || 'STANDARD'] || NEXT_STAGES['STANDARD'];
+      const firstStage = stages[0]; // Usually 'STORE'
+      
+      if (firstStage) {
+        const durations = await getStageDurations();
+        const deadline = calculateDeadline(new Date(), durations[firstStage] || 2);
+        
+        await prisma.orderStage.create({
+          data: {
+            orderId: order.id,
+            stageName: firstStage,
+            status: 'PENDING',
+            deadlineAt: deadline
+          }
+        });
+        
+        await prisma.order.update({
+          where: { id: order.id },
+          data: { 
+            currentStage: firstStage,
+            status: 'IN_PROGRESS'
+          }
+        });
+      }
+    }
 
     await createAuditLog(order.id, 'ORDER_CREATED', `Order initiated with status: ${initialStatus}`, req.user?.id);
 
@@ -201,15 +239,6 @@ const requestStageCompletion = async (req, res) => {
     res.status(500).json({ message: 'Error requesting completion', error: error.message });
   }
 };
-
-const NEXT_STAGES = {
-  'STANDARD': ['STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-  'READY_LOGO': ['STORE', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-  'FULL_CUSTOM': ['STORE', 'CUTTING', 'STITCHING', 'QA', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY']
-};
-
-// Stages that move automatically to the next one without Faisal's intermediate approval
-const AUTO_TRANSITION_STAGES = ['CUTTING', 'STITCHING', 'QA'];
 
 const approveStageCompletion = async (req, res) => {
   const { orderId, stageId } = req.params;

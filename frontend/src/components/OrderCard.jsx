@@ -548,7 +548,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
           )}
 
           <div className="flex gap-2">
-            {isFaisal && order.status === 'WAITING_APPROVAL' && currentStage?.status === 'COMPLETED' ? (
+            {isFaisal && (order.status === 'WAITING_APPROVAL' || order.status === 'PENDING') && currentStage?.status === 'COMPLETED' ? (
               <button
                 onClick={() => setShowApprovalDialog(true)}
                 className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-xl shadow-blue-900/20"

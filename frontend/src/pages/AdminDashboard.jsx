@@ -18,7 +18,8 @@ import {
   Truck, 
   Circle,
   Loader2,
-  BellRing
+  BellRing,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -263,6 +264,19 @@ const AdminDashboard = () => {
       // 3. Fallback to createdAt (oldest first)
       return new Date(a.createdAt) - new Date(b.createdAt);
     }), [allOrders, approvalSearch, approvalUrgencyFilter]);
+
+  const initiationQueue = useMemo(() => 
+    allOrders.filter(o => {
+      const isPending = o.status === 'PENDING' || o.status === 'WAITING_PAYMENT';
+      if (!isPending) return false;
+      
+      if (!approvalSearch) return true;
+      const search = approvalSearch.toLowerCase();
+      return o.id.toLowerCase().includes(search) || 
+             (o.orderNumber && o.orderNumber.toLowerCase().includes(search)) || 
+             (o.customerName && o.customerName.toLowerCase().includes(search));
+    }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+  , [allOrders, approvalSearch]);
 
   const activeOrdersCount = useMemo(() => 
     allOrders.filter(o => o.status !== 'COMPLETED').length
@@ -600,6 +614,31 @@ const AdminDashboard = () => {
                 <h3 className="text-gray-500 font-black uppercase">No orders in this phase</h3>
               </div>
             )}
+          </div>
+        </section>
+      )}
+ 
+      {/* Initiation Queue */}
+      {initiationQueue.length > 0 && (
+        <section className="mb-12">
+          <div className="flex items-center space-x-4 mb-8">
+            <div className="p-3 bg-blue-500/10 rounded-2xl">
+              <Sparkles className="text-blue-400" size={24} />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-white uppercase tracking-tight">Initiation Queue</h2>
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">New orders waiting to start production</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+            {initiationQueue.map(order => (
+              <OrderCard 
+                key={order.id} 
+                order={order} 
+                userRole={user?.role}
+                onUpdateStage={handleAction}
+              />
+            ))}
           </div>
         </section>
       )}
