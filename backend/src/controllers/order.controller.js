@@ -188,6 +188,11 @@ const requestStageCompletion = async (req, res) => {
     const io = req.app.get('io');
     io.emit('stage-completion-requested', { orderId, stage });
     io.emit('order-updated', { orderId });
+    io.emit('global-alert', {
+      title: 'Approval Required',
+      message: `${stage.stageName.replace(/_/g, ' ')} completed. Sent to Faisal.`,
+      icon: 'clipboard'
+    });
 
     await createAuditLog(orderId, 'STAGE_COMPLETION_REQUESTED', `Completion requested for ${stage.stageName}. Waiting for Faisal.`, req.user.id);
 
@@ -289,6 +294,13 @@ const approveStageCompletion = async (req, res) => {
           currentStage: actualNextStage,
           status: 'IN_PROGRESS'
         }
+      });
+
+      const io = req.app.get('io');
+      io.emit('global-alert', {
+        title: 'Phase Advanced',
+        message: `Order moved to ${actualNextStage.replace(/_/g, ' ')}.`,
+        icon: 'package'
       });
     } else {
       // It returns to Faisal or is finished

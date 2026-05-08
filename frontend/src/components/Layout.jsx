@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
@@ -12,6 +12,8 @@ import {
   X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import socket from '../socket';
+import { toast } from 'react-hot-toast';
 
 const Sidebar = ({ isOpen, toggle }) => {
   const { user, logout } = useAuth();
@@ -107,6 +109,38 @@ const Sidebar = ({ isOpen, toggle }) => {
 
 const Layout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (user) {
+      document.title = `${user.role?.replace('_', ' ')} - ENAMELS PRODUCTION`;
+    } else {
+      document.title = '--- ENAMELS PRODUCTION ---';
+    }
+  }, [user]);
+
+  useEffect(() => {
+    const handleGlobalAlert = (data) => {
+      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+      audio.play().catch(e => console.error('Audio play failed:', e));
+      toast.success(`${data.title}: ${data.message}`, {
+        duration: 8000,
+        position: 'top-center',
+        style: {
+          background: '#030712',
+          color: '#fff',
+          border: '1px solid #10b981',
+          fontWeight: '900',
+          textTransform: 'uppercase'
+        }
+      });
+    };
+
+    socket.on('global-alert', handleGlobalAlert);
+    return () => {
+      socket.off('global-alert', handleGlobalAlert);
+    };
+  }, []);
 
   return (
     <div className="flex h-screen bg-gray-950 text-white overflow-hidden">
