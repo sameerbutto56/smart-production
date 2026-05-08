@@ -559,56 +559,59 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
             ) : isWaitingApproval ? (
               isFaisal ? (
                 <>
-                  <button
-                    onClick={() => setShowApprovalDialog(true)}
-                    className="flex-[1.5] bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col xl:flex-row items-center justify-center gap-1 active:scale-95 shadow-lg"
-                  >
-                    <Check size={14} />
-                    <span>Approve</span>
-                  </button>
-                  {(currentStage?.rejectionReason?.includes('Out of Stock') || currentStage?.rejectionReason?.includes('PROBLEM')) ? (
+                  <div className="flex flex-wrap gap-2 w-full mt-2">
                     <button
-                      onClick={() => onUpdateStage(order.id, currentStage.id, 'reject', { reason: 'Problem Resolved - Please Proceed' })}
-                      className="flex-1 bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col xl:flex-row items-center justify-center gap-1 active:scale-95 border border-yellow-500/20"
+                      onClick={() => setShowApprovalDialog(true)}
+                      className="flex-1 min-w-[100px] bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg"
                     >
-                      <RefreshCcw size={14} />
-                      <span>Send Again</span>
+                      <Check size={16} />
+                      <span>Approve</span>
                     </button>
-                  ) : (
+                    {(currentStage?.rejectionReason?.includes('Out of Stock') || currentStage?.rejectionReason?.includes('PROBLEM')) ? (
+                      <button
+                        onClick={() => onUpdateStage(order.id, currentStage.id, 'reject', { reason: 'Problem Resolved - Please Proceed' })}
+                        className="flex-1 min-w-[100px] bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 border border-yellow-500/20"
+                      >
+                        <RefreshCcw size={16} />
+                        <span>Send Again</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setShowRejectionDialog(true)}
+                        className="flex-1 min-w-[100px] bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 border border-red-500/20"
+                      >
+                        <X size={16} />
+                        <span>Reject</span>
+                      </button>
+                    )}
                     <button
-                      onClick={() => setShowRejectionDialog(true)}
-                      className="flex-1 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col xl:flex-row items-center justify-center gap-1 active:scale-95 border border-red-500/20"
+                      onClick={() => setShowCancelDialog(true)}
+                      className="flex-1 min-w-[100px] bg-red-950/20 hover:bg-red-900 text-red-500 py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 border border-red-500/20"
+                      title="Cancel Order Permanently"
                     >
-                      <X size={14} />
-                      <span>Reject</span>
+                      <Trash2 size={16} />
+                      <span>Cancel</span>
                     </button>
-                  )}
-                  <button
-                    onClick={() => setShowCancelDialog(true)}
-                    className="flex-1 bg-red-950/20 hover:bg-red-900 text-red-500 py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col xl:flex-row items-center justify-center gap-1 active:scale-95 border border-red-500/20"
-                    title="Cancel Order Permanently"
-                  >
-                    <Trash2 size={14} />
-                    <span>Cancel</span>
-                  </button>
-                  {order.paymentStatus !== 'FULL_PAID' && (
-                    <button
-                      onClick={() => {
-                        const status = order.paymentStatus === 'PENDING' ? 'ADVANCE_PAID' : 'FULL_PAID';
-                        axios.put(`${API_URL}/api/orders/${order.id}/payment`, { paymentStatus: status }, {
-                          headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
-                        }).then(() => {
-                        }).catch(err => {
-                          console.error('Payment update failed:', err);
-                          alert('Payment update failed');
-                        });
-                      }}
-                      className="flex-1 py-3 px-2 bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white rounded-xl transition-all border border-yellow-500/20 active:scale-95 flex items-center justify-center"
-                      title="Update Payment"
-                    >
-                      <span className="text-[10px] font-black">PAY</span>
-                    </button>
-                  )}
+                    {order.paymentStatus !== 'FULL_PAID' && (
+                      <button
+                        onClick={() => {
+                          const status = order.paymentStatus === 'PENDING' ? 'ADVANCE_PAID' : 'FULL_PAID';
+                          axios.put(`${API_URL}/api/orders/${order.id}/payment`, { paymentStatus: status }, {
+                            headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
+                          }).then(() => {
+                          }).catch(err => {
+                            console.error('Payment update failed:', err);
+                            alert('Payment update failed');
+                          });
+                        }}
+                        className="flex-1 min-w-[100px] py-3 px-2 bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white rounded-xl transition-all border border-yellow-500/20 active:scale-95 flex flex-col items-center justify-center gap-1"
+                        title="Update Payment"
+                      >
+                        <AlertCircle size={16} />
+                        <span className="text-[10px] font-black">PAY</span>
+                      </button>
+                    )}
+                  </div>
                 </>
               ) : (
                 <div className="flex-1 bg-gray-800 text-gray-500 py-4 rounded-2xl text-[10px] font-black uppercase text-center border border-gray-700 italic">
@@ -939,7 +942,12 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                   <option value="">Select Next Hub/Spoke...</option>
                   <option value="STORE">Send to STORE</option>
                   <option value="CUTTING">Send to MANUFACTURING (Cutter)</option>
+                  <option value="STITCHING">Send to STITCHING (Tailor)</option>
+                  <option value="QA">Send to QUALITY ASSURANCE (QA)</option>
+                  <option value="PRESSING_PACKING">Send to PRESSING & PACKING</option>
                   <option value="LOGO_DESIGN">Send to LOGO & NAME DESIGN</option>
+                  <option value="NAME_LOGO">Send to NAME EMBROIDERY</option>
+                  <option value="CUSTOM_LOGO">Send to CUSTOM LOGO DESIGN</option>
                   <option value="DISPATCH">Send to DISPATCH</option>
                   <option value="OUT_FOR_DELIVERY">Send to DELIVERY PARTNER</option>
                 </select>
