@@ -8,7 +8,8 @@ const {
   updatePaymentStatus,
   getAnalytics,
   clearHistory,
-  cancelOrder
+  cancelOrder,
+  deleteOrder
 } = require('../controllers/order.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 const router = express.Router();
@@ -29,6 +30,7 @@ router.put('/:orderId/stages/:stageId/request', authenticate, requestStageComple
 router.put('/:orderId/stages/:stageId/approve', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ORDER_ENTRY']), approveStageCompletion);
 router.put('/:orderId/stages/:stageId/reject', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ORDER_ENTRY']), rejectStageCompletion);
 router.put('/:orderId/cancel', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ORDER_ENTRY']), cancelOrder);
+router.delete('/:orderId', authenticate, authorize(['FAISAL', 'SUPER_ADMIN']), deleteOrder);
 
 // Faisal/Admin: Update payment status
 router.put('/:orderId/payment', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ORDER_ENTRY']), updatePaymentStatus);

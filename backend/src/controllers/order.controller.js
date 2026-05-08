@@ -552,6 +552,24 @@ const cancelOrder = async (req, res) => {
   }
 };
 
+const deleteOrder = async (req, res) => {
+  const { orderId } = req.params;
+  try {
+    // Delete related records first due to foreign key constraints
+    await prisma.orderStage.deleteMany({ where: { orderId } });
+    await prisma.auditLog.deleteMany({ where: { orderId } });
+    await prisma.order.delete({ where: { id: orderId } });
+
+    const io = req.app.get('io');
+    io.emit('order-updated', { orderId, deleted: true });
+
+    res.json({ message: 'Order deleted permanently' });
+  } catch (error) {
+    console.error('Delete order error:', error);
+    res.status(500).json({ message: 'Error deleting order', error: error.message });
+  }
+};
+
 module.exports = { 
   createOrder, 
   getOrders, 
@@ -561,5 +579,6 @@ module.exports = {
   updatePaymentStatus,
   getAnalytics,
   clearHistory,
-  cancelOrder
+  cancelOrder,
+  deleteOrder
 };

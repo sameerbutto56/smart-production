@@ -12,15 +12,18 @@ import {
   Truck,
   X,
   Layers,
-  ClipboardList
+  ClipboardList,
+  Trash2
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import socket from '../socket';
+import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
 
 const AllOrders = () => {
+  const { user } = useAuth();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -77,6 +80,22 @@ const AllOrders = () => {
     } catch (error) {
       console.error('Error sending for delivery:', error);
       toast.error('Failed to send for delivery');
+    }
+  };
+
+  const handleDeleteOrder = async (orderId) => {
+    if (!window.confirm('Are you sure you want to PERMANENTLY DELETE this order? This action cannot be undone.')) return;
+    
+    try {
+      const token = sessionStorage.getItem('token');
+      await axios.delete(`${API_URL}/api/orders/${orderId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.success('Order deleted permanently');
+      fetchOrders();
+    } catch (error) {
+      console.error('Error deleting order:', error);
+      toast.error('Failed to delete order');
     }
   };
 
@@ -386,7 +405,19 @@ const AllOrders = () => {
                           <span>Send for Delivery</span>
                         </button>
                       ) : (
-                        <div className="flex items-center justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center justify-end space-x-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {(user?.role === 'SUPER_ADMIN' || user?.role === 'FAISAL') && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteOrder(order.id);
+                              }}
+                              className="p-2 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-lg transition-all"
+                              title="Delete Permanently"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
                           <ChevronRight size={18} className="text-gray-500" />
                         </div>
                       )}
