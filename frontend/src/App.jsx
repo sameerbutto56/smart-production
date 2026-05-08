@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { SearchProvider } from './context/SearchContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import AdminDashboard from './pages/AdminDashboard';
@@ -36,37 +37,39 @@ const AuthRedirectHandler = () => {
 
 function App() {
   return (
-    <AuthProvider>
-      <Toaster position="top-right" reverseOrder={false} />
-      <Router>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          
-          <Route path="/progress" element={
-            <ProtectedRoute>
-              <ProgressChart />
-            </ProtectedRoute>
-          } />
-          
-          <Route path="/" element={
-            <ProtectedRoute>
-              <Layout />
-            </ProtectedRoute>
-          }>
-            <Route index element={
-              <AuthRedirectHandler />
+    <SearchProvider>
+      <AuthProvider>
+        <Toaster position="top-right" reverseOrder={false} />
+        <Router>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            
+            <Route path="/progress" element={
+              <ProtectedRoute>
+                <ProgressChart />
+              </ProtectedRoute>
             } />
-            <Route path="dashboard" element={<AdminDashboard />} />
-            <Route path="admin" element={<SuperAdminDashboard />} />
-            <Route path="inventory" element={<InventoryManagement />} />
-            <Route path="tasks" element={<MyTasks />} />
-            <Route path="order-entry" element={<OrderEntry />} />
-            <Route path="orders" element={<AllOrders />} />
-            <Route path="history" element={<History />} />
-          </Route>
-        </Routes>
-      </Router>
-    </AuthProvider>
+            
+            <Route path="/" element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            }>
+              <Route index element={
+                <AuthRedirectHandler />
+              } />
+              <Route path="dashboard" element={<AdminDashboard />} />
+              <Route path="admin" element={<SuperAdminDashboard />} />
+              <Route path="inventory" element={<InventoryManagement />} />
+              <Route path="tasks" element={<MyTasks />} />
+              <Route path="order-entry" element={<OrderEntry />} />
+              <Route path="orders" element={<AllOrders />} />
+              <Route path="history" element={<History />} />
+            </Route>
+          </Routes>
+        </Router>
+      </AuthProvider>
+    </SearchProvider>
   );
 }
 

@@ -26,6 +26,7 @@ import { useNavigate } from 'react-router-dom';
 import socket from '../socket';
 import OrderCard from '../components/OrderCard';
 import { useAuth } from '../context/AuthContext';
+import { useSearch } from '../context/SearchContext';
 import toast from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
@@ -45,9 +46,20 @@ const AdminDashboard = () => {
   const [adminPassword, setAdminPassword] = useState('');
   const [isClearing, setIsClearing] = useState(false);
   const [error, setError] = useState('');
-  const [trackingQuery, setTrackingQuery] = useState('');
+  const { searchTerm: contextSearch, setSearchTerm: setContextSearch } = useSearch();
+  const [trackingQuery, setTrackingQuery] = useState(contextSearch);
   const [trackedOrder, setTrackedOrder] = useState(null);
   const [trackingError, setTrackingError] = useState('');
+
+  // Sync with context
+  useEffect(() => {
+    setTrackingQuery(contextSearch);
+  }, [contextSearch]);
+
+  const handleDashboardSearch = (val) => {
+    setTrackingQuery(val);
+    setContextSearch(val);
+  };
   const [approvalSearch, setApprovalSearch] = useState('');
   const [approvalUrgencyFilter, setApprovalUrgencyFilter] = useState('ALL');
   const [analytics, setAnalytics] = useState(null);
@@ -386,7 +398,7 @@ const AdminDashboard = () => {
               type="text"
               placeholder="ENTER ORDER NUMBER (e.g. 070) OR CUSTOMER NAME..."
               value={trackingQuery}
-              onChange={(e) => setTrackingQuery(e.target.value)}
+              onChange={(e) => handleDashboardSearch(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                    const query = trackingQuery.trim().toLowerCase();

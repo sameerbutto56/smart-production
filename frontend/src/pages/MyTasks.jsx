@@ -3,6 +3,7 @@ import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import OrderCard from '../components/OrderCard';
 import { useAuth } from '../context/AuthContext';
+import { useSearch } from '../context/SearchContext';
 import { Search, Filter, Loader2, Sparkles, AlertCircle } from 'lucide-react';
 import socket from '../socket';
 import toast from 'react-hot-toast';
@@ -13,7 +14,17 @@ const MyTasks = () => {
   const { user } = useAuth();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  const { searchTerm: contextSearch, setSearchTerm: setContextSearch } = useSearch();
+  const [searchTerm, setSearchTerm] = useState(contextSearch);
+
+  useEffect(() => {
+    setSearchTerm(contextSearch);
+  }, [contextSearch]);
+
+  const handleLocalSearch = (val) => {
+    setSearchTerm(val);
+    setContextSearch(val);
+  };
   const [urgencyFilter, setUrgencyFilter] = useState('ALL');
 
   useEffect(() => {
@@ -165,7 +176,7 @@ const MyTasks = () => {
               type="text"
               placeholder="Search ID or Customer..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => handleLocalSearch(e.target.value)}
               className="w-full bg-gray-900 border-2 border-gray-800 rounded-2xl py-3 pl-12 pr-4 focus:border-blue-500 outline-none transition-all text-sm font-medium"
             />
           </div>

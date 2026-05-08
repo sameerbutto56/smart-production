@@ -15,6 +15,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import socket from '../socket';
 import { toast } from 'react-hot-toast';
+import { useSearch } from '../context/SearchContext';
 
 const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
   const { user, logout } = useAuth();
@@ -142,13 +143,20 @@ const Layout = () => {
     }
   }, [user]);
 
-  const [globalSearch, setGlobalSearch] = useState('');
+  const { searchTerm: contextSearch, setSearchTerm: setContextSearch } = useSearch();
+  const [globalSearch, setLocalSearch] = useState('');
 
   const handleGlobalSearch = (e) => {
     e.preventDefault();
     if (!globalSearch.trim()) return;
-    navigate('/orders', { state: { searchTerm: globalSearch } });
-    setGlobalSearch('');
+    
+    // If we are on dashboard or tasks, just update the context search
+    if (location.pathname === '/dashboard' || location.pathname === '/tasks') {
+        setContextSearch(globalSearch);
+    } else {
+        navigate('/orders', { state: { searchTerm: globalSearch } });
+    }
+    setLocalSearch('');
   };
 
   useEffect(() => {
@@ -241,7 +249,12 @@ const Layout = () => {
                   type="text"
                   placeholder="Quick Search: Enter Order Number or Customer..."
                   value={globalSearch}
-                  onChange={(e) => setGlobalSearch(e.target.value)}
+                  onChange={(e) => {
+                    setLocalSearch(e.target.value);
+                    if (location.pathname === '/dashboard' || location.pathname === '/tasks') {
+                        setContextSearch(e.target.value);
+                    }
+                  }}
                   className="w-full bg-gray-900/50 border border-gray-800 rounded-xl py-2.5 pl-12 pr-4 focus:outline-none focus:border-blue-500/50 transition-all text-[11px] font-black uppercase tracking-widest text-white shadow-inner"
                 />
               </form>

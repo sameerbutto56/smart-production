@@ -18,6 +18,7 @@ import {
 import { motion } from 'framer-motion';
 import socket from '../socket';
 import { useAuth } from '../context/AuthContext';
+import { useSearch } from '../context/SearchContext';
 import toast from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
@@ -26,7 +27,17 @@ const AllOrders = () => {
   const { user } = useAuth();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  const { searchTerm: contextSearch, setSearchTerm: setContextSearch } = useSearch();
+  const [searchTerm, setSearchTerm] = useState(contextSearch);
+
+  useEffect(() => {
+    setSearchTerm(contextSearch);
+  }, [contextSearch]);
+
+  const handleLocalSearch = (val) => {
+    setSearchTerm(val);
+    setContextSearch(val);
+  };
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [filterStatus, setFilterStatus] = useState('ALL');
