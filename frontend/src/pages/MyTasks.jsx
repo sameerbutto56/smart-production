@@ -94,7 +94,7 @@ const MyTasks = () => {
   };
 
   const filteredOrders = useMemo(() => {
-    return orders.filter(order => {
+    const result = orders.filter(order => {
       // 1. Check if order should be visible to this role
       if (!shouldShowOrder(order)) return false;
       

@@ -248,7 +248,19 @@ const AdminDashboard = () => {
       if (aUrgent && !bUrgent) return -1;
       if (!aUrgent && bUrgent) return 1;
 
-      // 2. Fallback to createdAt (oldest first)
+      // 2. Delayed
+      const getDelay = (order) => {
+        const stage = order.stages?.find(s => s.status === 'WAITING_APPROVAL' || s.stageName === order.currentStage);
+        if (!stage?.deadlineAt || stage.status === 'COMPLETED') return 0;
+        const diff = new Date(stage.deadlineAt).getTime() - new Date().getTime();
+        return diff < 0 ? Math.abs(diff) : 0;
+      };
+
+      const aDelay = getDelay(a);
+      const bDelay = getDelay(b);
+      if (aDelay > 0 || bDelay > 0) return bDelay - aDelay;
+
+      // 3. Fallback to createdAt (oldest first)
       return new Date(a.createdAt) - new Date(b.createdAt);
     }), [allOrders, approvalSearch, approvalUrgencyFilter]);
 

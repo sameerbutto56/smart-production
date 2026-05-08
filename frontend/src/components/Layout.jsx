@@ -15,7 +15,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import socket from '../socket';
 import { toast } from 'react-hot-toast';
 
-const Sidebar = ({ isOpen, toggle }) => {
+const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -53,17 +53,24 @@ const Sidebar = ({ isOpen, toggle }) => {
       </AnimatePresence>
 
       <div className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 border-r border-gray-800 flex flex-col transition-transform duration-300 transform
+        fixed inset-y-0 left-0 z-50 bg-gray-900 border-r border-gray-800 flex flex-col transition-all duration-300 transform
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-        lg:relative lg:translate-x-0
+        lg:relative lg:translate-x-0 ${isCollapsed ? 'lg:w-20' : 'lg:w-64'}
       `}>
-        <div className="p-6 flex items-center justify-between">
-          <h1 className="text-xl font-black bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent italic">
-            Enamels
-          </h1>
-          <button onClick={toggle} className="lg:hidden text-gray-400 hover:text-white">
-            <X size={24} />
+        <div className={`p-6 flex items-center justify-between ${isCollapsed ? 'lg:p-4 lg:justify-center' : ''}`}>
+          {!isCollapsed && (
+            <h1 className="text-xl font-black bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent italic">
+              Enamels
+            </h1>
+          )}
+          <button onClick={isCollapsed ? toggleCollapse : toggle} className={`${isCollapsed ? 'hidden lg:block' : 'lg:hidden'} text-gray-400 hover:text-white`}>
+            {isCollapsed ? <Menu size={24} /> : <X size={24} />}
           </button>
+          {!isCollapsed && (
+            <button onClick={toggleCollapse} className="hidden lg:block text-gray-500 hover:text-white">
+              <Menu size={20} />
+            </button>
+          )}
         </div>
         
         <nav className="flex-1 px-3 space-y-1 overflow-y-auto custom-scrollbar">
@@ -72,35 +79,48 @@ const Sidebar = ({ isOpen, toggle }) => {
               key={item.path}
               to={item.path}
               onClick={() => { if (window.innerWidth < 1024) toggle(); }}
-              className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 group ${
+              className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} p-3 rounded-xl transition-all duration-200 group ${
                 location.pathname === item.path 
                   ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' 
                   : 'text-gray-400 hover:bg-gray-800 hover:text-white'
               }`}
+              title={isCollapsed ? item.name : ""}
             >
               <item.icon size={20} className={location.pathname === item.path ? 'text-white' : 'group-hover:text-blue-400'} />
-              <span className="font-bold text-xs tracking-wide">{item.name}</span>
+              {!isCollapsed && <span className="font-bold text-xs tracking-wide">{item.name}</span>}
             </Link>
           ))}
         </nav>
 
-        <div className="p-4 border-t border-gray-800 bg-gray-950/30">
-          <div className="flex items-center space-x-3 mb-4 px-2">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-500 to-emerald-500 flex items-center justify-center font-black text-sm shadow-inner">
-              {user?.name?.charAt(0)}
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <p className="text-xs font-black truncate">{user?.name}</p>
-              <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">{user?.role?.replace('_', ' ')}</p>
-            </div>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center space-x-3 w-full p-3 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all font-bold text-xs"
-          >
-            <LogOut size={20} />
-            <span>Logout</span>
-          </button>
+        <div className={`p-4 border-t border-gray-800 bg-gray-950/30 ${isCollapsed ? 'flex justify-center' : ''}`}>
+          {!isCollapsed ? (
+            <>
+              <div className="flex items-center space-x-3 mb-4 px-2">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-500 to-emerald-500 flex items-center justify-center font-black text-sm shadow-inner">
+                  {user?.name?.charAt(0)}
+                </div>
+                <div className="flex-1 overflow-hidden">
+                  <p className="text-xs font-black truncate">{user?.name}</p>
+                  <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">{user?.role?.replace('_', ' ')}</p>
+                </div>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="flex items-center space-x-3 w-full p-3 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all font-bold text-xs"
+              >
+                <LogOut size={20} />
+                <span>Logout</span>
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={handleLogout}
+              className="p-3 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all"
+              title="Logout"
+            >
+              <LogOut size={20} />
+            </button>
+          )}
         </div>
       </div>
     </>
@@ -109,6 +129,7 @@ const Sidebar = ({ isOpen, toggle }) => {
 
 const Layout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -144,7 +165,12 @@ const Layout = () => {
 
   return (
     <div className="flex h-screen bg-gray-950 text-white overflow-hidden">
-      <Sidebar isOpen={isSidebarOpen} toggle={() => setIsSidebarOpen(!isSidebarOpen)} />
+      <Sidebar 
+        isOpen={isSidebarOpen} 
+        isCollapsed={isCollapsed}
+        toggle={() => setIsSidebarOpen(!isSidebarOpen)} 
+        toggleCollapse={() => setIsCollapsed(!isCollapsed)}
+      />
       
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Mobile Top Bar */}

@@ -147,6 +147,14 @@ const SuperAdminDashboard = () => {
       path: '/orders',
       state: { filterUrgent: true }
     },
+    { 
+      title: 'Floor Lead Time', 
+      value: combinedManufacturingStats ? `${combinedManufacturingStats.avgHours}h` : '0h', 
+      icon: Zap, 
+      color: 'text-yellow-400', 
+      bg: 'bg-yellow-400/10',
+      path: '/progress'
+    },
   ];
 
   return (
@@ -199,32 +207,6 @@ const SuperAdminDashboard = () => {
           </div>
 
           <div className="space-y-8">
-            {combinedManufacturingStats && (
-              <div className="p-8 bg-yellow-500/5 border-2 border-yellow-500/20 rounded-[2.5rem] space-y-4 mb-12 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-10">
-                  <Zap size={64} className="text-yellow-500" />
-                </div>
-                <div className="flex justify-between items-end relative z-10">
-                  <div>
-                    <span className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.3em]">Combined Manufacturing Cycle</span>
-                    <h4 className="text-2xl font-black text-white mt-1">Total Floor Lead Time</h4>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-5xl font-black text-yellow-500 tracking-tighter">{combinedManufacturingStats.avgHours}</span>
-                    <span className="text-[10px] font-black text-gray-500 uppercase ml-2 tracking-widest">Total Hours</span>
-                  </div>
-                </div>
-                <div className="h-3 bg-gray-900 rounded-full border border-gray-800 overflow-hidden">
-                  <motion.div 
-                    initial={{ width: 0 }}
-                    animate={{ width: `${Math.min(100, (parseFloat(combinedManufacturingStats.avgHours) / 168) * 100)}%` }}
-                    className="h-full bg-gradient-to-r from-yellow-600 to-amber-500 rounded-full"
-                  />
-                </div>
-                <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest text-center">Measured across {combinedManufacturingStats.count} orders through all 4 floor stages</p>
-              </div>
-            )}
-
             {analytics?.stagePerformance ? Object.entries(analytics.stagePerformance).map(([stage, stats]) => (
               <div key={stage} className="space-y-3">
                 <div className="flex justify-between items-end">
