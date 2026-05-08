@@ -17,7 +17,8 @@ import {
   Package, 
   Truck, 
   Circle,
-  Loader2
+  Loader2,
+  BellRing
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -46,6 +47,7 @@ const AdminDashboard = () => {
   const [trackingQuery, setTrackingQuery] = useState('');
   const [trackedOrder, setTrackedOrder] = useState(null);
   const [trackingError, setTrackingError] = useState('');
+  const [approvalSearch, setApprovalSearch] = useState('');
   const [analytics, setAnalytics] = useState(null);
   const [filterStage, setFilterStage] = useState('ALL');
   const [loading, setLoading] = useState(true);
@@ -227,10 +229,15 @@ const AdminDashboard = () => {
   ];
 
   const approvalQueue = useMemo(() => 
-    allOrders.filter(o => 
-      o.status === 'WAITING_APPROVAL' || 
-      o.stages?.some(s => s.status === 'WAITING_APPROVAL')
-    ), [allOrders]);
+    allOrders.filter(o => {
+      const isWaiting = o.status === 'WAITING_APPROVAL' || o.stages?.some(s => s.status === 'WAITING_APPROVAL');
+      if (!isWaiting) return false;
+      if (!approvalSearch) return true;
+      const search = approvalSearch.toLowerCase();
+      return o.id.toLowerCase().includes(search) || 
+             (o.orderNumber && o.orderNumber.toLowerCase().includes(search)) || 
+             (o.customerName && o.customerName.toLowerCase().includes(search));
+    }), [allOrders, approvalSearch]);
 
   const activeOrdersCount = useMemo(() => 
     allOrders.filter(o => o.status !== 'COMPLETED').length
@@ -279,6 +286,19 @@ const AdminDashboard = () => {
         <div>
           <h1 className="text-3xl font-black text-white tracking-tight">Faisal Control Center</h1>
           <p className="text-gray-400 font-bold uppercase tracking-widest text-[10px] mt-1">Production Approval Hub</p>
+        </div>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => {
+              const audio = new Audio(NOTIFICATION_SOUND);
+              audio.play().catch(e => console.log('Audio play failed:', e));
+              alert('Notification Alert Broadcasted!');
+            }}
+            className="flex items-center gap-2 bg-yellow-500/10 hover:bg-yellow-500 hover:text-white text-yellow-500 border border-yellow-500/20 px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all shadow-lg active:scale-95"
+          >
+            <BellRing size={16} />
+            <span>Send Alert</span>
+          </button>
         </div>
       </div>
 
@@ -564,19 +584,32 @@ const AdminDashboard = () => {
 
       {/* Approval Queue */}
       <section>
-        <div className="flex items-center space-x-4 mb-8">
-          <div className="p-3 bg-emerald-500/10 rounded-2xl">
-            <ClipboardList className="text-emerald-400" size={24} />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 bg-emerald-500/10 rounded-2xl">
+              <ClipboardList className="text-emerald-400" size={24} />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-white uppercase tracking-tight">Approval Queue</h2>
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Module requests waiting for your authorization</p>
+            </div>
+            {approvalQueue.length > 0 && !approvalSearch && (
+              <span className="bg-emerald-600 text-white px-3 py-1 rounded-full text-[10px] font-black animate-pulse">
+                {approvalQueue.length} NEW
+              </span>
+            )}
           </div>
-          <div>
-            <h2 className="text-2xl font-black text-white uppercase tracking-tight">Approval Queue</h2>
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Module requests waiting for your authorization</p>
+          
+          <div className="relative w-full md:w-auto min-w-[300px]">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+            <input
+              type="text"
+              placeholder="Search by ID or Name..."
+              value={approvalSearch}
+              onChange={(e) => setApprovalSearch(e.target.value)}
+              className="w-full bg-gray-900/50 border-2 border-gray-800 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-emerald-500 transition-all text-sm font-bold text-white"
+            />
           </div>
-          {approvalQueue.length > 0 && (
-            <span className="bg-emerald-600 text-white px-3 py-1 rounded-full text-[10px] font-black animate-pulse">
-              {approvalQueue.length} NEW
-            </span>
-          )}
         </div>
 
         {approvalQueue.length > 0 ? (
