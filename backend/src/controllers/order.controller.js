@@ -8,7 +8,7 @@ const NEXT_STAGES = {
   'FULL_CUSTOM': ['STORE', 'CUTTING', 'STITCHING', 'QA', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY']
 };
  
-const AUTO_TRANSITION_STAGES = ['CUTTING', 'STITCHING', 'QA'];
+const AUTO_TRANSITION_STAGES = ['CUTTING', 'STITCHING', 'QA', 'DISPATCH', 'OUT_FOR_DELIVERY'];
 
 const getStageDurations = async () => {
   const settings = await prisma.systemSetting.findUnique({
@@ -200,6 +200,16 @@ const requestStageCompletion = async (req, res) => {
         });
 
         await createAuditLog(orderId, 'STAGE_AUTO_TRANSITION', `${currentStage.stageName} completed by worker. Auto-moved to ${actualNextStage}`, req.user.id);
+      } else if (currentStage.stageName === 'OUT_FOR_DELIVERY') {
+        // FINAL STAGE COMPLETED
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { 
+            currentStage: 'COMPLETED',
+            status: 'COMPLETED'
+          }
+        });
+        await createAuditLog(orderId, 'ORDER_COMPLETED', `Order fully completed after final delivery stage. Moved to History.`, req.user.id);
       }
       
       const io = req.app.get('io');
