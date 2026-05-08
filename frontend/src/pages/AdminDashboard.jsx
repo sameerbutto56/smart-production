@@ -230,19 +230,30 @@ const AdminDashboard = () => {
     { title: 'Completed Today', value: stats.completedToday, icon: Users, color: 'text-emerald-400', bg: 'bg-emerald-400/10', path: '/orders', state: { filterStatus: 'COMPLETED' } },
   ];
 
-  const approvalQueue = useMemo(() => 
+   const approvalQueue = useMemo(() => 
     allOrders.filter(o => {
       const isWaiting = o.status === 'WAITING_APPROVAL' || o.stages?.some(s => s.status === 'WAITING_APPROVAL');
       if (!isWaiting) return false;
       if (approvalUrgencyFilter === 'URGENT' && !o.urgent) return false;
       if (approvalUrgencyFilter === 'STANDARD' && o.urgent) return false;
 
-      if (!approvalSearch) return true;
-      const search = approvalSearch.toLowerCase();
+      // Use trackingQuery as the primary filter if present
+      const activeSearch = trackingQuery || approvalSearch;
+      if (!activeSearch) return true;
+      const search = activeSearch.toLowerCase();
       return o.id.toLowerCase().includes(search) || 
              (o.orderNumber && o.orderNumber.toLowerCase().includes(search)) || 
              (o.customerName && o.customerName.toLowerCase().includes(search));
     }).sort((a, b) => {
+      // 0. Search Match Priority (Boost to top)
+      const activeSearch = (trackingQuery || approvalSearch)?.toLowerCase();
+      if (activeSearch) {
+        const aMatch = a.orderNumber?.toLowerCase().includes(activeSearch) || a.id.toLowerCase().includes(activeSearch);
+        const bMatch = b.orderNumber?.toLowerCase().includes(activeSearch) || b.id.toLowerCase().includes(activeSearch);
+        if (aMatch && !bMatch) return -1;
+        if (!aMatch && bMatch) return 1;
+      }
+
       // 1. URGENT
       const aUrgent = !!a.urgent;
       const bUrgent = !!b.urgent;
@@ -263,20 +274,31 @@ const AdminDashboard = () => {
 
       // 3. Fallback to createdAt (oldest first)
       return new Date(a.createdAt) - new Date(b.createdAt);
-    }), [allOrders, approvalSearch, approvalUrgencyFilter]);
+    }), [allOrders, approvalSearch, trackingQuery, approvalUrgencyFilter]);
 
   const initiationQueue = useMemo(() => 
     allOrders.filter(o => {
       const isPending = o.status === 'PENDING' || o.status === 'WAITING_PAYMENT';
       if (!isPending) return false;
       
-      if (!approvalSearch) return true;
-      const search = approvalSearch.toLowerCase();
+      const activeSearch = trackingQuery || approvalSearch;
+      if (!activeSearch) return true;
+      const search = activeSearch.toLowerCase();
       return o.id.toLowerCase().includes(search) || 
              (o.orderNumber && o.orderNumber.toLowerCase().includes(search)) || 
              (o.customerName && o.customerName.toLowerCase().includes(search));
-    }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-  , [allOrders, approvalSearch]);
+    }).sort((a, b) => {
+      // Search Match Priority
+      const activeSearch = (trackingQuery || approvalSearch)?.toLowerCase();
+      if (activeSearch) {
+        const aMatch = a.orderNumber?.toLowerCase().includes(activeSearch) || a.id.toLowerCase().includes(activeSearch);
+        const bMatch = b.orderNumber?.toLowerCase().includes(activeSearch) || b.id.toLowerCase().includes(activeSearch);
+        if (aMatch && !bMatch) return -1;
+        if (!aMatch && bMatch) return 1;
+      }
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    })
+  , [allOrders, approvalSearch, trackingQuery]);
 
   const activeOrdersCount = useMemo(() => 
     allOrders.filter(o => o.status !== 'COMPLETED').length
