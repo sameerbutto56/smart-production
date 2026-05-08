@@ -98,19 +98,19 @@ const MyTasks = () => {
       // 1. Check if order should be visible to this role
       if (!shouldShowOrder(order)) return false;
       
-      // 2. If no search term, show everything
+      // 2. Urgency Filter (Apply even if no search term)
+      if (urgencyFilter === 'URGENT' && !order.urgent) return false;
+      if (urgencyFilter === 'STANDARD' && order.urgent) return false;
+
+      // 3. If no search term, show everything remaining
       if (!searchTerm || searchTerm.trim() === "") return true;
 
       const searchLower = searchTerm.toLowerCase().trim();
 
-      // 3. Check for matches (safely)
+      // 4. Check for matches (safely)
       const nameMatch = (order.customerName || "").toLowerCase().includes(searchLower);
       const idMatch = (order.id || "").toLowerCase().includes(searchLower);
       const orderNumMatch = (order.orderNumber || "").toLowerCase().includes(searchLower);
-
-      // 4. Urgency Filter
-      if (urgencyFilter === 'URGENT' && !order.urgent) return false;
-      if (urgencyFilter === 'STANDARD' && order.urgent) return false;
 
       return nameMatch || idMatch || orderNumMatch;
     });

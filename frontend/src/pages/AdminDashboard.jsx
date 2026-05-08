@@ -48,6 +48,7 @@ const AdminDashboard = () => {
   const [trackedOrder, setTrackedOrder] = useState(null);
   const [trackingError, setTrackingError] = useState('');
   const [approvalSearch, setApprovalSearch] = useState('');
+  const [approvalUrgencyFilter, setApprovalUrgencyFilter] = useState('ALL');
   const [analytics, setAnalytics] = useState(null);
   const [filterStage, setFilterStage] = useState('ALL');
   const [loading, setLoading] = useState(true);
@@ -232,12 +233,24 @@ const AdminDashboard = () => {
     allOrders.filter(o => {
       const isWaiting = o.status === 'WAITING_APPROVAL' || o.stages?.some(s => s.status === 'WAITING_APPROVAL');
       if (!isWaiting) return false;
+      if (approvalUrgencyFilter === 'URGENT' && !o.urgent) return false;
+      if (approvalUrgencyFilter === 'STANDARD' && o.urgent) return false;
+
       if (!approvalSearch) return true;
       const search = approvalSearch.toLowerCase();
       return o.id.toLowerCase().includes(search) || 
              (o.orderNumber && o.orderNumber.toLowerCase().includes(search)) || 
              (o.customerName && o.customerName.toLowerCase().includes(search));
-    }), [allOrders, approvalSearch]);
+    }).sort((a, b) => {
+      // 1. URGENT
+      const aUrgent = !!a.urgent;
+      const bUrgent = !!b.urgent;
+      if (aUrgent && !bUrgent) return -1;
+      if (!aUrgent && bUrgent) return 1;
+
+      // 2. Fallback to createdAt (oldest first)
+      return new Date(a.createdAt) - new Date(b.createdAt);
+    }), [allOrders, approvalSearch, approvalUrgencyFilter]);
 
   const activeOrdersCount = useMemo(() => 
     allOrders.filter(o => o.status !== 'COMPLETED').length
@@ -600,15 +613,32 @@ const AdminDashboard = () => {
             )}
           </div>
           
-          <div className="relative w-full md:w-auto min-w-[300px]">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-            <input
-              type="text"
-              placeholder="Search by ID or Name..."
-              value={approvalSearch}
-              onChange={(e) => setApprovalSearch(e.target.value)}
-              className="w-full bg-gray-900/50 border-2 border-gray-800 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-emerald-500 transition-all text-sm font-bold text-white"
-            />
+          <div className="flex flex-col md:flex-row items-end gap-4 w-full md:w-auto">
+            <div className="relative w-full md:w-auto min-w-[300px]">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+              <input
+                type="text"
+                placeholder="Search by ID or Name..."
+                value={approvalSearch}
+                onChange={(e) => setApprovalSearch(e.target.value)}
+                className="w-full bg-gray-900/50 border-2 border-gray-800 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-emerald-500 transition-all text-sm font-bold text-white"
+              />
+            </div>
+            <div className="flex bg-gray-900/80 p-1 rounded-xl border border-gray-800 shrink-0">
+              {['ALL', 'URGENT', 'STANDARD'].map(type => (
+                <button
+                  key={type}
+                  onClick={() => setApprovalUrgencyFilter(type)}
+                  className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
+                    approvalUrgencyFilter === type 
+                      ? 'bg-emerald-600 text-white shadow-lg' 
+                      : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
