@@ -170,6 +170,9 @@ const getOrders = async (req, res) => {
         },
         auditLogs: {
           orderBy: { timestamp: 'desc' }
+        },
+        createdBy: {
+          select: { name: true }
         }
       },
       orderBy: { createdAt: 'desc' }

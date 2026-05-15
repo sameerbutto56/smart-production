@@ -499,6 +499,13 @@ const AllOrders = () => {
                       <div className="text-xs text-gray-500 font-medium mt-1">
                         {order.customerName}
                       </div>
+                      {order.createdBy?.name && (
+                        <div className="flex items-center gap-1 mt-1">
+                          <span className="text-[9px] font-black bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded uppercase tracking-tighter">
+                            By: {order.createdBy.name}
+                          </span>
+                        </div>
+                      )}
                       {order.customerPhone && (
                         <div className="text-[10px] text-gray-600 font-bold mt-0.5">
                           {order.customerPhone}
