@@ -64,7 +64,11 @@ const AllOrders = () => {
     latest: 'تازہ ترین'
   };
 
-  const t = (key) => useUrdu ? URDU_LABELS[key] : key.charAt(0).toUpperCase() + key.slice(1);
+  const t = (key) => {
+    if (!key) return '';
+    if (useUrdu) return URDU_LABELS[key] || key;
+    return key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
+  };
 
   useEffect(() => {
     if (location.state) {
