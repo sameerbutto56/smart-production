@@ -23,13 +23,14 @@ const ProtectedRoute = ({ children }) => {
 
 const AuthRedirectHandler = () => {
   const { user } = useAuth();
-  if (user?.role === 'SUPER_ADMIN') {
+  const role = user?.role?.toUpperCase().trim();
+  if (role === 'SUPER_ADMIN') {
     return <Navigate to="/admin" replace={true} />;
   }
-  if (user?.role === 'FAISAL' || user?.role === 'ORDER_ENTRY') {
+  if (role === 'FAISAL' || role === 'ORDER_ENTRY') {
     return <Navigate to="/dashboard" replace={true} />;
   }
-  if (user?.role === 'OUTLET') {
+  if (role === 'OUTLET') {
     return <Navigate to="/order-entry" replace={true} />;
   }
   return <Navigate to="/tasks" replace={true} />;
