@@ -10,7 +10,10 @@ import {
   ChevronRight,
   User,
   ShieldCheck,
-  X
+  X,
+  Phone,
+  Users,
+  List
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 

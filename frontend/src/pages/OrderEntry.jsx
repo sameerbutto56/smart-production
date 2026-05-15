@@ -23,6 +23,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { io } from 'socket.io-client';
+import { useAuth } from '../context/AuthContext';
 import silhouetteMale from '../assets/silhouette.png';
 import silhouetteFemale from '../assets/silhouette-female.png';
 

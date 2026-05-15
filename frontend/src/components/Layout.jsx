@@ -146,6 +146,8 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
 };
 
 const Layout = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { user } = useAuth();
