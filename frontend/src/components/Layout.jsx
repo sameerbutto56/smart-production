@@ -286,8 +286,8 @@ const Layout = () => {
           </div>
 
           <div className="flex items-center gap-4">
-            <LanguageToggle />
-            <div className={`hidden md:flex flex-col ${isUrdu ? 'items-start text-left' : 'items-end text-right'}`}>
+            
+            <div className="hidden md:flex flex-col items-end text-right">
               <span className="text-[10px] font-black text-white uppercase tracking-widest">{user?.role?.replace('_', ' ')}</span>
               <span className="text-[8px] font-bold text-gray-500 uppercase tracking-tighter">Active Session</span>
             </div>

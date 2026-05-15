@@ -160,26 +160,26 @@ const MyTasks = () => {
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
-      <div className={`flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 ${isUrdu ? 'flex-row-reverse' : ''}`}>
-        <div className={`flex items-center ${isUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-4'}`}>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+        <div className="flex items-center space-x-4">
           <div className="p-4 bg-blue-600 rounded-3xl shadow-xl shadow-blue-900/30">
             <Activity className="text-white" size={32} />
           </div>
-          <div className={isUrdu ? 'text-right' : ''}>
-            <h1 className="text-3xl font-black text-white tracking-tight">{t('Production Tasks')}</h1>
+          <div>
+            <h1 className="text-3xl font-black text-white tracking-tight">Production Tasks</h1>
             <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mt-1">Managing orders for {user?.role?.replace('_', ' ')}</p>
           </div>
         </div>
 
-        <div className={`flex flex-col md:flex-row items-end gap-4 w-full md:w-auto ${isUrdu ? 'flex-row-reverse' : ''}`}>
+        <div className="flex flex-col md:flex-row items-end gap-4 w-full md:w-auto">
           <div className="relative group w-full md:w-80">
-            <Search className={`absolute ${isUrdu ? 'right-4' : 'left-4'} top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-blue-500 transition-colors`} size={20} />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-blue-500 transition-colors" size={20} />
             <input
               type="text"
-              placeholder={isUrdu ? 'تلاش کریں...' : 'Search ID or Customer...'}
+              placeholder="Search ID or Customer..."
               value={searchTerm}
               onChange={(e) => handleLocalSearch(e.target.value)}
-              className={`w-full bg-gray-900 border-2 border-gray-800 rounded-2xl py-3 ${isUrdu ? 'pr-12 pl-4 text-right' : 'pl-12 pr-4'} focus:border-blue-500 outline-none transition-all text-sm font-medium`}
+              className="w-full bg-gray-900 border-2 border-gray-800 rounded-2xl py-3 pl-12 pr-4 focus:border-blue-500 outline-none transition-all text-sm font-medium"
             />
           </div>
           <div className="flex bg-gray-900/80 p-1 rounded-xl border border-gray-800 shrink-0">

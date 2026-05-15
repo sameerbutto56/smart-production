@@ -231,17 +231,17 @@ const DeliveryDashboard = () => {
     <div className="max-w-xl mx-auto pb-32 px-3 space-y-4">
 
       {/* Header */}
-      <div className={`flex items-center justify-between pt-3 pb-1 ${isUrdu ? 'flex-row-reverse' : ''}`}>
-        <div className={`flex items-center gap-3 ${isUrdu ? 'flex-row-reverse' : ''}`}>
+      <div className="flex items-center justify-between pt-3 pb-1">
+        <div className="flex items-center gap-3">
           <div className="p-3 bg-blue-600 rounded-2xl shadow-lg">
             <Truck className="text-white" size={22} />
           </div>
-          <div className={isUrdu ? 'text-right' : ''}>
-            <h1 className="text-2xl font-black text-white leading-none">{t('Deliveries')}</h1>
+          <div>
+            <h1 className="text-2xl font-black text-white leading-none">Deliveries</h1>
             <p className="text-[10px] text-gray-500 font-bold mt-0.5">{user?.name}</p>
           </div>
         </div>
-        <div className={`flex items-center gap-2 ${isUrdu ? 'flex-row-reverse' : ''}`}>
+        <div className="flex items-center gap-2">
           <button
             onClick={fetchOrders}
             className="w-11 h-11 flex items-center justify-center bg-gray-900 border border-gray-800 rounded-2xl text-gray-400 hover:text-white active:scale-90 transition-all"

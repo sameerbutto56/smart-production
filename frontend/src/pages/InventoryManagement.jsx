@@ -112,23 +112,23 @@ const InventoryManagement = () => {
   return (
     <div className="space-y-8 pb-20 px-4">
       {/* Header Section */}
-      <div className={`flex flex-col md:flex-row md:items-center justify-between gap-6 ${isUrdu ? 'flex-row-reverse' : ''}`}>
-        <div className={`flex items-center ${isUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-4'}`}>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="flex items-center space-x-4">
           <div className="p-4 bg-emerald-600 rounded-2xl shadow-xl shadow-emerald-900/20 rotate-2">
             <Package className="text-white" size={28} />
           </div>
-          <div className={isUrdu ? 'text-right' : ''}>
-            <h1 className="text-3xl font-black text-white tracking-tight">{t('Inventory')}</h1>
+          <div>
+            <h1 className="text-3xl font-black text-white tracking-tight">Inventory</h1>
             <p className="text-gray-400 text-sm font-medium uppercase tracking-widest">Master Product Management</p>
           </div>
         </div>
-        <div className={`flex items-center gap-4 ${isUrdu ? 'flex-row-reverse' : ''}`}>
+        <div className="flex items-center gap-4">
           <button 
             onClick={() => handleOpenModal()}
             className="bg-blue-600 hover:bg-blue-500 text-white font-black py-4 px-8 rounded-2xl shadow-2xl shadow-blue-900/30 transition-all flex items-center space-x-3 active:scale-95"
           >
             <PlusCircle size={24} />
-            <span>{t('Add New')}</span>
+            <span>Add New</span>
           </button>
         </div>
       </div>

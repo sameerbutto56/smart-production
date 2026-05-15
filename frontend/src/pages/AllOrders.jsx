@@ -238,25 +238,25 @@ const AllOrders = () => {
     <div className="space-y-10 max-w-7xl mx-auto pb-20 px-4">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-10">
-        <div className={`flex items-center ${isUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-6'}`}>
+        <div className="flex items-center space-x-6">
           <div className="p-4 bg-gradient-to-br from-emerald-600 to-teal-700 rounded-[1.8rem] shadow-2xl shadow-emerald-900/40 rotate-3">
             <Package className="text-white" size={32} />
           </div>
-          <div className={isUrdu ? 'text-right' : ''}>
-            <h1 className="text-4xl font-black text-white tracking-tight leading-none">{localT('queue')}</h1>
-            <p className="text-gray-500 text-[10px] font-black uppercase tracking-[0.4em] mt-2">{localT('monitoring')}</p>
+          <div>
+            <h1 className="text-4xl font-black text-white tracking-tight leading-none">Production Queue</h1>
+            <p className="text-gray-500 text-[10px] font-black uppercase tracking-[0.4em] mt-2">Live Monitoring</p>
           </div>
         </div>
 
-        <div className={`flex flex-wrap items-center gap-4 ${isUrdu ? 'flex-row-reverse' : ''}`}>
+        <div className="flex flex-wrap items-center gap-4">
            <div className="relative group w-full sm:w-72">
-              <Search className={`absolute ${isUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-emerald-500 transition-all duration-300`} size={20} />
+              <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-emerald-500 transition-all duration-300" size={20} />
               <input
                 type="text"
-                placeholder={localT('search')}
+                placeholder="Search order number or name..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className={`w-full bg-gray-950/80 border-2 border-gray-800 rounded-[1.5rem] py-4 ${isUrdu ? 'pr-16 pl-6 text-right' : 'pl-16 pr-6'} focus:border-emerald-500 outline-none transition-all text-sm font-black text-white placeholder-gray-800`}
+                className="w-full bg-gray-950/80 border-2 border-gray-800 rounded-[1.5rem] py-4 pl-16 pr-6 focus:border-emerald-500 outline-none transition-all text-sm font-black text-white placeholder-gray-800"
               />
             </div>
             

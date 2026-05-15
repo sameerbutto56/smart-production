@@ -7,7 +7,7 @@ import { useLanguage } from '../context/LanguageContext';
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
 
 const OrderCard = ({ order, onUpdateStage, userRole }) => {
-  const { t, isUrdu } = useLanguage();
+  const { t, isUrdu, LanguageToggle } = useLanguage();
   const currentStage = order.stages.find(s => s.status === 'WAITING_APPROVAL') || 
                       order.stages.find(s => s.status === 'IN_PROGRESS') || 
                       order.stages.find(s => s.status === 'PENDING') || 
@@ -152,23 +152,23 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
       const female = product?.femaleOptions || {};
 
       const materials = [
-        { l: 'Fabric', v: product?.fabricType },
-        { l: 'Color', v: product?.color },
-        { l: 'Gender', v: product?.gender }
+        { l: t('Fabric'), v: product?.fabricType },
+        { l: t('Color'), v: product?.color },
+        { l: t('Gender'), v: product?.gender }
       ];
 
       const measurements = [
-        { l: 'Chest', v: sizes?.chest },
-        { l: 'Shoulder', v: sizes?.shoulder },
-        { l: 'Length', v: sizes?.length },
-        { l: 'Sleeve', v: sizes?.sleeve },
-        { l: 'Waist', v: sizes?.waist },
-        { l: 'Hips', v: sizes?.hips }
+        { l: t('chest'), v: sizes?.chest },
+        { l: t('shoulder'), v: sizes?.shoulder },
+        { l: t('length'), v: sizes?.length },
+        { l: t('sleeve'), v: sizes?.sleeve },
+        { l: t('waist'), v: sizes?.waist },
+        { l: t('hips'), v: sizes?.hips }
       ];
 
       const tailoring = [
-        { l: 'Fit', v: custom?.fitType },
-        { l: 'Style', v: custom?.stitchingStyle },
+        { l: t('Fit'), v: custom?.fitType },
+        { l: t('Style'), v: custom?.stitchingStyle },
         ...(product?.gender === 'Female' ? [
           { l: 'Sleeves', v: female.sleeves },
           { l: 'Shirt L.', v: female.shirtLength },
@@ -189,7 +189,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
           
           {(order.type === 'STANDARD' || order.type === 'READY_LOGO') && (
             <div className="bg-blue-600/10 p-3 rounded-xl border border-blue-600/20 text-center mb-2">
-               <p className="text-[8px] text-blue-400 font-black uppercase tracking-widest">Base Size Pattern</p>
+               <p className="text-[8px] text-blue-400 font-black uppercase tracking-widest">{t('Size')}</p>
                <p className="text-xl font-black text-white">{product?.size || 'N/A'}</p>
             </div>
           )}
@@ -236,10 +236,10 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
             <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-2 px-1">Critical Measurements</p>
             <div className="grid grid-cols-2 gap-x-4 gap-y-1">
               {[
-                { l: 'Chest', v: sizes?.chest },
-                { l: 'Shoulder', v: sizes?.shoulder },
-                { l: 'Length', v: sizes?.length },
-                { l: 'Sleeve', v: sizes?.sleeve }
+                { l: t('chest'), v: sizes?.chest },
+                { l: t('shoulder'), v: sizes?.shoulder },
+                { l: t('length'), v: sizes?.length },
+                { l: t('sleeve'), v: sizes?.sleeve }
               ].filter(s => s.v).map((s, i) => (
                 <div key={i} className="text-[11px] text-gray-300 flex items-center justify-between border-b border-gray-800/30 pb-1">
                   <span className="font-bold text-gray-500">{s.l}:</span>
@@ -253,7 +253,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
             <div className="bg-yellow-500/5 p-3 rounded-xl border border-yellow-500/10">
               <p className="text-[8px] text-yellow-500 font-black uppercase tracking-widest mb-1 flex items-center space-x-1">
                 <MessageSquare size={10} />
-                <span>Special Tailor Notes:</span>
+                <span>{t('Design Notes')}:</span>
               </p>
               <p className="text-[11px] text-gray-300 italic font-medium leading-tight">"{custom.designNotes}"</p>
             </div>
@@ -261,10 +261,10 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
 
           <div className="flex flex-wrap gap-2">
             <div className="px-2 py-1 bg-gray-800 rounded text-[9px] font-black uppercase tracking-tighter text-gray-400 border border-gray-700">
-              FABRIC: <span className="text-blue-400">{product?.fabricType}</span>
+              {t('Fabric')}: <span className="text-blue-400">{product?.fabricType}</span>
             </div>
             <div className="px-2 py-1 bg-gray-800 rounded text-[9px] font-black uppercase tracking-tighter text-gray-400 border border-gray-700">
-              COLOR: <span className="text-blue-400">{product?.color}</span>
+              {t('Color')}: <span className="text-blue-400">{product?.color}</span>
             </div>
             {product?.gender === 'Female' && (
               <>
@@ -428,8 +428,11 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
               <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
                 <h3 className="font-black text-lg tracking-tighter text-white break-all">#{order.orderNumber || order.id.substring(0, 8)}</h3>
                 {order.urgent && (
-                   <span className="bg-blue-600 text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse uppercase tracking-tighter">Urgent</span>
+                   <span className="bg-blue-600 text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse uppercase tracking-tighter">{t('Urgent Order')}</span>
                 )}
+                <div className="ml-auto">
+                  <LanguageToggle />
+                </div>
                 <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter ${
                   order.type === 'FULL_CUSTOM' ? 'bg-indigo-600' : order.type === 'READY_LOGO' ? 'bg-purple-600' : 'bg-gray-700'
                 }`}>

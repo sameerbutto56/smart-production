@@ -74,7 +74,27 @@ export const LanguageProvider = ({ children }) => {
     'PRESSING_PACKING': 'پریسنگ اور پیکنگ',
     'DISPATCH': 'روانگی',
     'OUT_FOR_DELIVERY': 'ڈلیوری کے لیے روانہ',
-    'STORE': 'اسٹور'
+    'STORE': 'اسٹور',
+    'chest': 'چھاتی',
+    'shoulder': 'کندھا',
+    'length': 'لمبائی',
+    'sleeve': 'بازو',
+    'waist': 'کمر',
+    'hips': 'ہپس',
+    'shirtLength': 'شرٹ کی لمبائی',
+    'trouserLength': 'ٹراؤزر کی لمبائی',
+    'bottom': 'پانچہ / بوٹم',
+    'thigh': 'تھائی',
+    'mori': 'موری',
+    'ganda': 'گندہ',
+    'Fabric': 'کپڑا',
+    'Color': 'رنگ',
+    'Size': 'سائز',
+    'Product': 'پروڈکٹ',
+    'Fit': 'فٹ',
+    'Style': 'اسٹائل',
+    'Design Notes': 'ڈیزائن نوٹس',
+    'Measurements': 'پیمائش'
   };
 
   const t = (text) => {
@@ -93,7 +113,7 @@ export const LanguageProvider = ({ children }) => {
 
   return (
     <LanguageContext.Provider value={{ language, setLanguage, toggleLanguage, isUrdu, LanguageToggle, t }}>
-      <div dir={isUrdu ? 'rtl' : 'ltr'} className={isUrdu ? 'font-urdu' : ''}>
+      <div className={isUrdu ? 'font-urdu' : ''}>
         {children}
       </div>
     </LanguageContext.Provider>

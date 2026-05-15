@@ -367,9 +367,9 @@ const SmartOrderForm = () => {
           <div className="p-4 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl shadow-2xl shadow-blue-900/40 rotate-3">
             <Sparkles className="text-white" size={24} />
           </div>
-          <div className={isUrdu ? 'text-right' : ''}>
-            <h1 className="text-3xl font-black text-white tracking-tight leading-none">{isUrdu ? 'آرڈر انٹری' : 'Smart Order Flow'}</h1>
-            <p className="text-gray-500 text-[9px] font-black uppercase tracking-[0.3em] mt-1.5">{isUrdu ? 'جدید پروڈکشن سسٹم' : 'Conveyor Belt Intelligence'}</p>
+          <div>
+            <h1 className="text-3xl font-black text-white tracking-tight leading-none">Smart Order Flow</h1>
+            <p className="text-gray-500 text-[9px] font-black uppercase tracking-[0.3em] mt-1.5">Conveyor Belt Intelligence</p>
           </div>
         </div>
         
@@ -389,7 +389,7 @@ const SmartOrderForm = () => {
                 } ${isUrdu ? 'flex-row-reverse' : ''}`}
               >
                 <tab.icon size={16} className={activeTab === tab.id ? 'animate-pulse' : ''} />
-                <span className="hidden sm:inline">{isUrdu ? URDU_LABELS[tab.id === 'basic' ? 'identity' : tab.id === 'product' ? 'productSelection' : tab.id === 'custom' ? 'branding' : 'measurements'] : (tab.label.split('. ')[1] || tab.label).toUpperCase()}</span>
+                <span className="hidden sm:inline">{(tab.label.split('. ')[1] || tab.label).toUpperCase()}</span>
               </button>
             ))}
           </div>
@@ -409,14 +409,14 @@ const SmartOrderForm = () => {
               <div className={`lg:col-span-8 glass p-10 rounded-[3rem] space-y-10 border border-gray-800/50 shadow-2xl relative overflow-hidden ${useUrdu ? 'text-right' : ''}`}>
                 <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/5 rounded-full blur-3xl" />
                 
-                <div className={`flex items-center gap-4 ${useUrdu ? 'flex-row-reverse' : ''}`}>
+                <div className="flex items-center gap-4">
                   <div className="w-1.5 h-10 bg-blue-500 rounded-full shadow-[0_0_15px_rgba(59,130,246,0.6)]" />
-                  <h3 className="text-3xl font-black text-white tracking-tight">{t('identity')}</h3>
+                  <h3 className="text-3xl font-black text-white tracking-tight">Identity</h3>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                   <div className="space-y-4">
-                    <label className={`text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{t('orderNo')}</label>
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ml-4">Order No.</label>
                     <div className="relative group">
                       <Hash className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-500 transition-all duration-300`} size={24} />
                       <input
