@@ -349,13 +349,12 @@ const AdminDashboard = () => {
   return (
     <div className="space-y-6 pb-12">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
+      <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 ${isUrdu ? 'flex-row-reverse' : ''}`}>
+        <div className={isUrdu ? 'text-right' : ''}>
           <h1 className="text-3xl font-black text-white tracking-tight">{t('Control Center')}</h1>
           <p className="text-gray-400 font-bold uppercase tracking-widest text-[10px] mt-1">Production Approval Hub</p>
         </div>
-        <div className="flex items-center gap-4">
-          <LanguageToggle />
+        <div className={`flex items-center gap-4 ${isUrdu ? 'flex-row-reverse' : ''}`}>
           <button
             onClick={() => {
               const audio = new Audio(NOTIFICATION_SOUND);

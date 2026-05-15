@@ -374,7 +374,7 @@ const SmartOrderForm = () => {
         </div>
         
         <div className={`flex items-center gap-4 ${isUrdu ? 'flex-row-reverse' : ''}`}>
-          <LanguageToggle />
+
 
           <div className="flex p-1.5 bg-gray-900/80 backdrop-blur-3xl rounded-[1.8rem] border-2 border-gray-800 shadow-2xl overflow-x-auto no-scrollbar">
             {filteredTabs.map((tab, index) => (

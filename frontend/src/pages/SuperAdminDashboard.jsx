@@ -161,17 +161,16 @@ const SuperAdminDashboard = () => {
   return (
     <div className="space-y-12 pb-24">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="flex items-center space-x-4">
+      <div className={`flex flex-col md:flex-row md:items-center justify-between gap-6 ${isUrdu ? 'flex-row-reverse' : ''}`}>
+        <div className={`flex items-center ${isUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-4'}`}>
           <div className="p-4 bg-blue-600 rounded-3xl shadow-xl shadow-blue-900/30">
             <ShieldCheck className="text-white" size={32} />
           </div>
-          <div>
+          <div className={isUrdu ? 'text-right' : ''}>
             <h1 className="text-4xl font-black text-white tracking-tight">{t('Admin Portal')}</h1>
             <p className="text-gray-400 font-bold uppercase tracking-widest text-xs mt-1">Global System Oversight</p>
           </div>
         </div>
-        <LanguageToggle />
       </div>
 
 

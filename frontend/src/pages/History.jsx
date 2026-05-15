@@ -156,26 +156,26 @@ const History = () => {
   return (
     <div className="space-y-10 max-w-7xl mx-auto pb-20 px-4">
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-10">
-        <div className={`flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-6'}`}>
+      <div className={`flex flex-col md:flex-row md:items-center justify-between gap-10 ${isUrdu ? 'flex-row-reverse' : ''}`}>
+        <div className={`flex items-center ${isUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-6'}`}>
           <div className="p-4 bg-gradient-to-br from-indigo-600 to-purple-700 rounded-[1.8rem] shadow-2xl shadow-indigo-900/40 rotate-3">
             <HistoryIcon className="text-white" size={32} />
           </div>
-          <div className={useUrdu ? 'text-right' : ''}>
+          <div className={isUrdu ? 'text-right' : ''}>
             <h1 className="text-4xl font-black text-white tracking-tight leading-none">{t('archive')}</h1>
             <p className="text-gray-500 text-[10px] font-black uppercase tracking-[0.4em] mt-2">{t('performance')}</p>
           </div>
         </div>
 
-        <div className={`flex flex-col sm:flex-row items-center gap-4 ${useUrdu ? 'flex-row-reverse' : ''}`}>
-           <div className="relative group w-full sm:w-72">
-              <Search className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-indigo-500 transition-all duration-300`} size={20} />
+        <div className={`flex flex-wrap items-center gap-4 ${isUrdu ? 'flex-row-reverse' : ''}`}>
+           <div className="relative group w-full sm:w-80">
+              <Search className={`absolute ${isUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-indigo-500 transition-all duration-300`} size={20} />
               <input
                 type="text"
                 placeholder={t('search')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className={`w-full bg-gray-950/80 border-2 border-gray-800 rounded-[1.5rem] py-4 ${useUrdu ? 'pr-16 pl-6 text-right' : 'pl-16 pr-6'} focus:border-indigo-500 outline-none transition-all text-sm font-black text-white placeholder-gray-800`}
+                className={`w-full bg-gray-950/80 border-2 border-gray-800 rounded-[1.5rem] py-4 ${isUrdu ? 'pr-16 pl-6 text-right' : 'pl-16 pr-6'} focus:border-indigo-500 outline-none transition-all text-sm font-black text-white placeholder-gray-800`}
               />
             </div>
             

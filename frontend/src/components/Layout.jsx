@@ -79,8 +79,8 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
       </AnimatePresence>
 
       <div className={`
-        fixed inset-y-0 left-0 z-50 bg-gray-900 border-r border-gray-800 flex flex-col transition-all duration-300 transform
-        ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+        fixed inset-y-0 ${isUrdu ? 'right-0 border-l' : 'left-0 border-r'} z-50 bg-gray-900 border-gray-800 flex flex-col transition-all duration-300 transform
+        ${isOpen ? 'translate-x-0' : (isUrdu ? 'translate-x-full' : '-translate-x-full')}
         lg:relative lg:translate-x-0 ${isCollapsed ? 'lg:w-20' : 'lg:w-64'}
       `}>
         <div className={`p-6 flex items-center justify-between ${isCollapsed ? 'lg:p-4 lg:justify-center' : ''}`}>
@@ -262,7 +262,7 @@ const Layout = () => {
           <div className="flex items-center gap-4 flex-1">
             <button 
               onClick={() => setIsSidebarOpen(true)}
-              className="lg:hidden p-2 text-gray-400 hover:text-white bg-gray-800 rounded-lg"
+              className={`${isUrdu ? 'order-last' : ''} lg:hidden p-2 text-gray-400 hover:text-white bg-gray-800 rounded-lg`}
             >
               <Menu size={20} />
             </button>
@@ -287,7 +287,7 @@ const Layout = () => {
 
           <div className="flex items-center gap-4">
             <LanguageToggle />
-            <div className="hidden md:flex flex-col items-right text-right">
+            <div className={`hidden md:flex flex-col ${isUrdu ? 'items-start text-left' : 'items-end text-right'}`}>
               <span className="text-[10px] font-black text-white uppercase tracking-widest">{user?.role?.replace('_', ' ')}</span>
               <span className="text-[8px] font-bold text-gray-500 uppercase tracking-tighter">Active Session</span>
             </div>
