@@ -14,7 +14,9 @@ import {
   Save,
   CheckCircle2,
   AlertCircle,
-  ClipboardList
+  ClipboardList,
+  Upload,
+  Image as ImageIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
@@ -37,6 +39,46 @@ const InventoryManagement = () => {
     fabric: '',
     imageUrl: ''
   });
+
+  const [uploading, setUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+
+  const handleFileUpload = async (file) => {
+    if (!file) return;
+    setUploading(true);
+    const formDataUpload = new FormData();
+    formDataUpload.append('image', file);
+
+    try {
+      const response = await axios.post(`${API_URL}/api/upload`, formDataUpload, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setFormData(prev => ({ ...prev, imageUrl: response.data.url }));
+    } catch (error) {
+      console.error('Upload failed:', error);
+      alert('Upload failed. Only images up to 5MB are allowed.');
+    }
+    setUploading(false);
+  };
+
+  const handleDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileUpload(e.dataTransfer.files[0]);
+    }
+  };
 
   useEffect(() => {
     fetchInventory();
@@ -370,22 +412,53 @@ const InventoryManagement = () => {
                         placeholder="e.g. Cotton Blend"
                       />
                     </div>
-                  <div className="space-y-4">
-                    <div className="flex items-center space-x-3 mb-1">
-                      <div className="p-2 bg-yellow-500/10 rounded-lg">
-                        <PlusCircle size={16} className="text-yellow-400" />
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-3 mb-1">
+                        <div className="p-2 bg-yellow-500/10 rounded-lg">
+                          <ImageIcon size={16} className="text-yellow-400" />
+                        </div>
+                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Product Image (Drag & Drop)</label>
                       </div>
-                      <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Product Image URL</label>
+                      
+                      <div 
+                        onDragEnter={handleDrag}
+                        onDragLeave={handleDrag}
+                        onDragOver={handleDrag}
+                        onDrop={handleDrop}
+                        className={`relative w-full aspect-video rounded-[1.25rem] border-2 border-dashed transition-all flex flex-col items-center justify-center gap-4 overflow-hidden ${
+                          dragActive ? 'border-yellow-500 bg-yellow-500/10' : 'border-gray-800 bg-gray-950/50'
+                        } ${formData.imageUrl ? 'border-solid border-emerald-500/40' : ''}`}
+                      >
+                        {formData.imageUrl ? (
+                          <>
+                            <img src={formData.imageUrl} alt="Preview" className="absolute inset-0 w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/60 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center flex-col gap-2 backdrop-blur-sm">
+                              <Upload size={32} className="text-white" />
+                              <span className="text-[10px] font-black text-white uppercase">Replace Photo</span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            {uploading ? (
+                              <RefreshCcw size={32} className="text-yellow-500 animate-spin" />
+                            ) : (
+                              <Upload size={32} className="text-gray-700" />
+                            )}
+                            <div className="text-center">
+                              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{uploading ? 'Processing Image...' : 'Drop image here'}</p>
+                              <p className="text-[8px] text-gray-600 font-bold mt-1 uppercase">or click to browse</p>
+                            </div>
+                          </>
+                        )}
+                        <input 
+                          type="file" 
+                          className="absolute inset-0 opacity-0 cursor-pointer" 
+                          onChange={(e) => handleFileUpload(e.target.files[0])}
+                          accept="image/*"
+                        />
+                      </div>
                     </div>
-                    <input
-                      type="text"
-                      value={formData.imageUrl}
-                      onChange={(e) => setFormData({...formData, imageUrl: e.target.value})}
-                      className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-[1.25rem] py-4 px-6 focus:border-yellow-500 outline-none transition-all font-bold text-white shadow-inner"
-                      placeholder="Paste image link here (e.g. from Google Drive or Dropbox)"
-                    />
                   </div>
-                </div>
 
                   <button 
                     type="submit"
