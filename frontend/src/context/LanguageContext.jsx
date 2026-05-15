@@ -17,6 +17,8 @@ export const LanguageProvider = ({ children }) => {
     setLanguage(prev => (prev === 'en' ? 'ur' : 'en'));
   };
 
+  const isUrdu = language === 'ur';
+
   const LanguageToggle = () => (
     <button
       onClick={toggleLanguage}
@@ -25,8 +27,6 @@ export const LanguageProvider = ({ children }) => {
       {isUrdu ? 'ENG' : 'اردو'}
     </button>
   );
-
-  const isUrdu = language === 'ur';
 
   // Basic dictionary. Can be expanded infinitely.
   const dict = {
@@ -89,8 +89,6 @@ export const LanguageProvider = ({ children }) => {
     'm': 'منٹ',
     's': 'سیکنڈ',
     'to Faisal': 'فیصل کو',
-    'Approve': 'منظور کریں',
-    'Reject': 'مسترد کریں',
     'Cancel': 'کینسل / ختم کریں',
     'Hold': 'روک دیں / ہولڈ',
     'Delete': 'ڈیلیٹ کریں',
@@ -127,15 +125,6 @@ export const LanguageProvider = ({ children }) => {
     if (!isUrdu) return text;
     return dict[text] || text;
   };
-
-  const LanguageToggle = () => (
-    <button
-      onClick={toggleLanguage}
-      className={`px-4 py-2 bg-indigo-600 rounded-xl text-white font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-900/30 hover:bg-indigo-500 transition-all active:scale-95 flex-shrink-0 z-50`}
-    >
-      {isUrdu ? 'English Interface' : 'اردو انٹرفیس'}
-    </button>
-  );
 
   return (
     <LanguageContext.Provider value={{ language, setLanguage, toggleLanguage, isUrdu, LanguageToggle, t }}>
