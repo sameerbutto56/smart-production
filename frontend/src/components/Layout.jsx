@@ -74,9 +74,12 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
       `}>
         <div className={`p-6 flex items-center justify-between ${isCollapsed ? 'lg:p-4 lg:justify-center' : ''}`}>
           {!isCollapsed && (
-            <h1 className="text-xl font-black bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent italic">
-              Enamels
-            </h1>
+            <div className="flex flex-col">
+              <h1 className="text-xl font-black bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent italic">
+                Enamels
+              </h1>
+              <span className="text-[8px] font-black text-blue-500/50 tracking-[0.3em] uppercase">Build v1.0.5-OUTLET</span>
+            </div>
           )}
           <button onClick={isCollapsed ? toggleCollapse : toggle} className={`${isCollapsed ? 'hidden lg:block' : 'lg:hidden'} text-gray-400 hover:text-white`}>
             {isCollapsed ? <Menu size={24} /> : <X size={24} />}
