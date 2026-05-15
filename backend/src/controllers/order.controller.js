@@ -598,6 +598,42 @@ const deleteOrder = async (req, res) => {
   }
 };
 
+const updateDeliveryStatus = async (req, res) => {
+  const { orderId } = req.params;
+  const { deliveryStatus, remarks } = req.body; // deliveryStatus: 'DELIVERED' | 'NOT_RESPONDED'
+  const userId = req.user?.id;
+
+  try {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        status: deliveryStatus === 'DELIVERED' ? 'COMPLETED' : order.status,
+        currentStage: deliveryStatus === 'DELIVERED' ? 'DELIVERED' : order.currentStage,
+        updatedAt: new Date()
+      },
+      include: { stages: true }
+    });
+
+    await createAuditLog(
+      orderId,
+      deliveryStatus === 'DELIVERED' ? 'DELIVERED' : 'NOT_RESPONDED',
+      remarks || (deliveryStatus === 'DELIVERED' ? 'Order delivered to customer' : 'Customer did not respond'),
+      userId
+    );
+
+    const io = req.app.get('io');
+    io.emit('order-updated', { order: updatedOrder, createdById: order.createdById });
+
+    res.json(updatedOrder);
+  } catch (error) {
+    console.error('Delivery status update error:', error);
+    res.status(500).json({ message: 'Error updating delivery status', error: error.message });
+  }
+};
+
 module.exports = { 
   createOrder, 
   getOrders, 
@@ -608,5 +644,6 @@ module.exports = {
   getAnalytics,
   clearHistory,
   cancelOrder,
-  deleteOrder
+  deleteOrder,
+  updateDeliveryStatus
 };

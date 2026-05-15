@@ -12,6 +12,7 @@ import AllOrders from './pages/AllOrders';
 import History from './pages/History';
 import ProgressChart from './pages/ProgressChart';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
+import DeliveryDashboard from './pages/DeliveryDashboard';
 import { Toaster } from 'react-hot-toast';
 
 const ProtectedRoute = ({ children }) => {
@@ -30,6 +31,7 @@ const AuthRedirectHandler = () => {
   if (role === 'SUPER_ADMIN') return <Navigate to="/admin" replace={true} />;
   if (role === 'FAISAL' || role === 'ORDER_ENTRY') return <Navigate to="/dashboard" replace={true} />;
   if (role === 'OUTLET') return <Navigate to="/order-entry" replace={true} />;
+  if (role === 'DELIVERY_BOY') return <Navigate to="/delivery" replace={true} />;
   
   return <Navigate to="/tasks" replace={true} />;
 };
@@ -64,6 +66,7 @@ function App() {
               <Route path="order-entry" element={<OrderEntry />} />
               <Route path="orders" element={<AllOrders />} />
               <Route path="history" element={<History />} />
+              <Route path="delivery" element={<DeliveryDashboard />} />
             </Route>
           </Routes>
         </Router>

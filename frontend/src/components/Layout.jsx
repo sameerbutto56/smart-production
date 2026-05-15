@@ -10,7 +10,8 @@ import {
   History,
   Menu,
   X,
-  Search
+  Search,
+  Truck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import socket from '../socket';
@@ -35,11 +36,12 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'] },
     { name: 'All Orders', path: '/orders', icon: Package, roles: ['SUPER_ADMIN', 'FAISAL', 'OUTLET'] },
     { name: 'History', path: '/history', icon: History, roles: ['SUPER_ADMIN', 'FAISAL', 'OUTLET'] },
+    { name: 'Deliveries', path: '/delivery', icon: Truck, roles: ['DELIVERY_BOY', 'SUPER_ADMIN', 'FAISAL'] },
   ];
   
   const isBigScreen = user?.role === 'MAIN_EMPLOYEE';
   const userRole = String(user?.role || '').toUpperCase().trim();
-  let filteredNavItems = navItems.filter(item => 
+  let filteredNavItems = navItems.filter(item =>
     item.roles.some(r => String(r || '').toUpperCase().trim() === userRole)
   );
 
@@ -47,6 +49,13 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
   if (userRole === 'OUTLET') {
     filteredNavItems = navItems.filter(item => 
       ['Order Entry', 'All Orders', 'History'].includes(item.name)
+    );
+  }
+
+  // Delivery Boy only sees Deliveries
+  if (userRole === 'DELIVERY_BOY') {
+    filteredNavItems = navItems.filter(item =>
+      ['Deliveries'].includes(item.name)
     );
   }
 

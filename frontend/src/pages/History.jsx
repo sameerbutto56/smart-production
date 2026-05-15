@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
+import * as XLSX from 'xlsx';
 import { 
   History as HistoryIcon, 
   Search, 
@@ -13,13 +14,17 @@ import {
   X,
   Phone,
   Users,
-  List
+  List,
+  Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../context/AuthContext';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
 
 const History = () => {
+  const { user } = useAuth();
+  const isAdmin = ['SUPER_ADMIN', 'FAISAL'].includes(user?.role);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedAuditLog, setSelectedAuditLog] = useState(null);
@@ -85,6 +90,42 @@ const History = () => {
 
   const [isGroupedView, setIsGroupedView] = useState(false);
 
+  const exportToExcel = () => {
+    const data = (searchTerm ? filteredOrders : orders).map((order, idx) => {
+      let productDetails = {};
+      try { productDetails = JSON.parse(order.productDetails || '{}'); } catch {}
+      return {
+        'Sr': idx + 1,
+        'Date': new Date(order.createdAt).toLocaleDateString(),
+        'Order ID': order.orderNumber || order.id?.slice(0, 8).toUpperCase(),
+        'Customer Name': order.customerName || '',
+        'Phone Number': order.customerPhone || '',
+        'Product': productDetails.productType || order.type || '',
+        'Color': productDetails.color || '',
+        'Size': productDetails.size || '',
+        'Quantity': order.quantity || 1,
+        'Payment Method': order.advancePaid ? 'Advance Paid' : 'COD',
+        'Amount (PKR)': order.totalPrice || 0,
+        'Delivery Status': order.status,
+        'Source': order.source || '',
+        'Outlet': order.outletName || '',
+        'Delivery Date': order.updatedAt ? new Date(order.updatedAt).toLocaleDateString() : '',
+        'Remarks': order.auditLogs?.map(l => `${l.action}: ${l.details || ''}`).join(' | ') || '',
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Delivery History');
+
+    // Auto column widths
+    const cols = Object.keys(data[0] || {}).map(key => ({ wch: Math.max(key.length, 14) }));
+    ws['!cols'] = cols;
+
+    const fileName = `Enamels_History_${new Date().toLocaleDateString('en-PK').replace(/\//g, '-')}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+  };
+
   const groupedOrders = useMemo(() => {
     const groups = {};
     filteredOrders.forEach(order => {
@@ -144,6 +185,17 @@ const History = () => {
               {isGroupedView ? <List size={16} /> : <Users size={16} />}
               <span>{isGroupedView ? t('individualView') : t('bulkView')}</span>
             </button>
+
+            {isAdmin && orders.length > 0 && (
+              <button
+                onClick={exportToExcel}
+                className="flex items-center gap-3 px-8 py-4 bg-emerald-700 hover:bg-emerald-600 border-2 border-emerald-600 rounded-2xl text-white font-black text-[10px] uppercase tracking-[0.2em] transition-all shadow-xl shadow-emerald-900/30 active:scale-95"
+                title="Export complete history to Excel — Admin Only"
+              >
+                <Download size={16} />
+                <span>Export Excel</span>
+              </button>
+            )}
 
             <button 
               onClick={() => {

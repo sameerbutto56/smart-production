@@ -9,7 +9,8 @@ const {
   getAnalytics,
   clearHistory,
   cancelOrder,
-  deleteOrder
+  deleteOrder,
+  updateDeliveryStatus
 } = require('../controllers/order.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 const router = express.Router();
@@ -37,5 +38,8 @@ router.put('/:orderId/payment', authenticate, authorize(['FAISAL', 'SUPER_ADMIN'
 
 // Faisal/Admin: Get production analytics
 router.get('/analytics', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ORDER_ENTRY']), getAnalytics);
+
+// Delivery Boy: Update delivery status (Delivered / Not Responded)
+router.put('/:orderId/delivery', authenticate, authorize(['DELIVERY_BOY', 'FAISAL', 'SUPER_ADMIN']), updateDeliveryStatus);
 
 module.exports = router;
