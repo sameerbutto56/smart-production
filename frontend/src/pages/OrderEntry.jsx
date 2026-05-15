@@ -710,6 +710,7 @@ const SmartOrderForm = () => {
                     )}
                   </div>
                   
+                  <div className="grid grid-cols-4 sm:grid-cols-6 xl:grid-cols-8 gap-5">
                     {colors.map(c => (
                       <button
                         key={c.id}
