@@ -10,31 +10,39 @@ const calculateDeadline = (startDate, durationHours) => {
   let currentDate = new Date(startDate);
   let remainingHours = durationHours;
 
-  const WORK_START = 8;
+  const WORK_START = 9;
   const WORK_END = 20;
 
-  while (remainingHours > 0) {
-    // If it's outside working hours or Sunday, move to next working start
-    if (currentDate.getHours() >= WORK_END || currentDate.getHours() < WORK_START || currentDate.getDay() === 0) {
-      currentDate = addDays(currentDate, 1);
-      currentDate = setHours(currentDate, WORK_START);
-      currentDate = setMinutes(currentDate, 0);
-      currentDate = setSeconds(currentDate, 0);
-      if (currentDate.getDay() === 0) continue;
-    }
+  // Initial adjustment: Move to working hours if currently outside
+  while (currentDate.getHours() >= WORK_END || currentDate.getHours() < WORK_START || currentDate.getDay() === 0) {
+    currentDate = addDays(currentDate, 1);
+    currentDate = setHours(currentDate, WORK_START);
+    currentDate = setMinutes(currentDate, 0);
+    currentDate = setSeconds(currentDate, 0);
+    if (currentDate.getDay() !== 0) break;
+  }
 
-    // How many hours left today?
-    const hoursLeftToday = WORK_END - currentDate.getHours();
+  while (remainingHours > 0) {
+    // Current window end time
+    const currentWindowEnd = setHours(new Date(currentDate), WORK_END);
+    const msLeftToday = currentWindowEnd.getTime() - currentDate.getTime();
+    const hoursLeftToday = msLeftToday / (1000 * 60 * 60);
     
     if (remainingHours <= hoursLeftToday) {
       currentDate = addHours(currentDate, remainingHours);
       remainingHours = 0;
     } else {
       remainingHours -= hoursLeftToday;
+      // Move to next day
       currentDate = addDays(currentDate, 1);
       currentDate = setHours(currentDate, WORK_START);
       currentDate = setMinutes(currentDate, 0);
       currentDate = setSeconds(currentDate, 0);
+      
+      // Skip Sundays
+      while (currentDate.getDay() === 0) {
+        currentDate = addDays(currentDate, 1);
+      }
     }
   }
 
