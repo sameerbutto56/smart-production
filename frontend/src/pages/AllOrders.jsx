@@ -218,7 +218,7 @@ const AllOrders = () => {
     });
     return Object.values(groups).sort((a, b) => new Date(b.latestOrderDate) - new Date(a.latestOrderDate));
   }, [filteredOrders]);
-
+  return (
     <div className="space-y-10 max-w-7xl mx-auto pb-20 px-4">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-10">
