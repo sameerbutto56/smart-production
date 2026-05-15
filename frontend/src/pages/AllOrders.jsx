@@ -430,7 +430,7 @@ const AllOrders = () => {
                       <ChevronRight size={18} className="text-gray-500 ml-auto" />
                     </td>
                   </tr>
-                ))
+                )
               ) : (
                 filteredOrders.map((order) => {
                   const product = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
