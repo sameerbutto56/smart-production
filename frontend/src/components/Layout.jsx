@@ -21,7 +21,7 @@ import { useLanguage } from '../context/LanguageContext';
 
 const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
   const { user, logout } = useAuth();
-  const { t } = useLanguage();
+  const { t, isUrdu } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -158,7 +158,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
 
 const Layout = () => {
   const navigate = useNavigate();
-  const { t, LanguageToggle } = useLanguage();
+  const { t, LanguageToggle, isUrdu } = useLanguage();
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);

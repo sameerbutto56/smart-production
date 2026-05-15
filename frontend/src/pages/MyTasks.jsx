@@ -5,7 +5,7 @@ import OrderCard from '../components/OrderCard';
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
 import { useLanguage } from '../context/LanguageContext';
-import { Search, Filter, Loader2, Sparkles, AlertCircle } from 'lucide-react';
+import { Search, Filter, Loader2, Sparkles, AlertCircle, Activity } from 'lucide-react';
 import socket from '../socket';
 import toast from 'react-hot-toast';
 
