@@ -72,6 +72,7 @@ const SmartOrderForm = () => {
     stitchingStyle: '',
     fitType: 'Regular',
     designNotes: '',
+    designReference: '',
     additionalFeatures: [],
 
     // Size Data (Measurements)
@@ -468,22 +469,6 @@ const SmartOrderForm = () => {
                       />
                     </div>
                   </div>
-                  <div className="space-y-4">
-                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-2">{useUrdu ? 'تعداد (Quantity)' : 'Quantity'}</label>
-                    <div className="relative group">
-                      <div className={`absolute ${useUrdu ? 'right-5' : 'left-5'} top-1/2 -translate-y-1/2 text-gray-600 font-black text-lg group-focus-within:text-blue-500 transition-colors`}>🔢</div>
-                      <input
-                        type="number"
-                        min="1"
-                        onKeyDown={preventEnterSubmit}
-                        value={formData.quantity}
-                        onChange={(e) => setFormData({...formData, quantity: e.target.value})}
-                        className={`w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} focus:border-blue-500 focus:ring-8 focus:ring-blue-500/5 outline-none transition-all text-xl font-bold text-white placeholder-gray-700`}
-                        placeholder="1"
-                        required
-                      />
-                    </div>
-                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
@@ -724,7 +709,6 @@ const SmartOrderForm = () => {
                     )}
                   </div>
                   
-                  <div className="grid grid-cols-4 sm:grid-cols-6 xl:grid-cols-8 gap-5">
                     {colors.map(c => (
                       <button
                         key={c.id}
@@ -744,6 +728,30 @@ const SmartOrderForm = () => {
                         </span>
                       </button>
                     ))}
+                  </div>
+
+                  <div className={`mt-10 pt-10 border-t border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-8 ${useUrdu ? 'flex-row-reverse' : ''}`}>
+                    <div className="space-y-1">
+                      <h3 className={`text-xl font-black text-blue-400 flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-4'}`}>
+                        <Hash size={24} />
+                        <span>{useUrdu ? 'آرڈر کی تعداد' : 'Order Quantity'}</span>
+                      </h3>
+                      <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">How many sets are needed?</p>
+                    </div>
+                    
+                    <div className="relative group w-full sm:w-64">
+                      <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 text-gray-600 font-black text-lg group-focus-within:text-blue-500 transition-colors`}>🔢</div>
+                      <input
+                        type="number"
+                        min="1"
+                        onKeyDown={preventEnterSubmit}
+                        value={formData.quantity}
+                        onChange={(e) => setFormData({...formData, quantity: e.target.value})}
+                        className={`w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-5 ${useUrdu ? 'pr-20 pl-8 text-right' : 'pl-20 pr-8'} focus:border-blue-500 focus:ring-8 focus:ring-blue-500/5 outline-none transition-all text-2xl font-black text-white shadow-inner`}
+                        placeholder="1"
+                        required
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -829,6 +837,20 @@ const SmartOrderForm = () => {
                 </div>
 
                 <div className="space-y-8">
+                  <div className="space-y-3">
+                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-2">{useUrdu ? 'ڈیزائن ریفرنس' : 'Design Reference'}</label>
+                    <div className="relative group">
+                      <Palette className={`absolute ${useUrdu ? 'right-5' : 'left-5'} top-6 text-gray-600 group-focus-within:text-blue-500 transition-colors`} size={24} />
+                      <textarea
+                        rows="4"
+                        value={formData.designReference}
+                        onChange={(e) => setFormData({...formData, designReference: e.target.value})}
+                        className={`w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} focus:border-blue-500 focus:ring-8 focus:ring-blue-500/5 outline-none transition-all font-bold text-lg text-white placeholder-gray-800`}
+                        placeholder={useUrdu ? 'مثال: شرٹ کا ڈیزائن پینٹ پر لگائیں، یا کسی دوسرے کپڑے کا حوالہ دیں' : "Example: Match shirt design on trousers, or reference another order's pattern..."}
+                      />
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-3">
                       <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-2">{t('stitchingStyle')}</label>
