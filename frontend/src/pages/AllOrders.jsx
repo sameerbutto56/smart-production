@@ -81,10 +81,18 @@ const AllOrders = () => {
     }
     fetchOrders();
 
-    socket.on('order-updated', fetchOrders);
-    socket.on('new-order', () => {
-      fetchOrders();
-      toast('New order created', { icon: '📦' });
+    socket.on('order-updated', (data) => {
+      // Refresh if I am admin/faisal OR if this is MY order
+      if (user?.role === 'SUPER_ADMIN' || user?.role === 'FAISAL' || data?.createdById === user?.id) {
+        fetchOrders();
+      }
+    });
+
+    socket.on('new-order', (order) => {
+      if (user?.role === 'SUPER_ADMIN' || user?.role === 'FAISAL' || order?.createdById === user?.id) {
+        fetchOrders();
+        toast(`New order created: #${order.orderNumber || order.id.substring(0,8)}`, { icon: '📦' });
+      }
     });
 
     return () => {
@@ -645,9 +653,14 @@ const AllOrders = () => {
                 <div>
                   <div className="flex items-center space-x-4 mb-2">
                     <h2 className="text-4xl font-black tracking-tighter text-white">#{selectedOrder.orderNumber || selectedOrder.id.substring(0, 8)}</h2>
-                    <span className="px-3 py-1 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase tracking-widest rounded-lg">
-                      Full Production Job Sheet
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-3 py-1 border text-[10px] font-black uppercase tracking-widest rounded-lg ${selectedOrder.source === 'OUTLET' ? 'bg-purple-500/10 border-purple-500/20 text-purple-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'}`}>
+                        {selectedOrder.source || 'OUTLET'}: {selectedOrder.outletName || 'MAIN'}
+                      </span>
+                      <span className="px-3 py-1 bg-gray-800 border border-gray-700 text-gray-400 text-[10px] font-black uppercase tracking-widest rounded-lg">
+                        Full Job Sheet
+                      </span>
+                    </div>
                   </div>
                   <p className="text-gray-400 font-bold tracking-wide">{selectedOrder.customerName}</p>
                 </div>
@@ -725,9 +738,18 @@ const AllOrders = () => {
                     </div>
                   </div>
                   <div>
-                    <h4 className="text-[11px] font-black text-yellow-500 uppercase tracking-[0.3em] mb-6">04. Design Notes</h4>
-                    <div className="h-full min-h-[150px] bg-yellow-500/5 p-8 rounded-3xl border border-yellow-500/10 italic text-gray-300 leading-relaxed text-sm shadow-inner">
-                      {custom?.designNotes || 'No special design notes provided.'}
+                    <h4 className="text-[11px] font-black text-yellow-500 uppercase tracking-[0.3em] mb-6">04. Design Notes & Reference</h4>
+                    <div className="space-y-4">
+                      <div className="bg-yellow-500/5 p-6 rounded-3xl border border-yellow-500/10 italic text-gray-300 text-sm shadow-inner">
+                        <p className="text-[9px] text-yellow-600 font-black uppercase mb-2">Instructions:</p>
+                        {custom?.designNotes || 'No special design notes.'}
+                      </div>
+                      {custom?.designReference && (
+                        <div className="bg-blue-500/5 p-6 rounded-3xl border border-blue-500/10 italic text-gray-300 text-sm shadow-inner">
+                          <p className="text-[9px] text-blue-600 font-black uppercase mb-2">Design Cross-Reference:</p>
+                          {custom.designReference}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </section>

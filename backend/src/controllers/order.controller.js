@@ -79,6 +79,8 @@ const createOrder = async (req, res) => {
         customerName,
         customerPhone,
         createdById: req.user?.id,
+        source: req.user?.role === 'OUTLET' ? 'OUTLET' : 'INTERNAL',
+        outletName: req.user?.name || 'MAIN HUB',
         type: type || 'STANDARD',
         urgent: urgent || false,
         quantity: parseInt(quantity) || 1,
@@ -228,7 +230,7 @@ const requestStageCompletion = async (req, res) => {
       }
       
       const io = req.app.get('io');
-      io.emit('order-updated', { orderId });
+      io.emit('order-updated', { orderId, createdById: order.createdById });
       return res.json({ message: 'Auto-moved to next stage', nextStage: actualNextStage });
     }
 
@@ -250,7 +252,7 @@ const requestStageCompletion = async (req, res) => {
 
     const io = req.app.get('io');
     io.emit('stage-completion-requested', { orderId, stage });
-    io.emit('order-updated', { orderId });
+    io.emit('order-updated', { orderId, createdById: order?.createdById || stage?.order?.createdById });
     io.emit('global-alert', {
       title: 'Approval Required',
       message: `${stage.stageName.replace(/_/g, ' ')} completed. Sent to Faisal.`,
@@ -380,7 +382,7 @@ const approveStageCompletion = async (req, res) => {
     await createAuditLog(orderId, 'STAGE_APPROVED', `${currentStageRecord.stageName} approved. ${actualNextStage ? `Sent to: ${actualNextStage}` : 'Returned to Faisal Control Center'}${customizationPrice ? ` | Added Cost: $${customizationPrice}` : ''}`, req.user.id);
 
     const io = req.app.get('io');
-    io.emit('order-updated', { orderId });
+    io.emit('order-updated', { orderId, createdById: order?.createdById || stage?.order?.createdById });
 
     res.json({ message: 'Stage processed successfully', nextStage: actualNextStage });
   } catch (error) {
@@ -395,6 +397,7 @@ const rejectStageCompletion = async (req, res) => {
   try {
     const stage = await prisma.orderStage.update({
       where: { id: stageId },
+      include: { order: true },
       data: {
         status: 'REJECTED',
         requestNextStep: false,
@@ -404,7 +407,7 @@ const rejectStageCompletion = async (req, res) => {
 
     const io = req.app.get('io');
     io.emit('stage-rejected', { orderId, stage, reason });
-    io.emit('order-updated', { orderId }); // Ensure general update is also sent
+    io.emit('order-updated', { orderId, createdById: stage.order?.createdById });
 
     await createAuditLog(orderId, 'STAGE_REJECTED', `${stage.stageName} rejected by Faisal. Reason: ${reason}`, req.user.id);
 
@@ -450,7 +453,7 @@ const updatePaymentStatus = async (req, res) => {
     }
 
     const io = req.app.get('io');
-    io.emit('order-updated', { orderId, paymentStatus: order.paymentStatus });
+    io.emit('order-updated', { orderId, paymentStatus: order.paymentStatus, createdById: order.createdById });
     io.emit('payment-updated', { orderId, order });
 
     await createAuditLog(orderId, 'PAYMENT_UPDATED', `Payment status changed to: ${paymentStatus}`, req.user.id);
@@ -567,7 +570,7 @@ const cancelOrder = async (req, res) => {
     });
 
     const io = req.app.get('io');
-    io.emit('order-updated', { orderId });
+    io.emit('order-updated', { orderId, createdById: order?.createdById || stage?.order?.createdById });
 
     await createAuditLog(orderId, 'ORDER_CANCELLED', `Order permanently cancelled by Faisal. Reason: ${reason}`, req.user.id);
 

@@ -40,6 +40,8 @@ model Order {
   currentStage    String       @default("ORDER_ENTRY")
   status          String       @default("PENDING")
   advancePaid     Boolean      @default(false)
+  source          String       @default("OUTLET")
+  outletName      String?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
   paymentDeadline DateTime?

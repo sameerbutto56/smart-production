@@ -266,6 +266,7 @@ const SmartOrderForm = () => {
           stitchingStyle: formData.stitchingStyle,
           fitType: formData.fitType,
           designNotes: formData.designNotes,
+          designReference: formData.designReference,
           additionalFeatures: formData.additionalFeatures
         },
         sizeData: formData.measurements,
