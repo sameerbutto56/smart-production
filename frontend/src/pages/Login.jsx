@@ -140,9 +140,12 @@ const Login = () => {
           </form>
         </div>
 
-        <div className="mt-4 text-center">
-          <p className="text-[8px] text-gray-600 font-black uppercase tracking-[0.5em] opacity-40 hover:opacity-100 transition-opacity cursor-default">
-            Secure Ecosystem v8.2.1
+        <div className="mt-4 text-center space-y-2">
+          <p className="text-[8px] text-gray-500 font-black uppercase tracking-[0.4em]">
+            Build v1.0.5-OUTLET (READY)
+          </p>
+          <p className="text-[7px] text-gray-700 font-bold uppercase tracking-widest">
+            If updates don't show, press Ctrl + F5
           </p>
         </div>
       </motion.div>
