@@ -650,7 +650,8 @@ const SmartOrderForm = () => {
                           ...formData, 
                           productType: val,
                           fabricType: selectedItem?.fabric || formData.fabricType,
-                          color: selectedItem?.color || formData.color
+                          color: selectedItem?.color || formData.color,
+                          productImage: selectedItem?.imageUrl || null
                         });
                       }}
                       sublabel={`${useUrdu ? 'اسٹاک' : 'Stock'}: ${item.stock}`}

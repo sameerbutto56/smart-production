@@ -40,6 +40,7 @@ model Order {
   currentStage    String       @default("ORDER_ENTRY")
   status          String       @default("PENDING")
   advancePaid     Boolean      @default(false)
+  productImage    String?      // NEW: Store product image URL
   source          String       @default("OUTLET")
   outletName      String?
   createdAt       DateTime     @default(now())
@@ -99,6 +100,7 @@ model InventoryItem {
   fabric    String?
   stock     Int      @default(0)
   price     Float?
+  imageUrl  String?  // NEW: Store inventory item image URL
   metadata  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

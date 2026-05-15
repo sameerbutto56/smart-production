@@ -447,19 +447,26 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
               <div className="text-[7px] text-gray-700">v1.1</div>
               <LanguageToggle />
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
-                <h3 className="font-black text-lg tracking-tighter text-white break-all">#{order.orderNumber || order.id.substring(0, 8)}</h3>
-                {order.urgent && (
-                   <span className="bg-blue-600 text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse uppercase tracking-tighter">{t('Urgent Order')}</span>
-                )}
-                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter ${
-                  order.type === 'FULL_CUSTOM' ? 'bg-indigo-600' : order.type === 'READY_LOGO' ? 'bg-purple-600' : 'bg-gray-700'
-                }`}>
-                  {order.type}
-                </span>
+            <div className="flex items-center gap-4 flex-1 min-w-0">
+              {order.productImage && (
+                <div className="flex-shrink-0 w-12 h-12 rounded-xl overflow-hidden border border-gray-700 shadow-lg">
+                  <img src={order.productImage} alt="Product" className="w-full h-full object-cover" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
+                  <h3 className="font-black text-lg tracking-tighter text-white break-all">#{order.orderNumber || order.id.substring(0, 8)}</h3>
+                  {order.urgent && (
+                     <span className="bg-blue-600 text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse uppercase tracking-tighter">{t('Urgent Order')}</span>
+                  )}
+                  <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter ${
+                    order.type === 'FULL_CUSTOM' ? 'bg-indigo-600' : order.type === 'READY_LOGO' ? 'bg-purple-600' : 'bg-gray-700'
+                  }`}>
+                    {order.type}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400 font-bold tracking-wide truncate">{order.customerName}</p>
               </div>
-              <p className="text-xs text-gray-400 font-bold tracking-wide truncate">{order.customerName}</p>
             </div>
                 <span className={`px-2 py-0.5 rounded-full text-[8px] font-black tracking-widest ${order.status === 'ON_HOLD' ? 'bg-orange-500/20 text-orange-400' : isWaitingApproval ? 'bg-orange-500 text-white animate-pulse' : 'bg-blue-500/10 text-blue-400'} border border-current flex items-center gap-1`}>
                   {(isWaitingApproval || order.status === 'ON_HOLD') && <AlertCircle size={8} />}

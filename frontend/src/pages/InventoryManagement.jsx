@@ -34,7 +34,8 @@ const InventoryManagement = () => {
     stock: 0,
     price: 0,
     color: '',
-    fabric: ''
+    fabric: '',
+    imageUrl: ''
   });
 
   useEffect(() => {
@@ -64,11 +65,12 @@ const InventoryManagement = () => {
         stock: item.stock,
         price: item.price || 0,
         color: item.color || '',
-        fabric: item.fabric || ''
+        fabric: item.fabric || '',
+        imageUrl: item.imageUrl || ''
       });
     } else {
       setEditingItem(null);
-      setFormData({ name: '', category: 'SCRUBS', stock: 0, price: 0, color: '', fabric: '' });
+      setFormData({ name: '', category: 'SCRUBS', stock: 0, price: 0, color: '', fabric: '', imageUrl: '' });
     }
     setIsModalOpen(true);
   };
@@ -183,13 +185,17 @@ const InventoryManagement = () => {
               <div className="absolute -right-6 -top-6 w-32 h-32 bg-gradient-to-br from-emerald-500/10 to-blue-500/10 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
               
               <div className="flex justify-between items-start mb-6">
-                <div className={`p-4 rounded-2xl shadow-xl ${
+                <div className={`p-4 rounded-2xl shadow-xl overflow-hidden ${
                   ['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS'].includes(item.category) ? 'bg-blue-600/10 text-blue-400' :
                   item.category === 'FABRIC' ? 'bg-emerald-600/10 text-emerald-400' :
                   'bg-purple-600/10 text-purple-400'
                 }`}>
-                  {['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS'].includes(item.category) ? <Package size={24} /> : 
-                   item.category === 'FABRIC' ? <Layers size={24} /> : <Palette size={24} />}
+                  {item.imageUrl ? (
+                    <img src={item.imageUrl} alt={item.name} className="w-6 h-6 object-cover rounded-md" />
+                  ) : (
+                    ['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS'].includes(item.category) ? <Package size={24} /> : 
+                    item.category === 'FABRIC' ? <Layers size={24} /> : <Palette size={24} />
+                  )}
                 </div>
                 <div className="flex space-x-2 relative z-10">
                   <button onClick={(e) => { e.stopPropagation(); handleOpenModal(item); }} className="p-2.5 bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white rounded-xl transition-all">
@@ -364,7 +370,22 @@ const InventoryManagement = () => {
                         placeholder="e.g. Cotton Blend"
                       />
                     </div>
+                  <div className="space-y-4">
+                    <div className="flex items-center space-x-3 mb-1">
+                      <div className="p-2 bg-yellow-500/10 rounded-lg">
+                        <PlusCircle size={16} className="text-yellow-400" />
+                      </div>
+                      <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Product Image URL</label>
+                    </div>
+                    <input
+                      type="text"
+                      value={formData.imageUrl}
+                      onChange={(e) => setFormData({...formData, imageUrl: e.target.value})}
+                      className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-[1.25rem] py-4 px-6 focus:border-yellow-500 outline-none transition-all font-bold text-white shadow-inner"
+                      placeholder="Paste image link here (e.g. from Google Drive or Dropbox)"
+                    />
                   </div>
+                </div>
 
                   <button 
                     type="submit"

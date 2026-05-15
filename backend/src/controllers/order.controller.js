@@ -63,7 +63,7 @@ const createAuditLog = async (orderId, action, details, userId) => {
 
 
 const createOrder = async (req, res) => {
-  const { orderNumber, customerName, customerPhone, type, urgent, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, shopifyOrderId, paymentDeadline } = req.body;
+  const { orderNumber, customerName, customerPhone, type, urgent, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, shopifyOrderId, paymentDeadline, productImage } = req.body;
 
   if (!customerPhone) {
     return res.status(400).json({ error: 'Customer phone number is required' });
@@ -90,6 +90,7 @@ const createOrder = async (req, res) => {
         productDetails: productDetails ? JSON.stringify(productDetails) : null,
         sizeData: sizeData ? JSON.stringify(sizeData) : null,
         advancePaid: advancePaid || false,
+        productImage,
         totalPrice: parseFloat(req.body.totalPrice) || 0,
         shopifyOrderId,
         paymentDeadline: paymentDeadline ? new Date(paymentDeadline) : (type === 'READY_LOGO' ? new Date(Date.now() + 48 * 60 * 60 * 1000) : null),

@@ -11,10 +11,10 @@ const getInventory = async (req, res) => {
 };
 
 const createInventoryItem = async (req, res) => {
-  const { name, category, stock, price, color, fabric } = req.body;
+  const { name, category, stock, price, color, fabric, imageUrl } = req.body;
   try {
     const item = await prisma.inventoryItem.create({
-      data: { name, category, stock, price, color, fabric }
+      data: { name, category, stock, price, color, fabric, imageUrl }
     });
     
     // Emit socket event
@@ -29,11 +29,11 @@ const createInventoryItem = async (req, res) => {
 
 const updateInventoryItem = async (req, res) => {
   const { id } = req.params;
-  const { name, category, stock, price, color, fabric } = req.body;
+  const { name, category, stock, price, color, fabric, imageUrl } = req.body;
   try {
     const item = await prisma.inventoryItem.update({
       where: { id },
-      data: { name, category, stock, price, color, fabric }
+      data: { name, category, stock, price, color, fabric, imageUrl }
     });
     
     // Emit socket event
