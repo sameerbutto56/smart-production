@@ -133,7 +133,9 @@ const SuperAdminDashboard = () => {
     },
     { 
       title: 'Avg Lead Time', 
-      value: analytics?.stagePerformance ? `${(Object.values(analytics.stagePerformance).reduce((acc, curr) => acc + parseFloat(curr.avgHours), 0) / Object.keys(analytics.stagePerformance).length).toFixed(1)}h` : '0.0h', 
+      value: (analytics?.stagePerformance && Object.keys(analytics.stagePerformance).length > 0) 
+        ? `${(Object.values(analytics.stagePerformance).reduce((acc, curr) => acc + parseFloat(curr.avgHours), 0) / Object.keys(analytics.stagePerformance).length).toFixed(1)}h` 
+        : '0.0h', 
       icon: Timer, 
       color: 'text-purple-400', 
       bg: 'bg-purple-400/10',
@@ -141,7 +143,7 @@ const SuperAdminDashboard = () => {
     },
     { 
       title: 'Delayed Tasks', 
-      value: '12', 
+      value: analytics?.delayedOrders || 0, 
       icon: AlertTriangle, 
       color: 'text-red-400', 
       bg: 'bg-red-400/10',

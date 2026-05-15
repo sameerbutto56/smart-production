@@ -470,7 +470,7 @@ const getAnalytics = async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const [totalOrders, completedOrders, inProgressOrders, urgentOrders, todayRevenueData] = await Promise.all([
+    const [totalOrders, completedOrders, inProgressOrders, urgentOrders, todayRevenueData, delayedOrders] = await Promise.all([
       prisma.order.count(),
       prisma.order.count({ where: { status: 'COMPLETED' } }),
       prisma.order.count({ where: { status: 'IN_PROGRESS' } }),
@@ -481,6 +481,12 @@ const getAnalytics = async (req, res) => {
         },
         _sum: {
           totalPrice: true
+        }
+      }),
+      prisma.orderStage.count({
+        where: {
+          status: { in: ['PENDING', 'STARTED'] },
+          deadlineAt: { lt: new Date() }
         }
       })
     ]);
@@ -524,6 +530,7 @@ const getAnalytics = async (req, res) => {
       inProgressOrders,
       urgentOrders,
       todayRevenue,
+      delayedOrders,
       stagePerformance
     });
   } catch (error) {
