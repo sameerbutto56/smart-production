@@ -103,6 +103,7 @@ const SmartOrderForm = () => {
 
   const { user } = useAuth();
   const { isUrdu, LanguageToggle } = useLanguage();
+  const useUrdu = isUrdu;
   const isOutlet = user?.role === 'OUTLET';
 
   const URDU_LABELS = {
@@ -367,13 +368,14 @@ const SmartOrderForm = () => {
           <div className="p-4 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl shadow-2xl shadow-blue-900/40 rotate-3">
             <Sparkles className="text-white" size={24} />
           </div>
-          <div>
-            <h1 className="text-3xl font-black text-white tracking-tight leading-none">Smart Order Flow</h1>
-            <p className="text-gray-500 text-[9px] font-black uppercase tracking-[0.3em] mt-1.5">Conveyor Belt Intelligence</p>
+          <div className={isUrdu ? 'text-right' : ''}>
+            <h1 className="text-3xl font-black text-white tracking-tight leading-none">{isUrdu ? 'سمارٹ آرڈر انٹری' : 'Smart Order Flow'}</h1>
+            <p className="text-gray-500 text-[9px] font-black uppercase tracking-[0.3em] mt-1.5">{isUrdu ? 'پیداواری بہاؤ کی ذہانت' : 'Conveyor Belt Intelligence'}</p>
           </div>
         </div>
         
         <div className={`flex items-center gap-4 ${isUrdu ? 'flex-row-reverse' : ''}`}>
+          <LanguageToggle />
 
 
           <div className="flex p-1.5 bg-gray-900/80 backdrop-blur-3xl rounded-[1.8rem] border-2 border-gray-800 shadow-2xl overflow-x-auto no-scrollbar">
