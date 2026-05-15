@@ -22,6 +22,8 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [showRejectionDialog, setShowRejectionDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [showHoldDialog, setShowHoldDialog] = useState(false);
+  const [holdReason, setHoldReason] = useState('');
   const [nextStage, setNextStage] = useState('');
   const [customizationAmount, setCustomizationAmount] = useState('0');
   const [rejectionReason, setRejectionReason] = useState('');
@@ -44,7 +46,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
         const absoluteDiff = Math.abs(diff);
         const h = Math.floor(absoluteDiff / (1000 * 60 * 60));
         const m = Math.floor((absoluteDiff % (1000 * 60 * 60)) / (1000 * 60));
-        setTimeLeft(`DELAYED: ${h}h ${m}m`);
+        setTimeLeft(`${t('Delayed')}: ${h}${t('h')} ${m}${t('m')}`);
         setIsDelayed(true);
         setUrgencyColor('text-red-500 font-black animate-pulse');
         return;
@@ -54,7 +56,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((diff % (1000 * 60)) / 1000);
 
-      setTimeLeft(`${hours}h ${minutes}m ${seconds}s`);
+      setTimeLeft(`${hours}${t('h')} ${minutes}${t('m')} ${seconds}${t('s')}`);
       
       // Dynamic color based on time left
       if (hours < 1) setUrgencyColor('text-red-400 font-black');
@@ -411,6 +413,24 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
     ));
   };
 
+  const handleHoldAction = async (resume = false) => {
+    try {
+      const token = sessionStorage.getItem('token');
+      await axios.put(`${API_URL}/api/orders/${order.id}/hold`, { 
+        reason: holdReason,
+        resume
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setShowHoldDialog(false);
+      setHoldReason('');
+      onUpdateStage(order.id, null, resume ? 'resume' : 'hold');
+    } catch (error) {
+      console.error('Hold action error:', error);
+      alert(error.response?.data?.message || 'Failed to update hold status');
+    }
+  };
+
   const isWaitingApproval = currentStage?.status === 'WAITING_APPROVAL';
 
   return (
@@ -419,20 +439,20 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
         layout
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className={`glass rounded-3xl overflow-hidden mb-6 ${order.urgent ? 'card-urgent' : isDelayed ? 'card-delayed' : 'border border-gray-800'} ${order.status === 'REJECTED' ? 'border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.1)]' : ''}`}
+        className={`glass rounded-3xl overflow-hidden mb-6 ${order.urgent ? 'card-urgent' : isDelayed ? 'card-delayed' : 'border border-gray-800'} ${order.status === 'REJECTED' ? 'border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.1)]' : order.status === 'ON_HOLD' ? 'border-orange-500/50 shadow-[0_0_20px_rgba(249,115,22,0.1)]' : ''}`}
       >
         <div className="p-4">
           <div className="flex justify-between items-start mb-4 gap-2">
-            <div className="text-[7px] text-gray-700 absolute top-1 right-3">v1.1</div>
+            <div className="flex flex-col items-end gap-1 absolute top-2 right-3">
+              <div className="text-[7px] text-gray-700">v1.1</div>
+              <LanguageToggle />
+            </div>
             <div className="flex-1 min-w-0">
               <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
                 <h3 className="font-black text-lg tracking-tighter text-white break-all">#{order.orderNumber || order.id.substring(0, 8)}</h3>
                 {order.urgent && (
                    <span className="bg-blue-600 text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse uppercase tracking-tighter">{t('Urgent Order')}</span>
                 )}
-                <div className="ml-auto">
-                  <LanguageToggle />
-                </div>
                 <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter ${
                   order.type === 'FULL_CUSTOM' ? 'bg-indigo-600' : order.type === 'READY_LOGO' ? 'bg-purple-600' : 'bg-gray-700'
                 }`}>
@@ -441,9 +461,9 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
               </div>
               <p className="text-xs text-gray-400 font-bold tracking-wide truncate">{order.customerName}</p>
             </div>
-                <span className={`px-2 py-0.5 rounded-full text-[8px] font-black tracking-widest ${isWaitingApproval ? 'bg-orange-500 text-white animate-pulse' : 'bg-blue-500/10 text-blue-400'} border border-current flex items-center gap-1`}>
-                  {isWaitingApproval && <AlertCircle size={8} />}
-                  {currentStage?.stageName?.replace(/_/g, ' ')}
+                <span className={`px-2 py-0.5 rounded-full text-[8px] font-black tracking-widest ${order.status === 'ON_HOLD' ? 'bg-orange-500/20 text-orange-400' : isWaitingApproval ? 'bg-orange-500 text-white animate-pulse' : 'bg-blue-500/10 text-blue-400'} border border-current flex items-center gap-1`}>
+                  {(isWaitingApproval || order.status === 'ON_HOLD') && <AlertCircle size={8} />}
+                  {order.status === 'ON_HOLD' ? t('Hold') : t(currentStage?.stageName)}
                 </span>
           </div>
 
@@ -506,7 +526,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
               </div>
             )}
             <div className="mt-5 pt-4 border-t border-gray-800 flex items-center justify-between">
-              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Click to Expand Job Sheet</span>
+              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">{t('Click to Expand Job Sheet')}</span>
               <div className="h-1.5 w-1.5 bg-blue-500 rounded-full animate-pulse shadow-[0_0_10px_#3b82f6]"></div>
             </div>
           </motion.div>
@@ -517,10 +537,10 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
               <h5 className="text-[8px] font-black text-gray-500 uppercase tracking-[0.2em] mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <History size={10} />
-                  Production History
+                  {t('Production History')}
                 </div>
                 <span className="text-[8px] text-yellow-500 font-black">
-                  👨‍💼 {order.stages.filter(s => s.status === 'COMPLETED' && s.stageName !== 'ORDER_ENTRY').length}x to Faisal
+                  👨‍💼 {order.stages.filter(s => s.status === 'COMPLETED' && s.stageName !== 'ORDER_ENTRY').length}x {t('to Faisal')}
                 </span>
               </h5>
               <div className="space-y-2 relative">
@@ -540,7 +560,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
                             {s.stageName.replace(/_/g, ' ')}
                           </span>
-                          <span className="text-[8px] text-yellow-500/60">→ Faisal</span>
+                          <span className="text-[8px] text-yellow-500/60">→ {t('Faisal')}</span>
                         </div>
                         <span className="text-[9px] text-gray-600 font-medium">
                           {new Date(s.completedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} | {new Date(s.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -559,7 +579,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                 className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-xl shadow-blue-900/20"
               >
                 <ChevronRight size={14} />
-                <span>Initiate Next Phase</span>
+                <span>{t('Initiate Next Phase')}</span>
               </button>
             ) : isWaitingApproval ? (
               isFaisal ? (
@@ -570,7 +590,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                       className="flex-1 min-w-[100px] bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg"
                     >
                       <Check size={16} />
-                      <span>Approve</span>
+                      <span>{t('Approve')}</span>
                     </button>
                     {(currentStage?.rejectionReason?.includes('Out of Stock') || currentStage?.rejectionReason?.includes('PROBLEM')) ? (
                       <button
@@ -578,7 +598,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                         className="flex-1 min-w-[100px] bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 border border-yellow-500/20"
                       >
                         <RefreshCcw size={16} />
-                        <span>Send Again</span>
+                        <span>{t('Send Again')}</span>
                       </button>
                     ) : (
                       <button
@@ -586,7 +606,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                         className="flex-1 min-w-[100px] bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 border border-red-500/20"
                       >
                         <X size={16} />
-                        <span>Reject</span>
+                        <span>{t('Reject')}</span>
                       </button>
                     )}
                     <div className="flex gap-2">
@@ -596,7 +616,19 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                         title="Cancel Order Permanently"
                       >
                         <Trash2 size={16} />
-                        <span>Cancel</span>
+                        <span>{t('Cancel')}</span>
+                      </button>
+                      <button
+                        onClick={() => order.status === 'ON_HOLD' ? handleHoldAction(true) : setShowHoldDialog(true)}
+                        className={`flex-1 min-w-[100px] py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 border ${
+                          order.status === 'ON_HOLD' 
+                            ? 'bg-emerald-600/20 text-emerald-500 border-emerald-500/30' 
+                            : 'bg-orange-600/10 hover:bg-orange-600 text-orange-500 hover:text-white border-orange-500/20'
+                        }`}
+                        title={order.status === 'ON_HOLD' ? 'Resume Order' : 'Put on Hold'}
+                      >
+                        <Clock size={16} />
+                        <span>{order.status === 'ON_HOLD' ? 'RESUME' : t('Hold')}</span>
                       </button>
                       {isFaisal && (
                         <button
@@ -617,7 +649,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                           title="Delete Order Permanently"
                         >
                           <Trash2 size={16} />
-                          <span>Delete</span>
+                          <span>{t('Delete')}</span>
                         </button>
                       )}
                     </div>
@@ -637,7 +669,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                         title="Update Payment"
                       >
                         <AlertCircle size={16} />
-                        <span className="text-[10px] font-black">PAY</span>
+                        <span className="text-[10px] font-black">{t('Pay')}</span>
                       </button>
                     )}
                   </div>
@@ -1130,6 +1162,43 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                 className="w-full bg-gray-900 hover:bg-gray-800 text-gray-500 py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
               >
                 Keep Order
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+      {showHoldDialog && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="glass max-w-sm w-full p-8 rounded-[2rem] border-2 border-orange-500/30 shadow-2xl"
+          >
+            <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-4 text-center">{t('Hold')} Order</h3>
+            <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest text-center mb-8">Explain why this order is being paused</p>
+            
+            <textarea 
+              value={holdReason}
+              onChange={(e) => setHoldReason(e.target.value)}
+              className="w-full bg-gray-950 border-2 border-gray-800 rounded-2xl py-4 px-6 outline-none focus:border-orange-500 transition-all text-white font-bold text-sm min-h-[120px] mb-8"
+              placeholder="Reason for hold..."
+            />
+
+            <div className="flex flex-col space-y-3">
+              <button 
+                onClick={() => handleHoldAction(false)}
+                className="w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-5 rounded-xl text-xs uppercase tracking-widest transition-all shadow-xl shadow-orange-900/20"
+              >
+                Confirm Hold
+              </button>
+              <button 
+                onClick={() => {
+                  setShowHoldDialog(false);
+                  setHoldReason('');
+                }}
+                className="w-full bg-gray-900 hover:bg-gray-800 text-gray-500 py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+              >
+                Go Back
               </button>
             </div>
           </motion.div>

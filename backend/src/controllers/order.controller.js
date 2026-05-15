@@ -550,6 +550,44 @@ const clearHistory = async (req, res) => {
   }
 };
 
+const holdOrder = async (req, res) => {
+  const { orderId } = req.params;
+  const { reason, resume } = req.body; // if resume is true, it will move back to PENDING/IN_PROGRESS
+
+  try {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    const newStatus = resume ? 'IN_PROGRESS' : 'ON_HOLD';
+    
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: { status: newStatus }
+    });
+
+    // Update the active stage status
+    await prisma.orderStage.updateMany({
+      where: { 
+        orderId, 
+        status: { in: resume ? ['ON_HOLD'] : ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] } 
+      },
+      data: { 
+        status: resume ? 'IN_PROGRESS' : 'ON_HOLD',
+        rejectionReason: resume ? `ORDER RESUMED: ${reason}` : `ORDER PUT ON HOLD: ${reason}`
+      }
+    });
+
+    const io = req.app.get('io');
+    io.emit('order-updated', { order: updatedOrder, createdById: order.createdById });
+
+    await createAuditLog(orderId, resume ? 'ORDER_RESUMED' : 'ORDER_ON_HOLD', reason || (resume ? 'Order resumed' : 'Order put on hold'), req.user.id);
+
+    res.json({ message: resume ? 'Order resumed' : 'Order put on hold', order: updatedOrder });
+  } catch (error) {
+    res.status(500).json({ message: 'Error updating hold status', error: error.message });
+  }
+};
+
 const cancelOrder = async (req, res) => {
   const { orderId } = req.params;
   const { reason } = req.body;
@@ -565,12 +603,12 @@ const cancelOrder = async (req, res) => {
 
     // Also mark current active stage as REJECTED
     await prisma.orderStage.updateMany({
-      where: { orderId, status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] } },
+      where: { orderId, status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL', 'ON_HOLD'] } },
       data: { status: 'REJECTED', rejectionReason: `ORDER CANCELLED: ${reason}` }
     });
 
     const io = req.app.get('io');
-    io.emit('order-updated', { orderId, createdById: order?.createdById || stage?.order?.createdById });
+    io.emit('order-updated', { orderId, createdById: order?.createdById });
 
     await createAuditLog(orderId, 'ORDER_CANCELLED', `Order permanently cancelled by Faisal. Reason: ${reason}`, req.user.id);
 
@@ -645,5 +683,6 @@ module.exports = {
   clearHistory,
   cancelOrder,
   deleteOrder,
-  updateDeliveryStatus
+  updateDeliveryStatus,
+  holdOrder
 };

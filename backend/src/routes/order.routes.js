@@ -31,6 +31,7 @@ router.put('/:orderId/stages/:stageId/request', authenticate, requestStageComple
 router.put('/:orderId/stages/:stageId/approve', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ORDER_ENTRY']), approveStageCompletion);
 router.put('/:orderId/stages/:stageId/reject', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ORDER_ENTRY']), rejectStageCompletion);
 router.put('/:orderId/cancel', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ORDER_ENTRY']), cancelOrder);
+router.put('/:orderId/hold', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ORDER_ENTRY']), holdOrder);
 router.delete('/:orderId', authenticate, authorize(['FAISAL', 'SUPER_ADMIN']), deleteOrder);
 
 // Faisal/Admin: Update payment status

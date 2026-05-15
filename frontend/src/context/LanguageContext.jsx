@@ -17,6 +17,15 @@ export const LanguageProvider = ({ children }) => {
     setLanguage(prev => (prev === 'en' ? 'ur' : 'en'));
   };
 
+  const LanguageToggle = () => (
+    <button
+      onClick={toggleLanguage}
+      className={`px-3 py-1 bg-indigo-600/20 hover:bg-indigo-600 rounded-lg text-indigo-400 hover:text-white font-black text-[7px] uppercase tracking-tighter border border-indigo-600/30 transition-all active:scale-95 flex-shrink-0 z-50`}
+    >
+      {isUrdu ? 'ENG' : 'اردو'}
+    </button>
+  );
+
   const isUrdu = language === 'ur';
 
   // Basic dictionary. Can be expanded infinitely.
@@ -75,6 +84,23 @@ export const LanguageProvider = ({ children }) => {
     'DISPATCH': 'روانگی',
     'OUT_FOR_DELIVERY': 'ڈلیوری کے لیے روانہ',
     'STORE': 'اسٹور',
+    'Delayed': 'تاخیر / لیٹ',
+    'h': 'گھنٹے',
+    'm': 'منٹ',
+    's': 'سیکنڈ',
+    'to Faisal': 'فیصل کو',
+    'Approve': 'منظور کریں',
+    'Reject': 'مسترد کریں',
+    'Cancel': 'کینسل / ختم کریں',
+    'Hold': 'روک دیں / ہولڈ',
+    'Delete': 'ڈیلیٹ کریں',
+    'Pay': 'ادائیگی (پے)',
+    'Initiate Next Phase': 'اگلا مرحلہ شروع کریں',
+    'Send Again': 'دوبارہ بھیجیں',
+    'Production History': 'پیداواری تاریخ',
+    'Click to Expand Job Sheet': 'جاب شیٹ کھولنے کے لیے کلک کریں',
+    'Special Tailor Notes:': 'درزی کے لیے خصوصی نوٹ:',
+    'Base Size Pattern': 'بنیادی سائز پیٹرن',
     'chest': 'چھاتی',
     'shoulder': 'کندھا',
     'length': 'لمبائی',
