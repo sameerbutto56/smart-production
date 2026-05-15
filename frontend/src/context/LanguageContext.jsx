@@ -22,9 +22,17 @@ export const LanguageProvider = ({ children }) => {
   const LanguageToggle = () => (
     <button
       onClick={toggleLanguage}
-      className={`px-3 py-1 bg-indigo-600/20 hover:bg-indigo-600 rounded-lg text-indigo-400 hover:text-white font-black text-[7px] uppercase tracking-tighter border border-indigo-600/30 transition-all active:scale-95 flex-shrink-0 z-50`}
+      className={`group relative flex items-center gap-2 px-5 py-2.5 bg-gray-900 border-2 border-indigo-500/20 hover:border-indigo-500 rounded-2xl transition-all duration-300 active:scale-95 shadow-xl hover:shadow-indigo-500/20 overflow-hidden z-[9999]`}
     >
-      {isUrdu ? 'ENG' : 'اردو'}
+      <div className="absolute inset-0 bg-gradient-to-r from-indigo-600/10 to-purple-600/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+      <div className="w-6 h-6 rounded-lg bg-indigo-500/20 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+        </svg>
+      </div>
+      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-300 group-hover:text-white transition-colors relative z-10">
+        {isUrdu ? 'English Mode' : 'اردو ورژن'}
+      </span>
     </button>
   );
 
