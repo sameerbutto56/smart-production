@@ -38,9 +38,9 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
   ];
   
   const isBigScreen = user?.role === 'MAIN_EMPLOYEE';
-  const userRole = user?.role?.toUpperCase().trim();
+  const userRole = String(user?.role || '').toUpperCase().trim();
   const filteredNavItems = navItems.filter(item => 
-    item.roles.some(r => r.toUpperCase().trim() === userRole)
+    item.roles.some(r => String(r || '').toUpperCase().trim() === userRole)
   );
 
   if (isBigScreen) return null;
