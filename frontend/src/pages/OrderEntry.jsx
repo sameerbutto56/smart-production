@@ -580,19 +580,7 @@ const SmartOrderForm = () => {
                     </label>
 
                     {/* Total Price */}
-                    <div className="space-y-3">
-                      <label className="text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-2">{t('totalPrice')}</label>
-                      <div className="relative">
-                        <span className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 text-emerald-500 font-black text-lg`}>₨</span>
-                        <input 
-                          type="number"
-                          value={formData.totalPrice}
-                          onChange={(e) => setFormData({...formData, totalPrice: e.target.value})}
-                          className={`w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-5 ${useUrdu ? 'pr-14 pl-8 text-right' : 'pl-14 pr-8'} outline-none focus:border-emerald-500 transition-all text-white font-black text-xl placeholder-gray-800`}
-                          placeholder="0"
-                        />
-                      </div>
-                    </div>
+
                   </div>
                 </div>
               </div>
