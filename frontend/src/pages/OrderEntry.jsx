@@ -351,38 +351,38 @@ const SmartOrderForm = () => {
   return (
     <div className="max-w-7xl mx-auto pb-12 px-4">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-6">
-        <div className="flex items-center space-x-4">
+        <div className={`flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-4'}`}>
           <div className="p-4 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl shadow-2xl shadow-blue-900/40 rotate-3">
             <Sparkles className="text-white" size={24} />
           </div>
           <div className={useUrdu ? 'text-right' : ''}>
-            <h1 className="text-3xl font-black text-white tracking-tight">{useUrdu ? 'آرڈر انٹری' : 'Smart Order Flow'}</h1>
-            <p className="text-gray-400 text-[10px] font-semibold uppercase tracking-[0.2em] mt-0.5">{useUrdu ? 'جدید پروڈکشن سسٹم' : 'Conveyor Belt Intelligence'}</p>
+            <h1 className="text-3xl font-black text-white tracking-tight leading-none">{useUrdu ? 'آرڈر انٹری' : 'Smart Order Flow'}</h1>
+            <p className="text-gray-500 text-[9px] font-black uppercase tracking-[0.3em] mt-1.5">{useUrdu ? 'جدید پروڈکشن سسٹم' : 'Conveyor Belt Intelligence'}</p>
           </div>
         </div>
         
-        <div className="flex items-center gap-4">
+        <div className={`flex items-center gap-4 ${useUrdu ? 'flex-row-reverse' : ''}`}>
           <button 
             type="button" 
             onClick={() => setUseUrdu(!useUrdu)}
-            className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-xl text-xs font-bold text-gray-300 hover:text-white transition-all"
+            className="px-6 py-3 bg-gray-900/50 border-2 border-gray-800 rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:border-gray-700 transition-all"
           >
             {useUrdu ? 'English Interface' : 'اردو انٹرفیس'}
           </button>
 
-          <div className="flex p-1.5 bg-gray-900/90 backdrop-blur-xl rounded-2xl border-2 border-gray-800 shadow-2xl overflow-x-auto no-scrollbar">
+          <div className="flex p-1.5 bg-gray-900/80 backdrop-blur-3xl rounded-[1.8rem] border-2 border-gray-800 shadow-2xl overflow-x-auto no-scrollbar">
             {filteredTabs.map((tab, index) => (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center space-x-2 px-6 py-3 rounded-xl text-xs font-black transition-all duration-300 ${
+                className={`flex items-center gap-3 px-6 py-3.5 rounded-[1.2rem] text-[10px] font-black uppercase tracking-widest transition-all duration-500 ${
                   activeTab === tab.id 
-                    ? 'bg-blue-600 text-white shadow-lg scale-105' 
-                    : 'text-gray-500 hover:text-white hover:bg-gray-800/50'
-                }`}
+                    ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)] scale-105' 
+                    : 'text-gray-600 hover:text-white hover:bg-gray-800/50'
+                } ${useUrdu ? 'flex-row-reverse' : ''}`}
               >
-                <tab.icon size={16} />
+                <tab.icon size={16} className={activeTab === tab.id ? 'animate-pulse' : ''} />
                 <span className="hidden sm:inline">{useUrdu ? URDU_LABELS[tab.id === 'basic' ? 'identity' : tab.id === 'product' ? 'productSelection' : tab.id === 'custom' ? 'branding' : 'measurements'] : (tab.label.split('. ')[1] || tab.label).toUpperCase()}</span>
               </button>
             ))}
@@ -395,43 +395,45 @@ const SmartOrderForm = () => {
           {activeTab === 'basic' && (
             <motion.div
               key="basic"
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 1.02 }}
-              className="grid grid-cols-1 lg:grid-cols-12 gap-6"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="grid grid-cols-1 lg:grid-cols-12 gap-8"
             >
-              <div className={`lg:col-span-8 glass p-8 rounded-[2.5rem] space-y-8 border border-gray-800 shadow-2xl ${useUrdu ? 'text-right rtl' : ''}`}>
-                <div className={`flex items-center space-x-3 ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                  <div className="w-1.5 h-8 bg-blue-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
-                  <h3 className="text-2xl font-black text-white">{t('identity')}</h3>
+              <div className={`lg:col-span-8 glass p-10 rounded-[3rem] space-y-10 border border-gray-800/50 shadow-2xl relative overflow-hidden ${useUrdu ? 'text-right' : ''}`}>
+                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/5 rounded-full blur-3xl" />
+                
+                <div className={`flex items-center gap-4 ${useUrdu ? 'flex-row-reverse' : ''}`}>
+                  <div className="w-1.5 h-10 bg-blue-500 rounded-full shadow-[0_0_15px_rgba(59,130,246,0.6)]" />
+                  <h3 className="text-3xl font-black text-white tracking-tight">{t('identity')}</h3>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                   <div className="space-y-4">
-                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-2">{t('orderNo')}</label>
+                    <label className={`text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{t('orderNo')}</label>
                     <div className="relative group">
-                      <Hash className={`absolute ${useUrdu ? 'right-5' : 'left-5'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-500 transition-colors`} size={24} />
+                      <Hash className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-500 transition-all duration-300`} size={24} />
                       <input
                         type="text"
                         onKeyDown={preventEnterSubmit}
                         value={formData.orderNumber}
                         onChange={(e) => setFormData({...formData, orderNumber: e.target.value})}
-                        className={`w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} focus:border-blue-500 focus:ring-8 focus:ring-blue-500/5 outline-none transition-all text-xl font-bold text-white placeholder-gray-700`}
+                        className={`w-full bg-gray-950/80 border-2 border-gray-800 rounded-[2rem] py-7 ${useUrdu ? 'pr-20 pl-10 text-right' : 'pl-20 pr-10'} focus:border-blue-500 focus:ring-8 focus:ring-blue-500/5 outline-none transition-all text-2xl font-black text-white placeholder-gray-800 shadow-inner`}
                         placeholder="ORD-772"
                         required
                       />
                     </div>
                   </div>
                   <div className="space-y-4">
-                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-2">{t('customerName')}</label>
+                    <label className={`text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{t('customerName')}</label>
                     <div className="relative group">
-                      <User className={`absolute ${useUrdu ? 'right-5' : 'left-5'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-500 transition-colors`} size={24} />
+                      <User className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-500 transition-all duration-300`} size={24} />
                       <input
                         type="text"
                         onKeyDown={preventEnterSubmit}
                         value={formData.customerName}
                         onChange={(e) => setFormData({...formData, customerName: e.target.value})}
-                        className={`w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} focus:border-blue-500 focus:ring-8 focus:ring-blue-500/5 outline-none transition-all text-xl font-bold text-white placeholder-gray-700`}
+                        className={`w-full bg-gray-950/80 border-2 border-gray-800 rounded-[2rem] py-7 ${useUrdu ? 'pr-20 pl-10 text-right' : 'pl-20 pr-10'} focus:border-blue-500 focus:ring-8 focus:ring-blue-500/5 outline-none transition-all text-2xl font-black text-white placeholder-gray-800 shadow-inner`}
                         placeholder={useUrdu ? 'کسٹمر کا نام' : "Dr. Alex Rivera"}
                         required
                       />
@@ -439,11 +441,13 @@ const SmartOrderForm = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                   <div className="space-y-4">
-                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-2">{t('customerPhone')}</label>
+                    <label className={`text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{t('customerPhone')}</label>
                     <div className="relative group">
-                      <div className={`absolute ${useUrdu ? 'right-5' : 'left-5'} top-1/2 -translate-y-1/2 text-gray-600 font-black text-lg group-focus-within:text-blue-500 transition-colors`}>📞</div>
+                      <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-pink-500/10 text-pink-500`}>
+                        <Phone size={18} />
+                      </div>
                       <input
                         type="tel"
                         onKeyDown={preventEnterSubmit}
