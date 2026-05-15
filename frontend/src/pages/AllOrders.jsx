@@ -46,7 +46,25 @@ const AllOrders = () => {
   const [filterUrgent, setFilterUrgent] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [isGroupedView, setIsGroupedView] = useState(false);
+  const [useUrdu, setUseUrdu] = useState(localStorage.getItem('preferredLanguage') === 'ur');
   const location = useLocation();
+
+  const URDU_LABELS = {
+    queue: 'پیداواری قطار',
+    monitoring: 'آرڈرز کی براہ راست نگرانی',
+    search: 'آرڈر نمبر یا نام تلاش کریں...',
+    all: 'تمام آرڈرز',
+    customer: 'کسٹمر',
+    details: 'تفصیلات',
+    stage: 'مرحلہ',
+    status: 'حالت',
+    priority: 'ترجیح',
+    orders: 'آرڈرز',
+    quantity: 'تعداد',
+    latest: 'تازہ ترین'
+  };
+
+  const t = (key) => useUrdu ? URDU_LABELS[key] : key.charAt(0).toUpperCase() + key.slice(1);
 
   useEffect(() => {
     if (location.state) {
@@ -201,27 +219,49 @@ const AllOrders = () => {
     return Object.values(groups).sort((a, b) => new Date(b.latestOrderDate) - new Date(a.latestOrderDate));
   }, [filteredOrders]);
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">All Production Orders</h1>
-          <p className="text-gray-400 text-sm">Full list of active and pending orders</p>
+    <div className="space-y-10 max-w-7xl mx-auto pb-20 px-4">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-10">
+        <div className={`flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-6'}`}>
+          <div className="p-4 bg-gradient-to-br from-emerald-600 to-teal-700 rounded-[1.8rem] shadow-2xl shadow-emerald-900/40 rotate-3">
+            <Package className="text-white" size={32} />
+          </div>
+          <div className={useUrdu ? 'text-right' : ''}>
+            <h1 className="text-4xl font-black text-white tracking-tight leading-none">{t('queue')}</h1>
+            <p className="text-gray-500 text-[10px] font-black uppercase tracking-[0.4em] mt-2">{t('monitoring')}</p>
+          </div>
         </div>
-        <div className="flex items-center space-x-3">
-          <button 
-            onClick={fetchOrders}
-            className="p-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-400 hover:text-white transition-colors"
-          >
-            <RefreshCcw size={20} className={loading ? 'animate-spin' : ''} />
-          </button>
-          <button 
-            onClick={handleExportCSV}
-            className="flex items-center space-x-2 bg-gray-800 border border-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
-          >
-            <Download size={18} />
-            <span>Export CSV</span>
-          </button>
+
+        <div className={`flex flex-wrap items-center gap-4 ${useUrdu ? 'flex-row-reverse' : ''}`}>
+           <div className="relative group w-full sm:w-72">
+              <Search className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-emerald-500 transition-all duration-300`} size={20} />
+              <input
+                type="text"
+                placeholder={t('search')}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className={`w-full bg-gray-950/80 border-2 border-gray-800 rounded-[1.5rem] py-4 ${useUrdu ? 'pr-16 pl-6 text-right' : 'pl-16 pr-6'} focus:border-emerald-500 outline-none transition-all text-sm font-black text-white placeholder-gray-800`}
+              />
+            </div>
+            
+            <button
+              onClick={() => setIsGroupedView(!isGroupedView)}
+              className={`px-8 py-4 bg-gray-900/50 border-2 border-gray-800 rounded-2xl text-white font-black text-[10px] uppercase tracking-[0.2em] hover:bg-gray-800 transition-all flex items-center gap-3 ${useUrdu ? 'flex-row-reverse' : ''}`}
+            >
+              {isGroupedView ? <List size={16} /> : <Users size={16} />}
+              <span>{isGroupedView ? (useUrdu ? 'انفرادی منظر' : 'INDIVIDUAL VIEW') : (useUrdu ? 'بڑی تعداد کا منظر' : 'BULK VIEW')}</span>
+            </button>
+
+            <button 
+              onClick={() => {
+                const newLang = useUrdu ? 'en' : 'ur';
+                setUseUrdu(!useUrdu);
+                localStorage.setItem('preferredLanguage', newLang);
+              }}
+              className="px-8 py-4 bg-emerald-600 rounded-2xl text-white font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-emerald-900/40 hover:bg-emerald-500 transition-all active:scale-95"
+            >
+              {useUrdu ? 'English Interface' : 'اردو انٹرفیس'}
+            </button>
         </div>
       </div>
 
