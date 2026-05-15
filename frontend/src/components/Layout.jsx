@@ -39,9 +39,16 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
   
   const isBigScreen = user?.role === 'MAIN_EMPLOYEE';
   const userRole = String(user?.role || '').toUpperCase().trim();
-  const filteredNavItems = navItems.filter(item => 
+  let filteredNavItems = navItems.filter(item => 
     item.roles.some(r => String(r || '').toUpperCase().trim() === userRole)
   );
+
+  // Emergency override for OUTLET role
+  if (userRole === 'OUTLET') {
+    filteredNavItems = navItems.filter(item => 
+      ['Order Entry', 'All Orders', 'History'].includes(item.name)
+    );
+  }
 
   if (isBigScreen) return null;
 
