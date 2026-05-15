@@ -272,7 +272,7 @@ const History = () => {
               </motion.div>
             ))}
           </AnimatePresence>
-        ))))}
+        )}
       </div>
 
       {/* Premium Audit Log Modal */}
