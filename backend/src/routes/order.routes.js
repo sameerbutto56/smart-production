@@ -10,7 +10,8 @@ const {
   clearHistory,
   cancelOrder,
   deleteOrder,
-  updateDeliveryStatus
+  updateDeliveryStatus,
+  holdOrder
 } = require('../controllers/order.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 const router = express.Router();
