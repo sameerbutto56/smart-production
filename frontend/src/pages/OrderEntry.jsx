@@ -20,7 +20,12 @@ import {
   Plus,
   ArrowRight,
   Sparkles,
-  AlertCircle
+  AlertCircle,
+  Trash2,
+  Phone,
+  Users,
+  List,
+  Grid
 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';

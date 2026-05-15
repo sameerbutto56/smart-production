@@ -13,14 +13,17 @@ import {
   X,
   Layers,
   ClipboardList,
-  Trash2
+  Trash2,
+  Phone,
+  Users,
+  List,
+  Grid
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import socket from '../socket';
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
 import toast from 'react-hot-toast';
-import { Phone, Users, List, Grid } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
 
