@@ -151,7 +151,7 @@ const OrderCard = ({ order, idx, onAction, loading }) => {
 const DeliveryDashboard = () => {
   const { user } = useAuth();
   const { t, LanguageToggle, isUrdu } = useLanguage();
-  const token = localStorage.getItem('token');
+  const token = sessionStorage.getItem('token');
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
