@@ -41,10 +41,12 @@ const SmartOrderForm = () => {
   const [formData, setFormData] = useState({
     orderNumber: '',
     customerName: '',
+    customerPhone: '',
     type: 'STANDARD', // STANDARD, READY_LOGO, FULL_CUSTOM
     urgent: false,
     advancePaid: false,
     totalPrice: '',
+    quantity: 1,
     
     // Product Selection
     productType: '',
@@ -73,15 +75,76 @@ const SmartOrderForm = () => {
       length: '',
       sleeve: '',
       waist: '',
-      hips: ''
+      hips: '',
+      shirtLength: '',
+      trouserLength: '',
+      bottom: '',
+      thigh: '',
+      mori: '',
+      ganda: ''
     },
     gender: 'Male',
     femaleOptions: {
       dupatta: false,
       sleeves: 'full',
-      shirtLength: 'long'
+      shirtLength: 'long',
+      zip: false,
+      cap: false
     }
   });
+
+  const { user } = useAuth();
+  const isOutlet = user?.role === 'OUTLET';
+  const [useUrdu, setUseUrdu] = useState(isOutlet);
+
+  const URDU_LABELS = {
+    identity: 'شناختی معلومات',
+    orderNo: 'آرڈر نمبر',
+    customerName: 'کسٹمر کا نام',
+    customerPhone: 'فون نمبر',
+    orderType: 'آرڈر کی قسم',
+    urgent: 'ارجنٹ',
+    totalPrice: 'کل قیمت',
+    quantity: 'تعداد',
+    productSelection: 'پروڈکٹ کا انتخاب',
+    productBase: 'پروڈکٹ کی بنیاد',
+    fabric: 'کپڑا',
+    color: 'رنگ',
+    size: 'سائز',
+    branding: 'برانڈنگ اور کڑھائی',
+    articleName: 'آرٹیکل کا نام',
+    embroideryColor: 'کڑھائی کا رنگ',
+    placement: 'جگہ',
+    stitching: 'سلائی کی تفصیلات',
+    stitchingStyle: 'سلائی کا اسٹائل',
+    fitProfile: 'فٹ پروفائل',
+    notes: 'خصوصی ہدایات (نوٹس)',
+    measurements: 'پیمائش (انچ میں)',
+    chest: 'چھاتی',
+    shoulder: 'گندھا',
+    shirtLength: 'شرٹ لمبائی',
+    sleeves: 'بازو',
+    waist: 'ویسٹ',
+    hips: 'ہپس',
+    trouserLength: 'لمبائی',
+    thigh: 'تھائی',
+    bottom: 'بوٹم / پہنچا',
+    mori: 'موری',
+    options: 'آپشنز',
+    dupatta: 'دوپٹہ',
+    zip: 'زپ',
+    cap: 'کیپ',
+    submit: 'آرڈر درج کریں',
+    next: 'اگلا مرحلہ',
+    back: 'پیچھے',
+    standard: 'اسٹینڈرڈ',
+    logo: 'لوگو ڈیزائن',
+    custom: 'کسٹم آرڈر',
+    advance: 'ایڈوانس ادائیگی',
+    required: 'یہ خانہ لازمی ہے'
+  };
+
+  const t = (key) => useUrdu ? URDU_LABELS[key] : key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
 
   useEffect(() => {
     fetchInventory();
@@ -127,8 +190,9 @@ const SmartOrderForm = () => {
     const accessory = isAccessory(selectedProductCategory);
     
     if (activeTab === 'basic') {
-      if (!formData.orderNumber.trim()) return 'Order ID is required.';
-      if (!formData.customerName.trim()) return 'Customer Name is required.';
+      if (!formData.orderNumber.trim()) return t('orderNo') + ' ' + t('required');
+      if (!formData.customerName.trim()) return t('customerName') + ' ' + t('required');
+      if (!formData.customerPhone.trim()) return t('customerPhone') + ' ' + t('required');
       if (formData.type === 'FULL_CUSTOM' && !formData.advancePaid) return 'Advance payment is compulsory for custom orders.';
     }
     if (activeTab === 'product') {
@@ -168,8 +232,10 @@ const SmartOrderForm = () => {
       const payload = {
         orderNumber: formData.orderNumber,
         customerName: formData.customerName,
+        customerPhone: formData.customerPhone,
         type: formData.type,
         urgent: formData.urgent,
+        quantity: formData.quantity,
         advancePaid: formData.advancePaid,
         logoDesign: formData.logoDesign,
         logoName: formData.logoName,
@@ -288,28 +354,38 @@ const SmartOrderForm = () => {
           <div className="p-4 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl shadow-2xl shadow-blue-900/40 rotate-3">
             <Sparkles className="text-white" size={24} />
           </div>
-          <div>
-            <h1 className="text-3xl font-black text-white tracking-tight">Smart Order Flow</h1>
-            <p className="text-gray-400 text-[10px] font-semibold uppercase tracking-[0.2em] mt-0.5">Conveyor Belt Intelligence</p>
+          <div className={useUrdu ? 'text-right' : ''}>
+            <h1 className="text-3xl font-black text-white tracking-tight">{useUrdu ? 'آرڈر انٹری' : 'Smart Order Flow'}</h1>
+            <p className="text-gray-400 text-[10px] font-semibold uppercase tracking-[0.2em] mt-0.5">{useUrdu ? 'جدید پروڈکشن سسٹم' : 'Conveyor Belt Intelligence'}</p>
           </div>
         </div>
         
-        <div className="flex p-1.5 bg-gray-900/90 backdrop-blur-xl rounded-2xl border-2 border-gray-800 shadow-2xl overflow-x-auto no-scrollbar">
-          {filteredTabs.map((tab, index) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center space-x-2 px-6 py-3 rounded-xl text-xs font-black transition-all duration-300 ${
-                activeTab === tab.id 
-                  ? 'bg-blue-600 text-white shadow-lg scale-105' 
-                  : 'text-gray-500 hover:text-white hover:bg-gray-800/50'
-              }`}
-            >
-              <tab.icon size={16} />
-              <span className="hidden sm:inline">{(tab.label.split('. ')[1] || tab.label).toUpperCase()}</span>
-            </button>
-          ))}
+        <div className="flex items-center gap-4">
+          <button 
+            type="button" 
+            onClick={() => setUseUrdu(!useUrdu)}
+            className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-xl text-xs font-bold text-gray-300 hover:text-white transition-all"
+          >
+            {useUrdu ? 'English Interface' : 'اردو انٹرفیس'}
+          </button>
+
+          <div className="flex p-1.5 bg-gray-900/90 backdrop-blur-xl rounded-2xl border-2 border-gray-800 shadow-2xl overflow-x-auto no-scrollbar">
+            {filteredTabs.map((tab, index) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center space-x-2 px-6 py-3 rounded-xl text-xs font-black transition-all duration-300 ${
+                  activeTab === tab.id 
+                    ? 'bg-blue-600 text-white shadow-lg scale-105' 
+                    : 'text-gray-500 hover:text-white hover:bg-gray-800/50'
+                }`}
+              >
+                <tab.icon size={16} />
+                <span className="hidden sm:inline">{useUrdu ? URDU_LABELS[tab.id === 'basic' ? 'identity' : tab.id === 'product' ? 'productSelection' : tab.id === 'custom' ? 'branding' : 'measurements'] : (tab.label.split('. ')[1] || tab.label).toUpperCase()}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -323,39 +399,39 @@ const SmartOrderForm = () => {
               exit={{ opacity: 0, scale: 1.02 }}
               className="grid grid-cols-1 lg:grid-cols-12 gap-6"
             >
-              <div className="lg:col-span-8 glass p-8 rounded-[2.5rem] space-y-8 border border-gray-800 shadow-2xl">
-                <div className="flex items-center space-x-3">
+              <div className={`lg:col-span-8 glass p-8 rounded-[2.5rem] space-y-8 border border-gray-800 shadow-2xl ${useUrdu ? 'text-right rtl' : ''}`}>
+                <div className={`flex items-center space-x-3 ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
                   <div className="w-1.5 h-8 bg-blue-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
-                  <h3 className="text-2xl font-black text-white">Identity Hub</h3>
+                  <h3 className="text-2xl font-black text-white">{t('identity')}</h3>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                   <div className="space-y-4">
-                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-2">Order ID / Shopify #</label>
+                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-2">{t('orderNo')}</label>
                     <div className="relative group">
-                      <Hash className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-500 transition-colors" size={24} />
+                      <Hash className={`absolute ${useUrdu ? 'right-5' : 'left-5'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-500 transition-colors`} size={24} />
                       <input
                         type="text"
                         onKeyDown={preventEnterSubmit}
                         value={formData.orderNumber}
                         onChange={(e) => setFormData({...formData, orderNumber: e.target.value})}
-                        className="w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-6 pl-16 pr-8 focus:border-blue-500 focus:ring-8 focus:ring-blue-500/5 outline-none transition-all text-xl font-bold text-white placeholder-gray-700"
+                        className={`w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} focus:border-blue-500 focus:ring-8 focus:ring-blue-500/5 outline-none transition-all text-xl font-bold text-white placeholder-gray-700`}
                         placeholder="ORD-772"
                         required
                       />
                     </div>
                   </div>
                   <div className="space-y-4">
-                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-2">Client Full Identity</label>
+                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-2">{t('customerName')}</label>
                     <div className="relative group">
-                      <User className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-500 transition-colors" size={24} />
+                      <User className={`absolute ${useUrdu ? 'right-5' : 'left-5'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-500 transition-colors`} size={24} />
                       <input
                         type="text"
                         onKeyDown={preventEnterSubmit}
                         value={formData.customerName}
                         onChange={(e) => setFormData({...formData, customerName: e.target.value})}
-                        className="w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-6 pl-16 pr-8 focus:border-blue-500 focus:ring-8 focus:ring-blue-500/5 outline-none transition-all text-xl font-bold text-white placeholder-gray-700"
-                        placeholder="Dr. Alex Rivera"
+                        className={`w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} focus:border-blue-500 focus:ring-8 focus:ring-blue-500/5 outline-none transition-all text-xl font-bold text-white placeholder-gray-700`}
+                        placeholder={useUrdu ? 'کسٹمر کا نام' : "Dr. Alex Rivera"}
                         required
                       />
                     </div>
@@ -364,105 +440,162 @@ const SmartOrderForm = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                   <div className="space-y-4">
-                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-2">Gender Option</label>
+                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-2">{t('customerPhone')}</label>
+                    <div className="relative group">
+                      <div className={`absolute ${useUrdu ? 'right-5' : 'left-5'} top-1/2 -translate-y-1/2 text-gray-600 font-black text-lg group-focus-within:text-blue-500 transition-colors`}>📞</div>
+                      <input
+                        type="tel"
+                        onKeyDown={preventEnterSubmit}
+                        value={formData.customerPhone}
+                        onChange={(e) => setFormData({...formData, customerPhone: e.target.value})}
+                        className={`w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} focus:border-blue-500 focus:ring-8 focus:ring-blue-500/5 outline-none transition-all text-xl font-bold text-white placeholder-gray-700`}
+                        placeholder="0300-1234567"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-2">{useUrdu ? 'تعداد (Quantity)' : 'Quantity'}</label>
+                    <div className="relative group">
+                      <div className={`absolute ${useUrdu ? 'right-5' : 'left-5'} top-1/2 -translate-y-1/2 text-gray-600 font-black text-lg group-focus-within:text-blue-500 transition-colors`}>🔢</div>
+                      <input
+                        type="number"
+                        min="1"
+                        onKeyDown={preventEnterSubmit}
+                        value={formData.quantity}
+                        onChange={(e) => setFormData({...formData, quantity: e.target.value})}
+                        className={`w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} focus:border-blue-500 focus:ring-8 focus:ring-blue-500/5 outline-none transition-all text-xl font-bold text-white placeholder-gray-700`}
+                        placeholder="1"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                  <div className="space-y-4">
+                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-2">{useUrdu ? 'صنف (Gender)' : 'Gender Option'}</label>
                     <div className="flex p-2 bg-gray-950 rounded-[1.5rem] border-2 border-gray-800 shadow-inner">
                       <button
                         type="button"
                         onClick={() => setFormData({...formData, gender: 'Male'})}
                         className={`flex-1 py-4 rounded-xl text-sm font-black transition-all ${formData.gender === 'Male' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-600 hover:text-white'}`}
                       >
-                        MALE
+                        {useUrdu ? 'مردانہ' : 'MALE'}
                       </button>
                       <button
                         type="button"
                         onClick={() => setFormData({...formData, gender: 'Female'})}
                         className={`flex-1 py-4 rounded-xl text-sm font-black transition-all ${formData.gender === 'Female' ? 'bg-pink-600 text-white shadow-lg' : 'text-gray-600 hover:text-white'}`}
                       >
-                        FEMALE
+                        {useUrdu ? 'زنانہ' : 'FEMALE'}
                       </button>
                     </div>
                   </div>
 
-                  {formData.gender === 'Female' && formData.type !== 'FULL_CUSTOM' && (
-                    <div className="space-y-4">
-                      <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-2">Add-ons</label>
+                  {formData.gender === 'Female' && (
+                    <div className="grid grid-cols-2 gap-4">
                       <label className="flex items-center justify-between p-4 bg-gray-950 rounded-[1.5rem] border-2 border-gray-800 cursor-pointer hover:border-pink-500/30 transition-all group h-full">
                         <div className="flex items-center space-x-4">
                           <div className={`p-3 rounded-xl transition-all ${formData.femaleOptions.dupatta ? 'bg-pink-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
                             <Layers size={18} />
                           </div>
                           <div>
-                            <p className="font-black text-sm uppercase">Include Dupatta</p>
+                            <p className="font-black text-[10px] uppercase">{t('dupatta')}</p>
                           </div>
                         </div>
                         <input type="checkbox" checked={formData.femaleOptions.dupatta} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, dupatta: e.target.checked}})} className="w-5 h-5 rounded border-2 border-gray-700 bg-gray-900 checked:bg-pink-600 transition-all cursor-pointer" />
+                      </label>
+                      <label className="flex items-center justify-between p-4 bg-gray-950 rounded-[1.5rem] border-2 border-gray-800 cursor-pointer hover:border-pink-500/30 transition-all group h-full">
+                        <div className="flex items-center space-x-4">
+                          <div className={`p-3 rounded-xl transition-all ${formData.femaleOptions.zip ? 'bg-pink-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
+                            <div className="font-black text-xs">ZIP</div>
+                          </div>
+                          <div>
+                            <p className="font-black text-[10px] uppercase">{t('zip')}</p>
+                          </div>
+                        </div>
+                        <input type="checkbox" checked={formData.femaleOptions.zip} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, zip: e.target.checked}})} className="w-5 h-5 rounded border-2 border-gray-700 bg-gray-900 checked:bg-pink-600 transition-all cursor-pointer" />
                       </label>
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="lg:col-span-4 glass p-12 rounded-[3.5rem] space-y-10 border border-gray-800 shadow-2xl">
-                <h3 className="text-xl font-black text-yellow-500 flex items-center space-x-3">
+              <div className={`lg:col-span-4 glass p-12 rounded-[3.5rem] space-y-10 border border-gray-800 shadow-2xl ${useUrdu ? 'text-right' : ''}`}>
+                <h3 className={`text-xl font-black text-yellow-500 flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-3'}`}>
                   <Star size={24} fill="currentColor" />
-                  <span>Protocol</span>
+                  <span>{useUrdu ? 'آرڈر کی تفصیل' : 'Protocol'}</span>
                 </h3>
                 
                 <div className="space-y-8">
                   <div className="flex p-2 bg-gray-950 rounded-2xl border-2 border-gray-800 shadow-inner">
-                    <button
-                      type="button"
-                      onClick={() => setFormData({...formData, type: 'STANDARD', advancePaid: false})}
-                      className={`flex-1 py-4 rounded-xl text-[10px] font-black transition-all ${formData.type === 'STANDARD' ? 'bg-blue-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'}`}
-                    >
-                      STANDARD
-                    </button>
+                    {!isOutlet && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData({...formData, type: 'STANDARD', advancePaid: false})}
+                        className={`flex-1 py-4 rounded-xl text-[10px] font-black transition-all ${formData.type === 'STANDARD' ? 'bg-blue-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'}`}
+                      >
+                        {useUrdu ? URDU_LABELS.standard : 'STANDARD'}
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => setFormData({...formData, type: 'READY_LOGO', advancePaid: false})}
                       className={`flex-1 py-4 rounded-xl text-[10px] font-black transition-all ${formData.type === 'READY_LOGO' ? 'bg-purple-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'}`}
                     >
-                      LOGO
+                      {useUrdu ? URDU_LABELS.logo : 'LOGO'}
                     </button>
                     <button
                       type="button"
                       onClick={() => setFormData({...formData, type: 'FULL_CUSTOM', advancePaid: true})}
                       className={`flex-1 py-4 rounded-xl text-[10px] font-black transition-all ${formData.type === 'FULL_CUSTOM' ? 'bg-indigo-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'}`}
                     >
-                      CUSTOM
+                      {useUrdu ? URDU_LABELS.custom : 'CUSTOM'}
                     </button>
                   </div>
 
                   <div className="space-y-5">
-                    <label className="flex items-center justify-between p-6 bg-gray-950 rounded-[1.5rem] border-2 border-gray-800 cursor-pointer hover:border-blue-500/30 transition-all group">
-                      <div className="flex items-center space-x-4">
+                    <label className={`flex items-center justify-between p-6 bg-gray-950 rounded-[1.5rem] border-2 border-gray-800 cursor-pointer hover:border-blue-500/30 transition-all group ${useUrdu ? 'flex-row-reverse' : ''}`}>
+                      <div className={`flex items-center space-x-4 ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
                         <div className={`p-4 rounded-xl transition-all ${formData.urgent ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-800 text-gray-600'}`}>
                           <Star size={20} />
                         </div>
-                        <div>
-                          <p className="font-black text-sm uppercase">Urgent</p>
+                        <div className={useUrdu ? 'text-right' : ''}>
+                          <p className="font-black text-sm uppercase">{t('urgent')}</p>
                           <p className="text-[10px] text-gray-600 font-bold">EXPRESS LANE</p>
                         </div>
                       </div>
                       <input type="checkbox" checked={formData.urgent} onChange={(e) => setFormData({...formData, urgent: e.target.checked})} className="w-6 h-6 rounded-lg border-2 border-gray-700 bg-gray-900 checked:bg-blue-600 transition-all cursor-pointer" />
                     </label>
 
+                    <label className={`flex items-center justify-between p-6 bg-gray-950 rounded-[1.5rem] border-2 border-gray-800 cursor-pointer hover:border-emerald-500/30 transition-all group ${useUrdu ? 'flex-row-reverse' : ''}`}>
+                      <div className={`flex items-center space-x-4 ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                        <div className={`p-4 rounded-xl transition-all ${formData.advancePaid ? 'bg-emerald-600 text-white shadow-lg' : 'bg-gray-800 text-gray-600'}`}>
+                          <CheckCircle2 size={20} />
+                        </div>
+                        <div className={useUrdu ? 'text-right' : ''}>
+                          <p className="font-black text-sm uppercase">{t('advance')}</p>
+                          <p className="text-[10px] text-gray-600 font-bold">CONFIRMATION</p>
+                        </div>
+                      </div>
+                      <input type="checkbox" checked={formData.advancePaid} onChange={(e) => setFormData({...formData, advancePaid: e.target.checked})} className="w-6 h-6 rounded-lg border-2 border-gray-700 bg-gray-900 checked:bg-emerald-600 transition-all cursor-pointer" />
+                    </label>
 
                     {/* Total Price */}
                     <div className="space-y-3">
-                      <label className="text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-2">Total Order Price (PKR)</label>
+                      <label className="text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-2">{t('totalPrice')}</label>
                       <div className="relative">
-                        <span className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-500 font-black text-lg">₨</span>
+                        <span className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 text-emerald-500 font-black text-lg`}>₨</span>
                         <input 
                           type="number"
                           value={formData.totalPrice}
                           onChange={(e) => setFormData({...formData, totalPrice: e.target.value})}
-                          className="w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-5 pl-14 pr-8 outline-none focus:border-emerald-500 transition-all text-white font-black text-xl placeholder-gray-800"
+                          className={`w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-5 ${useUrdu ? 'pr-14 pl-8 text-right' : 'pl-14 pr-8'} outline-none focus:border-emerald-500 transition-all text-white font-black text-xl placeholder-gray-800`}
                           placeholder="0"
                         />
                       </div>
                     </div>
-
                   </div>
                 </div>
               </div>
@@ -478,13 +611,13 @@ const SmartOrderForm = () => {
               className="space-y-10"
             >
               <div className="glass p-12 rounded-[3.5rem] border border-gray-800 shadow-2xl">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-10 gap-8">
-                  <div className="space-y-1">
-                    <h3 className="text-3xl font-black text-white flex items-center space-x-4">
+                <div className={`flex flex-col lg:flex-row lg:items-center justify-between mb-10 gap-8 ${useUrdu ? 'flex-row-reverse' : ''}`}>
+                  <div className={`space-y-1 ${useUrdu ? 'text-right' : ''}`}>
+                    <h3 className={`text-3xl font-black text-white flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-4'}`}>
                       <Package className="text-blue-500" size={32} />
-                      <span>Product Selection</span>
+                      <span>{t('productSelection')}</span>
                     </h3>
-                    <p className="text-gray-500 text-xs font-bold uppercase tracking-widest ml-12">Step 1: Choose category & style</p>
+                    <p className={`text-gray-500 text-xs font-bold uppercase tracking-widest ${useUrdu ? 'mr-12' : 'ml-12'}`}>Step 1: Choose category & style</p>
                   </div>
                   <div className="flex p-2 bg-gray-950 rounded-[1.5rem] border-2 border-gray-800 shadow-inner overflow-x-auto no-scrollbar max-w-full">
                     {productCategories.map(cat => (
@@ -523,20 +656,20 @@ const SmartOrderForm = () => {
                           color: selectedItem?.color || formData.color
                         });
                       }}
-                      sublabel={`Stock: ${item.stock}`}
+                      sublabel={`${useUrdu ? 'اسٹاک' : 'Stock'}: ${item.stock}`}
                     />
                   ))}
                 </div>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                <div className="lg:col-span-5 glass p-12 rounded-[3.5rem] border border-gray-800 shadow-2xl">
+                <div className={`lg:col-span-5 glass p-12 rounded-[3.5rem] border border-gray-800 shadow-2xl ${useUrdu ? 'text-right' : ''}`}>
                   <div className="space-y-1 mb-10">
-                    <h3 className="text-2xl font-black text-emerald-400 flex items-center space-x-4">
+                    <h3 className={`text-2xl font-black text-emerald-400 flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-4'}`}>
                       <Layers size={28} />
-                      <span>Material Selection</span>
+                      <span>{t('fabric')}</span>
                     </h3>
-                    <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest ml-11">Step 2: Define fabric feel</p>
+                    <p className={`text-gray-500 text-[10px] font-bold uppercase tracking-widest ${useUrdu ? 'mr-11' : 'ml-11'}`}>Step 2: Define fabric feel</p>
                   </div>
                   <div className="grid grid-cols-2 gap-5">
                     {fabrics.map(f => (
@@ -552,17 +685,17 @@ const SmartOrderForm = () => {
                   </div>
                 </div>
 
-                <div className="lg:col-span-7 glass p-12 rounded-[3.5rem] border border-gray-800 shadow-2xl">
-                  <div className="flex flex-col sm:flex-row items-center justify-between mb-10 gap-6">
+                <div className={`lg:col-span-7 glass p-12 rounded-[3.5rem] border border-gray-800 shadow-2xl ${useUrdu ? 'text-right' : ''}`}>
+                  <div className={`flex flex-col sm:flex-row items-center justify-between mb-10 gap-6 ${useUrdu ? 'flex-row-reverse' : ''}`}>
                     <div className="space-y-1">
-                      <h3 className="text-2xl font-black text-purple-400 flex items-center space-x-4">
+                      <h3 className={`text-2xl font-black text-purple-400 flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-4'}`}>
                         <Palette size={28} />
-                        <span>{isAccessory(selectedProductCategory) ? 'Color Selection' : 'Color & Standard Size'}</span>
+                        <span>{t('color')} & {t('size')}</span>
                       </h3>
-                      <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest ml-11">Step 3: Visual scaling</p>
+                      <p className={`text-gray-500 text-[10px] font-bold uppercase tracking-widest ${useUrdu ? 'mr-11' : 'ml-11'}`}>Step 3: Visual scaling</p>
                     </div>
                     {!isAccessory(selectedProductCategory) && (
-                      <div className="flex p-1.5 bg-gray-950 rounded-xl border-2 border-gray-800">
+                      <div className={`flex p-1.5 bg-gray-950 rounded-xl border-2 border-gray-800 ${useUrdu ? 'flex-row-reverse' : ''}`}>
                         {['S', 'M', 'L', 'XL', '2XL'].map(s => (
                           <button
                             key={s}
@@ -611,40 +744,40 @@ const SmartOrderForm = () => {
               exit={{ opacity: 0, scale: 1.1 }}
               className="grid grid-cols-1 lg:grid-cols-2 gap-10"
             >
-              <div className="glass p-12 rounded-[3.5rem] border border-gray-800 space-y-10 shadow-2xl">
-                <div className="flex items-center space-x-5">
+              <div className={`glass p-12 rounded-[3.5rem] border border-gray-800 space-y-10 shadow-2xl ${useUrdu ? 'text-right' : ''}`}>
+                <div className={`flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-5'}`}>
                   <div className="p-4 bg-purple-600 rounded-[1.5rem] shadow-xl shadow-purple-900/30">
                     <ImageIcon className="text-white" size={28} />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-black text-white">Visual Branding</h3>
+                    <h3 className="text-2xl font-black text-white">{t('branding')}</h3>
                     <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest mt-1">Logo & embroidery details</p>
                   </div>
                 </div>
 
                 <div className="space-y-8">
                   <div className="space-y-3">
-                    <label className="text-xs font-black text-gray-500 uppercase tracking-[0.3em] ml-2">Name Spelling</label>
+                    <label className="text-xs font-black text-gray-500 uppercase tracking-[0.3em] ml-2">{t('articleName')}</label>
                     <div className="relative group">
-                      <Type className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-purple-500 transition-colors" size={24} />
+                      <Type className={`absolute ${useUrdu ? 'right-5' : 'left-5'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-purple-500 transition-colors`} size={24} />
                       <input
                         type="text"
                         onKeyDown={preventEnterSubmit}
                         value={formData.nameSpelling}
                         onChange={(e) => setFormData({...formData, nameSpelling: e.target.value})}
-                        className="w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-6 pl-16 pr-8 focus:border-purple-500 focus:ring-8 focus:ring-purple-500/5 outline-none transition-all font-black text-xl text-white"
-                        placeholder="DR. VALERIE KING"
+                        className={`w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} focus:border-purple-500 focus:ring-8 focus:ring-purple-500/5 outline-none transition-all font-black text-xl text-white`}
+                        placeholder={useUrdu ? 'آرٹیکل کا نام درج کریں' : "DR. VALERIE KING"}
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-3">
-                      <label className="text-xs font-black text-gray-500 uppercase tracking-[0.3em] ml-2">Thread</label>
+                      <label className="text-xs font-black text-gray-500 uppercase tracking-[0.3em] ml-2">{t('embroideryColor')}</label>
                       <select 
                         value={formData.nameColor}
                         onChange={(e) => setFormData({...formData, nameColor: e.target.value})}
-                        className="w-full bg-gray-950 border-2 border-gray-800 rounded-2xl py-5 px-8 focus:border-purple-500 outline-none font-bold text-gray-300 appearance-none shadow-inner"
+                        className={`w-full bg-gray-950 border-2 border-gray-800 rounded-2xl py-5 px-8 focus:border-purple-500 outline-none font-bold text-gray-300 appearance-none shadow-inner ${useUrdu ? 'text-right' : ''}`}
                       >
                         <option value="">Standard White</option>
                         <option value="Gold">Metallic Gold</option>
@@ -654,11 +787,11 @@ const SmartOrderForm = () => {
                       </select>
                     </div>
                     <div className="space-y-3">
-                      <label className="text-xs font-black text-gray-500 uppercase tracking-[0.3em] ml-2">Placement</label>
+                      <label className="text-xs font-black text-gray-500 uppercase tracking-[0.3em] ml-2">{t('placement')}</label>
                       <select 
                         value={formData.logoPlacement}
                         onChange={(e) => setFormData({...formData, logoPlacement: e.target.value})}
-                        className="w-full bg-gray-950 border-2 border-gray-800 rounded-2xl py-5 px-8 focus:border-purple-500 outline-none font-bold text-gray-300 appearance-none shadow-inner"
+                        className={`w-full bg-gray-950 border-2 border-gray-800 rounded-2xl py-5 px-8 focus:border-purple-500 outline-none font-bold text-gray-300 appearance-none shadow-inner ${useUrdu ? 'text-right' : ''}`}
                       >
                         <option value="">Left Chest</option>
                         <option value="RightChest">Right Chest</option>
@@ -670,13 +803,13 @@ const SmartOrderForm = () => {
                 </div>
               </div>
 
-              <div className="glass p-12 rounded-[3.5rem] border border-gray-800 space-y-10 shadow-2xl">
-                <div className="flex items-center space-x-5">
+              <div className={`glass p-12 rounded-[3.5rem] border border-gray-800 space-y-10 shadow-2xl ${useUrdu ? 'text-right' : ''}`}>
+                <div className={`flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-5'}`}>
                   <div className="p-4 bg-blue-600 rounded-[1.5rem] shadow-xl shadow-blue-900/30">
                     <Scissors className="text-white" size={28} />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-black text-white">Advanced Stitching</h3>
+                    <h3 className="text-2xl font-black text-white">{t('stitching')}</h3>
                     <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest mt-1">Conveyor belt tailoring specs</p>
                   </div>
                 </div>
@@ -684,8 +817,8 @@ const SmartOrderForm = () => {
                 <div className="space-y-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-3">
-                      <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-2">Stitch Pattern</label>
-                      <div className="flex p-2 bg-gray-950 rounded-[1.5rem] border-2 border-gray-800 h-[72px]">
+                      <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-2">{t('stitchingStyle')}</label>
+                      <div className={`flex p-2 bg-gray-950 rounded-[1.5rem] border-2 border-gray-800 h-[72px] ${useUrdu ? 'flex-row-reverse' : ''}`}>
                         {['STD', 'DBL'].map(s => (
                           <button
                             key={s}
@@ -693,14 +826,14 @@ const SmartOrderForm = () => {
                             onClick={() => setFormData({...formData, stitchingStyle: s})}
                             className={`flex-1 rounded-xl text-[11px] font-black transition-all ${formData.stitchingStyle === s ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-600 hover:text-white'}`}
                           >
-                            {s === 'STD' ? 'SINGLE' : 'DOUBLE'}
+                            {s === 'STD' ? (useUrdu ? 'سنگل' : 'SINGLE') : (useUrdu ? 'ڈبل' : 'DOUBLE')}
                           </button>
                         ))}
                       </div>
                     </div>
                     <div className="space-y-3">
-                      <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-2">Fit Profile</label>
-                      <div className="flex p-2 bg-gray-950 rounded-[1.5rem] border-2 border-gray-800 h-[72px]">
+                      <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-2">{t('fitProfile')}</label>
+                      <div className={`flex p-2 bg-gray-950 rounded-[1.5rem] border-2 border-gray-800 h-[72px] ${useUrdu ? 'flex-row-reverse' : ''}`}>
                         {['Slim', 'Regular'].map(f => (
                           <button
                             key={f}
@@ -715,12 +848,12 @@ const SmartOrderForm = () => {
                     </div>
                   </div>
                   <div className="space-y-3">
-                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-2">Master Tailor Notes</label>
+                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-2">{t('notes')}</label>
                     <textarea
                       value={formData.designNotes}
                       onChange={(e) => setFormData({...formData, designNotes: e.target.value})}
-                      className="w-full bg-gray-950 border-2 border-gray-800 rounded-[2rem] py-6 px-8 focus:border-blue-500 outline-none h-36 resize-none text-sm font-medium text-gray-300 shadow-inner"
-                      placeholder="Add special requests for the production floor..."
+                      className={`w-full bg-gray-950 border-2 border-gray-800 rounded-[2rem] py-6 px-8 focus:border-blue-500 outline-none h-36 resize-none text-sm font-medium text-gray-300 shadow-inner ${useUrdu ? 'text-right' : ''}`}
+                      placeholder={useUrdu ? 'خصوصی ہدایات یہاں درج کریں...' : "Add special requests for the production floor..."}
                     />
                   </div>
                 </div>
@@ -879,21 +1012,21 @@ const SmartOrderForm = () => {
           )}
         </AnimatePresence>
 
-        <div className="flex flex-col sm:flex-row items-center justify-between pt-12 gap-8 border-t-2 border-gray-900">
+        <div className={`flex flex-col sm:flex-row items-center justify-between pt-12 gap-8 border-t-2 border-gray-900 ${useUrdu ? 'flex-row-reverse' : ''}`}>
           <div className="flex flex-col space-y-4">
-            <div className="flex items-center space-x-3 text-gray-600 bg-gray-900/50 px-6 py-3 rounded-2xl border border-gray-800">
+            <div className={`flex items-center space-x-3 text-gray-600 bg-gray-900/50 px-6 py-3 rounded-2xl border border-gray-800 ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
               <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.5)] animate-pulse" />
-              <span className="text-[10px] font-black uppercase tracking-[0.2em]">Validated System Protocol</span>
+              <span className="text-[10px] font-black uppercase tracking-[0.2em]">{useUrdu ? 'تصدیق شدہ نظام' : 'Validated System Protocol'}</span>
             </div>
             {error && (
-              <div className="flex items-center space-x-3 text-red-500 bg-red-500/10 px-6 py-3 rounded-2xl border border-red-500/20">
+              <div className={`flex items-center space-x-3 text-red-500 bg-red-500/10 px-6 py-3 rounded-2xl border border-red-500/20 ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
                 <AlertCircle size={16} />
                 <span className="text-xs font-bold">{error}</span>
               </div>
             )}
           </div>
           
-          <div className="flex space-x-6 w-full sm:w-auto">
+          <div className={`flex space-x-6 w-full sm:w-auto ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
             {activeTab !== 'basic' && (
               <button
                 type="button"
@@ -903,7 +1036,7 @@ const SmartOrderForm = () => {
                 }}
                 className="flex-1 sm:px-12 py-6 bg-gray-900 text-white rounded-[1.5rem] font-black text-sm border-2 border-gray-800 hover:bg-gray-800 hover:border-gray-700 transition-all active:scale-95 shadow-xl"
               >
-                BACK
+                {t('back').toUpperCase()}
               </button>
             )}
             
@@ -921,8 +1054,8 @@ const SmartOrderForm = () => {
                 }}
                 className="flex-1 sm:px-16 py-6 bg-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl shadow-blue-900/50 hover:bg-blue-500 hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 group"
               >
-                <span>NEXT STEP</span>
-                <ArrowRight size={22} className="group-hover:translate-x-2 transition-transform" />
+                <span className={useUrdu ? "order-2" : "order-1"}>{t('next').toUpperCase()}</span>
+                <ArrowRight size={22} className={`transition-transform ${useUrdu ? 'order-1 rotate-180 group-hover:-translate-x-2' : 'order-2 group-hover:translate-x-2'}`} />
               </button>
             ) : (
               <button
@@ -931,10 +1064,10 @@ const SmartOrderForm = () => {
                 disabled={loading || isSubmitting}
                 className="flex-1 sm:px-24 py-6 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl shadow-blue-900/50 hover:scale-[1.03] hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 disabled:opacity-50 disabled:hover:scale-100 disabled:hover:translate-y-0"
               >
-                {loading || isSubmitting ? 'PROCESSING...' : (
+                {loading || isSubmitting ? (useUrdu ? 'انتظار کریں...' : 'PROCESSING...') : (
                   <>
-                    <ShoppingCart size={24} />
-                    <span>FINALIZE & DEPLOY ORDER</span>
+                    <ShoppingCart size={24} className={useUrdu ? "order-2" : "order-1"} />
+                    <span className={useUrdu ? "order-1" : "order-2"}>{t('submit').toUpperCase()}</span>
                   </>
                 )}
               </button>
@@ -947,14 +1080,14 @@ const SmartOrderForm = () => {
         <motion.div 
           initial={{ opacity: 0, y: 100 }}
           animate={{ opacity: 1, y: 0 }}
-          className="fixed bottom-12 inset-x-6 sm:left-auto sm:right-12 max-w-md bg-emerald-600 text-white p-8 rounded-[3rem] shadow-[0_30px_60px_rgba(0,0,0,0.4)] flex items-center space-x-6 z-50 border-2 border-emerald-400/20 backdrop-blur-3xl"
+          className={`fixed bottom-12 inset-x-6 sm:left-auto sm:right-12 max-w-md bg-emerald-600 text-white p-8 rounded-[3rem] shadow-[0_30px_60px_rgba(0,0,0,0.4)] flex items-center space-x-6 z-50 border-2 border-emerald-400/20 backdrop-blur-3xl ${useUrdu ? 'flex-row-reverse space-x-reverse text-right' : ''}`}
         >
           <div className="bg-white/20 p-5 rounded-[1.5rem] shadow-inner">
             <CheckCircle2 size={40} />
           </div>
           <div>
-            <p className="font-black text-2xl tracking-tighter leading-none uppercase">Conveyor Synced!</p>
-            <p className="text-[10px] font-black text-white/80 mt-2 uppercase tracking-[0.2em]">Queue: "ORDER_ENTRY" Floor</p>
+            <p className="font-black text-2xl tracking-tighter leading-none uppercase">{useUrdu ? 'آرڈر درج ہوگیا!' : 'Order Placed!'}</p>
+            <p className="text-[10px] font-black text-white/80 mt-2 uppercase tracking-[0.2em]">{useUrdu ? 'پیداواری لائن میں شامل کر دیا گیا' : 'Synced with Production Floor'}</p>
           </div>
         </motion.div>
       )}

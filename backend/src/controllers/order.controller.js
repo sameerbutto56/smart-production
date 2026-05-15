@@ -63,7 +63,11 @@ const createAuditLog = async (orderId, action, details, userId) => {
 
 
 const createOrder = async (req, res) => {
-  const { orderNumber, customerName, type, urgent, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, shopifyOrderId, paymentDeadline } = req.body;
+  const { orderNumber, customerName, customerPhone, type, urgent, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, shopifyOrderId, paymentDeadline } = req.body;
+
+  if (!customerPhone) {
+    return res.status(400).json({ error: 'Customer phone number is required' });
+  }
 
   try {
     // Check if advance payment is required for FULL_CUSTOM
@@ -73,8 +77,11 @@ const createOrder = async (req, res) => {
       data: {
         orderNumber,
         customerName,
+        customerPhone,
+        createdById: req.user?.id,
         type: type || 'STANDARD',
         urgent: urgent || false,
+        quantity: parseInt(quantity) || 1,
         logoDesign,
         logoName,
         customization: customization ? JSON.stringify(customization) : null,
@@ -145,7 +152,15 @@ const createOrder = async (req, res) => {
 
 const getOrders = async (req, res) => {
   try {
+    const { role, id } = req.user;
+    let where = {};
+
+    if (role === 'OUTLET') {
+      where = { createdById: id };
+    }
+
     const orders = await prisma.order.findMany({
+      where,
       include: {
         stages: {
           orderBy: { createdAt: 'desc' }

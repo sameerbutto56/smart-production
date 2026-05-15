@@ -19,6 +19,7 @@ model User {
   updatedAt  DateTime     @updatedAt
   auditLogs  AuditLog[]
   stages     OrderStage[]
+  createdOrders Order[]   @relation("OrderCreatedBy")
 }
 
 model Order {
@@ -26,8 +27,11 @@ model Order {
   orderNumber     String?      @unique
   shopifyOrderId  String?      @unique
   customerName    String
+  customerPhone   String?
+  createdById     String?
   type            String       @default("STANDARD")
   urgent          Boolean      @default(false)
+  quantity        Int          @default(1)
   logoDesign      String?
   logoName        String?
   customization   String?
@@ -44,9 +48,11 @@ model Order {
   totalPrice      Float?       @default(0)
   auditLogs       AuditLog[]
   stages          OrderStage[]
+  createdBy       User?        @relation("OrderCreatedBy", fields: [createdById], references: [id])
 
   @@index([status])
   @@index([currentStage])
+  @@index([customerPhone])
 }
 
 model OrderStage {

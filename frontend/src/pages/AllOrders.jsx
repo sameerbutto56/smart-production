@@ -19,7 +19,9 @@ import { motion } from 'framer-motion';
 import socket from '../socket';
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
+import { useMemo } from 'react';
 import toast from 'react-hot-toast';
+import { Phone, Users, List, Grid } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
 
@@ -44,6 +46,7 @@ const AllOrders = () => {
   const [filterType, setFilterType] = useState('ALL');
   const [filterUrgent, setFilterUrgent] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [isGroupedView, setIsGroupedView] = useState(false);
   const location = useLocation();
 
   useEffect(() => {
@@ -168,6 +171,37 @@ const AllOrders = () => {
     return matchesSearch && matchesStatus && matchesType && matchesUrgent;
   });
 
+  const groupedOrders = useMemo(() => {
+    const groups = {};
+    filteredOrders.forEach(order => {
+      const phone = order.customerPhone || 'No Phone';
+      if (!groups[phone]) {
+        groups[phone] = {
+          id: `group-${phone}`,
+          customerPhone: phone,
+          customerName: order.customerName,
+          totalQuantity: 0,
+          orderCount: 0,
+          orders: [],
+          latestOrderDate: order.createdAt,
+          statusSummary: {},
+        };
+      }
+      const qty = parseInt(order.quantity) || 1;
+      groups[phone].totalQuantity += qty;
+      groups[phone].orderCount += 1;
+      groups[phone].orders.push(order);
+      
+      const status = order.status;
+      groups[phone].statusSummary[status] = (groups[phone].statusSummary[status] || 0) + 1;
+      
+      if (new Date(order.createdAt) > new Date(groups[phone].latestOrderDate)) {
+        groups[phone].latestOrderDate = order.createdAt;
+      }
+    });
+    return Object.values(groups).sort((a, b) => new Date(b.latestOrderDate) - new Date(a.latestOrderDate));
+  }, [filteredOrders]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -226,6 +260,23 @@ const AllOrders = () => {
             <Filter size={18} />
             <span className="text-xs font-black uppercase tracking-widest hidden sm:inline">Filters</span>
           </button>
+
+          <div className="flex bg-gray-900 border border-gray-800 rounded-xl p-1">
+            <button
+              onClick={() => setIsGroupedView(false)}
+              className={`p-2 rounded-lg transition-all ${!isGroupedView ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+              title="Individual View"
+            >
+              <List size={18} />
+            </button>
+            <button
+              onClick={() => setIsGroupedView(true)}
+              className={`p-2 rounded-lg transition-all ${isGroupedView ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+              title="Bulk Grouped View"
+            >
+              <Users size={18} />
+            </button>
+          </div>
         </div>
 
           {showFilters && (
@@ -290,12 +341,25 @@ const AllOrders = () => {
           <table className="w-full text-left">
             <thead>
               <tr className="text-gray-400 text-xs uppercase border-b border-gray-700 bg-gray-900/50">
-                <th className="px-6 py-4">Customer</th>
-                <th className="px-6 py-4">Order Details</th>
-                <th className="px-6 py-4">Current Stage</th>
-                <th className="px-6 py-4">Priority</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4 text-right"></th>
+                {isGroupedView ? (
+                  <>
+                    <th className="px-6 py-4">Customer / Phone</th>
+                    <th className="px-6 py-4 text-center">Orders</th>
+                    <th className="px-6 py-4 text-center">Total Quantity</th>
+                    <th className="px-6 py-4">Status Summary</th>
+                    <th className="px-6 py-4">Latest Order</th>
+                    <th className="px-6 py-4 text-right"></th>
+                  </>
+                ) : (
+                  <>
+                    <th className="px-6 py-4">Customer</th>
+                    <th className="px-6 py-4">Order Details</th>
+                    <th className="px-6 py-4">Current Stage</th>
+                    <th className="px-6 py-4">Priority</th>
+                    <th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4 text-right"></th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
@@ -314,6 +378,60 @@ const AllOrders = () => {
                     No orders found matching your criteria.
                   </td>
                 </tr>
+              ) : isGroupedView ? (
+                groupedOrders.map((group) => (
+                  <tr 
+                    key={group.id}
+                    onClick={() => {
+                      // Maybe open a list of orders or just the first one?
+                      // For now, let's filter the search by phone to show individual orders
+                      setSearchTerm(group.customerPhone);
+                      setIsGroupedView(false);
+                      toast(`Showing ${group.orderCount} orders for ${group.customerPhone}`);
+                    }}
+                    className="hover:bg-white/5 transition-colors group cursor-pointer"
+                  >
+                    <td className="px-6 py-4">
+                      <div className="font-bold text-lg text-white group-hover:text-blue-400 transition-colors">
+                        {group.customerName}
+                      </div>
+                      <div className="flex items-center space-x-2 text-gray-500 font-bold mt-1">
+                        <Phone size={12} className="text-blue-500" />
+                        <span className="text-xs">{group.customerPhone}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <div className="inline-flex items-center justify-center bg-gray-800 w-10 h-10 rounded-full border border-gray-700 text-white font-black">
+                        {group.orderCount}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <div className="inline-flex items-center justify-center bg-blue-600/10 text-blue-400 px-4 py-2 rounded-xl border border-blue-500/20 font-black text-xl">
+                        {group.totalQuantity}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(group.statusSummary).map(([status, count]) => (
+                          <span key={status} className={`text-[9px] font-black px-2 py-1 rounded-lg border ${getStatusStyle(status)}`}>
+                            {count} {status.replace(/_/g, ' ')}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-xs text-gray-400 font-bold">
+                        {new Date(group.latestOrderDate).toLocaleDateString()}
+                      </div>
+                      <div className="text-[10px] text-gray-600 mt-1 uppercase font-black tracking-widest">
+                        {new Date(group.latestOrderDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <ChevronRight size={18} className="text-gray-500 ml-auto" />
+                    </td>
+                  </tr>
+                ))
               ) : (
                 filteredOrders.map((order) => {
                   const product = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
@@ -335,10 +453,16 @@ const AllOrders = () => {
                       <div className="text-xs text-gray-500 font-medium mt-1">
                         {order.customerName}
                       </div>
+                      {order.customerPhone && (
+                        <div className="text-[10px] text-gray-600 font-bold mt-0.5">
+                          {order.customerPhone}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm font-bold text-gray-200">
                         {product?.productType || 'Standard Item'}
+                        {order.quantity > 1 && <span className="ml-2 text-blue-400">x{order.quantity}</span>}
                       </div>
                       <div className="flex flex-wrap items-center gap-2 mt-1">
                         <span className="text-[10px] text-gray-500 font-medium bg-gray-800/50 px-2 py-0.5 rounded border border-gray-700/50">
@@ -367,7 +491,6 @@ const AllOrders = () => {
                           {isWaitingApproval ? `WAITING: ${order.currentStage.replace(/_/g, ' ')}` : order.currentStage.replace(/_/g, ' ')}
                         </span>
                         
-                        {/* Progress Bar under stage */}
                         <div className="w-24 h-2 bg-gray-800 rounded-full mt-2 overflow-hidden border border-gray-700/50 shadow-inner">
                           <motion.div 
                             initial={{ width: 0 }}
@@ -436,7 +559,7 @@ const AllOrders = () => {
                   </tr>
                   );
                 })
-              )}
+              ))))}
             </tbody>
           </table>
         </div>
