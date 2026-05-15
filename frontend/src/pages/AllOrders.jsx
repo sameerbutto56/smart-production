@@ -559,6 +559,7 @@ const AllOrders = () => {
                   </tr>
                   );
                 })}
+              )}
             </tbody>
           </table>
         </div>
