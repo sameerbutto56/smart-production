@@ -26,6 +26,7 @@ const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'l
 const History = () => {
   const { user } = useAuth();
   const { isUrdu, LanguageToggle } = useLanguage();
+  const useUrdu = isUrdu;
   const isAdmin = ['SUPER_ADMIN', 'FAISAL'].includes(user?.role);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -161,9 +162,9 @@ const History = () => {
           <div className="p-4 bg-gradient-to-br from-indigo-600 to-purple-700 rounded-[1.8rem] shadow-2xl shadow-indigo-900/40 rotate-3">
             <HistoryIcon className="text-white" size={32} />
           </div>
-          <div>
-            <h1 className="text-4xl font-black text-white tracking-tight leading-none">Archive & Audit</h1>
-            <p className="text-gray-500 text-[10px] font-black uppercase tracking-[0.4em] mt-2">Production Performance History</p>
+          <div className={isUrdu ? 'text-right' : ''}>
+            <h1 className="text-4xl font-black text-white tracking-tight leading-none">{t('archive')}</h1>
+            <p className="text-gray-500 text-[10px] font-black uppercase tracking-[0.4em] mt-2">{t('performance')}</p>
           </div>
         </div>
 
