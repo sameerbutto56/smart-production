@@ -1,12 +1,13 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-async function check() {
+async function main() {
   const count = await prisma.order.count();
-  console.log(`Total orders in DB: ${count}`);
-  const users = await prisma.user.count();
-  console.log(`Total users in DB: ${users}`);
-  process.exit(0);
+  console.log('Current Order Count:', count);
+  const orders = await prisma.order.findMany({ 
+    select: { id: true, orderNumber: true, status: true, createdAt: true } 
+  });
+  console.log('Orders:', orders);
 }
 
-check();
+main().finally(() => prisma.$disconnect());

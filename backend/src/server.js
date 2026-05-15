@@ -106,14 +106,14 @@ app.set('io', io);
 const { syncShopifyOrders } = require('./services/shopify.service');
 
 // Sync Shopify orders every 5 minutes
-setInterval(() => {
-  syncShopifyOrders(prisma, io);
-}, 5 * 60 * 1000);
+// setInterval(() => {
+//   syncShopifyOrders(prisma, io);
+// }, 5 * 60 * 1000);
 
 // Initial sync on startup
-setTimeout(() => {
-  syncShopifyOrders(prisma, io);
-}, 5000);
+// setTimeout(() => {
+//   syncShopifyOrders(prisma, io);
+// }, 5000);
 
 const PORT = process.env.PORT || 5000;
 

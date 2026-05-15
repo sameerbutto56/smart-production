@@ -617,14 +617,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                       </button>
                     )}
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => setShowCancelDialog(true)}
-                        className="flex-1 min-w-[100px] bg-red-950/20 hover:bg-red-900 text-red-500 py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 border border-red-500/20"
-                        title="Cancel Order Permanently"
-                      >
-                        <Trash2 size={16} />
-                        <span>{t('Cancel')}</span>
-                      </button>
+
                       <button
                         onClick={() => order.status === 'ON_HOLD' ? handleHoldAction(true) : setShowHoldDialog(true)}
                         className={`flex-1 min-w-[100px] py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 border ${
@@ -637,28 +630,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                         <Clock size={16} />
                         <span>{order.status === 'ON_HOLD' ? 'RESUME' : t('Hold')}</span>
                       </button>
-                      {isFaisal && (
-                        <button
-                          onClick={async () => {
-                            if (!window.confirm('PERMANENTLY DELETE THIS ORDER?')) return;
-                            try {
-                              const token = sessionStorage.getItem('token');
-                              await axios.delete(`${API_URL}/api/orders/${order.id}`, {
-                                headers: { Authorization: `Bearer ${token}` }
-                              });
-                              toast.success('Order Deleted');
-                              onUpdateStage(order.id, null, 'delete');
-                            } catch (e) {
-                              toast.error('Failed to delete');
-                            }
-                          }}
-                          className="flex-1 min-w-[100px] bg-red-600 hover:bg-red-500 text-white py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg"
-                          title="Delete Order Permanently"
-                        >
-                          <Trash2 size={16} />
-                          <span>{t('Delete')}</span>
-                        </button>
-                      )}
+
                     </div>
                     {order.paymentStatus !== 'FULL_PAID' && (
                       <button
