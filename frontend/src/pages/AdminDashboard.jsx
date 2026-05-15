@@ -27,6 +27,7 @@ import socket from '../socket';
 import OrderCard from '../components/OrderCard';
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
+import { useLanguage } from '../context/LanguageContext';
 import toast from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
@@ -34,6 +35,7 @@ const NOTIFICATION_SOUND = 'https://assets.mixkit.co/active_storage/sfx/2869/286
 
 const AdminDashboard = () => {
   const { user } = useAuth();
+  const { t, LanguageToggle, isUrdu } = useLanguage();
   const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalOrders: 0,
@@ -349,10 +351,11 @@ const AdminDashboard = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-white tracking-tight">Faisal Control Center</h1>
+          <h1 className="text-3xl font-black text-white tracking-tight">{t('Control Center')}</h1>
           <p className="text-gray-400 font-bold uppercase tracking-widest text-[10px] mt-1">Production Approval Hub</p>
         </div>
         <div className="flex items-center gap-4">
+          <LanguageToggle />
           <button
             onClick={() => {
               const audio = new Audio(NOTIFICATION_SOUND);

@@ -19,18 +19,19 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
 
 const History = () => {
   const { user } = useAuth();
+  const { isUrdu, LanguageToggle } = useLanguage();
   const isAdmin = ['SUPER_ADMIN', 'FAISAL'].includes(user?.role);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedAuditLog, setSelectedAuditLog] = useState(null);
   const [isClearing, setIsClearing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [useUrdu, setUseUrdu] = useState(localStorage.getItem('preferredLanguage') === 'ur');
 
   const t = (key) => {
     const urdu = {
@@ -63,7 +64,7 @@ const History = () => {
       bulkView: 'Bulk View (by Phone)',
       individualView: 'Individual View'
     };
-    return useUrdu ? urdu[key] : english[key];
+    return isUrdu ? urdu[key] : english[key];
   };
 
   useEffect(() => {
@@ -197,16 +198,7 @@ const History = () => {
               </button>
             )}
 
-            <button 
-              onClick={() => {
-                const newLang = useUrdu ? 'en' : 'ur';
-                setUseUrdu(!useUrdu);
-                localStorage.setItem('preferredLanguage', newLang);
-              }}
-              className="px-8 py-4 bg-indigo-600 rounded-2xl text-white font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-indigo-900/40 hover:bg-indigo-500 transition-all active:scale-95"
-            >
-              {useUrdu ? 'English Interface' : 'اردو انٹرفیس'}
-            </button>
+            <LanguageToggle />
         </div>
       </div>
 

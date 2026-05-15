@@ -17,9 +17,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import socket from '../socket';
 import toast from 'react-hot-toast';
 import { useSearch } from '../context/SearchContext';
+import { useLanguage } from '../context/LanguageContext';
 
 const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
   const { user, logout } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -111,10 +113,10 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
                   ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' 
                   : 'text-gray-400 hover:bg-gray-800 hover:text-white'
               }`}
-              title={isCollapsed ? item.name : ""}
+              title={isCollapsed ? t(item.name) : ""}
             >
               <item.icon size={20} className={location.pathname === item.path ? 'text-white' : 'group-hover:text-blue-400'} />
-              {!isCollapsed && <span className="font-bold text-xs tracking-wide">{item.name}</span>}
+              {!isCollapsed && <span className="font-bold text-xs tracking-wide">{t(item.name)}</span>}
             </Link>
           ))}
         </nav>
@@ -156,6 +158,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
 
 const Layout = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -283,6 +286,7 @@ const Layout = () => {
           </div>
 
           <div className="flex items-center gap-4">
+            <LanguageToggle />
             <div className="hidden md:flex flex-col items-right text-right">
               <span className="text-[10px] font-black text-white uppercase tracking-widest">{user?.role?.replace('_', ' ')}</span>
               <span className="text-[8px] font-bold text-gray-500 uppercase tracking-tighter">Active Session</span>

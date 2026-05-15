@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw, MessageSquare, History, Target, Trash2 } from 'lucide-react';
 import axios from 'axios';
+import { useLanguage } from '../context/LanguageContext';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
 
 const OrderCard = ({ order, onUpdateStage, userRole }) => {
+  const { t, isUrdu } = useLanguage();
   const currentStage = order.stages.find(s => s.status === 'WAITING_APPROVAL') || 
                       order.stages.find(s => s.status === 'IN_PROGRESS') || 
                       order.stages.find(s => s.status === 'PENDING') || 
@@ -452,7 +454,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                   <span className={`font-mono text-sm tracking-tighter leading-none ${urgencyColor}`}>
                     {timeLeft}
                   </span>
-                  <span className="text-[7px] text-gray-500 font-black uppercase mt-0.5">Time Left</span>
+                  <span className="text-[7px] text-gray-500 font-black uppercase mt-0.5">{t('Time Left')}</span>
                 </div>
               </div>
               <div className="text-[8px] text-gray-500 font-black uppercase tracking-widest bg-gray-900 px-2 py-0.5 rounded-md">
@@ -486,7 +488,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                 <ClipboardList size={16} className="text-blue-400" />
               </div>
               <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] group-hover:text-blue-300 transition-colors">
-                Job Sheet Summary
+                {t('Job Sheet Summary')}
               </h4>
             </div>
             <ul className="space-y-3">
@@ -704,8 +706,8 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                       <span>{(() => {
                         const nextStageIdx = currentPipeline.indexOf(currentStage?.stageName) + 1;
                         const nextStage = currentPipeline[nextStageIdx];
-                        if (currentStage?.stageName === 'OUT_FOR_DELIVERY') return 'DELIVERY COMPLETE';
-                        return nextStage ? `MOVE TO ${nextStage.replace(/_/g, ' ')}` : 'COMPLETE TASK';
+                        if (currentStage?.stageName === 'OUT_FOR_DELIVERY') return t('DELIVERY COMPLETE');
+                        return nextStage ? `${t('MOVE TO')} ${t(nextStage.replace(/_/g, ' '))}` : t('COMPLETE TASK');
                       })()}</span>
                     </button>
                     <button

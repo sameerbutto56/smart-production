@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -32,6 +34,15 @@
   ::-webkit-scrollbar-thumb {
     @apply bg-gray-800 rounded-full hover:bg-gray-700 transition-colors;
   }
+}
+
+.font-urdu {
+  font-family: 'Noto Nastaliq Urdu', serif;
+  line-height: 2.2;
+}
+
+[dir="rtl"] .font-urdu {
+  text-align: right;
 }
 
 .no-scroll {

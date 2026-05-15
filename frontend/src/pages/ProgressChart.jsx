@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import socket from '../socket';
+import { useLanguage } from '../context/LanguageContext';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
 
@@ -23,6 +24,7 @@ const ProgressChart = () => {
   const [orders, setOrders] = useState([]);
   const [stats, setStats] = useState({});
   const [analytics, setAnalytics] = useState(null);
+  const { t, LanguageToggle, isUrdu } = useLanguage();
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const navigate = useNavigate();
@@ -87,15 +89,16 @@ const ProgressChart = () => {
             <Zap size={24} className="text-white fill-current" />
           </div>
           <div>
-            <h1 className="text-3xl font-black tracking-tighter uppercase italic leading-none">ENAMELS COMMAND</h1>
+            <h1 className="text-3xl font-black tracking-tighter uppercase italic leading-none">{t('Production Chart')}</h1>
             <div className="flex items-center gap-2 text-blue-500 font-bold tracking-widest text-[8px] mt-1">
               <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping" />
-              REAL-TIME PRODUCTION FEED
+              {t('LIVE FEED')}
             </div>
           </div>
         </div>
         
         <div className="flex items-center gap-8">
+          <LanguageToggle />
           <div className="text-right hidden sm:block">
             <div className="text-4xl font-black tracking-tighter font-mono leading-none">
               {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}

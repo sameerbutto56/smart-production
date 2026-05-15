@@ -8,6 +8,7 @@ import {
   RefreshCw, ClipboardList, Search
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLanguage } from '../context/LanguageContext';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -149,6 +150,7 @@ const OrderCard = ({ order, idx, onAction, loading }) => {
 /* ─── main page ─── */
 const DeliveryDashboard = () => {
   const { user } = useAuth();
+  const { t, LanguageToggle, isUrdu } = useLanguage();
   const token = localStorage.getItem('token');
 
   const [orders, setOrders] = useState([]);
@@ -235,31 +237,34 @@ const DeliveryDashboard = () => {
             <Truck className="text-white" size={22} />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-white leading-none">Deliveries</h1>
+            <h1 className="text-2xl font-black text-white leading-none">{t('Deliveries')}</h1>
             <p className="text-[10px] text-gray-500 font-bold mt-0.5">{user?.name}</p>
           </div>
         </div>
-        <button
-          onClick={fetchOrders}
-          className="w-11 h-11 flex items-center justify-center bg-gray-900 border border-gray-800 rounded-2xl text-gray-400 hover:text-white active:scale-90 transition-all"
-        >
-          <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-        </button>
+        <div className="flex items-center gap-2">
+          <LanguageToggle />
+          <button
+            onClick={fetchOrders}
+            className="w-11 h-11 flex items-center justify-center bg-gray-900 border border-gray-800 rounded-2xl text-gray-400 hover:text-white active:scale-90 transition-all"
+          >
+            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+          </button>
+        </div>
       </div>
 
       {/* Stats — big and colorful */}
       <div className="grid grid-cols-3 gap-2">
         <button onClick={() => setFilter('PENDING')} className={`rounded-2xl p-4 text-center transition-all border-2 ${filter === 'PENDING' ? 'bg-blue-600 border-blue-500' : 'bg-gray-900 border-gray-800'}`}>
           <p className={`text-3xl font-black ${filter === 'PENDING' ? 'text-white' : 'text-blue-400'}`}>{pending.length}</p>
-          <p className={`text-[9px] font-black uppercase tracking-wider mt-1 ${filter === 'PENDING' ? 'text-blue-100' : 'text-gray-500'}`}>Pending</p>
+          <p className={`text-[9px] font-black uppercase tracking-wider mt-1 ${filter === 'PENDING' ? 'text-blue-100' : 'text-gray-500'}`}>{t('Pending')}</p>
         </button>
         <button onClick={() => setFilter('DELIVERED')} className={`rounded-2xl p-4 text-center transition-all border-2 ${filter === 'DELIVERED' ? 'bg-emerald-600 border-emerald-500' : 'bg-gray-900 border-gray-800'}`}>
           <p className={`text-3xl font-black ${filter === 'DELIVERED' ? 'text-white' : 'text-emerald-400'}`}>{delivered.length}</p>
-          <p className={`text-[9px] font-black uppercase tracking-wider mt-1 ${filter === 'DELIVERED' ? 'text-emerald-100' : 'text-gray-500'}`}>Delivered</p>
+          <p className={`text-[9px] font-black uppercase tracking-wider mt-1 ${filter === 'DELIVERED' ? 'text-emerald-100' : 'text-gray-500'}`}>{t('Delivered')}</p>
         </button>
         <button onClick={() => setFilter('NOT_RESPONDED')} className={`rounded-2xl p-4 text-center transition-all border-2 ${filter === 'NOT_RESPONDED' ? 'bg-amber-600 border-amber-500' : 'bg-gray-900 border-gray-800'}`}>
           <p className={`text-3xl font-black ${filter === 'NOT_RESPONDED' ? 'text-white' : 'text-amber-400'}`}>{noResponse.length}</p>
-          <p className={`text-[9px] font-black uppercase tracking-wider mt-1 ${filter === 'NOT_RESPONDED' ? 'text-amber-100' : 'text-gray-500'}`}>No Reply</p>
+          <p className={`text-[9px] font-black uppercase tracking-wider mt-1 ${filter === 'NOT_RESPONDED' ? 'text-amber-100' : 'text-gray-500'}`}>{t('No Reply')}</p>
         </button>
       </div>
 
@@ -268,7 +273,7 @@ const DeliveryDashboard = () => {
         onClick={() => setFilter('ALL')}
         className={`w-full py-3 rounded-2xl text-sm font-black uppercase tracking-widest border-2 transition-all ${filter === 'ALL' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-900 border-gray-800 text-gray-500'}`}
       >
-        Show All ({orders.length})
+        {t('Show All')} ({orders.length})
       </button>
 
       {/* Search */}

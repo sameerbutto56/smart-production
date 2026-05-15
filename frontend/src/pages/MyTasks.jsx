@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import OrderCard from '../components/OrderCard';
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
+import { useLanguage } from '../context/LanguageContext';
 import { Search, Filter, Loader2, Sparkles, AlertCircle } from 'lucide-react';
 import socket from '../socket';
 import toast from 'react-hot-toast';
@@ -12,6 +13,7 @@ const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'l
 
 const MyTasks = () => {
   const { user } = useAuth();
+  const { t, LanguageToggle, isUrdu } = useLanguage();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const { searchTerm: contextSearch, setSearchTerm: setContextSearch } = useSearch();
@@ -164,12 +166,13 @@ const MyTasks = () => {
             <Sparkles className="text-white" size={24} />
           </div>
           <div>
-            <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight">Active Production Queue</h1>
+            <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight">{t('Production Tasks')}</h1>
             <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mt-1">Managing orders for {user?.role?.replace('_', ' ')}</p>
           </div>
         </div>
 
         <div className="flex flex-col md:flex-row items-end gap-4 w-full md:w-auto">
+          <LanguageToggle />
           <div className="relative group w-full md:w-80">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-blue-500 transition-colors" size={20} />
             <input

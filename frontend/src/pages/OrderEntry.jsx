@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import silhouetteMale from '../assets/silhouette.png';
 import silhouetteFemale from '../assets/silhouette-female.png';
 
@@ -101,8 +102,8 @@ const SmartOrderForm = () => {
   });
 
   const { user } = useAuth();
+  const { isUrdu, LanguageToggle } = useLanguage();
   const isOutlet = user?.role === 'OUTLET';
-  const [useUrdu, setUseUrdu] = useState(isOutlet);
 
   const URDU_LABELS = {
     identity: 'شناختی معلومات',
@@ -153,7 +154,7 @@ const SmartOrderForm = () => {
 
   const t = (key) => {
     if (!key) return '';
-    if (useUrdu) return URDU_LABELS[key] || key;
+    if (isUrdu) return URDU_LABELS[key] || key;
     return key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
   };
 
@@ -362,24 +363,18 @@ const SmartOrderForm = () => {
   return (
     <div className="max-w-7xl mx-auto pb-12 px-4">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-6">
-        <div className={`flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-4'}`}>
+        <div className={`flex items-center ${isUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-4'}`}>
           <div className="p-4 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl shadow-2xl shadow-blue-900/40 rotate-3">
             <Sparkles className="text-white" size={24} />
           </div>
-          <div className={useUrdu ? 'text-right' : ''}>
-            <h1 className="text-3xl font-black text-white tracking-tight leading-none">{useUrdu ? 'آرڈر انٹری' : 'Smart Order Flow'}</h1>
-            <p className="text-gray-500 text-[9px] font-black uppercase tracking-[0.3em] mt-1.5">{useUrdu ? 'جدید پروڈکشن سسٹم' : 'Conveyor Belt Intelligence'}</p>
+          <div className={isUrdu ? 'text-right' : ''}>
+            <h1 className="text-3xl font-black text-white tracking-tight leading-none">{isUrdu ? 'آرڈر انٹری' : 'Smart Order Flow'}</h1>
+            <p className="text-gray-500 text-[9px] font-black uppercase tracking-[0.3em] mt-1.5">{isUrdu ? 'جدید پروڈکشن سسٹم' : 'Conveyor Belt Intelligence'}</p>
           </div>
         </div>
         
-        <div className={`flex items-center gap-4 ${useUrdu ? 'flex-row-reverse' : ''}`}>
-          <button 
-            type="button" 
-            onClick={() => setUseUrdu(!useUrdu)}
-            className="px-6 py-3 bg-gray-900/50 border-2 border-gray-800 rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:border-gray-700 transition-all"
-          >
-            {useUrdu ? 'English Interface' : 'اردو انٹرفیس'}
-          </button>
+        <div className={`flex items-center gap-4 ${isUrdu ? 'flex-row-reverse' : ''}`}>
+          <LanguageToggle />
 
           <div className="flex p-1.5 bg-gray-900/80 backdrop-blur-3xl rounded-[1.8rem] border-2 border-gray-800 shadow-2xl overflow-x-auto no-scrollbar">
             {filteredTabs.map((tab, index) => (
@@ -391,10 +386,10 @@ const SmartOrderForm = () => {
                   activeTab === tab.id 
                     ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)] scale-105' 
                     : 'text-gray-600 hover:text-white hover:bg-gray-800/50'
-                } ${useUrdu ? 'flex-row-reverse' : ''}`}
+                } ${isUrdu ? 'flex-row-reverse' : ''}`}
               >
                 <tab.icon size={16} className={activeTab === tab.id ? 'animate-pulse' : ''} />
-                <span className="hidden sm:inline">{useUrdu ? URDU_LABELS[tab.id === 'basic' ? 'identity' : tab.id === 'product' ? 'productSelection' : tab.id === 'custom' ? 'branding' : 'measurements'] : (tab.label.split('. ')[1] || tab.label).toUpperCase()}</span>
+                <span className="hidden sm:inline">{isUrdu ? URDU_LABELS[tab.id === 'basic' ? 'identity' : tab.id === 'product' ? 'productSelection' : tab.id === 'custom' ? 'branding' : 'measurements'] : (tab.label.split('. ')[1] || tab.label).toUpperCase()}</span>
               </button>
             ))}
           </div>

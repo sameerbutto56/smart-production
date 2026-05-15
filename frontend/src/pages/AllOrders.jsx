@@ -23,6 +23,7 @@ import { motion } from 'framer-motion';
 import socket from '../socket';
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
+import { useLanguage } from '../context/LanguageContext';
 import toast from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
@@ -49,10 +50,10 @@ const AllOrders = () => {
   const [filterUrgent, setFilterUrgent] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [isGroupedView, setIsGroupedView] = useState(false);
-  const [useUrdu, setUseUrdu] = useState(localStorage.getItem('preferredLanguage') === 'ur');
+  const { t, LanguageToggle, isUrdu } = useLanguage();
   const location = useLocation();
 
-  const URDU_LABELS = {
+  const dict = {
     queue: 'پیداواری قطار',
     monitoring: 'آرڈرز کی براہ راست نگرانی',
     search: 'آرڈر نمبر یا نام تلاش کریں...',
@@ -67,9 +68,9 @@ const AllOrders = () => {
     latest: 'تازہ ترین'
   };
 
-  const t = (key) => {
+  const localT = (key) => {
     if (!key) return '';
-    if (useUrdu) return URDU_LABELS[key] || key;
+    if (isUrdu) return dict[key] || key;
     return key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
   };
 
@@ -237,46 +238,37 @@ const AllOrders = () => {
     <div className="space-y-10 max-w-7xl mx-auto pb-20 px-4">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-10">
-        <div className={`flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-6'}`}>
+        <div className={`flex items-center ${isUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-6'}`}>
           <div className="p-4 bg-gradient-to-br from-emerald-600 to-teal-700 rounded-[1.8rem] shadow-2xl shadow-emerald-900/40 rotate-3">
             <Package className="text-white" size={32} />
           </div>
-          <div className={useUrdu ? 'text-right' : ''}>
-            <h1 className="text-4xl font-black text-white tracking-tight leading-none">{t('queue')}</h1>
-            <p className="text-gray-500 text-[10px] font-black uppercase tracking-[0.4em] mt-2">{t('monitoring')}</p>
+          <div className={isUrdu ? 'text-right' : ''}>
+            <h1 className="text-4xl font-black text-white tracking-tight leading-none">{localT('queue')}</h1>
+            <p className="text-gray-500 text-[10px] font-black uppercase tracking-[0.4em] mt-2">{localT('monitoring')}</p>
           </div>
         </div>
 
-        <div className={`flex flex-wrap items-center gap-4 ${useUrdu ? 'flex-row-reverse' : ''}`}>
+        <div className={`flex flex-wrap items-center gap-4 ${isUrdu ? 'flex-row-reverse' : ''}`}>
            <div className="relative group w-full sm:w-72">
-              <Search className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-emerald-500 transition-all duration-300`} size={20} />
+              <Search className={`absolute ${isUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-emerald-500 transition-all duration-300`} size={20} />
               <input
                 type="text"
-                placeholder={t('search')}
+                placeholder={localT('search')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className={`w-full bg-gray-950/80 border-2 border-gray-800 rounded-[1.5rem] py-4 ${useUrdu ? 'pr-16 pl-6 text-right' : 'pl-16 pr-6'} focus:border-emerald-500 outline-none transition-all text-sm font-black text-white placeholder-gray-800`}
+                className={`w-full bg-gray-950/80 border-2 border-gray-800 rounded-[1.5rem] py-4 ${isUrdu ? 'pr-16 pl-6 text-right' : 'pl-16 pr-6'} focus:border-emerald-500 outline-none transition-all text-sm font-black text-white placeholder-gray-800`}
               />
             </div>
             
             <button
               onClick={() => setIsGroupedView(!isGroupedView)}
-              className={`px-8 py-4 bg-gray-900/50 border-2 border-gray-800 rounded-2xl text-white font-black text-[10px] uppercase tracking-[0.2em] hover:bg-gray-800 transition-all flex items-center gap-3 ${useUrdu ? 'flex-row-reverse' : ''}`}
+              className={`px-8 py-4 bg-gray-900/50 border-2 border-gray-800 rounded-2xl text-white font-black text-[10px] uppercase tracking-[0.2em] hover:bg-gray-800 transition-all flex items-center gap-3 ${isUrdu ? 'flex-row-reverse' : ''}`}
             >
               {isGroupedView ? <List size={16} /> : <Users size={16} />}
-              <span>{isGroupedView ? (useUrdu ? 'انفرادی منظر' : 'INDIVIDUAL VIEW') : (useUrdu ? 'بڑی تعداد کا منظر' : 'BULK VIEW')}</span>
+              <span>{isGroupedView ? (isUrdu ? 'انفرادی منظر' : 'INDIVIDUAL VIEW') : (isUrdu ? 'بڑی تعداد کا منظر' : 'BULK VIEW')}</span>
             </button>
 
-            <button 
-              onClick={() => {
-                const newLang = useUrdu ? 'en' : 'ur';
-                setUseUrdu(!useUrdu);
-                localStorage.setItem('preferredLanguage', newLang);
-              }}
-              className="px-8 py-4 bg-emerald-600 rounded-2xl text-white font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-emerald-900/40 hover:bg-emerald-500 transition-all active:scale-95"
-            >
-              {useUrdu ? 'English Interface' : 'اردو انٹرفیس'}
-            </button>
+            <LanguageToggle />
         </div>
       </div>
 

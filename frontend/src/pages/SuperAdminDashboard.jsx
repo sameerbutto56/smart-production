@@ -19,6 +19,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import socket from '../socket';
+import { useLanguage } from '../context/LanguageContext';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
 
@@ -27,6 +28,7 @@ const SuperAdminDashboard = () => {
   const [inventory, setInventory] = useState([]);
   const [durations, setDurations] = useState({});
   const [isUpdatingDurations, setIsUpdatingDurations] = useState(false);
+  const { t, LanguageToggle, isUrdu } = useLanguage();
   const navigate = useNavigate();
   
   const combinedManufacturingStats = useMemo(() => {
@@ -165,10 +167,11 @@ const SuperAdminDashboard = () => {
             <ShieldCheck className="text-white" size={32} />
           </div>
           <div>
-            <h1 className="text-4xl font-black text-white tracking-tight">Super Admin Portal</h1>
+            <h1 className="text-4xl font-black text-white tracking-tight">{t('Admin Portal')}</h1>
             <p className="text-gray-400 font-bold uppercase tracking-widest text-xs mt-1">Global System Oversight</p>
           </div>
         </div>
+        <LanguageToggle />
       </div>
 
 
