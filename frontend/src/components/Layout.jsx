@@ -158,7 +158,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
 
 const Layout = () => {
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, LanguageToggle } = useLanguage();
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
