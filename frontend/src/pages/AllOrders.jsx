@@ -558,8 +558,7 @@ const AllOrders = () => {
                     </td>
                   </tr>
                   );
-                })
-              ))))}
+                })}
             </tbody>
           </table>
         </div>
