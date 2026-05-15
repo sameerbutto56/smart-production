@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import socket from '../socket';
-import { toast } from 'react-hot-toast';
+import toast from 'react-hot-toast';
 import { useSearch } from '../context/SearchContext';
 
 const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
