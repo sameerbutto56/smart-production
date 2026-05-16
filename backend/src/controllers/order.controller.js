@@ -194,7 +194,8 @@ const createOrder = async (req, res) => {
 
 const getOrders = async (req, res) => {
   try {
-    const { role, id } = req.user;
+    const role = String(req.user.role || '').toUpperCase().trim();
+    const id = req.user.id;
     let where = {};
 
     if (role === 'OUTLET') {

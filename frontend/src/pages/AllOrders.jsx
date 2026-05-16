@@ -201,7 +201,13 @@ const AllOrders = () => {
     const matchesType = filterType === 'ALL' || order.type === filterType;
     const matchesUrgent = !filterUrgent || order.urgent;
     
-    return matchesSearch && matchesStatus && matchesType && matchesUrgent;
+    // Strict Role Filtering
+    const userRole = String(user?.role || '').toUpperCase().trim();
+    const isOwner = order.createdById === user?.id;
+    const isControlCenter = ['SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(userRole);
+    const matchesRole = isControlCenter || isOwner;
+    
+    return matchesSearch && matchesStatus && matchesType && matchesUrgent && matchesRole;
   });
 
   const groupedOrders = useMemo(() => {
