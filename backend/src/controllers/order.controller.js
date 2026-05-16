@@ -198,7 +198,7 @@ const getOrders = async (req, res) => {
     const id = req.user.id;
     let where = {};
 
-    if (role === 'OUTLET') {
+    if (role === 'OUTLET' || role === 'FAISAL') {
       where = { createdById: id };
     }
 

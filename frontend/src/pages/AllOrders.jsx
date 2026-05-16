@@ -83,14 +83,14 @@ const AllOrders = () => {
     fetchOrders();
 
     socket.on('order-updated', (data) => {
-      // Refresh if I am admin/faisal OR if this is MY order
-      if (user?.role === 'SUPER_ADMIN' || user?.role === 'FAISAL' || data?.createdById === user?.id) {
+      // Refresh if I am admin OR if this is MY order
+      if (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || data?.createdById === user?.id) {
         fetchOrders();
       }
     });
 
     socket.on('new-order', (order) => {
-      if (user?.role === 'SUPER_ADMIN' || user?.role === 'FAISAL' || order?.createdById === user?.id) {
+      if (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || order?.createdById === user?.id) {
         fetchOrders();
         toast(`New order created: #${order.orderNumber || order.id.substring(0,8)}`, { icon: '📦' });
       }
@@ -204,7 +204,7 @@ const AllOrders = () => {
     // Strict Role Filtering
     const userRole = String(user?.role || '').toUpperCase().trim();
     const isOwner = order.createdById === user?.id;
-    const isControlCenter = ['SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(userRole);
+    const isControlCenter = ['SUPER_ADMIN', 'ADMIN'].includes(userRole);
     const matchesRole = isControlCenter || isOwner;
     
     return matchesSearch && matchesStatus && matchesType && matchesUrgent && matchesRole;

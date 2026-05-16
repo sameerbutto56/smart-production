@@ -87,12 +87,18 @@ const History = () => {
     setLoading(false);
   };
 
-  const filteredOrders = orders.filter(o => 
-    o.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    o.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    o.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    o.customerPhone?.includes(searchTerm)
-  );
+  const filteredOrders = orders.filter(o => {
+    const matchesSearch = o.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      o.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      o.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      o.customerPhone?.includes(searchTerm);
+      
+    const userRole = String(user?.role || '').toUpperCase().trim();
+    const isOwner = o.createdById === user?.id;
+    const isControlCenter = ['SUPER_ADMIN', 'ADMIN'].includes(userRole);
+    
+    return matchesSearch && (isControlCenter || isOwner);
+  });
 
   const [isGroupedView, setIsGroupedView] = useState(false);
 
