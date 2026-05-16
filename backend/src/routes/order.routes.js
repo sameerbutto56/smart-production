@@ -28,18 +28,18 @@ router.get('/', authenticate, getOrders);
 // Module Employee: Request stage completion
 router.put('/:orderId/stages/:stageId/request', authenticate, requestStageCompletion);
 
-// Faisal: Approve or Reject or Cancel
-router.put('/:orderId/stages/:stageId/approve', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ORDER_ENTRY']), approveStageCompletion);
-router.put('/:orderId/stages/:stageId/reject', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ORDER_ENTRY']), rejectStageCompletion);
-router.put('/:orderId/cancel', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ORDER_ENTRY']), cancelOrder);
-router.put('/:orderId/hold', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ORDER_ENTRY']), holdOrder);
-router.delete('/:orderId', authenticate, authorize(['FAISAL', 'SUPER_ADMIN']), deleteOrder);
+// Control Center Actions: Approve, Reject, Cancel, Hold
+router.put('/:orderId/stages/:stageId/approve', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), approveStageCompletion);
+router.put('/:orderId/stages/:stageId/reject', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), rejectStageCompletion);
+router.put('/:orderId/cancel', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), cancelOrder);
+router.put('/:orderId/hold', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), holdOrder);
+router.delete('/:orderId', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN']), deleteOrder);
 
-// Faisal/Admin: Update payment status
-router.put('/:orderId/payment', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ORDER_ENTRY']), updatePaymentStatus);
+// Control Center: Update payment status
+router.put('/:orderId/payment', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), updatePaymentStatus);
 
-// Faisal/Admin: Get production analytics
-router.get('/analytics', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ORDER_ENTRY']), getAnalytics);
+// Control Center: Get production analytics
+router.get('/analytics', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), getAnalytics);
 
 // Delivery Boy: Update delivery status (Delivered / Not Responded)
 router.put('/:orderId/delivery', authenticate, authorize(['DELIVERY_BOY', 'FAISAL', 'SUPER_ADMIN']), updateDeliveryStatus);
