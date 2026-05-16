@@ -17,7 +17,7 @@ const { authenticate, authorize } = require('../middleware/auth.middleware');
 const router = express.Router();
 
 // Order Entry
-router.post('/', authenticate, authorize(['SUPER_ADMIN', 'FAISAL', 'ORDER_ENTRY']), createOrder);
+router.post('/', authenticate, authorize(['SUPER_ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET']), createOrder);
 
 // Clear history
 router.delete('/history', authenticate, authorize(['SUPER_ADMIN', 'FAISAL']), clearHistory);
