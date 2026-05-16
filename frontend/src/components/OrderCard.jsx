@@ -568,7 +568,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                   {t('Production History')}
                 </div>
                 <span className="text-[8px] text-yellow-500 font-black">
-                  👨‍💼 {order.stages.filter(s => s.status === 'COMPLETED' && s.stageName !== 'ORDER_ENTRY').length}x {t('to Faisal')}
+                  👨‍💼 {order.stages.filter(s => s.status === 'COMPLETED' && s.stageName !== 'ORDER_ENTRY').length}x {order.source === 'OUTLET' ? t('TO BRANCH') : t('TO FAISAL')}
                 </span>
               </h5>
               <div className="space-y-2 relative">
@@ -676,7 +676,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                 </>
               ) : (
                 <div className="flex-1 bg-gray-800 text-gray-500 py-4 rounded-2xl text-[10px] font-black uppercase text-center border border-gray-700 italic">
-                  Waiting for Faisal Approval...
+                  {t('Waiting for')} {order.source === 'OUTLET' ? t('Branch') : t('Faisal')} {t('Approval')}...
                 </div>
               )
             ) : (
@@ -811,7 +811,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                       }}
                       className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:hover:bg-red-600 text-white py-4 rounded-2xl text-xs font-black uppercase shadow-xl shadow-red-900/20 transition-all"
                     >
-                      Send to Faisal
+                      {t('Send to')} {order.source === 'OUTLET' ? t('Branch') : t('Faisal')}
                     </button>
                   </div>
                 </motion.div>
