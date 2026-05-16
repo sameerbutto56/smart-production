@@ -13,7 +13,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                       order.stages.find(s => s.status === 'PENDING') || 
                       order.stages[0];
 
-  const isFaisal = ['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY'].includes(userRole);
+  const isFaisal = ['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET'].includes(userRole);
   const [timeLeft, setTimeLeft] = useState('');
   const [isDelayed, setIsDelayed] = useState(false);
   const [showFullSheet, setShowFullSheet] = useState(false);
@@ -548,7 +548,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
             {currentStage?.rejectionReason && (
               <div className={`mt-4 p-3 rounded-xl border ${currentStage.rejectionReason.includes('Available') ? 'bg-emerald-500/10 border-emerald-500/20' : currentStage.rejectionReason.includes('PROBLEM') ? 'bg-orange-500/10 border-orange-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
                 <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${currentStage.rejectionReason.includes('Available') ? 'text-emerald-400' : currentStage.rejectionReason.includes('PROBLEM') ? 'text-orange-400' : 'text-red-400'}`}>
-                  {currentStage.rejectionReason.includes('Inventory') ? 'Store Inventory Check:' : currentStage.rejectionReason.includes('PROBLEM') ? 'Worker Reported Problem:' : 'Faisal Rejection Reason:'}
+                  {currentStage.rejectionReason.includes('Inventory') ? 'Store Inventory Check:' : currentStage.rejectionReason.includes('PROBLEM') ? 'Worker Reported Problem:' : (order.source === 'OUTLET' ? 'Branch Rejection Reason:' : 'Faisal Rejection Reason:')}
                 </p>
                 <p className="text-xs text-gray-300 italic">{currentStage.rejectionReason.replace('PROBLEM:', '')}</p>
               </div>
@@ -588,7 +588,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
                             {s.stageName.replace(/_/g, ' ')}
                           </span>
-                          <span className="text-[8px] text-yellow-500/60">→ {t('Faisal')}</span>
+                          <span className="text-[8px] text-yellow-500/60">→ {order.source === 'OUTLET' ? t('Branch') : t('Faisal')}</span>
                         </div>
                         <span className="text-[9px] text-gray-600 font-medium">
                           {new Date(s.completedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} | {new Date(s.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -780,7 +780,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                     </div>
                     <div>
                       <h3 className="text-xl font-black text-white uppercase tracking-tight">Report Problem</h3>
-                      <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">Sent directly to Faisal Control Center</p>
+                      <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">Sent directly to {order.source === 'OUTLET' ? 'Branch' : 'Faisal'} Control Center</p>
                     </div>
                   </div>
 

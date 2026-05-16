@@ -825,7 +825,7 @@ const AllOrders = () => {
                          <span className="text-yellow-500 text-sm">👨‍💼</span>
                        </div>
                        <div>
-                         <p className="text-[10px] font-black text-yellow-500 uppercase tracking-widest">Faisal Approvals</p>
+                         <p className="text-[10px] font-black text-yellow-500 uppercase tracking-widest">{selectedOrder.source === 'OUTLET' ? 'Branch Approvals' : 'Faisal Approvals'}</p>
                          <p className="text-[9px] text-gray-500 font-bold">Times this order came for review</p>
                        </div>
                      </div>
