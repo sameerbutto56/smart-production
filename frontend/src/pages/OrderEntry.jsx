@@ -492,28 +492,28 @@ const SmartOrderForm = () => {
                   </div>
 
                   {formData.gender === 'Female' && (
-                    <div className="grid grid-cols-2 gap-4">
-                      <label className="flex items-center justify-between p-4 bg-gray-950 rounded-[1.5rem] border-2 border-gray-800 cursor-pointer hover:border-pink-500/30 transition-all group h-full">
-                        <div className="flex items-center space-x-4">
-                          <div className={`p-3 rounded-xl transition-all ${formData.femaleOptions.dupatta ? 'bg-pink-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
-                            <Layers size={18} />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <label className="flex items-center justify-between p-3 bg-gray-950 rounded-[1.5rem] border-2 border-gray-800 cursor-pointer hover:border-pink-500/30 transition-all group h-full overflow-hidden">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className={`p-2.5 rounded-xl transition-all shrink-0 ${formData.femaleOptions.dupatta ? 'bg-pink-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
+                            <Layers size={16} />
                           </div>
-                          <div>
-                            <p className="font-black text-[10px] uppercase">{t('dupatta')}</p>
+                          <div className="min-w-0 truncate">
+                            <p className="font-black text-[10px] uppercase truncate">{t('dupatta')}</p>
                           </div>
                         </div>
-                        <input type="checkbox" checked={formData.femaleOptions.dupatta} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, dupatta: e.target.checked}})} className="w-5 h-5 rounded border-2 border-gray-700 bg-gray-900 checked:bg-pink-600 transition-all cursor-pointer" />
+                        <input type="checkbox" checked={formData.femaleOptions.dupatta} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, dupatta: e.target.checked}})} className="w-5 h-5 shrink-0 ml-2 rounded border-2 border-gray-700 bg-gray-900 checked:bg-pink-600 transition-all cursor-pointer" />
                       </label>
-                      <label className="flex items-center justify-between p-4 bg-gray-950 rounded-[1.5rem] border-2 border-gray-800 cursor-pointer hover:border-pink-500/30 transition-all group h-full">
-                        <div className="flex items-center space-x-4">
-                          <div className={`p-3 rounded-xl transition-all ${formData.femaleOptions.zip ? 'bg-pink-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
-                            <div className="font-black text-xs">ZIP</div>
+                      <label className="flex items-center justify-between p-3 bg-gray-950 rounded-[1.5rem] border-2 border-gray-800 cursor-pointer hover:border-pink-500/30 transition-all group h-full overflow-hidden">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className={`p-2.5 rounded-xl transition-all shrink-0 flex items-center justify-center ${formData.femaleOptions.zip ? 'bg-pink-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
+                            <span className="font-black text-[9px]">ZIP</span>
                           </div>
-                          <div>
-                            <p className="font-black text-[10px] uppercase">{t('zip')}</p>
+                          <div className="min-w-0 truncate">
+                            <p className="font-black text-[10px] uppercase truncate">{t('zip')}</p>
                           </div>
                         </div>
-                        <input type="checkbox" checked={formData.femaleOptions.zip} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, zip: e.target.checked}})} className="w-5 h-5 rounded border-2 border-gray-700 bg-gray-900 checked:bg-pink-600 transition-all cursor-pointer" />
+                        <input type="checkbox" checked={formData.femaleOptions.zip} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, zip: e.target.checked}})} className="w-5 h-5 shrink-0 ml-2 rounded border-2 border-gray-700 bg-gray-900 checked:bg-pink-600 transition-all cursor-pointer" />
                       </label>
                     </div>
                   )}

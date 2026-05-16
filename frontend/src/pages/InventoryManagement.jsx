@@ -135,8 +135,8 @@ const InventoryManagement = () => {
   };
 
   const filteredItems = items.filter(item => 
-    item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (item.name && item.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (item.category && item.category.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (item.color && item.color.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
@@ -228,14 +228,14 @@ const InventoryManagement = () => {
               
               <div className="flex justify-between items-start mb-6">
                 <div className={`p-4 rounded-2xl shadow-xl overflow-hidden ${
-                  ['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS'].includes(item.category) ? 'bg-blue-600/10 text-blue-400' :
+                  ['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS'].includes(item.category || '') ? 'bg-blue-600/10 text-blue-400' :
                   item.category === 'FABRIC' ? 'bg-emerald-600/10 text-emerald-400' :
                   'bg-purple-600/10 text-purple-400'
                 }`}>
                   {item.imageUrl ? (
                     <img src={item.imageUrl} alt={item.name} className="w-6 h-6 object-cover rounded-md" />
                   ) : (
-                    ['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS'].includes(item.category) ? <Package size={24} /> : 
+                    ['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS'].includes(item.category || '') ? <Package size={24} /> : 
                     item.category === 'FABRIC' ? <Layers size={24} /> : <Palette size={24} />
                   )}
                 </div>
