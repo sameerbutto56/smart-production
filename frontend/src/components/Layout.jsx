@@ -32,12 +32,12 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
 
   const navItems = [
     { name: 'Admin Portal', path: '/admin', icon: LayoutDashboard, roles: ['SUPER_ADMIN'] },
-    { name: 'Control Center', path: '/dashboard', icon: LayoutDashboard, roles: ['FAISAL', 'SUPER_ADMIN', 'ORDER_ENTRY'] },
+    { name: 'Control Center', path: '/dashboard', icon: LayoutDashboard, roles: ['FAISAL', 'SUPER_ADMIN', 'ORDER_ENTRY', 'OUTLET'] },
     { name: 'Order Entry', path: '/order-entry', icon: ClipboardList, roles: ['ORDER_ENTRY', 'FAISAL', 'SUPER_ADMIN', 'OUTLET'] },
     { name: 'Inventory', path: '/inventory', icon: Package, roles: ['SUPER_ADMIN'] },
     { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'] },
     { name: 'All Orders', path: '/orders', icon: Package, roles: ['SUPER_ADMIN', 'FAISAL', 'ADMIN', 'OUTLET'] },
-    { name: 'History (Admin)', path: '/history', icon: History, roles: ['SUPER_ADMIN', 'FAISAL', 'ADMIN'] },
+    { name: 'History (Admin)', path: '/history', icon: History, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Deliveries', path: '/delivery', icon: Truck, roles: ['DELIVERY_BOY', 'SUPER_ADMIN'] },
   ];
   
@@ -50,8 +50,8 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     
     // 2. Extra safety for Outlets - explicitly remove History
     if (userRole === 'OUTLET') {
-      if (item.name === 'History') return false;
-      return ['Order Entry', 'All Orders'].includes(item.name);
+      if (item.name === 'History (Admin)' || item.name === 'History') return false;
+      return ['Order Entry', 'All Orders', 'Control Center'].includes(item.name);
     }
     
     // 3. Explicit Restriction for Delivery Boy
