@@ -166,9 +166,10 @@ const DeliveryDashboard = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       const relevant = res.data.filter(o =>
-        o.currentStage === 'OUT_FOR_DELIVERY' ||
+        (o.currentStage === 'OUT_FOR_DELIVERY' ||
         o.currentStage === 'DELIVERED' ||
-        o.status === 'COMPLETED'
+        o.status === 'COMPLETED') &&
+        (!o.deliveryMethod || o.deliveryMethod === 'ENAMELS_DELIVERY')
       );
       setOrders(relevant);
     } catch {

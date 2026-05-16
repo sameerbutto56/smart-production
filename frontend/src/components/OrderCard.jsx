@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw, MessageSquare, History, Target, Trash2 } from 'lucide-react';
+import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw, MessageSquare, History, Target, Trash2, Truck } from 'lucide-react';
 import axios from 'axios';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -30,6 +30,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
   const [cancelReason, setCancelReason] = useState('');
   const [showProblemModal, setShowProblemModal] = useState(false);
   const [problemNote, setProblemNote] = useState('');
+  const [deliveryMethod, setDeliveryMethod] = useState('');
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -464,8 +465,28 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                   }`}>
                     {order.type}
                   </span>
+                  {order.deliveryMethod && (
+                    <span className="bg-emerald-600 text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter flex items-center gap-1">
+                       <Truck size={8} /> {order.deliveryMethod.replace(/_/g, ' ')}
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-gray-400 font-bold tracking-wide truncate">{order.customerName}</p>
+                <p className="text-[9px] text-gray-500 font-black uppercase mt-1 flex items-center gap-1.5">
+                  <Users size={10} className="text-blue-500/50" />
+                  {t('Placed By')}: <span className="text-gray-400">
+                    {order.outletName === 'FAISAL CONTROL' ? 'ONLINE ORDER' : 
+                     order.outletName || (
+                       order.createdBy?.role === 'FAISAL' ? 'ONLINE ORDER' :
+                       order.createdBy?.role === 'OUTLET' ? (
+                         (order.createdBy?.name?.includes('1') || order.createdBy?.name?.toLowerCase().includes('johar')) ? 'JOHAR TOWN BRANCH' :
+                         (order.createdBy?.name?.includes('2') || order.createdBy?.name?.toLowerCase().includes('jail')) ? 'JAIL ROAD BRANCH' :
+                         (order.createdBy?.name?.includes('3') || order.createdBy?.name?.toLowerCase().includes('abbottabad')) ? 'ABBOTTABAD BRANCH' :
+                         order.createdBy?.name
+                       ) : order.createdBy?.name || 'System'
+                     )}
+                  </span>
+                </p>
               </div>
             </div>
                 <span className={`px-2 py-0.5 rounded-full text-[8px] font-black tracking-widest ${order.status === 'ON_HOLD' ? 'bg-orange-500/20 text-orange-400' : isWaitingApproval ? 'bg-orange-500 text-white animate-pulse' : 'bg-blue-500/10 text-blue-400'} border border-current flex items-center gap-1`}>
@@ -1006,6 +1027,10 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                   <option value="CUSTOM_LOGO">Send to CUSTOM LOGO DESIGN</option>
                   <option value="DISPATCH">Send to DISPATCH</option>
                   <option value="OUT_FOR_DELIVERY">Send to DELIVERY PARTNER</option>
+                  <option value="DELIVERY_TCS">Fast deliver tcs</option>
+                  <option value="DELIVERY_SELF_COLLECT">Self collect</option>
+                  <option value="DELIVERY_ENAMELS_DELIVERY">enamel dilvery</option>
+                  <option value="DELIVERY_SHOPIFY_DELIVERY">shopyfy dilervy</option>
                 </select>
               </div>
 
@@ -1032,12 +1057,14 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                 onClick={() => {
                   if (window.confirm(`Are you sure you want to approve and send to ${nextStage || 'next stage'}?`)) {
                     onUpdateStage(order.id, currentStage.id, 'approve', { 
-                      nextStage, 
-                      customizationPrice: customizationAmount 
+                      nextStage: nextStage.startsWith('DELIVERY_') ? 'OUT_FOR_DELIVERY' : nextStage, 
+                      customizationPrice: customizationAmount,
+                      deliveryMethod: nextStage.startsWith('DELIVERY_') ? nextStage.replace('DELIVERY_', '') : null
                     });
                     setShowApprovalDialog(false);
                     setCustomizationAmount('0');
                     setNextStage('');
+                    setDeliveryMethod('');
                   }
                 }}
                 className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black py-5 rounded-xl text-xs uppercase tracking-widest transition-all shadow-xl shadow-blue-900/20"

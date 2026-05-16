@@ -75,7 +75,11 @@ const History = () => {
   const fetchHistory = async () => {
     try {
       const response = await axios.get(`${API_URL}/api/orders`);
-      const completedOrders = response.data.filter(order => ['COMPLETED', 'DELIVERED', 'DISPATCHED'].includes(order.status));
+      const completedOrders = response.data.filter(order => 
+        ['COMPLETED', 'DELIVERED', 'DISPATCHED', 'CANCELLED', 'REJECTED'].includes(order.status) ||
+        order.currentStage === 'COMPLETED' ||
+        order.currentStage === 'DELIVERED'
+      );
       setOrders(completedOrders);
     } catch (error) {
       console.error('Error fetching history:', error);
@@ -285,6 +289,20 @@ const History = () => {
                     <h3 className="font-black text-2xl tracking-tighter text-white">#{order.orderNumber || order.id.substring(0, 8)}</h3>
                     <div className={`flex items-center mt-1 ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-4'}`}>
                        <span className="text-gray-400 text-sm font-bold">{order.customerName}</span>
+                       <div className="w-1 h-1 bg-gray-700 rounded-full" />
+                       <span className="text-gray-600 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                         <Users size={10} className="text-indigo-500/50" />
+                         {order.outletName === 'FAISAL CONTROL' ? 'ONLINE ORDER' : 
+                          order.outletName || (
+                            order.createdBy?.role === 'FAISAL' ? 'ONLINE ORDER' :
+                            order.createdBy?.role === 'OUTLET' ? (
+                              (order.createdBy?.name?.includes('1') || order.createdBy?.name?.toLowerCase().includes('johar')) ? 'JOHAR TOWN BRANCH' :
+                              (order.createdBy?.name?.includes('2') || order.createdBy?.name?.toLowerCase().includes('jail')) ? 'JAIL ROAD BRANCH' :
+                              (order.createdBy?.name?.includes('3') || order.createdBy?.name?.toLowerCase().includes('abbottabad')) ? 'ABBOTTABAD BRANCH' :
+                              order.createdBy?.name
+                            ) : order.createdBy?.name || 'System'
+                          )}
+                       </span>
                        <div className="w-1 h-1 bg-gray-700 rounded-full" />
                        <span className="text-gray-600 text-[10px] font-black uppercase tracking-widest flex items-center">
                          <Calendar size={10} className={useUrdu ? "ml-1.5" : "mr-1.5"} />

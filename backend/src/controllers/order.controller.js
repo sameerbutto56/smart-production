@@ -63,13 +63,42 @@ const createAuditLog = async (orderId, action, details, userId) => {
 
 
 const createOrder = async (req, res) => {
-  const { orderNumber, customerName, customerPhone, type, urgent, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, shopifyOrderId, paymentDeadline, productImage } = req.body;
+  const { orderNumber: requestedOrderNumber, customerName, customerPhone, type, urgent, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, shopifyOrderId, paymentDeadline, productImage } = req.body;
 
   if (!customerPhone) {
     return res.status(400).json({ error: 'Customer phone number is required' });
   }
 
   try {
+    let orderNumber = requestedOrderNumber;
+
+    // Handle Order Number Generation for Outlets or if missing
+    if (!orderNumber || req.user?.role === 'OUTLET') {
+      const prefix = req.user?.role === 'OUTLET' ? 'OUT-' : 'ORD-';
+      // Generate a unique random number
+      let isUnique = false;
+      while (!isUnique) {
+        const randomNum = Math.floor(100000 + Math.random() * 900000); // 6 digit random
+        orderNumber = `${prefix}${randomNum}`;
+        const existing = await prisma.order.findUnique({ where: { orderNumber } });
+        if (!existing) isUnique = true;
+      }
+    } else {
+      // Check if manual order number is already taken
+      const existing = await prisma.order.findUnique({ where: { orderNumber } });
+      if (existing) {
+        const io = req.app.get('io');
+        if (io) {
+          io.emit('global-alert', {
+            title: 'Duplicate Order Attempt',
+            message: `${req.user?.name || 'User'} attempted to use existing Order Number #${orderNumber}. System blocked the entry.`,
+            type: 'SECURITY_ALERT'
+          });
+        }
+        return res.status(400).json({ message: `Order Number ${orderNumber} is already in use. Please use a unique number.` });
+      }
+    }
+
     // Check if advance payment is required for FULL_CUSTOM
     const initialStatus = (type === 'FULL_CUSTOM' && !advancePaid) ? 'WAITING_PAYMENT' : 'PENDING';
 
@@ -80,7 +109,17 @@ const createOrder = async (req, res) => {
         customerPhone,
         createdById: req.user?.id,
         source: req.user?.role === 'OUTLET' ? 'OUTLET' : 'INTERNAL',
-        outletName: req.user?.name || 'MAIN HUB',
+        outletName: (() => {
+          if (req.user?.role === 'FAISAL') return 'ONLINE ORDER';
+          if (req.user?.role === 'OUTLET') {
+            const name = req.user?.name || '';
+            if (name.includes('1') || name.toLowerCase().includes('johar')) return 'JOHAR TOWN BRANCH';
+            if (name.includes('2') || name.toLowerCase().includes('jail')) return 'JAIL ROAD BRANCH';
+            if (name.includes('3') || name.toLowerCase().includes('abbottabad')) return 'ABBOTTABAD BRANCH';
+            return name || 'OUTLET';
+          }
+          return req.user?.name || 'ADMIN HUB';
+        })(),
         type: type || 'STANDARD',
         urgent: urgent || false,
         quantity: parseInt(quantity) || 1,
@@ -273,7 +312,7 @@ const requestStageCompletion = async (req, res) => {
 
 const approveStageCompletion = async (req, res) => {
   const { orderId, stageId } = req.params;
-  const { nextStage, customizationPrice } = req.body; 
+  const { nextStage, customizationPrice, deliveryMethod } = req.body; 
 
   try {
     const currentStageRecord = await prisma.orderStage.update({
@@ -286,13 +325,19 @@ const approveStageCompletion = async (req, res) => {
 
     const order = await prisma.order.findUnique({ where: { id: orderId } });
     
-    // Update Customization Price if provided
+    // Update Customization Price and Delivery Method if provided
+    const updateData = {};
     if (customizationPrice && parseFloat(customizationPrice) > 0) {
+      updateData.customizationPrice = (order.customizationPrice || 0) + parseFloat(customizationPrice);
+    }
+    if (deliveryMethod) {
+      updateData.deliveryMethod = deliveryMethod;
+    }
+
+    if (Object.keys(updateData).length > 0) {
       await prisma.order.update({
         where: { id: orderId },
-        data: {
-          customizationPrice: (order.customizationPrice || 0) + parseFloat(customizationPrice)
-        }
+        data: updateData
       });
     }
 
@@ -383,7 +428,7 @@ const approveStageCompletion = async (req, res) => {
       }
     }
 
-    await createAuditLog(orderId, 'STAGE_APPROVED', `${currentStageRecord.stageName} approved. ${actualNextStage ? `Sent to: ${actualNextStage}` : 'Returned to Faisal Control Center'}${customizationPrice ? ` | Added Cost: $${customizationPrice}` : ''}`, req.user.id);
+    await createAuditLog(orderId, 'STAGE_APPROVED', `${currentStageRecord.stageName} approved. ${actualNextStage ? `Sent to: ${actualNextStage}` : 'Returned to Faisal Control Center'}${customizationPrice ? ` | Added Cost: $${customizationPrice}` : ''}${deliveryMethod ? ` | Delivery: ${deliveryMethod}` : ''}`, req.user.id);
 
     const io = req.app.get('io');
     io.emit('order-updated', { orderId, createdById: order?.createdById || stage?.order?.createdById });

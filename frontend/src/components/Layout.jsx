@@ -36,30 +36,31 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     { name: 'Order Entry', path: '/order-entry', icon: ClipboardList, roles: ['ORDER_ENTRY', 'FAISAL', 'SUPER_ADMIN', 'OUTLET'] },
     { name: 'Inventory', path: '/inventory', icon: Package, roles: ['SUPER_ADMIN'] },
     { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'] },
-    { name: 'All Orders', path: '/orders', icon: Package, roles: ['SUPER_ADMIN', 'OUTLET'] },
-    { name: 'History', path: '/history', icon: History, roles: ['SUPER_ADMIN', 'OUTLET'] },
+    { name: 'All Orders', path: '/orders', icon: Package, roles: ['SUPER_ADMIN', 'FAISAL', 'ADMIN', 'OUTLET'] },
+    { name: 'History (Admin)', path: '/history', icon: History, roles: ['SUPER_ADMIN', 'FAISAL', 'ADMIN'] },
     { name: 'Deliveries', path: '/delivery', icon: Truck, roles: ['DELIVERY_BOY', 'SUPER_ADMIN'] },
   ];
   
   const isBigScreen = user?.role === 'MAIN_EMPLOYEE';
   const userRole = String(user?.role || '').toUpperCase().trim();
-  let filteredNavItems = navItems.filter(item =>
-    item.roles.some(r => String(r || '').toUpperCase().trim() === userRole)
-  );
-
-  // Emergency override for OUTLET role
-  if (userRole === 'OUTLET') {
-    filteredNavItems = navItems.filter(item => 
-      ['Order Entry', 'All Orders', 'History'].includes(item.name)
-    );
-  }
-
-  // Delivery Boy only sees Deliveries
-  if (userRole === 'DELIVERY_BOY') {
-    filteredNavItems = navItems.filter(item =>
-      ['Deliveries'].includes(item.name)
-    );
-  }
+  // Strict Role Filtering
+  let filteredNavItems = navItems.filter(item => {
+    // 1. Basic role check
+    if (!item.roles.includes(userRole)) return false;
+    
+    // 2. Extra safety for Outlets - explicitly remove History
+    if (userRole === 'OUTLET') {
+      if (item.name === 'History') return false;
+      return ['Order Entry', 'All Orders'].includes(item.name);
+    }
+    
+    // 3. Explicit Restriction for Delivery Boy
+    if (userRole === 'DELIVERY_BOY') {
+      return item.name === 'Deliveries';
+    }
+    
+    return true;
+  });
 
   if (isBigScreen) return null;
 
@@ -129,7 +130,15 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
                   {user?.name?.charAt(0)}
                 </div>
                 <div className="flex-1 overflow-hidden">
-                  <p className="text-xs font-black truncate">{user?.name}</p>
+                  <p className="text-xs font-black truncate">
+                    {user?.role === 'FAISAL' ? 'ONLINE ORDER' : 
+                     user?.role === 'OUTLET' ? (
+                       (user?.name?.includes('1') || user?.name?.toLowerCase().includes('johar')) ? 'JOHAR TOWN BRANCH' :
+                       (user?.name?.includes('2') || user?.name?.toLowerCase().includes('jail')) ? 'JAIL ROAD BRANCH' :
+                       (user?.name?.includes('3') || user?.name?.toLowerCase().includes('abbottabad')) ? 'ABBOTTABAD BRANCH' :
+                       user?.name
+                     ) : user?.name}
+                  </p>
                   <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">{user?.role?.replace('_', ' ')}</p>
                 </div>
               </div>

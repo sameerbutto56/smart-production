@@ -203,7 +203,7 @@ const SmartOrderForm = () => {
     const accessory = isAccessory(selectedProductCategory);
     
     if (activeTab === 'basic') {
-      if (!formData.orderNumber.trim()) return t('orderNo') + ' ' + t('required');
+      if (!isOutlet && !formData.orderNumber.trim()) return t('orderNo') + ' ' + t('required');
       if (!formData.customerName.trim()) return t('customerName') + ' ' + t('required');
       if (!formData.customerPhone.trim()) return t('customerPhone') + ' ' + t('required');
       if (formData.type === 'FULL_CUSTOM' && !formData.advancePaid) return 'Advance payment is compulsory for custom orders.';
@@ -424,11 +424,12 @@ const SmartOrderForm = () => {
                       <input
                         type="text"
                         onKeyDown={preventEnterSubmit}
-                        value={formData.orderNumber}
+                        value={isOutlet ? 'AUTO-GENERATED' : formData.orderNumber}
+                        disabled={isOutlet}
                         onChange={(e) => setFormData({...formData, orderNumber: e.target.value})}
-                        className={`w-full bg-gray-950/80 border-2 border-gray-800 rounded-[2rem] py-7 ${useUrdu ? 'pr-20 pl-10 text-right' : 'pl-20 pr-10'} focus:border-blue-500 focus:ring-8 focus:ring-blue-500/5 outline-none transition-all text-2xl font-black text-white placeholder-gray-800 shadow-inner`}
-                        placeholder="ORD-772"
-                        required
+                        className={`w-full bg-gray-950/80 border-2 border-gray-800 rounded-[2rem] py-7 ${useUrdu ? 'pr-20 pl-10 text-right' : 'pl-20 pr-10'} focus:border-blue-500 focus:ring-8 focus:ring-blue-500/5 outline-none transition-all text-2xl font-black text-white placeholder-gray-800 shadow-inner ${isOutlet ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        placeholder={isOutlet ? 'Will be auto-assigned' : "ORD-772"}
+                        required={!isOutlet}
                       />
                     </div>
                   </div>
