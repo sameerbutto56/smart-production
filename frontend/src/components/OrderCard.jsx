@@ -425,7 +425,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
       });
       setShowHoldDialog(false);
       setHoldReason('');
-      onUpdateStage(order.id, null, resume ? 'resume' : 'hold');
+      // Socket events from backend will trigger dashboard refresh automatically
     } catch (error) {
       console.error('Hold action error:', error);
       alert(error.response?.data?.message || 'Failed to update hold status');
@@ -444,10 +444,6 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
       >
         <div className="p-4">
           <div className="flex justify-between items-start mb-4 gap-2">
-            <div className="flex flex-col items-end gap-1 absolute top-2 right-3">
-              <div className="text-[7px] text-gray-700">v1.1</div>
-              <LanguageToggle />
-            </div>
             <div className="flex items-center gap-4 flex-1 min-w-0">
               {order.productImage && (
                 <div className="flex-shrink-0 w-12 h-12 rounded-xl overflow-hidden border border-gray-700 shadow-lg">
