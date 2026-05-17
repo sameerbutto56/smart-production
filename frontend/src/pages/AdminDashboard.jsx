@@ -239,7 +239,7 @@ const AdminDashboard = () => {
 
    const approvalQueue = useMemo(() => 
     allOrders.filter(o => {
-      const isWaiting = o.status === 'WAITING_APPROVAL' || o.stages?.some(s => s.status === 'WAITING_APPROVAL');
+      const isWaiting = o.status === 'WAITING_APPROVAL' || o.status === 'ON_HOLD' || o.stages?.some(s => s.status === 'WAITING_APPROVAL');
       if (!isWaiting) return false;
       if (approvalUrgencyFilter === 'URGENT' && !o.urgent) return false;
       if (approvalUrgencyFilter === 'STANDARD' && o.urgent) return false;

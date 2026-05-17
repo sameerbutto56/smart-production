@@ -609,13 +609,13 @@ const clearHistory = async (req, res) => {
 
 const holdOrder = async (req, res) => {
   const { orderId } = req.params;
-  const { reason, resume } = req.body; // if resume is true, it will move back to PENDING/IN_PROGRESS
+  const { reason, resume } = req.body; // if resume is true, it will move back to WAITING_APPROVAL
 
   try {
     const order = await prisma.order.findUnique({ where: { id: orderId } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    const newStatus = resume ? 'IN_PROGRESS' : 'ON_HOLD';
+    const newStatus = resume ? 'WAITING_APPROVAL' : 'ON_HOLD';
     
     const updatedOrder = await prisma.order.update({
       where: { id: orderId },
@@ -629,8 +629,8 @@ const holdOrder = async (req, res) => {
         status: { in: resume ? ['ON_HOLD'] : ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] } 
       },
       data: { 
-        status: resume ? 'IN_PROGRESS' : 'ON_HOLD',
-        rejectionReason: resume ? `ORDER RESUMED: ${reason}` : `ORDER PUT ON HOLD: ${reason}`
+        status: resume ? 'WAITING_APPROVAL' : 'ON_HOLD',
+        rejectionReason: resume ? `ORDER RESUMED: ${reason || 'Resumed by admin'}` : `ORDER PUT ON HOLD: ${reason}`
       }
     });
 

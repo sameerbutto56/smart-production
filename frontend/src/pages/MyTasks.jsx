@@ -101,7 +101,7 @@ const MyTasks = () => {
 
     const targetStages = stageRoleMap[user.role] || [];
     
-    if (!targetStages.includes(order.currentStage) || order.status === 'COMPLETED') {
+    if (!targetStages.includes(order.currentStage) || order.status === 'COMPLETED' || order.status === 'ON_HOLD') {
       return false;
     }
 

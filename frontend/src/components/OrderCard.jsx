@@ -9,6 +9,7 @@ const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'l
 const OrderCard = ({ order, onUpdateStage, userRole }) => {
   const { t, isUrdu, LanguageToggle } = useLanguage();
   const currentStage = order.stages.find(s => s.status === 'WAITING_APPROVAL') || 
+                      order.stages.find(s => s.status === 'ON_HOLD') ||
                       order.stages.find(s => s.status === 'IN_PROGRESS') || 
                       order.stages.find(s => s.status === 'PENDING') || 
                       order.stages[0];
@@ -597,7 +598,15 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
           )}
 
           <div className="flex gap-2">
-            {isFaisal && (order.status === 'WAITING_APPROVAL' || order.status === 'PENDING') && currentStage?.status === 'COMPLETED' ? (
+            {isFaisal && order.status === 'ON_HOLD' ? (
+              <button
+                onClick={() => handleHoldAction(true)}
+                className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-xl shadow-emerald-900/20"
+              >
+                <RefreshCcw size={14} />
+                <span>RESUME ORDER</span>
+              </button>
+            ) : isFaisal && (order.status === 'WAITING_APPROVAL' || order.status === 'PENDING') && currentStage?.status === 'COMPLETED' ? (
               <button
                 onClick={() => setShowApprovalDialog(true)}
                 className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-xl shadow-blue-900/20"
