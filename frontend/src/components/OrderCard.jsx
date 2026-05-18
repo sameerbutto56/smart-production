@@ -1037,33 +1037,31 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                 </select>
               </div>
 
-              {(nextStage === 'DISPATCH' || nextStage === 'OUT_FOR_DELIVERY') && (
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-1">Delivery Method</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { value: 'TCS', label: 'TCS Courier', icon: '📦' },
-                      { value: 'SELF_PICKUP', label: 'Self Pickup', icon: '🏪' },
-                      { value: 'ENAMELS_DELIVERY', label: 'Enamels Delivery', icon: '🚚' },
-                      { value: 'SHOPIFY', label: 'Shopify Delivery', icon: '🛒' },
-                    ].map(method => (
-                      <button
-                        key={method.value}
-                        type="button"
-                        onClick={() => setDeliveryMethod(method.value)}
-                        className={`p-3 rounded-xl border-2 text-center transition-all active:scale-95 ${
-                          deliveryMethod === method.value 
-                            ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400 shadow-lg shadow-emerald-900/20' 
-                            : 'border-gray-800 bg-gray-950 text-gray-400 hover:border-gray-700'
-                        }`}
-                      >
-                        <span className="text-lg block mb-1">{method.icon}</span>
-                        <span className="text-[9px] font-black uppercase tracking-wider">{method.label}</span>
-                      </button>
-                    ))}
-                  </div>
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-1">Delivery Method (Optional)</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { value: 'TCS', label: 'TCS Courier', icon: '📦' },
+                    { value: 'SELF_PICKUP', label: 'Self Pickup', icon: '🏪' },
+                    { value: 'ENAMELS_DELIVERY', label: 'Enamels Delivery', icon: '🚚' },
+                    { value: 'SHOPIFY', label: 'Shopify Delivery', icon: '🛒' },
+                  ].map(method => (
+                    <button
+                      key={method.value}
+                      type="button"
+                      onClick={() => setDeliveryMethod(prev => prev === method.value ? '' : method.value)}
+                      className={`p-3 rounded-xl border-2 text-center transition-all active:scale-95 ${
+                        deliveryMethod === method.value 
+                          ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400 shadow-lg shadow-emerald-900/20' 
+                          : 'border-gray-800 bg-gray-950 text-gray-400 hover:border-gray-700'
+                      }`}
+                    >
+                      <span className="text-lg block mb-1">{method.icon}</span>
+                      <span className="text-[9px] font-black uppercase tracking-wider">{method.label}</span>
+                    </button>
+                  ))}
                 </div>
-              )}
+              </div>
 
               {(order.type === 'FULL_CUSTOM' || order.type === 'READY_LOGO') && currentStage?.stageName === 'STORE' && (
                 <div className="space-y-3">
@@ -1084,7 +1082,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
 
             <div className="flex flex-col space-y-3">
               <button 
-                disabled={!nextStage || ((nextStage === 'DISPATCH' || nextStage === 'OUT_FOR_DELIVERY') && !deliveryMethod)}
+                disabled={!nextStage}
                 onClick={() => {
                   if (window.confirm(`Are you sure you want to approve and send to ${nextStage.replace(/_/g, ' ')}?`)) {
                     onUpdateStage(order.id, currentStage.id, 'approve', { 
