@@ -74,13 +74,8 @@ const History = () => {
 
   const fetchHistory = async () => {
     try {
-      const response = await axios.get(`${API_URL}/api/orders`);
-      const completedOrders = response.data.filter(order => 
-        ['COMPLETED', 'DELIVERED', 'DISPATCHED', 'CANCELLED', 'REJECTED'].includes(order.status) ||
-        order.currentStage === 'COMPLETED' ||
-        order.currentStage === 'DELIVERED'
-      );
-      setOrders(completedOrders);
+      const response = await axios.get(`${API_URL}/api/orders?status=completed`);
+      setOrders(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Error fetching history:', error);
     }

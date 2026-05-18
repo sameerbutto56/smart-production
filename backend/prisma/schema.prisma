@@ -28,6 +28,7 @@ model Order {
   shopifyOrderId  String?      @unique
   customerName    String
   customerPhone   String?
+  address         String?
   createdById     String?
   type            String       @default("STANDARD")
   urgent          Boolean      @default(false)

@@ -7,46 +7,52 @@ const { addHours, isWithinInterval, setHours, setMinutes, setSeconds, isWeekend,
  * @returns {Date}
  */
 const calculateDeadline = (startDate, durationHours) => {
-  let currentDate = new Date(startDate);
+  // Convert startDate to a UTC+5 (Pakistan) Date object for calculation
+  const pkOffset = 5 * 60 * 60 * 1000;
+  
+  // Shift the timestamp to align UTC methods with Pakistan local time
+  let currentDate = new Date(new Date(startDate).getTime() + pkOffset);
   let remainingHours = durationHours;
 
-  const WORK_START = 9;
-  const WORK_END = 20;
+  const WORK_START = 9;  // 9:00 AM Pakistan Time
+  const WORK_END = 20;   // 8:00 PM Pakistan Time
+
+  const addDaysUTC = (date, days) => new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+  const setHoursUTC = (date, hours) => {
+    const d = new Date(date);
+    d.setUTCHours(hours, 0, 0, 0);
+    return d;
+  };
 
   // Initial adjustment: Move to working hours if currently outside
-  while (currentDate.getHours() >= WORK_END || currentDate.getHours() < WORK_START || currentDate.getDay() === 0) {
-    currentDate = addDays(currentDate, 1);
-    currentDate = setHours(currentDate, WORK_START);
-    currentDate = setMinutes(currentDate, 0);
-    currentDate = setSeconds(currentDate, 0);
-    if (currentDate.getDay() !== 0) break;
+  while (currentDate.getUTCHours() >= WORK_END || currentDate.getUTCHours() < WORK_START || currentDate.getUTCDay() === 0) {
+    currentDate = addDaysUTC(currentDate, 1);
+    currentDate = setHoursUTC(currentDate, WORK_START);
+    if (currentDate.getUTCDay() !== 0) break;
   }
 
   while (remainingHours > 0) {
-    // Current window end time
-    const currentWindowEnd = setHours(new Date(currentDate), WORK_END);
+    const currentWindowEnd = setHoursUTC(new Date(currentDate), WORK_END);
     const msLeftToday = currentWindowEnd.getTime() - currentDate.getTime();
     const hoursLeftToday = msLeftToday / (1000 * 60 * 60);
     
     if (remainingHours <= hoursLeftToday) {
-      currentDate = addHours(currentDate, remainingHours);
+      currentDate = new Date(currentDate.getTime() + remainingHours * 60 * 60 * 1000);
       remainingHours = 0;
     } else {
       remainingHours -= hoursLeftToday;
-      // Move to next day
-      currentDate = addDays(currentDate, 1);
-      currentDate = setHours(currentDate, WORK_START);
-      currentDate = setMinutes(currentDate, 0);
-      currentDate = setSeconds(currentDate, 0);
+      currentDate = addDaysUTC(currentDate, 1);
+      currentDate = setHoursUTC(currentDate, WORK_START);
       
       // Skip Sundays
-      while (currentDate.getDay() === 0) {
-        currentDate = addDays(currentDate, 1);
+      while (currentDate.getUTCDay() === 0) {
+        currentDate = addDaysUTC(currentDate, 1);
       }
     }
   }
 
-  return currentDate;
+  // Convert back from PK Time to original UTC
+  return new Date(currentDate.getTime() - pkOffset);
 };
 
 module.exports = { calculateDeadline };

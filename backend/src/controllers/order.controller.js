@@ -63,7 +63,7 @@ const createAuditLog = async (orderId, action, details, userId) => {
 
 
 const createOrder = async (req, res) => {
-  const { orderNumber: requestedOrderNumber, customerName, customerPhone, type, urgent, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, shopifyOrderId, paymentDeadline, productImage } = req.body;
+  const { orderNumber: requestedOrderNumber, customerName, customerPhone, address, type, urgent, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, shopifyOrderId, paymentDeadline, productImage } = req.body;
 
   if (!customerPhone) {
     return res.status(400).json({ error: 'Customer phone number is required' });
@@ -107,6 +107,7 @@ const createOrder = async (req, res) => {
         orderNumber,
         customerName,
         customerPhone,
+        address,
         createdById: req.user?.id,
         source: req.user?.role === 'OUTLET' ? 'OUTLET' : 'INTERNAL',
         outletName: (() => {
@@ -196,10 +197,68 @@ const getOrders = async (req, res) => {
   try {
     const role = String(req.user.role || '').toUpperCase().trim();
     const id = req.user.id;
+    const { status: filterStatus, limit } = req.query;
+
     let where = {};
 
+    // 1. Role boundary isolation
     if (role === 'OUTLET' || role === 'FAISAL') {
-      where = { createdById: id };
+      where.createdById = id;
+    }
+
+    // 2. Add database-level filters based on page context
+    if (filterStatus === 'active') {
+      // Return only active/in-progress/waiting orders
+      where.NOT = {
+        status: { in: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
+      };
+    } else if (filterStatus === 'completed') {
+      // History Page: Return completed/delivered/cancelled/rejected orders
+      where.OR = [
+        { status: { in: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] } },
+        { currentStage: { in: ['COMPLETED', 'DELIVERED'] } }
+      ];
+    } else if (filterStatus === 'delivery') {
+      // Delivery Dashboard: Return orders scheduled or completed in delivery
+      where.OR = [
+        { currentStage: { in: ['OUT_FOR_DELIVERY', 'DELIVERED'] } },
+        { status: { in: ['COMPLETED', 'OUT_FOR_DELIVERY'] } }
+      ];
+    } else {
+      // Default: If no status specified, load active orders + the 100 most recent completed orders to keep payload tiny!
+      // This is backward-compatible with older frontend code that filters in memory!
+      if (!limit || limit !== 'all') {
+        const activeOrders = await prisma.order.findMany({
+          where: {
+            ...where,
+            NOT: {
+              status: { in: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
+            }
+          },
+          include: {
+            stages: { orderBy: { createdAt: 'desc' } },
+            auditLogs: { orderBy: { timestamp: 'desc' } },
+            createdBy: { select: { name: true } }
+          },
+          orderBy: { createdAt: 'desc' }
+        });
+
+        const completedOrders = await prisma.order.findMany({
+          where: {
+            ...where,
+            status: { in: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
+          },
+          include: {
+            stages: { orderBy: { createdAt: 'desc' } },
+            auditLogs: { orderBy: { timestamp: 'desc' } },
+            createdBy: { select: { name: true } }
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 100
+        });
+
+        return res.json([...activeOrders, ...completedOrders]);
+      }
     }
 
     const orders = await prisma.order.findMany({
@@ -215,8 +274,10 @@ const getOrders = async (req, res) => {
           select: { name: true }
         }
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      take: limit === 'all' ? undefined : (parseInt(limit) || 200)
     });
+    
     res.json(orders);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching orders', error: error.message });
@@ -294,14 +355,15 @@ const requestStageCompletion = async (req, res) => {
       }
     });
 
-    const io = req.app.get('io');
-    io.emit('stage-completion-requested', { orderId, stage });
-    io.emit('order-updated', { orderId, createdById: order?.createdById || stage?.order?.createdById });
-    io.emit('global-alert', {
-      title: 'Approval Required',
-      message: `${stage.stageName.replace(/_/g, ' ')} completed. Sent to Faisal.`,
-      icon: 'clipboard'
-    });
+     const io = req.app.get('io');
+     io.emit('stage-completion-requested', { orderId, stage, urgent: order?.urgent });
+     io.emit('order-updated', { orderId, createdById: order?.createdById || stage?.order?.createdById });
+     io.emit('global-alert', {
+       title: 'Approval Required',
+       message: `${stage.stageName.replace(/_/g, ' ')} completed. Sent to Faisal.`,
+       icon: 'clipboard',
+       urgent: order?.urgent
+     });
 
     await createAuditLog(orderId, 'STAGE_COMPLETION_REQUESTED', `Completion requested for ${stage.stageName}. Waiting for Faisal.`, req.user.id);
 
@@ -406,7 +468,8 @@ const approveStageCompletion = async (req, res) => {
       io.emit('global-alert', {
         title: 'Phase Advanced',
         message: `Order moved to ${actualNextStage.replace(/_/g, ' ')}.`,
-        icon: 'package'
+        icon: 'package',
+        urgent: order?.urgent
       });
     } else {
       // It returns to Faisal or is finished
@@ -707,6 +770,8 @@ const updateDeliveryStatus = async (req, res) => {
       data: {
         status: deliveryStatus === 'DELIVERED' ? 'COMPLETED' : order.status,
         currentStage: deliveryStatus === 'DELIVERED' ? 'DELIVERED' : order.currentStage,
+        paymentStatus: deliveryStatus === 'DELIVERED' ? 'FULL_PAID' : order.paymentStatus,
+        advancePaid: deliveryStatus === 'DELIVERED' ? true : order.advancePaid,
         updatedAt: new Date()
       },
       include: { stages: true }

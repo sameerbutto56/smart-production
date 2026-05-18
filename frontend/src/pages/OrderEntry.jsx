@@ -49,6 +49,7 @@ const SmartOrderForm = () => {
     orderNumber: '',
     customerName: '',
     customerPhone: '',
+    address: '',
     type: 'STANDARD', // STANDARD, READY_LOGO, FULL_CUSTOM
     urgent: false,
     advancePaid: false,
@@ -246,6 +247,7 @@ const SmartOrderForm = () => {
         orderNumber: formData.orderNumber,
         customerName: formData.customerName,
         customerPhone: formData.customerPhone,
+        address: formData.address,
         type: formData.type,
         urgent: formData.urgent,
         quantity: formData.quantity,
@@ -281,9 +283,12 @@ const SmartOrderForm = () => {
       setFormData({
         orderNumber: '',
         customerName: '',
+        customerPhone: '',
+        address: '',
         type: 'STANDARD',
         urgent: false,
         advancePaid: false,
+        totalPrice: '',
         productType: '',
         fabricType: '',
         color: '',
@@ -465,6 +470,42 @@ const SmartOrderForm = () => {
                         className={`w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} focus:border-blue-500 focus:ring-8 focus:ring-blue-500/5 outline-none transition-all text-xl font-bold text-white placeholder-gray-700`}
                         placeholder="0300-1234567"
                         required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <label className={`text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'پتہ (Address) - اختیاری' : 'Customer Address (Optional)'}</label>
+                    <div className="relative group">
+                      <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-blue-500/10 text-blue-500`}>
+                        <span className="font-black text-xs">📍</span>
+                      </div>
+                      <input
+                        type="text"
+                        onKeyDown={preventEnterSubmit}
+                        value={formData.address}
+                        onChange={(e) => setFormData({...formData, address: e.target.value})}
+                        className={`w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} focus:border-blue-500 focus:ring-8 focus:ring-blue-500/5 outline-none transition-all text-xl font-bold text-white placeholder-gray-700`}
+                        placeholder={useUrdu ? 'گھر کا پتہ، شہر' : "House #123, Street #4, Lahore"}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                  <div className="space-y-4">
+                    <label className={`text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'کل رقم (Order Amount) - اختیاری' : 'Order Amount (Optional)'}</label>
+                    <div className="relative group">
+                      <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-500`}>
+                        <span className="font-black text-xs">₨</span>
+                      </div>
+                      <input
+                        type="number"
+                        onKeyDown={preventEnterSubmit}
+                        value={formData.totalPrice}
+                        onChange={(e) => setFormData({...formData, totalPrice: e.target.value})}
+                        className={`w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} focus:border-blue-500 focus:ring-8 focus:ring-blue-500/5 outline-none transition-all text-xl font-bold text-white placeholder-gray-700`}
+                        placeholder="e.g. 2650"
                       />
                     </div>
                   </div>

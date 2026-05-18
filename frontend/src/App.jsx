@@ -14,6 +14,7 @@ import History from './pages/History';
 import ProgressChart from './pages/ProgressChart';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import DeliveryDashboard from './pages/DeliveryDashboard';
+import DeliverySheet from './pages/DeliverySheet';
 import { Toaster } from 'react-hot-toast';
 
 const ProtectedRoute = ({ children }) => {
@@ -68,6 +69,7 @@ function App() {
                 <Route path="orders" element={<AllOrders />} />
                 <Route path="history" element={<History />} />
                 <Route path="delivery" element={<DeliveryDashboard />} />
+                <Route path="delivery-sheet" element={<DeliverySheet />} />
               </Route>
             </Routes>
           </Router>

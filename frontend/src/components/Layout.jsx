@@ -37,6 +37,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     { name: 'Inventory', path: '/inventory', icon: Package, roles: ['SUPER_ADMIN'] },
     { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'] },
     { name: 'All Orders', path: '/orders', icon: Package, roles: ['SUPER_ADMIN', 'FAISAL', 'ADMIN', 'OUTLET'] },
+    { name: 'Delivery Sheet', path: '/delivery-sheet', icon: ClipboardList, roles: ['SUPER_ADMIN', 'FAISAL', 'ADMIN', 'OUTLET'] },
     { name: 'History (Admin)', path: '/history', icon: History, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Deliveries', path: '/delivery', icon: Truck, roles: ['DELIVERY_BOY', 'SUPER_ADMIN'] },
   ];
@@ -51,7 +52,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     // 2. Extra safety for Outlets - explicitly remove History
     if (userRole === 'OUTLET') {
       if (item.name === 'History (Admin)' || item.name === 'History') return false;
-      return ['Order Entry', 'All Orders', 'Control Center'].includes(item.name);
+      return ['Order Entry', 'All Orders', 'Control Center', 'Delivery Sheet'].includes(item.name);
     }
     
     // 3. Explicit Restriction for Delivery Boy
@@ -196,15 +197,16 @@ const Layout = () => {
 
   useEffect(() => {
     const handleGlobalAlert = (data) => {
-      // Play sound (wrapped in a check for user interaction)
-      const playSound = () => {
-        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-        audio.play().catch(() => {
-          console.log('Audio autoplay blocked by browser. Click anywhere on the page to enable sounds.');
-        });
-      };
-      
-      playSound();
+      // Play sound ONLY for urgent orders
+      if (data?.urgent) {
+        const playSound = () => {
+          const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+          audio.play().catch(() => {
+            console.log('Audio autoplay blocked by browser. Click anywhere on the page to enable sounds.');
+          });
+        };
+        playSound();
+      }
 
       toast.success(`${data.title}: ${data.message}`, {
         duration: 8000,
@@ -228,15 +230,18 @@ const Layout = () => {
       handleGlobalAlert({
         title: 'New Order Received',
         message: `Order #${order.orderNumber || (order.id ? order.id.substring(0, 8) : 'N/A')} is now in the system.`,
-        type: 'NEW_ORDER'
+        type: 'NEW_ORDER',
+        urgent: order.urgent
       });
     });
     socket.on('stage-completion-requested', (data) => {
-      if (!data?.stageName) return;
+      if (!data?.stage) return;
+      const stageName = data.stage.stageName || '';
       handleGlobalAlert({
         title: 'Approval Required',
-        message: `${data.stageName.replace('_', ' ')} stage completed. Waiting for approval.`,
-        type: 'APPROVAL_REQUIRED'
+        message: `${stageName.replace('_', ' ')} stage completed. Waiting for approval.`,
+        type: 'APPROVAL_REQUIRED',
+        urgent: data.urgent || data.stage?.order?.urgent
       });
     });
     socket.on('status-update', (data) => {
@@ -244,7 +249,8 @@ const Layout = () => {
       handleGlobalAlert({
         title: 'Status Updated',
         message: `Order #${data.orderNumber || 'N/A'} is now ${data.status.replace('_', ' ')}.`,
-        type: 'STATUS_UPDATE'
+        type: 'STATUS_UPDATE',
+        urgent: data.urgent
       });
     });
 

@@ -6,7 +6,7 @@ import { useLanguage } from '../context/LanguageContext';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
 
-const OrderCard = ({ order, onUpdateStage, userRole }) => {
+const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSeen }) => {
   const { t, isUrdu, LanguageToggle } = useLanguage();
   const currentStage = order.stages.find(s => s.status === 'WAITING_APPROVAL') || 
                       order.stages.find(s => s.status === 'ON_HOLD') ||
@@ -469,7 +469,29 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                   )}
                 </div>
                 <p className="text-xs text-gray-400 font-bold tracking-wide truncate">{order.customerName}</p>
-                <p className="text-[9px] text-gray-500 font-black uppercase mt-1 flex items-center gap-1.5">
+                
+                {order.customerPhone && (
+                  <p className="text-[10px] text-gray-500 font-medium flex items-center gap-1.5 mt-0.5">
+                    <Phone size={10} className="text-pink-500/60" /> 
+                    <span className="font-mono">{order.customerPhone}</span>
+                  </p>
+                )}
+                
+                {order.address && (
+                  <p className="text-[10px] text-gray-400 font-medium flex items-center gap-1.5 mt-0.5">
+                    <span className="text-[11px] select-none">📍</span> 
+                    <span className="truncate" title={order.address}>{order.address}</span>
+                  </p>
+                )}
+
+                {order.totalPrice > 0 && (
+                  <p className="text-[10px] text-emerald-400 font-black flex items-center gap-1.5 mt-1 bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20 w-fit select-none">
+                    <span className="text-xs">₨</span>
+                    <span>{order.totalPrice.toLocaleString()}</span>
+                  </p>
+                )}
+
+                <p className="text-[9px] text-gray-500 font-black uppercase mt-1.5 flex items-center gap-1.5">
                   <Users size={10} className="text-blue-500/50" />
                   {t('Placed By')}: <span className="text-gray-400">
                     {order.outletName === 'FAISAL CONTROL' ? 'ONLINE ORDER' : 
@@ -598,7 +620,15 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
           )}
 
           <div className="flex gap-2">
-            {isFaisal && order.status === 'ON_HOLD' ? (
+            {isUnseen ? (
+              <button
+                onClick={onMarkSeen}
+                className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-2xl text-xs font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-xl shadow-blue-900/40 border border-blue-400/20"
+              >
+                <CheckCircle size={16} className="text-blue-300" />
+                <span>📥 ACCEPT TASK & START WORK</span>
+              </button>
+            ) : isFaisal && order.status === 'ON_HOLD' ? (
               <button
                 onClick={() => handleHoldAction(true)}
                 className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-xl shadow-emerald-900/20"

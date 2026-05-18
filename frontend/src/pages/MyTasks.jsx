@@ -27,6 +27,25 @@ const MyTasks = () => {
     setSearchTerm(val);
     setContextSearch(val);
   };
+  const [seenOrders, setSeenOrders] = useState(() => {
+    try {
+      const saved = localStorage.getItem('seen_orders');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [activeTab, setActiveTab] = useState('unseen');
+
+  const markAsSeen = (orderId) => {
+    setSeenOrders(prev => {
+      const updated = [...new Set([...prev, orderId])];
+      localStorage.setItem('seen_orders', JSON.stringify(updated));
+      return updated;
+    });
+    toast.success('Task accepted! Moved to active list.');
+  };
+
   const [urgencyFilter, setUrgencyFilter] = useState('ALL');
 
   useEffect(() => {
@@ -66,6 +85,15 @@ const MyTasks = () => {
 
   const handleAction = async (orderId, stageId, action, payload = {}) => {
     try {
+      // Auto mark as seen on action
+      if (!seenOrders.includes(orderId)) {
+        setSeenOrders(prev => {
+          const updated = [...new Set([...prev, orderId])];
+          localStorage.setItem('seen_orders', JSON.stringify(updated));
+          return updated;
+        });
+      }
+
       const token = sessionStorage.getItem('token');
       const endpoint = `${API_URL}/api/orders/${orderId}/stages/${stageId}/${action}`;
       await axios.put(endpoint, payload, {
@@ -165,6 +193,17 @@ const MyTasks = () => {
     return result;
   }, [orders, searchTerm, urgencyFilter, user]);
 
+  // Split into unseen and seen
+  const unseenTasks = useMemo(() => {
+    return filteredOrders.filter(o => !seenOrders.includes(o.id));
+  }, [filteredOrders, seenOrders]);
+
+  const seenTasks = useMemo(() => {
+    return filteredOrders.filter(o => seenOrders.includes(o.id));
+  }, [filteredOrders, seenOrders]);
+
+  const displayedOrders = activeTab === 'unseen' ? unseenTasks : seenTasks;
+
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
@@ -207,20 +246,59 @@ const MyTasks = () => {
         </div>
       </div>
 
+      {/* Unseen / Seen Tabs */}
+      <div className="flex border-b border-gray-800 mb-6 gap-6 relative">
+        <button
+          onClick={() => setActiveTab('unseen')}
+          className={`pb-4 px-2 text-sm font-black uppercase tracking-widest transition-all relative flex items-center gap-2 ${
+            activeTab === 'unseen' ? 'text-blue-500' : 'text-gray-500 hover:text-gray-300'
+          }`}
+        >
+          <span>Unseen Tasks</span>
+          {unseenTasks.length > 0 ? (
+            <span className="w-5 h-5 bg-red-500 text-[10px] text-white flex items-center justify-center rounded-full font-black animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]">
+              {unseenTasks.length}
+            </span>
+          ) : (
+            <span className="text-[10px] bg-gray-800 text-gray-500 px-2 py-0.5 rounded-full font-black">0</span>
+          )}
+          {activeTab === 'unseen' && (
+            <motion.div layoutId="activeTabUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
+          )}
+        </button>
+        
+        <button
+          onClick={() => setActiveTab('seen')}
+          className={`pb-4 px-2 text-sm font-black uppercase tracking-widest transition-all relative flex items-center gap-2 ${
+            activeTab === 'seen' ? 'text-blue-500' : 'text-gray-500 hover:text-gray-300'
+          }`}
+        >
+          <span>Active / Seen Tasks</span>
+          <span className="text-[10px] bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded-full font-black">
+            {seenTasks.length}
+          </span>
+          {activeTab === 'seen' && (
+            <motion.div layoutId="activeTabUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
+          )}
+        </button>
+      </div>
+
       {loading ? (
         <div className="h-64 flex flex-col items-center justify-center space-y-4">
           <Loader2 className="animate-spin text-blue-500" size={48} />
           <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Syncing floor data...</p>
         </div>
-      ) : filteredOrders.length > 0 ? (
+      ) : displayedOrders.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          <AnimatePresence>
-            {filteredOrders.map((order) => (
+          <AnimatePresence mode="popLayout">
+            {displayedOrders.map((order) => (
               <OrderCard 
                 key={order.id} 
                 order={order} 
                 userRole={user?.role}
                 onUpdateStage={handleAction}
+                isUnseen={activeTab === 'unseen'}
+                onMarkSeen={() => markAsSeen(order.id)}
               />
             ))}
           </AnimatePresence>
@@ -235,8 +313,14 @@ const MyTasks = () => {
             <Filter size={48} className="text-gray-600" />
           </div>
           <div className="text-center">
-            <h3 className="text-xl font-bold text-gray-400">Clear Horizon</h3>
-            <p className="text-sm text-gray-600 mt-2">Your department is caught up with all tasks.</p>
+            <h3 className="text-xl font-bold text-gray-400">
+              {activeTab === 'unseen' ? 'No Unseen Tasks' : 'No Active Tasks'}
+            </h3>
+            <p className="text-sm text-gray-600 mt-2">
+              {activeTab === 'unseen' 
+                ? 'All newly assigned tasks have been acknowledged.' 
+                : 'No active production tasks are currently in progress.'}
+            </p>
           </div>
         </motion.div>
       )}

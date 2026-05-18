@@ -73,13 +73,13 @@ const OrderCard = ({ order, idx, onAction, loading }) => {
           </div>
         </div>
 
-        {/* Row 2: Phone + Product + Amount */}
-        <div className="grid grid-cols-2 gap-2">
+        {/* Row 2: Phone + Address + Product + Amount */}
+        <div className="space-y-2">
           {/* Call button */}
           {order.customerPhone ? (
             <a
               href={`tel:${order.customerPhone}`}
-              className="col-span-2 flex items-center gap-3 bg-gray-800 hover:bg-gray-700 active:scale-95 transition-all rounded-2xl px-4 py-3"
+              className="flex items-center gap-3 bg-gray-800 hover:bg-gray-700 active:scale-95 transition-all rounded-2xl px-4 py-3"
             >
               <div className="w-9 h-9 bg-green-600 rounded-xl flex items-center justify-center flex-shrink-0">
                 <Phone size={18} className="text-white" />
@@ -90,24 +90,34 @@ const OrderCard = ({ order, idx, onAction, loading }) => {
               </div>
             </a>
           ) : (
-            <div className="col-span-2 bg-gray-800/50 rounded-2xl px-4 py-3 text-gray-600 text-sm font-bold">
+            <div className="bg-gray-800/50 rounded-2xl px-4 py-3 text-gray-600 text-sm font-bold">
               No phone number
             </div>
           )}
 
-          <div className="bg-gray-800/60 rounded-2xl px-4 py-3">
-            <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Product</p>
-            <p className="font-black text-white text-base mt-0.5 truncate">{pd.productType || order.type || '—'}</p>
-          </div>
+          {/* Delivery Address */}
+          {order.address && (
+            <div className="bg-gray-800/50 rounded-2xl px-4 py-3 border border-gray-800">
+              <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">📍 Delivery Address</p>
+              <p className="font-black text-white text-base mt-0.5 whitespace-pre-wrap">{order.address}</p>
+            </div>
+          )}
 
-          <div className="bg-gray-800/60 rounded-2xl px-4 py-3">
-            <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Amount</p>
-            <p className="font-black text-emerald-400 text-base mt-0.5">
-              ₨{Number(order.totalPrice || 0).toLocaleString()}
-            </p>
-            <p className="text-[9px] text-gray-600 font-bold mt-0.5">
-              {order.advancePaid ? '✅ Paid' : '💵 COD'}
-            </p>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-gray-800/60 rounded-2xl px-4 py-3">
+              <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Product</p>
+              <p className="font-black text-white text-base mt-0.5 truncate">{pd.productType || order.type || '—'}</p>
+            </div>
+
+            <div className="bg-gray-800/60 rounded-2xl px-4 py-3">
+              <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Amount</p>
+              <p className="font-black text-emerald-400 text-base mt-0.5">
+                ₨{Number(order.totalPrice || 0).toLocaleString()}
+              </p>
+              <p className="text-[9px] text-gray-600 font-bold mt-0.5">
+                {order.advancePaid ? '✅ Paid' : '💵 COD'}
+              </p>
+            </div>
           </div>
         </div>
 
@@ -162,7 +172,7 @@ const DeliveryDashboard = () => {
   const fetchOrders = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${API}/api/orders`, {
+      const res = await axios.get(`${API}/api/orders?status=delivery`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const relevant = res.data.filter(o =>
