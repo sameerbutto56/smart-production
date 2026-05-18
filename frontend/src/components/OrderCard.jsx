@@ -107,8 +107,8 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
 
   const pipelines = {
     'STANDARD': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-    'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-    'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY']
+    'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+    'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'LOGO_DESIGN', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY']
   };
 
   const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
@@ -715,21 +715,25 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                   <div className="flex w-full space-x-2">
                     <button
                       onClick={() => {
-                        if (window.confirm('Confirm design is complete and ready for approval?')) {
+                        const nextIdx = currentPipeline.indexOf(currentStage?.stageName) + 1;
+                        const nextStageName = currentPipeline[nextIdx]?.replace(/_/g, ' ') || 'NEXT STAGE';
+                        if (window.confirm(`Design complete! Send to ${nextStageName}?`)) {
                           onUpdateStage(order.id, currentStage.id, 'request');
                         }
                       }}
-                      className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex flex-col xl:flex-row items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
+                      className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-3 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
                     >
                       <CheckCircle size={14} />
                       <span>Design Complete</span>
+                      <span className="text-[7px] text-emerald-200 tracking-widest">→ {(() => { const ni = currentPipeline.indexOf(currentStage?.stageName) + 1; return currentPipeline[ni]?.replace(/_/g, ' ') || 'NEXT'; })()}</span>
                     </button>
                     <button
                       onClick={() => setShowProblemModal(true)}
-                      className="flex-1 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex flex-col xl:flex-row items-center justify-center gap-1 active:scale-95 shadow-lg shadow-red-900/20"
+                      className="flex-1 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-3 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-red-900/20"
                     >
                       <AlertCircle size={14} />
                       <span>Design Problem</span>
+                      <span className="text-[7px] text-red-200 tracking-widest">→ NOTIFY {order.source === 'OUTLET' ? 'BRANCH' : 'FAISAL'}</span>
                     </button>
                   </div>
                 ) : (

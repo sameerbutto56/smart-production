@@ -483,8 +483,8 @@ const AdminDashboard = () => {
                       (() => {
                         const pipelines = {
                           'STANDARD': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-                          'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-                          'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY']
+                          'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                          'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'LOGO_DESIGN', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY']
                         };
                         return pipelines[trackedOrder.type]?.length || 8;
                       })()
@@ -496,8 +496,8 @@ const AdminDashboard = () => {
                   {(() => {
                     const pipelines = {
                       'STANDARD': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-                      'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-                      'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY']
+                      'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                      'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'LOGO_DESIGN', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY']
                     };
                     const currentPipeline = pipelines[trackedOrder.type] || pipelines['STANDARD'];
                     
