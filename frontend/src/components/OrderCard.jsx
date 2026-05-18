@@ -1008,7 +1008,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
           <motion.div 
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="glass max-w-sm w-full p-8 rounded-[2rem] border-2 border-gray-800 shadow-2xl"
+            className="glass max-w-sm w-full p-8 rounded-[2rem] border-2 border-gray-800 shadow-2xl max-h-[90vh] overflow-y-auto"
           >
             <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-4 text-center">Approve & Send To...</h3>
             <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest text-center mb-8">Current Stage: {currentStage?.stageName.replace('_', ' ')} Complete</p>
@@ -1028,16 +1028,38 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                   <option value="QA">Send to QUALITY ASSURANCE (QA)</option>
                   <option value="PRESSING_PACKING">Send to PRESSING & PACKING</option>
                   <option value="LOGO_DESIGN">Send to LOGO & NAME DESIGN</option>
-                  <option value="NAME_LOGO">Send to NAME EMBROIDERY</option>
-                  <option value="CUSTOM_LOGO">Send to CUSTOM LOGO DESIGN</option>
                   <option value="DISPATCH">Send to DISPATCH</option>
-                  <option value="OUT_FOR_DELIVERY">Send to DELIVERY PARTNER</option>
-                  <option value="DELIVERY_TCS">Fast deliver tcs</option>
-                  <option value="DELIVERY_SELF_COLLECT">Self collect</option>
-                  <option value="DELIVERY_ENAMELS_DELIVERY">enamel dilvery</option>
-                  <option value="DELIVERY_SHOPIFY_DELIVERY">shopyfy dilervy</option>
+                  <option value="OUT_FOR_DELIVERY">Send to DELIVERY</option>
                 </select>
               </div>
+
+              {(nextStage === 'DISPATCH' || nextStage === 'OUT_FOR_DELIVERY') && (
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-1">Delivery Method</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { value: 'TCS', label: 'TCS Courier', icon: '📦' },
+                      { value: 'SELF_PICKUP', label: 'Self Pickup', icon: '🏪' },
+                      { value: 'ENAMELS_DELIVERY', label: 'Enamels Delivery', icon: '🚚' },
+                      { value: 'SHOPIFY', label: 'Shopify Delivery', icon: '🛒' },
+                    ].map(method => (
+                      <button
+                        key={method.value}
+                        type="button"
+                        onClick={() => setDeliveryMethod(method.value)}
+                        className={`p-3 rounded-xl border-2 text-center transition-all active:scale-95 ${
+                          deliveryMethod === method.value 
+                            ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400 shadow-lg shadow-emerald-900/20' 
+                            : 'border-gray-800 bg-gray-950 text-gray-400 hover:border-gray-700'
+                        }`}
+                      >
+                        <span className="text-lg block mb-1">{method.icon}</span>
+                        <span className="text-[9px] font-black uppercase tracking-wider">{method.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {(order.type === 'FULL_CUSTOM' || order.type === 'READY_LOGO') && currentStage?.stageName === 'STORE' && (
                 <div className="space-y-3">
@@ -1058,13 +1080,13 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
 
             <div className="flex flex-col space-y-3">
               <button 
-                disabled={!nextStage && currentStage?.stageName !== 'DISPATCH'}
+                disabled={!nextStage || ((nextStage === 'DISPATCH' || nextStage === 'OUT_FOR_DELIVERY') && !deliveryMethod)}
                 onClick={() => {
-                  if (window.confirm(`Are you sure you want to approve and send to ${nextStage || 'next stage'}?`)) {
+                  if (window.confirm(`Are you sure you want to approve and send to ${nextStage.replace(/_/g, ' ')}?`)) {
                     onUpdateStage(order.id, currentStage.id, 'approve', { 
-                      nextStage: nextStage.startsWith('DELIVERY_') ? 'OUT_FOR_DELIVERY' : nextStage, 
+                      nextStage, 
                       customizationPrice: customizationAmount,
-                      deliveryMethod: nextStage.startsWith('DELIVERY_') ? nextStage.replace('DELIVERY_', '') : null
+                      deliveryMethod: deliveryMethod || null
                     });
                     setShowApprovalDialog(false);
                     setCustomizationAmount('0');
@@ -1077,7 +1099,7 @@ const OrderCard = ({ order, onUpdateStage, userRole }) => {
                 Confirm & Send
               </button>
               <button 
-                onClick={() => setShowApprovalDialog(false)}
+                onClick={() => { setShowApprovalDialog(false); setNextStage(''); setDeliveryMethod(''); }}
                 className="w-full bg-gray-900 hover:bg-gray-800 text-gray-500 py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
               >
                 Cancel
