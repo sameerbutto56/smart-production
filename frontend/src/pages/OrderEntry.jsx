@@ -232,54 +232,97 @@ const SmartOrderForm = () => {
     if (e.key === 'Enter') e.preventDefault();
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (isSubmitting) return; // Prevent double submit
+  const [cartItems, setCartItems] = useState([]);
+
+  const handleAddToCart = () => {
     const errMsg = validateCurrentTab();
     if (errMsg) {
       setError(errMsg);
       return;
     }
+    
+    const payload = {
+      orderNumber: formData.orderNumber,
+      customerName: formData.customerName,
+      customerPhone: formData.customerPhone,
+      address: formData.address,
+      type: formData.type,
+      urgent: formData.urgent,
+      quantity: formData.quantity,
+      advancePaid: formData.advancePaid,
+      logoDesign: formData.logoDesign,
+      logoName: formData.logoName,
+      productDetails: {
+        productType: formData.productType,
+        fabricType: formData.fabricType,
+        color: formData.color,
+        size: formData.size,
+        gender: formData.gender,
+        femaleOptions: formData.gender === 'Female' ? formData.femaleOptions : null
+      },
+      customization: {
+        nameSpelling: formData.nameSpelling,
+        nameColor: formData.nameColor,
+        logoColor: formData.logoColor,
+        logoPlacement: formData.logoPlacement,
+        stitchingStyle: formData.stitchingStyle,
+        fitType: formData.fitType,
+        designNotes: formData.designNotes,
+        designReference: formData.designReference,
+        additionalFeatures: formData.additionalFeatures
+      },
+      sizeData: formData.measurements,
+      totalPrice: parseFloat(formData.totalPrice) || 0
+    };
+
+    setCartItems([...cartItems, payload]);
+    setSuccess(true);
+    
+    // Reset product selection but KEEP customer basics
+    setFormData(prev => ({
+      ...prev,
+      quantity: 1,
+      totalPrice: '',
+      productType: '',
+      fabricType: '',
+      color: '',
+      size: '',
+      logoDesign: '',
+      logoName: '',
+      nameSpelling: '',
+      nameColor: '',
+      logoColor: '',
+      logoPlacement: '',
+      stitchingStyle: '',
+      fitType: 'Regular',
+      designNotes: '',
+      additionalFeatures: [],
+      measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hips: '' },
+      gender: 'Male',
+      femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long' }
+    }));
+    
+    setActiveTab('product'); // Send them back to selection
+    setTimeout(() => setSuccess(false), 2000);
+  };
+
+  const handleCheckout = async () => {
+    if (cartItems.length === 0) return;
+    if (isSubmitting) return; 
+
     setIsSubmitting(true);
     setLoading(true);
-    try {
-      const payload = {
-        orderNumber: formData.orderNumber,
-        customerName: formData.customerName,
-        customerPhone: formData.customerPhone,
-        address: formData.address,
-        type: formData.type,
-        urgent: formData.urgent,
-        quantity: formData.quantity,
-        advancePaid: formData.advancePaid,
-        logoDesign: formData.logoDesign,
-        logoName: formData.logoName,
-        productDetails: {
-          productType: formData.productType,
-          fabricType: formData.fabricType,
-          color: formData.color,
-          size: formData.size,
-          gender: formData.gender,
-          femaleOptions: formData.gender === 'Female' ? formData.femaleOptions : null
-        },
-        customization: {
-          nameSpelling: formData.nameSpelling,
-          nameColor: formData.nameColor,
-          logoColor: formData.logoColor,
-          logoPlacement: formData.logoPlacement,
-          stitchingStyle: formData.stitchingStyle,
-          fitType: formData.fitType,
-          designNotes: formData.designNotes,
-          designReference: formData.designReference,
-          additionalFeatures: formData.additionalFeatures
-        },
-        sizeData: formData.measurements,
-        totalPrice: parseFloat(formData.totalPrice) || 0
-      };
+    setError('');
 
-      await axios.post(`${API_URL}/api/orders`, payload);
+    try {
+      // If the factory requires independent tickets, we loop over cartItems and POST them
+      // Promise.all to send them concurrently
+      await Promise.all(cartItems.map(item => axios.post(`${API_URL}/api/orders`, item)));
+      
+      setCartItems([]);
       setSuccess(true);
-      // Reset form after successful submission
+      
+      // Reset full form
       setFormData({
         orderNumber: '',
         customerName: '',
@@ -289,6 +332,7 @@ const SmartOrderForm = () => {
         urgent: false,
         advancePaid: false,
         totalPrice: '',
+        quantity: 1,
         productType: '',
         fabricType: '',
         color: '',
@@ -310,9 +354,9 @@ const SmartOrderForm = () => {
       setActiveTab('basic');
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
-      console.error('Error creating order:', error);
+      console.error('Error during checkout:', error);
       const serverMsg = error.response?.data?.message || error.response?.data?.error;
-      setError(serverMsg || 'Error creating order. Please try again.');
+      setError(serverMsg || 'Error processing checkout. Please try again.');
     }
     setLoading(false);
     setIsSubmitting(false);
@@ -1126,14 +1170,14 @@ const SmartOrderForm = () => {
             ) : (
               <button
                 type="button"
-                onClick={handleSubmit}
+                onClick={handleAddToCart}
                 disabled={loading || isSubmitting}
-                className="flex-1 sm:px-24 py-6 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl shadow-blue-900/50 hover:scale-[1.03] hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 disabled:opacity-50 disabled:hover:scale-100 disabled:hover:translate-y-0"
+                className="flex-1 sm:px-24 py-6 bg-gray-900 text-blue-400 border-2 border-blue-500/50 rounded-[1.5rem] font-black text-sm shadow-2xl hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all active:scale-95 flex items-center justify-center space-x-4 disabled:opacity-50"
               >
                 {loading || isSubmitting ? (useUrdu ? 'انتظار کریں...' : 'PROCESSING...') : (
                   <>
                     <ShoppingCart size={24} className={useUrdu ? "order-2" : "order-1"} />
-                    <span className={useUrdu ? "order-1" : "order-2"}>{t('submit').toUpperCase()}</span>
+                    <span className={useUrdu ? "order-1" : "order-2"}>{useUrdu ? 'کارٹ میں شامل کریں' : 'ADD TO CART'}</span>
                   </>
                 )}
               </button>
@@ -1142,11 +1186,56 @@ const SmartOrderForm = () => {
         </div>
       </form>
 
+      {/* Floating Cart Panel */}
+      <AnimatePresence>
+        {cartItems.length > 0 && (
+          <motion.div
+            initial={{ y: 150, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 150, opacity: 0 }}
+            className="fixed bottom-0 left-0 right-0 md:bottom-8 md:left-auto md:right-8 bg-gray-950/90 backdrop-blur-2xl border-t-2 md:border-2 border-gray-800 p-6 md:rounded-[2rem] shadow-[0_-20px_50px_rgba(0,0,0,0.5)] z-50 md:w-96"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-black text-white flex items-center space-x-2">
+                <ShoppingCart className="text-blue-500" size={24} />
+                <span>Your Cart</span>
+              </h3>
+              <span className="bg-blue-600 text-white text-xs font-black px-3 py-1 rounded-full">
+                {cartItems.length} Items
+              </span>
+            </div>
+            
+            <div className="max-h-48 overflow-y-auto pr-2 space-y-3 custom-scrollbar mb-4">
+              {cartItems.map((item, idx) => (
+                <div key={idx} className="bg-gray-900/50 p-4 rounded-2xl flex justify-between items-center border border-gray-800">
+                  <div className="flex-1 truncate">
+                    <p className="text-sm font-bold text-white truncate">{item.productDetails?.productType || 'Custom Item'}</p>
+                    <p className="text-[10px] text-gray-500 font-bold uppercase">{item.quantity}x • {item.productDetails?.size || 'Custom'} • {item.productDetails?.color}</p>
+                  </div>
+                  <div className="text-right ml-4">
+                    <p className="text-sm font-black text-emerald-400">${item.totalPrice}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={handleCheckout}
+              disabled={loading || isSubmitting}
+              className="w-full py-4 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-emerald-900/50 hover:scale-[1.02] transition-all flex items-center justify-center space-x-3 disabled:opacity-50"
+            >
+              <CheckCircle2 size={20} />
+              <span>Checkout Order</span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {success && (
         <motion.div 
           initial={{ opacity: 0, y: 100 }}
           animate={{ opacity: 1, y: 0 }}
-          className={`fixed bottom-12 inset-x-6 sm:left-auto sm:right-12 max-w-md bg-emerald-600 text-white p-8 rounded-[3rem] shadow-[0_30px_60px_rgba(0,0,0,0.4)] flex items-center space-x-6 z-50 border-2 border-emerald-400/20 backdrop-blur-3xl ${useUrdu ? 'flex-row-reverse space-x-reverse text-right' : ''}`}
+          className={`fixed bottom-32 md:bottom-12 inset-x-6 sm:left-auto sm:right-12 max-w-md bg-emerald-600 text-white p-8 rounded-[3rem] shadow-[0_30px_60px_rgba(0,0,0,0.4)] flex items-center space-x-6 z-50 border-2 border-emerald-400/20 backdrop-blur-3xl ${useUrdu ? 'flex-row-reverse space-x-reverse text-right' : ''}`}
         >
           <div className="bg-white/20 p-5 rounded-[1.5rem] shadow-inner">
             <CheckCircle2 size={40} />
