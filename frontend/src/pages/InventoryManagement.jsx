@@ -300,9 +300,9 @@ const InventoryManagement = () => {
                 <h3 className="font-black text-xl text-white group-hover:text-emerald-400 transition-colors leading-tight">{item.name}</h3>
                 <div className="flex items-center space-x-2">
                   <span className="text-[10px] font-black uppercase tracking-widest text-gray-600">{item.category}</span>
-                  {(item.color || item.fabric) && <div className="w-1 h-1 rounded-full bg-gray-800" />}
+                  {(item.color || item.size || item.fabric) && <div className="w-1 h-1 rounded-full bg-gray-800" />}
                   <span className="text-[10px] font-bold text-gray-400 uppercase italic">
-                    {[item.color, item.fabric].filter(Boolean).join(' • ')}
+                    {[item.color, item.size, item.fabric].filter(Boolean).join(' • ')}
                   </span>
                 </div>
               </div>
@@ -428,7 +428,7 @@ const InventoryManagement = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <div className="space-y-4">
                       <div className="flex items-center space-x-3 mb-1">
                         <div className="p-2 bg-pink-500/10 rounded-lg">
@@ -442,6 +442,21 @@ const InventoryManagement = () => {
                         onChange={(e) => setFormData({...formData, color: e.target.value})}
                         className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-[1.25rem] py-4 px-6 focus:border-pink-500 outline-none transition-all font-bold text-white shadow-inner"
                         placeholder="e.g. Royal Blue"
+                      />
+                    </div>
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-3 mb-1">
+                        <div className="p-2 bg-blue-500/10 rounded-lg">
+                          <Layers size={16} className="text-blue-400" />
+                        </div>
+                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Size</label>
+                      </div>
+                      <input
+                        type="text"
+                        value={formData.size || ''}
+                        onChange={(e) => setFormData({...formData, size: e.target.value})}
+                        className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-[1.25rem] py-4 px-6 focus:border-blue-500 outline-none transition-all font-bold text-white shadow-inner"
+                        placeholder="e.g. XL, 35, 10"
                       />
                     </div>
                     <div className="space-y-4">
