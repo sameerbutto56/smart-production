@@ -25,7 +25,8 @@ import {
   Phone,
   Users,
   List,
-  Grid
+  Grid,
+  X
 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
@@ -231,6 +232,7 @@ const SmartOrderForm = () => {
 
   const [cartItems, setCartItems] = useState([]);
   const [showAddMore, setShowAddMore] = useState(false);
+  const [isCartOpen, setIsCartOpen] = useState(false);
 
   const handleAddToCart = () => {
     if (!formData.productType) {
@@ -1235,43 +1237,79 @@ const SmartOrderForm = () => {
         )}
       </AnimatePresence>
 
-      {/* Floating Cart Panel */}
+      {/* Floating Cart Panel & FAB */}
       <AnimatePresence>
-        {cartItems.length > 0 && (
-          <motion.div
-            initial={{ y: 150, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 150, opacity: 0 }}
-            className="fixed bottom-0 left-0 right-0 md:bottom-8 md:left-auto md:right-8 bg-gray-950/90 backdrop-blur-2xl border-t-2 md:border-2 border-gray-800 p-6 md:rounded-[2rem] shadow-[0_-20px_50px_rgba(0,0,0,0.5)] z-50 md:w-96"
+        {cartItems.length > 0 && !isCartOpen && (
+          <motion.button
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            exit={{ scale: 0 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsCartOpen(true)}
+            className="fixed bottom-6 right-6 md:bottom-8 md:right-8 bg-blue-600 text-white p-4 rounded-full shadow-[0_10px_30px_rgba(37,99,235,0.4)] z-50 flex items-center justify-center border-2 border-blue-400/30 backdrop-blur-md"
           >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-black text-white flex items-center space-x-2">
-                <ShoppingCart className="text-blue-500" size={24} />
-                <span>Your Cart</span>
-              </h3>
-              <span className="bg-blue-600 text-white text-xs font-black px-3 py-1 rounded-full">
-                {cartItems.length} Items
+            <div className="relative">
+              <ShoppingCart size={28} />
+              <span className="absolute -top-3 -right-3 bg-pink-500 text-white text-[10px] font-black w-6 h-6 flex items-center justify-center rounded-full border-2 border-gray-900 shadow-lg">
+                {cartItems.length}
               </span>
             </div>
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {cartItems.length > 0 && isCartOpen && (
+          <motion.div
+            initial={{ y: 150, opacity: 0, scale: 0.9 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 150, opacity: 0, scale: 0.9 }}
+            className="fixed bottom-4 right-4 left-4 md:left-auto md:bottom-8 md:right-8 bg-gray-950/95 backdrop-blur-3xl border-2 border-gray-800 p-6 rounded-[2.5rem] shadow-[0_30px_60px_rgba(0,0,0,0.6)] z-50 md:w-[400px]"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-3">
+                <div className="bg-blue-500/20 p-2.5 rounded-2xl">
+                  <ShoppingCart className="text-blue-500" size={24} />
+                </div>
+                <h3 className="text-xl font-black text-white tracking-tight">Your Cart</h3>
+                <span className="bg-gray-800 text-gray-300 text-[10px] font-black px-3 py-1.5 rounded-full ml-2">
+                  {cartItems.length} Items
+                </span>
+              </div>
+              <button 
+                onClick={() => setIsCartOpen(false)}
+                className="text-gray-500 hover:text-white hover:bg-gray-800 p-2 rounded-full transition-all active:scale-95"
+              >
+                <X size={20} />
+              </button>
+            </div>
             
-            <div className="max-h-48 overflow-y-auto pr-2 space-y-3 custom-scrollbar mb-4">
+            <div className="max-h-60 overflow-y-auto pr-2 space-y-3 custom-scrollbar mb-6">
               {cartItems.map((item, idx) => (
-                <div key={idx} className="bg-gray-900/50 p-4 rounded-2xl flex justify-between items-center border border-gray-800">
-                  <div className="flex-1 truncate">
-                    <p className="text-sm font-bold text-white truncate">{item.productDetails?.productType || 'Custom Item'}</p>
-                    <p className="text-[10px] text-gray-500 font-bold uppercase">{item.quantity}x • {item.productDetails?.size || 'Custom'} • {item.productDetails?.color}</p>
+                <div key={idx} className="bg-gray-900/60 p-4 rounded-2xl flex justify-between items-center border border-gray-800 hover:border-gray-700 transition-colors">
+                  <div className="flex-1 min-w-0 pr-4">
+                    <p className="text-sm font-black text-white truncate">{item.productDetails?.productType || 'Custom Item'}</p>
+                    <p className="text-[10px] text-gray-500 font-bold uppercase mt-1 truncate">
+                      {item.quantity}x • {item.productDetails?.size || 'Custom'} • {item.productDetails?.color}
+                    </p>
                   </div>
-                  <div className="text-right ml-4">
-                    <p className="text-sm font-black text-emerald-400">${item.totalPrice}</p>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-black text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-xl">
+                      ${item.totalPrice}
+                    </p>
                   </div>
                 </div>
               ))}
             </div>
 
             <button
-              onClick={handleCheckout}
+              onClick={() => {
+                setIsCartOpen(false);
+                handleCheckout();
+              }}
               disabled={loading || isSubmitting}
-              className="w-full py-4 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-emerald-900/50 hover:scale-[1.02] transition-all flex items-center justify-center space-x-3 disabled:opacity-50"
+              className="w-full py-5 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-emerald-900/40 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3 disabled:opacity-50"
             >
               <CheckCircle2 size={20} />
               <span>Checkout Order</span>
