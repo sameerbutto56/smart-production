@@ -230,11 +230,11 @@ const SmartOrderForm = () => {
   };
 
   const [cartItems, setCartItems] = useState([]);
+  const [showAddMore, setShowAddMore] = useState(false);
 
   const handleAddToCart = () => {
-    const errMsg = validateCurrentTab();
-    if (errMsg) {
-      setError(errMsg);
+    if (!formData.productType) {
+      setError('Please select a Product first.');
       return;
     }
     
@@ -273,8 +273,10 @@ const SmartOrderForm = () => {
     };
 
     setCartItems([...cartItems, payload]);
-    setSuccess(true);
-    
+    setShowAddMore(true); // Show the "Add More?" prompt
+  };
+
+  const handleAddMoreProducts = () => {
     // Reset product selection but KEEP customer basics
     setFormData(prev => ({
       ...prev,
@@ -298,9 +300,8 @@ const SmartOrderForm = () => {
       gender: 'Male',
       femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long' }
     }));
-    
-    setActiveTab('product'); // Send them back to selection
-    setTimeout(() => setSuccess(false), 2000);
+    setShowAddMore(false);
+    setActiveTab('product');
   };
 
   const handleCheckout = async () => {
@@ -1187,6 +1188,52 @@ const SmartOrderForm = () => {
           </div>
         </div>
       </form>
+
+      {/* "Add More Products?" Modal */}
+      <AnimatePresence>
+        {showAddMore && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.85, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.85, y: 30 }}
+              className="glass max-w-md w-full p-10 rounded-[3rem] border-2 border-gray-800 shadow-[0_50px_100px_rgba(0,0,0,0.5)] text-center"
+            >
+              <div className="bg-emerald-500/10 p-6 rounded-[2rem] inline-block mb-6">
+                <CheckCircle2 size={48} className="text-emerald-400" />
+              </div>
+              <h2 className="text-2xl font-black text-white uppercase tracking-tight mb-2">
+                {useUrdu ? 'پروڈکٹ کارٹ میں شامل ہو گئی!' : 'Added to Cart!'}
+              </h2>
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-8">
+                {cartItems.length} {cartItems.length === 1 ? 'item' : 'items'} in cart
+              </p>
+              
+              <div className="space-y-4">
+                <button
+                  onClick={handleAddMoreProducts}
+                  className="w-full py-5 bg-blue-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-blue-900/50 hover:bg-blue-500 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3"
+                >
+                  <Plus size={20} />
+                  <span>{useUrdu ? 'مزید پروڈکٹس شامل کریں' : 'ADD MORE PRODUCTS'}</span>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setShowAddMore(false);
+                    handleCheckout();
+                  }}
+                  disabled={loading || isSubmitting}
+                  className="w-full py-5 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-emerald-900/50 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3 disabled:opacity-50"
+                >
+                  <CheckCircle2 size={20} />
+                  <span>{useUrdu ? 'آرڈر جمع کرائیں' : 'CHECKOUT ORDER'}</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Floating Cart Panel */}
       <AnimatePresence>
