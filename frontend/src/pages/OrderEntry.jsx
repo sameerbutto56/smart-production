@@ -1148,8 +1148,25 @@ const SmartOrderForm = () => {
                 {t('back').toUpperCase()}
               </button>
             )}
+
+            {/* Add to Cart button - always visible on product tab and last tab */}
+            {(activeTab === 'product' || activeTab === filteredTabs[filteredTabs.length - 1].id) && (
+              <button
+                type="button"
+                onClick={handleAddToCart}
+                disabled={loading || isSubmitting}
+                className="flex-1 sm:px-16 py-6 bg-gray-900 text-blue-400 border-2 border-blue-500/50 rounded-[1.5rem] font-black text-sm shadow-2xl hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all active:scale-95 flex items-center justify-center space-x-4 disabled:opacity-50"
+              >
+                {loading || isSubmitting ? (useUrdu ? 'انتظار کریں...' : 'PROCESSING...') : (
+                  <>
+                    <ShoppingCart size={24} className={useUrdu ? "order-2" : "order-1"} />
+                    <span className={useUrdu ? "order-1" : "order-2"}>{useUrdu ? 'کارٹ میں شامل کریں' : 'ADD TO CART'}</span>
+                  </>
+                )}
+              </button>
+            )}
             
-            {activeTab !== filteredTabs[filteredTabs.length - 1].id ? (
+            {activeTab !== filteredTabs[filteredTabs.length - 1].id && (
               <button
                 type="button"
                 onClick={() => {
@@ -1165,20 +1182,6 @@ const SmartOrderForm = () => {
               >
                 <span className={useUrdu ? "order-2" : "order-1"}>{t('next').toUpperCase()}</span>
                 <ArrowRight size={22} className={`transition-transform ${useUrdu ? 'order-1 rotate-180 group-hover:-translate-x-2' : 'order-2 group-hover:translate-x-2'}`} />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleAddToCart}
-                disabled={loading || isSubmitting}
-                className="flex-1 sm:px-24 py-6 bg-gray-900 text-blue-400 border-2 border-blue-500/50 rounded-[1.5rem] font-black text-sm shadow-2xl hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all active:scale-95 flex items-center justify-center space-x-4 disabled:opacity-50"
-              >
-                {loading || isSubmitting ? (useUrdu ? 'انتظار کریں...' : 'PROCESSING...') : (
-                  <>
-                    <ShoppingCart size={24} className={useUrdu ? "order-2" : "order-1"} />
-                    <span className={useUrdu ? "order-1" : "order-2"}>{useUrdu ? 'کارٹ میں شامل کریں' : 'ADD TO CART'}</span>
-                  </>
-                )}
               </button>
             )}
           </div>
