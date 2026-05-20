@@ -74,7 +74,10 @@ const History = () => {
 
   const fetchHistory = async () => {
     try {
-      const response = await axios.get(`${API_URL}/api/orders?status=completed`);
+      const token = sessionStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/api/orders?status=completed`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setOrders(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Error fetching history:', error);
