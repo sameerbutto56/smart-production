@@ -153,6 +153,35 @@ const InventoryManagement = () => {
     }
   };
 
+  const fileInputRef = React.useRef(null);
+
+  const handleBulkUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const uploadData = new FormData();
+    uploadData.append('file', file);
+
+    try {
+      setLoading(true);
+      const token = sessionStorage.getItem('token');
+      const response = await axios.post(`${API_URL}/api/inventory/bulk-upload`, uploadData, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      alert(`Success! Imported ${response.data.count} items.`);
+      fetchInventory();
+    } catch (error) {
+      console.error('Bulk upload failed:', error);
+      alert('Failed to upload Excel file: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const uniqueCategories = [...new Set(items.map(item => item.category?.toUpperCase()).filter(Boolean))];
   const defaultCategories = ['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS', 'FABRIC'];
   const allCategories = [...new Set([...defaultCategories, ...uniqueCategories])];
@@ -171,6 +200,20 @@ const InventoryManagement = () => {
           </div>
         </div>
         <div className="flex items-center gap-4">
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleBulkUpload} 
+            accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" 
+            className="hidden" 
+          />
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            className="bg-gray-800 hover:bg-gray-700 text-emerald-400 border border-emerald-500/30 font-black py-4 px-6 rounded-2xl shadow-xl transition-all flex items-center space-x-3 active:scale-95"
+          >
+            <Upload size={24} />
+            <span className="hidden sm:inline">Bulk Import (Excel/CSV)</span>
+          </button>
           <button 
             onClick={() => handleOpenModal()}
             className="bg-blue-600 hover:bg-blue-500 text-white font-black py-4 px-8 rounded-2xl shadow-2xl shadow-blue-900/30 transition-all flex items-center space-x-3 active:scale-95"

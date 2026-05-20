@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const xlsx = require('xlsx');
 
 const getInventory = async (req, res) => {
   try {
@@ -60,4 +61,57 @@ const deleteInventoryItem = async (req, res) => {
   }
 };
 
-module.exports = { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem };
+const bulkUploadInventory = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const workbook = xlsx.readFile(req.file.path);
+    const sheetName = workbook.SheetNames[0];
+    const data = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
+
+    if (!data || data.length === 0) {
+      return res.status(400).json({ message: 'Excel file is empty' });
+    }
+
+    const parsedData = data.map(row => {
+      const rowKeys = Object.keys(row);
+      const getVal = (keyStr) => {
+        const foundKey = rowKeys.find(k => k.toLowerCase().includes(keyStr.toLowerCase()));
+        return foundKey ? row[foundKey] : undefined;
+      };
+
+      const name = getVal('name') || getVal('product') || getVal('item') || 'Unknown Item';
+      const category = getVal('category') || getVal('type') || 'UNCATEGORIZED';
+      const stock = parseInt(getVal('stock') || getVal('qty') || getVal('quantity')) || 0;
+      const price = parseFloat(getVal('price') || getVal('cost')) || 0;
+      const color = getVal('color') || '';
+      const fabric = getVal('fabric') || getVal('material') || '';
+
+      return {
+        name: String(name).trim(),
+        category: String(category).toUpperCase().trim(),
+        stock,
+        price,
+        color: String(color).trim(),
+        fabric: String(fabric).trim()
+      };
+    });
+
+    const result = await prisma.inventoryItem.createMany({
+      data: parsedData,
+      skipDuplicates: true
+    });
+
+    const io = req.app.get('io');
+    if (io) io.emit('inventory-updated', { bulkUpdate: true });
+
+    res.json({ message: `Successfully imported ${result.count} items`, count: result.count });
+  } catch (error) {
+    console.error('Bulk upload error:', error);
+    res.status(500).json({ message: 'Error importing inventory', error: error.message });
+  }
+};
+
+module.exports = { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem, bulkUploadInventory };
