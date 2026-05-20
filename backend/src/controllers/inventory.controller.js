@@ -87,6 +87,7 @@ const bulkUploadInventory = async (req, res) => {
       const stock = parseInt(getVal('stock') || getVal('qty') || getVal('quantity')) || 0;
       const price = parseFloat(getVal('price') || getVal('cost')) || 0;
       const color = getVal('color') || '';
+      const size = getVal('size') || '';
       const fabric = getVal('fabric') || getVal('material') || '';
 
       const nameStr = String(name).trim();
@@ -111,6 +112,7 @@ const bulkUploadInventory = async (req, res) => {
         stock,
         price,
         color: String(color).trim(),
+        size: String(size).trim(),
         fabric: String(fabric).trim()
       };
     });
