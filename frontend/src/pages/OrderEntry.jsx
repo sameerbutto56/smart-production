@@ -712,7 +712,9 @@ const SmartOrderForm = () => {
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-                  {productsInCategory.map(item => (
+                  {Array.from(new Set(productsInCategory.map(i => i.name)))
+                    .map(name => productsInCategory.find(i => i.name === name))
+                    .map(item => (
                     <OptionCard
                       key={item.id}
                       label={item.name}
@@ -728,7 +730,7 @@ const SmartOrderForm = () => {
                           productImage: selectedItem?.imageUrl || null
                         });
                       }}
-                      sublabel={`${useUrdu ? 'اسٹاک' : 'Stock'}: ${item.stock}`}
+                      sublabel={`${useUrdu ? 'اسٹاک' : 'Total Stock'}: ${productsInCategory.filter(i => i.name === item.name).reduce((sum, i) => sum + i.stock, 0)}`}
                     />
                   ))}
                 </div>
