@@ -37,13 +37,14 @@ const DeliverySheet = () => {
     setLoading(true);
     try {
       const token = sessionStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/api/orders`, {
+      const response = await axios.get(`${API_URL}/api/orders?status=delivery`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setOrders(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
-      console.error('Error fetching orders:', error);
-      toast.error('Failed to load orders for manifest');
+      console.error('Error fetching orders:', error.response?.data || error);
+      const errorMsg = error.response?.data?.error || error.message;
+      toast.error(`Failed to load orders: ${errorMsg}`);
     }
     setLoading(false);
   };

@@ -209,9 +209,7 @@ const getOrders = async (req, res) => {
     // 2. Add database-level filters based on page context
     if (filterStatus === 'active') {
       // Return only active/in-progress/waiting orders
-      where.NOT = {
-        status: { in: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
-      };
+      where.status = { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] };
     } else if (filterStatus === 'completed') {
       // History Page: Return completed/delivered/cancelled/rejected orders
       where.OR = [
@@ -231,9 +229,7 @@ const getOrders = async (req, res) => {
         const activeOrders = await prisma.order.findMany({
           where: {
             ...where,
-            NOT: {
-              status: { in: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
-            }
+            status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
           },
           include: {
             stages: { orderBy: { createdAt: 'desc' } },
