@@ -26,6 +26,7 @@ const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'l
 const SuperAdminDashboard = () => {
   const [analytics, setAnalytics] = useState(null);
   const [inventory, setInventory] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [durations, setDurations] = useState({});
   const [isUpdatingDurations, setIsUpdatingDurations] = useState(false);
   const { t, LanguageToggle, isUrdu } = useLanguage();
@@ -57,7 +58,7 @@ const SuperAdminDashboard = () => {
     };
   }, []);
 
-  const fetchDurations = async () => {
+  async function fetchDurations() {
     try {
       const token = sessionStorage.getItem('token');
       const response = await axios.get(`${API_URL}/api/settings`, { headers: { Authorization: `Bearer ${token}` } });
@@ -79,7 +80,7 @@ const SuperAdminDashboard = () => {
     } catch (error) {
       console.error('Error fetching durations:', error);
     }
-  };
+  }
 
   const handleUpdateDurations = async () => {
     setIsUpdatingDurations(true);
@@ -91,13 +92,14 @@ const SuperAdminDashboard = () => {
       }, { headers: { Authorization: `Bearer ${token}` } });
       alert('Production deadlines updated successfully!');
     } catch (error) {
+      console.error(error);
       alert('Failed to update deadlines.');
     } finally {
       setIsUpdatingDurations(false);
     }
   };
 
-  const fetchData = async () => {
+  async function fetchData() {
     try {
       const token = sessionStorage.getItem('token');
       const [analyticsRes, inventoryRes] = await Promise.all([
