@@ -315,9 +315,32 @@ const SmartOrderForm = () => {
     setError('');
 
     try {
-      // If the factory requires independent tickets, we loop over cartItems and POST them
+      // Apply the final customization and measurements to ALL items in the cart
+      const finalOrders = cartItems.map(item => ({
+        ...item,
+        customization: {
+          nameSpelling: formData.nameSpelling || item.customization?.nameSpelling,
+          nameColor: formData.nameColor || item.customization?.nameColor,
+          logoColor: formData.logoColor || item.customization?.logoColor,
+          logoPlacement: formData.logoPlacement || item.customization?.logoPlacement,
+          stitchingStyle: formData.stitchingStyle || item.customization?.stitchingStyle,
+          fitType: formData.fitType || item.customization?.fitType,
+          designNotes: formData.designNotes || item.customization?.designNotes,
+          designReference: formData.designReference || item.customization?.designReference,
+          additionalFeatures: formData.additionalFeatures?.length > 0 ? formData.additionalFeatures : item.customization?.additionalFeatures
+        },
+        sizeData: {
+          chest: formData.measurements.chest || item.sizeData?.chest,
+          shoulder: formData.measurements.shoulder || item.sizeData?.shoulder,
+          length: formData.measurements.length || item.sizeData?.length,
+          sleeve: formData.measurements.sleeve || item.sizeData?.sleeve,
+          waist: formData.measurements.waist || item.sizeData?.waist,
+          hips: formData.measurements.hips || item.sizeData?.hips,
+        }
+      }));
+
       // Promise.all to send them concurrently
-      await Promise.all(cartItems.map(item => axios.post(`${API_URL}/api/orders`, item)));
+      await Promise.all(finalOrders.map(item => axios.post(`${API_URL}/api/orders`, item)));
       
       setCartItems([]);
       setSuccess(true);
@@ -1220,17 +1243,31 @@ const SmartOrderForm = () => {
                   <span>{useUrdu ? 'مزید پروڈکٹس شامل کریں' : 'ADD MORE PRODUCTS'}</span>
                 </button>
                 
-                <button
-                  onClick={() => {
-                    setShowAddMore(false);
-                    handleCheckout();
-                  }}
-                  disabled={loading || isSubmitting}
-                  className="w-full py-5 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-emerald-900/50 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3 disabled:opacity-50"
-                >
-                  <CheckCircle2 size={20} />
-                  <span>{useUrdu ? 'آرڈر جمع کرائیں' : 'CHECKOUT ORDER'}</span>
-                </button>
+                {activeTab !== filteredTabs[filteredTabs.length - 1].id ? (
+                  <button
+                    onClick={() => {
+                      setShowAddMore(false);
+                      const currentIdx = filteredTabs.findIndex(t => t.id === activeTab);
+                      setActiveTab(filteredTabs[currentIdx + 1].id);
+                    }}
+                    className="w-full py-5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-indigo-900/50 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3"
+                  >
+                    <ArrowRight size={20} />
+                    <span>{useUrdu ? 'اگلے مرحلے پر جائیں' : 'PROCEED TO NEXT STEP'}</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setShowAddMore(false);
+                      handleCheckout();
+                    }}
+                    disabled={loading || isSubmitting}
+                    className="w-full py-5 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-emerald-900/50 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3 disabled:opacity-50"
+                  >
+                    <CheckCircle2 size={20} />
+                    <span>{useUrdu ? 'آرڈر جمع کرائیں' : 'CHECKOUT ORDER'}</span>
+                  </button>
+                )}
               </div>
             </motion.div>
           </div>
