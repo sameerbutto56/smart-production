@@ -153,6 +153,10 @@ const InventoryManagement = () => {
     }
   };
 
+  const uniqueCategories = [...new Set(items.map(item => item.category?.toUpperCase()).filter(Boolean))];
+  const defaultCategories = ['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS', 'FABRIC'];
+  const allCategories = [...new Set([...defaultCategories, ...uniqueCategories])];
+
   return (
     <div className="space-y-8 pb-20 px-4">
       {/* Header Section */}
@@ -190,7 +194,7 @@ const InventoryManagement = () => {
           />
         </div>
         <div className="flex bg-gray-950 border-2 border-gray-900 rounded-2xl p-1.5 overflow-x-auto no-scrollbar">
-          {['ALL', 'SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS', 'FABRIC'].map(cat => (
+          {['ALL', ...allCategories].map(cat => (
             <button 
               key={cat} 
               onClick={() => setSearchTerm(cat === 'ALL' ? '' : cat)}
@@ -331,18 +335,18 @@ const InventoryManagement = () => {
                         </div>
                         <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Category</label>
                       </div>
-                      <select
+                      <input
+                        list="category-options"
                         value={formData.category}
-                        onChange={(e) => setFormData({...formData, category: e.target.value})}
-                        className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-[1.25rem] py-4 px-6 outline-none font-bold text-gray-300 appearance-none cursor-pointer focus:border-purple-500"
-                      >
-                        <option value="SCRUBS">Scrubs</option>
-                        <option value="COAT">Coat</option>
-                        <option value="MASK">Mask</option>
-                        <option value="SOCKS">Socks</option>
-                        <option value="CAPS">Caps</option>
-                        <option value="FABRIC">Fabric</option>
-                      </select>
+                        onChange={(e) => setFormData({...formData, category: e.target.value.toUpperCase()})}
+                        className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-[1.25rem] py-4 px-6 outline-none font-bold text-gray-300 focus:border-purple-500 uppercase"
+                        placeholder="Type or select category..."
+                      />
+                      <datalist id="category-options">
+                        {allCategories.map(cat => (
+                          <option key={cat} value={cat} />
+                        ))}
+                      </datalist>
                     </div>
                     <div className="space-y-4">
                       <div className="flex items-center space-x-3 mb-1">
