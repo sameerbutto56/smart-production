@@ -210,10 +210,7 @@ const SmartOrderForm = () => {
       if (formData.type === 'FULL_CUSTOM' && !formData.advancePaid) return 'Advance payment is compulsory for custom orders.';
     }
     if (activeTab === 'product') {
-      if (!formData.productType) return 'Please select a Product Base (Step 1).';
-      if (!formData.fabricType) return 'Please select a Fabric Type (Step 2).';
-      if (!formData.color) return 'Please select a Color (Step 3).';
-      if (!accessory && !formData.size) return 'Please select a Standard Size (Step 3).';
+      if (!formData.productType) return 'Please select a Product (Step 1).';
     }
     if (activeTab === 'custom') {
       if (formData.type === 'FULL_CUSTOM' && !formData.stitchingStyle) return 'Please select a Stitch Pattern.';
