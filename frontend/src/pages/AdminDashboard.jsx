@@ -416,7 +416,7 @@ const AdminDashboard = () => {
           
           <button
             onClick={() => {
-              const query = trackingQuery.trim().toLowerCase();
+              const query = contextSearch.trim().toLowerCase();
               if (!query) return;
               const found = allOrders.find(o => 
                 o.orderNumber?.toLowerCase().includes(query) || 
