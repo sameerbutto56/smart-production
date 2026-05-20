@@ -89,9 +89,25 @@ const bulkUploadInventory = async (req, res) => {
       const color = getVal('color') || '';
       const fabric = getVal('fabric') || getVal('material') || '';
 
+      const nameStr = String(name).trim();
+      let finalCategory = String(category).toUpperCase().trim();
+      
+      // Auto-categorize if no explicit valid category is provided or it's unknown
+      if (!category || finalCategory === 'UNCATEGORIZED' || finalCategory === '') {
+        const lowerName = nameStr.toLowerCase();
+        if (lowerName.includes('shoe')) finalCategory = 'SHOES';
+        else if (lowerName.includes('scrub')) finalCategory = 'SCRUBS';
+        else if (lowerName.includes('coat')) finalCategory = 'COAT';
+        else if (lowerName.includes('mask')) finalCategory = 'MASK';
+        else if (lowerName.includes('sock')) finalCategory = 'SOCKS';
+        else if (lowerName.includes('cap')) finalCategory = 'CAPS';
+        else if (lowerName.includes('fabric')) finalCategory = 'FABRIC';
+        else finalCategory = 'UNCATEGORIZED';
+      }
+
       return {
-        name: String(name).trim(),
-        category: String(category).toUpperCase().trim(),
+        name: nameStr,
+        category: finalCategory,
         stock,
         price,
         color: String(color).trim(),
