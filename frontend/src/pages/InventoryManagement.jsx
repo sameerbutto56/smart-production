@@ -297,7 +297,7 @@ const InventoryManagement = () => {
               </div>
 
               <div className="space-y-1">
-                <h3 className="font-black text-xl text-white group-hover:text-emerald-400 transition-colors truncate">{item.name}</h3>
+                <h3 className="font-black text-xl text-white group-hover:text-emerald-400 transition-colors leading-tight">{item.name}</h3>
                 <div className="flex items-center space-x-2">
                   <span className="text-[10px] font-black uppercase tracking-widest text-gray-600">{item.category}</span>
                   {(item.color || item.fabric) && <div className="w-1 h-1 rounded-full bg-gray-800" />}
