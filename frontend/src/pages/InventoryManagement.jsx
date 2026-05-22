@@ -20,11 +20,23 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
+import { Navigate } from 'react-router-dom';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
 
 const InventoryManagement = () => {
+  const { user, loading: authLoading } = useAuth();
   const { t, LanguageToggle, isUrdu } = useLanguage();
+
+  if (authLoading) {
+    return null;
+  }
+
+  const userRole = String(user?.role || '').toUpperCase().trim();
+  if (user && !['SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(userRole)) {
+    return <Navigate to="/dashboard" replace={true} />;
+  }
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');

@@ -138,6 +138,21 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
         { label: 'Base', val: product?.productType }
       ];
       return items.map((item, idx) => {
+        const isOrderProfile = ['ORDER_ENTRY', 'OUTLET'].includes(String(userRole || '').toUpperCase().trim());
+        if (isOrderProfile) {
+          return (
+            <motion.li 
+              key={idx}
+              initial={{ opacity: 0, x: -5 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: idx * 0.1 }}
+              className="text-[11px] flex items-center justify-between p-2 bg-gray-900/30 rounded-lg border border-gray-800/20"
+            >
+              <span className="text-gray-400 font-bold uppercase tracking-tighter">{item.label}: {item.val || 'N/A'}</span>
+            </motion.li>
+          );
+        }
+
         const status = getStockStatus(item.val);
         return (
           <motion.li 
@@ -577,12 +592,20 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               {renderTasks()}
             </ul>
             {currentStage?.rejectionReason && (
-              <div className={`mt-4 p-3 rounded-xl border ${currentStage.rejectionReason.includes('Available') ? 'bg-emerald-500/10 border-emerald-500/20' : currentStage.rejectionReason.includes('PROBLEM') ? 'bg-orange-500/10 border-orange-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
-                <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${currentStage.rejectionReason.includes('Available') ? 'text-emerald-400' : currentStage.rejectionReason.includes('PROBLEM') ? 'text-orange-400' : 'text-red-400'}`}>
-                  {currentStage.rejectionReason.includes('Inventory') ? 'Store Inventory Check:' : currentStage.rejectionReason.includes('PROBLEM') ? 'Worker Reported Problem:' : (order.source === 'OUTLET' ? 'Branch Rejection Reason:' : 'Faisal Rejection Reason:')}
-                </p>
-                <p className="text-xs text-gray-300 italic">{currentStage.rejectionReason.replace('PROBLEM:', '')}</p>
-              </div>
+              (() => {
+                const isOrderProfile = ['ORDER_ENTRY', 'OUTLET'].includes(String(userRole || '').toUpperCase().trim());
+                const isInventoryReason = currentStage.rejectionReason.includes('Inventory') || currentStage.rejectionReason.includes('Stock');
+                if (isOrderProfile && isInventoryReason) return null;
+                
+                return (
+                  <div className={`mt-4 p-3 rounded-xl border ${currentStage.rejectionReason.includes('Available') ? 'bg-emerald-500/10 border-emerald-500/20' : currentStage.rejectionReason.includes('PROBLEM') ? 'bg-orange-500/10 border-orange-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
+                    <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${currentStage.rejectionReason.includes('Available') ? 'text-emerald-400' : currentStage.rejectionReason.includes('PROBLEM') ? 'text-orange-400' : 'text-red-400'}`}>
+                      {currentStage.rejectionReason.includes('Inventory') ? 'Store Inventory Check:' : currentStage.rejectionReason.includes('PROBLEM') ? 'Worker Reported Problem:' : (order.source === 'OUTLET' ? 'Branch Rejection Reason:' : 'Faisal Rejection Reason:')}
+                    </p>
+                    <p className="text-xs text-gray-300 italic">{currentStage.rejectionReason.replace('PROBLEM:', '')}</p>
+                  </div>
+                );
+              })()
             )}
             <div className="mt-5 pt-4 border-t border-gray-800 flex items-center justify-between">
               <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">{t('Click to Expand Job Sheet')}</span>

@@ -197,17 +197,6 @@ const Layout = () => {
 
   useEffect(() => {
     const handleGlobalAlert = (data) => {
-      // Play sound ONLY for urgent orders
-      if (data?.urgent) {
-        const playSound = () => {
-          const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-          audio.play().catch(() => {
-            console.log('Audio autoplay blocked by browser. Click anywhere on the page to enable sounds.');
-          });
-        };
-        playSound();
-      }
-
       toast.success(`${data.title}: ${data.message}`, {
         duration: 8000,
         position: 'top-center',

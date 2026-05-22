@@ -8,7 +8,7 @@ const NEXT_STAGES = {
   'FULL_CUSTOM': ['STORE', 'CUTTING', 'LOGO_DESIGN', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY']
 };
  
-const AUTO_TRANSITION_STAGES = ['CUTTING', 'STITCHING', 'QA', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'];
+const AUTO_TRANSITION_STAGES = ['CUTTING', 'STITCHING', 'QA', 'DISPATCH', 'OUT_FOR_DELIVERY'];
 
 const getStageDurations = async () => {
   const settings = await prisma.systemSetting.findUnique({

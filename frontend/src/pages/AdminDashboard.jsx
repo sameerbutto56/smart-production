@@ -31,7 +31,6 @@ import { useLanguage } from '../context/LanguageContext';
 import toast from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
-const NOTIFICATION_SOUND = 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
 
 const AdminDashboard = () => {
   const { user } = useAuth();
@@ -78,11 +77,6 @@ const AdminDashboard = () => {
     fetchDashboardData();
     fetchAnalytics();
 
-    const playNotification = () => {
-      const audio = new Audio(NOTIFICATION_SOUND);
-      audio.play().catch(e => console.error('Audio play failed:', e));
-    };
-
     socket.on('order-updated', (data) => {
       fetchDashboardData();
       fetchAnalytics();
@@ -98,7 +92,6 @@ const AdminDashboard = () => {
         icon: '🛍️',
         duration: 5000
       });
-      playNotification();
     });
 
     socket.on('stage-completion-requested', (data) => {
@@ -123,7 +116,6 @@ const AdminDashboard = () => {
           </div>
         </div>
       ), { duration: 6000 });
-      playNotification();
     });
 
     socket.on('payment-updated', (data) => {
@@ -357,8 +349,6 @@ const AdminDashboard = () => {
         <div className="flex items-center gap-4">
           <button
             onClick={() => {
-              const audio = new Audio(NOTIFICATION_SOUND);
-              audio.play().catch(e => console.log('Audio play failed:', e));
               alert('Notification Alert Broadcasted!');
             }}
             className="flex items-center gap-2 bg-yellow-500/10 hover:bg-yellow-500 hover:text-white text-yellow-500 border border-yellow-500/20 px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all shadow-lg active:scale-95"

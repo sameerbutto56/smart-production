@@ -441,7 +441,7 @@ const SmartOrderForm = () => {
     <button
       type="button"
       onClick={() => onClick(value)}
-      className={`relative p-5 rounded-[1.5rem] border-2 transition-all flex flex-col items-start justify-between h-36 group ${
+      className={`relative p-5 rounded-[1.5rem] border-2 transition-all flex flex-col items-start justify-between min-h-[9rem] h-auto w-full group ${
         current === value 
           ? `border-blue-500 bg-blue-500/10 text-white shadow-xl shadow-blue-900/30` 
           : `border-gray-800 bg-gray-800/40 text-gray-400 hover:border-gray-600 hover:bg-gray-800/60`
@@ -451,8 +451,8 @@ const SmartOrderForm = () => {
         {Icon ? <Icon size={20} /> : <Package size={20} />}
       </div>
       <div className="text-left w-full mt-2">
-        <span className="block text-[11px] font-black uppercase tracking-wider truncate">{label}</span>
-        {sublabel && <span className="block text-[10px] text-gray-500 mt-1 font-medium">{sublabel}</span>}
+        <span className="block text-[11px] font-black uppercase tracking-wider whitespace-normal break-words leading-snug">{label}</span>
+        {sublabel && <span className="block text-[10px] text-gray-500 mt-1 font-medium whitespace-normal break-words">{sublabel}</span>}
       </div>
       {current === value && (
         <motion.div layoutId="activeMark" className="absolute top-4 right-4 bg-blue-500 rounded-full p-1 shadow-lg">
@@ -823,7 +823,7 @@ const SmartOrderForm = () => {
                           productImage: selectedItem?.imageUrl || null
                         });
                       }}
-                      sublabel={`${useUrdu ? 'اسٹاک' : 'Total Stock'}: ${productsInCategory.filter(i => i.name === item.name).reduce((sum, i) => sum + i.stock, 0)}`}
+                      sublabel={['ORDER_ENTRY', 'OUTLET'].includes(String(user?.role || '').toUpperCase().trim()) ? null : `${useUrdu ? 'اسٹاک' : 'Total Stock'}: ${productsInCategory.filter(i => i.name === item.name).reduce((sum, i) => sum + i.stock, 0)}`}
                     />
                   ))}
                 </div>
