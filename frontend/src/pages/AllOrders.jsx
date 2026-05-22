@@ -164,7 +164,8 @@ const AllOrders = () => {
   const handleExportCSV = () => {
     const headers = ['Order Number', 'Customer', 'Product', 'Color', 'Type', 'Status', 'Stage', 'Created At'];
     const csvRows = filteredOrders.map(order => {
-      const product = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+      let rawPd = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails || '{}') : order.productDetails;
+      const product = Array.isArray(rawPd) ? (rawPd[0]?.productDetails || rawPd[0] || {}) : (rawPd || {});
       return [
         `"${order.orderNumber || order.id}"`,
         `"${order.customerName || 'Unknown'}"`,
@@ -486,7 +487,9 @@ const AllOrders = () => {
                 ))
               ) : (
                 filteredOrders.map((order) => {
-                  const product = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+                  let rawPd = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails || '{}') : order.productDetails;
+                  const product = Array.isArray(rawPd) ? (rawPd[0]?.productDetails || rawPd[0] || {}) : (rawPd || {});
+                  const isMultiItem = Array.isArray(rawPd) && rawPd.length > 1;
                   const isWaitingApproval = order.stages?.some(s => s.status === 'WAITING_APPROVAL' && s.stageName === order.currentStage);
                   
                   return (
@@ -521,6 +524,7 @@ const AllOrders = () => {
                     <td className="px-6 py-4">
                       <div className="text-sm font-bold text-gray-200">
                         {product?.productType || 'Standard Item'}
+                        {isMultiItem && <span className="ml-2 text-purple-400 text-[10px] font-black bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">+{rawPd.length - 1} more</span>}
                         {order.quantity > 1 && <span className="ml-2 text-blue-400">x{order.quantity}</span>}
                       </div>
                       <div className="flex flex-wrap items-center gap-2 mt-1">
@@ -615,7 +619,9 @@ const AllOrders = () => {
 
       {/* --- JOB SHEET MODAL --- */}
       {showModal && selectedOrder && (() => {
-        const product = typeof selectedOrder.productDetails === 'string' ? JSON.parse(selectedOrder.productDetails) : selectedOrder.productDetails;
+        let rawPd = typeof selectedOrder.productDetails === 'string' ? JSON.parse(selectedOrder.productDetails || '{}') : selectedOrder.productDetails;
+        const product = Array.isArray(rawPd) ? (rawPd[0]?.productDetails || rawPd[0] || {}) : (rawPd || {});
+        const allItems = Array.isArray(rawPd) ? rawPd : null;
         const custom = typeof selectedOrder.customization === 'string' ? JSON.parse(selectedOrder.customization) : selectedOrder.customization;
         const rawSizes = typeof selectedOrder.sizeData === 'string' ? JSON.parse(selectedOrder.sizeData) : selectedOrder.sizeData;
         

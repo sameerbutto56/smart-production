@@ -25,7 +25,7 @@ const OrderCard = ({ order, idx, onAction, loading }) => {
   const isNoResponse = status === 'NOT_RESPONDED';
 
   let pd = {};
-  try { pd = JSON.parse(order.productDetails || '{}'); } catch {}
+  try { let raw = JSON.parse(order.productDetails || '{}'); pd = Array.isArray(raw) ? (raw[0]?.productDetails || raw[0] || {}) : (raw || {}); } catch {}
 
   return (
     <motion.div

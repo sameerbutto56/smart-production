@@ -63,7 +63,7 @@ const createAuditLog = async (orderId, action, details, userId) => {
 
 
 const createOrder = async (req, res) => {
-  const { orderNumber: requestedOrderNumber, customerName, customerPhone, address, type, urgent, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, shopifyOrderId, paymentDeadline, productImage } = req.body;
+  const { orderNumber: requestedOrderNumber, customerName, customerPhone, address, type, urgent, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, shopifyOrderId, paymentDeadline, productImage, items } = req.body;
 
   if (!customerPhone) {
     return res.status(400).json({ error: 'Customer phone number is required' });
@@ -102,6 +102,25 @@ const createOrder = async (req, res) => {
     // Check if advance payment is required for FULL_CUSTOM
     const initialStatus = (type === 'FULL_CUSTOM' && !advancePaid) ? 'WAITING_PAYMENT' : 'PENDING';
 
+    // If items array is provided (multi-item cart), store all items in productDetails
+    let finalProductDetails = productDetails;
+    let finalCustomization = customization;
+    let finalSizeData = sizeData;
+
+    if (items && Array.isArray(items) && items.length > 0) {
+      // Store all items as an array in productDetails for multi-item orders
+      finalProductDetails = items.map(item => ({
+        productDetails: item.productDetails,
+        customization: item.customization,
+        sizeData: item.sizeData,
+        quantity: item.quantity || 1,
+        totalPrice: item.totalPrice || 0
+      }));
+      // Keep the first item's customization & sizeData as the primary for backward compat
+      finalCustomization = items[0].customization || customization;
+      finalSizeData = items[0].sizeData || sizeData;
+    }
+
     const order = await prisma.order.create({
       data: {
         orderNumber,
@@ -126,9 +145,9 @@ const createOrder = async (req, res) => {
         quantity: parseInt(quantity) || 1,
         logoDesign,
         logoName,
-        customization: customization ? JSON.stringify(customization) : null,
-        productDetails: productDetails ? JSON.stringify(productDetails) : null,
-        sizeData: sizeData ? JSON.stringify(sizeData) : null,
+        customization: finalCustomization ? JSON.stringify(finalCustomization) : null,
+        productDetails: finalProductDetails ? JSON.stringify(finalProductDetails) : null,
+        sizeData: finalSizeData ? JSON.stringify(finalSizeData) : null,
         advancePaid: advancePaid || false,
         productImage,
         totalPrice: parseFloat(req.body.totalPrice) || 0,
@@ -402,21 +421,38 @@ const approveStageCompletion = async (req, res) => {
 
     // --- INVENTORY DEDUCTION ---
     if (currentStageRecord.stageName === 'STORE') {
-      const product = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
-      if (product?.productType) {
+      let parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+      
+      // Handle multi-item orders: productDetails is an array of items
+      const productsToDeduct = [];
+      if (Array.isArray(parsedDetails)) {
+        // Multi-item order: each element has { productDetails: {...}, quantity, ... }
+        parsedDetails.forEach(item => {
+          const pd = item.productDetails || item;
+          if (pd?.productType) {
+            productsToDeduct.push({ productType: pd.productType, quantity: item.quantity || 1 });
+          }
+        });
+      } else if (parsedDetails?.productType) {
+        // Single-item order (legacy format)
+        productsToDeduct.push({ productType: parsedDetails.productType, quantity: order.quantity || 1 });
+      }
+
+      for (const prod of productsToDeduct) {
         const inventoryItem = await prisma.inventoryItem.findFirst({
           where: { 
-            name: { contains: product.productType, mode: 'insensitive' },
+            name: { contains: prod.productType, mode: 'insensitive' },
             category: { not: 'FABRIC' }
           }
         });
 
         if (inventoryItem && inventoryItem.stock > 0) {
+          const deductQty = Math.min(prod.quantity, inventoryItem.stock);
           await prisma.inventoryItem.update({
             where: { id: inventoryItem.id },
-            data: { stock: { decrement: 1 } }
+            data: { stock: { decrement: deductQty } }
           });
-          await createAuditLog(orderId, 'INVENTORY_DEDUCTED', `Deducted 1 unit of ${inventoryItem.name} from stock.`, req.user.id);
+          await createAuditLog(orderId, 'INVENTORY_DEDUCTED', `Deducted ${deductQty} unit(s) of ${inventoryItem.name} from stock.`, req.user.id);
         }
       }
     }

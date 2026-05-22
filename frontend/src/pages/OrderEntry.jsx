@@ -316,8 +316,8 @@ const SmartOrderForm = () => {
 
     try {
       // Apply the final customization and measurements to ALL items in the cart
-      const finalOrders = cartItems.map(item => ({
-        ...item,
+      const finalItems = cartItems.map(item => ({
+        productDetails: item.productDetails,
         customization: {
           nameSpelling: formData.nameSpelling || item.customization?.nameSpelling,
           nameColor: formData.nameColor || item.customization?.nameColor,
@@ -336,11 +336,36 @@ const SmartOrderForm = () => {
           sleeve: formData.measurements.sleeve || item.sizeData?.sleeve,
           waist: formData.measurements.waist || item.sizeData?.waist,
           hips: formData.measurements.hips || item.sizeData?.hips,
-        }
+        },
+        quantity: parseInt(item.quantity) || 1,
+        totalPrice: parseFloat(item.totalPrice) || 0
       }));
 
-      // Promise.all to send them concurrently
-      await Promise.all(finalOrders.map(item => axios.post(`${API_URL}/api/orders`, item)));
+      // Build ONE single order with all items combined
+      const firstItem = cartItems[0];
+      const combinedOrder = {
+        orderNumber: firstItem.orderNumber,
+        customerName: firstItem.customerName,
+        customerPhone: firstItem.customerPhone,
+        address: firstItem.address,
+        type: firstItem.type,
+        urgent: firstItem.urgent,
+        advancePaid: firstItem.advancePaid,
+        logoDesign: firstItem.logoDesign,
+        logoName: firstItem.logoName,
+        // Items array — all products in this single order
+        items: finalItems,
+        // Use first item's product as the primary (for backward compat)
+        productDetails: finalItems[0].productDetails,
+        customization: finalItems[0].customization,
+        sizeData: finalItems[0].sizeData,
+        // Sum totals across all items
+        quantity: finalItems.reduce((sum, item) => sum + (item.quantity || 1), 0),
+        totalPrice: finalItems.reduce((sum, item) => sum + (item.totalPrice || 0), 0),
+      };
+
+      // Send ONE single API call for the entire order
+      await axios.post(`${API_URL}/api/orders`, combinedOrder);
       
       setCartItems([]);
       setSuccess(true);

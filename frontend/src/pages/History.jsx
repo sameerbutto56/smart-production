@@ -102,17 +102,17 @@ const History = () => {
 
   const exportToExcel = () => {
     const data = (searchTerm ? filteredOrders : orders).map((order, idx) => {
-      let productDetails = {};
-      try { productDetails = JSON.parse(order.productDetails || '{}'); } catch {}
+      let rawPd = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails || '{}') : order.productDetails;
+      const product = Array.isArray(rawPd) ? (rawPd[0]?.productDetails || rawPd[0] || {}) : (rawPd || {});
       return {
         'Sr': idx + 1,
         'Date': new Date(order.createdAt).toLocaleDateString(),
         'Order ID': order.orderNumber || order.id?.slice(0, 8).toUpperCase(),
         'Customer Name': order.customerName || '',
         'Phone Number': order.customerPhone || '',
-        'Product': productDetails.productType || order.type || '',
-        'Color': productDetails.color || '',
-        'Size': productDetails.size || '',
+        'Product': product.productType || order.type || '',
+        'Color': product.color || '',
+        'Size': product.size || '',
         'Quantity': order.quantity || 1,
         'Payment Method': order.advancePaid ? 'Advance Paid' : 'COD',
         'Amount (PKR)': order.totalPrice || 0,

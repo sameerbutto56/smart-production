@@ -281,7 +281,7 @@ const DeliverySheet = () => {
                 ) : (
                   filteredOrders.map((order, idx) => {
                     let pd = {};
-                    try { pd = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails; } catch {}
+                    try { let raw = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails; pd = Array.isArray(raw) ? (raw[0]?.productDetails || raw[0] || {}) : (raw || {}); } catch {}
                     
                     const isCOD = !order.advancePaid;
 
@@ -418,7 +418,7 @@ const DeliverySheet = () => {
             ) : (
               filteredOrders.map((order, idx) => {
                 let pd = {};
-                try { pd = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails; } catch {}
+                try { let raw = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails; pd = Array.isArray(raw) ? (raw[0]?.productDetails || raw[0] || {}) : (raw || {}); } catch {}
                 const isCOD = !order.advancePaid;
                 return (
                   <tr key={order.id}>

@@ -92,6 +92,18 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
     }
   };
 
+  // Normalize productDetails: handles both single-item (object) and multi-item (array) formats
+  const normalizeProduct = (rawPd) => {
+    const parsed = parseJSON(rawPd);
+    if (Array.isArray(parsed)) {
+      // Multi-item order: each element is { productDetails: {...}, customization, sizeData, quantity, totalPrice }
+      const firstItem = parsed[0]?.productDetails || parsed[0] || {};
+      return { primary: firstItem, allItems: parsed, isMultiItem: true };
+    }
+    // Single-item order (legacy): productDetails is the object itself
+    return { primary: parsed || {}, allItems: null, isMultiItem: false };
+  };
+
   const standardMeasurements = {
     'S': { chest: '36', shoulder: '14.5', length: '26', sleeve: '22', waist: '30', hips: '38' },
     'M': { chest: '38', shoulder: '15', length: '27', sleeve: '23', waist: '32', hips: '40' },
@@ -100,7 +112,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
     '2XL': { chest: '48', shoulder: '18', length: '30', sleeve: '26', waist: '42', hips: '50' }
   };
 
-  const product = parseJSON(order.productDetails);
+  const { primary: product, allItems: orderItems, isMultiItem } = normalizeProduct(order.productDetails);
   const rawSizes = parseJSON(order.sizeData);
   const sizes = (rawSizes && Object.keys(rawSizes).length > 0) ? rawSizes : (standardMeasurements[product?.size] || {});
   const custom = parseJSON(order.customization);
@@ -152,7 +164,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
 
     if (stage === 'CUTTING') {
       const custom = parseJSON(order.customization);
-      const product = parseJSON(order.productDetails);
+      const { primary: product } = normalizeProduct(order.productDetails);
       const female = product?.femaleOptions || {};
 
       const materials = [
@@ -220,7 +232,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
 
     if (stage === 'STITCHING') {
       const custom = parseJSON(order.customization);
-      const product = parseJSON(order.productDetails);
+      const { primary: product } = normalizeProduct(order.productDetails);
       const female = product?.femaleOptions || {};
 
       return (
@@ -289,7 +301,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
 
     if (stage === 'QA') {
       const custom = parseJSON(order.customization);
-      const product = parseJSON(order.productDetails);
+      const { primary: product } = normalizeProduct(order.productDetails);
 
       return (
         <div className="space-y-4">
@@ -353,7 +365,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
     }
 
     if (stage === 'PRESSING_PACKING') {
-      const product = parseJSON(order.productDetails);
+      const { primary: product } = normalizeProduct(order.productDetails);
       const custom = parseJSON(order.customization);
       const female = product?.femaleOptions || {};
 
