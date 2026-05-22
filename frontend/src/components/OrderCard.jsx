@@ -598,9 +598,6 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   <History size={10} />
                   {t('Production History')}
                 </div>
-                <span className="text-[8px] text-yellow-500 font-black">
-                  👨‍💼 {order.stages.filter(s => s.status === 'COMPLETED' && s.stageName !== 'ORDER_ENTRY').length}x {order.source === 'OUTLET' ? t('TO BRANCH') : t('TO FAISAL')}
-                </span>
               </h5>
               <div className="space-y-2 relative">
                 {order.stages
@@ -959,27 +956,74 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               {userRole !== 'LOGO_DESIGN' && (
                 <section>
                   <h4 className="text-[11px] font-black text-blue-500 uppercase tracking-[0.3em] mb-6">01. Material & Product Specs</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {[
-                      { label: 'Product Base', val: product?.productType },
-                      { label: 'Fabric Type', val: product?.fabricType },
-                      { label: 'Primary Color', val: product?.color },
-                      { label: 'Order Size', val: product?.size },
-                      { label: 'Gender', val: product?.gender },
-                      ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
-                      { label: 'Customization Charge', val: `$${order.customizationPrice || 0}` },
-                      { label: 'Payment', val: order.paymentStatus }
-                    ].filter(i => i.val).map((item, i) => (
-                      <div key={i} className="bg-gray-950/50 p-6 rounded-3xl border border-gray-800/50">
-                        <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-2">{item.label}</p>
-                        <p className="text-lg font-bold text-gray-200">{item.val || 'STANDARD'}</p>
-                      </div>
-                    ))}
-                  </div>
+                  {isMultiItem ? (
+                    <div className="overflow-x-auto rounded-2xl border border-gray-800">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="border-b border-gray-800 bg-gray-950/80">
+                            <th className="py-3 px-4 text-[9px] font-black text-gray-500 uppercase tracking-widest">#</th>
+                            <th className="py-3 px-4 text-[9px] font-black text-gray-500 uppercase tracking-widest">Product</th>
+                            <th className="py-3 px-4 text-[9px] font-black text-gray-500 uppercase tracking-widest">Fabric & Color</th>
+                            <th className="py-3 px-4 text-[9px] font-black text-gray-500 uppercase tracking-widest">Size & Gender</th>
+                            <th className="py-3 px-4 text-[9px] font-black text-gray-500 uppercase tracking-widest text-center">Qty</th>
+                            <th className="py-3 px-4 text-[9px] font-black text-gray-500 uppercase tracking-widest text-right">Price</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {orderItems.map((item, idx) => {
+                            const p = item.productDetails || item;
+                            const hasSleeves = p.femaleOptions?.sleeves && p.femaleOptions.sleeves !== 'full';
+                            const hasShirtLength = p.femaleOptions?.shirtLength && p.femaleOptions.shirtLength !== 'long';
+                            return (
+                              <tr key={idx} className="border-b border-gray-800/50 hover:bg-gray-900/30 transition-colors">
+                                <td className="py-4 px-4 text-gray-500 font-black">{idx + 1}</td>
+                                <td className="py-4 px-4 text-white font-bold uppercase">{p.productType || '—'}</td>
+                                <td className="py-4 px-4">
+                                  <div className="text-gray-300 uppercase">
+                                    {p.fabricType && (
+                                      <>{p.fabricType} • {p.color}</>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-4 px-4 text-gray-300 uppercase">
+                                  <div>{p.size || 'Custom'} • {p.gender || 'MALE'}</div>
+                                  {(hasSleeves || hasShirtLength) && (
+                                    <div className="text-[9px] text-pink-400 font-black mt-0.5">
+                                      {hasSleeves && `Sleeves: ${p.femaleOptions.sleeves}`} {hasShirtLength && `| Length: ${p.femaleOptions.shirtLength}`}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="py-4 px-4 text-center text-white font-black">{item.quantity || 1}</td>
+                                <td className="py-4 px-4 text-right pr-4 text-emerald-400 font-black">₨{Number(item.totalPrice || 0).toLocaleString()}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {[
+                        { label: 'Product Base', val: product?.productType },
+                        { label: 'Fabric Type', val: product?.fabricType },
+                        { label: 'Primary Color', val: product?.color },
+                        { label: 'Order Size', val: product?.size },
+                        { label: 'Gender', val: product?.gender },
+                        ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
+                        { label: 'Customization Charge', val: `$${order.customizationPrice || 0}` },
+                        { label: 'Payment', val: order.paymentStatus }
+                      ].filter(i => i.val).map((item, i) => (
+                        <div key={i} className="bg-gray-950/50 p-6 rounded-3xl border border-gray-800/50">
+                          <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-2">{item.label}</p>
+                          <p className="text-lg font-bold text-gray-200">{item.val || 'STANDARD'}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </section>
               )}
 
-              {userRole !== 'LOGO_DESIGN' && order.type === 'FULL_CUSTOM' && (
+              {!isMultiItem && userRole !== 'LOGO_DESIGN' && order.type === 'FULL_CUSTOM' && (
                 <section className="bg-blue-600/5 p-8 rounded-[2rem] border border-blue-500/10">
                   <h4 className="text-[11px] font-black text-blue-400 uppercase tracking-[0.3em] mb-6">02. Precise Measurements (Inches)</h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">

@@ -281,7 +281,22 @@ const DeliverySheet = () => {
                 ) : (
                   filteredOrders.map((order, idx) => {
                     let pd = {};
-                    try { let raw = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails; pd = Array.isArray(raw) ? (raw[0]?.productDetails || raw[0] || {}) : (raw || {}); } catch {}
+                    let productSummary = 'Standard';
+                    try {
+                      let raw = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+                      if (Array.isArray(raw) && raw.length > 1) {
+                        productSummary = raw.map(item => {
+                          const p = item.productDetails || item;
+                          return `${p.productType || 'Item'} (${item.quantity || 1})`;
+                        }).join(', ');
+                      } else if (Array.isArray(raw)) {
+                        pd = raw[0]?.productDetails || raw[0] || {};
+                        productSummary = pd?.productType || 'Standard';
+                      } else {
+                        pd = raw || {};
+                        productSummary = pd?.productType || 'Standard';
+                      }
+                    } catch {}
                     
                     const isCOD = !order.advancePaid;
 
@@ -297,7 +312,7 @@ const DeliverySheet = () => {
                           {order.address || '—'}
                         </td>
                         <td className="py-4 px-3 text-gray-300 font-bold text-xs">
-                          {pd?.productType || 'Standard'}
+                          {productSummary}
                         </td>
                         <td className="py-4 px-3 text-center font-black text-gray-200 text-xs">{order.quantity}</td>
                         <td className="py-4 px-3 text-xs">
@@ -418,7 +433,22 @@ const DeliverySheet = () => {
             ) : (
               filteredOrders.map((order, idx) => {
                 let pd = {};
-                try { let raw = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails; pd = Array.isArray(raw) ? (raw[0]?.productDetails || raw[0] || {}) : (raw || {}); } catch {}
+                let productSummary = 'Standard';
+                try {
+                  let raw = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+                  if (Array.isArray(raw) && raw.length > 1) {
+                    productSummary = raw.map(item => {
+                      const p = item.productDetails || item;
+                      return `${p.productType || 'Item'} (${item.quantity || 1})`;
+                    }).join(', ');
+                  } else if (Array.isArray(raw)) {
+                    pd = raw[0]?.productDetails || raw[0] || {};
+                    productSummary = pd?.productType || 'Standard';
+                  } else {
+                    pd = raw || {};
+                    productSummary = pd?.productType || 'Standard';
+                  }
+                } catch {}
                 const isCOD = !order.advancePaid;
                 return (
                   <tr key={order.id}>
@@ -427,7 +457,7 @@ const DeliverySheet = () => {
                     <td style={{ fontWeight: 'bold' }}>{order.customerName}</td>
                     <td>{order.customerPhone || '—'}</td>
                     <td>{order.address || '—'}</td>
-                    <td>{pd?.productType || 'Standard'}</td>
+                    <td>{productSummary}</td>
                     <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{order.quantity}</td>
                     <td>{isCOD ? 'COD' : 'Paid Online'}</td>
                     <td style={{ fontWeight: 'bold' }}>Rs. {Number(order.totalPrice || 0).toLocaleString()}</td>

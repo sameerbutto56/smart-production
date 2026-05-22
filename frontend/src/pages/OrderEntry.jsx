@@ -45,6 +45,7 @@ const SmartOrderForm = () => {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedProductCategory, setSelectedProductCategory] = useState('SCRUBS');
+  const [productSearchTerm, setProductSearchTerm] = useState('');
 
   const [formData, setFormData] = useState({
     orderNumber: '',
@@ -234,6 +235,22 @@ const SmartOrderForm = () => {
   const [showAddMore, setShowAddMore] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
+  const resetProductFields = () => {
+    setFormData(prev => ({
+      ...prev,
+      quantity: 1,
+      totalPrice: '',
+      productType: '',
+      fabricType: '',
+      color: '',
+      size: '',
+      logoDesign: '',
+      logoName: '',
+      gender: 'Male',
+      femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long' }
+    }));
+  };
+
   const handleAddToCart = () => {
     if (!formData.productType) {
       setError('Please select a Product first.');
@@ -275,7 +292,17 @@ const SmartOrderForm = () => {
     };
 
     setCartItems([...cartItems, payload]);
-    setShowAddMore(true); // Show the "Add More?" prompt
+    
+    if (formData.type === 'STANDARD') {
+      setShowAddMore(true); // Show the "Add More?" prompt
+    } else {
+      setShowAddMore(false);
+      resetProductFields();
+      const currentIdx = filteredTabs.findIndex(t => t.id === activeTab);
+      if (currentIdx !== -1 && currentIdx < filteredTabs.length - 1) {
+        setActiveTab(filteredTabs[currentIdx + 1].id);
+      }
+    }
   };
 
   const handleAddMoreProducts = () => {
@@ -759,9 +786,27 @@ const SmartOrderForm = () => {
                   </div>
                 </div>
 
+                {/* Product Search Bar */}
+                <div className="relative mb-2">
+                  <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                  <input
+                    type="text"
+                    placeholder={useUrdu ? 'پروڈکٹ تلاش کریں...' : 'Search products by name...'}
+                    value={productSearchTerm}
+                    onChange={e => setProductSearchTerm(e.target.value)}
+                    className={`w-full pl-14 pr-10 py-4 bg-gray-950 border-2 border-gray-800 rounded-2xl text-sm font-bold text-white placeholder-gray-600 focus:border-blue-500 focus:outline-none transition-colors ${useUrdu ? 'text-right pr-14 pl-10' : ''}`}
+                  />
+                  {productSearchTerm && (
+                    <button type="button" onClick={() => setProductSearchTerm('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors">
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
                   {Array.from(new Set(productsInCategory.map(i => i.name)))
                     .map(name => productsInCategory.find(i => i.name === name))
+                    .filter(item => !productSearchTerm || item.name.toLowerCase().includes(productSearchTerm.toLowerCase()))
                     .map(item => (
                     <OptionCard
                       key={item.id}
@@ -1200,8 +1245,8 @@ const SmartOrderForm = () => {
               </button>
             )}
 
-            {/* Add to Cart button - always visible on product tab and last tab */}
-            {(activeTab === 'product' || activeTab === filteredTabs[filteredTabs.length - 1].id) && (
+            {/* Add to Cart button - only on the product selection tab */}
+            {activeTab === 'product' && (
               <button
                 type="button"
                 onClick={handleAddToCart}
@@ -1217,6 +1262,7 @@ const SmartOrderForm = () => {
               </button>
             )}
             
+            {/* NEXT button - for intermediate tabs */}
             {activeTab !== filteredTabs[filteredTabs.length - 1].id && (
               <button
                 type="button"
@@ -1226,13 +1272,40 @@ const SmartOrderForm = () => {
                     setError(errMsg);
                     return;
                   }
-                  const currentIdx = filteredTabs.findIndex(t => t.id === activeTab);
-                  setActiveTab(filteredTabs[currentIdx + 1].id);
+                  
+                  // Special behavior for selection tab on logo/custom orders:
+                  // If product selected, automatically add to cart and transition
+                  if (activeTab === 'product' && formData.type !== 'STANDARD') {
+                    if (formData.productType) {
+                      handleAddToCart();
+                    } else if (cartItems.length > 0) {
+                      const currentIdx = filteredTabs.findIndex(t => t.id === activeTab);
+                      setActiveTab(filteredTabs[currentIdx + 1].id);
+                    } else {
+                      setError('Please select a Product first.');
+                    }
+                  } else {
+                    const currentIdx = filteredTabs.findIndex(t => t.id === activeTab);
+                    setActiveTab(filteredTabs[currentIdx + 1].id);
+                  }
                 }}
                 className="flex-1 sm:px-16 py-6 bg-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl shadow-blue-900/50 hover:bg-blue-500 hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 group"
               >
                 <span className={useUrdu ? "order-2" : "order-1"}>{t('next').toUpperCase()}</span>
                 <ArrowRight size={22} className={`transition-transform ${useUrdu ? 'order-1 rotate-180 group-hover:-translate-x-2' : 'order-2 group-hover:translate-x-2'}`} />
+              </button>
+            )}
+
+            {/* SUBMIT ORDER button - on the last tab */}
+            {(activeTab === filteredTabs[filteredTabs.length - 1].id && (formData.type !== 'STANDARD' || cartItems.length > 0)) && (
+              <button
+                type="button"
+                onClick={handleCheckout}
+                disabled={loading || isSubmitting}
+                className="flex-1 sm:px-16 py-6 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 group disabled:opacity-50"
+              >
+                <CheckCircle2 size={24} />
+                <span>{useUrdu ? 'آرڈر جمع کرائیں' : 'SUBMIT ORDER'}</span>
               </button>
             )}
           </div>

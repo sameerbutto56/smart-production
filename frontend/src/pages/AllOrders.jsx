@@ -622,6 +622,7 @@ const AllOrders = () => {
         let rawPd = typeof selectedOrder.productDetails === 'string' ? JSON.parse(selectedOrder.productDetails || '{}') : selectedOrder.productDetails;
         const product = Array.isArray(rawPd) ? (rawPd[0]?.productDetails || rawPd[0] || {}) : (rawPd || {});
         const allItems = Array.isArray(rawPd) ? rawPd : null;
+        const isMultiItem = allItems && allItems.length > 0;
         const custom = typeof selectedOrder.customization === 'string' ? JSON.parse(selectedOrder.customization) : selectedOrder.customization;
         const rawSizes = typeof selectedOrder.sizeData === 'string' ? JSON.parse(selectedOrder.sizeData) : selectedOrder.sizeData;
         
@@ -677,47 +678,125 @@ const AllOrders = () => {
                 
                 <section>
                   <h4 className="text-[11px] font-black text-blue-500 uppercase tracking-[0.3em] mb-6">01. Material & Product Specs</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {[
-                      { label: 'Product Base', val: product?.productType },
-                      { label: 'Fabric Type', val: product?.fabricType },
-                      { label: 'Primary Color', val: product?.color },
-                      { label: 'Order Size', val: product?.size },
-                      { label: 'Gender', val: product?.gender },
-                      ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
-                      { label: 'Payment', val: selectedOrder.paymentStatus || (selectedOrder.advancePaid ? 'ADVANCE' : 'PENDING') }
-                    ].filter(i => i.val).map((item, i) => (
-                      <div key={i} className="bg-gray-950/50 p-6 rounded-3xl border border-gray-800/50">
-                        <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-2">{item.label}</p>
-                        <p className="text-lg font-bold text-gray-200">{item.val || 'STANDARD'}</p>
+                  {isMultiItem ? (
+                    <div className="space-y-6">
+                      <div className="overflow-x-auto bg-gray-950/40 border border-gray-800 rounded-3xl p-4">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="border-b border-gray-800 text-gray-500 uppercase tracking-widest font-black text-[10px]">
+                              <th className="pb-3 pl-4">#</th>
+                              <th className="pb-3">Product Base</th>
+                              <th className="pb-3">Fabric & Color</th>
+                              <th className="pb-3">Size & Gender</th>
+                              <th className="pb-3 text-center">Qty</th>
+                              <th className="pb-3 text-right pr-4">Price</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {allItems.map((item, idx) => {
+                              const p = item.productDetails || {};
+                              const c = item.customization || {};
+                              const s = item.sizeData || {};
+                              const hasSleeves = p.gender === 'Female' && p.femaleOptions?.sleeves;
+                              const hasShirtLength = p.gender === 'Female' && p.femaleOptions?.shirtLength;
+                              const hasMeasurements = s && Object.values(s).some(v => v);
+
+                              return (
+                                <tr key={idx} className="border-b border-gray-900 last:border-0 hover:bg-white/5 font-bold">
+                                  <td className="py-4 pl-4 font-mono text-gray-500">{idx + 1}</td>
+                                  <td className="py-4 text-white">
+                                    <span className="text-sm font-black">{p.productType}</span>
+                                    {p.femaleOptions?.dupatta && (
+                                      <span className="ml-2 bg-pink-500/20 text-pink-400 border border-pink-500/30 text-[9px] px-1.5 py-0.5 rounded font-black uppercase">Dupatta</span>
+                                    )}
+                                    {(c.nameSpelling || hasMeasurements) && (
+                                      <div className="mt-1.5 space-y-1 text-[10px] text-gray-400 font-normal normal-case">
+                                        {c.nameSpelling && (
+                                          <div>
+                                            <span className="font-bold text-gray-500 uppercase tracking-wider text-[9px]">Branding:</span> {c.nameSpelling} ({c.nameColor || 'Standard'}, {c.logoPlacement || 'Standard'})
+                                          </div>
+                                        )}
+                                        {hasMeasurements && (
+                                          <div>
+                                            <span className="font-bold text-gray-500 uppercase tracking-wider text-[9px]">Sizes:</span> {Object.entries(s).filter(([_, v]) => v).map(([k, v]) => `${k.toUpperCase()}:${v}"`).join(', ')}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="py-4 text-gray-300">
+                                    <div>{p.fabricType || 'STD FABRIC'}</div>
+                                    <div className="text-[10px] text-gray-500 font-medium uppercase mt-0.5 flex items-center gap-1.5">
+                                      {p.color && (
+                                        <>
+                                          <div className="w-2 h-2 rounded-full border border-gray-800" style={{ backgroundColor: p.color.toLowerCase().replace(' ', '') }}></div>
+                                          {p.color}
+                                        </>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="py-4 text-gray-300 uppercase">
+                                    <div>{p.size || 'Custom'} • {p.gender || 'MALE'}</div>
+                                    {(hasSleeves || hasShirtLength) && (
+                                      <div className="text-[9px] text-pink-400 font-black mt-0.5">
+                                        {hasSleeves && `Sleeves: ${p.femaleOptions.sleeves}`} {hasShirtLength && `| Length: ${p.femaleOptions.shirtLength}`}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="py-4 text-center text-white font-black">{item.quantity || 1}</td>
+                                  <td className="py-4 text-right pr-4 text-emerald-400 font-black">₨{Number(item.totalPrice || 0).toLocaleString()}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {[
+                        { label: 'Product Base', val: product?.productType },
+                        { label: 'Fabric Type', val: product?.fabricType },
+                        { label: 'Primary Color', val: product?.color },
+                        { label: 'Order Size', val: product?.size },
+                        { label: 'Gender', val: product?.gender },
+                        ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
+                        { label: 'Payment', val: selectedOrder.paymentStatus || (selectedOrder.advancePaid ? 'ADVANCE' : 'PENDING') }
+                      ].filter(i => i.val).map((item, i) => (
+                        <div key={i} className="bg-gray-950/50 p-6 rounded-3xl border border-gray-800/50">
+                          <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-2">{item.label}</p>
+                          <p className="text-lg font-bold text-gray-200">{item.val || 'STANDARD'}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </section>
 
-                <section className="bg-blue-600/5 p-8 rounded-[2rem] border border-blue-500/10">
-                  <h4 className="text-[11px] font-black text-blue-400 uppercase tracking-[0.3em] mb-6">02. Precise Measurements (Inches)</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                    {Object.entries(sizes || {}).map(([key, val], i) => (
-                      <div key={i} className="text-center p-4 bg-gray-900 rounded-2xl border border-gray-800 shadow-sm">
-                        <p className="text-[9px] text-gray-500 font-black uppercase tracking-tighter mb-1">{key.replace(/([A-Z])/g, ' $1')}</p>
-                        <p className="text-xl font-black text-blue-400">{val}"</p>
-                      </div>
-                    ))}
-                    {product?.gender === 'Female' && product?.femaleOptions?.sleeves && (
-                      <div className="text-center p-4 bg-gray-900 rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
-                        <p className="text-[9px] text-pink-500 font-black uppercase tracking-tighter mb-1">SLEEVES</p>
-                        <p className="text-sm font-black text-white uppercase">{product.femaleOptions.sleeves}</p>
-                      </div>
-                    )}
-                    {product?.gender === 'Female' && product?.femaleOptions?.shirtLength && (
-                      <div className="text-center p-4 bg-gray-900 rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
-                        <p className="text-[9px] text-pink-500 font-black uppercase tracking-tighter mb-1">SHIRT LENGTH</p>
-                        <p className="text-sm font-black text-white uppercase">{product.femaleOptions.shirtLength}</p>
-                      </div>
-                    )}
-                  </div>
-                </section>
+                {!isMultiItem && selectedOrder.type === 'FULL_CUSTOM' && (
+                  <section className="bg-blue-600/5 p-8 rounded-[2rem] border border-blue-500/10">
+                    <h4 className="text-[11px] font-black text-blue-400 uppercase tracking-[0.3em] mb-6">02. Precise Measurements (Inches)</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                      {Object.entries(sizes || {}).map(([key, val], i) => (
+                        <div key={i} className="text-center p-4 bg-gray-900 rounded-2xl border border-gray-800 shadow-sm">
+                          <p className="text-[9px] text-gray-500 font-black uppercase tracking-tighter mb-1">{key.replace(/([A-Z])/g, ' $1')}</p>
+                          <p className="text-xl font-black text-blue-400">{val}"</p>
+                        </div>
+                      ))}
+                      {product?.gender === 'Female' && product?.femaleOptions?.sleeves && (
+                        <div className="text-center p-4 bg-gray-900 rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
+                          <p className="text-[9px] text-pink-500 font-black uppercase tracking-tighter mb-1">SLEEVES</p>
+                          <p className="text-sm font-black text-white uppercase">{product.femaleOptions.sleeves}</p>
+                        </div>
+                      )}
+                      {product?.gender === 'Female' && product?.femaleOptions?.shirtLength && (
+                        <div className="text-center p-4 bg-gray-900 rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
+                          <p className="text-[9px] text-pink-500 font-black uppercase tracking-tighter mb-1">SHIRT LENGTH</p>
+                          <p className="text-sm font-black text-white uppercase">{product.femaleOptions.shirtLength}</p>
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                )}
 
                 <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   <div>
@@ -824,21 +903,7 @@ const AllOrders = () => {
                       })()}
                    </div>
                    
-                   {/* Faisal Approval Summary */}
-                   <div className="mt-6 p-4 bg-yellow-500/5 rounded-2xl border border-yellow-500/10 flex items-center justify-between">
-                     <div className="flex items-center gap-3">
-                       <div className="w-8 h-8 bg-yellow-500/10 rounded-xl flex items-center justify-center">
-                         <span className="text-yellow-500 text-sm">👨‍💼</span>
-                       </div>
-                       <div>
-                         <p className="text-[10px] font-black text-yellow-500 uppercase tracking-widest">{selectedOrder.source === 'OUTLET' ? 'Branch Approvals' : 'Faisal Approvals'}</p>
-                         <p className="text-[9px] text-gray-500 font-bold">Times this order came for review</p>
-                       </div>
-                     </div>
-                     <span className="text-2xl font-black text-yellow-400">
-                       {selectedOrder.stages?.filter(s => s.status === 'COMPLETED' && s.stageName !== 'ORDER_ENTRY').length || 0}x
-                     </span>
-                   </div>
+
                 </section>
               </div>
 
