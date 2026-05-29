@@ -3,7 +3,7 @@ const prisma = new PrismaClient();
 const bcrypt = require('bcryptjs');
 
 async function main() {
-  const hashedPassword = await bcrypt.hash('enamels1212', 10);
+  const hashedPassword = await bcrypt.hash('enamels11221', 10);
 
   console.log('🔄 Fixing roles and creating delivery user...');
 

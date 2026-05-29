@@ -3,7 +3,7 @@ const prisma = new PrismaClient();
 const bcrypt = require('bcryptjs');
 
 async function createUser() {
-  const hashedPassword = await bcrypt.hash('enamels1212', 10);
+  const hashedPassword = await bcrypt.hash('enamels11221', 10);
   try {
     const user = await prisma.user.upsert({
       where: { email: 'logo_design@smartpro.com' },
