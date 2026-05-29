@@ -35,7 +35,7 @@ const ProgressChart = () => {
     navigate('/login');
   };
 
-  const pipeline = ['STORE', 'CUTTING', 'STITCHING', 'QA', 'LOGO_DESIGN', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'];
+  const pipeline = ['STORE', 'PRODUCTION', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'];
 
   useEffect(() => {
     fetchData();

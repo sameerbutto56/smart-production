@@ -67,7 +67,7 @@ const bulkUploadInventory = async (req, res) => {
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    const workbook = xlsx.readFile(req.file.path);
+    const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const data = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
 

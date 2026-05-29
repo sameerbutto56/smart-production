@@ -118,15 +118,15 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const custom = parseJSON(order.customization);
 
   const pipelines = {
-    'STANDARD': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-    'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-    'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'LOGO_DESIGN', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY']
+    'STANDARD': ['ORDER_ENTRY', 'STORE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+    'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+    'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY']
   };
 
   const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
 
-  const productionStages = ['CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING'];
-  const productionDeadline = order.stages?.find(s => s.stageName === 'PRESSING_PACKING')?.deadlineAt;
+  const productionStages = ['PRODUCTION'];
+  const productionDeadline = order.stages?.find(s => s.stageName === 'PRODUCTION')?.deadlineAt;
   const isCurrentlyInProduction = productionStages.includes(currentStage?.stageName);
 
   const renderTasks = () => {
@@ -177,176 +177,54 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
       });
     }
 
-    if (stage === 'CUTTING') {
+    if (stage === 'PRODUCTION') {
       const custom = parseJSON(order.customization);
       const { primary: product } = normalizeProduct(order.productDetails);
       const female = product?.femaleOptions || {};
 
-      const materials = [
-        { l: t('Fabric'), v: product?.fabricType },
-        { l: t('Color'), v: product?.color },
-        { l: t('Gender'), v: product?.gender }
-      ];
-
-      const measurements = [
-        { l: t('chest'), v: sizes?.chest },
-        { l: t('shoulder'), v: sizes?.shoulder },
-        { l: t('length'), v: sizes?.length },
-        { l: t('sleeve'), v: sizes?.sleeve },
-        { l: t('waist'), v: sizes?.waist },
-        { l: t('hips'), v: sizes?.hips }
-      ];
-
-      const tailoring = [
-        { l: t('Fit'), v: custom?.fitType },
-        { l: t('Style'), v: custom?.stitchingStyle },
-        ...(product?.gender === 'Female' ? [
-          { l: 'Sleeves', v: female.sleeves },
-          { l: 'Shirt L.', v: female.shirtLength },
-          { l: 'Dupatta', v: female.dupatta ? 'YES' : 'NO' }
-        ] : [])
-      ];
-
       return (
         <div className="space-y-4">
           <div className="grid grid-cols-3 gap-2">
-            {materials.filter(m => m.v).map((m, i) => (
+            {[
+              { l: t('Fabric'), v: product?.fabricType },
+              { l: t('Color'), v: product?.color },
+              { l: 'Size', v: product?.size }
+            ].filter(m => m.v).map((m, i) => (
               <div key={i} className="bg-blue-500/5 p-2 rounded-lg border border-blue-500/10 text-center">
                 <p className="text-[7px] text-blue-400 font-black uppercase">{m.l}</p>
                 <p className="text-[10px] font-black text-white truncate">{m.v}</p>
               </div>
             ))}
           </div>
-          
-          {(order.type === 'STANDARD' || order.type === 'READY_LOGO') && (
-            <div className="bg-blue-600/10 p-3 rounded-xl border border-blue-600/20 text-center mb-2">
-               <p className="text-[8px] text-blue-400 font-black uppercase tracking-widest">{t('Size')}</p>
-               <p className="text-xl font-black text-white">{product?.size || 'N/A'}</p>
-            </div>
-          )}
 
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1 bg-gray-950/50 p-3 rounded-xl border border-gray-800/50">
-            {measurements.filter(s => s.v).map((s, i) => (
-              <div key={i} className="text-[11px] text-gray-300 flex items-center justify-between border-b border-gray-800/30 pb-1">
-                <span className="font-bold text-gray-500">{s.l}:</span>
-                <span className="text-white font-black">{s.v}"</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {tailoring.filter(t => t.v).map((t, i) => (
-              <div key={i} className="px-2 py-1 bg-gray-800 rounded text-[9px] font-black uppercase tracking-tighter text-gray-400 border border-gray-700">
-                {t.l}: <span className="text-blue-400">{t.v}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      );
-    }
-
-    if (stage === 'STITCHING') {
-      const custom = parseJSON(order.customization);
-      const { primary: product } = normalizeProduct(order.productDetails);
-      const female = product?.femaleOptions || {};
-
-      return (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-2">
-            <div className="bg-indigo-600/10 p-3 rounded-xl border border-indigo-600/20 text-center">
-              <p className="text-[8px] text-indigo-400 font-black uppercase tracking-widest">Stitching Style</p>
-              <p className="text-sm font-black text-white">{custom?.stitchingStyle || 'STANDARD'}</p>
-            </div>
-            <div className="bg-purple-600/10 p-3 rounded-xl border border-purple-600/20 text-center">
-              <p className="text-[8px] text-purple-400 font-black uppercase tracking-widest">Fit Profile</p>
-              <p className="text-sm font-black text-white">{custom?.fitType || 'REGULAR'}</p>
-            </div>
-          </div>
-
-          <div className="bg-gray-950/50 p-3 rounded-xl border border-gray-800/50">
-            <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-2 px-1">Critical Measurements</p>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-              {[
-                { l: t('chest'), v: sizes?.chest },
-                { l: t('shoulder'), v: sizes?.shoulder },
-                { l: t('length'), v: sizes?.length },
-                { l: t('sleeve'), v: sizes?.sleeve }
-              ].filter(s => s.v).map((s, i) => (
-                <div key={i} className="text-[11px] text-gray-300 flex items-center justify-between border-b border-gray-800/30 pb-1">
-                  <span className="font-bold text-gray-500">{s.l}:</span>
-                  <span className="text-white font-black">{s.v}"</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {custom?.designNotes && (
-            <div className="bg-yellow-500/5 p-3 rounded-xl border border-yellow-500/10">
-              <p className="text-[8px] text-yellow-500 font-black uppercase tracking-widest mb-1 flex items-center space-x-1">
-                <MessageSquare size={10} />
-                <span>{t('Design Notes')}:</span>
-              </p>
-              <p className="text-[11px] text-gray-300 italic font-medium leading-tight">"{custom.designNotes}"</p>
-            </div>
-          )}
-
-          <div className="flex flex-wrap gap-2">
-            <div className="px-2 py-1 bg-gray-800 rounded text-[9px] font-black uppercase tracking-tighter text-gray-400 border border-gray-700">
-              {t('Fabric')}: <span className="text-blue-400">{product?.fabricType}</span>
-            </div>
-            <div className="px-2 py-1 bg-gray-800 rounded text-[9px] font-black uppercase tracking-tighter text-gray-400 border border-gray-700">
-              {t('Color')}: <span className="text-blue-400">{product?.color}</span>
-            </div>
-            {product?.gender === 'Female' && (
-              <>
-                <div className="px-2 py-1 bg-pink-900/20 rounded text-[9px] font-black uppercase tracking-tighter text-pink-400 border border-pink-500/20">
-                  SHIRT: {female.shirtLength}
-                </div>
-                {female.dupatta && (
-                  <div className="px-2 py-1 bg-pink-900/20 rounded text-[9px] font-black uppercase tracking-tighter text-pink-400 border border-pink-500/20">
-                    + DUPATTA
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      );
-    }
-
-    if (stage === 'QA') {
-      const custom = parseJSON(order.customization);
-      const { primary: product } = normalizeProduct(order.productDetails);
-
-      return (
-        <div className="space-y-4">
-          <div className="bg-emerald-600/10 p-3 rounded-xl border border-emerald-600/20">
-            <p className="text-[8px] text-emerald-400 font-black uppercase tracking-widest mb-2 flex items-center space-x-2">
-              <CheckCircle size={10} />
-              <span>Branding Verification</span>
-            </p>
+          <div className="bg-indigo-600/10 p-3 rounded-xl border border-indigo-600/20">
+            <p className="text-[8px] text-indigo-400 font-black uppercase tracking-widest mb-2">Production Specs</p>
             <div className="grid grid-cols-2 gap-2">
               <div className="bg-gray-950/50 p-2 rounded-lg">
-                <p className="text-[7px] text-gray-500 font-black uppercase">Name Spelling</p>
-                <p className="text-[10px] font-black text-white">{custom?.nameSpelling || 'NONE'}</p>
+                <p className="text-[7px] text-gray-500 font-black uppercase">Fit</p>
+                <p className="text-[10px] font-black text-white">{custom?.fitType || 'REGULAR'}</p>
               </div>
               <div className="bg-gray-950/50 p-2 rounded-lg">
-                <p className="text-[7px] text-gray-500 font-black uppercase">Logo Detail</p>
-                <p className="text-[10px] font-black text-white">{order.logoName || 'N/A'}</p>
+                <p className="text-[7px] text-gray-500 font-black uppercase">Style</p>
+                <p className="text-[10px] font-black text-white">{custom?.stitchingStyle || 'STANDARD'}</p>
               </div>
-              <div className="bg-gray-950/50 p-2 rounded-lg">
-                <p className="text-[7px] text-gray-500 font-black uppercase">Thread Color</p>
-                <p className="text-[10px] font-black text-white">{custom?.nameColor || 'WHITE'}</p>
-              </div>
-              <div className="bg-gray-950/50 p-2 rounded-lg">
-                <p className="text-[7px] text-gray-500 font-black uppercase">Placement</p>
-                <p className="text-[10px] font-black text-white">{custom?.logoPlacement || 'LEFT CHEST'}</p>
-              </div>
+              {product?.gender === 'Female' && (
+                <>
+                  <div className="bg-gray-950/50 p-2 rounded-lg">
+                    <p className="text-[7px] text-gray-500 font-black uppercase">Sleeves</p>
+                    <p className="text-[10px] font-black text-white">{female.sleeves || 'N/A'}</p>
+                  </div>
+                  <div className="bg-gray-950/50 p-2 rounded-lg">
+                    <p className="text-[7px] text-gray-500 font-black uppercase">Shirt L.</p>
+                    <p className="text-[10px] font-black text-white">{female.shirtLength || 'N/A'}</p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
           <div className="bg-gray-950/50 p-3 rounded-xl border border-gray-800/50">
-            <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-2 px-1">Measurement Check</p>
+            <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-2 px-1">Measurements</p>
             <div className="grid grid-cols-3 gap-2">
               {[
                 { l: 'Chst', v: sizes?.chest },
@@ -354,7 +232,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 { l: 'Lnth', v: sizes?.length },
                 { l: 'Slve', v: sizes?.sleeve },
                 { l: 'Wst', v: sizes?.waist },
-                { l: 'Hips', v: sizes?.hips }
+                { l: 'Hps', v: sizes?.hips }
               ].filter(s => s.v).map((s, i) => (
                 <div key={i} className="text-center p-1 bg-gray-900 rounded border border-gray-800">
                   <p className="text-[7px] text-gray-500 font-bold uppercase">{s.l}</p>
@@ -364,64 +242,32 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <div className="px-2 py-1 bg-gray-800 rounded text-[9px] font-black uppercase tracking-tighter text-gray-400 border border-gray-700">
-              FIT: {custom?.fitType || 'REGULAR'}
-            </div>
-            <div className="px-2 py-1 bg-gray-800 rounded text-[9px] font-black uppercase tracking-tighter text-gray-400 border border-gray-700">
-              STITCH: {custom?.stitchingStyle || 'STD'}
-            </div>
-            <div className="px-2 py-1 bg-gray-800 rounded text-[9px] font-black uppercase tracking-tighter text-gray-400 border border-gray-700">
-              FABRIC: {product?.fabricType}
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    if (stage === 'PRESSING_PACKING') {
-      const { primary: product } = normalizeProduct(order.productDetails);
-      const custom = parseJSON(order.customization);
-      const female = product?.femaleOptions || {};
-
-      return (
-        <div className="space-y-4">
           <div className="bg-blue-600/10 p-4 rounded-2xl border border-blue-500/20 text-center">
-             <p className="text-[8px] text-blue-400 font-black uppercase tracking-[0.2em] mb-1">Final Packing ID</p>
+             <p className="text-[8px] text-blue-400 font-black uppercase tracking-[0.2em] mb-1">Order ID</p>
              <h4 className="text-xl font-black text-white">#{order.orderNumber}</h4>
              <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">{order.customerName}</p>
           </div>
 
-          <div className="bg-gray-950/50 p-3 rounded-xl border border-gray-800/50">
-            <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-3 px-1">Packing Checklist</p>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-[11px] text-gray-300 bg-gray-900/50 p-2 rounded-lg border border-gray-800">
-                <span className="font-bold">Product:</span>
-                <span className="text-white font-black">{product?.productType} ({product?.size})</span>
-              </div>
-              <div className="flex items-center justify-between text-[11px] text-gray-300 bg-gray-900/50 p-2 rounded-lg border border-gray-800">
-                <span className="font-bold">Color:</span>
-                <span className="text-white font-black">{product?.color}</span>
-              </div>
-              <div className="flex items-center justify-between text-[11px] text-gray-300 bg-gray-900/50 p-2 rounded-lg border border-gray-800">
-                <span className="font-bold text-orange-400">Ironing Fabric:</span>
-                <span className="text-white font-black">{product?.fabricType}</span>
-              </div>
-              {product?.gender === 'Female' && female.dupatta && (
-                <div className="flex items-center justify-between text-[11px] text-emerald-400 bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20">
-                  <span className="font-bold italic underline">⚠️ INCLUDE DUPATTA</span>
-                  <span className="font-black">REQUIRED</span>
-                </div>
-              )}
-            </div>
-          </div>
-
           {custom?.designNotes && (
-            <div className="bg-gray-800/50 p-2 rounded-lg border border-gray-700">
-              <p className="text-[7px] text-gray-500 font-black uppercase">Special Request Note</p>
-              <p className="text-[10px] text-gray-400 italic">"{custom.designNotes.substring(0, 50)}..."</p>
+            <div className="bg-yellow-500/5 p-3 rounded-xl border border-yellow-500/10">
+              <p className="text-[8px] text-yellow-500 font-black uppercase tracking-widest mb-1 flex items-center space-x-1">
+                <MessageSquare size={10} />
+                <span>Design Notes:</span>
+              </p>
+              <p className="text-[11px] text-gray-300 italic font-medium leading-tight">"{custom.designNotes}"</p>
             </div>
           )}
+
+          <div className="flex flex-wrap gap-2">
+            <div className="px-2 py-1 bg-gray-800 rounded text-[9px] font-black uppercase tracking-tighter text-gray-400 border border-gray-700">
+              GENDER: {product?.gender || 'N/A'}
+            </div>
+            {female.dupatta && (
+              <div className="px-2 py-1 bg-pink-900/20 rounded text-[9px] font-black uppercase tracking-tighter text-pink-400 border border-pink-500/20">
+                + DUPATTA
+              </div>
+            )}
+          </div>
         </div>
       );
     }
@@ -1134,12 +980,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   onChange={(e) => setNextStage(e.target.value)}
                   value={nextStage || ''}
                 >
-                  <option value="">Select Next Hub/Spoke...</option>
+                  <option value="">Select Next Stage...</option>
                   <option value="STORE">Send to STORE</option>
-                  <option value="CUTTING">Send to MANUFACTURING (Cutter)</option>
-                  <option value="STITCHING">Send to STITCHING (Tailor)</option>
-                  <option value="QA">Send to QUALITY ASSURANCE (QA)</option>
-                  <option value="PRESSING_PACKING">Send to PRESSING & PACKING</option>
+                  <option value="PRODUCTION">Send to PRODUCTION</option>
                   <option value="LOGO_DESIGN">Send to LOGO & NAME DESIGN</option>
                   <option value="DISPATCH">Send to DISPATCH</option>
                   <option value="OUT_FOR_DELIVERY">Send to DELIVERY</option>

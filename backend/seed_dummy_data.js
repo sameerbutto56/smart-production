@@ -13,10 +13,7 @@ async function seed() {
       key: 'STAGE_DURATIONS',
       value: JSON.stringify({
         'STORE': 2,
-        'CUTTING': 24,
-        'STITCHING': 48,
-        'QA': 4,
-        'PRESSING_PACKING': 4,
+        'PRODUCTION': 48,
         'LOGO_DESIGN': 8,
         'DISPATCH': 2,
         'FAISAL_APPROVAL': 2

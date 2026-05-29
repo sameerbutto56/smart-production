@@ -34,16 +34,8 @@ const SuperAdminDashboard = () => {
   
   const combinedManufacturingStats = useMemo(() => {
     if (!analytics?.stagePerformance) return null;
-    const stages = ['CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING'];
-    let totalHours = 0;
-    let maxCount = 0;
-    stages.forEach(s => {
-      if (analytics.stagePerformance[s]) {
-        totalHours += parseFloat(analytics.stagePerformance[s].avgHours) || 0;
-        maxCount = Math.max(maxCount, analytics.stagePerformance[s].count);
-      }
-    });
-    return totalHours > 0 ? { avgHours: totalHours.toFixed(1), count: maxCount } : null;
+    const prod = analytics.stagePerformance['PRODUCTION'];
+    return prod ? { avgHours: prod.avgHours, count: prod.count } : null;
   }, [analytics]);
 
   useEffect(() => {
@@ -68,10 +60,7 @@ const SuperAdminDashboard = () => {
         // Fallback to defaults if not set in DB
         setDurations({
           'STORE': 2,
-          'CUTTING': 24,
-          'STITCHING': 96,
-          'QA': 2,
-          'PRESSING_PACKING': 2,
+          'PRODUCTION': 48,
           'LOGO_DESIGN': 2,
           'DISPATCH': 2,
           'FAISAL_APPROVAL': 2
@@ -314,61 +303,25 @@ const SuperAdminDashboard = () => {
                 ))}
               </div>
 
-              {/* Group 2: Combined Manufacturing (The Request) */}
+              {/* Group 2: Production */}
               <div className="space-y-8 p-8 bg-gray-950/60 rounded-[2.5rem] border-2 border-yellow-500/20 shadow-inner relative">
                 <div className="absolute -top-4 left-12 px-6 py-1 bg-yellow-500 rounded-full text-[9px] font-black text-black uppercase tracking-widest shadow-lg">
-                  Combined Production Cycle
+                  Production
                 </div>
                 <div className="flex items-center justify-between mb-4 pt-2">
                   <div className="flex items-center space-x-3">
                     <div className="w-2 h-8 bg-yellow-500 rounded-full" />
-                    <h4 className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.3em]">Phase 2: Manufacturing</h4>
+                    <h4 className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.3em]">Phase 2: Production</h4>
                   </div>
-                </div>
-
-                <div className="space-y-4 mb-6">
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Quick Set Total Cycle Hours</label>
-                  <div className="relative group/total">
-                    <input
-                      type="number"
-                      placeholder="Bulk set total..."
-                      onChange={(e) => {
-                        const total = parseInt(e.target.value) || 0;
-                        const share = Math.floor(total / 4);
-                        setDurations({
-                          ...durations,
-                          'CUTTING': share,
-                          'STITCHING': share,
-                          'QA': share,
-                          'PRESSING_PACKING': share + (total % 4) // Add remainder to last
-                        });
-                      }}
-                      className="w-full bg-yellow-500/10 border-2 border-yellow-500/20 rounded-2xl py-4 px-6 outline-none focus:border-yellow-500 transition-all font-black text-yellow-500 text-lg pr-20"
-                    />
-                    <Zap className="absolute right-6 top-1/2 -translate-y-1/2 text-yellow-500" size={18} />
-                  </div>
-                  <p className="text-[9px] text-gray-600 italic px-2">Sets Cutting, Stitching, QC, and Pressing at once</p>
                 </div>
                 
                 <div className="grid grid-cols-1 gap-6">
-                  {['CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING'].map(stage => (
-                    <DeadlineItem 
-                      key={stage} 
-                      stage={stage} 
-                      val={durations[stage]} 
-                      avg={analytics?.stagePerformance?.[stage]?.avgHours}
-                      onChange={(v) => setDurations({...durations, [stage]: v})}
-                    />
-                  ))}
-                  
-                  <div className="mt-4 pt-6 border-t border-gray-800">
-                    <div className="flex justify-between items-center px-2">
-                      <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Total Combined Cycle</span>
-                      <span className="text-xl font-black text-yellow-500 tracking-tighter">
-                        {['CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING'].reduce((acc, s) => acc + (durations[s] || 0), 0)} Hours
-                      </span>
-                    </div>
-                  </div>
+                  <DeadlineItem 
+                    stage="PRODUCTION" 
+                    val={durations['PRODUCTION']} 
+                    avg={analytics?.stagePerformance?.['PRODUCTION']?.avgHours}
+                    onChange={(v) => setDurations({...durations, 'PRODUCTION': v})}
+                  />
                 </div>
               </div>
 

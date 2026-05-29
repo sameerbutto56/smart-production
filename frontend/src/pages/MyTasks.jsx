@@ -111,19 +111,12 @@ const MyTasks = () => {
     const stageRoleMap = {
       'STORE': ['STORE'],
       'STORE_EMPLOYEE': ['STORE'],
-      'CUTTING': ['CUTTING'],
-      'CUTTING_EMPLOYEE': ['CUTTING'],
-      'STITCHING': ['STITCHING'],
-      'STITCHING_EMPLOYEE': ['STITCHING'],
-      'QA': ['QA'],
-      'QA_EMPLOYEE': ['QA'],
-      'PRESSING_PACKING': ['PRESSING_PACKING'],
-      'PRESSING_EMPLOYEE': ['PRESSING_PACKING'],
+      'PRODUCTION': ['PRODUCTION'],
       'LOGO_DESIGN': ['LOGO_DESIGN'],
       'LOGO_DESIGN_EMPLOYEE': ['LOGO_DESIGN'],
       'LOGO_DESIGNER': ['LOGO_DESIGN'],
       'DISPATCH': ['DISPATCH'],
-      'MAIN_EMPLOYEE': ['DISPATCH'], // For compatibility with existing seed
+      'MAIN_EMPLOYEE': ['DISPATCH'],
       'OUT_FOR_DELIVERY': ['OUT_FOR_DELIVERY'],
     };
 

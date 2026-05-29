@@ -64,11 +64,8 @@ const AdminDashboard = () => {
   const stageList = [
     { id: 'ORDER_ENTRY', icon: ClipboardList },
     { id: 'STORE', icon: Package },
-    { id: 'CUTTING', icon: Circle },
-    { id: 'STITCHING', icon: Circle },
-    { id: 'QA', icon: CheckCircle2 },
+    { id: 'PRODUCTION', icon: Circle },
     { id: 'LOGO_DESIGN', icon: Circle },
-    { id: 'PRESSING_PACKING', icon: Package },
     { id: 'DISPATCH', icon: Truck },
     { id: 'OUT_FOR_DELIVERY', icon: Truck },
   ];
@@ -472,9 +469,9 @@ const AdminDashboard = () => {
                     Step {trackedOrder.stages?.filter(s => s.status === 'COMPLETED').length + 1} of {
                       (() => {
                         const pipelines = {
-                          'STANDARD': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-                          'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-                          'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'LOGO_DESIGN', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY']
+                          'STANDARD': ['ORDER_ENTRY', 'STORE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                          'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                          'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY']
                         };
                         return pipelines[trackedOrder.type]?.length || 8;
                       })()
@@ -485,9 +482,9 @@ const AdminDashboard = () => {
                 <div className="space-y-4">
                   {(() => {
                     const pipelines = {
-                      'STANDARD': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-                      'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-                      'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'LOGO_DESIGN', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY']
+                      'STANDARD': ['ORDER_ENTRY', 'STORE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                      'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                      'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY']
                     };
                     const currentPipeline = pipelines[trackedOrder.type] || pipelines['STANDARD'];
                     

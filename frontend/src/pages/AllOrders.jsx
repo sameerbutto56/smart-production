@@ -560,9 +560,9 @@ const AllOrders = () => {
                             animate={{ 
                               width: (() => {
                                 const pipelines = {
-                                  'STANDARD': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-                                  'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-                                  'READY_LOGO': ['ORDER_ENTRY', 'LOGO_DESIGN', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY']
+                                  'STANDARD': ['ORDER_ENTRY', 'STORE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                                  'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                                  'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY']
                                 };
                                 const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                                 const progress = ((currentPipeline.indexOf(order.currentStage) + 1) / currentPipeline.length) * 100;
@@ -840,9 +840,9 @@ const AllOrders = () => {
                         Total Workflow: {
                           (() => {
                             const pipelines = {
-                              'STANDARD': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-                              'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-                              'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY']
+                              'STANDARD': ['ORDER_ENTRY', 'STORE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                              'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                              'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY']
                             };
                             return pipelines[selectedOrder.type]?.length || 8;
                           })()
@@ -852,9 +852,9 @@ const AllOrders = () => {
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {(() => {
                         const pipelines = {
-                          'STANDARD': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-                          'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-                          'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'CUTTING', 'STITCHING', 'QA', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY']
+                          'STANDARD': ['ORDER_ENTRY', 'STORE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                          'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                          'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY']
                         };
                         const currentPipeline = pipelines[selectedOrder.type] || pipelines['STANDARD'];
                         

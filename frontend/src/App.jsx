@@ -32,6 +32,7 @@ const AuthRedirectHandler = () => {
   
   if (role === 'SUPER_ADMIN') return <Navigate to="/admin" replace={true} />;
   if (role === 'FAISAL' || role === 'ORDER_ENTRY' || role === 'OUTLET') return <Navigate to="/dashboard" replace={true} />;
+  if (role === 'PRODUCTION') return <Navigate to="/tasks" replace={true} />;
   if (role === 'DELIVERY_BOY') return <Navigate to="/delivery" replace={true} />;
   
   return <Navigate to="/tasks" replace={true} />;

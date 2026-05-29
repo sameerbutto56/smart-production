@@ -3,12 +3,12 @@ const prisma = new PrismaClient();
 const { calculateDeadline } = require('../utils/deadline');
  
 const NEXT_STAGES = {
-  'STANDARD': ['STORE', 'CUTTING', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-  'READY_LOGO': ['STORE', 'LOGO_DESIGN', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-  'FULL_CUSTOM': ['STORE', 'CUTTING', 'LOGO_DESIGN', 'STITCHING', 'QA', 'PRESSING_PACKING', 'DISPATCH', 'OUT_FOR_DELIVERY']
+  'STANDARD': ['STORE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+  'READY_LOGO': ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+  'FULL_CUSTOM': ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY']
 };
  
-const AUTO_TRANSITION_STAGES = ['CUTTING', 'STITCHING', 'QA', 'DISPATCH', 'OUT_FOR_DELIVERY'];
+const AUTO_TRANSITION_STAGES = ['DISPATCH', 'OUT_FOR_DELIVERY'];
 
 const getStageDurations = async () => {
   const settings = await prisma.systemSetting.findUnique({
@@ -25,10 +25,7 @@ const getStageDurations = async () => {
   
   return {
     'STORE': 2,
-    'CUTTING': 24,
-    'STITCHING': 96,
-    'QA': 2,
-    'PRESSING_PACKING': 2,
+    'PRODUCTION': 48,
     'LOGO_DESIGN': 2,
     'DISPATCH': 2,
     'FAISAL_APPROVAL': 2

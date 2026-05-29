@@ -21,6 +21,7 @@ async function main() {
     { name: 'Press Specialist', email: 'pressing@smartpro.com', role: 'PRESSING_EMPLOYEE' },
     { name: 'Packager Pro', email: 'packaging@smartpro.com', role: 'PACKAGING_EMPLOYEE' },
     { name: 'Dispatch Manager', email: 'dispatch@smartpro.com', role: 'MAIN_EMPLOYEE' },
+    { name: 'Production Lead', email: 'production@smartpro.com', role: 'PRODUCTION' },
   ];
 
   for (const u of users) {
@@ -72,6 +73,7 @@ async function main() {
 
   console.log('Seed completed: All Employees and Mega Inventory Initialized.');
   console.log('Use "enamels1212" for all accounts.');
+  console.log('New: Production Lead account: production@smartpro.com / enamels1212');
 }
 
 main()
