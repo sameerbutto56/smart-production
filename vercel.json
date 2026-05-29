@@ -1,6 +1,6 @@
 {
   "installCommand": "npm --prefix backend install && npm --prefix frontend install",
-  "buildCommand": "npx prisma generate --schema=backend/prisma/schema.prisma && npm --prefix frontend run build",
+  "buildCommand": "npm --prefix backend run postinstall && npm --prefix frontend run build",
   "outputDirectory": "frontend/dist",
   "functions": {
     "api/index.js": {
