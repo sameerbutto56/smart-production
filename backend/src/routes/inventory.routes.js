@@ -3,7 +3,7 @@ const { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryI
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 const router = express.Router();
 const multer = require('multer');
-const upload = multer({ dest: 'uploads/' });
+const upload = multer({ storage: multer.memoryStorage() });
 
 router.get('/', authenticate, getInventory);
 router.post('/bulk-upload', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'FAISAL']), upload.single('file'), bulkUploadInventory);
