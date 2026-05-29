@@ -10,7 +10,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
 /* ─── single order card ─── */
 const OrderCard = ({ order, idx, onAction, loading }) => {
@@ -172,7 +172,7 @@ const DeliveryDashboard = () => {
   const fetchOrders = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${API}/api/orders?status=delivery`, {
+      const res = await axios.get(`${API_URL}/api/orders?status=delivery`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const relevant = res.data.filter(o =>
@@ -202,7 +202,7 @@ const DeliveryDashboard = () => {
   const handleAction = async (orderId, deliveryStatus, remarks) => {
     try {
       setActionLoading(true);
-      await axios.put(`${API}/api/orders/${orderId}/delivery`, { deliveryStatus, remarks }, {
+      await axios.put(`${API_URL}/api/orders/${orderId}/delivery`, { deliveryStatus, remarks }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (deliveryStatus === 'DELIVERED') {

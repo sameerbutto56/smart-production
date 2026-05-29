@@ -5,7 +5,7 @@ const { PrismaClient } = require('@prisma/client');
 const path = require('path');
 const multer = require('multer');
 
-dotenv.config();
+dotenv.config({ path: path.join(__dirname, '../.env') });
 
 const prisma = new PrismaClient();
 const app = express();

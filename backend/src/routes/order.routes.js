@@ -11,7 +11,8 @@ const {
   cancelOrder,
   deleteOrder,
   updateDeliveryStatus,
-  holdOrder
+  holdOrder,
+  sendForDelivery
 } = require('../controllers/order.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 const router = express.Router();
@@ -40,6 +41,9 @@ router.put('/:orderId/payment', authenticate, authorize(['FAISAL', 'SUPER_ADMIN'
 
 // Control Center: Get production analytics
 router.get('/analytics', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), getAnalytics);
+
+// Send order for delivery (from AllOrders page)
+router.put('/:orderId/send-for-delivery', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), sendForDelivery);
 
 // Delivery Boy: Update delivery status (Delivered / Not Responded)
 router.put('/:orderId/delivery', authenticate, authorize(['DELIVERY_BOY', 'FAISAL', 'SUPER_ADMIN']), updateDeliveryStatus);

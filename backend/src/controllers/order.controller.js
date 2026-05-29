@@ -826,6 +826,48 @@ const updateDeliveryStatus = async (req, res) => {
   }
 };
 
+const sendForDelivery = async (req, res) => {
+  const { orderId } = req.params;
+  try {
+    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: true } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    // Complete the current active stage
+    await prisma.orderStage.updateMany({
+      where: { orderId, status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] } },
+      data: { status: 'COMPLETED', completedAt: new Date() }
+    });
+
+    const durations = await getStageDurations();
+    const deadline = calculateDeadline(new Date(), durations['OUT_FOR_DELIVERY'] || 2);
+
+    // Create the OUT_FOR_DELIVERY stage
+    await prisma.orderStage.create({
+      data: {
+        orderId,
+        stageName: 'OUT_FOR_DELIVERY',
+        status: 'PENDING',
+        deadlineAt: deadline
+      }
+    });
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: { currentStage: 'OUT_FOR_DELIVERY', status: 'IN_PROGRESS' }
+    });
+
+    await createAuditLog(orderId, 'SENT_FOR_DELIVERY', 'Order sent for delivery', req.user.id);
+
+    const io = req.app.get('io');
+    io.emit('order-updated', { orderId, createdById: order.createdById });
+
+    res.json({ message: 'Order sent for delivery', order: updatedOrder });
+  } catch (error) {
+    console.error('Send for delivery error:', error);
+    res.status(500).json({ message: 'Error sending for delivery', error: error.message });
+  }
+};
+
 module.exports = { 
   createOrder, 
   getOrders, 
@@ -838,5 +880,6 @@ module.exports = {
   cancelOrder,
   deleteOrder,
   updateDeliveryStatus,
-  holdOrder
+  holdOrder,
+  sendForDelivery
 };
