@@ -34,7 +34,7 @@ import { useLanguage } from '../context/LanguageContext';
 import silhouetteMale from '../assets/silhouette.png';
 import silhouetteFemale from '../assets/silhouette-female.png';
 
-const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://smart-production-production.up.railway.app');
+const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 const socket = io(API_URL);
 
 const SmartOrderForm = () => {
