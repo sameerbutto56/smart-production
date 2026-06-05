@@ -760,8 +760,8 @@ const AdminDashboard = () => {
         )}
       </section>
 
-      {/* Deadline & SLA Settings */}
-      <AdminSettings />
+      {/* Deadline & SLA Settings (Super Admin only) */}
+      {user?.role === 'SUPER_ADMIN' && <AdminSettings />}
 
       {/* Pause Modal */}
       <AnimatePresence>
