@@ -25,7 +25,8 @@ import {
   ShoppingCart,
   RotateCcw,
   CalendarDays,
-  Filter
+  Filter,
+  Store as StoreIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
