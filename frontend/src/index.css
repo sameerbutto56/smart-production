@@ -6,22 +6,46 @@
 
 @layer base {
   :root {
-    --primary: #3b82f6;
-    --primary-glow: rgba(59, 130, 246, 0.5);
-    --secondary: #10b981;
+    color-scheme: dark;
+    --primary: #fbbf24;
+    --primary-glow: rgba(251, 191, 36, 0.4);
+    --secondary: #059669;
     --danger: #ef4444;
     --warning: #f59e0b;
     --background: #030712;
-    --card-bg: rgba(17, 24, 39, 0.7);
+    --card-bg: rgba(5, 150, 105, 0.06);
+    --card-border: rgba(251, 191, 36, 0.15);
+    --card-bg-solid: #0a0a0f;
+    --card-bg-hover: rgba(251, 191, 36, 0.04);
+    --text-primary: #fafafa;
+    --text-secondary: #a1a1aa;
+    --text-muted: #52525b;
+    --nav-bg: rgba(3, 7, 18, 0.9);
+    --input-bg: #0a0a0f;
+    --input-border: #1a1a2e;
+    --section-title: #fbbf24;
+    --badge-bg: rgba(251, 191, 36, 0.1);
+    --glass-bg: rgba(5, 150, 105, 0.04);
+    --glass-border: rgba(251, 191, 36, 0.12);
+    --background-image: radial-gradient(circle at top left, #0a0a0f, #030712 40%), radial-gradient(circle at bottom right, #064e3b, #030712 40%);
+    --gradient-1: #030712;
+    --gradient-2: #0a0a0f;
+    --gradient-3: #064e3b;
   }
 
   body {
-    @apply text-white font-sans antialiased text-[13px];
-    background: radial-gradient(circle at top left, #1e1b4b, #030712 40%),
-                radial-gradient(circle at bottom right, #064e3b, #030712 40%);
+    background-color: #030712;
+    color: #fafafa;
+    color: var(--text-primary, #fafafa);
+    background: var(--background-image, radial-gradient(circle at top left, #0a0a0f, #030712 40%), radial-gradient(circle at bottom right, #064e3b, #030712 40%));
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-size: 13px;
     background-attachment: fixed;
     min-height: 100vh;
     overflow-x: hidden;
+    transition: background 0.4s ease, color 0.4s ease;
   }
 
   /* Custom Scrollbar */
@@ -57,13 +81,18 @@
 }
 
 .glass {
-  @apply backdrop-blur-xl border border-white/10;
-  background: rgba(17, 24, 39, 0.6);
+  @apply backdrop-blur-xl;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
   box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.3);
 }
 
 .card-urgent {
-  @apply border-l-4 border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.1)];
+  @apply border-l-4 border-amber-500 shadow-[0_0_15px_rgba(217,119,6,0.15)];
+}
+
+.card-super-urgent {
+  @apply border-2 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.25)];
 }
 
 .card-delayed {
@@ -75,16 +104,20 @@
 }
 
 .btn-primary {
-  @apply bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 
-         text-white font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-blue-900/20 text-[10px];
+  @apply text-white font-black uppercase tracking-widest transition-all active:scale-95 text-[10px];
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  box-shadow: 0 4px 15px var(--primary-glow);
+}
+
+.btn-primary:hover {
+  filter: brightness(1.1);
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 10px rgba(59, 130, 246, 0.15); }
-  50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.3); }
+  0%, 100% { box-shadow: 0 0 10px var(--primary-glow); }
+  50% { box-shadow: 0 0 25px var(--primary-glow); }
 }
 
 .animate-glow {
   animation: pulse-glow 3s infinite;
 }
-

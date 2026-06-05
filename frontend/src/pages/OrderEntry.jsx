@@ -31,6 +31,7 @@ import {
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { usePolling } from '../hooks/usePolling';
 import silhouetteMale from '../assets/silhouette.png';
 import silhouetteFemale from '../assets/silhouette-female.png';
 
@@ -53,7 +54,7 @@ const SmartOrderForm = () => {
     customerPhone: '',
     address: '',
     type: 'STANDARD', // STANDARD, READY_LOGO, FULL_CUSTOM
-    urgent: false,
+    priority: 'NORMAL',
     advancePaid: false,
     totalPrice: '',
     quantity: 1,
@@ -153,7 +154,11 @@ const SmartOrderForm = () => {
     logo: 'لوگو ڈیزائن',
     custom: 'کسٹم آرڈر',
     advance: 'ایڈوانس ادائیگی',
-    required: 'یہ خانہ لازمی ہے'
+    required: 'یہ خانہ لازمی ہے',
+    priority: 'ترجیح',
+    normal: 'عام',
+    urgent: 'ارجنٹ',
+    super_urgent: 'انتہائی اہم'
   };
 
   const t = (key) => {
@@ -169,19 +174,28 @@ const SmartOrderForm = () => {
       fetchInventory();
     });
 
+    const onFocus = () => fetchInventory();
+    window.addEventListener('focus', onFocus);
+
     return () => {
       socket.off('inventory-updated');
+      window.removeEventListener('focus', onFocus);
     };
   }, []);
 
   const fetchInventory = async () => {
     try {
-      const response = await axios.get(`${API_URL}/api/inventory`);
+      const token = sessionStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/api/inventory`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setInventory(response.data);
     } catch (error) {
       console.error('Error fetching inventory:', error);
     }
   };
+
+  usePolling(fetchInventory, 5000);
 
   // Standard Measurements Mapping
   const standardMeasurements = {
@@ -234,6 +248,16 @@ const SmartOrderForm = () => {
   const [cartItems, setCartItems] = useState([]);
   const [showAddMore, setShowAddMore] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [showCustomizationModal, setShowCustomizationModal] = useState(false);
+  const [customModalData, setCustomModalData] = useState({
+    nameText: '',
+    placement: 'left',
+    logoDetails: '',
+    embroideryInstructions: '',
+    stitchType: 'single',
+    threadColor: '',
+    resizeScale: 100,
+  });
 
   const resetProductFields = () => {
     setFormData(prev => ({
@@ -262,8 +286,9 @@ const SmartOrderForm = () => {
       customerName: formData.customerName,
       customerPhone: formData.customerPhone,
       address: formData.address,
+      city: formData.city,
       type: formData.type,
-      urgent: formData.urgent,
+      priority: formData.priority,
       quantity: formData.quantity,
       advancePaid: formData.advancePaid,
       logoDesign: formData.logoDesign,
@@ -292,14 +317,26 @@ const SmartOrderForm = () => {
     };
 
     setCartItems([...cartItems, payload]);
-    
+
     if (formData.type === 'STANDARD') {
-      setShowAddMore(true); // Show the "Add More?" prompt
+      setShowAddMore(true);
+    } else if (formData.type !== 'STANDARD' && isCustomizableProduct(selectedProductCategory)) {
+      setShowAddMore(false);
+      setCustomModalData({
+        nameText: formData.nameSpelling || '',
+        placement: formData.logoPlacement === 'RightChest' ? 'right' : 'left',
+        logoDetails: formData.logoDesign || '',
+        embroideryInstructions: formData.designNotes || '',
+        stitchType: formData.stitchingStyle === 'DBL' ? 'double' : 'single',
+        threadColor: formData.nameColor || '',
+        resizeScale: 100,
+      });
+      setShowCustomizationModal(true);
     } else {
       setShowAddMore(false);
-      resetProductFields();
       const currentIdx = filteredTabs.findIndex(t => t.id === activeTab);
       if (currentIdx !== -1 && currentIdx < filteredTabs.length - 1) {
+        resetProductFields();
         setActiveTab(filteredTabs[currentIdx + 1].id);
       }
     }
@@ -375,8 +412,9 @@ const SmartOrderForm = () => {
         customerName: firstItem.customerName,
         customerPhone: firstItem.customerPhone,
         address: firstItem.address,
+        city: firstItem.city,
         type: firstItem.type,
-        urgent: firstItem.urgent,
+        priority: firstItem.priority,
         advancePaid: firstItem.advancePaid,
         logoDesign: firstItem.logoDesign,
         logoName: firstItem.logoName,
@@ -403,8 +441,10 @@ const SmartOrderForm = () => {
         customerName: '',
         customerPhone: '',
         address: '',
+        city: '',
+    city: '',
         type: 'STANDARD',
-        urgent: false,
+        priority: 'NORMAL',
         advancePaid: false,
         totalPrice: '',
         quantity: 1,
@@ -437,6 +477,33 @@ const SmartOrderForm = () => {
     setIsSubmitting(false);
   };
 
+  const handleCustomizationSave = () => {
+    setFormData(prev => ({
+      ...prev,
+      nameSpelling: customModalData.nameText,
+      logoPlacement: customModalData.placement === 'right' ? 'RightChest' : 'LeftChest',
+      logoDesign: customModalData.logoDetails,
+      designNotes: customModalData.embroideryInstructions,
+      stitchingStyle: customModalData.stitchType === 'double' ? 'DBL' : 'STD',
+      nameColor: customModalData.threadColor,
+    }));
+    setShowCustomizationModal(false);
+    resetProductFields();
+    const currentIdx = filteredTabs.findIndex(t => t.id === activeTab);
+    if (currentIdx !== -1 && currentIdx < filteredTabs.length - 1) {
+      setActiveTab(filteredTabs[currentIdx + 1].id);
+    }
+  };
+
+  const handleCustomizationSkip = () => {
+    setShowCustomizationModal(false);
+    resetProductFields();
+    const currentIdx = filteredTabs.findIndex(t => t.id === activeTab);
+    if (currentIdx !== -1 && currentIdx < filteredTabs.length - 1) {
+      setActiveTab(filteredTabs[currentIdx + 1].id);
+    }
+  };
+
   const OptionCard = ({ label, value, current, onClick, icon: Icon, sublabel, color }) => (
     <button
       type="button"
@@ -466,11 +533,36 @@ const SmartOrderForm = () => {
   const isAccessory = (cat) => {
     if (!cat) return false;
     const catUpper = cat.toUpperCase();
-    return !['SCRUBS', 'COAT'].includes(catUpper);
+    return !['SCRUBS', 'COAT', 'CAP', 'CAPS'].includes(catUpper);
+  };
+  const isCustomizableProduct = (cat) => {
+    if (!cat) return false;
+    const catUpper = cat.toUpperCase();
+    return ['SCRUBS', 'COAT', 'CAP', 'CAPS'].includes(catUpper);
   };
   const productsInCategory = inventory.filter(i => i.category === selectedProductCategory);
-  const fabrics = inventory.filter(i => i.category === 'FABRIC');
-  const colors = inventory.filter(i => i.category === 'COLOR');
+  // Get unique product names in selected category
+  const uniqueProductNames = [...new Set(productsInCategory.map(i => i.name))];
+  // Selected product item (single product with variants array)
+  const selectedProduct = formData.productType 
+    ? productsInCategory.find(i => i.name === formData.productType) 
+    : null;
+  // Get variants array from selected product, or empty
+  const selectedProductVariants = selectedProduct?.variants && Array.isArray(selectedProduct.variants)
+    ? selectedProduct.variants
+    : (selectedProduct ? [{ color: selectedProduct.color, size: selectedProduct.size, stock: selectedProduct.stock, price: selectedProduct.price }] : []);
+  // Fabric from selected product
+  const fabrics = formData.productType && selectedProduct
+    ? (selectedProduct.fabric ? [selectedProduct.fabric] : [])
+    : inventory.filter(i => i.category === 'FABRIC');
+  // Colors from variant color values
+  const colors = formData.productType && selectedProductVariants.length > 0
+    ? [...new Set(selectedProductVariants.filter(v => v.color).map(v => v.color))]
+    : [];
+  // Sizes from variant size values
+  const availableSizes = formData.productType && selectedProductVariants.length > 0
+    ? [...new Set(selectedProductVariants.filter(v => v.size).map(v => v.size))]
+    : [];
 
   const allTabs = [
     { id: 'basic', label: '1. Basics', icon: Layout },
@@ -481,6 +573,7 @@ const SmartOrderForm = () => {
 
   const filteredTabs = allTabs.filter(tab => {
     if (tab.customOnly && formData.type === 'STANDARD') return false;
+    if (tab.customOnly && !isCustomizableProduct(selectedProductCategory)) return false;
     if (tab.id === 'sizes' && (isAccessory(selectedProductCategory) || formData.type !== 'FULL_CUSTOM')) return false;
     return true;
   });
@@ -521,6 +614,31 @@ const SmartOrderForm = () => {
           </div>
         </div>
       </div>
+
+      {/* Selection Summary Bar */}
+      {formData.productType && (
+        <div className="bg-gray-900/80 border-2 border-blue-500/20 rounded-[2rem] p-5 flex flex-wrap items-center gap-4 text-sm backdrop-blur-sm">
+          <div className="flex items-center gap-3">
+            <span className="text-blue-400 font-black text-base">Selected:</span>
+            <span className="text-white font-black text-lg">{formData.productType}</span>
+          </div>
+          {formData.fabricType && (
+            <span className="text-gray-400 font-bold text-sm">• {formData.fabricType}</span>
+          )}
+          {formData.color && (
+            <span className="text-gray-400 font-bold text-sm">• {formData.color}</span>
+          )}
+          {formData.size && (
+            <span className="text-gray-400 font-bold text-sm">• Size {formData.size}</span>
+          )}
+          <span className="text-gray-500 font-bold text-sm">• Qty: {formData.quantity}</span>
+          {cartItems.length > 0 && (
+            <span className="ml-auto bg-blue-600 text-white px-5 py-2 rounded-full font-black text-xs">
+              Cart: {cartItems.length} item{cartItems.length > 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+      )}
 
       <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
         <AnimatePresence mode="wait">
@@ -605,7 +723,23 @@ const SmartOrderForm = () => {
                         value={formData.address}
                         onChange={(e) => setFormData({...formData, address: e.target.value})}
                         className={`w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} focus:border-blue-500 focus:ring-8 focus:ring-blue-500/5 outline-none transition-all text-xl font-bold text-white placeholder-gray-700`}
-                        placeholder={useUrdu ? 'گھر کا پتہ، شہر' : "House #123, Street #4, Lahore"}
+                        placeholder={useUrdu ? 'گھر کا پتہ' : "House #123, Street #4"}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <label className={`text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'شہر (City) - اختیاری' : 'City (Optional)'}</label>
+                    <div className="relative group">
+                      <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-blue-500/10 text-blue-500`}>
+                        <span className="font-black text-xs">🏙️</span>
+                      </div>
+                      <input
+                        type="text"
+                        onKeyDown={preventEnterSubmit}
+                        value={formData.city}
+                        onChange={(e) => setFormData({...formData, city: e.target.value})}
+                        className={`w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} focus:border-blue-500 focus:ring-8 focus:ring-blue-500/5 outline-none transition-all text-xl font-bold text-white placeholder-gray-700`}
+                        placeholder={useUrdu ? 'شہر کا نام' : "Lahore"}
                       />
                     </div>
                   </div>
@@ -713,20 +847,32 @@ const SmartOrderForm = () => {
                     </button>
                   </div>
 
-                  <div className="space-y-5">
-                    <label className={`flex items-center justify-between p-6 bg-gray-950 rounded-[1.5rem] border-2 border-gray-800 cursor-pointer hover:border-blue-500/30 transition-all group ${useUrdu ? 'flex-row-reverse' : ''}`}>
-                      <div className={`flex items-center space-x-4 ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                        <div className={`p-4 rounded-xl transition-all ${formData.urgent ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-800 text-gray-600'}`}>
-                          <Star size={20} />
-                        </div>
-                        <div className={useUrdu ? 'text-right' : ''}>
-                          <p className="font-black text-sm uppercase">{t('urgent')}</p>
-                          <p className="text-[10px] text-gray-600 font-bold">EXPRESS LANE</p>
-                        </div>
-                      </div>
-                      <input type="checkbox" checked={formData.urgent} onChange={(e) => setFormData({...formData, urgent: e.target.checked})} className="w-6 h-6 rounded-lg border-2 border-gray-700 bg-gray-900 checked:bg-blue-600 transition-all cursor-pointer" />
-                    </label>
+                  {/* Priority Level */}
+                  <div className="space-y-3">
+                    <label className="font-black text-xs uppercase tracking-widest text-gray-500">{t('priority')}</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {['NORMAL', 'URGENT', 'SUPER_URGENT'].map((p) => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => setFormData({...formData, priority: p})}
+                          className={`py-3 px-2 rounded-xl text-[10px] font-black transition-all border-2 ${
+                            formData.priority === p
+                              ? p === 'SUPER_URGENT'
+                                ? 'bg-red-600 text-white border-red-500 shadow-lg'
+                                : p === 'URGENT'
+                                ? 'bg-amber-600 text-white border-amber-500 shadow-lg'
+                                : 'bg-gray-800 text-white border-gray-600 shadow-lg'
+                              : 'bg-gray-950 text-gray-600 border-gray-800 hover:border-gray-600'
+                          }`}
+                        >
+                          {p === 'SUPER_URGENT' ? '⚡ SUPER' : p === 'URGENT' ? '⚡ URGENT' : 'NORMAL'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
+                  <div className="space-y-5">
                     <label className={`flex items-center justify-between p-6 bg-gray-950 rounded-[1.5rem] border-2 border-gray-800 cursor-pointer hover:border-emerald-500/30 transition-all group ${useUrdu ? 'flex-row-reverse' : ''}`}>
                       <div className={`flex items-center space-x-4 ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
                         <div className={`p-4 rounded-xl transition-all ${formData.advancePaid ? 'bg-emerald-600 text-white shadow-lg' : 'bg-gray-800 text-gray-600'}`}>
@@ -807,25 +953,81 @@ const SmartOrderForm = () => {
                   {Array.from(new Set(productsInCategory.map(i => i.name)))
                     .map(name => productsInCategory.find(i => i.name === name))
                     .filter(item => !productSearchTerm || item.name.toLowerCase().includes(productSearchTerm.toLowerCase()))
-                    .map(item => (
-                    <OptionCard
-                      key={item.id}
-                      label={item.name}
-                      value={item.name}
-                      current={formData.productType}
-                      onClick={(val) => {
-                        const selectedItem = inventory.find(i => i.name === val);
-                        setFormData({
-                          ...formData, 
-                          productType: val,
-                          fabricType: selectedItem?.fabric || formData.fabricType,
-                          color: selectedItem?.color || formData.color,
-                          productImage: selectedItem?.imageUrl || null
-                        });
-                      }}
-                      sublabel={['ORDER_ENTRY', 'OUTLET'].includes(String(user?.role || '').toUpperCase().trim()) ? null : `${useUrdu ? 'اسٹاک' : 'Total Stock'}: ${productsInCategory.filter(i => i.name === item.name).reduce((sum, i) => sum + i.stock, 0)}`}
-                    />
-                  ))}
+                    .map(item => {
+                      const totalStock = item.variants && Array.isArray(item.variants)
+                        ? item.variants.reduce((sum, v) => sum + (v.stock || 0), 0)
+                        : (item.stock || 0);
+                      const outOfStock = totalStock <= 0;
+                      return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          if (outOfStock) return;
+                          if (formData.productType === item.name) {
+                            setFormData({...formData, productType: '', fabricType: '', color: '', productImage: null});
+                          } else {
+                            setFormData({
+                              ...formData, 
+                              productType: item.name,
+                              fabricType: item.fabric || formData.fabricType,
+                              color: item.color || formData.color,
+                              productImage: item.imageUrl || null
+                            });
+                          }
+                        }}
+                        className={`relative p-4 rounded-[1.5rem] border-2 transition-all flex flex-col items-center justify-between min-h-[10rem] w-full group ${
+                          formData.productType === item.name 
+                            ? 'border-blue-500 bg-blue-500/10 text-white shadow-xl shadow-blue-900/30' 
+                            : outOfStock
+                            ? 'border-red-900/50 bg-gray-800/20 text-gray-600 cursor-not-allowed opacity-50'
+                            : 'border-gray-800 bg-gray-800/40 text-gray-400 hover:border-gray-600 hover:bg-gray-800/60'
+                        }`}
+                      >
+                        {item.imageUrl && (
+                          <img 
+                            src={item.imageUrl} 
+                            alt={item.name}
+                            className="w-16 h-16 object-contain rounded-xl mb-2"
+                            onError={(e) => { e.target.style.display = 'none' }}
+                          />
+                        )}
+                        <div className={`p-3 rounded-xl ${formData.productType === item.name ? 'bg-blue-500 text-white' : outOfStock ? 'bg-gray-700/50 text-gray-600' : 'bg-gray-700 text-gray-500 group-hover:text-gray-300'}`}>
+                          <Package size={22} />
+                        </div>
+                        <div className="text-center w-full mt-2 space-y-2">
+                          <span className="block text-sm font-black uppercase tracking-wider leading-snug">{item.name}</span>
+                          <span className="block text-lg font-black tracking-tight">
+                            <span className={`${totalStock > 50 ? 'text-emerald-400' : totalStock > 0 ? 'text-yellow-400' : 'text-red-400'}`}>
+                              {totalStock}
+                            </span>
+                            <span className="text-[9px] text-gray-500 ml-1">in stock</span>
+                          </span>
+                          {item.variants && Array.isArray(item.variants) && item.variants.length > 0 ? (
+                            <div className="space-y-1">
+                              <div className="flex flex-wrap justify-center gap-1">
+                                {[...new Set(item.variants.filter(v => v.color).map(v => v.color))].map(c => (
+                                  <span key={c} className="text-[8px] font-bold text-gray-400 bg-gray-800/60 px-2 py-0.5 rounded-full truncate max-w-[70px]">{c}</span>
+                                ))}
+                              </div>
+                              <div className="flex flex-wrap justify-center gap-1">
+                                {[...new Set(item.variants.filter(v => v.size).map(v => v.size))].map(s => (
+                                  <span key={s} className="text-[8px] font-bold text-blue-400 bg-blue-900/20 px-2 py-0.5 rounded-full">{s}</span>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            item.color && <span className="block text-[9px] text-gray-500 font-bold truncate">{item.color}</span>
+                          )}
+                          {outOfStock && <span className="block text-[9px] text-red-400 font-black uppercase">Out of Stock</span>}
+                        </div>
+                        {formData.productType === item.name && (
+                          <motion.div layoutId="activeProduct" className="absolute top-2 right-2 bg-blue-500 rounded-full p-1 shadow-lg">
+                            <CheckCircle2 size={14} className="text-white" />
+                          </motion.div>
+                        )}
+                      </button>
+                    )})}
                 </div>
               </div>
 
@@ -838,18 +1040,30 @@ const SmartOrderForm = () => {
                     </h3>
                     <p className={`text-gray-500 text-[10px] font-bold uppercase tracking-widest ${useUrdu ? 'mr-11' : 'ml-11'}`}>Step 2: Define fabric feel</p>
                   </div>
-                  <div className="grid grid-cols-2 gap-5">
-                    {fabrics.map(f => (
-                      <OptionCard
-                        key={f.id}
-                        label={f.name}
-                        value={f.name}
-                        current={formData.fabricType}
-                        onClick={(val) => setFormData({...formData, fabricType: val})}
-                        icon={Layers}
-                      />
-                    ))}
-                  </div>
+                  {fabrics.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-5">
+                      {fabrics.map((f, fi) => {
+                        const fName = typeof f === 'string' ? f : (f.fabric || f.name);
+                        const fStock = typeof f === 'string'
+                          ? selectedProductVariants.reduce((s, v) => s + (v.stock || 0), 0)
+                          : (f.stock || 0);
+                        return (
+                        <OptionCard
+                          key={fi}
+                          label={fName}
+                          value={fName}
+                          current={formData.fabricType}
+                          onClick={(val) => setFormData({...formData, fabricType: val})}
+                          icon={Layers}
+                          sublabel={fStock > 0 ? `${fStock} units` : 'Out of stock'}
+                        />
+                      )})}
+                    </div>
+                  ) : (
+                    <div className="bg-gray-900/50 p-6 rounded-2xl border border-gray-800 text-center mt-4">
+                      <p className="text-gray-400 font-bold text-base">Select a product first to see available fabrics</p>
+                    </div>
+                  )}
                 </div>
 
                 <div className={`lg:col-span-7 glass p-12 rounded-[3.5rem] border border-gray-800 shadow-2xl ${useUrdu ? 'text-right' : ''}`}>
@@ -863,12 +1077,16 @@ const SmartOrderForm = () => {
                     </div>
                     {!isAccessory(selectedProductCategory) && (
                       <div className={`flex p-1.5 bg-gray-950 rounded-xl border-2 border-gray-800 ${useUrdu ? 'flex-row-reverse' : ''}`}>
-                        {['S', 'M', 'L', 'XL', '2XL'].map(s => (
+                        {(availableSizes.length > 0 ? availableSizes : ['S', 'M', 'L', 'XL', '2XL']).map(s => (
                           <button
                             key={s}
                             type="button"
                             onClick={() => handleSizeSelect(s)}
-                            className={`w-12 h-12 rounded-lg font-black text-xs transition-all ${formData.size === s ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-600 hover:text-white'}`}
+                            className={`w-14 h-14 rounded-lg font-black text-xs transition-all ${
+                              formData.size === s 
+                                ? 'bg-blue-600 text-white shadow-lg' 
+                                : 'text-gray-600 hover:text-white'
+                            }`}
                           >
                             {s}
                           </button>
@@ -877,27 +1095,60 @@ const SmartOrderForm = () => {
                     )}
                   </div>
                   
-                  <div className="grid grid-cols-4 sm:grid-cols-6 xl:grid-cols-8 gap-5">
-                    {colors.map(c => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => setFormData({...formData, color: c.name})}
-                        className={`group relative w-full aspect-square rounded-[1.25rem] border-4 transition-all duration-500 flex items-center justify-center ${formData.color === c.name ? 'border-white scale-110 shadow-2xl z-10' : 'border-transparent opacity-40 hover:opacity-100 hover:scale-105'}`}
-                        style={{ backgroundColor: c.name.replace(' ', '').toLowerCase() }}
-                      >
-                        {formData.color === c.name && (
-                          <div className="bg-white/30 backdrop-blur-md p-2 rounded-full border border-white/50">
-                            <CheckCircle2 size={24} className="text-white" />
+                  {colors.length > 0 && (
+                    <div className="grid grid-cols-4 sm:grid-cols-6 xl:grid-cols-8 gap-4 mt-6">
+                      {colors.map(c => {
+                        const stockForColor = selectedProductVariants
+                          .filter(v => v.color === c)
+                          .reduce((s, v) => s + (v.stock || 0), 0);
+                        const colorMap = {
+                          'white': '#ffffff', 'black': '#1a1a1a', 'navy': '#1e3a5f', 'royal blue': '#4169e1',
+                          'dark blue': '#0a2351', 'light blue': '#add8e6', 'sky blue': '#87ceeb',
+                          'red': '#dc2626', 'dark red': '#8b0000', 'maroon': '#800000', 'wine': '#722f37',
+                          'green': '#16a34a', 'dark green': '#064e3b', 'olive': '#808000', 'teal': '#008080',
+                          'grey': '#6b7280', 'gray': '#6b7280', 'dark grey': '#374151', 'dark gray': '#374151',
+                          'light grey': '#d1d5db', 'light gray': '#d1d5db', 'silver': '#c0c0c0', 'gold': '#d4af37',
+                          'purple': '#9333ea', 'indigo': '#4f46e5', 'pink': '#ec4899', 'brown': '#8b4513',
+                          'khaki': '#c3b091', 'beige': '#f5f5dc', 'cream': '#fffdd0', 'tan': '#d2b48c',
+                          'orange': '#f97316', 'yellow': '#eab308', 'coral': '#ff7f50', 'mint': '#98ff98',
+                          'peach': '#ffdab9', 'lavender': '#e6e6fa', 'turquoise': '#40e0d0', 'magenta': '#ff00ff',
+                          'burgundy': '#900020', 'charcoal': '#36454f', 'camel': '#c19a6b', 'rust': '#b7410e'
+                        };
+                        const normalizedKey = c.toLowerCase().trim();
+                        const bgHex = colorMap[normalizedKey] || normalizedKey;
+                        // Determine if text should be light or dark
+                        const darkColors = new Set(['black','navy','dark blue','dark red','maroon','wine','dark green','olive','teal','grey','gray','dark grey','dark gray','purple','indigo','brown','charcoal','burgundy','rust']);
+                        const textClass = darkColors.has(normalizedKey) ? 'text-white' : 'text-gray-900';
+                        return (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => setFormData({...formData, color: c})}
+                          className={`group relative w-full rounded-xl border-2 transition-all duration-200 flex flex-col items-center overflow-hidden ${
+                            formData.color === c ? 'border-white ring-2 ring-blue-500 scale-105 z-10' : 'border-gray-700/50 hover:border-gray-500'
+                          }`}
+                        >
+                          <div className="w-full aspect-square flex items-center justify-center relative" style={{ backgroundColor: bgHex }}>
+                            {formData.color === c && (
+                              <div className={`${textClass} bg-black/20 backdrop-blur-sm p-1.5 rounded-full`}>
+                                <CheckCircle2 size={20} className={textClass} />
+                              </div>
+                            )}
                           </div>
-                        )}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-xl" />
-                        <span className="absolute bottom-1.5 left-0 right-0 text-[7px] font-black text-center text-white opacity-0 group-hover:opacity-100 uppercase tracking-tighter truncate px-2">
-                          {c.name}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+                          <div className="w-full py-1.5 px-1 bg-gray-950 text-center">
+                            <p className="text-[9px] font-black text-gray-300 truncate">{c}</p>
+                            <p className="text-[7px] font-bold text-gray-500">{stockForColor} in stock</p>
+                          </div>
+                        </button>
+                      )})}
+                    </div>
+                  )}
+                  {/* Show message if product has no color variants */}
+                  {formData.productType && colors.length === 0 && (
+                    <div className="mt-6 bg-gray-900/50 p-6 rounded-2xl border border-gray-800 text-center">
+                      <p className="text-gray-400 text-sm font-bold">Colors: Available (Standard)</p>
+                    </div>
+                  )}
 
                   <div className={`mt-10 pt-10 border-t border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-8 ${useUrdu ? 'flex-row-reverse' : ''}`}>
                     <div className="space-y-1">
@@ -927,7 +1178,7 @@ const SmartOrderForm = () => {
             </motion.div>
           )}
 
-          {activeTab === 'custom' && (formData.type === 'FULL_CUSTOM' || formData.type === 'READY_LOGO') && (
+          {activeTab === 'custom' && (formData.type === 'FULL_CUSTOM' || formData.type === 'READY_LOGO') && isCustomizableProduct(selectedProductCategory) && (
             <motion.div
               key="custom"
               initial={{ opacity: 0, scale: 0.9 }}
@@ -1372,6 +1623,174 @@ const SmartOrderForm = () => {
         )}
       </AnimatePresence>
 
+      {/* Customization Modal */}
+      <AnimatePresence>
+        {showCustomizationModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.85, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.85, y: 30 }}
+              className="glass max-w-2xl w-full p-8 md:p-12 rounded-[3rem] border-2 border-gray-800 shadow-[0_50px_100px_rgba(0,0,0,0.5)] max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center gap-4 mb-8">
+                <div className="p-4 bg-gradient-to-br from-purple-600 to-indigo-700 rounded-[1.5rem] shadow-xl">
+                  <Scissors className="text-white" size={28} />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-white uppercase tracking-tight">Customization Details</h2>
+                  <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest mt-1">Configure your product</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                {/* Custom Name / Text */}
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ml-2">Custom Name / Text</label>
+                  <input
+                    type="text"
+                    value={customModalData.nameText}
+                    onChange={(e) => setCustomModalData({...customModalData, nameText: e.target.value})}
+                    className="w-full bg-gray-950 border-2 border-gray-800 rounded-[1.2rem] py-4 px-6 focus:border-purple-500 outline-none transition-all font-bold text-white text-lg"
+                    placeholder="e.g. DR. ALEX RIVERA"
+                  />
+                </div>
+
+                {/* Placement */}
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ml-2">Placement</label>
+                  <div className="flex p-1.5 bg-gray-950 rounded-[1.2rem] border-2 border-gray-800">
+                    <button
+                      type="button"
+                      onClick={() => setCustomModalData({...customModalData, placement: 'left'})}
+                      className={`flex-1 py-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${customModalData.placement === 'left' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+                    >
+                      Left Side
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCustomModalData({...customModalData, placement: 'right'})}
+                      className={`flex-1 py-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${customModalData.placement === 'right' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+                    >
+                      Right Side
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCustomModalData({...customModalData, placement: 'center'})}
+                      className={`flex-1 py-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${customModalData.placement === 'center' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+                    >
+                      Center
+                    </button>
+                  </div>
+                </div>
+
+                {/* Logo Details */}
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ml-2">Logo Details</label>
+                  <textarea
+                    value={customModalData.logoDetails}
+                    onChange={(e) => setCustomModalData({...customModalData, logoDetails: e.target.value})}
+                    className="w-full bg-gray-950 border-2 border-gray-800 rounded-[1.2rem] py-4 px-6 focus:border-purple-500 outline-none transition-all font-medium text-white text-sm resize-none h-24"
+                    placeholder="Describe logo, file reference, or upload instructions..."
+                  />
+                </div>
+
+                {/* Embroidery / Printing Instructions */}
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ml-2">Embroidery / Printing Instructions</label>
+                  <textarea
+                    value={customModalData.embroideryInstructions}
+                    onChange={(e) => setCustomModalData({...customModalData, embroideryInstructions: e.target.value})}
+                    className="w-full bg-gray-950 border-2 border-gray-800 rounded-[1.2rem] py-4 px-6 focus:border-purple-500 outline-none transition-all font-medium text-white text-sm resize-none h-24"
+                    placeholder={'E.g. Single needle, 1 color logo, 1" height...'}
+                  />
+                </div>
+
+                {/* Stitch Type */}
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ml-2">Stitch Type</label>
+                  <div className="flex p-1.5 bg-gray-950 rounded-[1.2rem] border-2 border-gray-800">
+                    <button
+                      type="button"
+                      onClick={() => setCustomModalData({...customModalData, stitchType: 'single'})}
+                      className={`flex-1 py-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${customModalData.stitchType === 'single' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+                    >
+                      Single
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCustomModalData({...customModalData, stitchType: 'double'})}
+                      className={`flex-1 py-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${customModalData.stitchType === 'double' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+                    >
+                      Double
+                    </button>
+                  </div>
+                </div>
+
+                {/* Thread Color */}
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ml-2">Thread Color</label>
+                  <select
+                    value={customModalData.threadColor}
+                    onChange={(e) => setCustomModalData({...customModalData, threadColor: e.target.value})}
+                    className="w-full bg-gray-950 border-2 border-gray-800 rounded-[1.2rem] py-4 px-6 focus:border-purple-500 outline-none font-bold text-gray-300 appearance-none"
+                  >
+                    <option value="">Standard White</option>
+                    <option value="Gold">Metallic Gold</option>
+                    <option value="Silver">Polished Silver</option>
+                    <option value="Navy">Royal Navy</option>
+                    <option value="Wine">Premium Wine</option>
+                    <option value="Black">Deep Black</option>
+                    <option value="Red">Signature Red</option>
+                  </select>
+                </div>
+
+                {/* Size Adjustment */}
+                <div className="space-y-3 md:col-span-2">
+                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ml-2">Size Adjustment / Scale: {customModalData.resizeScale}%</label>
+                  <div className="flex items-center gap-4">
+                    <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest w-12 text-right">50%</span>
+                    <input
+                      type="range"
+                      min="50"
+                      max="200"
+                      value={customModalData.resizeScale}
+                      onChange={(e) => setCustomModalData({...customModalData, resizeScale: parseInt(e.target.value)})}
+                      className="flex-1 h-2 bg-gray-800 rounded-full appearance-none cursor-pointer accent-purple-500"
+                    />
+                    <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest w-12">200%</span>
+                  </div>
+                  <div className="flex justify-center mt-2">
+                    <div className="bg-gray-950 border-2 border-gray-800 rounded-[1rem] px-6 py-3 inline-flex items-center gap-3">
+                      <span className="text-[10px] font-black text-gray-500 uppercase">Preview Scale:</span>
+                      <span className="text-lg font-black text-purple-400">{customModalData.resizeScale}%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-4">
+                <button
+                  type="button"
+                  onClick={handleCustomizationSave}
+                  className="flex-1 py-5 bg-gradient-to-r from-purple-600 to-indigo-700 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-purple-900/50 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3"
+                >
+                  <CheckCircle2 size={20} />
+                  <span>Save & Continue</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCustomizationSkip}
+                  className="py-5 px-8 bg-gray-900 text-gray-400 rounded-[1.5rem] font-black text-sm uppercase tracking-widest border-2 border-gray-800 hover:border-gray-600 hover:text-white transition-all active:scale-95"
+                >
+                  Skip Customization
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Floating Cart Panel & FAB */}
       <AnimatePresence>
         {cartItems.length > 0 && !isCartOpen && (
@@ -1431,7 +1850,7 @@ const SmartOrderForm = () => {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-sm font-black text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-xl">
-                      ${item.totalPrice}
+                      ₨{Number(item.totalPrice).toLocaleString()}
                     </p>
                   </div>
                 </div>

@@ -12,7 +12,11 @@ const {
   deleteOrder,
   updateDeliveryStatus,
   holdOrder,
-  sendForDelivery
+  sendForDelivery,
+  updateOrderPriority,
+  forceAction,
+  setDeliveryType,
+  checkOrderInventory
 } = require('../controllers/order.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 const router = express.Router();
@@ -47,5 +51,17 @@ router.put('/:orderId/send-for-delivery', authenticate, authorize(['FAISAL', 'SU
 
 // Delivery Boy: Update delivery status (Delivered / Not Responded)
 router.put('/:orderId/delivery', authenticate, authorize(['DELIVERY_BOY', 'FAISAL', 'SUPER_ADMIN']), updateDeliveryStatus);
+
+// Force Actions (Admin/FAISAL only)
+router.post('/:orderId/force', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'FAISAL']), forceAction);
+
+// Update order priority
+router.put('/:orderId/priority', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'FAISAL']), updateOrderPriority);
+
+// Set delivery type (PICKUP, IN_CITY, COURIER)
+router.put('/:orderId/delivery-type', authenticate, authorize(['SUPER_ADMIN', 'FAISAL', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), setDeliveryType);
+
+// Inventory availability check for Store department
+router.get('/:orderId/inventory-check', authenticate, authorize(['STORE', 'ADMIN', 'SUPER_ADMIN', 'FAISAL']), checkOrderInventory);
 
 module.exports = router;

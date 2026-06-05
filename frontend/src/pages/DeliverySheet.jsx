@@ -299,6 +299,7 @@ const DeliverySheet = () => {
                     } catch {}
                     
                     const isCOD = !order.advancePaid;
+                    const payMethod = order.paymentMethod || (isCOD ? 'CASH' : 'ONLINE_TRANSFER');
 
                     return (
                       <tr key={order.id} className="hover:bg-white/5 transition-colors">
@@ -317,11 +318,13 @@ const DeliverySheet = () => {
                         <td className="py-4 px-3 text-center font-black text-gray-200 text-xs">{order.quantity}</td>
                         <td className="py-4 px-3 text-xs">
                           <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
-                            isCOD 
-                              ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' 
+                            payMethod === 'ONLINE_TRANSFER'
+                              ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20'
+                              : payMethod === 'CASH'
+                              ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
                               : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
                           }`}>
-                            {isCOD ? 'COD' : 'Paid'}
+                            {payMethod === 'ONLINE_TRANSFER' ? 'Online' : payMethod === 'CASH' ? 'Cash' : 'Paid'}
                           </span>
                         </td>
                         <td className="py-4 px-3 font-black text-emerald-400 text-xs">
@@ -450,6 +453,7 @@ const DeliverySheet = () => {
                   }
                 } catch {}
                 const isCOD = !order.advancePaid;
+                const payMethod = order.paymentMethod || (isCOD ? 'CASH' : 'ONLINE_TRANSFER');
                 return (
                   <tr key={order.id}>
                     <td>{idx + 1}</td>
@@ -459,7 +463,7 @@ const DeliverySheet = () => {
                     <td>{order.address || '—'}</td>
                     <td>{productSummary}</td>
                     <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{order.quantity}</td>
-                    <td>{isCOD ? 'COD' : 'Paid Online'}</td>
+                    <td>{payMethod === 'ONLINE_TRANSFER' ? 'Online' : 'Cash'}</td>
                     <td style={{ fontWeight: 'bold' }}>Rs. {Number(order.totalPrice || 0).toLocaleString()}</td>
                     <td style={{ fontSize: '9px', color: '#555555' }}>
                       {order.stages?.find(s => s.stageName === 'DELIVERED' || s.stageName === 'OUT_FOR_DELIVERY')?.rejectionReason || ''}

@@ -19,7 +19,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const [isDelayed, setIsDelayed] = useState(false);
   const [showFullSheet, setShowFullSheet] = useState(false);
   const [urgencyColor, setUrgencyColor] = useState('text-blue-400');
-  const [inventory, setInventory] = useState([]);
+  const [deadlineStatus, setDeadlineStatus] = useState(''); // ON_TIME, APPROACHING, OVERDUE, COMPLETED
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [showRejectionDialog, setShowRejectionDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
@@ -32,12 +32,24 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const [showProblemModal, setShowProblemModal] = useState(false);
   const [problemNote, setProblemNote] = useState('');
   const [deliveryMethod, setDeliveryMethod] = useState('');
+  const [selectedDeliveryType, setSelectedDeliveryType] = useState('');
+  const [showForceModal, setShowForceModal] = useState(false);
+  const [forceAction, setForceAction] = useState('FORCE_MOVE');
+  const [forceStage, setForceStage] = useState('');
+  const [forceHours, setForceHours] = useState('');
+  const [forceReason, setForceReason] = useState('');
+  const [forceLoading, setForceLoading] = useState(false);
+  const isAdmin = ['SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(userRole);
+  const [invCheck, setInvCheck] = useState(null);
+  const [invCheckLoading, setInvCheckLoading] = useState(false);
+  const [invCheckExpanded, setInvCheckExpanded] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
       if (!currentStage?.deadlineAt || currentStage.status === 'COMPLETED') {
         setTimeLeft('--:--');
         setUrgencyColor('text-gray-600');
+        setDeadlineStatus('COMPLETED');
         return;
       }
       const deadline = new Date(currentStage.deadlineAt).getTime();
@@ -51,6 +63,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
         setTimeLeft(`${t('Delayed')}: ${h}${t('h')} ${m}${t('m')}`);
         setIsDelayed(true);
         setUrgencyColor('text-red-500 font-black animate-pulse');
+        setDeadlineStatus('OVERDUE');
         return;
       }
 
@@ -61,28 +74,26 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
       setTimeLeft(`${hours}${t('h')} ${minutes}${t('m')} ${seconds}${t('s')}`);
       
       // Dynamic color based on time left
-      if (hours < 1) setUrgencyColor('text-red-400 font-black');
-      else if (hours < 4) setUrgencyColor('text-yellow-400 font-bold');
-      else setUrgencyColor('text-blue-400');
+      if (hours < 1) { setUrgencyColor('text-red-400 font-black'); setDeadlineStatus('OVERDUE'); }
+      else if (hours < 4) { setUrgencyColor('text-yellow-400 font-bold'); setDeadlineStatus('APPROACHING'); }
+      else { setUrgencyColor('text-blue-400'); setDeadlineStatus('ON_TIME'); }
     }, 1000);
 
     return () => clearInterval(timer);
   }, [currentStage]);
 
   useEffect(() => {
-    if (currentStage?.stageName === 'STORE') {
-      axios.get(`${API_URL}/api/inventory`)
-        .then(res => setInventory(res.data))
-        .catch(err => console.error('Error fetching inventory:', err));
+    if (currentStage?.stageName === 'STORE' && order.id) {
+      setInvCheckLoading(true);
+      const token = sessionStorage.getItem('token');
+      axios.get(`${API_URL}/api/orders/${order.id}/inventory-check`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then(res => setInvCheck(res.data))
+        .catch(err => console.error('Error checking inventory:', err))
+        .finally(() => setInvCheckLoading(false));
     }
-  }, [currentStage?.stageName]);
-
-  const getStockStatus = (itemName) => {
-    if (!itemName || itemName === 'N/A') return null;
-    const item = inventory.find(i => i.name.toLowerCase() === itemName.toLowerCase());
-    if (!item) return 'NOT_FOUND';
-    return item.stock > 0 ? 'IN_STOCK' : 'OUT_OF_STOCK';
-  };
+  }, [currentStage?.stageName, order.id]);
 
   const parseJSON = (data) => {
     try {
@@ -126,7 +137,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
 
   const productionStages = ['PRODUCTION'];
-  const productionDeadline = order.stages?.find(s => s.stageName === 'PRODUCTION')?.deadlineAt;
+  const productionDeadline = order.productionDeadline || order.stages?.find(s => s.stageName === 'PRODUCTION')?.deadlineAt;
   const isCurrentlyInProduction = productionStages.includes(currentStage?.stageName);
 
   const renderTasks = () => {
@@ -138,40 +149,15 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
         { label: 'Base', val: product?.productType }
       ];
       return items.map((item, idx) => {
-        const isOrderProfile = ['ORDER_ENTRY', 'OUTLET'].includes(String(userRole || '').toUpperCase().trim());
-        if (isOrderProfile) {
-          return (
-            <motion.li 
-              key={idx}
-              initial={{ opacity: 0, x: -5 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: idx * 0.1 }}
-              className="text-[11px] flex items-center justify-between p-2 bg-gray-900/30 rounded-lg border border-gray-800/20"
-            >
-              <span className="text-gray-400 font-bold uppercase tracking-tighter">{item.label}: {item.val || 'N/A'}</span>
-            </motion.li>
-          );
-        }
-
-        const status = getStockStatus(item.val);
         return (
           <motion.li 
             key={idx}
             initial={{ opacity: 0, x: -5 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: idx * 0.1 }}
-            className="text-[11px] flex items-center justify-between p-2 bg-gray-900/50 rounded-lg border border-gray-800/50 hover:border-blue-500/30 transition-all group/item"
+            className="text-[11px] flex items-center justify-between p-2 bg-gray-900/30 rounded-lg border border-gray-800/20"
           >
-            <div className="flex items-center space-x-3">
-              <div className={`w-1.5 h-1.5 rounded-full ${status === 'IN_STOCK' ? 'bg-emerald-500 shadow-[0_0_8px_#10b98166]' : 'bg-blue-500 shadow-[0_0_8px_#3b82f666]'}`} />
-              <span className="text-gray-400 font-bold group-hover/item:text-gray-200 transition-colors uppercase tracking-tighter">{item.label}: {item.val || 'N/A'}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {status === 'IN_STOCK' && <span className="text-[8px] bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded-full font-black uppercase tracking-widest border border-emerald-500/20">Ready</span>}
-              {status === 'OUT_OF_STOCK' && <span className="text-[8px] bg-red-500/10 text-red-500 px-2 py-0.5 rounded-full font-black uppercase tracking-widest border border-red-500/20">Empty</span>}
-              {status === 'NOT_FOUND' && <span className="text-[8px] bg-yellow-500/10 text-yellow-500 px-2 py-0.5 rounded-full font-black uppercase tracking-widest border border-yellow-500/20">Check</span>}
-              <ChevronRight size={10} className="text-gray-700 group-hover/item:text-blue-500 transition-colors" />
-            </div>
+            <span className="text-gray-400 font-bold uppercase tracking-tighter">{item.label}: {item.val || 'N/A'}</span>
           </motion.li>
         );
       });
@@ -314,7 +300,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
         layout
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className={`glass rounded-3xl overflow-hidden mb-6 ${order.urgent ? 'card-urgent' : isDelayed ? 'card-delayed' : 'border border-gray-800'} ${order.status === 'REJECTED' ? 'border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.1)]' : order.status === 'ON_HOLD' ? 'border-orange-500/50 shadow-[0_0_20px_rgba(249,115,22,0.1)]' : ''}`}
+        className={`glass rounded-3xl overflow-hidden mb-6 ${order.priority === 'SUPER_URGENT' ? 'card-super-urgent border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : order.priority === 'URGENT' ? 'card-urgent' : isDelayed ? 'card-delayed' : 'border border-gray-800'} ${order.status === 'REJECTED' ? 'border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.1)]' : order.status === 'ON_HOLD' ? 'border-orange-500/50 shadow-[0_0_20px_rgba(249,115,22,0.1)]' : ''}`}
       >
         <div className="p-4">
           <div className="flex justify-between items-start mb-4 gap-2">
@@ -327,8 +313,15 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
                   <h3 className="font-black text-lg tracking-tighter text-white break-all">#{order.orderNumber || order.id.substring(0, 8)}</h3>
-                  {order.urgent && (
-                     <span className="bg-blue-600 text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse uppercase tracking-tighter">{t('Urgent Order')}</span>
+                  {order.priority === 'SUPER_URGENT' && (
+                    <span className="bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse uppercase tracking-tighter flex items-center gap-1">
+                      <span>⚡</span> SUPER URGENT
+                    </span>
+                  )}
+                  {order.priority === 'URGENT' && (
+                    <span className="bg-amber-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse uppercase tracking-tighter flex items-center gap-1">
+                      <span>⚡</span> URGENT
+                    </span>
                   )}
                   <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter ${
                     order.type === 'FULL_CUSTOM' ? 'bg-indigo-600' : order.type === 'READY_LOGO' ? 'bg-purple-600' : 'bg-gray-700'
@@ -397,7 +390,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   <span className={`font-mono text-sm tracking-tighter leading-none ${urgencyColor}`}>
                     {timeLeft}
                   </span>
-                  <span className="text-[7px] text-gray-500 font-black uppercase mt-0.5">{t('Time Left')}</span>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <span className="text-[7px] text-gray-500 font-black uppercase">{t('Time Left')}</span>
+                    {deadlineStatus === 'ON_TIME' && <span className="text-[6px] bg-emerald-500/10 text-emerald-400 px-1 py-0.5 rounded-sm font-black uppercase">ON TIME</span>}
+                    {deadlineStatus === 'APPROACHING' && <span className="text-[6px] bg-amber-500/10 text-amber-400 px-1 py-0.5 rounded-sm font-black uppercase">APPROACHING</span>}
+                    {deadlineStatus === 'OVERDUE' && <span className="text-[6px] bg-red-500/10 text-red-400 px-1 py-0.5 rounded-sm font-black uppercase animate-pulse">OVERDUE</span>}
+                    {deadlineStatus === 'COMPLETED' && <span className="text-[6px] bg-gray-500/10 text-gray-400 px-1 py-0.5 rounded-sm font-black uppercase">COMPLETED</span>}
+                  </div>
                 </div>
               </div>
               <div className="text-[8px] text-gray-500 font-black uppercase tracking-widest bg-gray-900 px-2 py-0.5 rounded-md">
@@ -411,9 +410,20 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   <Target size={12} className="text-emerald-500" />
                   <span className="text-[9px] text-emerald-500 font-black uppercase">Production Goal:</span>
                 </div>
-                <span className="text-[10px] text-white font-black">
-                  {new Date(productionDeadline).toLocaleDateString()} {new Date(productionDeadline).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] font-black ${new Date(productionDeadline).getTime() < Date.now() ? 'text-red-400 animate-pulse' : 'text-white'}`}>
+                    {(() => {
+                      const diff = new Date(productionDeadline).getTime() - Date.now();
+                      if (diff <= 0) return 'OVERDUE';
+                      const h = Math.floor(diff / 3600000);
+                      const m = Math.floor((diff % 3600000) / 60000);
+                      return `${h}h ${m}m`;
+                    })()}
+                  </span>
+                  <span className="text-[8px] text-gray-500">
+                    {new Date(productionDeadline).toLocaleDateString()} {new Date(productionDeadline).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
               </div>
             )}
           </div>
@@ -595,30 +605,98 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
             ) : (
               !isFaisal && currentStage?.status !== 'COMPLETED' && (
                 currentStage?.stageName === 'STORE' ? (
-                  <div className="flex w-full space-x-2">
-                    <button
-                      onClick={() => {
-                        if (window.confirm('Confirm this item is IN STOCK?')) {
-                          onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Available' });
-                        }
-                      }}
-                      className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex flex-col xl:flex-row items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
-                    >
-                      <CheckCircle size={14} />
-                      <span>Have It</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (window.confirm('Confirm this item is MISSING/OUT OF STOCK?')) {
-                          onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Out of Stock' });
-                        }
-                      }}
-                      className="flex-1 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex flex-col xl:flex-row items-center justify-center gap-1 active:scale-95 shadow-lg shadow-red-900/20"
-                    >
-                      <AlertCircle size={14} />
-                      <span>Missing</span>
-                    </button>
-                  </div>
+                  <>
+                    {/* Inventory Availability Report */}
+                    {invCheckLoading ? (
+                      <div className="w-full p-4 bg-gray-900/30 rounded-2xl border border-gray-800 flex items-center justify-center space-x-3">
+                        <RefreshCcw className="animate-spin text-blue-400" size={16} />
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Checking inventory...</span>
+                      </div>
+                    ) : invCheck && invCheck.report ? (
+                      <div className="w-full space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Inventory Availability</span>
+                          <button onClick={() => setInvCheckExpanded(!invCheckExpanded)} className="text-[9px] font-black text-blue-400 hover:text-blue-300 uppercase tracking-widest">
+                            {invCheckExpanded ? 'Collapse' : 'Details'}
+                          </button>
+                        </div>
+                        {/* Summary badges */}
+                        <div className="flex flex-wrap gap-2">
+                          <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase border border-emerald-500/20 bg-emerald-500/10 text-emerald-400">
+                            {invCheck.summary.available} Available
+                          </span>
+                          {invCheck.summary.insufficient > 0 && (
+                            <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase border border-yellow-500/20 bg-yellow-500/10 text-yellow-400">
+                              {invCheck.summary.insufficient} Low Stock
+                            </span>
+                          )}
+                          {invCheck.summary.outOfStock > 0 && (
+                            <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase border border-red-500/20 bg-red-500/10 text-red-400">
+                              {invCheck.summary.outOfStock} Unavailable
+                            </span>
+                          )}
+                        </div>
+                        {/* Detailed table */}
+                        {invCheckExpanded && (
+                          <div className="overflow-x-auto bg-gray-950/50 rounded-xl border border-gray-800">
+                            <table className="w-full text-[10px]">
+                              <thead>
+                                <tr className="border-b border-gray-800 text-[8px] font-black text-gray-500 uppercase tracking-widest">
+                                  <th className="text-left p-2">Item</th>
+                                  <th className="text-center p-2">Required</th>
+                                  <th className="text-center p-2">Available</th>
+                                  <th className="text-right p-2">Status</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {invCheck.report.map((item, idx) => (
+                                  <tr key={idx} className="border-b border-gray-800/50">
+                                    <td className="p-2 text-left font-bold text-white">{item.itemName}</td>
+                                    <td className="p-2 text-center text-gray-300">{item.requiredQty}</td>
+                                    <td className="p-2 text-center font-black">{item.availableQty}</td>
+                                    <td className="p-2 text-right">
+                                      <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase ${
+                                        item.status === 'available' ? 'bg-emerald-500/10 text-emerald-400' :
+                                        item.status === 'insufficient' ? 'bg-yellow-500/10 text-yellow-400' :
+                                        'bg-red-500/10 text-red-400'
+                                      }`}>
+                                        {item.status === 'available' ? 'Available' :
+                                         item.status === 'insufficient' ? 'Low' : 'Out'}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+                    <div className="flex w-full space-x-2">
+                      <button
+                        onClick={() => {
+                          if (window.confirm('Confirm items are IN STOCK and allocate?')) {
+                            onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Available' });
+                          }
+                        }}
+                        className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex flex-col xl:flex-row items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
+                      >
+                        <CheckCircle size={14} />
+                        <span>Confirm & Allocate</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (window.confirm('Are items MISSING or OUT OF STOCK?')) {
+                            onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Out of Stock' });
+                          }
+                        }}
+                        className="flex-1 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex flex-col xl:flex-row items-center justify-center gap-1 active:scale-95 shadow-lg shadow-red-900/20"
+                      >
+                        <AlertCircle size={14} />
+                        <span>Missing / Unavailable</span>
+                      </button>
+                    </div>
+                  />
                 ) : ['LOGO_DESIGN', 'NAME_LOGO', 'CUSTOM_LOGO'].includes(currentStage?.stageName) ? (
                   <div className="flex w-full space-x-2">
                     <button
@@ -749,21 +827,38 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   {timeLeft}
                 </span>
               </div>
+              <div className="flex gap-1 mt-1">
+                {deadlineStatus === 'ON_TIME' && <span className="text-[6px] bg-emerald-500/10 text-emerald-400 px-1 py-0.5 rounded-sm font-black uppercase">ON TIME</span>}
+                {deadlineStatus === 'APPROACHING' && <span className="text-[6px] bg-amber-500/10 text-amber-400 px-1 py-0.5 rounded-sm font-black uppercase">APPROACHING</span>}
+                {deadlineStatus === 'OVERDUE' && <span className="text-[6px] bg-red-500/10 text-red-400 px-1 py-0.5 rounded-sm font-black uppercase animate-pulse">OVERDUE</span>}
+                {deadlineStatus === 'COMPLETED' && <span className="text-[6px] bg-gray-500/10 text-gray-400 px-1 py-0.5 rounded-sm font-black uppercase">COMPLETED</span>}
+              </div>
 
               {isCurrentlyInProduction && productionDeadline && (
                 <div className="p-4 bg-indigo-600/5 rounded-2xl border border-indigo-600/10 relative overflow-hidden group/goal">
                   <div className="absolute top-0 right-0 p-2 opacity-10 group-hover/goal:opacity-30 transition-opacity">
                     <Target size={32} />
                   </div>
-                  <div className="flex justify-between items-center relative z-10">
-                    <div className="flex items-center gap-2">
-                      <Target size={14} className="text-indigo-400" />
-                      <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Production Goal</span>
+                    <div className="flex justify-between items-center relative z-10">
+                      <div className="flex items-center gap-2">
+                        <Target size={14} className="text-indigo-400" />
+                        <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Production Goal</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-black font-mono ${new Date(productionDeadline).getTime() < Date.now() ? 'text-red-400 animate-pulse' : 'text-emerald-400'}`}>
+                          {(() => {
+                            const diff = new Date(productionDeadline).getTime() - Date.now();
+                            if (diff <= 0) return 'OVERDUE';
+                            const h = Math.floor(diff / 3600000);
+                            const m = Math.floor((diff % 3600000) / 60000);
+                            return `${h}h ${m}m`;
+                          })()}
+                        </span>
+                        <span className="text-[9px] text-gray-500">
+                          {new Date(productionDeadline).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
                     </div>
-                    <span className="text-[10px] font-black text-gray-300 font-mono">
-                      {new Date(productionDeadline).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
                   <div className="mt-2 h-1 bg-gray-900 rounded-full overflow-hidden">
                     <motion.div 
                       initial={{ width: 0 }}
@@ -951,12 +1046,22 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 <span className="w-1.5 h-1.5 bg-gray-700 rounded-full"></span>
                 <span>Stage: {currentStage?.stageName}</span>
               </div>
-              <button 
-                onClick={() => setShowFullSheet(false)}
-                className="bg-gray-800 hover:bg-gray-700 text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all"
-              >
-                Close Job Sheet
-              </button>
+              <div className="flex items-center gap-2">
+                {isAdmin && (
+                  <button
+                    onClick={() => setShowForceModal(true)}
+                    className="bg-red-900/30 hover:bg-red-800/50 text-red-400 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-red-500/20 flex items-center gap-1.5"
+                  >
+                    <span className="text-xs">⚡</span> Force
+                  </button>
+                )}
+                <button 
+                  onClick={() => setShowFullSheet(false)}
+                  className="bg-gray-800 hover:bg-gray-700 text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all"
+                >
+                  Close Job Sheet
+                </button>
+              </div>
             </div>
           </motion.div>
         </div>
@@ -1015,6 +1120,31 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 </div>
               </div>
 
+              {(nextStage === 'DISPATCH' || currentStage?.stageName === 'DISPATCH') && (
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-purple-500 uppercase tracking-widest ml-1">Delivery Type</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { value: 'COURIER', label: 'Courier', icon: '📦', desc: 'Ship via courier' },
+                      { value: 'IN_CITY', label: 'In-City', icon: '🚚', desc: 'Local delivery' },
+                      { value: 'PICKUP', label: 'Pickup', icon: '🏪', desc: 'Customer pickup' },
+                    ].map(dt => (
+                      <button key={dt.value} type="button"
+                        onClick={() => setSelectedDeliveryType(prev => prev === dt.value ? '' : dt.value)}
+                        className={`p-3 rounded-xl border-2 text-center transition-all active:scale-95 ${
+                          selectedDeliveryType === dt.value
+                            ? 'border-purple-500 bg-purple-500/10 text-purple-400 shadow-lg shadow-purple-900/20'
+                            : 'border-gray-800 bg-gray-950 text-gray-400 hover:border-gray-700'
+                        }`}>
+                        <span className="text-lg block mb-1">{dt.icon}</span>
+                        <span className="text-[9px] font-black uppercase tracking-wider">{dt.label}</span>
+                        <span className="text-[7px] text-gray-600 block mt-0.5">{dt.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {(order.type === 'FULL_CUSTOM' || order.type === 'READY_LOGO') && currentStage?.stageName === 'STORE' && (
                 <div className="space-y-3">
                   <label className="text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-1">Add Customization Amount ($)</label>
@@ -1040,12 +1170,14 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     onUpdateStage(order.id, currentStage.id, 'approve', { 
                       nextStage, 
                       customizationPrice: customizationAmount,
-                      deliveryMethod: deliveryMethod || null
+                      deliveryMethod: deliveryMethod || null,
+                      deliveryType: selectedDeliveryType || null
                     });
                     setShowApprovalDialog(false);
                     setCustomizationAmount('0');
                     setNextStage('');
                     setDeliveryMethod('');
+                    setSelectedDeliveryType('');
                   }
                 }}
                 className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black py-5 rounded-xl text-xs uppercase tracking-widest transition-all shadow-xl shadow-blue-900/20"
@@ -1053,7 +1185,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 Confirm & Send
               </button>
               <button 
-                onClick={() => { setShowApprovalDialog(false); setNextStage(''); setDeliveryMethod(''); }}
+                onClick={() => { setShowApprovalDialog(false); setNextStage(''); setDeliveryMethod(''); setSelectedDeliveryType(''); }}
                 className="w-full bg-gray-900 hover:bg-gray-800 text-gray-500 py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
               >
                 Cancel
@@ -1186,6 +1318,97 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 className="w-full bg-gray-900 hover:bg-gray-800 text-gray-500 py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
               >
                 Go Back
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+      {/* --- FORCE ACTION MODAL --- */}
+      {showForceModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="glass max-w-md w-full p-8 rounded-[2rem] border-2 border-red-500/30 shadow-2xl"
+          >
+            <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-2 text-center flex items-center justify-center gap-2">
+              ⚡ Force Action
+            </h3>
+            <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest text-center mb-8">Admin override — all actions are logged</p>
+
+            <div className="space-y-4 mb-6">
+              <div className="flex gap-2">
+                {['FORCE_MOVE', 'FORCE_COMPLETE', 'EXTEND_DEADLINE'].map(a => (
+                  <button
+                    key={a}
+                    onClick={() => setForceAction(a)}
+                    className={`flex-1 py-2 px-1 rounded-xl text-[8px] font-black uppercase tracking-wider transition-all ${
+                      forceAction === a ? 'bg-red-600 text-white' : 'bg-gray-900 text-gray-500 border border-gray-800'
+                    }`}
+                  >
+                    {a.replace(/_/g, ' ')}
+                  </button>
+                ))}
+              </div>
+
+              {forceAction === 'FORCE_MOVE' && (
+                <div>
+                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 block">Target Stage</label>
+                  <select value={forceStage} onChange={(e) => setForceStage(e.target.value)} className="w-full bg-gray-950 border-2 border-gray-800 rounded-xl py-3 px-4 outline-none focus:border-red-500 text-white font-bold text-sm">
+                    <option value="">Select stage...</option>
+                    <option value="STORE">STORE</option>
+                    <option value="LOGO_DESIGN">LOGO DESIGN</option>
+                    <option value="PRODUCTION">PRODUCTION</option>
+                    <option value="DISPATCH">DISPATCH</option>
+                    <option value="OUT_FOR_DELIVERY">OUT FOR DELIVERY</option>
+                  </select>
+                </div>
+              )}
+
+              {forceAction === 'EXTEND_DEADLINE' && (
+                <div>
+                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 block">Additional Hours</label>
+                  <input type="number" min="1" value={forceHours} onChange={(e) => setForceHours(e.target.value)} className="w-full bg-gray-950 border-2 border-gray-800 rounded-xl py-3 px-4 outline-none focus:border-red-500 text-white font-black text-lg" placeholder="e.g. 24" />
+                </div>
+              )}
+
+              <div>
+                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 block">Reason (required)</label>
+                <textarea value={forceReason} onChange={(e) => setForceReason(e.target.value)} className="w-full bg-gray-950 border-2 border-gray-800 rounded-xl py-3 px-4 outline-none focus:border-red-500 text-white font-bold text-sm min-h-[80px]" placeholder="Why is this force action needed?" />
+              </div>
+            </div>
+
+            <div className="flex flex-col space-y-3">
+              <button
+                disabled={!forceReason.trim() || forceLoading || (forceAction === 'FORCE_MOVE' && !forceStage) || (forceAction === 'EXTEND_DEADLINE' && !forceHours)}
+                onClick={async () => {
+                  setForceLoading(true);
+                  try {
+                    const body = { action: forceAction, reason: forceReason };
+                    if (forceAction === 'FORCE_MOVE') body.stageName = forceStage;
+                    if (forceAction === 'EXTEND_DEADLINE') body.hours = parseFloat(forceHours);
+                    await axios.post(`${API_URL}/api/orders/${order.id}/force`, body, {
+                      headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
+                    });
+                    setShowForceModal(false);
+                    setForceAction('FORCE_MOVE');
+                    setForceStage('');
+                    setForceHours('');
+                    setForceReason('');
+                    window.location.reload();
+                  } catch (err) {
+                    alert('Force action failed: ' + (err.response?.data?.error || err.message));
+                  }
+                  setForceLoading(false);
+                }}
+                className="w-full bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-black py-5 rounded-xl text-xs uppercase tracking-widest transition-all shadow-xl shadow-red-900/20"
+              >
+                {forceLoading ? 'Processing...' : 'Execute Force Action'}
+              </button>
+              <button onClick={() => { setShowForceModal(false); setForceReason(''); setForceAction('FORCE_MOVE'); setForceStage(''); setForceHours(''); }}
+                className="w-full bg-gray-900 hover:bg-gray-800 text-gray-500 py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+              >
+                Cancel
               </button>
             </div>
           </motion.div>

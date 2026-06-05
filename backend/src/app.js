@@ -1,13 +1,12 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const { PrismaClient } = require('@prisma/client');
 const path = require('path');
 const multer = require('multer');
+const prisma = require('./prisma');
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
-const prisma = new PrismaClient();
 const app = express();
 const frontendUrl = process.env.FRONTEND_URL || "*";
 
@@ -51,12 +50,18 @@ const orderRoutes = require('./routes/order.routes');
 const inventoryRoutes = require('./routes/inventory.routes');
 const adminRoutes = require('./routes/admin.routes');
 const settingsRoutes = require('./routes/settings.routes');
+const stockRequestRoutes = require('./routes/stockRequest.routes');
+const userRoutes = require('./routes/user.routes');
+const dispatchRoutes = require('./routes/dispatch.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/stock-requests', stockRequestRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/dispatch', dispatchRoutes);
 
 // Safe Socket.io stub for serverless environments (overridden in server.js)
 const safeIo = {

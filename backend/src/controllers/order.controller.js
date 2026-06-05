@@ -1,35 +1,96 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../prisma');
 const { calculateDeadline } = require('../utils/deadline');
- 
+
+const isSystemPaused = async () => {
+  try {
+    const setting = await prisma.systemSetting.findUnique({ where: { key: 'SYSTEM_PAUSED' } });
+    return setting ? setting.value === 'true' : false;
+  } catch { return false; }
+};
+
+const PRIORITY_ORDER = { 'SUPER_URGENT': 0, 'URGENT': 1, 'NORMAL': 2 };
+const sortByPriority = (orders) => {
+  return [...orders].sort((a, b) => {
+    const pa = PRIORITY_ORDER[a.priority] ?? 2;
+    const pb = PRIORITY_ORDER[b.priority] ?? 2;
+    if (pa !== pb) return pa - pb;
+    return new Date(b.createdAt) - new Date(a.createdAt);
+  });
+};
+
 const NEXT_STAGES = {
   'STANDARD': ['STORE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'],
   'READY_LOGO': ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'],
   'FULL_CUSTOM': ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY']
 };
  
-const AUTO_TRANSITION_STAGES = ['DISPATCH', 'OUT_FOR_DELIVERY'];
+const AUTO_TRANSITION_STAGES = ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'];
 
-const getStageDurations = async () => {
+const getStageDurations = async (priority = 'NORMAL') => {
   const settings = await prisma.systemSetting.findUnique({
     where: { key: 'STAGE_DURATIONS' }
   });
   
-  if (settings) {
+  const slaSettings = await prisma.systemSetting.findUnique({
+    where: { key: 'SLA_CONFIG' }
+  });
+
+  const profileSettings = await prisma.systemSetting.findUnique({
+    where: { key: 'PROFILE_DEADLINES' }
+  });
+
+  let slaMultiplier = 1;
+  if (slaSettings) {
     try {
-      return JSON.parse(settings.value);
-    } catch (e) {
-      console.error('Error parsing durations setting:', e);
-    }
+      const sla = JSON.parse(slaSettings.value);
+      if (priority === 'SUPER_URGENT') slaMultiplier = sla.superUrgentMultiplier || 0.5;
+      else if (priority === 'URGENT') slaMultiplier = sla.urgentMultiplier || 0.75;
+    } catch (e) { console.error('Error parsing SLA config:', e); }
   }
   
-  return {
-    'STORE': 2,
+  let durations = {
+    'STORE': 24,
     'PRODUCTION': 48,
-    'LOGO_DESIGN': 2,
-    'DISPATCH': 2,
-    'FAISAL_APPROVAL': 2
+    'LOGO_DESIGN': 24,
+    'DISPATCH': 12,
+    'OUT_FOR_DELIVERY': 12
   };
+  
+  // Apply profile deadlines as defaults (role → stage mapping)
+  if (profileSettings) {
+    try {
+      const profileDeadlines = JSON.parse(profileSettings.value);
+      const roleStageMap = {
+        'ORDER_ENTRY': 'ORDER_ENTRY',
+        'STORE': 'STORE',
+        'PRODUCTION': 'PRODUCTION',
+        'LOGO_DESIGN': 'LOGO_DESIGN',
+        'DISPATCH': 'DISPATCH',
+        'OUT_FOR_DELIVERY': 'OUT_FOR_DELIVERY',
+        'DELIVERY_BOY': 'OUT_FOR_DELIVERY'
+      };
+      for (const [role, hours] of Object.entries(profileDeadlines)) {
+        const stage = roleStageMap[role];
+        if (stage && hours > 0) {
+          durations[stage] = hours;
+        }
+      }
+    } catch (e) { console.error('Error parsing profile deadlines:', e); }
+  }
+  
+  // Stage durations override profile defaults
+  if (settings) {
+    try {
+      durations = { ...durations, ...JSON.parse(settings.value) };
+    } catch (e) { console.error('Error parsing durations setting:', e); }
+  }
+
+  // Apply SLA multiplier
+  const adjusted = {};
+  for (const [stage, hours] of Object.entries(durations)) {
+    adjusted[stage] = Math.round((hours * slaMultiplier) * 100) / 100;
+  }
+  return adjusted;
 };
  
 
@@ -57,16 +118,38 @@ const createAuditLog = async (orderId, action, details, userId) => {
   }
 };
 
+const setProductionDeadline = async (orderId, deadlineDate, action, userId) => {
+  await prisma.order.update({
+    where: { id: orderId },
+    data: { productionDeadline: deadlineDate }
+  });
+  await createAuditLog(orderId, action || 'PRODUCTION_DEADLINE_SET', `Production deadline set to ${deadlineDate.toISOString()}`, userId);
+};
+
+const checkAndSetProductionDeadline = async (orderId, newStageName, deadlineAt, userId) => {
+  if (newStageName === 'PRODUCTION' && deadlineAt) {
+    await setProductionDeadline(orderId, deadlineAt, 'PRODUCTION_STARTED', userId);
+  }
+};
+
+
 
 
 const createOrder = async (req, res) => {
-  const { orderNumber: requestedOrderNumber, customerName, customerPhone, address, type, urgent, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, shopifyOrderId, paymentDeadline, productImage, items } = req.body;
+  const { orderNumber: requestedOrderNumber, customerName, customerPhone, address, city, type, urgent, priority, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, shopifyOrderId, paymentDeadline, productImage, items } = req.body;
+
+  // Derive priority and urgent
+  const finalPriority = priority || (urgent ? 'URGENT' : 'NORMAL');
+  const finalUrgent = finalPriority !== 'NORMAL';
 
   if (!customerPhone) {
     return res.status(400).json({ error: 'Customer phone number is required' });
   }
 
   try {
+    if (await isSystemPaused()) {
+      return res.status(503).json({ error: 'System is paused for holidays. Order creation is disabled.' });
+    }
     let orderNumber = requestedOrderNumber;
 
     // Handle Order Number Generation for Outlets or if missing
@@ -124,6 +207,7 @@ const createOrder = async (req, res) => {
         customerName,
         customerPhone,
         address,
+        city,
         createdById: req.user?.id,
         source: req.user?.role === 'OUTLET' ? 'OUTLET' : 'INTERNAL',
         outletName: (() => {
@@ -138,7 +222,8 @@ const createOrder = async (req, res) => {
           return req.user?.name || 'ADMIN HUB';
         })(),
         type: type || 'STANDARD',
-        urgent: urgent || false,
+        urgent: finalUrgent,
+        priority: finalPriority,
         quantity: parseInt(quantity) || 1,
         logoDesign,
         logoName,
@@ -171,8 +256,8 @@ const createOrder = async (req, res) => {
       const firstStage = stages[0]; // Usually 'STORE'
       
       if (firstStage) {
-        const durations = await getStageDurations();
-        const deadline = calculateDeadline(new Date(), durations[firstStage] || 2);
+        const durations = await getStageDurations(order.priority);
+        const deadline = calculateDeadline(new Date(), durations[firstStage] || 24);
         
         await prisma.orderStage.create({
           data: {
@@ -211,6 +296,35 @@ const createOrder = async (req, res) => {
 
 const getOrders = async (req, res) => {
   try {
+    // Escalation check: auto-log overdue priority stages
+    try {
+      const overduePriorityStages = await prisma.orderStage.findMany({
+        where: {
+          status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'] },
+          deadlineAt: { lt: new Date() },
+          order: { priority: { in: ['URGENT', 'SUPER_URGENT'] } }
+        },
+        include: { order: { select: { id: true, orderNumber: true, priority: true } } },
+        take: 10
+      });
+      for (const stage of overduePriorityStages) {
+        const existingEscalation = await prisma.auditLog.findFirst({
+          where: { orderId: stage.orderId, action: 'ESCALATION_OVERDUE', details: { contains: stage.stageName } },
+          orderBy: { timestamp: 'desc' }
+        });
+        if (!existingEscalation || (Date.now() - existingEscalation.timestamp.getTime()) > 3600000) {
+          await prisma.auditLog.create({
+            data: {
+              orderId: stage.orderId,
+              action: 'ESCALATION_OVERDUE',
+              details: `CRITICAL: ${stage.order.priority} order #${stage.order.orderNumber} - Stage ${stage.stageName} exceeded deadline on ${stage.deadlineAt.toISOString()}`,
+              performedBy: req.user?.id || 'SYSTEM'
+            }
+          }).catch(() => {});
+        }
+      }
+    } catch (e) { /* non-blocking */ }
+
     const role = String(req.user.role || '').toUpperCase().trim();
     const id = req.user.id;
     const { status: filterStatus, limit } = req.query;
@@ -269,7 +383,7 @@ const getOrders = async (req, res) => {
           take: 100
         });
 
-        return res.json([...activeOrders, ...completedOrders]);
+        return res.json(sortByPriority([...activeOrders, ...completedOrders]));
       }
     }
 
@@ -290,7 +404,7 @@ const getOrders = async (req, res) => {
       take: limit === 'all' ? undefined : (parseInt(limit) || 200)
     });
     
-    res.json(orders);
+    res.json(sortByPriority(orders));
   } catch (error) {
     res.status(500).json({ message: 'Error fetching orders', error: error.message });
   }
@@ -301,85 +415,68 @@ const requestStageCompletion = async (req, res) => {
   const { inventoryStatus } = req.body;
 
   try {
+    if (await isSystemPaused()) {
+      return res.status(503).json({ message: 'System is paused for holidays. Stage completion is disabled.' });
+    }
     const currentStage = await prisma.orderStage.findUnique({ where: { id: stageId } });
     const order = await prisma.order.findUnique({ where: { id: orderId } });
 
-    // If it's an auto-transition stage, move it immediately
-    if (AUTO_TRANSITION_STAGES.includes(currentStage.stageName)) {
-      await prisma.orderStage.update({
-        where: { id: stageId },
-        data: { status: 'COMPLETED', completedAt: new Date() }
-      });
-
-      const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
-      const currentIndex = stages.indexOf(currentStage.stageName);
-      const actualNextStage = stages[currentIndex + 1];
-
-      if (actualNextStage) {
-        const durations = await getStageDurations();
-        const deadline = calculateDeadline(new Date(), durations[actualNextStage] || 2);
-
-        await prisma.orderStage.create({
-          data: {
-            orderId,
-            stageName: actualNextStage,
-            status: 'PENDING',
-            deadlineAt: deadline
-          }
-        });
-
-        await prisma.order.update({
-          where: { id: orderId },
-          data: { currentStage: actualNextStage }
-        });
-
-        await createAuditLog(orderId, 'STAGE_AUTO_TRANSITION', `${currentStage.stageName} completed by worker. Auto-moved to ${actualNextStage}`, req.user.id);
-      } else if (currentStage.stageName === 'OUT_FOR_DELIVERY') {
-        // FINAL STAGE COMPLETED
-        await prisma.order.update({
-          where: { id: orderId },
-          data: { 
-            currentStage: 'COMPLETED',
-            status: 'COMPLETED'
-          }
-        });
-        await createAuditLog(orderId, 'ORDER_COMPLETED', `Order fully completed after final delivery stage. Moved to History.`, req.user.id);
+    // Inventory deduction on Store confirmation
+    if (currentStage.stageName === 'STORE' && (inventoryStatus === 'have_it' || inventoryStatus === 'Available')) {
+      try {
+        await deductInventory(order, req.user.id);
+        await createAuditLog(orderId, 'INVENTORY_CONFIRMED', 'Store confirmed inventory available & allocated. Stock deducted.', req.user.id);
+      } catch (invErr) {
+        console.error('Inventory deduction error:', invErr);
       }
-      
-      const io = req.app.get('io');
-      io.emit('order-updated', { orderId, createdById: order.createdById });
-      return res.json({ message: 'Auto-moved to next stage', nextStage: actualNextStage });
     }
 
-    // Otherwise, go to Faisal for approval (Hub Pattern)
-    const durations = await getStageDurations();
-    const approvalDuration = durations['FAISAL_APPROVAL'] || 2; 
-    const deadline = calculateDeadline(new Date(), approvalDuration);
-
-    const stage = await prisma.orderStage.update({
+    // Mark current stage as completed
+    await prisma.orderStage.update({
       where: { id: stageId },
-      data: {
-        requestNextStep: true,
-        status: 'WAITING_APPROVAL',
-        assignedEmployeeId: req.user.id,
-        deadlineAt: deadline,
-        ...(inventoryStatus && { rejectionReason: `Inventory Check: ${inventoryStatus}` })
-      }
+      data: { status: 'COMPLETED', completedAt: new Date() }
     });
 
-     const io = req.app.get('io');
-     io.emit('stage-completion-requested', { orderId, stage, urgent: order?.urgent });
-     io.emit('order-updated', { orderId, createdById: order?.createdById || stage?.order?.createdById });
-     io.emit('global-alert', {
-       title: 'Approval Required',
-       message: `${stage.stageName.replace(/_/g, ' ')} completed. Sent to Faisal.`,
-       icon: 'clipboard',
-       urgent: order?.urgent
-     });
+    // Auto-transition to next stage
+    const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
+    const currentIndex = stages.indexOf(currentStage.stageName);
+    const actualNextStage = stages[currentIndex + 1];
 
-    await createAuditLog(orderId, 'STAGE_COMPLETION_REQUESTED', `Completion requested for ${stage.stageName}. Waiting for Faisal.`, req.user.id);
+    if (actualNextStage) {
+      const durations = await getStageDurations(order.priority);
+      const deadline = calculateDeadline(new Date(), durations[actualNextStage] || 24);
 
-    res.json({ message: 'Completion requested from Faisal', stage });
+      await prisma.orderStage.create({
+        data: {
+          orderId,
+          stageName: actualNextStage,
+          status: 'PENDING',
+          deadlineAt: deadline
+        }
+      });
+      await checkAndSetProductionDeadline(orderId, actualNextStage, deadline, req.user.id);
+
+      await prisma.order.update({
+        where: { id: orderId },
+        data: { currentStage: actualNextStage }
+      });
+
+      await createAuditLog(orderId, 'STAGE_AUTO_TRANSITION', `${currentStage.stageName} completed. Auto-moved to ${actualNextStage}.`, req.user.id);
+    } else if (currentStage.stageName === 'OUT_FOR_DELIVERY') {
+      // FINAL STAGE COMPLETED
+      await prisma.order.update({
+        where: { id: orderId },
+        data: { 
+          currentStage: 'COMPLETED',
+          status: 'COMPLETED'
+        }
+      });
+      await createAuditLog(orderId, 'ORDER_COMPLETED', `Order fully completed after final delivery stage.`, req.user.id);
+    }
+    
+    const io = req.app.get('io');
+    io.emit('order-updated', { orderId, createdById: order.createdById });
+    return res.json({ message: 'Stage completed and auto-moved to next stage', nextStage: actualNextStage });
   } catch (error) {
     res.status(500).json({ message: 'Error requesting completion', error: error.message });
   }
@@ -387,9 +484,12 @@ const requestStageCompletion = async (req, res) => {
 
 const approveStageCompletion = async (req, res) => {
   const { orderId, stageId } = req.params;
-  const { nextStage, customizationPrice, deliveryMethod } = req.body; 
+  const { nextStage, customizationPrice, deliveryMethod, deliveryType } = req.body; 
 
   try {
+    if (await isSystemPaused()) {
+      return res.status(503).json({ message: 'System is paused for holidays. Approvals are disabled.' });
+    }
     const currentStageRecord = await prisma.orderStage.update({
       where: { id: stageId },
       data: {
@@ -400,13 +500,16 @@ const approveStageCompletion = async (req, res) => {
 
     const order = await prisma.order.findUnique({ where: { id: orderId } });
     
-    // Update Customization Price and Delivery Method if provided
+    // Update Customization Price, Delivery Method and Delivery Type if provided
     const updateData = {};
     if (customizationPrice && parseFloat(customizationPrice) > 0) {
       updateData.customizationPrice = (order.customizationPrice || 0) + parseFloat(customizationPrice);
     }
     if (deliveryMethod) {
       updateData.deliveryMethod = deliveryMethod;
+    }
+    if (deliveryType) {
+      updateData.deliveryType = deliveryType;
     }
 
     if (Object.keys(updateData).length > 0) {
@@ -416,64 +519,17 @@ const approveStageCompletion = async (req, res) => {
       });
     }
 
-    // --- INVENTORY DEDUCTION ---
-    if (currentStageRecord.stageName === 'STORE') {
-      let parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
-      
-      // Handle multi-item orders: productDetails is an array of items
-      const productsToDeduct = [];
-      if (Array.isArray(parsedDetails)) {
-        // Multi-item order: each element has { productDetails: {...}, quantity, ... }
-        parsedDetails.forEach(item => {
-          const pd = item.productDetails || item;
-          if (pd?.productType) {
-            productsToDeduct.push({ productType: pd.productType, quantity: item.quantity || 1 });
-          }
-        });
-      } else if (parsedDetails?.productType) {
-        // Single-item order (legacy format)
-        productsToDeduct.push({ productType: parsedDetails.productType, quantity: order.quantity || 1 });
-      }
-
-      for (const prod of productsToDeduct) {
-        const inventoryItem = await prisma.inventoryItem.findFirst({
-          where: { 
-            name: { contains: prod.productType, mode: 'insensitive' },
-            category: { not: 'FABRIC' }
-          }
-        });
-
-        if (inventoryItem && inventoryItem.stock > 0) {
-          const deductQty = Math.min(prod.quantity, inventoryItem.stock);
-          await prisma.inventoryItem.update({
-            where: { id: inventoryItem.id },
-            data: { stock: { decrement: deductQty } }
-          });
-          await createAuditLog(orderId, 'INVENTORY_DEDUCTED', `Deducted ${deductQty} unit(s) of ${inventoryItem.name} from stock.`, req.user.id);
-        }
-      }
-    }
-
-    let actualNextStage = null;
-
-    // HUB-AND-SPOKE LOGIC
-    // 1. If the stage is one that auto-transitions, move to the next in sequence
-    if (AUTO_TRANSITION_STAGES.includes(currentStageRecord.stageName)) {
+    // Determine next stage
+    let actualNextStage = nextStage;
+    if (!actualNextStage) {
       const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
       const currentIndex = stages.indexOf(currentStageRecord.stageName);
       actualNextStage = stages[currentIndex + 1];
-    } 
-    // 2. If Faisal explicitly specified a next stage in the approval dialog
-    else if (nextStage) {
-      actualNextStage = nextStage;
     }
-    // 3. Otherwise, it defaults to Faisal's control (the hub)
-    // In this case, actualNextStage remains null, and the order stays in Faisal's list 
-    // waiting for him to "Initiate" the next stage.
 
     if (actualNextStage) {
-      const durations = await getStageDurations();
-      const duration = durations[actualNextStage] || 2;
+      const durations = await getStageDurations(order.priority);
+      const duration = durations[actualNextStage] || 24;
       const deadline = calculateDeadline(new Date(), duration);
 
       await prisma.orderStage.create({
@@ -484,6 +540,7 @@ const approveStageCompletion = async (req, res) => {
           deadlineAt: deadline
         }
       });
+      await checkAndSetProductionDeadline(orderId, actualNextStage, deadline, req.user.id);
 
       await prisma.order.update({
         where: { id: orderId },
@@ -497,34 +554,19 @@ const approveStageCompletion = async (req, res) => {
       io.emit('global-alert', {
         title: 'Phase Advanced',
         message: `Order moved to ${actualNextStage.replace(/_/g, ' ')}.`,
-        icon: 'package',
-        urgent: order?.urgent
+        icon: 'package'
       });
     } else {
-      // It returns to Faisal or is finished
-      if (currentStageRecord.stageName === 'OUT_FOR_DELIVERY') {
-        await prisma.order.update({
-          where: { id: orderId },
-          data: { 
-            currentStage: 'COMPLETED',
-            status: 'COMPLETED'
-          }
-        });
-      } else {
-        // Returned to Faisal (WAITING_APPROVAL/HUB state)
-        await prisma.order.update({
-          where: { id: orderId },
-          data: { 
-            status: 'WAITING_APPROVAL' // Or a special HUB status
-          }
-        });
-      }
+      await prisma.order.update({
+        where: { id: orderId },
+        data: { status: 'COMPLETED', currentStage: 'COMPLETED' }
+      });
     }
 
-    await createAuditLog(orderId, 'STAGE_APPROVED', `${currentStageRecord.stageName} approved. ${actualNextStage ? `Sent to: ${actualNextStage}` : 'Returned to Faisal Control Center'}${customizationPrice ? ` | Added Cost: $${customizationPrice}` : ''}${deliveryMethod ? ` | Delivery: ${deliveryMethod}` : ''}`, req.user.id);
+    await createAuditLog(orderId, 'STAGE_APPROVED', `${currentStageRecord.stageName} processed. ${actualNextStage ? `Sent to: ${actualNextStage}` : 'Order completed.'}${customizationPrice ? ` | Added Cost: $${customizationPrice}` : ''}${deliveryMethod ? ` | Delivery: ${deliveryMethod}` : ''}`, req.user.id);
 
     const io = req.app.get('io');
-    io.emit('order-updated', { orderId, createdById: order?.createdById || stage?.order?.createdById });
+    io.emit('order-updated', { orderId, createdById: order?.createdById });
 
     res.json({ message: 'Stage processed successfully', nextStage: actualNextStage });
   } catch (error) {
@@ -574,8 +616,8 @@ const updatePaymentStatus = async (req, res) => {
 
     // If it was waiting for payment and now advance is paid, move to first module (STORE)
     if (order.status === 'WAITING_PAYMENT' && order.advancePaid) {
-      const durations = await getStageDurations();
-      const deadline = calculateDeadline(new Date(), durations['STORE']);
+      const durations = await getStageDurations(order.priority);
+      const deadline = calculateDeadline(new Date(), durations['STORE'] || 24);
       await prisma.orderStage.create({
         data: {
           orderId,
@@ -585,7 +627,7 @@ const updatePaymentStatus = async (req, res) => {
         }
       });
       
-      await prisma.order.update({
+      const updated = await prisma.order.update({
         where: { id: orderId },
         data: { 
           status: 'IN_PROGRESS',
@@ -615,7 +657,7 @@ const getAnalytics = async (req, res) => {
       prisma.order.count(),
       prisma.order.count({ where: { status: 'COMPLETED' } }),
       prisma.order.count({ where: { status: 'IN_PROGRESS' } }),
-      prisma.order.count({ where: { urgent: true } }),
+      prisma.order.count({ where: { priority: { in: ['URGENT', 'SUPER_URGENT'] } } }),
       prisma.order.aggregate({
         where: {
           updatedAt: { gte: today }
@@ -787,10 +829,13 @@ const deleteOrder = async (req, res) => {
 
 const updateDeliveryStatus = async (req, res) => {
   const { orderId } = req.params;
-  const { deliveryStatus, remarks } = req.body; // deliveryStatus: 'DELIVERED' | 'NOT_RESPONDED'
+  const { deliveryStatus, remarks, paymentMethod } = req.body; // deliveryStatus: 'DELIVERED' | 'NOT_RESPONDED'
   const userId = req.user?.id;
 
   try {
+    if (await isSystemPaused()) {
+      return res.status(503).json({ message: 'System is paused for holidays. Delivery updates are disabled.' });
+    }
     const order = await prisma.order.findUnique({ where: { id: orderId } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
@@ -801,6 +846,7 @@ const updateDeliveryStatus = async (req, res) => {
         currentStage: deliveryStatus === 'DELIVERED' ? 'DELIVERED' : order.currentStage,
         paymentStatus: deliveryStatus === 'DELIVERED' ? 'FULL_PAID' : order.paymentStatus,
         advancePaid: deliveryStatus === 'DELIVERED' ? true : order.advancePaid,
+        paymentMethod: paymentMethod || (deliveryStatus === 'DELIVERED' ? 'CASH' : order.paymentMethod),
         updatedAt: new Date()
       },
       include: { stages: true }
@@ -823,6 +869,80 @@ const updateDeliveryStatus = async (req, res) => {
   }
 };
 
+const deductInventory = async (order, userId) => {
+  if (!order) return;
+  let parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+  
+  const productsToDeduct = [];
+  if (Array.isArray(parsedDetails)) {
+    parsedDetails.forEach(item => {
+      const pd = item.productDetails || item;
+      if (pd?.productType) {
+        productsToDeduct.push({ productType: pd.productType, quantity: item.quantity || 1, color: pd.color, size: pd.size });
+      }
+    });
+  } else if (parsedDetails?.productType) {
+    productsToDeduct.push({ productType: parsedDetails.productType, quantity: order.quantity || 1, color: parsedDetails.color, size: parsedDetails.size });
+  }
+
+  for (const prod of productsToDeduct) {
+    const inventoryItem = await prisma.inventoryItem.findFirst({
+      where: { 
+        name: { contains: prod.productType, mode: 'insensitive' },
+        category: { not: 'FABRIC' }
+      }
+    });
+
+    if (!inventoryItem || inventoryItem.stock <= 0) continue;
+
+    const deductQty = Math.min(prod.quantity, inventoryItem.stock);
+
+    // If item has variants, deduct from the matching variant
+    if (inventoryItem.variants && Array.isArray(inventoryItem.variants)) {
+      let updatedVariants = [...inventoryItem.variants];
+      let remaining = deductQty;
+
+      if (prod.color || prod.size) {
+        // Try to match by color and/or size
+        const matchIdx = updatedVariants.findIndex(v =>
+          (!prod.color || (v.color && v.color.toLowerCase() === prod.color.toLowerCase())) &&
+          (!prod.size || (v.size && v.size.toLowerCase() === prod.size.toLowerCase())) &&
+          (v.stock || 0) > 0
+        );
+        if (matchIdx >= 0) {
+          const deductFromVariant = Math.min(remaining, updatedVariants[matchIdx].stock || 0);
+          updatedVariants[matchIdx] = { ...updatedVariants[matchIdx], stock: (updatedVariants[matchIdx].stock || 0) - deductFromVariant };
+          remaining -= deductFromVariant;
+        }
+      }
+
+      // If specific variant not found or remaining, spread across all variants
+      if (remaining > 0) {
+        for (let i = 0; i < updatedVariants.length && remaining > 0; i++) {
+          if ((updatedVariants[i].stock || 0) > 0) {
+            const deductFromVariant = Math.min(remaining, updatedVariants[i].stock);
+            updatedVariants[i] = { ...updatedVariants[i], stock: (updatedVariants[i].stock || 0) - deductFromVariant };
+            remaining -= deductFromVariant;
+          }
+        }
+      }
+
+      const newTotalStock = updatedVariants.reduce((s, v) => s + (v.stock || 0), 0);
+      await prisma.inventoryItem.update({
+        where: { id: inventoryItem.id },
+        data: { variants: updatedVariants, stock: newTotalStock }
+      });
+    } else {
+      // Legacy item without variants
+      await prisma.inventoryItem.update({
+        where: { id: inventoryItem.id },
+        data: { stock: { decrement: deductQty } }
+      });
+    }
+    await createAuditLog(order.id, 'INVENTORY_DEDUCTED', `Deducted ${deductQty} unit(s) of ${inventoryItem.name} from stock (order creation).`, userId);
+  }
+};
+
 const sendForDelivery = async (req, res) => {
   const { orderId } = req.params;
   try {
@@ -835,8 +955,8 @@ const sendForDelivery = async (req, res) => {
       data: { status: 'COMPLETED', completedAt: new Date() }
     });
 
-    const durations = await getStageDurations();
-    const deadline = calculateDeadline(new Date(), durations['OUT_FOR_DELIVERY'] || 2);
+    const durations = await getStageDurations(order.priority);
+    const deadline = calculateDeadline(new Date(), durations['OUT_FOR_DELIVERY'] || 24);
 
     // Create the OUT_FOR_DELIVERY stage
     await prisma.orderStage.create({
@@ -865,6 +985,238 @@ const sendForDelivery = async (req, res) => {
   }
 };
 
+const updateOrderPriority = async (req, res) => {
+  const { orderId } = req.params;
+  const { priority } = req.body;
+  if (!['NORMAL', 'URGENT', 'SUPER_URGENT'].includes(priority)) {
+    return res.status(400).json({ message: 'Invalid priority. Must be NORMAL, URGENT, or SUPER_URGENT.' });
+  }
+  try {
+    const order = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        priority,
+        urgent: priority !== 'NORMAL'
+      }
+    });
+    await createAuditLog(orderId, 'PRIORITY_UPDATED', `Priority changed to ${priority} by ${req.user.name}`, req.user.id);
+    res.json({ message: `Priority updated to ${priority}`, order });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to update priority', error: error.message });
+  }
+};
+
+const setDeliveryType = async (req, res) => {
+  const { orderId } = req.params;
+  const { deliveryType } = req.body;
+  if (!['PICKUP', 'IN_CITY', 'COURIER'].includes(deliveryType)) {
+    return res.status(400).json({ message: 'Invalid delivery type. Must be PICKUP, IN_CITY, or COURIER.' });
+  }
+  try {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { deliveryType }
+    });
+
+    await createAuditLog(orderId, 'DELIVERY_TYPE_SET', `Delivery type set to ${deliveryType} by ${req.user.name}`, req.user.id);
+    res.json({ message: `Delivery type set to ${deliveryType}` });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to set delivery type', error: error.message });
+  }
+};
+
+const forceAction = async (req, res) => {
+  const { orderId } = req.params;
+  const { action, stageName, reason } = req.body;
+
+  try {
+    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: true } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    let response = {};
+
+    switch (action) {
+      case 'FORCE_MOVE': {
+        // Force move to a specific stage
+        if (!stageName) return res.status(400).json({ message: 'Target stage name required' });
+        
+        // Complete current stage
+        const currentStage = order.stages.find(s => s.status === 'PENDING' || s.status === 'IN_PROGRESS' || s.status === 'WAITING_APPROVAL');
+        if (currentStage) {
+          await prisma.orderStage.update({
+            where: { id: currentStage.id },
+            data: { status: 'COMPLETED', completedAt: new Date(), rejectionReason: `Force completed by ${req.user.name}: ${reason || 'No reason'}` }
+          });
+        }
+
+        // Create new stage
+        const durations = await getStageDurations(order.priority);
+        const deadline = calculateDeadline(new Date(), durations[stageName] || 24);
+        await prisma.orderStage.create({
+          data: { orderId, stageName, status: 'PENDING', deadlineAt: deadline }
+        });
+        await checkAndSetProductionDeadline(orderId, stageName, deadline, req.user.id);
+
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { currentStage: stageName, status: 'IN_PROGRESS' }
+        });
+
+        await createAuditLog(orderId, 'FORCE_MOVE', `Force moved to stage ${stageName} by ${req.user.name}. Reason: ${reason || 'No reason'}`, req.user.id);
+        response = { message: `Order force-moved to ${stageName}` };
+        break;
+      }
+
+      case 'EXTEND_DEADLINE': {
+        const { hours } = req.body;
+        if (!hours) return res.status(400).json({ message: 'Hours required' });
+        
+        const pendingStage = order.stages.find(s => s.status === 'PENDING' || s.status === 'IN_PROGRESS' || s.status === 'WAITING_APPROVAL');
+        if (!pendingStage) return res.status(400).json({ message: 'No active stage to extend' });
+
+        const newDeadline = calculateDeadline(new Date(), parseFloat(hours));
+        await prisma.orderStage.update({
+          where: { id: pendingStage.id },
+          data: { deadlineAt: newDeadline }
+        });
+
+        await createAuditLog(orderId, 'DEADLINE_EXTENDED', `Deadline extended by ${hours}h. New deadline: ${newDeadline.toISOString()}. By ${req.user.name}`, req.user.id);
+        response = { message: `Deadline extended by ${hours} hours`, deadlineAt: newDeadline };
+        break;
+      }
+
+      case 'FORCE_COMPLETE': {
+        const currentActive = order.stages.find(s => s.status === 'PENDING' || s.status === 'IN_PROGRESS' || s.status === 'WAITING_APPROVAL');
+        if (currentActive) {
+          await prisma.orderStage.update({
+            where: { id: currentActive.id },
+            data: { status: 'COMPLETED', completedAt: new Date(), rejectionReason: `Force completed by ${req.user.name}: ${reason || 'No reason'}` }
+          });
+        }
+
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { currentStage: 'COMPLETED', status: 'COMPLETED' }
+        });
+
+        await createAuditLog(orderId, 'FORCE_COMPLETE', `Order force-completed by ${req.user.name}. Reason: ${reason || 'No reason'}`, req.user.id);
+        response = { message: 'Order force-completed' };
+        break;
+      }
+
+      default:
+        return res.status(400).json({ message: `Unknown action: ${action}` });
+    }
+
+    res.json(response);
+  } catch (error) {
+    res.status(500).json({ message: 'Force action failed', error: error.message });
+  }
+};
+
+const checkOrderInventory = async (req, res) => {
+  const { orderId } = req.params;
+  try {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    let parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+    const productsToCheck = [];
+
+    if (Array.isArray(parsedDetails)) {
+      parsedDetails.forEach(item => {
+        const pd = item.productDetails || item;
+        if (pd?.productType) {
+          productsToCheck.push({
+            productType: pd.productType,
+            quantity: item.quantity || 1,
+            color: pd.color,
+            size: pd.size,
+            customization: item.customization || pd.customization
+          });
+        }
+      });
+    } else if (parsedDetails?.productType) {
+      productsToCheck.push({
+        productType: parsedDetails.productType,
+        quantity: order.quantity || 1,
+        color: parsedDetails.color,
+        size: parsedDetails.size,
+        customization: parsedDetails.customization
+      });
+    }
+
+    const report = [];
+    for (const prod of productsToCheck) {
+      const inventoryItem = await prisma.inventoryItem.findFirst({
+        where: {
+          name: { contains: prod.productType, mode: 'insensitive' },
+          category: { not: 'FABRIC' }
+        }
+      });
+
+      if (!inventoryItem) {
+        report.push({
+          itemName: prod.productType,
+          requiredQty: prod.quantity,
+          availableQty: 0,
+          status: 'not_found',
+          variants: []
+        });
+        continue;
+      }
+
+      // Check variant-specific availability
+      let availableQty = 0;
+      let variantDetails = [];
+      if (inventoryItem.variants && Array.isArray(inventoryItem.variants)) {
+        variantDetails = inventoryItem.variants.map(v => ({
+          color: v.color,
+          size: v.size,
+          stock: v.stock || 0
+        }));
+        availableQty = inventoryItem.variants.reduce((sum, v) => sum + (v.stock || 0), 0);
+      } else {
+        availableQty = inventoryItem.stock || 0;
+      }
+
+      let status = 'available';
+      if (availableQty === 0) status = 'out_of_stock';
+      else if (availableQty < prod.quantity) status = 'insufficient';
+
+      report.push({
+        itemId: inventoryItem.id,
+        itemName: inventoryItem.name,
+        category: inventoryItem.category,
+        requiredQty: prod.quantity,
+        availableQty,
+        status,
+        variants: variantDetails,
+        requestedColor: prod.color,
+        requestedSize: prod.size,
+        customization: prod.customization
+      });
+    }
+
+    res.json({
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      report,
+      summary: {
+        totalItems: report.length,
+        available: report.filter(r => r.status === 'available').length,
+        insufficient: report.filter(r => r.status === 'insufficient').length,
+        outOfStock: report.filter(r => r.status === 'out_of_stock' || r.status === 'not_found').length
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error checking inventory', error: error.message });
+  }
+};
+
 module.exports = { 
   createOrder, 
   getOrders, 
@@ -878,5 +1230,9 @@ module.exports = {
   deleteOrder,
   updateDeliveryStatus,
   holdOrder,
-  sendForDelivery
+  sendForDelivery,
+  updateOrderPriority,
+  forceAction,
+  setDeliveryType,
+  checkOrderInventory
 };

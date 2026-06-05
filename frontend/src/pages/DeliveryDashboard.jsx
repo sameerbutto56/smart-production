@@ -13,7 +13,7 @@ import { useLanguage } from '../context/LanguageContext';
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
 /* ─── single order card ─── */
-const OrderCard = ({ order, idx, onAction, loading }) => {
+const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMethods }) => {
   const getStatus = () => {
     if (order.currentStage === 'DELIVERED' || order.status === 'COMPLETED') return 'DELIVERED';
     if (order.auditLogs?.find(l => l.action === 'NOT_RESPONDED')) return 'NOT_RESPONDED';
@@ -52,8 +52,13 @@ const OrderCard = ({ order, idx, onAction, loading }) => {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <p className="font-black text-white text-xl leading-tight">{order.customerName}</p>
-              {order.urgent && (
-                <span className="text-[9px] font-black text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">
+              {order.priority === 'SUPER_URGENT' && (
+                <span className="text-[9px] font-black text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20 animate-pulse">
+                  ⚡ SUPER URGENT
+                </span>
+              )}
+              {order.priority === 'URGENT' && (
+                <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
                   ⚡ URGENT
                 </span>
               )}
@@ -115,34 +120,62 @@ const OrderCard = ({ order, idx, onAction, loading }) => {
                 ₨{Number(order.totalPrice || 0).toLocaleString()}
               </p>
               <p className="text-[9px] text-gray-600 font-bold mt-0.5">
-                {order.advancePaid ? '✅ Paid' : '💵 COD'}
+                {order.paymentMethod === 'ONLINE_TRANSFER' ? '💳 Online' : order.advancePaid ? '✅ Paid' : '💵 COD'}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Row 3: Action Buttons */}
+        {/* Row 3: Payment Method + Action Buttons */}
         {!isDelivered && (
-          <div className="grid grid-cols-2 gap-3 pt-1">
-            <button
-              disabled={loading}
-              onClick={() => onAction(order.id, 'DELIVERED', '')}
-              className="flex flex-col items-center justify-center gap-1.5 py-5 bg-emerald-600 text-white rounded-2xl font-black active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-emerald-900/40"
-            >
-              <CheckCircle2 size={28} />
-              <span className="text-sm">Delivered</span>
-              <span className="text-[9px] opacity-70 font-bold">مل گیا</span>
-            </button>
-            <button
-              disabled={loading}
-              onClick={() => onAction(order.id, 'NOT_RESPONDED', 'Customer did not respond')}
-              className="flex flex-col items-center justify-center gap-1.5 py-5 bg-gray-800 border-2 border-amber-500/40 text-amber-400 rounded-2xl font-black active:scale-95 transition-all disabled:opacity-50"
-            >
-              <PhoneOff size={28} />
-              <span className="text-sm">No Response</span>
-              <span className="text-[9px] opacity-70 font-bold">جواب نہیں</span>
-            </button>
-          </div>
+          <>
+            {/* Payment Method Selector */}
+            <div className="bg-gray-800/40 rounded-2xl p-3 border border-gray-700/50">
+              <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-2">Payment Method</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPaymentMethods(prev => ({ ...prev, [order.id]: 'CASH' }))}
+                  className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all ${
+                    (paymentMethods[order.id] || 'CASH') === 'CASH'
+                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40'
+                      : 'bg-gray-800 text-gray-400 border border-gray-700'
+                  }`}
+                >
+                  💵 Cash
+                </button>
+                <button
+                  onClick={() => setPaymentMethods(prev => ({ ...prev, [order.id]: 'ONLINE_TRANSFER' }))}
+                  className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all ${
+                    paymentMethods[order.id] === 'ONLINE_TRANSFER'
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
+                      : 'bg-gray-800 text-gray-400 border border-gray-700'
+                  }`}
+                >
+                  💳 Online Transfer
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <button
+                disabled={loading}
+                onClick={() => onAction(order.id, 'DELIVERED', '', paymentMethods[order.id] || 'CASH')}
+                className="flex flex-col items-center justify-center gap-1.5 py-5 bg-emerald-600 text-white rounded-2xl font-black active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-emerald-900/40"
+              >
+                <CheckCircle2 size={28} />
+                <span className="text-sm">Delivered</span>
+                <span className="text-[9px] opacity-70 font-bold">مل گیا</span>
+              </button>
+              <button
+                disabled={loading}
+                onClick={() => onAction(order.id, 'NOT_RESPONDED', 'Customer did not respond')}
+                className="flex flex-col items-center justify-center gap-1.5 py-5 bg-gray-800 border-2 border-amber-500/40 text-amber-400 rounded-2xl font-black active:scale-95 transition-all disabled:opacity-50"
+              >
+                <PhoneOff size={28} />
+                <span className="text-sm">No Response</span>
+                <span className="text-[9px] opacity-70 font-bold">جواب نہیں</span>
+              </button>
+            </div>
+          </>
         )}
 
         {/* Already delivered message */}
@@ -168,6 +201,7 @@ const DeliveryDashboard = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('PENDING');
+  const [paymentMethods, setPaymentMethods] = useState({});
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -199,10 +233,10 @@ const DeliveryDashboard = () => {
     };
   }, [fetchOrders]);
 
-  const handleAction = async (orderId, deliveryStatus, remarks) => {
+  const handleAction = async (orderId, deliveryStatus, remarks, paymentMethod) => {
     try {
       setActionLoading(true);
-      await axios.put(`${API_URL}/api/orders/${orderId}/delivery`, { deliveryStatus, remarks }, {
+      await axios.put(`${API_URL}/api/orders/${orderId}/delivery`, { deliveryStatus, remarks, paymentMethod }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (deliveryStatus === 'DELIVERED') {
@@ -321,6 +355,8 @@ const DeliveryDashboard = () => {
               idx={idx}
               onAction={handleAction}
               loading={actionLoading}
+              paymentMethods={paymentMethods}
+              setPaymentMethods={setPaymentMethods}
             />
           ))}
         </div>

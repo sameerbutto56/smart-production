@@ -176,7 +176,8 @@ const ProgressChart = () => {
                       <span className="text-[7px] font-black text-blue-400 border border-blue-400/30 px-2 py-0.5 rounded-full uppercase">
                         {order.currentStage.replace('_', ' ')}
                       </span>
-                      {order.urgent && <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_#ef4444]" />}
+                      {order.priority === 'SUPER_URGENT' && <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_#ef4444]" />}
+                      {order.priority === 'URGENT' && <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse shadow-[0_0_10px_#d97706]" />}
                     </div>
                     <h3 className="text-lg font-black truncate uppercase leading-tight">{order.customerName}</h3>
                   </div>

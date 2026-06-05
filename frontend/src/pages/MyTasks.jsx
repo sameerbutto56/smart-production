@@ -5,7 +5,7 @@ import OrderCard from '../components/OrderCard';
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
 import { useLanguage } from '../context/LanguageContext';
-import { Search, Filter, Loader2, Sparkles, AlertCircle, Activity } from 'lucide-react';
+import { Search, Filter, Loader2, Sparkles, AlertCircle, Activity, Clock, Target } from 'lucide-react';
 import socket from '../socket';
 import toast from 'react-hot-toast';
 
@@ -140,8 +140,8 @@ const MyTasks = () => {
       if (!shouldShowOrder(order)) return false;
       
       // 2. Urgency Filter (Apply even if no search term)
-      if (urgencyFilter === 'URGENT' && !order.urgent) return false;
-      if (urgencyFilter === 'STANDARD' && order.urgent) return false;
+      if (urgencyFilter === 'URGENT' && order.priority === 'NORMAL') return false;
+      if (urgencyFilter === 'STANDARD' && order.priority !== 'NORMAL') return false;
 
       // 3. If no search term, show everything remaining
       if (!searchTerm || searchTerm.trim() === "") return true;
@@ -275,6 +275,56 @@ const MyTasks = () => {
           )}
         </button>
       </div>
+
+      {/* Production Deadline Summary for PRODUCTION workers */}
+      {user?.role === 'PRODUCTION' && filteredOrders.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {(() => {
+            const now = Date.now();
+            const ordersWithProdDeadline = filteredOrders.filter(o => o.productionDeadline);
+            const overdue = ordersWithProdDeadline.filter(o => new Date(o.productionDeadline).getTime() < now);
+            const approaching = ordersWithProdDeadline.filter(o => {
+              const diff = new Date(o.productionDeadline).getTime() - now;
+              return diff > 0 && diff < 4 * 60 * 60 * 1000;
+            });
+            const earliestDeadline = ordersWithProdDeadline.length > 0
+              ? new Date(Math.min(...ordersWithProdDeadline.map(o => new Date(o.productionDeadline).getTime())))
+              : null;
+            return (
+              <>
+                <div className="glass rounded-2xl p-5 border border-red-500/20">
+                  <div className="flex items-center gap-3 mb-2">
+                    <AlertCircle size={18} className="text-red-400" />
+                    <span className="text-xs font-black text-red-400 uppercase tracking-wider">Overdue</span>
+                  </div>
+                  <p className="text-4xl font-black text-white">{overdue.length}</p>
+                  <p className="text-[10px] text-gray-500 font-bold mt-1">Orders past production deadline</p>
+                </div>
+                <div className="glass rounded-2xl p-5 border border-amber-500/20">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Clock size={18} className="text-amber-400" />
+                    <span className="text-xs font-black text-amber-400 uppercase tracking-wider">Approaching</span>
+                  </div>
+                  <p className="text-4xl font-black text-white">{approaching.length}</p>
+                  <p className="text-[10px] text-gray-500 font-bold mt-1">Deadline within 4 hours</p>
+                </div>
+                <div className="glass rounded-2xl p-5 border border-emerald-500/20">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Target size={18} className="text-emerald-400" />
+                    <span className="text-xs font-black text-emerald-400 uppercase tracking-wider">Earliest Deadline</span>
+                  </div>
+                  <p className="text-3xl font-black text-white">
+                    {earliestDeadline ? earliestDeadline.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                  </p>
+                  <p className="text-[10px] text-gray-500 font-bold mt-1">
+                    {earliestDeadline ? earliestDeadline.toLocaleDateString() : 'No deadlines set'}
+                  </p>
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      )}
 
       {loading ? (
         <div className="h-64 flex flex-col items-center justify-center space-y-4">

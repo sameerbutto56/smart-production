@@ -18,9 +18,10 @@ model User {
   employeeId String?      @unique
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
-  auditLogs  AuditLog[]
-  stages     OrderStage[]
+  auditLogs    AuditLog[]
+  stages       OrderStage[]
   createdOrders Order[]   @relation("OrderCreatedBy")
+  stockRequests StockRequest[]
 }
 
 model Order {
@@ -30,9 +31,11 @@ model Order {
   customerName    String
   customerPhone   String?
   address         String?
+  city            String?
   createdById     String?
   type            String       @default("STANDARD")
   urgent          Boolean      @default(false)
+  priority        String       @default("NORMAL")
   quantity        Int          @default(1)
   logoDesign      String?
   logoName        String?
@@ -50,8 +53,14 @@ model Order {
   updatedAt       DateTime     @updatedAt
   paymentDeadline DateTime?
   paymentStatus   String       @default("PENDING")
+  paymentMethod   String?      @default("CASH")
   customizationPrice Float?    @default(0)
   totalPrice      Float?       @default(0)
+  productionDeadline DateTime?
+  trackingNumber  String?
+  courierDetails  Json?
+  dispatchStatus  String       @default("PENDING")
+  deliveryType    String?      // PICKUP, IN_CITY, COURIER
   auditLogs       AuditLog[]
   stages          OrderStage[]
   createdBy       User?        @relation("OrderCreatedBy", fields: [createdById], references: [id])
@@ -83,14 +92,14 @@ model OrderStage {
 }
 
 model AuditLog {
-  id          String   @id @default(uuid())
-  orderId     String
+  id          String    @id @default(uuid())
+  orderId     String?
   action      String
   details     String?
   performedBy String
-  timestamp   DateTime @default(now())
-  order       Order    @relation(fields: [orderId], references: [id])
-  user        User     @relation(fields: [performedBy], references: [id])
+  timestamp   DateTime  @default(now())
+  order       Order?    @relation(fields: [orderId], references: [id])
+  user        User      @relation(fields: [performedBy], references: [id])
 
   @@index([orderId])
 }
@@ -104,10 +113,46 @@ model InventoryItem {
   fabric    String?
   stock     Int      @default(0)
   price     Float?
-  imageUrl  String?  // NEW: Store inventory item image URL
+  imageUrl  String?
   metadata  String?
+  variants  Json?    // Array of {color, size, stock, price}
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model StockRequest {
+  id           String   @id @default(uuid())
+  outletName   String
+  itemName     String
+  itemCategory String
+  quantity     Int
+  approvedQty  Int      @default(0)
+  status       String   @default("PENDING")
+  notes        String?
+  createdById  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  createdBy    User     @relation(fields: [createdById], references: [id])
+
+  @@index([status])
+  @@index([outletName])
+}
+
+model Allocation {
+  id        String   @id @default(uuid())
+  personName String
+  itemName   String
+  itemCategory String
+  color     String?
+  size      String?
+  quantity  Int
+  notes     String?
+  itemId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([personName])
+  @@index([createdAt])
 }
 
 model SystemSetting {

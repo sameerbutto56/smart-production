@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { Link, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
@@ -11,7 +12,10 @@ import {
   Menu,
   X,
   Search,
-  Truck
+  Truck,
+  Building2,
+  Warehouse,
+  PauseCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import socket from '../socket';
@@ -34,12 +38,15 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     { name: 'Admin Portal', path: '/admin', icon: LayoutDashboard, roles: ['SUPER_ADMIN'] },
     { name: 'Control Center', path: '/dashboard', icon: LayoutDashboard, roles: ['FAISAL', 'SUPER_ADMIN', 'ORDER_ENTRY', 'OUTLET'] },
     { name: 'Order Entry', path: '/order-entry', icon: ClipboardList, roles: ['ORDER_ENTRY', 'FAISAL', 'SUPER_ADMIN', 'OUTLET'] },
-    { name: 'Inventory', path: '/inventory', icon: Package, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL'] },
+    { name: 'Inventory', path: '/inventory', icon: Package, roles: ['SUPER_ADMIN', 'ADMIN', 'STORE'] },
     { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['STORE', 'PRODUCTION', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'] },
+    { name: 'Warehouse', path: '/warehouse', icon: Warehouse, roles: ['STORE', 'ADMIN', 'SUPER_ADMIN'] },
+    { name: 'Outlet Requests', path: '/outlet-requests', icon: Building2, roles: ['OUTLET'] },
     { name: 'All Orders', path: '/orders', icon: Package, roles: ['SUPER_ADMIN', 'FAISAL', 'ADMIN', 'OUTLET'] },
     { name: 'Delivery Sheet', path: '/delivery-sheet', icon: ClipboardList, roles: ['SUPER_ADMIN', 'FAISAL', 'ADMIN', 'OUTLET'] },
     { name: 'History (Admin)', path: '/history', icon: History, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Deliveries', path: '/delivery', icon: Truck, roles: ['DELIVERY_BOY', 'SUPER_ADMIN'] },
+
   ];
   
   const isBigScreen = user?.role === 'MAIN_EMPLOYEE';
@@ -52,7 +59,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     // 2. Extra safety for Outlets - explicitly remove History
     if (userRole === 'OUTLET') {
       if (item.name === 'History (Admin)' || item.name === 'History') return false;
-      return ['Order Entry', 'All Orders', 'Control Center', 'Delivery Sheet'].includes(item.name);
+      return ['Order Entry', 'All Orders', 'Control Center', 'Delivery Sheet', 'Outlet Requests'].includes(item.name);
     }
     
     // 3. Explicit Restriction for Delivery Boy
@@ -81,10 +88,10 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
       </AnimatePresence>
 
       <div className={`
-        fixed inset-y-0 ${isUrdu ? 'right-0 border-l' : 'left-0 border-r'} z-50 bg-gray-900 border-gray-800 flex flex-col transition-all duration-300 transform
+        fixed inset-y-0 ${isUrdu ? 'right-0 border-l' : 'left-0 border-r'} z-50 flex flex-col transition-all duration-300 transform
         ${isOpen ? 'translate-x-0' : (isUrdu ? 'translate-x-full' : '-translate-x-full')}
         lg:relative lg:translate-x-0 ${isCollapsed ? 'lg:w-20' : 'lg:w-64'}
-      `}>
+      `} style={{ background: 'var(--card-bg-solid)', borderColor: 'var(--glass-border)' }}>
         <div className={`p-6 flex items-center justify-between ${isCollapsed ? 'lg:p-4 lg:justify-center' : ''}`}>
           {!isCollapsed && (
             <div className="flex flex-col">
@@ -123,7 +130,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
           ))}
         </nav>
 
-        <div className={`p-4 border-t border-gray-800 bg-gray-950/30 ${isCollapsed ? 'flex justify-center' : ''}`}>
+        <div className={`p-4 border-t ${isCollapsed ? 'flex justify-center' : ''}`} style={{ borderColor: 'var(--glass-border)', background: 'var(--nav-bg)' }}>
           {!isCollapsed ? (
             <>
               <div className="flex items-center space-x-3 mb-4 px-2">
@@ -173,12 +180,30 @@ const Layout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { user } = useAuth();
+  const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
+  const [systemPaused, setSystemPaused] = useState(false);
 
   useEffect(() => {
     if (user?.role) {
       document.title = `${user.role.replace(/_/g, ' ')} - ENAMELS PRODUCTION`;
     }
   }, [user]);
+
+  useEffect(() => {
+    const checkPause = async () => {
+      try {
+        const token = sessionStorage.getItem('token');
+        if (!token) return;
+        const res = await axios.get(`${API_URL}/api/admin/pause-status`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setSystemPaused(res.data.paused);
+      } catch { /* ignore */ }
+    };
+    checkPause();
+    const interval = setInterval(checkPause, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const { searchTerm: contextSearch, setSearchTerm: setContextSearch } = useSearch();
   const [globalSearch, setLocalSearch] = useState('');
@@ -197,54 +222,59 @@ const Layout = () => {
 
   useEffect(() => {
     const handleGlobalAlert = (data) => {
+      if (!data?.urgent) return;
       toast.success(`${data.title}: ${data.message}`, {
         duration: 8000,
         position: 'top-center',
         style: {
           background: '#030712',
           color: '#fff',
-          border: '1px solid #10b981',
+          border: '2px solid #ef4444',
           padding: '16px',
           borderRadius: '24px',
           fontWeight: '900',
           textTransform: 'uppercase',
-          boxShadow: '0 10px 40px rgba(0,0,0,0.5)'
+          boxShadow: '0 10px 40px rgba(239,68,68,0.3)'
         }
       });
     };
 
-    socket.on('global-alert', handleGlobalAlert);
+    socket.on('global-alert', (data) => {
+      if (data?.urgent) handleGlobalAlert(data);
+    });
     socket.on('new-order', (order) => {
-      if (!order) return;
+      if (!order?.urgent) return;
       handleGlobalAlert({
-        title: 'New Order Received',
+        title: 'New Urgent Order',
         message: `Order #${order.orderNumber || (order.id ? order.id.substring(0, 8) : 'N/A')} is now in the system.`,
         type: 'NEW_ORDER',
-        urgent: order.urgent
+        urgent: true
       });
     });
     socket.on('stage-completion-requested', (data) => {
       if (!data?.stage) return;
+      const isUrgent = data.urgent || data.stage?.order?.urgent;
+      if (!isUrgent) return;
       const stageName = data.stage.stageName || '';
       handleGlobalAlert({
-        title: 'Approval Required',
+        title: 'Urgent Approval Required',
         message: `${stageName.replace('_', ' ')} stage completed. Waiting for approval.`,
         type: 'APPROVAL_REQUIRED',
-        urgent: data.urgent || data.stage?.order?.urgent
+        urgent: true
       });
     });
     socket.on('status-update', (data) => {
-      if (!data?.status) return;
+      if (!data?.status || !data?.urgent) return;
       handleGlobalAlert({
-        title: 'Status Updated',
+        title: 'Urgent Status Update',
         message: `Order #${data.orderNumber || 'N/A'} is now ${data.status.replace('_', ' ')}.`,
         type: 'STATUS_UPDATE',
-        urgent: data.urgent
+        urgent: true
       });
     });
 
     return () => {
-      socket.off('global-alert', handleGlobalAlert);
+      socket.off('global-alert');
       socket.off('new-order');
       socket.off('stage-completion-requested');
       socket.off('status-update');
@@ -252,7 +282,7 @@ const Layout = () => {
   }, []);
 
   return (
-    <div className="flex h-screen bg-gray-950 text-white overflow-hidden">
+    <div className="flex h-screen overflow-hidden" style={{ background: 'var(--background)', color: 'var(--text-primary)' }}>
       <Sidebar 
         isOpen={isSidebarOpen} 
         isCollapsed={isCollapsed}
@@ -262,7 +292,7 @@ const Layout = () => {
       
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Universal Top Bar */}
-        <header className="h-16 border-b border-gray-800 bg-gray-950/50 backdrop-blur-md flex items-center px-6 justify-between flex-shrink-0 relative z-20">
+        <header className="h-16 border-b flex items-center px-6 justify-between flex-shrink-0 relative z-20" style={{ borderColor: 'var(--glass-border)', background: 'var(--nav-bg)' }}>
           <div className="flex items-center gap-4 flex-1">
             <button 
               onClick={() => setIsSidebarOpen(true)}
@@ -297,6 +327,13 @@ const Layout = () => {
             </div>
           </div>
         </header>
+
+        {systemPaused && (
+          <div className="bg-red-600/20 border-b-2 border-red-500/30 px-6 py-3 flex items-center justify-center gap-3 flex-shrink-0">
+            <PauseCircle className="text-red-400 animate-pulse" size={20} />
+            <span className="text-red-300 font-black text-xs uppercase tracking-widest">System Paused — All production operations are suspended for holidays</span>
+          </div>
+        )}
 
         <main className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
           <Outlet />

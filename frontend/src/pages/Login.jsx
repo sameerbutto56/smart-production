@@ -29,7 +29,7 @@ const Login = () => {
   };
 
   return (
-    <div className="h-screen flex items-center justify-center bg-[#030712] px-4 relative overflow-hidden">
+    <div className="h-screen flex items-center justify-center px-4 relative overflow-hidden" style={{ background: 'var(--background, #030712)' }}>
       <div className="absolute top-6 right-6 z-50">
         <LanguageToggle />
       </div>
@@ -89,9 +89,9 @@ const Login = () => {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="bg-red-500/10 border border-red-500/20 text-red-400 p-2.5 rounded-lg text-[9px] font-bold mb-4 flex items-center space-x-3"
+                className="bg-red-500/15 border-2 border-red-500/30 text-red-300 p-4 rounded-xl text-sm font-black mb-4 flex items-center space-x-3"
               >
-                <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+                <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shrink-0" />
                 <span>{error}</span>
               </motion.div>
             )}
@@ -157,8 +157,8 @@ const Login = () => {
           <p className="text-[8px] text-gray-500 font-black uppercase tracking-[0.4em]">
             Build v1.0.5-OUTLET (READY)
           </p>
-          <p className="text-[7px] text-gray-700 font-bold uppercase tracking-widest">
-            If updates don't show, press Ctrl + F5
+          <p className="text-[7px] text-gray-600 font-bold uppercase tracking-widest">
+            Ctrl + F5 to refresh if updates don't show
           </p>
         </div>
       </motion.div>

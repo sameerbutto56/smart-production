@@ -575,13 +575,18 @@ const AllOrders = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      {order.urgent ? (
-                        <div className="flex items-center space-x-2 text-blue-400 text-[10px] font-black uppercase tracking-widest">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                      {order.priority === 'SUPER_URGENT' ? (
+                        <div className="flex items-center space-x-2 text-red-400 text-[10px] font-black uppercase tracking-widest">
+                          <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                          <span>SUPER URGENT</span>
+                        </div>
+                      ) : order.priority === 'URGENT' ? (
+                        <div className="flex items-center space-x-2 text-amber-400 text-[10px] font-black uppercase tracking-widest">
+                          <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
                           <span>URGENT</span>
                         </div>
                       ) : (
-                        <span className="text-gray-500 text-[10px] font-black uppercase tracking-widest">Standard</span>
+                        <span className="text-gray-500 text-[10px] font-black uppercase tracking-widest">Normal</span>
                       )}
                     </td>
                     <td className="px-6 py-4">

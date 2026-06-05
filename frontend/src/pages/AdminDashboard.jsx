@@ -25,10 +25,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import socket from '../socket';
 import OrderCard from '../components/OrderCard';
+import AdminSettings from './AdminSettings';
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
 import { useLanguage } from '../context/LanguageContext';
 import toast from 'react-hot-toast';
+import { PauseCircle, PlayCircle } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -50,12 +52,15 @@ const AdminDashboard = () => {
   const { searchTerm: contextSearch, setSearchTerm: setContextSearch } = useSearch();
   const [trackedOrder, setTrackedOrder] = useState(null);
   const [trackingError, setTrackingError] = useState('');
+  const [systemPaused, setSystemPaused] = useState(false);
+  const [showPauseModal, setShowPauseModal] = useState(false);
+  const [pausePassword, setPausePassword] = useState('');
+  const [pausing, setPausing] = useState(false);
 
   const handleDashboardSearch = (val) => {
     setContextSearch(val);
   };
   const [approvalSearch, setApprovalSearch] = useState('');
-  const [approvalUrgencyFilter, setApprovalUrgencyFilter] = useState('ALL');
   const [analytics, setAnalytics] = useState(null);
   const [filterStage, setFilterStage] = useState('ALL');
   const [loading, setLoading] = useState(true);
@@ -73,6 +78,7 @@ const AdminDashboard = () => {
   useEffect(() => {
     fetchDashboardData();
     fetchAnalytics();
+    fetchPauseStatus();
 
     socket.on('order-updated', (data) => {
       fetchDashboardData();
@@ -143,6 +149,38 @@ const AdminDashboard = () => {
         navigate('/login');
       }
     }
+  };
+
+  const fetchPauseStatus = async () => {
+    try {
+      const token = sessionStorage.getItem('token');
+      if (!token) return;
+      const res = await axios.get(`${API_URL}/api/admin/pause-status`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setSystemPaused(res.data.paused);
+    } catch (error) {
+      console.error('Error fetching pause status:', error);
+    }
+  };
+
+  const handleTogglePause = async (e) => {
+    e.preventDefault();
+    setPausing(true);
+    try {
+      const token = sessionStorage.getItem('token');
+      const res = await axios.post(`${API_URL}/api/admin/pause`,
+        { password: pausePassword },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setSystemPaused(res.data.paused);
+      setShowPauseModal(false);
+      setPausePassword('');
+      toast.success(res.data.message);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to toggle pause');
+    }
+    setPausing(false);
   };
 
   const fetchDashboardData = async () => {
@@ -226,50 +264,24 @@ const AdminDashboard = () => {
     { title: 'Completed Today', value: stats.completedToday, icon: Users, color: 'text-emerald-400', bg: 'bg-emerald-400/10', path: '/orders', state: { filterStatus: 'COMPLETED' } },
   ];
 
-   const approvalQueue = useMemo(() => 
+  const deliverySetupQueue = useMemo(() => 
     allOrders.filter(o => {
-      const isWaiting = o.status === 'WAITING_APPROVAL' || o.status === 'ON_HOLD' || o.stages?.some(s => s.status === 'WAITING_APPROVAL');
-      if (!isWaiting) return false;
-      if (approvalUrgencyFilter === 'URGENT' && !o.urgent) return false;
-      if (approvalUrgencyFilter === 'STANDARD' && o.urgent) return false;
-
-      // Use contextSearch as the primary filter
-      if (!contextSearch && !approvalSearch) return true;
-      const search = (contextSearch || approvalSearch).toLowerCase();
+      if (o.status === 'COMPLETED' || o.currentStage === 'COMPLETED') return false;
+      const atDispatch = o.currentStage === 'DISPATCH' && o.status !== 'COMPLETED';
+      if (!atDispatch) return false;
+      const activeSearch = contextSearch || approvalSearch;
+      if (!activeSearch) return true;
+      const search = activeSearch.toLowerCase();
       return o.id.toLowerCase().includes(search) || 
              (o.orderNumber && o.orderNumber.toLowerCase().includes(search)) || 
              (o.customerName && o.customerName.toLowerCase().includes(search));
     }).sort((a, b) => {
-      // 0. Search Match Priority (Boost to top)
-      const activeSearch = (contextSearch || approvalSearch)?.toLowerCase();
-      if (activeSearch) {
-        const aMatch = a.orderNumber?.toLowerCase().includes(activeSearch) || a.id.toLowerCase().includes(activeSearch);
-        const bMatch = b.orderNumber?.toLowerCase().includes(activeSearch) || b.id.toLowerCase().includes(activeSearch);
-        if (aMatch && !bMatch) return -1;
-        if (!aMatch && bMatch) return 1;
-      }
-
-      // 1. URGENT
-      const aUrgent = !!a.urgent;
-      const bUrgent = !!b.urgent;
-      if (aUrgent && !bUrgent) return -1;
-      if (!aUrgent && bUrgent) return 1;
-
-      // 2. Delayed
-      const getDelay = (order) => {
-        const stage = order.stages?.find(s => s.status === 'WAITING_APPROVAL' || s.stageName === order.currentStage);
-        if (!stage?.deadlineAt || stage.status === 'COMPLETED') return 0;
-        const diff = new Date(stage.deadlineAt).getTime() - new Date().getTime();
-        return diff < 0 ? Math.abs(diff) : 0;
-      };
-
-      const aDelay = getDelay(a);
-      const bDelay = getDelay(b);
-      if (aDelay > 0 || bDelay > 0) return bDelay - aDelay;
-
-      // 3. Fallback to createdAt (oldest first)
+      const pa = a.priority === 'SUPER_URGENT' ? 0 : a.priority === 'URGENT' ? 1 : 2;
+      const pb = b.priority === 'SUPER_URGENT' ? 0 : b.priority === 'URGENT' ? 1 : 2;
+      if (pa !== pb) return pa - pb;
       return new Date(a.createdAt) - new Date(b.createdAt);
-    }), [allOrders, approvalSearch, contextSearch, approvalUrgencyFilter]);
+    })
+  , [allOrders, approvalSearch, contextSearch]);
 
   const initiationQueue = useMemo(() => 
     allOrders.filter(o => {
@@ -344,6 +356,23 @@ const AdminDashboard = () => {
           <p className="text-gray-400 font-bold uppercase tracking-widest text-[10px] mt-1">Production Approval Hub</p>
         </div>
         <div className="flex items-center gap-4">
+          {systemPaused && (
+            <div className="flex items-center gap-2 bg-red-500/20 border border-red-500/30 px-4 py-2.5 rounded-xl">
+              <PauseCircle className="text-red-400" size={18} />
+              <span className="text-red-400 font-black text-[10px] uppercase tracking-widest">System Paused</span>
+            </div>
+          )}
+          <button
+            onClick={() => setShowPauseModal(true)}
+            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all shadow-lg active:scale-95 ${
+              systemPaused
+                ? 'bg-emerald-500/10 hover:bg-emerald-500 hover:text-white text-emerald-400 border border-emerald-500/20'
+                : 'bg-red-500/10 hover:bg-red-500 hover:text-white text-red-400 border border-red-500/20'
+            }`}
+          >
+            {systemPaused ? <PlayCircle size={16} /> : <PauseCircle size={16} />}
+            <span>{systemPaused ? 'Resume System' : 'Pause System'}</span>
+          </button>
           <button
             onClick={() => {
               alert('Notification Alert Broadcasted!');
@@ -356,7 +385,7 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* Global Dashboard Search - Moved to TOP */}
+      {/* Global Dashboard Search */}
       <section className="glass rounded-[2rem] p-6 border-2 border-blue-500/30 bg-blue-500/5 relative overflow-hidden shadow-2xl shadow-blue-900/20">
         <div className="absolute top-0 right-0 p-4 opacity-5">
             <Search size={80} />
@@ -682,56 +711,34 @@ const AdminDashboard = () => {
       
 
 
-      {/* Approval Queue */}
+      {/* Delivery Setup Queue */}
       <section>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div className="flex items-center space-x-4">
-            <div className="p-3 bg-emerald-500/10 rounded-2xl">
-              <ClipboardList className="text-emerald-400" size={24} />
+            <div className="p-3 bg-amber-500/10 rounded-2xl">
+              <ClipboardList className="text-amber-400" size={24} />
             </div>
             <div>
-              <h2 className="text-2xl font-black text-white uppercase tracking-tight">Approval Queue</h2>
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Module requests waiting for your authorization</p>
+              <h2 className="text-2xl font-black text-white uppercase tracking-tight">Delivery Setup</h2>
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Orders at Dispatch awaiting delivery configuration</p>
             </div>
-            {approvalQueue.length > 0 && !approvalSearch && (
-              <span className="bg-emerald-600 text-white px-3 py-1 rounded-full text-[10px] font-black animate-pulse">
-                {approvalQueue.length} NEW
-              </span>
-            )}
           </div>
           
-          <div className="flex flex-col md:flex-row items-end gap-4 w-full md:w-auto">
-            <div className="relative w-full md:w-auto min-w-[300px]">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-              <input
-                type="text"
-                placeholder="Search by ID or Name..."
-                value={approvalSearch}
-                onChange={(e) => setApprovalSearch(e.target.value)}
-                className="w-full bg-gray-900/50 border-2 border-gray-800 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-emerald-500 transition-all text-sm font-bold text-white"
-              />
-            </div>
-            <div className="flex bg-gray-900/80 p-1 rounded-xl border border-gray-800 shrink-0">
-              {['ALL', 'URGENT', 'STANDARD'].map(type => (
-                <button
-                  key={type}
-                  onClick={() => setApprovalUrgencyFilter(type)}
-                  className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
-                    approvalUrgencyFilter === type 
-                      ? 'bg-emerald-600 text-white shadow-lg' 
-                      : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
-                  }`}
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
+          <div className="relative w-full md:w-auto min-w-[200px]">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+            <input
+              type="text"
+              placeholder="Search by ID or Name..."
+              value={approvalSearch}
+              onChange={(e) => setApprovalSearch(e.target.value)}
+              className="w-full bg-gray-900/50 border-2 border-gray-800 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-amber-500 transition-all text-sm font-bold text-white"
+            />
           </div>
         </div>
 
-        {approvalQueue.length > 0 ? (
+        {deliverySetupQueue.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-            {approvalQueue.map(order => (
+            {deliverySetupQueue.map(order => (
               <OrderCard 
                 key={order.id} 
                 order={order} 
@@ -745,12 +752,54 @@ const AdminDashboard = () => {
             <div className="w-20 h-20 bg-gray-900 rounded-full flex items-center justify-center mx-auto border-2 border-gray-800">
               <CheckCircle2 className="text-gray-700" size={40} />
             </div>
-            <h3 className="text-xl font-black text-gray-500 uppercase">All clear</h3>
-            <p className="text-gray-600 text-sm font-bold max-w-xs mx-auto uppercase tracking-widest">No pending module requests.</p>
+            <h3 className="text-xl font-black text-gray-500 uppercase">All delivered</h3>
+            <p className="text-gray-600 text-sm font-bold max-w-xs mx-auto uppercase tracking-widest">No orders pending delivery configuration.</p>
           </div>
         )}
       </section>
 
+      {/* Deadline & SLA Settings */}
+      <AdminSettings />
+
+      {/* Pause Modal */}
+      <AnimatePresence>
+        {showPauseModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
+              className="glass max-w-md w-full p-8 rounded-[2rem] border-2 border-gray-800 shadow-[0_50px_100px_rgba(0,0,0,0.5)]">
+              <div className="flex items-center gap-4 mb-6">
+                <div className={`p-3 rounded-xl ${systemPaused ? 'bg-emerald-500/10' : 'bg-red-500/10'}`}>
+                  {systemPaused ? <PlayCircle className="text-emerald-400" size={28} /> : <PauseCircle className="text-red-400" size={28} />}
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-white">{systemPaused ? 'Resume System' : 'Pause System'}</h2>
+                  <p className="text-gray-400 text-sm font-bold">{systemPaused ? 'Reactivate all production operations.' : 'Stop all production operations for holidays.'}</p>
+                </div>
+              </div>
+              <form onSubmit={handleTogglePause} className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Confirm Password</label>
+                  <input type="password" value={pausePassword} onChange={(e) => setPausePassword(e.target.value)}
+                    className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-xl py-3 px-4 focus:border-red-500 outline-none font-black text-lg text-white mt-2"
+                    placeholder="Enter your password" required />
+                </div>
+                <p className="text-xs text-gray-500 font-bold">Enter your admin password to {systemPaused ? 'resume' : 'pause'} the system.</p>
+                <div className="flex space-x-3">
+                  <button type="button" onClick={() => { setShowPauseModal(false); setPausePassword(''); }}
+                    className="flex-1 py-3 bg-gray-800 text-gray-400 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-gray-700 transition-all">Cancel</button>
+                  <button type="submit" disabled={pausing || !pausePassword}
+                    className={`flex-1 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center space-x-2 ${
+                      systemPaused ? 'bg-emerald-600 text-white hover:bg-emerald-500' : 'bg-red-600 text-white hover:bg-red-500'
+                    } disabled:opacity-50`}>
+                    {pausing ? <Loader2 className="animate-spin" size={16} /> : systemPaused ? <PlayCircle size={16} /> : <PauseCircle size={16} />}
+                    <span>{pausing ? 'Processing...' : systemPaused ? 'Resume System' : 'Pause System'}</span>
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

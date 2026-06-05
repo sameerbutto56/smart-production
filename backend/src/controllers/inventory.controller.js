@@ -1,5 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../prisma');
 const xlsx = require('xlsx');
 
 const getInventory = async (req, res) => {
@@ -12,13 +11,35 @@ const getInventory = async (req, res) => {
 };
 
 const createInventoryItem = async (req, res) => {
-  const { name, category, stock, price, color, fabric, imageUrl } = req.body;
+  const { name, category, stock, price, color, fabric, imageUrl, variants } = req.body;
   try {
+    let computedStock = stock;
+    let computedPrice = price;
+    let primaryColor = color;
+    let primarySize = null;
+
+    if (variants && Array.isArray(variants) && variants.length > 0) {
+      computedStock = variants.reduce((sum, v) => sum + (parseInt(v.stock) || 0), 0);
+      const firstPrice = parseFloat(variants[0].price);
+      if (!price || price === 0) computedPrice = isNaN(firstPrice) ? 0 : firstPrice;
+      primaryColor = variants[0].color || color;
+      primarySize = variants[0].size || null;
+    }
+
     const item = await prisma.inventoryItem.create({
-      data: { name, category, stock, price, color, fabric, imageUrl }
+      data: { 
+        name, 
+        category, 
+        stock: computedStock, 
+        price: computedPrice, 
+        color: primaryColor, 
+        size: primarySize, 
+        fabric, 
+        imageUrl,
+        variants: variants || null
+      }
     });
     
-    // Emit socket event
     const io = req.app.get('io');
     if (io) io.emit('inventory-updated', item);
     
@@ -30,14 +51,31 @@ const createInventoryItem = async (req, res) => {
 
 const updateInventoryItem = async (req, res) => {
   const { id } = req.params;
-  const { name, category, stock, price, color, fabric, imageUrl } = req.body;
+  const { name, category, stock, price, color, fabric, imageUrl, variants } = req.body;
   try {
+    let computedStock = stock;
+    let computedPrice = price;
+
+    if (variants && Array.isArray(variants) && variants.length > 0) {
+      computedStock = variants.reduce((sum, v) => sum + (parseInt(v.stock) || 0), 0);
+      const firstPrice = parseFloat(variants[0].price);
+      if (!price || price === 0) computedPrice = isNaN(firstPrice) ? 0 : firstPrice;
+    }
+
     const item = await prisma.inventoryItem.update({
       where: { id },
-      data: { name, category, stock, price, color, fabric, imageUrl }
+      data: { 
+        name, 
+        category, 
+        stock: computedStock, 
+        price: computedPrice, 
+        color, 
+        fabric, 
+        imageUrl,
+        variants: variants || null
+      }
     });
     
-    // Emit socket event
     const io = req.app.get('io');
     if (io) io.emit('inventory-updated', item);
     
@@ -58,6 +96,19 @@ const deleteInventoryItem = async (req, res) => {
     res.json({ message: 'Item deleted' });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting inventory item', error: error.message });
+  }
+};
+
+const clearAllInventory = async (req, res) => {
+  try {
+    const result = await prisma.inventoryItem.deleteMany();
+    
+    const io = req.app.get('io');
+    if (io) io.emit('inventory-updated', { cleared: true });
+    
+    res.json({ message: `All ${result.count} items deleted` });
+  } catch (error) {
+    res.status(500).json({ message: 'Error clearing inventory', error: error.message });
   }
 };
 
@@ -132,4 +183,143 @@ const bulkUploadInventory = async (req, res) => {
   }
 };
 
-module.exports = { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem, bulkUploadInventory };
+const allocateInventory = async (req, res) => {
+  const { itemId, color, size, quantity, notes, personName } = req.body;
+  if (!personName || !personName.trim()) {
+    return res.status(400).json({ message: 'personName is required' });
+  }
+  if (!itemId || !quantity || quantity <= 0) {
+    return res.status(400).json({ message: 'itemId and quantity > 0 are required' });
+  }
+  try {
+    const item = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
+    if (!item) return res.status(404).json({ message: 'Item not found' });
+
+    let deductQty = parseInt(quantity);
+    let variantLabel = '';
+
+    if (item.variants && Array.isArray(item.variants)) {
+      let updatedVariants = [...item.variants];
+      let remaining = deductQty;
+
+      if (color || size) {
+        const matchIdx = updatedVariants.findIndex(v =>
+          (!color || (v.color && v.color.toLowerCase() === color.toLowerCase())) &&
+          (!size || (v.size && v.size.toLowerCase() === size.toLowerCase())) &&
+          (v.stock || 0) > 0
+        );
+        if (matchIdx >= 0) {
+          const deductFromVariant = Math.min(remaining, updatedVariants[matchIdx].stock || 0);
+          updatedVariants[matchIdx] = { ...updatedVariants[matchIdx], stock: (updatedVariants[matchIdx].stock || 0) - deductFromVariant };
+          variantLabel = `${updatedVariants[matchIdx].color || ''} ${updatedVariants[matchIdx].size || ''}`.trim();
+          remaining -= deductFromVariant;
+        }
+      }
+
+      for (let i = 0; i < updatedVariants.length && remaining > 0; i++) {
+        if ((updatedVariants[i].stock || 0) > 0) {
+          const deductFromVariant = Math.min(remaining, updatedVariants[i].stock);
+          updatedVariants[i] = { ...updatedVariants[i], stock: (updatedVariants[i].stock || 0) - deductFromVariant };
+          if (!variantLabel) variantLabel = `${updatedVariants[i].color || ''} ${updatedVariants[i].size || ''}`.trim();
+          remaining -= deductFromVariant;
+        }
+      }
+
+      if (remaining > 0) {
+        return res.status(400).json({ message: `Insufficient stock. Only ${deductQty - remaining} of ${deductQty} available.` });
+      }
+
+      const newTotal = updatedVariants.reduce((s, v) => s + (v.stock || 0), 0);
+      await prisma.inventoryItem.update({
+        where: { id: item.id },
+        data: { variants: updatedVariants, stock: newTotal }
+      });
+    } else {
+      if (item.stock < deductQty) {
+        return res.status(400).json({ message: `Insufficient stock. Only ${item.stock} available.` });
+      }
+      await prisma.inventoryItem.update({
+        where: { id: item.id },
+        data: { stock: { decrement: deductQty } }
+      });
+    }
+
+    // Create permanent Allocation record
+    const allocation = await prisma.allocation.create({
+      data: {
+        personName: personName.trim(),
+        itemName: item.name,
+        itemCategory: item.category,
+        color: color || item.color,
+        size: size || item.size,
+        quantity: deductQty,
+        notes: notes || '',
+        itemId: item.id
+      }
+    });
+
+    // Log to audit log
+    await prisma.auditLog.create({
+      data: {
+        action: 'INVENTORY_ALLOCATED',
+        details: JSON.stringify({
+          personName: personName.trim(),
+          itemName: item.name,
+          variant: variantLabel || `${item.color || ''} ${item.size || ''}`.trim(),
+          quantity: deductQty,
+          notes: notes || ''
+        }),
+        performedBy: req.user.id,
+        timestamp: new Date()
+      }
+    });
+
+    const io = req.app.get('io');
+    if (io) io.emit('inventory-updated', item);
+
+    res.json({ message: `Allocated ${deductQty}x ${item.name} to ${personName.trim()}`, allocation });
+  } catch (error) {
+    res.status(500).json({ message: 'Error allocating inventory', error: error.message });
+  }
+};
+
+const getAllocations = async (req, res) => {
+  try {
+    const { personName, page = 1, limit = 50 } = req.query;
+    const where = personName ? { personName: { contains: personName, mode: 'insensitive' } } : {};
+    const [records, total] = await Promise.all([
+      prisma.allocation.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (parseInt(page) - 1) * parseInt(limit),
+        take: parseInt(limit)
+      }),
+      prisma.allocation.count({ where })
+    ]);
+    res.json({ records, total, page: parseInt(page), limit: parseInt(limit) });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching allocations', error: error.message });
+  }
+};
+
+const getAllocationStats = async (req, res) => {
+  try {
+    const stats = await prisma.allocation.groupBy({
+      by: ['personName'],
+      _sum: { quantity: true },
+      _count: { id: true },
+      _max: { createdAt: true }
+    });
+    const result = stats.map(s => ({
+      personName: s.personName,
+      totalItems: s._sum.quantity || 0,
+      timesTaken: s._count.id,
+      lastTaken: s._max.createdAt
+    })).sort((a, b) => b.timesTaken - a.timesTaken);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching allocation stats', error: error.message });
+  }
+};
+
+module.exports = { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem, clearAllInventory, bulkUploadInventory, allocateInventory, getAllocations, getAllocationStats };

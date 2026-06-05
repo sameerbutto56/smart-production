@@ -16,12 +16,15 @@ import {
   AlertCircle,
   ClipboardList,
   Upload,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Hash,
+  Minus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
+import { usePolling } from '../hooks/usePolling';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -34,7 +37,7 @@ const InventoryManagement = () => {
   }
 
   const userRole = String(user?.role || '').toUpperCase().trim();
-  if (user && !['SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(userRole)) {
+  if (user && !['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'STORE'].includes(userRole)) {
     return <Navigate to="/dashboard" replace={true} />;
   }
   const [items, setItems] = useState([]);
@@ -45,11 +48,9 @@ const InventoryManagement = () => {
   const [formData, setFormData] = useState({
     name: '',
     category: 'SCRUBS',
-    stock: 0,
-    price: 0,
-    color: '',
     fabric: '',
-    imageUrl: ''
+    imageUrl: '',
+    variants: [{ color: '', size: '', stock: 0, price: 0 }]
   });
 
   const [uploading, setUploading] = useState(false);
@@ -110,21 +111,31 @@ const InventoryManagement = () => {
     setLoading(false);
   };
 
+  usePolling(async () => {
+    try {
+      const token = sessionStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/api/inventory`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setItems(response.data);
+    } catch (error) {}
+  }, 15000);
+
   const handleOpenModal = (item = null) => {
     if (item) {
       setEditingItem(item);
       setFormData({
         name: item.name,
         category: item.category,
-        stock: item.stock,
-        price: item.price || 0,
-        color: item.color || '',
         fabric: item.fabric || '',
-        imageUrl: item.imageUrl || ''
+        imageUrl: item.imageUrl || '',
+        variants: (item.variants && Array.isArray(item.variants) && item.variants.length > 0)
+          ? item.variants.map(v => ({ ...v }))
+          : [{ color: item.color || '', size: item.size || '', stock: item.stock || 0, price: item.price || 0 }]
       });
     } else {
       setEditingItem(null);
-      setFormData({ name: '', category: 'SCRUBS', stock: 0, price: 0, color: '', fabric: '', imageUrl: '' });
+      setFormData({ name: '', category: 'SCRUBS', fabric: '', imageUrl: '', variants: [{ color: '', size: '', stock: 0, price: 0 }] });
     }
     setIsModalOpen(true);
   };
@@ -134,10 +145,17 @@ const InventoryManagement = () => {
     try {
       const token = sessionStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
+      const payload = {
+        name: formData.name,
+        category: formData.category,
+        fabric: formData.fabric,
+        imageUrl: formData.imageUrl,
+        variants: formData.variants.filter(v => v.color || v.size || parseInt(v.stock) > 0)
+      };
       if (editingItem) {
-        await axios.put(`${API_URL}/api/inventory/${editingItem.id}`, formData, { headers });
+        await axios.put(`${API_URL}/api/inventory/${editingItem.id}`, payload, { headers });
       } else {
-        await axios.post(`${API_URL}/api/inventory`, formData, { headers });
+        await axios.post(`${API_URL}/api/inventory`, payload, { headers });
       }
       fetchInventory();
       setIsModalOpen(false);
@@ -146,11 +164,43 @@ const InventoryManagement = () => {
     }
   };
 
-  const filteredItems = items.filter(item => 
-    (item.name && item.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (item.category && item.category.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (item.color && item.color.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const addVariant = () => {
+    setFormData(prev => ({
+      ...prev,
+      variants: [...prev.variants, { color: '', size: '', stock: 0, price: 0 }]
+    }));
+  };
+
+  const removeVariant = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      variants: prev.variants.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateVariant = (index, field, value) => {
+    setFormData(prev => {
+      const updated = [...prev.variants];
+      updated[index] = { ...updated[index], [field]: value };
+      return { ...prev, variants: updated };
+    });
+  };
+
+  const totalStock = formData.variants.reduce((sum, v) => sum + (parseInt(v.stock) || 0), 0);
+
+  const filteredItems = items.filter(item => {
+    const term = searchTerm.toLowerCase();
+    if (item.name?.toLowerCase().includes(term)) return true;
+    if (item.category?.toLowerCase().includes(term)) return true;
+    if (item.color?.toLowerCase().includes(term)) return true;
+    if (item.variants && Array.isArray(item.variants)) {
+      if (item.variants.some(v => 
+        (v.color && v.color.toLowerCase().includes(term)) ||
+        (v.size && v.size.toLowerCase().includes(term))
+      )) return true;
+    }
+    return false;
+  });
 
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this item?')) return;
@@ -219,13 +269,36 @@ const InventoryManagement = () => {
             accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" 
             className="hidden" 
           />
-          <button 
-            onClick={() => fileInputRef.current?.click()}
-            className="bg-gray-800 hover:bg-gray-700 text-emerald-400 border border-emerald-500/30 font-black py-4 px-6 rounded-2xl shadow-xl transition-all flex items-center space-x-3 active:scale-95"
-          >
-            <Upload size={24} />
-            <span className="hidden sm:inline">Bulk Import (Excel/CSV)</span>
-          </button>
+          {['SUPER_ADMIN', 'ADMIN'].includes(userRole) && (
+            <>
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                className="bg-gray-800 hover:bg-gray-700 text-emerald-400 border border-emerald-500/30 font-black py-4 px-6 rounded-2xl shadow-xl transition-all flex items-center space-x-3 active:scale-95"
+              >
+                <Upload size={24} />
+                <span className="hidden sm:inline">Bulk Import (Excel/CSV)</span>
+              </button>
+              <button
+                onClick={async () => {
+                  if (!window.confirm('⚠️  Delete ALL inventory items?\n\nThis action CANNOT be undone!')) return;
+                  if (window.prompt('Type "DELETE ALL" to confirm:') !== 'DELETE ALL') return;
+                  try {
+                    const token = sessionStorage.getItem('token');
+                    await axios.delete(`${API_URL}/api/inventory`, {
+                      headers: { Authorization: `Bearer ${token}` }
+                    });
+                    fetchInventory();
+                  } catch (error) {
+                    console.error('Error clearing inventory:', error);
+                  }
+                }}
+                className="bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white font-black py-4 px-6 rounded-2xl border border-red-500/30 transition-all flex items-center space-x-3 active:scale-95"
+              >
+                <Trash2 size={20} />
+                <span className="hidden sm:inline text-sm">Delete All</span>
+              </button>
+            </>
+          )}
           <button 
             onClick={() => handleOpenModal()}
             className="bg-blue-600 hover:bg-blue-500 text-white font-black py-4 px-8 rounded-2xl shadow-2xl shadow-blue-900/30 transition-all flex items-center space-x-3 active:scale-95"
@@ -312,24 +385,55 @@ const InventoryManagement = () => {
                 <h3 className="font-black text-xl text-white group-hover:text-emerald-400 transition-colors leading-tight">{item.name}</h3>
                 <div className="flex items-center space-x-2">
                   <span className="text-[10px] font-black uppercase tracking-widest text-gray-600">{item.category}</span>
-                  {(item.color || item.size || item.fabric) && <div className="w-1 h-1 rounded-full bg-gray-800" />}
-                  <span className="text-[10px] font-bold text-gray-400 uppercase italic">
-                    {[item.color, item.size, item.fabric].filter(Boolean).join(' • ')}
-                  </span>
+                  {(item.fabric) && <><div className="w-1 h-1 rounded-full bg-gray-800" /><span className="text-[10px] font-bold text-gray-400 uppercase italic">{item.fabric}</span></>}
                 </div>
               </div>
 
-              <div className="mt-10 flex items-end justify-between">
+              {/* Variants List */}
+              {(item.variants && Array.isArray(item.variants) && item.variants.length > 0) ? (
+                <div className="mt-6 space-y-2">
+                  {item.variants.map((v, vi) => (
+                    <div key={vi} className="flex items-center justify-between bg-gray-900/50 rounded-xl px-4 py-2.5 border border-gray-800">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-3 h-3 rounded-full border-2 border-gray-700" style={{ backgroundColor: v.color ? undefined : 'transparent' }} />
+                        <span className="text-xs font-bold text-gray-300">
+                          {[v.color, v.size].filter(Boolean).join(' • ')}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-4">
+                        <span className="text-sm font-black text-white">{v.stock}</span>
+                        {v.price > 0 && <span className="text-[10px] font-bold text-emerald-500">₨{v.price}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-6 flex items-center justify-between bg-gray-900/50 rounded-xl px-4 py-2.5 border border-gray-800">
+                  <span className="text-xs font-bold text-gray-300">
+                    {[item.color, item.size].filter(Boolean).join(' • ') || 'Standard'}
+                  </span>
+                  <div className="flex items-center space-x-4">
+                    <span className="text-sm font-black text-white">{item.stock}</span>
+                    {item.price > 0 && <span className="text-[10px] font-bold text-emerald-500">₨{item.price}</span>}
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-6 flex items-end justify-between">
                 <div>
-                  <span className="block text-4xl font-black text-white tracking-tighter">{item.stock}</span>
-                  <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Units Ready</span>
+                  <span className="block text-4xl font-black text-white tracking-tighter">
+                    {item.variants && Array.isArray(item.variants) 
+                      ? item.variants.reduce((s, v) => s + (v.stock || 0), 0)
+                      : item.stock}
+                  </span>
+                  <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Total Units</span>
                 </div>
                 <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase border-2 ${
-                  item.stock > 50 ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-500' : 
-                  item.stock > 0 ? 'border-yellow-500/20 bg-yellow-500/5 text-yellow-500' : 
+                  (item.stock || 0) > 50 ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-500' : 
+                  (item.stock || 0) > 0 ? 'border-yellow-500/20 bg-yellow-500/5 text-yellow-500' : 
                   'border-red-500/20 bg-red-500/5 text-red-500'
                 }`}>
-                  {item.stock > 50 ? 'STOCK SECURE' : item.stock > 0 ? 'REPLENISH' : 'DEPLETED'}
+                  {(item.stock || 0) > 50 ? 'STOCK SECURE' : (item.stock || 0) > 0 ? 'REPLENISH' : 'DEPLETED'}
                 </div>
               </div>
             </motion.div>
@@ -382,7 +486,7 @@ const InventoryManagement = () => {
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-4">
                       <div className="flex items-center space-x-3 mb-1">
                         <div className="p-2 bg-purple-500/10 rounded-lg">
@@ -405,74 +509,6 @@ const InventoryManagement = () => {
                     </div>
                     <div className="space-y-4">
                       <div className="flex items-center space-x-3 mb-1">
-                        <div className="p-2 bg-emerald-500/10 rounded-lg">
-                          <Package size={16} className="text-emerald-400" />
-                        </div>
-                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Stock Count</label>
-                      </div>
-                      <input
-                        type="number"
-                        required
-                        value={formData.stock}
-                        onChange={(e) => setFormData({...formData, stock: parseInt(e.target.value) || 0})}
-                        className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-[1.25rem] py-4 px-6 focus:border-emerald-500 outline-none font-black text-xl text-white shadow-inner"
-                      />
-                    </div>
-                    <div className="space-y-4">
-                      <div className="flex items-center space-x-3 mb-1">
-                        <div className="p-2 bg-emerald-500/10 rounded-lg">
-                          <Save size={16} className="text-emerald-400" />
-                        </div>
-                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Unit Price</label>
-                      </div>
-                      <div className="relative">
-                        <span className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-500 font-bold">$</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          required
-                          value={formData.price}
-                          onChange={(e) => setFormData({...formData, price: parseFloat(e.target.value) || 0})}
-                          className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-[1.25rem] py-4 pl-12 pr-6 focus:border-emerald-500 outline-none font-black text-xl text-emerald-400 shadow-inner"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    <div className="space-y-4">
-                      <div className="flex items-center space-x-3 mb-1">
-                        <div className="p-2 bg-pink-500/10 rounded-lg">
-                          <Palette size={16} className="text-pink-400" />
-                        </div>
-                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Primary Color</label>
-                      </div>
-                      <input
-                        type="text"
-                        value={formData.color}
-                        onChange={(e) => setFormData({...formData, color: e.target.value})}
-                        className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-[1.25rem] py-4 px-6 focus:border-pink-500 outline-none transition-all font-bold text-white shadow-inner"
-                        placeholder="e.g. Royal Blue"
-                      />
-                    </div>
-                    <div className="space-y-4">
-                      <div className="flex items-center space-x-3 mb-1">
-                        <div className="p-2 bg-blue-500/10 rounded-lg">
-                          <Layers size={16} className="text-blue-400" />
-                        </div>
-                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Size</label>
-                      </div>
-                      <input
-                        type="text"
-                        value={formData.size || ''}
-                        onChange={(e) => setFormData({...formData, size: e.target.value})}
-                        className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-[1.25rem] py-4 px-6 focus:border-blue-500 outline-none transition-all font-bold text-white shadow-inner"
-                        placeholder="e.g. XL, 35, 10"
-                      />
-                    </div>
-                    <div className="space-y-4">
-                      <div className="flex items-center space-x-3 mb-1">
                         <div className="p-2 bg-indigo-500/10 rounded-lg">
                           <Layers size={16} className="text-indigo-400" />
                         </div>
@@ -486,51 +522,116 @@ const InventoryManagement = () => {
                         placeholder="e.g. Cotton Blend"
                       />
                     </div>
-                    <div className="space-y-4">
-                      <div className="flex items-center space-x-3 mb-1">
-                        <div className="p-2 bg-yellow-500/10 rounded-lg">
-                          <ImageIcon size={16} className="text-yellow-400" />
+                  </div>
+
+                  {/* Variants Builder */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center space-x-3">
+                        <div className="p-2 bg-pink-500/10 rounded-lg">
+                          <Hash size={16} className="text-pink-400" />
                         </div>
-                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Product Image (Drag & Drop)</label>
+                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Variants (Color × Size × Stock × Price)</label>
                       </div>
-                      
-                      <div 
-                        onDragEnter={handleDrag}
-                        onDragLeave={handleDrag}
-                        onDragOver={handleDrag}
-                        onDrop={handleDrop}
-                        className={`relative w-full aspect-video rounded-[1.25rem] border-2 border-dashed transition-all flex flex-col items-center justify-center gap-4 overflow-hidden ${
-                          dragActive ? 'border-yellow-500 bg-yellow-500/10' : 'border-gray-800 bg-gray-950/50'
-                        } ${formData.imageUrl ? 'border-solid border-emerald-500/40' : ''}`}
-                      >
-                        {formData.imageUrl ? (
-                          <>
-                            <img src={formData.imageUrl} alt="Preview" className="absolute inset-0 w-full h-full object-cover" />
-                            <div className="absolute inset-0 bg-black/60 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center flex-col gap-2 backdrop-blur-sm">
-                              <Upload size={32} className="text-white" />
-                              <span className="text-[10px] font-black text-white uppercase">Replace Photo</span>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            {uploading ? (
-                              <RefreshCcw size={32} className="text-yellow-500 animate-spin" />
-                            ) : (
-                              <Upload size={32} className="text-gray-700" />
-                            )}
-                            <div className="text-center">
-                              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{uploading ? 'Processing Image...' : 'Drop image here'}</p>
-                              <p className="text-[8px] text-gray-600 font-bold mt-1 uppercase">or click to browse</p>
-                            </div>
-                          </>
-                        )}
-                        <input 
-                          type="file" 
-                          className="absolute inset-0 opacity-0 cursor-pointer" 
-                          onChange={(e) => handleFileUpload(e.target.files[0])}
-                          accept="image/*"
-                        />
+                      <div className="flex items-center space-x-4">
+                        <span className="text-sm font-black text-emerald-400">Total: {totalStock}</span>
+                        <button type="button" onClick={addVariant}
+                          className="p-2 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white rounded-xl transition-all">
+                          <Plus size={16} />
+                        </button>
                       </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      {formData.variants.map((v, vi) => (
+                        <div key={vi} className="grid grid-cols-12 gap-2 items-center bg-gray-900/50 rounded-xl p-3 border border-gray-800">
+                          <div className="col-span-3">
+                            <input type="text" value={v.color} placeholder="Color"
+                              onChange={(e) => updateVariant(vi, 'color', e.target.value)}
+                              className="w-full bg-gray-950 border border-gray-700 rounded-lg py-2.5 px-3 outline-none focus:border-pink-500 text-xs font-bold text-white transition-all"
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <input type="text" value={v.size} placeholder="Size"
+                              onChange={(e) => updateVariant(vi, 'size', e.target.value)}
+                              className="w-full bg-gray-950 border border-gray-700 rounded-lg py-2.5 px-3 outline-none focus:border-blue-500 text-xs font-bold text-white transition-all"
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <input type="number" min="0" value={v.stock} placeholder="Qty"
+                              onChange={(e) => updateVariant(vi, 'stock', parseInt(e.target.value) || 0)}
+                              className="w-full bg-gray-950 border border-gray-700 rounded-lg py-2.5 px-3 outline-none focus:border-emerald-500 text-xs font-black text-white transition-all"
+                            />
+                          </div>
+                          <div className="col-span-3">
+                            <input type="number" min="0" step="0.01" value={v.price} placeholder="Price"
+                              onChange={(e) => updateVariant(vi, 'price', parseFloat(e.target.value) || 0)}
+                              className="w-full bg-gray-950 border border-gray-700 rounded-lg py-2.5 px-3 outline-none focus:border-emerald-500 text-xs font-black text-emerald-400 transition-all"
+                            />
+                          </div>
+                          <div className="col-span-2 flex justify-end">
+                            <button type="button" onClick={() => removeVariant(vi)}
+                              className="p-2 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-lg transition-all disabled:opacity-20"
+                              disabled={formData.variants.length <= 1}>
+                              <Minus size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <button type="button" onClick={addVariant}
+                      className="w-full py-3 border-2 border-dashed border-gray-800 rounded-xl text-[10px] font-black text-gray-600 uppercase tracking-widest hover:border-emerald-500/40 hover:text-emerald-500 transition-all flex items-center justify-center space-x-2">
+                      <Plus size={14} />
+                      <span>Add Variant</span>
+                    </button>
+                  </div>
+
+                  {/* Image Upload */}
+                  <div className="space-y-4">
+                    <div className="flex items-center space-x-3 mb-1">
+                      <div className="p-2 bg-yellow-500/10 rounded-lg">
+                        <ImageIcon size={16} className="text-yellow-400" />
+                      </div>
+                      <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Product Image</label>
+                    </div>
+                    
+                    <div 
+                      onDragEnter={handleDrag}
+                      onDragLeave={handleDrag}
+                      onDragOver={handleDrag}
+                      onDrop={handleDrop}
+                      className={`relative w-48 h-48 rounded-[1.25rem] border-2 border-dashed transition-all flex flex-col items-center justify-center gap-4 overflow-hidden ${
+                        dragActive ? 'border-yellow-500 bg-yellow-500/10' : 'border-gray-800 bg-gray-950/50'
+                      } ${formData.imageUrl ? 'border-solid border-emerald-500/40' : ''}`}
+                    >
+                      {formData.imageUrl ? (
+                        <>
+                          <img src={formData.imageUrl} alt="Preview" className="absolute inset-0 w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/60 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center flex-col gap-2 backdrop-blur-sm">
+                            <Upload size={32} className="text-white" />
+                            <span className="text-[10px] font-black text-white uppercase">Replace</span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {uploading ? (
+                            <RefreshCcw size={32} className="text-yellow-500 animate-spin" />
+                          ) : (
+                            <Upload size={32} className="text-gray-700" />
+                          )}
+                          <div className="text-center">
+                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{uploading ? 'Processing...' : 'Drop image'}</p>
+                            <p className="text-[8px] text-gray-600 font-bold mt-1 uppercase">or click</p>
+                          </div>
+                        </>
+                      )}
+                      <input 
+                        type="file" 
+                        className="absolute inset-0 opacity-0 cursor-pointer" 
+                        onChange={(e) => handleFileUpload(e.target.files[0])}
+                        accept="image/*"
+                      />
                     </div>
                   </div>
 

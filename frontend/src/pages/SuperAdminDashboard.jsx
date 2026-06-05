@@ -20,6 +20,7 @@ import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import socket from '../socket';
 import { useLanguage } from '../context/LanguageContext';
+import AdminSettings from './AdminSettings';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -345,6 +346,9 @@ const SuperAdminDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Theme & Settings */}
+      <AdminSettings />
     </div>
   );
 };
