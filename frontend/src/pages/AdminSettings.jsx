@@ -6,18 +6,15 @@ import { useTheme } from '../context/ThemeContext';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
-const STAGES = ['ORDER_ENTRY', 'STORE', 'PRODUCTION', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY', 'FAISAL_APPROVAL'];
+const STAGES = ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'];
 
 const AdminSettings = () => {
   const { themeId, currentTheme, changeTheme, THEMES } = useTheme();
-  const [durations, setDurations] = useState({});
-  const [sla, setSla] = useState({ urgentMultiplier: 0.75, superUrgentMultiplier: 0.5 });
-  const [profileDeadlines, setProfileDeadlines] = useState({});
+  const [deadlineConfig, setDeadlineConfig] = useState(null);
   const [performance, setPerformance] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [savingProfile, setSavingProfile] = useState(false);
   const [message, setMessage] = useState('');
-  const [activeSection, setActiveSection] = useState('durations');
+  const [activeSection, setActiveSection] = useState('deadlines');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -28,12 +25,10 @@ const AdminSettings = () => {
   const fetchSettings = async () => {
     try {
       const token = sessionStorage.getItem('token');
-      const res = await axios.get(`${API_URL}/api/admin/stage-durations`, {
+      const res = await axios.get(`${API_URL}/api/admin/deadline-config`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setDurations(res.data.durations);
-      setSla(res.data.sla);
-      setProfileDeadlines(res.data.profileDeadlines);
+      setDeadlineConfig(res.data);
     } catch (err) {
       console.error('Failed to fetch settings:', err);
     } finally {
@@ -53,55 +48,21 @@ const AdminSettings = () => {
     }
   };
 
-  const saveDurations = async () => {
+  const saveDeadlineConfig = async () => {
     setSaving(true);
     setMessage('');
     try {
       const token = sessionStorage.getItem('token');
-      await axios.put(`${API_URL}/api/admin/stage-durations`,
-        { durations },
+      await axios.put(`${API_URL}/api/admin/deadline-config`,
+        { stageDurations: deadlineConfig.stageDurations, slaMultipliers: deadlineConfig.slaMultipliers },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setMessage('Stage durations saved successfully.');
+      setMessage('Deadline configuration saved.');
       setTimeout(() => setMessage(''), 3000);
     } catch (err) {
-      setMessage('Failed to save durations.');
+      setMessage('Failed to save.');
     }
     setSaving(false);
-  };
-
-  const saveSLA = async () => {
-    setSaving(true);
-    setMessage('');
-    try {
-      const token = sessionStorage.getItem('token');
-      await axios.put(`${API_URL}/api/admin/sla-config`,
-        sla,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setMessage('SLA configuration saved successfully.');
-      setTimeout(() => setMessage(''), 3000);
-    } catch (err) {
-      setMessage('Failed to save SLA.');
-    }
-    setSaving(false);
-  };
-
-  const saveProfileDeadlines = async () => {
-    setSavingProfile(true);
-    setMessage('');
-    try {
-      const token = sessionStorage.getItem('token');
-      await axios.put(`${API_URL}/api/admin/profile-deadlines`,
-        { profileDeadlines },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setMessage('Profile deadlines saved successfully.');
-      setTimeout(() => setMessage(''), 3000);
-    } catch (err) {
-      setMessage('Failed to save profile deadlines.');
-    }
-    setSavingProfile(false);
   };
 
   const sectionBtn = (id, label, icon) => (
@@ -137,9 +98,7 @@ const AdminSettings = () => {
       </div>
 
       <div className="flex flex-wrap gap-2 mb-6">
-        {sectionBtn('durations', 'Stage Durations', <Clock size={14} />)}
-        {sectionBtn('profiles', 'Profile Deadlines', <Users size={14} />)}
-        {sectionBtn('sla', 'SLA Config', <Target size={14} />)}
+        {sectionBtn('deadlines', 'Deadline Config', <Clock size={14} />)}
         {sectionBtn('themes', 'Themes', <Palette size={14} />)}
         {sectionBtn('performance', 'Performance', <BarChart3 size={14} />)}
       </div>
@@ -150,129 +109,87 @@ const AdminSettings = () => {
         </div>
       )}
 
-      {/* Stage Durations */}
-      {activeSection === 'durations' && (
-        <div className="glass rounded-[2rem] border border-gray-800 p-6 space-y-4">
-          <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Set expected completion time (hours) per workflow stage</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {STAGES.map(stage => (
-              <div key={stage} className="bg-gray-900/50 rounded-xl p-4 border border-gray-800">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">
-                  {stage.replace(/_/g, ' ')}
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min="0.5"
-                    step="0.5"
-                    value={durations[stage] || ''}
-                    onChange={(e) => setDurations({ ...durations, [stage]: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-gray-950 border-2 border-gray-800 rounded-xl py-2 px-3 focus:border-indigo-500 outline-none font-black text-lg text-white"
-                  />
-                  <span className="text-gray-500 text-xs font-black">hrs</span>
+      {/* Unified Deadline Config */}
+      {activeSection === 'deadlines' && deadlineConfig && (
+        <div className="glass rounded-[2rem] border border-gray-800 p-6 space-y-8">
+          {/* Stage Durations */}
+          <div>
+            <h3 className="text-sm font-black text-white uppercase tracking-wider mb-2 flex items-center gap-2">
+              <Clock size={16} className="text-blue-400" /> Stage Durations (hours)
+            </h3>
+            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4">Default completion time per pipeline stage. SLA multipliers shrink these for priority orders.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {STAGES.map(stage => (
+                <div key={stage} className="bg-gray-900/50 rounded-xl p-4 border border-gray-800">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">
+                    {stage.replace(/_/g, ' ')}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0.5"
+                      step="0.5"
+                      value={deadlineConfig.stageDurations[stage] || ''}
+                      onChange={(e) => setDeadlineConfig({
+                        ...deadlineConfig,
+                        stageDurations: { ...deadlineConfig.stageDurations, [stage]: parseFloat(e.target.value) || 0 }
+                      })}
+                      className="w-full bg-gray-950 border-2 border-gray-800 rounded-xl py-2 px-3 focus:border-indigo-500 outline-none font-black text-lg text-white"
+                    />
+                    <span className="text-gray-500 text-xs font-black">hrs</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
+
+          {/* SLA Multipliers */}
+          <div>
+            <h3 className="text-sm font-black text-white uppercase tracking-wider mb-2 flex items-center gap-2">
+              <Target size={16} className="text-amber-400" /> SLA Priority Multipliers
+            </h3>
+            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4">How much of the stage duration is allocated per priority level (1 = full time, 0.5 = half time)</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {[
+                { key: 'NORMAL', label: 'Normal', color: 'bg-blue-500' },
+                { key: 'URGENT', label: 'Urgent', color: 'bg-amber-500' },
+                { key: 'SUPER_URGENT', label: 'Super Urgent', color: 'bg-red-500 animate-pulse' }
+              ].map(p => (
+                <div key={p.key} className="bg-gray-900/50 rounded-xl p-4 border border-gray-800">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className={`w-2.5 h-2.5 rounded-full ${p.color}`} />
+                    <label className="text-xs font-black uppercase tracking-wider" style={{ color: p.key === 'URGENT' ? '#fbbf24' : p.key === 'SUPER_URGENT' ? '#f87171' : '#60a5fa' }}>
+                      {p.label}
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0.1"
+                      max="1"
+                      step="0.05"
+                      value={deadlineConfig.slaMultipliers[p.key]}
+                      onChange={(e) => setDeadlineConfig({
+                        ...deadlineConfig,
+                        slaMultipliers: { ...deadlineConfig.slaMultipliers, [p.key]: parseFloat(e.target.value) || 1 }
+                      })}
+                      className="w-full bg-gray-950 border-2 border-gray-800 rounded-xl py-2 px-3 outline-none font-black text-lg text-white"
+                      style={{ borderColor: p.key === 'URGENT' ? '#f59e0b40' : p.key === 'SUPER_URGENT' ? '#ef444440' : '#3b82f640' }}
+                    />
+                    <span className="text-gray-500 text-xs font-black">x</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <button
-            onClick={saveDurations}
+            onClick={saveDeadlineConfig}
             disabled={saving}
             className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-wider hover:bg-indigo-500 transition-all disabled:opacity-50"
           >
             {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-            Save Durations
-          </button>
-        </div>
-      )}
-
-      {/* Profile Deadlines */}
-      {activeSection === 'profiles' && (
-        <div className="glass rounded-[2rem] border border-gray-800 p-6 space-y-4">
-          <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Set deadline hours per user profile/role. Affects per-stage deadline calculation for each role's assigned work.</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Object.entries(profileDeadlines).map(([role, hours]) => (
-              <div key={role} className="bg-gray-900/50 rounded-xl p-4 border border-gray-800">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">
-                  {role.replace(/_/g, ' ')}
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.5"
-                    value={profileDeadlines[role] || 0}
-                    onChange={(e) => setProfileDeadlines({ ...profileDeadlines, [role]: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-gray-950 border-2 border-gray-800 rounded-xl py-2 px-3 focus:border-indigo-500 outline-none font-black text-lg text-white"
-                  />
-                  <span className="text-gray-500 text-xs font-black">hrs</span>
-                </div>
-              </div>
-            ))}
-          </div>
-          <button
-            onClick={saveProfileDeadlines}
-            disabled={savingProfile}
-            className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-wider hover:bg-indigo-500 transition-all disabled:opacity-50"
-          >
-            {savingProfile ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-            Save Profile Deadlines
-          </button>
-        </div>
-      )}
-
-      {/* SLA Config */}
-      {activeSection === 'sla' && (
-        <div className="glass rounded-[2rem] border border-gray-800 p-6 space-y-6">
-          <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
-            Configure how much of the normal duration is allocated for priority orders (multiplier)
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-gray-900/50 rounded-xl p-6 border border-gray-800">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-3 h-3 bg-amber-500 rounded-full" />
-                <label className="text-sm font-black text-amber-400 uppercase tracking-wider">Urgent Multiplier</label>
-              </div>
-              <p className="text-[10px] text-gray-500 font-bold mb-4">e.g., 0.75 means Urgent orders get 75% of the normal stage time</p>
-              <div className="flex items-center gap-3">
-                <input
-                  type="number"
-                  min="0.1"
-                  max="1"
-                  step="0.05"
-                  value={sla.urgentMultiplier}
-                  onChange={(e) => setSla({ ...sla, urgentMultiplier: parseFloat(e.target.value) || 0.75 })}
-                  className="w-full bg-gray-950 border-2 border-gray-800 rounded-xl py-3 px-4 focus:border-amber-500 outline-none font-black text-2xl text-white"
-                />
-                <span className="text-gray-500 text-xs font-black">x</span>
-              </div>
-            </div>
-            <div className="bg-gray-900/50 rounded-xl p-6 border border-gray-800">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
-                <label className="text-sm font-black text-red-400 uppercase tracking-wider">Super Urgent Multiplier</label>
-              </div>
-              <p className="text-[10px] text-gray-500 font-bold mb-4">e.g., 0.50 means Super Urgent orders get 50% of the normal stage time</p>
-              <div className="flex items-center gap-3">
-                <input
-                  type="number"
-                  min="0.1"
-                  max="1"
-                  step="0.05"
-                  value={sla.superUrgentMultiplier}
-                  onChange={(e) => setSla({ ...sla, superUrgentMultiplier: parseFloat(e.target.value) || 0.5 })}
-                  className="w-full bg-gray-950 border-2 border-gray-800 rounded-xl py-3 px-4 focus:border-red-500 outline-none font-black text-2xl text-white"
-                />
-                <span className="text-gray-500 text-xs font-black">x</span>
-              </div>
-            </div>
-          </div>
-          <button
-            onClick={saveSLA}
-            disabled={saving}
-            className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-wider hover:bg-indigo-500 transition-all disabled:opacity-50"
-          >
-            {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-            Save SLA Config
+            Save Deadline Config
           </button>
         </div>
       )}
@@ -330,7 +247,6 @@ const AdminSettings = () => {
         <div className="space-y-4">
           {performance ? (
             <>
-              {/* KPI Cards */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="glass rounded-[1.5rem] border border-gray-800 p-5">
                   <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Total Orders</p>
@@ -350,7 +266,6 @@ const AdminSettings = () => {
                 </div>
               </div>
 
-              {/* Delayed & Overdue Count */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="glass rounded-[1.5rem] border border-gray-800 p-5">
                   <div className="flex items-center gap-3 mb-3">
@@ -368,7 +283,6 @@ const AdminSettings = () => {
                 </div>
               </div>
 
-              {/* Average Completion Time per Stage */}
               {performance.avgCompletionTime && Object.keys(performance.avgCompletionTime).length > 0 && (
                 <div className="glass rounded-[2rem] border border-gray-800 p-6">
                   <h3 className="text-sm font-black text-white uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -385,7 +299,6 @@ const AdminSettings = () => {
                 </div>
               )}
 
-              {/* Bottleneck Stages */}
               {performance.bottleneckStages && performance.bottleneckStages.length > 0 && (
                 <div className="glass rounded-[2rem] border border-red-500/20 p-6">
                   <h3 className="text-sm font-black text-red-400 uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -402,7 +315,6 @@ const AdminSettings = () => {
                 </div>
               )}
 
-              {/* Overdue Critical Stages */}
               {performance.overdueStages && performance.overdueStages.length > 0 && (
                 <div className="glass rounded-[2rem] border border-red-500/30 p-6">
                   <h3 className="text-sm font-black text-red-400 uppercase tracking-wider mb-4 flex items-center gap-2">

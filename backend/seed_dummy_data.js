@@ -7,16 +7,23 @@ async function seed() {
 
   // 2. Seed System Settings
   await prisma.systemSetting.upsert({
-    where: { key: 'STAGE_DURATIONS' },
+    where: { key: 'DEADLINE_CONFIG' },
     update: {},
     create: {
-      key: 'STAGE_DURATIONS',
+      key: 'DEADLINE_CONFIG',
       value: JSON.stringify({
-        'STORE': 2,
-        'PRODUCTION': 48,
-        'LOGO_DESIGN': 8,
-        'DISPATCH': 2,
-        'FAISAL_APPROVAL': 2
+        stageDurations: {
+          'STORE': 24,
+          'PRODUCTION': 48,
+          'LOGO_DESIGN': 24,
+          'DISPATCH': 12,
+          'OUT_FOR_DELIVERY': 12
+        },
+        slaMultipliers: {
+          'NORMAL': 1,
+          'URGENT': 0.75,
+          'SUPER_URGENT': 0.5
+        }
       })
     }
   });

@@ -27,65 +27,22 @@ const NEXT_STAGES = {
 const AUTO_TRANSITION_STAGES = ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'];
 
 const getStageDurations = async (priority = 'NORMAL') => {
-  const settings = await prisma.systemSetting.findUnique({
-    where: { key: 'STAGE_DURATIONS' }
-  });
-  
-  const slaSettings = await prisma.systemSetting.findUnique({
-    where: { key: 'SLA_CONFIG' }
+  const setting = await prisma.systemSetting.findUnique({
+    where: { key: 'DEADLINE_CONFIG' }
   });
 
-  const profileSettings = await prisma.systemSetting.findUnique({
-    where: { key: 'PROFILE_DEADLINES' }
-  });
-
-  let slaMultiplier = 1;
-  if (slaSettings) {
-    try {
-      const sla = JSON.parse(slaSettings.value);
-      if (priority === 'SUPER_URGENT') slaMultiplier = sla.superUrgentMultiplier || 0.5;
-      else if (priority === 'URGENT') slaMultiplier = sla.urgentMultiplier || 0.75;
-    } catch (e) { console.error('Error parsing SLA config:', e); }
-  }
-  
-  let durations = {
-    'STORE': 24,
-    'PRODUCTION': 48,
-    'LOGO_DESIGN': 24,
-    'DISPATCH': 12,
-    'OUT_FOR_DELIVERY': 12
+  let config = {
+    stageDurations: { STORE: 24, PRODUCTION: 48, LOGO_DESIGN: 24, DISPATCH: 12, OUT_FOR_DELIVERY: 12 },
+    slaMultipliers: { NORMAL: 1, URGENT: 0.75, SUPER_URGENT: 0.5 }
   };
-  
-  // Apply profile deadlines as defaults (role → stage mapping)
-  if (profileSettings) {
-    try {
-      const profileDeadlines = JSON.parse(profileSettings.value);
-      const roleStageMap = {
-        'ORDER_ENTRY': 'ORDER_ENTRY',
-        'STORE': 'STORE',
-        'PRODUCTION': 'PRODUCTION',
-        'LOGO_DESIGN': 'LOGO_DESIGN',
-        'DISPATCH': 'DISPATCH',
-        'OUT_FOR_DELIVERY': 'OUT_FOR_DELIVERY',
-        'DELIVERY_BOY': 'OUT_FOR_DELIVERY'
-      };
-      for (const [role, hours] of Object.entries(profileDeadlines)) {
-        const stage = roleStageMap[role];
-        if (stage && hours > 0) {
-          durations[stage] = hours;
-        }
-      }
-    } catch (e) { console.error('Error parsing profile deadlines:', e); }
-  }
-  
-  // Stage durations override profile defaults
-  if (settings) {
-    try {
-      durations = { ...durations, ...JSON.parse(settings.value) };
-    } catch (e) { console.error('Error parsing durations setting:', e); }
+
+  if (setting) {
+    try { config = { ...config, ...JSON.parse(setting.value) }; } catch (e) { console.error('Error parsing DEADLINE_CONFIG:', e); }
   }
 
-  // Apply SLA multiplier
+  const slaMultiplier = config.slaMultipliers?.[priority] ?? 1;
+  const durations = config.stageDurations || {};
+
   const adjusted = {};
   for (const [stage, hours] of Object.entries(durations)) {
     adjusted[stage] = Math.round((hours * slaMultiplier) * 100) / 100;

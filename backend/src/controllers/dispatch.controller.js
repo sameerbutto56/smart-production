@@ -13,31 +13,16 @@ const createAuditLog = async (orderId, action, details, userId) => {
 };
 
 const getStageDurations = async (priority = 'NORMAL') => {
-  const settings = await prisma.systemSetting.findUnique({ where: { key: 'STAGE_DURATIONS' } });
-  const slaSettings = await prisma.systemSetting.findUnique({ where: { key: 'SLA_CONFIG' } });
-  const profileSettings = await prisma.systemSetting.findUnique({ where: { key: 'PROFILE_DEADLINES' } });
-  let slaMultiplier = 1;
-  if (slaSettings) {
-    try {
-      const sla = JSON.parse(slaSettings.value);
-      if (priority === 'SUPER_URGENT') slaMultiplier = sla.superUrgentMultiplier || 0.5;
-      else if (priority === 'URGENT') slaMultiplier = sla.urgentMultiplier || 0.75;
-    } catch (e) {}
+  const setting = await prisma.systemSetting.findUnique({ where: { key: 'DEADLINE_CONFIG' } });
+  let config = {
+    stageDurations: { STORE: 24, PRODUCTION: 48, LOGO_DESIGN: 24, DISPATCH: 12, OUT_FOR_DELIVERY: 12 },
+    slaMultipliers: { NORMAL: 1, URGENT: 0.75, SUPER_URGENT: 0.5 }
+  };
+  if (setting) {
+    try { config = { ...config, ...JSON.parse(setting.value) }; } catch (e) {}
   }
-  let durations = { 'STORE': 24, 'PRODUCTION': 48, 'LOGO_DESIGN': 24, 'DISPATCH': 12, 'OUT_FOR_DELIVERY': 12 };
-  if (profileSettings) {
-    try {
-      const profileDeadlines = JSON.parse(profileSettings.value);
-      const roleStageMap = { 'ORDER_ENTRY': 'ORDER_ENTRY', 'STORE': 'STORE', 'PRODUCTION': 'PRODUCTION', 'LOGO_DESIGN': 'LOGO_DESIGN', 'DISPATCH': 'DISPATCH', 'OUT_FOR_DELIVERY': 'OUT_FOR_DELIVERY', 'DELIVERY_BOY': 'OUT_FOR_DELIVERY', 'FAISAL': 'FAISAL_APPROVAL' };
-      for (const [role, hours] of Object.entries(profileDeadlines)) {
-        const stage = roleStageMap[role];
-        if (stage && hours > 0) durations[stage] = hours;
-      }
-    } catch (e) {}
-  }
-  if (settings) {
-    try { durations = { ...durations, ...JSON.parse(settings.value) }; } catch (e) {}
-  }
+  const slaMultiplier = config.slaMultipliers?.[priority] ?? 1;
+  const durations = config.stageDurations || {};
   const adjusted = {};
   for (const [stage, hours] of Object.entries(durations)) {
     adjusted[stage] = Math.round((hours * slaMultiplier) * 100) / 100;

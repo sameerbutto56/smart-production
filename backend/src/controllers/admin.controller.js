@@ -56,67 +56,34 @@ const getPauseStatus = async (req, res) => {
   }
 };
 
-const getStageDurations = async (req, res) => {
+const getDeadlineConfig = async (req, res) => {
   try {
-    const setting = await prisma.systemSetting.findUnique({ where: { key: 'STAGE_DURATIONS' } });
-    const dur = setting ? JSON.parse(setting.value) : {
-      'STORE': 24, 'PRODUCTION': 48, 'LOGO_DESIGN': 24, 'DISPATCH': 12, 'OUT_FOR_DELIVERY': 12, 'FAISAL_APPROVAL': 4, 'ORDER_ENTRY': 2
+    const setting = await prisma.systemSetting.findUnique({ where: { key: 'DEADLINE_CONFIG' } });
+    const defaultConfig = {
+      stageDurations: { STORE: 24, PRODUCTION: 48, LOGO_DESIGN: 24, DISPATCH: 12, OUT_FOR_DELIVERY: 12 },
+      slaMultipliers: { NORMAL: 1, URGENT: 0.75, SUPER_URGENT: 0.5 }
     };
-    const slaSetting = await prisma.systemSetting.findUnique({ where: { key: 'SLA_CONFIG' } });
-    const sla = slaSetting ? JSON.parse(slaSetting.value) : { urgentMultiplier: 0.75, superUrgentMultiplier: 0.5 };
-    const profileSetting = await prisma.systemSetting.findUnique({ where: { key: 'PROFILE_DEADLINES' } });
-    const profileDeadlines = profileSetting ? JSON.parse(profileSetting.value) : {
-      'SUPER_ADMIN': 0, 'ADMIN': 0, 'FAISAL': 2, 'ORDER_ENTRY': 1,
-      'STORE': 24, 'PRODUCTION': 48, 'LOGO_DESIGN': 24,
-      'DISPATCH': 12, 'OUT_FOR_DELIVERY': 12, 'DELIVERY_BOY': 12,
-      'OUTLET': 4, 'MAIN_EMPLOYEE': 12
-    };
-    res.json({ durations: dur, sla, profileDeadlines });
+    const config = setting ? { ...defaultConfig, ...JSON.parse(setting.value) } : defaultConfig;
+    res.json(config);
   } catch (error) {
-    res.status(500).json({ message: 'Failed to get stage durations', error: error.message });
+    res.status(500).json({ message: 'Failed to get deadline config', error: error.message });
   }
 };
 
-const updateStageDurations = async (req, res) => {
+const updateDeadlineConfig = async (req, res) => {
   try {
-    const { durations } = req.body;
+    const { stageDurations, slaMultipliers } = req.body;
+    const config = {};
+    if (stageDurations) config.stageDurations = stageDurations;
+    if (slaMultipliers) config.slaMultipliers = slaMultipliers;
     await prisma.systemSetting.upsert({
-      where: { key: 'STAGE_DURATIONS' },
-      update: { value: JSON.stringify(durations) },
-      create: { key: 'STAGE_DURATIONS', value: JSON.stringify(durations) }
+      where: { key: 'DEADLINE_CONFIG' },
+      update: { value: JSON.stringify(config) },
+      create: { key: 'DEADLINE_CONFIG', value: JSON.stringify(config) }
     });
-    res.json({ message: 'Stage durations updated successfully.' });
+    res.json({ message: 'Deadline configuration saved.' });
   } catch (error) {
-    res.status(500).json({ message: 'Failed to update stage durations', error: error.message });
-  }
-};
-
-const updateSLAConfig = async (req, res) => {
-  try {
-    const { urgentMultiplier, superUrgentMultiplier } = req.body;
-    const sla = { urgentMultiplier: parseFloat(urgentMultiplier) || 0.75, superUrgentMultiplier: parseFloat(superUrgentMultiplier) || 0.5 };
-    await prisma.systemSetting.upsert({
-      where: { key: 'SLA_CONFIG' },
-      update: { value: JSON.stringify(sla) },
-      create: { key: 'SLA_CONFIG', value: JSON.stringify(sla) }
-    });
-    res.json({ message: 'SLA configuration updated successfully.' });
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to update SLA config', error: error.message });
-  }
-};
-
-const updateProfileDeadlines = async (req, res) => {
-  try {
-    const { profileDeadlines } = req.body;
-    await prisma.systemSetting.upsert({
-      where: { key: 'PROFILE_DEADLINES' },
-      update: { value: JSON.stringify(profileDeadlines) },
-      create: { key: 'PROFILE_DEADLINES', value: JSON.stringify(profileDeadlines) }
-    });
-    res.json({ message: 'Profile deadlines updated successfully.' });
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to update profile deadlines', error: error.message });
+    res.status(500).json({ message: 'Failed to update deadline config', error: error.message });
   }
 };
 
@@ -230,4 +197,4 @@ const getPerformanceAnalytics = async (req, res) => {
   }
 };
 
-module.exports = { clearAllData, togglePause, getPauseStatus, getStageDurations, updateStageDurations, updateSLAConfig, updateProfileDeadlines, getPerformanceAnalytics, getTheme, updateTheme };
+module.exports = { clearAllData, togglePause, getPauseStatus, getDeadlineConfig, updateDeadlineConfig, getPerformanceAnalytics, getTheme, updateTheme };
