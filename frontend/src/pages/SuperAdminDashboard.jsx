@@ -213,6 +213,8 @@ const SuperAdminDashboard = () => {
           </div>
         </div>
 
+      </div>
+
       {/* Settings (Deadline Config, Themes, Performance) */}
       <AdminSettings />
     </div>

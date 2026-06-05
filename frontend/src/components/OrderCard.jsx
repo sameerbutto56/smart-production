@@ -696,7 +696,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         <span>Missing / Unavailable</span>
                       </button>
                     </div>
-                  />
+                  </>
                 ) : ['LOGO_DESIGN', 'NAME_LOGO', 'CUSTOM_LOGO'].includes(currentStage?.stageName) ? (
                   <div className="flex w-full space-x-2">
                     <button
