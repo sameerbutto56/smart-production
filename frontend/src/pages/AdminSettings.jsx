@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, AlertTriangle, CheckCircle2, BarChart3, TrendingUp, Loader2, Save, Gauge, Target, Users, Palette, Check } from 'lucide-react';
+import { Clock, AlertTriangle, CheckCircle2, BarChart3, TrendingUp, Loader2, Save, Gauge, Target, Users, Palette, Check, KeyRound } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
@@ -16,11 +16,30 @@ const AdminSettings = () => {
   const [message, setMessage] = useState('');
   const [activeSection, setActiveSection] = useState('deadlines');
   const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState([]);
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [passwordChanging, setPasswordChanging] = useState(false);
+  const [passwordMsg, setPasswordMsg] = useState('');
 
   useEffect(() => {
     fetchSettings();
     fetchPerformance();
+    fetchUsers();
   }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const token = sessionStorage.getItem('token');
+      const res = await axios.get(`${API_URL}/api/users`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setUsers(res.data);
+    } catch (err) {
+      console.error('Failed to fetch users:', err);
+    }
+  };
 
   const fetchSettings = async () => {
     try {
@@ -65,6 +84,30 @@ const AdminSettings = () => {
     setSaving(false);
   };
 
+  const changePassword = async () => {
+    if (!selectedUserId || !newPassword || !adminPassword) {
+      setPasswordMsg('All fields required');
+      return;
+    }
+    setPasswordChanging(true);
+    setPasswordMsg('');
+    try {
+      const token = sessionStorage.getItem('token');
+      await axios.put(`${API_URL}/api/admin/change-password`,
+        { userId: selectedUserId, newPassword, adminPassword },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setPasswordMsg('Password changed successfully');
+      setNewPassword('');
+      setAdminPassword('');
+      setSelectedUserId('');
+      setTimeout(() => setPasswordMsg(''), 3000);
+    } catch (err) {
+      setPasswordMsg(err.response?.data?.message || 'Failed to change password');
+    }
+    setPasswordChanging(false);
+  };
+
   const sectionBtn = (id, label, icon) => (
     <button
       onClick={() => setActiveSection(id)}
@@ -101,6 +144,7 @@ const AdminSettings = () => {
         {sectionBtn('deadlines', 'Deadline Config', <Clock size={14} />)}
         {sectionBtn('themes', 'Themes', <Palette size={14} />)}
         {sectionBtn('performance', 'Performance', <BarChart3 size={14} />)}
+        {sectionBtn('passwords', 'Passwords', <KeyRound size={14} />)}
       </div>
 
       {message && (
@@ -350,6 +394,72 @@ const AdminSettings = () => {
               <p className="text-gray-600 text-xs font-bold mt-2">Complete some orders to see performance metrics.</p>
             </div>
           )}
+        </div>
+      )}
+
+      {activeSection === 'passwords' && (
+        <div className="glass rounded-[2rem] border border-gray-800 p-6 space-y-6">
+          <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
+            <KeyRound size={16} className="text-purple-400" /> Change Account Password
+          </h3>
+          <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Select a user and set a new password</p>
+
+          <div className="space-y-4">
+            <div>
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Select User</label>
+              <select
+                value={selectedUserId}
+                onChange={(e) => setSelectedUserId(e.target.value)}
+                className="w-full bg-gray-950 border-2 border-gray-800 rounded-xl py-3 px-4 focus:border-indigo-500 outline-none font-medium text-white"
+              >
+                <option value="">— Choose a user —</option>
+                {users.map(u => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.email}) — {u.role}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">New Password</label>
+              <input
+                type="text"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Enter new password (min 6 characters)"
+                className="w-full bg-gray-950 border-2 border-gray-800 rounded-xl py-3 px-4 focus:border-indigo-500 outline-none font-medium text-white"
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Your Admin Password</label>
+              <input
+                type="password"
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                placeholder="Enter your own password to confirm"
+                className="w-full bg-gray-950 border-2 border-gray-800 rounded-xl py-3 px-4 focus:border-indigo-500 outline-none font-medium text-white"
+              />
+            </div>
+
+            {passwordMsg && (
+              <div className={`px-4 py-3 rounded-xl text-xs font-bold ${
+                passwordMsg.includes('success') ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400' : 'bg-red-500/10 border border-red-500/30 text-red-400'
+              }`}>
+                {passwordMsg}
+              </div>
+            )}
+
+            <button
+              onClick={changePassword}
+              disabled={passwordChanging}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black uppercase tracking-widest text-white border border-gray-700 hover:bg-gray-800 transition-all disabled:opacity-50"
+            >
+              {passwordChanging ? <Loader2 size={14} className="animate-spin" /> : <KeyRound size={14} />}
+              {passwordChanging ? 'Changing...' : 'Change Password'}
+            </button>
+          </div>
         </div>
       )}
     </section>

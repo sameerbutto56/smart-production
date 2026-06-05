@@ -13,7 +13,6 @@ import InventoryManagement from './pages/InventoryManagement';
 import AllOrders from './pages/AllOrders';
 import History from './pages/History';
 import ProgressChart from './pages/ProgressChart';
-import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import DeliveryDashboard from './pages/DeliveryDashboard';
 import DeliverySheet from './pages/DeliverySheet';
 import WarehouseDashboard from './pages/WarehouseDashboard';
@@ -33,7 +32,7 @@ const AuthRedirectHandler = () => {
   
   const role = String(user.role || '').toUpperCase().trim();
   
-  if (role === 'SUPER_ADMIN') return <Navigate to="/admin" replace={true} />;
+  if (role === 'SUPER_ADMIN' || role === 'ADMIN') return <Navigate to="/dashboard" replace={true} />;
   if (role === 'FAISAL' || role === 'ORDER_ENTRY') return <Navigate to="/dashboard" replace={true} />;
   if (role === 'OUTLET') return <Navigate to="/outlet-requests" replace={true} />;
   if (role === 'PRODUCTION') return <Navigate to="/tasks" replace={true} />;
@@ -69,7 +68,6 @@ function App() {
                     <AuthRedirectHandler />
                   } />
                   <Route path="dashboard" element={<AdminDashboard />} />
-                  <Route path="admin" element={<SuperAdminDashboard />} />
                   <Route path="inventory" element={<InventoryManagement />} />
                   <Route path="tasks" element={<MyTasks />} />
                   <Route path="order-entry" element={<OrderEntry />} />

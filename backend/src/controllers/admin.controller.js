@@ -197,4 +197,40 @@ const getPerformanceAnalytics = async (req, res) => {
   }
 };
 
-module.exports = { clearAllData, togglePause, getPauseStatus, getDeadlineConfig, updateDeadlineConfig, getPerformanceAnalytics, getTheme, updateTheme };
+const changeUserPassword = async (req, res) => {
+  try {
+    const { userId, newPassword, adminPassword } = req.body;
+    
+    if (!userId || !newPassword || !adminPassword) {
+      return res.status(400).json({ message: 'userId, newPassword, and adminPassword are required' });
+    }
+
+    // Verify admin's own password
+    const admin = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!admin || !(await bcrypt.compare(adminPassword, admin.password))) {
+      return res.status(401).json({ message: 'Admin password is incorrect' });
+    }
+
+    // Find target user
+    const targetUser = await prisma.user.findUnique({ where: { id: userId } });
+    if (!targetUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword }
+    });
+
+    res.json({ message: `Password updated for ${targetUser.name} (${targetUser.email})` });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to change password', error: error.message });
+  }
+};
+
+module.exports = { clearAllData, togglePause, getPauseStatus, getDeadlineConfig, updateDeadlineConfig, getPerformanceAnalytics, getTheme, updateTheme, changeUserPassword };
