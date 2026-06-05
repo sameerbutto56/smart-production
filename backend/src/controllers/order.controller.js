@@ -1174,6 +1174,83 @@ const checkOrderInventory = async (req, res) => {
   }
 };
 
+const getOutletAnalytics = async (req, res) => {
+  try {
+    const { outletName, dateFrom, dateTo } = req.query;
+    
+    const dateFilter = {};
+    if (dateFrom || dateTo) {
+      dateFilter.createdAt = {};
+      if (dateFrom) dateFilter.createdAt.gte = new Date(dateFrom);
+      if (dateTo) dateFilter.createdAt.lte = new Date(dateTo);
+    }
+
+    const orderWhere = { ...dateFilter };
+    if (outletName) orderWhere.outletName = outletName;
+
+    const [totalOrders, completedOrders, pendingOrders, inProgressOrders, cancelledOrders, revenueAgg, outletNames] = await Promise.all([
+      prisma.order.count({ where: orderWhere }),
+      prisma.order.count({ where: { ...orderWhere, status: 'COMPLETED' } }),
+      prisma.order.count({ where: { ...orderWhere, status: 'PENDING' } }),
+      prisma.order.count({ where: { ...orderWhere, status: 'IN_PROGRESS' } }),
+      prisma.order.count({ where: { ...orderWhere, status: { in: ['CANCELLED', 'REJECTED'] } } }),
+      prisma.order.aggregate({ where: orderWhere, _sum: { totalPrice: true }, _avg: { totalPrice: true } }),
+      outletName ? Promise.resolve([]) : prisma.order.groupBy({
+        by: ['outletName'],
+        _count: { id: true },
+        where: { outletName: { not: null } },
+        orderBy: { _count: { id: 'desc' } }
+      })
+    ]);
+
+    // Stock requests per outlet
+    const stockWhere = { ...dateFilter };
+    if (outletName) stockWhere.outletName = outletName;
+    const stockRequests = await prisma.stockRequest.groupBy({
+      by: ['status'],
+      _count: { id: true },
+      _sum: { quantity: true },
+      where: stockWhere
+    });
+
+    // Inventory levels
+    const inventory = await prisma.inventoryItem.findMany({
+      select: { name: true, stock: true, category: true },
+      orderBy: { stock: 'asc' }
+    });
+
+    // Recent orders for the outlet
+    const recentOrders = await prisma.order.findMany({
+      where: orderWhere,
+      select: { id: true, orderNumber: true, customerName: true, totalPrice: true, status: true, priority: true, createdAt: true, outletName: true },
+      orderBy: { createdAt: 'desc' },
+      take: 20
+    });
+
+    res.json({
+      summary: {
+        totalOrders,
+        completedOrders,
+        pendingOrders,
+        inProgressOrders,
+        cancelledOrders,
+        totalRevenue: revenueAgg._sum.totalPrice || 0,
+        avgOrderValue: revenueAgg._avg.totalPrice || 0
+      },
+      stockRequests: stockRequests.reduce((acc, r) => {
+        acc[r.status] = { count: r._count.id, totalQty: r._sum.quantity || 0 };
+        return acc;
+      }, {}),
+      inventory: inventory.filter(i => i.stock < 50).slice(0, 10),
+      lowStockCount: inventory.filter(i => i.stock < 10).length,
+      outlets: outletNames ? outletNames.map(o => ({ name: o.outletName, orderCount: o._count.id })) : [{ name: outletName, orderCount: totalOrders }],
+      recentOrders
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching outlet analytics', error: error.message });
+  }
+};
+
 module.exports = { 
   createOrder, 
   getOrders, 
@@ -1191,5 +1268,6 @@ module.exports = {
   updateOrderPriority,
   forceAction,
   setDeliveryType,
-  checkOrderInventory
+  checkOrderInventory,
+  getOutletAnalytics
 };

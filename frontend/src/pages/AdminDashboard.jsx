@@ -19,7 +19,13 @@ import {
   Circle,
   Loader2,
   BellRing,
-  Sparkles
+  Sparkles,
+  TrendingUp,
+  DollarSign,
+  ShoppingCart,
+  RotateCcw,
+  CalendarDays,
+  Filter
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -66,6 +72,12 @@ const AdminDashboard = () => {
   const [filterStage, setFilterStage] = useState('ALL');
   const [loading, setLoading] = useState(true);
   const [fetchingError, setFetchingError] = useState(false);
+  const [outletFilter, setOutletFilter] = useState('');
+  const [outletDateRange, setOutletDateRange] = useState('month');
+  const [outletCustomFrom, setOutletCustomFrom] = useState('');
+  const [outletCustomTo, setOutletCustomTo] = useState('');
+  const [outletAnalytics, setOutletAnalytics] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   const stageList = [
     { id: 'ORDER_ENTRY', icon: ClipboardList },
@@ -164,6 +176,49 @@ const AdminDashboard = () => {
       console.error('Error fetching pause status:', error);
     }
   };
+
+  const fetchOutletAnalytics = async (outlet, range) => {
+    setAnalyticsLoading(true);
+    try {
+      const token = sessionStorage.getItem('token');
+      if (!token) return;
+      const params = {};
+      if (outlet) params.outletName = outlet;
+      const now = new Date();
+      if (range === 'today') {
+        params.dateFrom = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      } else if (range === 'week') {
+        const weekAgo = new Date(now);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        params.dateFrom = weekAgo.toISOString();
+      } else if (range === 'month') {
+        const monthAgo = new Date(now);
+        monthAgo.setMonth(monthAgo.getMonth() - 1);
+        params.dateFrom = monthAgo.toISOString();
+      } else if (range === 'year') {
+        const yearAgo = new Date(now);
+        yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+        params.dateFrom = yearAgo.toISOString();
+      } else if (range === 'custom') {
+        if (outletCustomFrom) params.dateFrom = new Date(outletCustomFrom).toISOString();
+        if (outletCustomTo) params.dateTo = new Date(outletCustomTo).toISOString();
+      }
+      const res = await axios.get(`${API_URL}/api/orders/outlet-analytics`, {
+        params,
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setOutletAnalytics(res.data);
+    } catch (error) {
+      console.error('Error fetching outlet analytics:', error);
+    }
+    setAnalyticsLoading(false);
+  };
+
+  useEffect(() => {
+    if (outletDateRange !== 'custom') {
+      fetchOutletAnalytics(outletFilter, outletDateRange);
+    }
+  }, [outletFilter, outletDateRange]);
 
   const handleTogglePause = async (e) => {
     e.preventDefault();
@@ -760,6 +815,191 @@ const AdminDashboard = () => {
           </div>
         )}
       </section>
+
+      {/* Outlet Analytics */}
+      {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
+        <section className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="p-3 bg-purple-500/10 rounded-2xl">
+                <StoreIcon className="text-purple-400" size={24} />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-white uppercase tracking-tight">Outlet Analytics</h2>
+                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Outlet-wise performance &amp; revenue</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Outlet Selector + Date Filter */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative">
+              <StoreIcon size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
+              <select
+                value={outletFilter}
+                onChange={(e) => setOutletFilter(e.target.value)}
+                className="bg-gray-950 border-2 border-gray-800 rounded-xl py-3 pl-10 pr-8 text-xs font-black text-white uppercase tracking-widest focus:border-purple-500 outline-none appearance-none cursor-pointer"
+              >
+                <option value="">All Outlets (Combined)</option>
+                <option value="JOHAR TOWN BRANCH">Johar Town Branch</option>
+                <option value="JAIL ROAD BRANCH">Jail Road Branch</option>
+                <option value="ABBOTTABAD BRANCH">Abbottabad Branch</option>
+                <option value="OUTLET">General Outlet</option>
+              </select>
+              <Filter size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 pointer-events-none" />
+            </div>
+
+            <div className="flex gap-1">
+              {[
+                { key: 'today', label: 'Today' },
+                { key: 'week', label: 'Week' },
+                { key: 'month', label: 'Month' },
+                { key: 'year', label: 'Year' },
+                { key: 'all', label: 'All' },
+              ].map(r => (
+                <button
+                  key={r.key}
+                  onClick={() => setOutletDateRange(r.key)}
+                  className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                    outletDateRange === r.key ? 'bg-purple-600 text-white' : 'bg-gray-900 text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
+              <button
+                onClick={() => setOutletDateRange('custom')}
+                className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1 ${
+                  outletDateRange === 'custom' ? 'bg-purple-600 text-white' : 'bg-gray-900 text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                <CalendarDays size={12} /> Custom
+              </button>
+            </div>
+
+            {outletDateRange === 'custom' && (
+              <div className="flex items-center gap-2">
+                <input type="date" value={outletCustomFrom} onChange={(e) => setOutletCustomFrom(e.target.value)}
+                  className="bg-gray-950 border-2 border-gray-800 rounded-xl py-2 px-3 text-xs font-bold text-white outline-none focus:border-purple-500" />
+                <span className="text-gray-600 text-xs">—</span>
+                <input type="date" value={outletCustomTo} onChange={(e) => setOutletCustomTo(e.target.value)}
+                  className="bg-gray-950 border-2 border-gray-800 rounded-xl py-2 px-3 text-xs font-bold text-white outline-none focus:border-purple-500" />
+                <button
+                  onClick={() => fetchOutletAnalytics(outletFilter, 'custom')}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-purple-500 transition-all"
+                >
+                  Apply
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Analytics Cards */}
+          {analyticsLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="animate-spin text-purple-500" size={32} />
+            </div>
+          ) : outletAnalytics ? (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                <div className="glass rounded-xl p-4 border border-gray-800">
+                  <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Total Orders</p>
+                  <p className="text-2xl font-black text-white mt-1">{outletAnalytics.summary.totalOrders}</p>
+                </div>
+                <div className="glass rounded-xl p-4 border border-gray-800">
+                  <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Completed</p>
+                  <p className="text-2xl font-black text-emerald-400 mt-1">{outletAnalytics.summary.completedOrders}</p>
+                </div>
+                <div className="glass rounded-xl p-4 border border-gray-800">
+                  <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest">In Progress</p>
+                  <p className="text-2xl font-black text-blue-400 mt-1">{outletAnalytics.summary.inProgressOrders}</p>
+                </div>
+                <div className="glass rounded-xl p-4 border border-gray-800">
+                  <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Pending</p>
+                  <p className="text-2xl font-black text-yellow-400 mt-1">{outletAnalytics.summary.pendingOrders}</p>
+                </div>
+                <div className="glass rounded-xl p-4 border border-gray-800">
+                  <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Cancelled / Returns</p>
+                  <p className="text-2xl font-black text-red-400 mt-1">{outletAnalytics.summary.cancelledOrders}</p>
+                </div>
+                <div className="glass rounded-xl p-4 border border-gray-800 col-span-2 lg:col-span-1">
+                  <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Low Stock Items</p>
+                  <p className="text-2xl font-black text-rose-400 mt-1">{outletAnalytics.lowStockCount}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="glass rounded-xl p-5 border border-gray-800">
+                  <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                    <DollarSign size={12} className="text-emerald-400" /> Total Revenue
+                  </p>
+                  <p className="text-3xl font-black text-emerald-400 mt-2">${Number(outletAnalytics.summary.totalRevenue).toLocaleString()}</p>
+                </div>
+                <div className="glass rounded-xl p-5 border border-gray-800">
+                  <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                    <ShoppingCart size={12} className="text-blue-400" /> Avg Order Value
+                  </p>
+                  <p className="text-3xl font-black text-blue-400 mt-2">${Number(outletAnalytics.summary.avgOrderValue).toFixed(2)}</p>
+                </div>
+              </div>
+
+              {/* Stock Requests Summary */}
+              {Object.keys(outletAnalytics.stockRequests).length > 0 && (
+                <div className="glass rounded-xl p-5 border border-gray-800">
+                  <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-3">Stock Requests (In/Out)</p>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {Object.entries(outletAnalytics.stockRequests).map(([status, data]) => (
+                      <div key={status} className="bg-gray-900/50 rounded-lg p-3 border border-gray-800">
+                        <p className="text-[10px] font-black text-gray-400 uppercase">{status}</p>
+                        <p className="text-lg font-black text-white">{data.count} requests</p>
+                        <p className="text-[10px] text-gray-500">{data.totalQty} units</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Recent Orders */}
+              {outletAnalytics.recentOrders.length > 0 && (
+                <div className="glass rounded-xl p-5 border border-gray-800">
+                  <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-3">Recent Orders</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="text-[9px] font-black text-gray-500 uppercase tracking-widest border-b border-gray-800">
+                          <th className="py-2 pr-4">Order</th>
+                          <th className="py-2 pr-4">Customer</th>
+                          <th className="py-2 pr-4">Outlet</th>
+                          <th className="py-2 pr-4">Status</th>
+                          <th className="py-2 pr-4 text-right">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {outletAnalytics.recentOrders.map(o => (
+                          <tr key={o.id} className="border-b border-gray-800/50 text-sm">
+                            <td className="py-2 pr-4 font-bold text-white">#{o.orderNumber || o.id.substring(0, 6)}</td>
+                            <td className="py-2 pr-4 text-gray-300">{o.customerName}</td>
+                            <td className="py-2 pr-4 text-gray-400 text-[10px]">{o.outletName || '—'}</td>
+                            <td className="py-2 pr-4">
+                              <span className={`text-[10px] font-black px-2 py-1 rounded ${
+                                o.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' :
+                                o.status === 'IN_PROGRESS' ? 'bg-blue-500/20 text-blue-400' :
+                                o.status === 'PENDING' ? 'bg-yellow-500/20 text-yellow-400' :
+                                'bg-red-500/20 text-red-400'
+                              }`}>{o.status}</span>
+                            </td>
+                            <td className="py-2 pr-4 text-right font-bold text-white">${o.totalPrice || 0}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null}
+        </section>
+      )}
 
       {/* Deadline & SLA Settings (Super Admin only) */}
       {user?.role === 'SUPER_ADMIN' && <AdminSettings />}
