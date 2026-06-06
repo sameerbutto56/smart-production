@@ -99,7 +99,7 @@ const getTheme = async (req, res) => {
 const updateTheme = async (req, res) => {
   try {
     const { theme } = req.body;
-    const validThemes = ['clinical', 'couture', 'boutique', 'luxe'];
+    const validThemes = ['clinical', 'couture', 'boutique', 'luxe', 'medScrub', 'healthVibe', 'clinicalDark', 'coral', 'lavender', 'slate'];
     if (!validThemes.includes(theme)) {
       return res.status(400).json({ message: 'Invalid theme. Must be one of: ' + validThemes.join(', ') });
     }

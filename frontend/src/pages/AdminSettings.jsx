@@ -245,9 +245,10 @@ const AdminSettings = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {Object.entries(THEMES).map(([id, theme]) => {
               const isActive = themeId === id;
-              const previewBg = id === 'clinical' ? '#f0f9ff' : id === 'couture' ? '#09090b' : id === 'boutique' ? '#fef2f2' : '#030712';
+              const lightThemes = ['clinical', 'boutique', 'coral', 'lavender', 'slate'];
+              const previewBg = lightThemes.includes(id) ? theme.colors.background : '#030712';
               const previewAccent = theme.colors.primary;
-              const previewText = id === 'clinical' || id === 'boutique' ? '#0c4a6e' : '#fafafa';
+              const previewText = lightThemes.includes(id) ? theme.colors['text-primary'] : '#fafafa';
               return (
                 <motion.button
                   key={id}
@@ -266,7 +267,7 @@ const AdminSettings = () => {
                   )}
                   <span className="text-2xl mb-2 block">{theme.icon}</span>
                   <p className="text-xs font-black uppercase tracking-wider mb-1" style={{ color: previewText }}>{theme.name}</p>
-                  <p className="text-[10px]" style={{ color: id === 'clinical' || id === 'boutique' ? '#64748b' : '#a1a1aa' }}>{theme.description}</p>
+                  <p className="text-[10px]" style={{ color: lightThemes.includes(id) ? theme.colors['text-secondary'] : '#a1a1aa' }}>{theme.description}</p>
                   <div className="flex gap-1 mt-3">
                     <div className="w-4 h-4 rounded-full" style={{ background: theme.colors.primary }} />
                     <div className="w-4 h-4 rounded-full" style={{ background: theme.colors.secondary }} />

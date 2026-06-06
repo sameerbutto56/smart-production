@@ -56,8 +56,22 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-gray-800 rounded-full hover:bg-gray-700 transition-colors;
+    background: var(--text-muted, #52525b);
+    border-radius: 999px;
+    transition: background 0.3s ease;
   }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary, #a1a1aa);
+  }
+}
+
+/* Light theme color scheme */
+[data-theme="clinical"],
+[data-theme="boutique"],
+[data-theme="coral"],
+[data-theme="lavender"],
+[data-theme="slate"] {
+  color-scheme: light;
 }
 
 .font-urdu {
