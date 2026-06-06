@@ -9,7 +9,7 @@ const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'l
 const STAGES = ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'];
 
 const AdminSettings = () => {
-  const { themeId, currentTheme, changeTheme, THEMES } = useTheme();
+  const { themeId, currentTheme, changeTheme, setGlobalThemeId, THEMES, isUsingPersonal } = useTheme();
   const [deadlineConfig, setDeadlineConfig] = useState(null);
   const [performance, setPerformance] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -241,10 +241,10 @@ const AdminSettings = () => {
       {/* Themes */}
       {activeSection === 'themes' && (
         <div className="glass rounded-[2rem] border border-gray-800 p-6 space-y-4">
-          <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Choose a theme for the entire application — applies to all users and profiles instantly</p>
+          <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Choose a global theme for the entire system — applies to all users by default. Individual users can override in their personal settings.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {Object.entries(THEMES).map(([id, theme]) => {
-              const isActive = themeId === id;
+              const isActive = themeId === id && !isUsingPersonal;
               const lightThemes = ['clinical', 'boutique', 'coral', 'lavender', 'slate'];
               const previewBg = lightThemes.includes(id) ? theme.colors.background : '#030712';
               const previewAccent = theme.colors.primary;
@@ -254,7 +254,7 @@ const AdminSettings = () => {
                   key={id}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => changeTheme(id)}
+                  onClick={() => setGlobalThemeId(id)}
                   className={`relative rounded-2xl p-5 text-left transition-all border-2 ${
                     isActive ? 'shadow-lg' : 'border-gray-800 hover:border-gray-600'
                   }`}

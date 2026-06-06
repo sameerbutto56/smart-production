@@ -16,6 +16,7 @@ model User {
   password   String
   role       String       @default("ORDER_ENTRY")
   employeeId String?      @unique
+  theme      String?      @default("luxe")
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
   auditLogs    AuditLog[]

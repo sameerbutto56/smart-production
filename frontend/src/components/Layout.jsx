@@ -22,12 +22,16 @@ import socket from '../socket';
 import toast from 'react-hot-toast';
 import { useSearch } from '../context/SearchContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
+import { Palette } from 'lucide-react';
 
 const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
   const { user, logout } = useAuth();
   const { t, isUrdu } = useLanguage();
+  const { themeId, currentTheme, changeTheme, THEMES } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
+  const [showThemePicker, setShowThemePicker] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -149,6 +153,34 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
                   </p>
                   <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">{user?.role?.replace('_', ' ')}</p>
                 </div>
+              </div>
+              {/* Personal Theme Picker */}
+              <div className="relative mb-3">
+                <button
+                  onClick={() => setShowThemePicker(!showThemePicker)}
+                  className="flex items-center space-x-3 w-full p-3 text-gray-400 hover:text-white hover:bg-gray-800 rounded-xl transition-all font-bold text-xs"
+                >
+                  <Palette size={18} style={{ color: currentTheme.colors.primary }} />
+                  <span className="flex-1 text-left">{currentTheme.name}</span>
+                  <span className="text-[8px] opacity-50">▼</span>
+                </button>
+                {showThemePicker && (
+                  <div className="absolute bottom-full left-0 right-0 mb-2 bg-gray-900 border border-gray-800 rounded-xl overflow-hidden shadow-2xl z-50 max-h-48 overflow-y-auto">
+                    {Object.entries(THEMES).map(([id, theme]) => (
+                      <button
+                        key={id}
+                        onClick={() => { changeTheme(id); setShowThemePicker(false); }}
+                        className={`flex items-center space-x-3 w-full px-4 py-2.5 text-xs transition-all ${
+                          themeId === id ? 'text-white bg-blue-600/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                        }`}
+                      >
+                        <span>{theme.icon}</span>
+                        <span className="font-bold">{theme.name}</span>
+                        {themeId === id && <span className="ml-auto text-[8px] text-blue-400">✓</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <button
                 onClick={handleLogout}
