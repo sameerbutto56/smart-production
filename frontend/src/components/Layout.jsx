@@ -41,7 +41,6 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
   const navItems = [
     { name: 'Control Center', path: '/dashboard', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET'] },
     { name: 'Order Entry', path: '/order-entry', icon: ClipboardList, roles: ['ORDER_ENTRY', 'FAISAL', 'SUPER_ADMIN', 'OUTLET'] },
-    { name: 'Order Entry', path: '/order-entry', icon: ClipboardList, roles: ['ORDER_ENTRY', 'FAISAL', 'SUPER_ADMIN', 'OUTLET'] },
     { name: 'Inventory', path: '/inventory', icon: Package, roles: ['SUPER_ADMIN', 'ADMIN', 'STORE'] },
     { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['STORE', 'PRODUCTION', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'] },
     { name: 'Warehouse', path: '/warehouse', icon: Warehouse, roles: ['STORE', 'ADMIN', 'SUPER_ADMIN'] },
