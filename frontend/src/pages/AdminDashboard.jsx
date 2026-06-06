@@ -381,7 +381,7 @@ const AdminDashboard = () => {
     return (
       <div className="h-[80vh] flex flex-col items-center justify-center space-y-4">
         <Loader2 className="animate-spin text-blue-500" size={48} />
-        <p className="text-gray-500 font-black uppercase tracking-[0.3em] text-xs">Syncing Production Hub...</p>
+        <p className="theme-text-muted font-black uppercase tracking-[0.3em] text-xs">Syncing Production Hub...</p>
       </div>
     );
   }
@@ -391,12 +391,12 @@ const AdminDashboard = () => {
       <div className="h-[80vh] flex flex-col items-center justify-center space-y-6 glass rounded-[3rem] border-2 border-red-500/20">
         <AlertTriangle className="text-red-500" size={64} />
         <div className="text-center">
-          <h2 className="text-2xl font-black text-white uppercase italic">Connection Fragmented</h2>
-          <p className="text-gray-500 mt-2 font-bold">The production server is currently unreachable.</p>
+          <h2 className="text-2xl font-black theme-text-primary uppercase italic">Connection Fragmented</h2>
+          <p className="theme-text-muted mt-2 font-bold">The production server is currently unreachable.</p>
         </div>
         <button 
           onClick={fetchDashboardData}
-          className="px-10 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-blue-500 transition-all active:scale-95 shadow-xl shadow-blue-900/40"
+          className="btn-solid-primary btn-lg"
         >
           Re-Initialize
         </button>
@@ -409,8 +409,8 @@ const AdminDashboard = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-white tracking-tight">Control Center</h1>
-          <p className="text-gray-400 font-bold uppercase tracking-widest text-[10px] mt-1">Production Approval Hub</p>
+          <h1 className="text-3xl font-black theme-text-primary tracking-tight">Control Center</h1>
+          <p className="theme-text-secondary font-bold uppercase tracking-widest text-[10px] mt-1">Production Approval Hub</p>
         </div>
         <div className="flex items-center gap-4">
           {systemPaused && (
@@ -456,8 +456,8 @@ const AdminDashboard = () => {
               <Search className="text-white" size={24} />
             </div>
             <div>
-              <h2 className="text-xl font-black text-white uppercase tracking-tight">Search Production</h2>
-              <p className="text-gray-500 text-[9px] font-black uppercase tracking-widest mt-0.5">Find any order instantly</p>
+              <h2 className="text-xl font-black theme-text-primary uppercase tracking-tight">Search Production</h2>
+              <p className="theme-text-muted text-[9px] font-black uppercase tracking-widest mt-0.5">Find any order instantly</p>
             </div>
           </div>
 
@@ -485,7 +485,7 @@ const AdminDashboard = () => {
                   }
                 }
               }}
-              className="w-full bg-gray-950 border-2 border-gray-800 rounded-[1.5rem] py-6 pl-16 pr-8 focus:outline-none focus:border-blue-500 transition-all text-xl font-black tracking-widest placeholder:text-gray-700 shadow-inner"
+              className="w-full theme-input rounded-[1.5rem] py-6 pl-16 pr-8 text-xl font-black tracking-widest shadow-inner"
             />
           </div>
           
@@ -506,7 +506,7 @@ const AdminDashboard = () => {
                 setTrackingError('No order found with that ID or Name.');
               }
             }}
-            className="px-10 py-6 bg-blue-600 text-white rounded-[1.5rem] font-black uppercase tracking-[0.2em] hover:bg-blue-500 transition-all active:scale-95 shadow-xl shadow-blue-900/40 shrink-0 text-sm"
+            className="btn-solid-primary btn-xl"
           >
             Track Order
           </button>
@@ -530,7 +530,7 @@ const AdminDashboard = () => {
               key={trackedOrder.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mt-12 bg-gray-900/50 rounded-[2.5rem] p-10 border border-gray-800 shadow-2xl"
+              className="mt-12 theme-bg rounded-[2.5rem] p-10 theme-border shadow-2xl"
             >
               <div className="flex justify-between items-start mb-12">
                 <div className="flex items-center space-x-6">
@@ -538,15 +538,15 @@ const AdminDashboard = () => {
                     {trackedOrder.customerName.charAt(0)}
                   </div>
                   <div>
-                    <h4 className="text-2xl font-black text-white tracking-tight">{trackedOrder.customerName}</h4>
-                    <p className="text-gray-500 font-bold uppercase tracking-widest text-[10px] mt-1">Order #{trackedOrder.orderNumber || trackedOrder.id.substring(0, 8)}</p>
+                    <h4 className="text-2xl font-black theme-text-primary tracking-tight">{trackedOrder.customerName}</h4>
+                    <p className="theme-text-muted font-bold uppercase tracking-widest text-[10px] mt-1">Order #{trackedOrder.orderNumber || trackedOrder.id.substring(0, 8)}</p>
                   </div>
                 </div>
                 <div className="text-right">
                     <span className="bg-blue-500/10 text-blue-400 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border border-blue-500/20">
                         {trackedOrder.status.replace(/_/g, ' ')}
                     </span>
-                    <p className="text-[10px] text-gray-500 font-black mt-2 uppercase tracking-widest">{trackedOrder.currentStage.replace(/_/g, ' ')} Phase</p>
+                    <p className="text-[10px] theme-text-muted font-black mt-2 uppercase tracking-widest">{trackedOrder.currentStage.replace(/_/g, ' ')} Phase</p>
                 </div>
               </div>
 
@@ -625,7 +625,7 @@ const AdminDashboard = () => {
                 
                 <button
                   onClick={() => navigate('/orders', { state: { searchTerm: trackedOrder.orderNumber } })}
-                  className="w-full mt-6 py-4 bg-gray-800 hover:bg-gray-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
+                  className="w-full mt-6 btn-ghost py-4"
                 >
                   View Full Detailed Job Sheet
                 </button>
@@ -645,7 +645,7 @@ const AdminDashboard = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
             onClick={() => stat.path && navigate(stat.path, { state: stat.state })}
-            className="glass p-6 rounded-[1.5rem] border border-gray-800 hover:border-blue-500/50 hover:scale-[1.02] transition-all group cursor-pointer active:scale-95"
+            className="glass p-6 rounded-[1.5rem] theme-border hover:border-blue-500/50 hover:scale-[1.02] transition-all group cursor-pointer active:scale-95"
           >
             <div className="flex justify-between items-start mb-4">
               <div className={`p-3 rounded-xl ${stat.bg} group-hover:scale-110 transition-transform`}>
@@ -656,8 +656,8 @@ const AdminDashboard = () => {
                 Live
               </span>
             </div>
-            <h3 className="text-gray-500 text-[9px] font-black uppercase tracking-[0.2em]">{stat.title}</h3>
-            <p className="text-3xl font-black text-white mt-1 tracking-tighter">{stat.value}</p>
+            <h3 className="theme-text-muted text-[9px] font-black uppercase tracking-[0.2em]">{stat.title}</h3>
+            <p className="text-3xl font-black theme-text-primary mt-1 tracking-tighter">{stat.value}</p>
           </motion.div>
         ))}
       </div>
@@ -667,12 +667,12 @@ const AdminDashboard = () => {
       
 
       {/* Phase Filter Bar */}
-      <div className="bg-gray-900/50 p-4 rounded-[2rem] border border-gray-800 overflow-x-auto no-scrollbar">
+      <div className="theme-bg-subtle p-4 rounded-[2rem] theme-border overflow-x-auto no-scrollbar">
         <div className="flex items-center space-x-3 min-w-max">
           <button
             onClick={() => setFilterStage('ALL')}
             className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-              filterStage === 'ALL' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' : 'bg-gray-950 text-gray-500 hover:text-gray-300'
+              filterStage === 'ALL' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' : 'theme-bg theme-text-muted hover:text-gray-300'
             }`}
           >
             All Phases ({activeOrdersCount})
@@ -710,13 +710,13 @@ const AdminDashboard = () => {
                 <Package className="text-blue-400" size={24} />
               </div>
               <div>
-                <h2 className="text-2xl font-black text-white uppercase tracking-tight">{filterStage.replace(/_/g, ' ')} Orders</h2>
-                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Active orders in this phase</p>
+                <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">{filterStage.replace(/_/g, ' ')} Orders</h2>
+                <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">Active orders in this phase</p>
               </div>
             </div>
             <button 
               onClick={() => setFilterStage('ALL')}
-              className="text-gray-500 hover:text-white transition-colors text-xs font-black uppercase tracking-widest flex items-center gap-2"
+              className="theme-text-muted hover:text-white transition-colors text-xs font-black uppercase tracking-widest flex items-center gap-2"
             >
               <X size={14} /> Close Filter
             </button>
@@ -733,9 +733,9 @@ const AdminDashboard = () => {
                 />
               ))
             ) : (
-              <div className="col-span-full py-20 text-center glass rounded-[3rem] border border-gray-800">
-                <Package className="mx-auto text-gray-800 mb-4" size={48} />
-                <h3 className="text-gray-500 font-black uppercase">No orders in this phase</h3>
+              <div className="col-span-full py-20 text-center glass rounded-[3rem] theme-border">
+                <Package className="mx-auto theme-text-muted mb-4" size={48} />
+                <h3 className="theme-text-muted font-black uppercase">No orders in this phase</h3>
               </div>
             )}
           </div>
@@ -750,8 +750,8 @@ const AdminDashboard = () => {
               <Sparkles className="text-blue-400" size={24} />
             </div>
             <div>
-              <h2 className="text-2xl font-black text-white uppercase tracking-tight">Initiation Queue</h2>
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">New orders waiting to start production</p>
+              <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">Initiation Queue</h2>
+              <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">New orders waiting to start production</p>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
@@ -778,8 +778,8 @@ const AdminDashboard = () => {
               <ClipboardList className="text-amber-400" size={24} />
             </div>
             <div>
-              <h2 className="text-2xl font-black text-white uppercase tracking-tight">Delivery Setup</h2>
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Orders at Dispatch awaiting delivery configuration</p>
+              <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">Delivery Setup</h2>
+              <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">Orders at Dispatch awaiting delivery configuration</p>
             </div>
           </div>
           
@@ -790,7 +790,7 @@ const AdminDashboard = () => {
               placeholder="Search by ID or Name..."
               value={approvalSearch}
               onChange={(e) => setApprovalSearch(e.target.value)}
-              className="w-full bg-gray-900/50 border-2 border-gray-800 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-amber-500 transition-all text-sm font-bold text-white"
+              className="w-full theme-input rounded-xl py-3 pl-12 pr-4 text-sm font-bold"
             />
           </div>
         </div>

@@ -37,7 +37,7 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
           ? 'border-emerald-500/30 bg-emerald-950/20'
           : isNoResponse
           ? 'border-amber-500/30 bg-amber-950/20'
-          : 'border-gray-800 bg-gray-900'
+          : 'theme-border theme-bg'
       }`}
     >
       {/* Status strip at top */}
@@ -51,7 +51,7 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <p className="font-black text-white text-xl leading-tight">{order.customerName}</p>
+              <p className="font-black theme-text-primary text-xl leading-tight">{order.customerName}</p>
               {order.priority === 'SUPER_URGENT' && (
                 <span className="text-[9px] font-black text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20 animate-pulse">
                   ⚡ SUPER URGENT
@@ -90,36 +90,36 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
                 <Phone size={18} className="text-white" />
               </div>
               <div>
-                <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">📞 Tap to Call</p>
-                <p className="font-black text-white text-lg leading-tight">{order.customerPhone}</p>
+                <p className="text-[9px] theme-text-muted font-black uppercase tracking-widest">📞 Tap to Call</p>
+                <p className="font-black theme-text-primary text-lg leading-tight">{order.customerPhone}</p>
               </div>
             </a>
           ) : (
-            <div className="bg-gray-800/50 rounded-2xl px-4 py-3 text-gray-600 text-sm font-bold">
+            <div className="bg-gray-800/50 rounded-2xl px-4 py-3 theme-text-muted text-sm font-bold">
               No phone number
             </div>
           )}
 
           {/* Delivery Address */}
           {order.address && (
-            <div className="bg-gray-800/50 rounded-2xl px-4 py-3 border border-gray-800">
-              <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">📍 Delivery Address</p>
-              <p className="font-black text-white text-base mt-0.5 whitespace-pre-wrap">{order.address}</p>
+            <div className="bg-gray-800/50 rounded-2xl px-4 py-3 border theme-border">
+              <p className="text-[9px] theme-text-muted font-black uppercase tracking-widest">📍 Delivery Address</p>
+              <p className="font-black theme-text-primary text-base mt-0.5 whitespace-pre-wrap">{order.address}</p>
             </div>
           )}
 
           <div className="grid grid-cols-2 gap-2">
             <div className="bg-gray-800/60 rounded-2xl px-4 py-3">
-              <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Product</p>
-              <p className="font-black text-white text-base mt-0.5 truncate">{pd.productType || order.type || '—'}</p>
+              <p className="text-[9px] theme-text-muted font-black uppercase tracking-widest">Product</p>
+              <p className="font-black theme-text-primary text-base mt-0.5 truncate">{pd.productType || order.type || '—'}</p>
             </div>
 
             <div className="bg-gray-800/60 rounded-2xl px-4 py-3">
-              <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Amount</p>
+              <p className="text-[9px] theme-text-muted font-black uppercase tracking-widest">Amount</p>
               <p className="font-black text-emerald-400 text-base mt-0.5">
                 ₨{Number(order.totalPrice || 0).toLocaleString()}
               </p>
-              <p className="text-[9px] text-gray-600 font-bold mt-0.5">
+              <p className="text-[9px] theme-text-muted font-bold mt-0.5">
                 {order.paymentMethod === 'ONLINE_TRANSFER' ? '💳 Online' : order.advancePaid ? '✅ Paid' : '💵 COD'}
               </p>
             </div>
@@ -131,14 +131,14 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
           <>
             {/* Payment Method Selector */}
             <div className="bg-gray-800/40 rounded-2xl p-3 border border-gray-700/50">
-              <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-2">Payment Method</p>
+              <p className="text-[9px] theme-text-muted font-black uppercase tracking-widest mb-2">Payment Method</p>
               <div className="flex gap-2">
                 <button
                   onClick={() => setPaymentMethods(prev => ({ ...prev, [order.id]: 'CASH' }))}
                   className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all ${
                     (paymentMethods[order.id] || 'CASH') === 'CASH'
                       ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40'
-                      : 'bg-gray-800 text-gray-400 border border-gray-700'
+                      : 'bg-gray-800 theme-text-secondary border border-gray-700'
                   }`}
                 >
                   💵 Cash
@@ -148,7 +148,7 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
                   className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all ${
                     paymentMethods[order.id] === 'ONLINE_TRANSFER'
                       ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
-                      : 'bg-gray-800 text-gray-400 border border-gray-700'
+                      : 'bg-gray-800 theme-text-secondary border border-gray-700'
                   }`}
                 >
                   💳 Online Transfer
@@ -282,14 +282,14 @@ const DeliveryDashboard = () => {
             <Truck className="text-white" size={22} />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-white leading-none">Deliveries</h1>
-            <p className="text-[10px] text-gray-500 font-bold mt-0.5">{user?.name}</p>
+            <h1 className="text-2xl font-black theme-text-primary leading-none">Deliveries</h1>
+            <p className="text-[10px] theme-text-muted font-bold mt-0.5">{user?.name}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={fetchOrders}
-            className="w-11 h-11 flex items-center justify-center bg-gray-900 border border-gray-800 rounded-2xl text-gray-400 hover:text-white active:scale-90 transition-all"
+            className="w-11 h-11 flex items-center justify-center theme-bg border theme-border rounded-2xl theme-text-secondary hover:text-white active:scale-90 transition-all"
           >
             <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
           </button>
@@ -298,37 +298,37 @@ const DeliveryDashboard = () => {
 
       {/* Stats — big and colorful */}
       <div className="grid grid-cols-3 gap-2">
-        <button onClick={() => setFilter('PENDING')} className={`rounded-2xl p-4 text-center transition-all border-2 ${filter === 'PENDING' ? 'bg-blue-600 border-blue-500' : 'bg-gray-900 border-gray-800'}`}>
+        <button onClick={() => setFilter('PENDING')} className={`rounded-2xl p-4 text-center transition-all border-2 ${filter === 'PENDING' ? 'bg-blue-600 border-blue-500' : 'theme-bg theme-border'}`}>
           <p className={`text-3xl font-black ${filter === 'PENDING' ? 'text-white' : 'text-blue-400'}`}>{pending.length}</p>
-          <p className={`text-[9px] font-black uppercase tracking-wider mt-1 ${filter === 'PENDING' ? 'text-blue-100' : 'text-gray-500'}`}>{t('Pending')}</p>
+          <p className={`text-[9px] font-black uppercase tracking-wider mt-1 ${filter === 'PENDING' ? 'text-blue-100' : 'theme-text-muted'}`}>{t('Pending')}</p>
         </button>
-        <button onClick={() => setFilter('DELIVERED')} className={`rounded-2xl p-4 text-center transition-all border-2 ${filter === 'DELIVERED' ? 'bg-emerald-600 border-emerald-500' : 'bg-gray-900 border-gray-800'}`}>
+        <button onClick={() => setFilter('DELIVERED')} className={`rounded-2xl p-4 text-center transition-all border-2 ${filter === 'DELIVERED' ? 'bg-emerald-600 border-emerald-500' : 'theme-bg theme-border'}`}>
           <p className={`text-3xl font-black ${filter === 'DELIVERED' ? 'text-white' : 'text-emerald-400'}`}>{delivered.length}</p>
-          <p className={`text-[9px] font-black uppercase tracking-wider mt-1 ${filter === 'DELIVERED' ? 'text-emerald-100' : 'text-gray-500'}`}>{t('Delivered')}</p>
+          <p className={`text-[9px] font-black uppercase tracking-wider mt-1 ${filter === 'DELIVERED' ? 'text-emerald-100' : 'theme-text-muted'}`}>{t('Delivered')}</p>
         </button>
-        <button onClick={() => setFilter('NOT_RESPONDED')} className={`rounded-2xl p-4 text-center transition-all border-2 ${filter === 'NOT_RESPONDED' ? 'bg-amber-600 border-amber-500' : 'bg-gray-900 border-gray-800'}`}>
+        <button onClick={() => setFilter('NOT_RESPONDED')} className={`rounded-2xl p-4 text-center transition-all border-2 ${filter === 'NOT_RESPONDED' ? 'bg-amber-600 border-amber-500' : 'theme-bg theme-border'}`}>
           <p className={`text-3xl font-black ${filter === 'NOT_RESPONDED' ? 'text-white' : 'text-amber-400'}`}>{noResponse.length}</p>
-          <p className={`text-[9px] font-black uppercase tracking-wider mt-1 ${filter === 'NOT_RESPONDED' ? 'text-amber-100' : 'text-gray-500'}`}>{t('No Reply')}</p>
+          <p className={`text-[9px] font-black uppercase tracking-wider mt-1 ${filter === 'NOT_RESPONDED' ? 'text-amber-100' : 'theme-text-muted'}`}>{t('No Reply')}</p>
         </button>
       </div>
 
       {/* Show All button */}
       <button
         onClick={() => setFilter('ALL')}
-        className={`w-full py-3 rounded-2xl text-sm font-black uppercase tracking-widest border-2 transition-all ${filter === 'ALL' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-900 border-gray-800 text-gray-500'}`}
+        className={`w-full py-3 rounded-2xl text-sm font-black uppercase tracking-widest border-2 transition-all ${filter === 'ALL' ? 'bg-gray-700 border-gray-600 text-white' : 'theme-bg theme-border theme-text-muted'}`}
       >
         {t('Show All')} ({orders.length})
       </button>
 
       {/* Search */}
       <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 theme-text-muted" size={16} />
         <input
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search by name or phone..."
-          className="w-full bg-gray-900 border-2 border-gray-800 rounded-2xl py-3.5 pl-12 pr-4 text-sm font-bold text-white outline-none focus:border-blue-500 transition-all"
+          className="w-full theme-input rounded-2xl py-3.5 pl-12 pr-4 text-sm font-bold text-white outline-none focus:border-blue-500 transition-all"
         />
       </div>
 
@@ -336,12 +336,12 @@ const DeliveryDashboard = () => {
       {loading ? (
         <div className="flex flex-col items-center py-24 gap-4">
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-600 text-sm font-bold">Loading...</p>
+          <p className="theme-text-muted text-sm font-bold">Loading...</p>
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center py-24 gap-4 text-center">
-          <ClipboardList size={40} className="text-gray-700" />
-          <p className="text-gray-500 font-black text-lg">No orders here</p>
+          <ClipboardList size={40} className="theme-text-muted" />
+          <p className="theme-text-muted font-black text-lg">No orders here</p>
           <p className="text-gray-700 text-sm max-w-[220px]">
             Tap a filter above or ask admin to assign deliveries.
           </p>
@@ -363,10 +363,10 @@ const DeliveryDashboard = () => {
       )}
 
       {/* Fixed bottom bar — cash summary */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-gray-950/95 backdrop-blur-xl border-t-2 border-gray-800 px-5 py-4">
+      <div className="fixed bottom-0 left-0 right-0 z-40 theme-bg/95 backdrop-blur-xl border-t-2 theme-border px-5 py-4">
         <div className="max-w-xl mx-auto flex items-center justify-between">
           <div>
-            <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">COD to Collect</p>
+            <p className="text-[9px] theme-text-muted font-black uppercase tracking-widest">COD to Collect</p>
             <p className="text-xl font-black text-amber-400">
               ₨{pending
                 .filter(o => !o.advancePaid)
@@ -376,7 +376,7 @@ const DeliveryDashboard = () => {
           </div>
           <div className="h-10 w-px bg-gray-800" />
           <div className="text-center">
-            <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Collected</p>
+            <p className="text-[9px] theme-text-muted font-black uppercase tracking-widest">Collected</p>
             <p className="text-xl font-black text-emerald-400">
               ₨{delivered
                 .reduce((s, o) => s + (Number(o.totalPrice) || 0), 0)
@@ -385,8 +385,8 @@ const DeliveryDashboard = () => {
           </div>
           <div className="h-10 w-px bg-gray-800" />
           <div className="text-right">
-            <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Remaining</p>
-            <p className="text-xl font-black text-white">{pending.length} left</p>
+            <p className="text-[9px] theme-text-muted font-black uppercase tracking-widest">Remaining</p>
+            <p className="text-xl font-black theme-text-primary">{pending.length} left</p>
           </div>
         </div>
       </div>

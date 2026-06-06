@@ -205,8 +205,8 @@ const MyTasks = () => {
             <Activity className="text-white" size={32} />
           </div>
           <div>
-            <h1 className="text-3xl font-black text-white tracking-tight">Production Tasks</h1>
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mt-1">Managing orders for {user?.role?.replace('_', ' ')}</p>
+            <h1 className="text-3xl font-black theme-text-primary tracking-tight">Production Tasks</h1>
+            <p className="theme-text-secondary text-xs font-bold uppercase tracking-widest mt-1">Managing orders for {user?.role?.replace('_', ' ')}</p>
           </div>
         </div>
 
@@ -218,10 +218,10 @@ const MyTasks = () => {
               placeholder="Search ID or Customer..."
               value={searchTerm}
               onChange={(e) => handleLocalSearch(e.target.value)}
-              className="w-full bg-gray-900 border-2 border-gray-800 rounded-2xl py-3 pl-12 pr-4 focus:border-blue-500 outline-none transition-all text-sm font-medium"
+              className="w-full theme-input rounded-2xl py-3 pl-12 pr-4 focus:border-blue-500 outline-none transition-all text-sm font-medium"
             />
           </div>
-          <div className="flex bg-gray-900/80 p-1 rounded-xl border border-gray-800 shrink-0">
+          <div className="flex theme-bg-subtle p-1 rounded-xl theme-border shrink-0">
             {['ALL', 'URGENT', 'STANDARD'].map(type => (
               <button
                 key={type}
@@ -229,7 +229,7 @@ const MyTasks = () => {
                 className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
                   urgencyFilter === type 
                     ? 'bg-blue-600 text-white shadow-lg' 
-                    : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
+                    : 'theme-text-muted hover:theme-text-primary hover:bg-gray-800/50'
                 }`}
               >
                 {type}
@@ -240,11 +240,11 @@ const MyTasks = () => {
       </div>
 
       {/* Unseen / Seen Tabs */}
-      <div className="flex border-b border-gray-800 mb-6 gap-6 relative">
+      <div className="flex border-b theme-border mb-6 gap-6 relative">
         <button
           onClick={() => setActiveTab('unseen')}
           className={`pb-4 px-2 text-sm font-black uppercase tracking-widest transition-all relative flex items-center gap-2 ${
-            activeTab === 'unseen' ? 'text-blue-500' : 'text-gray-500 hover:text-gray-300'
+            activeTab === 'unseen' ? 'text-blue-500' : 'theme-text-muted hover:theme-text-primary'
           }`}
         >
           <span>Unseen Tasks</span>
@@ -253,7 +253,7 @@ const MyTasks = () => {
               {unseenTasks.length}
             </span>
           ) : (
-            <span className="text-[10px] bg-gray-800 text-gray-500 px-2 py-0.5 rounded-full font-black">0</span>
+            <span className="text-[10px] bg-gray-800 theme-text-muted px-2 py-0.5 rounded-full font-black">0</span>
           )}
           {activeTab === 'unseen' && (
             <motion.div layoutId="activeTabUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
@@ -263,7 +263,7 @@ const MyTasks = () => {
         <button
           onClick={() => setActiveTab('seen')}
           className={`pb-4 px-2 text-sm font-black uppercase tracking-widest transition-all relative flex items-center gap-2 ${
-            activeTab === 'seen' ? 'text-blue-500' : 'text-gray-500 hover:text-gray-300'
+            activeTab === 'seen' ? 'text-blue-500' : 'theme-text-muted hover:theme-text-primary'
           }`}
         >
           <span>Active / Seen Tasks</span>
@@ -298,7 +298,7 @@ const MyTasks = () => {
                     <span className="text-xs font-black text-red-400 uppercase tracking-wider">Overdue</span>
                   </div>
                   <p className="text-4xl font-black text-white">{overdue.length}</p>
-                  <p className="text-[10px] text-gray-500 font-bold mt-1">Orders past production deadline</p>
+                  <p className="text-[10px] theme-text-secondary font-bold mt-1">Orders past production deadline</p>
                 </div>
                 <div className="glass rounded-2xl p-5 border border-amber-500/20">
                   <div className="flex items-center gap-3 mb-2">
@@ -306,7 +306,7 @@ const MyTasks = () => {
                     <span className="text-xs font-black text-amber-400 uppercase tracking-wider">Approaching</span>
                   </div>
                   <p className="text-4xl font-black text-white">{approaching.length}</p>
-                  <p className="text-[10px] text-gray-500 font-bold mt-1">Deadline within 4 hours</p>
+                  <p className="text-[10px] theme-text-secondary font-bold mt-1">Deadline within 4 hours</p>
                 </div>
                 <div className="glass rounded-2xl p-5 border border-emerald-500/20">
                   <div className="flex items-center gap-3 mb-2">
@@ -316,7 +316,7 @@ const MyTasks = () => {
                   <p className="text-3xl font-black text-white">
                     {earliestDeadline ? earliestDeadline.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
                   </p>
-                  <p className="text-[10px] text-gray-500 font-bold mt-1">
+                  <p className="text-[10px] theme-text-secondary font-bold mt-1">
                     {earliestDeadline ? earliestDeadline.toLocaleDateString() : 'No deadlines set'}
                   </p>
                 </div>
@@ -329,7 +329,7 @@ const MyTasks = () => {
       {loading ? (
         <div className="h-64 flex flex-col items-center justify-center space-y-4">
           <Loader2 className="animate-spin text-blue-500" size={48} />
-          <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Syncing floor data...</p>
+          <p className="theme-text-secondary font-bold uppercase tracking-widest text-xs">Syncing floor data...</p>
         </div>
       ) : displayedOrders.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -350,16 +350,16 @@ const MyTasks = () => {
         <motion.div 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="h-96 flex flex-col items-center justify-center space-y-6 bg-gray-900/30 rounded-[3rem] border-2 border-dashed border-gray-800"
+          className="h-96 flex flex-col items-center justify-center space-y-6 theme-bg-subtle rounded-[3rem] border-2 border-dashed theme-border"
         >
-          <div className="p-8 bg-gray-800/50 rounded-full">
-            <Filter size={48} className="text-gray-600" />
+          <div className="p-8 theme-bg-subtle rounded-full">
+            <Filter size={48} className="theme-text-muted" />
           </div>
           <div className="text-center">
-            <h3 className="text-xl font-bold text-gray-400">
+            <h3 className="text-xl font-bold theme-text-secondary">
               {activeTab === 'unseen' ? 'No Unseen Tasks' : 'No Active Tasks'}
             </h3>
-            <p className="text-sm text-gray-600 mt-2">
+            <p className="text-sm theme-text-muted mt-2">
               {activeTab === 'unseen' 
                 ? 'All newly assigned tasks have been acknowledged.' 
                 : 'No active production tasks are currently in progress.'}

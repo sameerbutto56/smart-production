@@ -182,7 +182,7 @@ const DeliverySheet = () => {
         <div className="flex items-center space-x-4">
           <button 
             onClick={() => navigate('/dashboard')}
-            className="p-3 bg-gray-900 border border-gray-800 rounded-2xl text-gray-400 hover:text-white transition-all hover:scale-105"
+            className="p-3 theme-bg border theme-border rounded-2xl theme-text-secondary hover:text-white transition-all hover:scale-105"
           >
             <ArrowLeft size={20} />
           </button>
@@ -190,31 +190,31 @@ const DeliverySheet = () => {
             <div className="flex items-center gap-2">
               <span className="p-1.5 bg-yellow-500/10 text-yellow-500 rounded-lg text-xs font-black uppercase tracking-wider">manifest</span>
             </div>
-            <h1 className="text-3xl font-black text-white tracking-tight mt-1">Delivery Sheet</h1>
+            <h1 className="text-3xl font-black theme-text-primary tracking-tight mt-1">Delivery Sheet</h1>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
           {/* Date Selector */}
           <div className="relative group">
-            <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+            <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 theme-text-muted" size={18} />
             <input 
               type="date" 
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-gray-950 border-2 border-gray-800 rounded-[1.2rem] py-3 pl-12 pr-4 outline-none focus:border-yellow-500 text-sm font-bold text-white transition-all"
+              className="theme-input rounded-[1.2rem] py-3 pl-12 pr-4 outline-none focus:border-yellow-500 text-sm font-bold transition-all"
             />
           </div>
 
           {/* Search bar */}
           <div className="relative group w-full sm:w-60">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 theme-text-muted" size={18} />
             <input 
               type="text" 
               placeholder="Search rider sheet..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-gray-950 border-2 border-gray-800 rounded-[1.2rem] py-3 pl-12 pr-4 outline-none focus:border-yellow-500 text-sm font-bold text-white transition-all placeholder-gray-800"
+              className="theme-input rounded-[1.2rem] py-3 pl-12 pr-4 outline-none focus:border-yellow-500 text-sm font-bold transition-all placeholder-gray-800"
             />
           </div>
 
@@ -233,15 +233,15 @@ const DeliverySheet = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
         {/* Left Side: Manifest Sheet */}
-        <div className="lg:col-span-9 glass p-8 rounded-[2.5rem] border border-gray-800/80 shadow-2xl relative overflow-hidden space-y-6">
+        <div className="lg:col-span-9 glass p-8 rounded-[2.5rem] border theme-border shadow-2xl relative overflow-hidden space-y-6">
           <div className="absolute top-0 right-0 w-48 h-48 bg-yellow-500/5 rounded-full blur-3xl" />
           
-          <div className="flex items-center justify-between border-b border-gray-800/50 pb-5">
+          <div className="flex items-center justify-between border-b theme-border pb-5">
             <div className="flex items-center gap-3">
               <FileText className="text-yellow-500" size={24} />
-              <h3 className="text-xl font-black text-white tracking-tight">Rider Dispatch Manifest</h3>
+              <h3 className="text-xl font-black theme-text-primary tracking-tight">Rider Dispatch Manifest</h3>
             </div>
-            <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest bg-gray-950 px-4 py-2 rounded-full border border-gray-800">
+            <span className="text-[10px] font-black theme-text-muted uppercase tracking-widest theme-bg px-4 py-2 rounded-full border theme-border">
               Date: {new Date(selectedDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
             </span>
           </div>
@@ -249,7 +249,7 @@ const DeliverySheet = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="text-gray-400 text-[10px] uppercase font-black tracking-wider border-b border-gray-800 bg-gray-950/40">
+                <tr className="theme-text-secondary text-[10px] uppercase font-black tracking-wider border-b theme-border theme-bg-subtle">
                   <th className="py-4 px-3 w-10">Sr.</th>
                   <th className="py-4 px-3 w-28">Order ID</th>
                   <th className="py-4 px-3">Customer</th>
@@ -265,7 +265,7 @@ const DeliverySheet = () => {
               <tbody className="divide-y divide-gray-800/60">
                 {loading ? (
                   <tr>
-                    <td colSpan="10" className="py-16 text-center text-gray-500">
+                    <td colSpan="10" className="py-16 text-center theme-text-muted">
                       <div className="flex flex-col items-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-500 mb-4"></div>
                         Generating delivery manifest...
@@ -274,7 +274,7 @@ const DeliverySheet = () => {
                   </tr>
                 ) : filteredOrders.length === 0 ? (
                   <tr>
-                    <td colSpan="10" className="py-16 text-center text-gray-500 text-sm font-bold">
+                    <td colSpan="10" className="py-16 text-center theme-text-muted text-sm font-bold">
                       No orders dispatched/delivered on this date.
                     </td>
                   </tr>
@@ -303,19 +303,19 @@ const DeliverySheet = () => {
 
                     return (
                       <tr key={order.id} className="hover:bg-white/5 transition-colors">
-                        <td className="py-4 px-3 font-black text-gray-400 text-xs">{idx + 1}</td>
+                        <td className="py-4 px-3 font-black theme-text-secondary text-xs">{idx + 1}</td>
                         <td className="py-4 px-3 font-black text-yellow-500 text-xs">
                           {order.orderNumber || order.id?.slice(0, 8).toUpperCase()}
                         </td>
-                        <td className="py-4 px-3 font-bold text-gray-200 text-xs">{order.customerName}</td>
-                        <td className="py-4 px-3 text-gray-400 font-bold text-xs">{order.customerPhone || '—'}</td>
-                        <td className="py-4 px-3 text-gray-400 text-xs max-w-xs truncate" title={order.address}>
+                        <td className="py-4 px-3 font-bold theme-text-primary text-xs">{order.customerName}</td>
+                        <td className="py-4 px-3 theme-text-secondary font-bold text-xs">{order.customerPhone || '—'}</td>
+                        <td className="py-4 px-3 theme-text-secondary text-xs max-w-xs truncate" title={order.address}>
                           {order.address || '—'}
                         </td>
-                        <td className="py-4 px-3 text-gray-300 font-bold text-xs">
+                        <td className="py-4 px-3 theme-text-primary font-bold text-xs">
                           {productSummary}
                         </td>
-                        <td className="py-4 px-3 text-center font-black text-gray-200 text-xs">{order.quantity}</td>
+                        <td className="py-4 px-3 text-center font-black theme-text-primary text-xs">{order.quantity}</td>
                         <td className="py-4 px-3 text-xs">
                           <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
                             payMethod === 'ONLINE_TRANSFER'
@@ -353,29 +353,29 @@ const DeliverySheet = () => {
 
         {/* Right Side: Financial & Summary Card */}
         <div className="lg:col-span-3 space-y-6">
-          <div className="glass p-8 rounded-[2.5rem] border border-gray-800 shadow-2xl relative overflow-hidden space-y-8">
+          <div className="glass p-8 rounded-[2.5rem] border theme-border shadow-2xl relative overflow-hidden space-y-8">
             <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-3xl" />
             
             <div className="flex items-center space-x-3 text-emerald-400">
               <TrendingUp size={24} />
-              <h4 className="text-lg font-black text-white">Daily Ledger</h4>
+              <h4 className="text-lg font-black theme-text-primary">Daily Ledger</h4>
             </div>
 
             <div className="space-y-6">
-              <div className="bg-gray-950 p-6 rounded-3xl border border-gray-800 flex justify-between items-center shadow-inner">
+              <div className="theme-bg p-6 rounded-3xl border theme-border flex justify-between items-center shadow-inner">
                 <div>
-                  <p className="text-[10px] text-gray-500 font-black uppercase tracking-wider">COD Collected</p>
-                  <p className="text-2xl font-black text-white mt-1">₨{summary.totalCash.toLocaleString()}</p>
+                  <p className="text-[10px] theme-text-muted font-black uppercase tracking-wider">COD Collected</p>
+                  <p className="text-2xl font-black theme-text-primary mt-1">₨{summary.totalCash.toLocaleString()}</p>
                 </div>
                 <div className="w-10 h-10 bg-amber-500/10 text-amber-500 rounded-xl flex items-center justify-center font-black">
                   💵
                 </div>
               </div>
 
-              <div className="bg-gray-950 p-6 rounded-3xl border border-gray-800 flex justify-between items-center shadow-inner">
+              <div className="theme-bg p-6 rounded-3xl border theme-border flex justify-between items-center shadow-inner">
                 <div>
-                  <p className="text-[10px] text-gray-500 font-black uppercase tracking-wider">Online / Prepaid</p>
-                  <p className="text-2xl font-black text-white mt-1">₨{summary.totalOnline.toLocaleString()}</p>
+                  <p className="text-[10px] theme-text-muted font-black uppercase tracking-wider">Online / Prepaid</p>
+                  <p className="text-2xl font-black theme-text-primary mt-1">₨{summary.totalOnline.toLocaleString()}</p>
                 </div>
                 <div className="w-10 h-10 bg-emerald-500/10 text-emerald-500 rounded-xl flex items-center justify-center font-black">
                   💳
@@ -385,7 +385,7 @@ const DeliverySheet = () => {
               <div className="bg-yellow-500/10 p-6 rounded-3xl border-2 border-yellow-500/20 flex justify-between items-center shadow-lg">
                 <div>
                   <p className="text-[10px] text-yellow-500 font-black uppercase tracking-wider">Total Value</p>
-                  <p className="text-3xl font-black text-white mt-1">₨{summary.totalAmount.toLocaleString()}</p>
+                  <p className="text-3xl font-black theme-text-primary mt-1">₨{summary.totalAmount.toLocaleString()}</p>
                 </div>
                 <div className="w-12 h-12 bg-yellow-500 text-black rounded-xl flex items-center justify-center font-black text-xl shadow-lg">
                   ₨

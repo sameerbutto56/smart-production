@@ -165,16 +165,16 @@ const DispatchDashboard = () => {
           <Truck className={`${isOutlet ? 'text-blue-400' : 'text-purple-400'}`} size={28} />
         </div>
         <div>
-          <h1 className="text-3xl font-black text-white uppercase tracking-tight">
+          <h1 className="text-3xl font-black theme-text-primary uppercase tracking-tight">
             {isOutlet ? 'Outlet Dispatch' : 'Dispatch Control Center'}
           </h1>
-          <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">
+          <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">
             Centralized courier & delivery management
           </p>
         </div>
       </div>
 
-      <div className="flex gap-1 bg-gray-900/50 p-1 rounded-2xl border border-gray-800 mb-6">
+      <div className="flex gap-1 theme-bg-subtle p-1 rounded-2xl border theme-border mb-6">
         {tabs.map(tab => {
           const Icon = tab.icon;
           return (
@@ -182,7 +182,7 @@ const DispatchDashboard = () => {
               className={`flex-1 flex flex-col items-center gap-1 py-3 px-4 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
                 activeTab === tab.id
                   ? 'bg-purple-600 text-white shadow-lg'
-                  : 'text-gray-500 hover:text-gray-300'
+                  : 'theme-text-muted hover:text-gray-300'
               }`}>
               <Icon size={16} />
               <span>{tab.label}</span>
@@ -195,14 +195,14 @@ const DispatchDashboard = () => {
         <>
           <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
             <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 theme-text-muted" size={16} />
               <input type="text" placeholder="Search by order #, customer, or outlet..." value={search} onChange={(e) => setSearch(e.target.value)}
-                className="w-full bg-gray-900/50 border-2 border-gray-800 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-purple-500 transition-all text-sm font-bold text-white" />
+                className="w-full theme-input border-2 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-purple-500 transition-all text-sm font-bold" />
             </div>
             <div className="flex flex-wrap gap-1">
               {(isOutlet ? ['ALL', 'PENDING', 'COURIER_REQUIRED', 'BOOKED', 'DISPATCHED'] : ['ALL', 'COURIER_REQUIRED', 'READY_FOR_DISPATCH', 'BOOKED', 'DISPATCHED', 'IN_TRANSIT']).map(f => (
                 <button key={f} onClick={() => setFilter(f)}
-                  className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${filter === f ? (isOutlet ? 'bg-blue-600 text-white' : 'bg-purple-600 text-white') : 'bg-gray-900 text-gray-500 hover:text-gray-300 border border-gray-800'}`}>
+                  className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${filter === f ? (isOutlet ? 'bg-blue-600 text-white' : 'bg-purple-600 text-white') : 'theme-bg theme-text-muted hover:text-gray-300 border theme-border'}`}>
                   {f.replace(/_/g, ' ')}
                 </button>
               ))}
@@ -210,10 +210,10 @@ const DispatchDashboard = () => {
           </div>
 
           {filtered.length === 0 ? (
-            <div className="glass rounded-[3rem] border border-gray-800 p-20 text-center">
+            <div className="glass rounded-[3rem] border theme-border p-20 text-center">
               <Package className="mx-auto text-gray-800 mb-4" size={48} />
-              <h3 className="text-gray-500 font-black uppercase">{isOutlet ? 'No orders ready for dispatch' : 'No orders in dispatch queue'}</h3>
-              <p className="text-gray-600 text-xs font-bold mt-2">{isOutlet ? 'Orders that reach the dispatch stage will appear here for courier request.' : 'Orders needing courier dispatch will appear here.'}</p>
+              <h3 className="theme-text-muted font-black uppercase">{isOutlet ? 'No orders ready for dispatch' : 'No orders in dispatch queue'}</h3>
+              <p className="theme-text-muted text-xs font-bold mt-2">{isOutlet ? 'Orders that reach the dispatch stage will appear here for courier request.' : 'Orders needing courier dispatch will appear here.'}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4">
@@ -221,7 +221,7 @@ const DispatchDashboard = () => {
                 const badge = PRIORITY_BADGE[order.priority] || PRIORITY_BADGE.NORMAL;
                 return (
                   <motion.div key={order.id} layout
-                    className={`glass rounded-[2rem] p-6 border ${order.priority === 'SUPER_URGENT' ? 'border-red-500/40 shadow-[0_0_15px_rgba(239,68,68,0.2)]' : 'border-gray-800'}`}>
+                    className={`glass rounded-[2rem] p-6 border ${order.priority === 'SUPER_URGENT' ? 'border-red-500/40 shadow-[0_0_15px_rgba(239,68,68,0.2)]' : 'theme-border'}`}>
                     <div className="flex flex-col md:flex-row md:items-center gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -238,8 +238,8 @@ const DispatchDashboard = () => {
                             }`}>{order.deliveryType.replace(/_/g, ' ')}</span>
                           )}
                         </div>
-                        <h3 className="font-black text-xl text-white truncate">#{order.orderNumber || order.id.substring(0, 8)} — {order.customerName}</h3>
-                        <div className="flex flex-wrap items-center gap-3 mt-2 text-[11px] text-gray-400 font-bold">
+                        <h3 className="font-black text-xl theme-text-primary truncate">#{order.orderNumber || order.id.substring(0, 8)} — {order.customerName}</h3>
+                        <div className="flex flex-wrap items-center gap-3 mt-2 text-[11px] theme-text-secondary font-bold">
                           <span className="flex items-center gap-1"><Phone size={12} />{order.customerPhone || 'N/A'}</span>
                           {order.city && <span className="flex items-center gap-1"><MapPin size={12} />{order.city}</span>}
                           <span className="flex items-center gap-1"><Package size={12} />{order.deliveryMethod || 'Not set'}</span>
@@ -297,13 +297,13 @@ const DispatchDashboard = () => {
                           )}
                         </div>
                         {order.courierDetails?.courierName && (
-                          <div className="flex gap-3 text-[10px] font-black text-gray-500 uppercase tracking-wider">
+                          <div className="flex gap-3 text-[10px] font-black theme-text-muted uppercase tracking-wider">
                             <span>{order.courierDetails.courierName}</span>
                             <span className={`px-2 py-0.5 rounded-full ${
                               order.dispatchStatus === 'DELIVERED' ? 'bg-emerald-500/10 text-emerald-400' :
                               order.dispatchStatus === 'DISPATCHED' ? 'bg-blue-500/10 text-blue-400' :
                               order.dispatchStatus === 'IN_TRANSIT' ? 'bg-amber-500/10 text-amber-400' :
-                              'bg-gray-500/10 text-gray-400'
+                              'bg-gray-500/10 theme-text-muted'
                             }`}>{order.dispatchStatus}</span>
                           </div>
                         )}
@@ -320,10 +320,10 @@ const DispatchDashboard = () => {
       {activeTab === 'pickup' && (
         <>
           {pickupOrders.length === 0 ? (
-            <div className="glass rounded-[3rem] border border-gray-800 p-20 text-center">
+            <div className="glass rounded-[3rem] border theme-border p-20 text-center">
               <Store className="mx-auto text-gray-800 mb-4" size={48} />
-              <h3 className="text-gray-500 font-black uppercase">No pickup orders</h3>
-              <p className="text-gray-600 text-xs font-bold mt-2">Orders marked for customer pickup will appear here.</p>
+              <h3 className="theme-text-muted font-black uppercase">No pickup orders</h3>
+              <p className="theme-text-muted text-xs font-bold mt-2">Orders marked for customer pickup will appear here.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4">
@@ -332,7 +332,7 @@ const DispatchDashboard = () => {
                 const isPickedUp = order.dispatchStatus === 'PICKED_UP' || order.currentStage === 'COMPLETED';
                 return (
                   <motion.div key={order.id} layout
-                    className={`glass rounded-[2rem] p-6 border ${isPickedUp ? 'border-emerald-500/30' : order.priority === 'SUPER_URGENT' ? 'border-red-500/40' : 'border-gray-800'}`}>
+                    className={`glass rounded-[2rem] p-6 border ${isPickedUp ? 'border-emerald-500/30' : order.priority === 'SUPER_URGENT' ? 'border-red-500/40' : 'theme-border'}`}>
                     <div className="flex flex-col md:flex-row md:items-center gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -341,8 +341,8 @@ const DispatchDashboard = () => {
                           {order.outletName && <span className="text-[9px] font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{order.outletName}</span>}
                           {isPickedUp && <span className="text-[9px] font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">PICKED UP</span>}
                         </div>
-                        <h3 className="font-black text-xl text-white truncate">#{order.orderNumber || order.id.substring(0, 8)} — {order.customerName}</h3>
-                        <div className="flex flex-wrap items-center gap-3 mt-2 text-[11px] text-gray-400 font-bold">
+                        <h3 className="font-black text-xl theme-text-primary truncate">#{order.orderNumber || order.id.substring(0, 8)} — {order.customerName}</h3>
+                        <div className="flex flex-wrap items-center gap-3 mt-2 text-[11px] theme-text-secondary font-bold">
                           <span className="flex items-center gap-1"><Phone size={12} />{order.customerPhone || 'N/A'}</span>
                           {order.address && <span className="flex items-center gap-1"><MapPin size={12} />{order.address}</span>}
                           {order.city && <span className="flex items-center gap-1"><Clock size={12} />{order.city}</span>}
@@ -375,10 +375,10 @@ const DispatchDashboard = () => {
       )}
 
       {activeTab === 'in_city' && (
-        <div className="glass rounded-[3rem] border border-gray-800 p-20 text-center">
+        <div className="glass rounded-[3rem] border theme-border p-20 text-center">
           <Package className="mx-auto text-gray-800 mb-4" size={48} />
-          <h3 className="text-gray-500 font-black uppercase">In-City Delivery</h3>
-          <p className="text-gray-600 text-xs font-bold mt-2">In-city deliveries are managed from the Deliveries tab.</p>
+          <h3 className="theme-text-muted font-black uppercase">In-City Delivery</h3>
+          <p className="theme-text-muted text-xs font-bold mt-2">In-city deliveries are managed from the Deliveries tab.</p>
         </div>
       )}
 
@@ -386,27 +386,27 @@ const DispatchDashboard = () => {
         {requestModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-              className="glass max-w-md w-full p-8 rounded-[2rem] border-2 border-gray-800 shadow-2xl">
-              <h2 className="text-2xl font-black text-white mb-2">Request Courier</h2>
-              <p className="text-gray-400 text-xs font-bold mb-2">Order #{requestModal?.orderNumber || requestModal?.id?.substring(0, 8)} — {requestModal?.customerName}</p>
-              <p className="text-gray-600 text-[10px] font-bold mb-6">This request will be sent to the Central Dispatch Department for processing.</p>
+              className="glass max-w-md w-full p-8 rounded-[2rem] border-2 theme-border shadow-2xl">
+              <h2 className="text-2xl font-black theme-text-primary mb-2">Request Courier</h2>
+              <p className="theme-text-secondary text-xs font-bold mb-2">Order #{requestModal?.orderNumber || requestModal?.id?.substring(0, 8)} — {requestModal?.customerName}</p>
+              <p className="theme-text-muted text-[10px] font-bold mb-6">This request will be sent to the Central Dispatch Department for processing.</p>
               <div className="space-y-4">
                 <div>
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 block">Delivery Method *</label>
+                  <label className="text-[10px] font-black theme-text-muted uppercase tracking-widest mb-2 block">Delivery Method *</label>
                   <input type="text" value={deliveryMethod} onChange={(e) => setDeliveryMethod(e.target.value)}
-                    className="w-full bg-gray-950 border-2 border-gray-800 rounded-xl py-3 px-4 focus:border-blue-500 outline-none font-black text-white"
+                    className="w-full theme-input rounded-xl py-3 px-4 focus:border-blue-500 outline-none font-black"
                     placeholder="e.g. TCS, Leopards, Own Delivery..." />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 block">Destination City</label>
+                  <label className="text-[10px] font-black theme-text-muted uppercase tracking-widest mb-2 block">Destination City</label>
                   <input type="text" value={destinationCity} onChange={(e) => setDestinationCity(e.target.value)}
-                    className="w-full bg-gray-950 border-2 border-gray-800 rounded-xl py-3 px-4 focus:border-blue-500 outline-none font-black text-white"
+                    className="w-full theme-input rounded-xl py-3 px-4 focus:border-blue-500 outline-none font-black"
                     placeholder="City name..." />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 block">Notes (optional)</label>
+                  <label className="text-[10px] font-black theme-text-muted uppercase tracking-widest mb-2 block">Notes (optional)</label>
                   <textarea value={notes} onChange={(e) => setNotes(e.target.value)}
-                    className="w-full bg-gray-950 border-2 border-gray-800 rounded-xl py-3 px-4 focus:border-blue-500 outline-none font-black text-white resize-none"
+                    className="w-full theme-input rounded-xl py-3 px-4 focus:border-blue-500 outline-none font-black resize-none"
                     rows={3} placeholder="Any special instructions..." />
                 </div>
               </div>
@@ -426,31 +426,31 @@ const DispatchDashboard = () => {
         {bookModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-              className="glass max-w-md w-full p-8 rounded-[2rem] border-2 border-gray-800 shadow-2xl">
-              <h2 className="text-2xl font-black text-white mb-2">Book Courier</h2>
-              <p className="text-gray-400 text-xs font-bold mb-6">Order #{bookModal?.orderNumber || bookModal?.id?.substring(0, 8)} — {bookModal?.customerName}</p>
+              className="glass max-w-md w-full p-8 rounded-[2rem] border-2 theme-border shadow-2xl">
+              <h2 className="text-2xl font-black theme-text-primary mb-2">Book Courier</h2>
+              <p className="theme-text-secondary text-xs font-bold mb-6">Order #{bookModal?.orderNumber || bookModal?.id?.substring(0, 8)} — {bookModal?.customerName}</p>
               <div className="space-y-4">
                 <div>
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 block">Courier Service</label>
+                  <label className="text-[10px] font-black theme-text-muted uppercase tracking-widest mb-2 block">Courier Service</label>
                   <div className="grid grid-cols-3 gap-2">
                     {COURIER_OPTIONS.map(c => (
                       <button key={c} onClick={() => setCourierName(c)}
                         className={`py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border-2 ${
-                          courierName === c ? 'border-purple-500 bg-purple-600 text-white' : 'border-gray-800 bg-gray-950 text-gray-500'
+                          courierName === c ? 'border-purple-500 bg-purple-600 text-white' : 'theme-border theme-bg theme-text-muted'
                         }`}>{c}</button>
                     ))}
                   </div>
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 block">Tracking Number</label>
+                  <label className="text-[10px] font-black theme-text-muted uppercase tracking-widest mb-2 block">Tracking Number</label>
                   <input type="text" value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)}
-                    className="w-full bg-gray-950 border-2 border-gray-800 rounded-xl py-3 px-4 focus:border-purple-500 outline-none font-black text-white"
+                    className="w-full theme-input rounded-xl py-3 px-4 focus:border-purple-500 outline-none font-black"
                     placeholder="Enter tracking number..." />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 block">Estimated Delivery Date (optional)</label>
+                  <label className="text-[10px] font-black theme-text-muted uppercase tracking-widest mb-2 block">Estimated Delivery Date (optional)</label>
                   <input type="date" value={estimatedDelivery} onChange={(e) => setEstimatedDelivery(e.target.value)}
-                    className="w-full bg-gray-950 border-2 border-gray-800 rounded-xl py-3 px-4 focus:border-purple-500 outline-none font-black text-white" />
+                    className="w-full theme-input rounded-xl py-3 px-4 focus:border-purple-500 outline-none font-black" />
                 </div>
               </div>
               <div className="flex space-x-3 mt-8">

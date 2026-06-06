@@ -250,26 +250,26 @@ const AllOrders = () => {
             <Package className="text-white" size={32} />
           </div>
           <div>
-            <h1 className="text-4xl font-black text-white tracking-tight leading-none">Production Queue</h1>
-            <p className="text-gray-500 text-[10px] font-black uppercase tracking-[0.4em] mt-2">Live Monitoring</p>
+            <h1 className="text-4xl font-black theme-text-primary tracking-tight leading-none">Production Queue</h1>
+            <p className="theme-text-muted text-[10px] font-black uppercase tracking-[0.4em] mt-2">Live Monitoring</p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-4">
            <div className="relative group w-full sm:w-72">
-              <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-emerald-500 transition-all duration-300" size={20} />
+               <Search className="absolute left-6 top-1/2 -translate-y-1/2 theme-text-muted group-focus-within:text-emerald-500 transition-all duration-300" size={20} />
               <input
                 type="text"
                 placeholder="Search order number or name..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-gray-950/80 border-2 border-gray-800 rounded-[1.5rem] py-4 pl-16 pr-6 focus:border-emerald-500 outline-none transition-all text-sm font-black text-white placeholder-gray-800"
+                className="w-full theme-input rounded-[1.5rem] py-4 pl-16 pr-6 focus:border-emerald-500 outline-none transition-all text-sm font-black placeholder-gray-800"
               />
             </div>
             
             <button
               onClick={() => setIsGroupedView(!isGroupedView)}
-              className={`px-8 py-4 bg-gray-900/50 border-2 border-gray-800 rounded-2xl text-white font-black text-[10px] uppercase tracking-[0.2em] hover:bg-gray-800 transition-all flex items-center gap-3 ${isUrdu ? 'flex-row-reverse' : ''}`}
+              className={`px-8 py-4 theme-bg-subtle border-2 theme-border rounded-2xl theme-text-primary font-black text-[10px] uppercase tracking-[0.2em] hover:bg-gray-800 transition-all flex items-center gap-3 ${isUrdu ? 'flex-row-reverse' : ''}`}
             >
               {isGroupedView ? <List size={16} /> : <Users size={16} />}
               <span>{isGroupedView ? (isUrdu ? 'انفرادی منظر' : 'INDIVIDUAL VIEW') : (isUrdu ? 'بڑی تعداد کا منظر' : 'BULK VIEW')}</span>
@@ -281,11 +281,11 @@ const AllOrders = () => {
 
       <div className="flex flex-col md:flex-row gap-4">
         <div className="flex-1 max-w-2xl relative">
-          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500" size={18} />
+          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 theme-text-muted" size={18} />
           <input 
             type="text"
             placeholder="Search by customer name or order ID..."
-            className="w-full bg-gray-900 border border-gray-800 rounded-2xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm font-bold"
+            className="w-full theme-input rounded-2xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm font-bold"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -295,7 +295,7 @@ const AllOrders = () => {
             <select 
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-2.5 text-sm font-black outline-none focus:ring-2 focus:ring-blue-500 uppercase tracking-widest"
+              className="theme-input rounded-xl px-4 py-2.5 text-sm font-black outline-none focus:ring-2 focus:ring-blue-500 uppercase tracking-widest"
             >
               <option value="ALL">All Status</option>
               <option value="IN_PROGRESS">In Progress</option>
@@ -308,23 +308,23 @@ const AllOrders = () => {
 
           <button 
             onClick={() => setShowFilters(!showFilters)}
-            className={`p-3 rounded-xl border transition-all flex items-center gap-2 ${showFilters ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-900 border-gray-800 text-gray-400 hover:text-white'}`}
+            className={`p-3 rounded-xl border transition-all flex items-center gap-2 ${showFilters ? 'bg-blue-600 border-blue-500 text-white' : 'theme-bg-subtle theme-border theme-text-secondary hover:bg-gray-800 hover:text-white'}`}
           >
             <Filter size={18} />
             <span className="text-xs font-black uppercase tracking-widest hidden sm:inline">Filters</span>
           </button>
 
-          <div className="flex bg-gray-900 border border-gray-800 rounded-xl p-1">
+          <div className="flex theme-bg border theme-border rounded-xl p-1">
             <button
               onClick={() => setIsGroupedView(false)}
-              className={`p-2 rounded-lg transition-all ${!isGroupedView ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+              className={`p-2 rounded-lg transition-all ${!isGroupedView ? 'bg-blue-600 text-white shadow-lg' : 'theme-text-muted hover:text-white'}`}
               title="Individual View"
             >
               <List size={18} />
             </button>
             <button
               onClick={() => setIsGroupedView(true)}
-              className={`p-2 rounded-lg transition-all ${isGroupedView ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+              className={`p-2 rounded-lg transition-all ${isGroupedView ? 'bg-blue-600 text-white shadow-lg' : 'theme-text-muted hover:text-white'}`}
               title="Bulk Grouped View"
             >
               <Users size={18} />
@@ -333,13 +333,13 @@ const AllOrders = () => {
         </div>
 
           {showFilters && (
-            <div className="absolute right-0 mt-3 w-72 bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl p-6 z-50 space-y-6">
+            <div className="absolute right-0 mt-3 w-72 theme-bg border theme-border rounded-2xl shadow-2xl p-6 z-50 space-y-6">
               <div className="space-y-3">
-                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Order Status</label>
+                <label className="text-[10px] font-black theme-text-muted uppercase tracking-widest">Order Status</label>
                 <select 
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
-                  className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-xs text-gray-300 outline-none focus:border-blue-500"
+                  className="w-full theme-input rounded-xl py-2 px-3 text-xs outline-none focus:border-blue-500"
                 >
                   <option value="ALL">All Statuses</option>
                   <option value="PENDING">Pending</option>
@@ -351,11 +351,11 @@ const AllOrders = () => {
               </div>
 
               <div className="space-y-3">
-                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Order Type</label>
+                <label className="text-[10px] font-black theme-text-muted uppercase tracking-widest">Order Type</label>
                 <select 
                   value={filterType}
                   onChange={(e) => setFilterType(e.target.value)}
-                  className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-xs text-gray-300 outline-none focus:border-blue-500"
+                  className="w-full theme-input rounded-xl py-2 px-3 text-xs outline-none focus:border-blue-500"
                 >
                   <option value="ALL">All Types</option>
                   <option value="STANDARD">Standard</option>
@@ -364,8 +364,8 @@ const AllOrders = () => {
                 </select>
               </div>
 
-              <div className="flex items-center justify-between p-4 bg-gray-950 border border-gray-800 rounded-xl">
-                <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Urgent Only</span>
+              <div className="flex items-center justify-between p-4 theme-bg border theme-border rounded-xl">
+                <span className="text-[10px] font-black theme-text-muted uppercase tracking-widest">Urgent Only</span>
                 <button 
                   onClick={() => setFilterUrgent(!filterUrgent)}
                   className={`w-10 h-5 rounded-full transition-all relative ${filterUrgent ? 'bg-blue-600' : 'bg-gray-800'}`}
@@ -381,7 +381,7 @@ const AllOrders = () => {
                   setFilterUrgent(false);
                   setShowFilters(false);
                 }}
-                className="w-full py-2 text-[10px] font-black uppercase text-gray-500 hover:text-white transition-colors"
+                className="w-full py-2 text-[10px] font-black uppercase theme-text-muted hover:text-white transition-colors"
               >
                 Reset Filters
               </button>
@@ -393,7 +393,7 @@ const AllOrders = () => {
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="text-gray-400 text-xs uppercase border-b border-gray-700 bg-gray-900/50">
+              <tr className="theme-text-secondary text-xs uppercase border-b border-gray-700 theme-bg-subtle">
                 {isGroupedView ? (
                   <>
                     <th className="px-6 py-4">Customer / Phone</th>
@@ -418,7 +418,7 @@ const AllOrders = () => {
             <tbody className="divide-y divide-gray-700">
               {loading ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-20 text-center text-gray-500">
+                  <td colSpan="6" className="px-6 py-20 text-center theme-text-muted">
                     <div className="flex flex-col items-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-4"></div>
                       Loading production orders...
@@ -427,7 +427,7 @@ const AllOrders = () => {
                 </tr>
               ) : filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-20 text-center text-gray-500">
+                  <td colSpan="6" className="px-6 py-20 text-center theme-text-muted">
                     No orders found matching your criteria.
                   </td>
                 </tr>
@@ -445,16 +445,16 @@ const AllOrders = () => {
                     className="hover:bg-white/5 transition-colors group cursor-pointer"
                   >
                     <td className="px-6 py-4">
-                      <div className="font-bold text-lg text-white group-hover:text-blue-400 transition-colors">
+                      <div className="font-bold text-lg theme-text-primary group-hover:text-blue-400 transition-colors">
                         {group.customerName}
                       </div>
-                      <div className="flex items-center space-x-2 text-gray-500 font-bold mt-1">
+                      <div className="flex items-center space-x-2 theme-text-muted font-bold mt-1">
                         <Phone size={12} className="text-blue-500" />
                         <span className="text-xs">{group.customerPhone}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <div className="inline-flex items-center justify-center bg-gray-800 w-10 h-10 rounded-full border border-gray-700 text-white font-black">
+                      <div className="inline-flex items-center justify-center bg-gray-800 w-10 h-10 rounded-full border border-gray-700 theme-text-primary font-black">
                         {group.orderCount}
                       </div>
                     </td>
@@ -473,15 +473,15 @@ const AllOrders = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-xs text-gray-400 font-bold">
+                      <div className="text-xs theme-text-secondary font-bold">
                         {new Date(group.latestOrderDate).toLocaleDateString()}
                       </div>
-                      <div className="text-[10px] text-gray-600 mt-1 uppercase font-black tracking-widest">
+                      <div className="text-[10px] theme-text-muted mt-1 uppercase font-black tracking-widest">
                         {new Date(group.latestOrderDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <ChevronRight size={18} className="text-gray-500 ml-auto" />
+                      <ChevronRight size={18} className="theme-text-muted ml-auto" />
                     </td>
                   </tr>
                 ))
@@ -502,10 +502,10 @@ const AllOrders = () => {
                     className="hover:bg-white/5 transition-colors group cursor-pointer"
                   >
                     <td className="px-6 py-4">
-                      <div className="font-bold text-lg text-white group-hover:text-blue-400 transition-colors">
+                      <div className="font-bold text-lg theme-text-primary group-hover:text-blue-400 transition-colors">
                         #{order.orderNumber || order.id.substring(0, 8)}
                       </div>
-                      <div className="text-xs text-gray-500 font-medium mt-1">
+                      <div className="text-xs theme-text-muted font-medium mt-1">
                         {order.customerName}
                       </div>
                       {order.createdBy?.name && (
@@ -516,25 +516,25 @@ const AllOrders = () => {
                         </div>
                       )}
                       {order.customerPhone && (
-                        <div className="text-[10px] text-gray-600 font-bold mt-0.5">
+                        <div className="text-[10px] theme-text-muted font-bold mt-0.5">
                           {order.customerPhone}
                         </div>
                       )}
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm font-bold text-gray-200">
+                      <div className="text-sm font-bold theme-text-primary">
                         {product?.productType || 'Standard Item'}
                         {isMultiItem && <span className="ml-2 text-purple-400 text-[10px] font-black bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">+{rawPd.length - 1} more</span>}
                         {order.quantity > 1 && <span className="ml-2 text-blue-400">x{order.quantity}</span>}
                       </div>
                       <div className="flex flex-wrap items-center gap-2 mt-1">
-                        <span className="text-[10px] text-gray-500 font-medium bg-gray-800/50 px-2 py-0.5 rounded border border-gray-700/50">
+                        <span className="text-[10px] theme-text-muted font-medium bg-gray-800/50 px-2 py-0.5 rounded border border-gray-700/50">
                           {product?.fabricType || 'STD FABRIC'}
                         </span>
                         {product?.color && (
                           <div className="flex items-center space-x-1 bg-gray-800/50 px-2 py-0.5 rounded border border-gray-700/50">
                             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: product.color.toLowerCase().replace(' ', '') }}></div>
-                            <span className="text-[10px] text-gray-500 font-medium uppercase">{product.color}</span>
+                            <span className="text-[10px] theme-text-muted font-medium uppercase">{product.color}</span>
                           </div>
                         )}
                         <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase ${product?.gender === 'Female' ? 'bg-pink-500/10 text-pink-500' : 'bg-blue-500/10 text-blue-400'}`}>
@@ -544,7 +544,7 @@ const AllOrders = () => {
                           <span className="text-[9px] font-black bg-pink-600 text-white px-1.5 py-0.5 rounded uppercase">Dupatta</span>
                         )}
                       </div>
-                      <div className="text-[10px] text-gray-500 mt-1">
+                      <div className="text-[10px] theme-text-muted mt-1">
                         {order.advancePaid ? 'Payment: Advance' : 'Payment: Pending'}
                       </div>
                     </td>
@@ -586,7 +586,7 @@ const AllOrders = () => {
                           <span>URGENT</span>
                         </div>
                       ) : (
-                        <span className="text-gray-500 text-[10px] font-black uppercase tracking-widest">Normal</span>
+                        <span className="theme-text-muted text-[10px] font-black uppercase tracking-widest">Normal</span>
                       )}
                     </td>
                     <td className="px-6 py-4">
@@ -609,7 +609,7 @@ const AllOrders = () => {
                       ) : (
                         <div className="flex items-center justify-end space-x-3 opacity-0 group-hover:opacity-100 transition-opacity">
                           {/* Delete Action Removed per Request */}
-                          <ChevronRight size={18} className="text-gray-500" />
+                          <ChevronRight size={18} className="theme-text-muted" />
                         </div>
                       )}
                     </td>
@@ -652,43 +652,43 @@ const AllOrders = () => {
             <motion.div 
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              className="relative w-full max-w-4xl bg-gray-900 border border-gray-800 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+              className="relative w-full max-w-4xl theme-bg border theme-border rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
             >
               {/* Modal Header */}
-              <div className="p-8 border-b border-gray-800 flex justify-between items-center bg-gray-900/50 backdrop-blur-md sticky top-0 z-10">
+              <div className="p-8 border-b theme-border flex justify-between items-center theme-bg-subtle backdrop-blur-md sticky top-0 z-10">
                 <div>
                   <div className="flex items-center space-x-4 mb-2">
-                    <h2 className="text-4xl font-black tracking-tighter text-white">#{selectedOrder.orderNumber || selectedOrder.id.substring(0, 8)}</h2>
+                    <h2 className="text-4xl font-black tracking-tighter theme-text-primary">#{selectedOrder.orderNumber || selectedOrder.id.substring(0, 8)}</h2>
                     <div className="flex items-center gap-2">
                       <span className={`px-3 py-1 border text-[10px] font-black uppercase tracking-widest rounded-lg ${selectedOrder.source === 'OUTLET' ? 'bg-purple-500/10 border-purple-500/20 text-purple-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'}`}>
                         {selectedOrder.source || 'OUTLET'}: {selectedOrder.outletName || 'MAIN'}
                       </span>
-                      <span className="px-3 py-1 bg-gray-800 border border-gray-700 text-gray-400 text-[10px] font-black uppercase tracking-widest rounded-lg">
+                      <span className="px-3 py-1 bg-gray-800 border border-gray-700 theme-text-secondary text-[10px] font-black uppercase tracking-widest rounded-lg">
                         Full Job Sheet
                       </span>
                     </div>
                   </div>
-                  <p className="text-gray-400 font-bold tracking-wide">{selectedOrder.customerName}</p>
+                  <p className="theme-text-secondary font-bold tracking-wide">{selectedOrder.customerName}</p>
                 </div>
                 <button 
                   onClick={() => setShowModal(false)}
-                  className="p-4 hover:bg-gray-800 rounded-full text-gray-400 transition-colors"
+                  className="p-4 hover:bg-gray-800 rounded-full theme-text-secondary transition-colors"
                 >
                   <X size={24} />
                 </button>
               </div>
 
               {/* Modal Content */}
-              <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar text-white">
+              <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar theme-text-primary">
                 
                 <section>
                   <h4 className="text-[11px] font-black text-blue-500 uppercase tracking-[0.3em] mb-6">01. Material & Product Specs</h4>
                   {isMultiItem ? (
                     <div className="space-y-6">
-                      <div className="overflow-x-auto bg-gray-950/40 border border-gray-800 rounded-3xl p-4">
+                      <div className="overflow-x-auto theme-bg border theme-border rounded-3xl p-4">
                         <table className="w-full text-left text-xs border-collapse">
                           <thead>
-                            <tr className="border-b border-gray-800 text-gray-500 uppercase tracking-widest font-black text-[10px]">
+                            <tr className="border-b theme-border theme-text-muted uppercase tracking-widest font-black text-[10px]">
                               <th className="pb-3 pl-4">#</th>
                               <th className="pb-3">Product Base</th>
                               <th className="pb-3">Fabric & Color</th>
@@ -707,31 +707,31 @@ const AllOrders = () => {
                               const hasMeasurements = s && Object.values(s).some(v => v);
 
                               return (
-                                <tr key={idx} className="border-b border-gray-900 last:border-0 hover:bg-white/5 font-bold">
-                                  <td className="py-4 pl-4 font-mono text-gray-500">{idx + 1}</td>
+                                <tr key={idx} className="border-b theme-border last:border-0 hover:bg-white/5 font-bold">
+                                  <td className="py-4 pl-4 font-mono theme-text-muted">{idx + 1}</td>
                                   <td className="py-4 text-white">
                                     <span className="text-sm font-black">{p.productType}</span>
                                     {p.femaleOptions?.dupatta && (
                                       <span className="ml-2 bg-pink-500/20 text-pink-400 border border-pink-500/30 text-[9px] px-1.5 py-0.5 rounded font-black uppercase">Dupatta</span>
                                     )}
                                     {(c.nameSpelling || hasMeasurements) && (
-                                      <div className="mt-1.5 space-y-1 text-[10px] text-gray-400 font-normal normal-case">
+                                      <div className="mt-1.5 space-y-1 text-[10px] theme-text-secondary font-normal normal-case">
                                         {c.nameSpelling && (
                                           <div>
-                                            <span className="font-bold text-gray-500 uppercase tracking-wider text-[9px]">Branding:</span> {c.nameSpelling} ({c.nameColor || 'Standard'}, {c.logoPlacement || 'Standard'})
+                                            <span className="font-bold theme-text-muted uppercase tracking-wider text-[9px]">Branding:</span> {c.nameSpelling} ({c.nameColor || 'Standard'}, {c.logoPlacement || 'Standard'})
                                           </div>
                                         )}
                                         {hasMeasurements && (
                                           <div>
-                                            <span className="font-bold text-gray-500 uppercase tracking-wider text-[9px]">Sizes:</span> {Object.entries(s).filter(([_, v]) => v).map(([k, v]) => `${k.toUpperCase()}:${v}"`).join(', ')}
+                                            <span className="font-bold theme-text-muted uppercase tracking-wider text-[9px]">Sizes:</span> {Object.entries(s).filter(([_, v]) => v).map(([k, v]) => `${k.toUpperCase()}:${v}"`).join(', ')}
                                           </div>
                                         )}
                                       </div>
                                     )}
                                   </td>
-                                  <td className="py-4 text-gray-300">
+                                  <td className="py-4 theme-text-secondary">
                                     <div>{p.fabricType || 'STD FABRIC'}</div>
-                                    <div className="text-[10px] text-gray-500 font-medium uppercase mt-0.5 flex items-center gap-1.5">
+                                    <div className="text-[10px] theme-text-muted font-medium uppercase mt-0.5 flex items-center gap-1.5">
                                       {p.color && (
                                         <>
                                           <div className="w-2 h-2 rounded-full border border-gray-800" style={{ backgroundColor: p.color.toLowerCase().replace(' ', '') }}></div>
@@ -740,7 +740,7 @@ const AllOrders = () => {
                                       )}
                                     </div>
                                   </td>
-                                  <td className="py-4 text-gray-300 uppercase">
+                                  <td className="py-4 theme-text-secondary uppercase">
                                     <div>{p.size || 'Custom'} • {p.gender || 'MALE'}</div>
                                     {(hasSleeves || hasShirtLength) && (
                                       <div className="text-[9px] text-pink-400 font-black mt-0.5">
@@ -768,8 +768,8 @@ const AllOrders = () => {
                         ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
                         { label: 'Payment', val: selectedOrder.paymentStatus || (selectedOrder.advancePaid ? 'ADVANCE' : 'PENDING') }
                       ].filter(i => i.val).map((item, i) => (
-                        <div key={i} className="bg-gray-950/50 p-6 rounded-3xl border border-gray-800/50">
-                          <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-2">{item.label}</p>
+                        <div key={i} className="theme-bg p-6 rounded-3xl border theme-border">
+                          <p className="text-[10px] theme-text-muted font-black uppercase tracking-widest mb-2">{item.label}</p>
                           <p className="text-lg font-bold text-gray-200">{item.val || 'STANDARD'}</p>
                         </div>
                       ))}
@@ -782,19 +782,19 @@ const AllOrders = () => {
                     <h4 className="text-[11px] font-black text-blue-400 uppercase tracking-[0.3em] mb-6">02. Precise Measurements (Inches)</h4>
                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                       {Object.entries(sizes || {}).map(([key, val], i) => (
-                        <div key={i} className="text-center p-4 bg-gray-900 rounded-2xl border border-gray-800 shadow-sm">
-                          <p className="text-[9px] text-gray-500 font-black uppercase tracking-tighter mb-1">{key.replace(/([A-Z])/g, ' $1')}</p>
+                        <div key={i} className="text-center p-4 theme-bg-subtle rounded-2xl border theme-border shadow-sm">
+                          <p className="text-[9px] theme-text-muted font-black uppercase tracking-tighter mb-1">{key.replace(/([A-Z])/g, ' $1')}</p>
                           <p className="text-xl font-black text-blue-400">{val}"</p>
                         </div>
                       ))}
                       {product?.gender === 'Female' && product?.femaleOptions?.sleeves && (
-                        <div className="text-center p-4 bg-gray-900 rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
+                        <div className="text-center p-4 theme-bg-subtle rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
                           <p className="text-[9px] text-pink-500 font-black uppercase tracking-tighter mb-1">SLEEVES</p>
                           <p className="text-sm font-black text-white uppercase">{product.femaleOptions.sleeves}</p>
                         </div>
                       )}
                       {product?.gender === 'Female' && product?.femaleOptions?.shirtLength && (
-                        <div className="text-center p-4 bg-gray-900 rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
+                        <div className="text-center p-4 theme-bg-subtle rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
                           <p className="text-[9px] text-pink-500 font-black uppercase tracking-tighter mb-1">SHIRT LENGTH</p>
                           <p className="text-sm font-black text-white uppercase">{product.femaleOptions.shirtLength}</p>
                         </div>
@@ -814,8 +814,8 @@ const AllOrders = () => {
                         { l: 'Fit Type', v: custom?.fitType },
                         { l: 'Stitching Style', v: custom?.stitchingStyle }
                       ].map((item, i) => (
-                        <div key={i} className="flex justify-between items-center p-4 bg-gray-950/30 rounded-2xl border border-gray-800/30">
-                          <span className="text-[11px] text-gray-500 font-bold uppercase tracking-widest">{item.l}</span>
+                        <div key={i} className="flex justify-between items-center p-4 theme-bg rounded-2xl border theme-border">
+                          <span className="text-[11px] theme-text-muted font-bold uppercase tracking-widest">{item.l}</span>
                           <span className="text-sm font-black text-emerald-400">{item.v || 'N/A'}</span>
                         </div>
                       ))}
@@ -824,12 +824,12 @@ const AllOrders = () => {
                   <div>
                     <h4 className="text-[11px] font-black text-yellow-500 uppercase tracking-[0.3em] mb-6">04. Design Notes & Reference</h4>
                     <div className="space-y-4">
-                      <div className="bg-yellow-500/5 p-6 rounded-3xl border border-yellow-500/10 italic text-gray-300 text-sm shadow-inner">
+                      <div className="bg-yellow-500/5 p-6 rounded-3xl border border-yellow-500/10 italic theme-text-secondary text-sm shadow-inner">
                         <p className="text-[9px] text-yellow-600 font-black uppercase mb-2">Instructions:</p>
                         {custom?.designNotes || 'No special design notes.'}
                       </div>
                       {custom?.designReference && (
-                        <div className="bg-blue-500/5 p-6 rounded-3xl border border-blue-500/10 italic text-gray-300 text-sm shadow-inner">
+                        <div className="bg-blue-500/5 p-6 rounded-3xl border border-blue-500/10 italic theme-text-secondary text-sm shadow-inner">
                           <p className="text-[9px] text-blue-600 font-black uppercase mb-2">Design Cross-Reference:</p>
                           {custom.designReference}
                         </div>
@@ -841,7 +841,7 @@ const AllOrders = () => {
                 <section>
                    <div className="flex justify-between items-center mb-6">
                       <h4 className="text-[11px] font-black text-blue-500 uppercase tracking-[0.3em]">05. Production Timeline</h4>
-                      <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest bg-gray-950 px-3 py-1 rounded-full border border-gray-800">
+                      <span className="text-[10px] font-black theme-text-muted uppercase tracking-widest bg-gray-950 px-3 py-1 rounded-full border border-gray-800">
                         Total Workflow: {
                           (() => {
                             const pipelines = {
@@ -885,21 +885,21 @@ const AllOrders = () => {
                             <div key={stageName} className={`p-4 rounded-2xl border transition-all flex items-center justify-between gap-4 ${
                               isCompleted ? 'bg-emerald-500/5 border-emerald-500/20 opacity-60' : 
                               isCurrent ? 'bg-blue-600/10 border-blue-500 animate-pulse' : 
-                              'bg-gray-950/50 border-gray-800'
+                              'theme-bg theme-border'
                             }`}>
                               <div className="flex items-center gap-3">
                                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${
                                   isCompleted ? 'bg-emerald-500 text-white' : 
                                   isCurrent ? 'bg-blue-500 text-white' : 
-                                  'bg-gray-800 text-gray-500'
+                                  'bg-gray-800 theme-text-muted'
                                 }`}>
                                   {i + 1}
                                 </div>
-                                <span className={`text-[10px] font-black uppercase tracking-widest ${isCompleted ? 'text-emerald-400' : isCurrent ? 'text-blue-400' : 'text-gray-500'}`}>
+                                <span className={`text-[10px] font-black uppercase tracking-widest ${isCompleted ? 'text-emerald-400' : isCurrent ? 'text-blue-400' : 'theme-text-muted'}`}>
                                   {stageName.replace(/_/g, ' ')}
                                 </span>
                               </div>
-                              <span className={`text-[9px] font-bold font-mono whitespace-nowrap ${isCompleted ? 'text-emerald-600' : isOrderEntry ? 'text-gray-400' : 'text-gray-600'}`}>
+                              <span className={`text-[9px] font-bold font-mono whitespace-nowrap ${isCompleted ? 'text-emerald-600' : isOrderEntry ? 'theme-text-secondary' : 'theme-text-muted'}`}>
                                 {displayTime}
                               </span>
                             </div>
@@ -912,8 +912,8 @@ const AllOrders = () => {
                 </section>
               </div>
 
-              <div className="p-8 bg-gray-950/80 border-t border-gray-800 flex justify-between items-center">
-                <div className="flex items-center space-x-4 text-[10px] text-gray-500 font-black uppercase tracking-widest">
+              <div className="p-8 theme-bg border-t theme-border flex justify-between items-center">
+                <div className="flex items-center space-x-4 text-[10px] theme-text-muted font-black uppercase tracking-widest">
                   <span>Created: {new Date(selectedOrder.createdAt).toLocaleDateString()}</span>
                   <span className="w-1.5 h-1.5 bg-gray-700 rounded-full"></span>
                   <span>Stage: {selectedOrder.currentStage}</span>

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw, MessageSquare, History, Target, Trash2, Truck, Users, Phone, ShieldAlert } from 'lucide-react';
 import axios from 'axios';
 import { useLanguage } from '../context/LanguageContext';
+import Button from './Button';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -538,7 +539,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   <div className="flex flex-wrap gap-2 w-full mt-2">
                     <button
                       onClick={() => setShowApprovalDialog(true)}
-                      className="flex-1 min-w-[100px] bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg"
+                      className="flex-1 btn-ghost-success rounded-xl py-3 text-[10px] flex-col gap-1"
                     >
                       <Check size={16} />
                       <span>{t('Approve')}</span>
@@ -546,7 +547,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     {(currentStage?.rejectionReason?.includes('Out of Stock') || currentStage?.rejectionReason?.includes('PROBLEM')) ? (
                       <button
                         onClick={() => onUpdateStage(order.id, currentStage.id, 'reject', { reason: 'Problem Resolved - Please Proceed' })}
-                        className="flex-1 min-w-[100px] bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 border border-yellow-500/20"
+                        className="flex-1 btn-ghost-warning rounded-xl py-3 text-[10px] flex-col gap-1"
                       >
                         <RefreshCcw size={16} />
                         <span>{t('Send Again')}</span>
@@ -554,7 +555,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     ) : (
                       <button
                         onClick={() => setShowRejectionDialog(true)}
-                        className="flex-1 min-w-[100px] bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 border border-red-500/20"
+                        className="flex-1 btn-ghost-danger rounded-xl py-3 text-[10px] flex-col gap-1"
                       >
                         <X size={16} />
                         <span>{t('Reject')}</span>

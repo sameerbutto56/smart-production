@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import Button from '../components/Button';
 import { 
   Plus, 
   Search, 
@@ -45,6 +46,8 @@ const InventoryManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [expandedItems, setExpandedItems] = useState({});
+  const VARIANTS_PREVIEW = 3;
   const [formData, setFormData] = useState({
     name: '',
     category: 'SCRUBS',
@@ -257,8 +260,8 @@ const InventoryManagement = () => {
             <Package className="text-white" size={28} />
           </div>
           <div>
-            <h1 className="text-3xl font-black text-white tracking-tight">Inventory</h1>
-            <p className="text-gray-400 text-sm font-medium uppercase tracking-widest">Master Product Management</p>
+            <h1 className="text-3xl font-black theme-text-primary tracking-tight">Inventory</h1>
+            <p className="theme-text-secondary text-sm font-medium uppercase tracking-widest">Master Product Management</p>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -301,7 +304,7 @@ const InventoryManagement = () => {
           )}
           <button 
             onClick={() => handleOpenModal()}
-            className="bg-blue-600 hover:bg-blue-500 text-white font-black py-4 px-8 rounded-2xl shadow-2xl shadow-blue-900/30 transition-all flex items-center space-x-3 active:scale-95"
+            className="btn-solid-primary btn-xl"
           >
             <PlusCircle size={24} />
             <span>Add New</span>
@@ -318,10 +321,10 @@ const InventoryManagement = () => {
             placeholder="Search catalog by name, color, or category..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-gray-950 border-2 border-gray-900 rounded-2xl py-4 pl-14 pr-6 focus:outline-none focus:border-emerald-500 transition-all font-medium text-gray-300"
+            className="w-full theme-input rounded-2xl py-4 pl-14 pr-6"
           />
         </div>
-        <div className="flex bg-gray-950 border-2 border-gray-900 rounded-2xl p-1.5 overflow-x-auto no-scrollbar">
+        <div className="flex theme-bg-subtle border-2 theme-border rounded-2xl p-1.5 overflow-x-auto no-scrollbar">
           {['ALL', ...allCategories].map(cat => (
             <button 
               key={cat} 
@@ -329,7 +332,7 @@ const InventoryManagement = () => {
               className={`px-6 py-2.5 text-[10px] font-black rounded-xl transition-all whitespace-nowrap ${
                 (searchTerm === cat || (cat === 'ALL' && searchTerm === '')) 
                   ? 'bg-emerald-600 text-white shadow-lg' 
-                  : 'text-gray-500 hover:text-white hover:bg-gray-800'
+                  : 'theme-text-muted hover:text-white hover:bg-gray-800'
               }`}
             >
               {cat}
@@ -354,7 +357,7 @@ const InventoryManagement = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9 }}
               transition={{ delay: i * 0.03 }}
-              className="glass p-8 rounded-[2.5rem] border-2 border-gray-900 hover:border-emerald-500/40 transition-all group relative overflow-hidden"
+              className="glass p-8 rounded-[2.5rem] border-2 theme-border hover:border-emerald-500/40 transition-all group relative overflow-hidden"
             >
               <div className="absolute -right-6 -top-6 w-32 h-32 bg-gradient-to-br from-emerald-500/10 to-blue-500/10 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
               
@@ -382,38 +385,46 @@ const InventoryManagement = () => {
               </div>
 
               <div className="space-y-1">
-                <h3 className="font-black text-xl text-white group-hover:text-emerald-400 transition-colors leading-tight">{item.name}</h3>
+                <h3 className="font-black text-xl theme-text-primary group-hover:text-emerald-400 transition-colors leading-tight">{item.name}</h3>
                 <div className="flex items-center space-x-2">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-600">{item.category}</span>
-                  {(item.fabric) && <><div className="w-1 h-1 rounded-full bg-gray-800" /><span className="text-[10px] font-bold text-gray-400 uppercase italic">{item.fabric}</span></>}
+                  <span className="text-[10px] font-black uppercase tracking-widest theme-text-muted">{item.category}</span>
+                  {(item.fabric) && <><div className="w-1 h-1 rounded-full bg-gray-800" /><span className="text-[10px] font-bold theme-text-secondary uppercase italic">{item.fabric}</span></>}
                 </div>
               </div>
 
               {/* Variants List */}
               {(item.variants && Array.isArray(item.variants) && item.variants.length > 0) ? (
                 <div className="mt-6 space-y-2">
-                  {item.variants.map((v, vi) => (
-                    <div key={vi} className="flex items-center justify-between bg-gray-900/50 rounded-xl px-4 py-2.5 border border-gray-800">
+                  {item.variants.slice(0, expandedItems[item.id] ? item.variants.length : VARIANTS_PREVIEW).map((v, vi) => (
+                    <div key={vi} className="flex items-center justify-between theme-bg-subtle rounded-xl px-4 py-2.5 theme-border">
                       <div className="flex items-center space-x-3">
                         <div className="w-3 h-3 rounded-full border-2 border-gray-700" style={{ backgroundColor: v.color ? undefined : 'transparent' }} />
-                        <span className="text-xs font-bold text-gray-300">
+                        <span className="text-xs font-bold theme-text-secondary">
                           {[v.color, v.size].filter(Boolean).join(' • ')}
                         </span>
                       </div>
                       <div className="flex items-center space-x-4">
-                        <span className="text-sm font-black text-white">{v.stock}</span>
+                        <span className="text-sm font-black theme-text-primary">{v.stock}</span>
                         {v.price > 0 && <span className="text-[10px] font-bold text-emerald-500">₨{v.price}</span>}
                       </div>
                     </div>
                   ))}
+                  {item.variants.length > VARIANTS_PREVIEW && (
+                    <button
+                      onClick={() => setExpandedItems(prev => ({ ...prev, [item.id]: !prev[item.id] }))}
+                      className="w-full py-2 text-[10px] font-black uppercase tracking-widest theme-text-muted hover:text-emerald-400 transition-all"
+                    >
+                      {expandedItems[item.id] ? '▲ Show Less' : `▼ Show More (${item.variants.length - VARIANTS_PREVIEW} more)`}
+                    </button>
+                  )}
                 </div>
               ) : (
-                <div className="mt-6 flex items-center justify-between bg-gray-900/50 rounded-xl px-4 py-2.5 border border-gray-800">
-                  <span className="text-xs font-bold text-gray-300">
+                <div className="mt-6 flex items-center justify-between theme-bg-subtle rounded-xl px-4 py-2.5 theme-border">
+                  <span className="text-xs font-bold theme-text-secondary">
                     {[item.color, item.size].filter(Boolean).join(' • ') || 'Standard'}
                   </span>
                   <div className="flex items-center space-x-4">
-                    <span className="text-sm font-black text-white">{item.stock}</span>
+                    <span className="text-sm font-black theme-text-primary">{item.stock}</span>
                     {item.price > 0 && <span className="text-[10px] font-bold text-emerald-500">₨{item.price}</span>}
                   </div>
                 </div>
@@ -421,12 +432,12 @@ const InventoryManagement = () => {
 
               <div className="mt-6 flex items-end justify-between">
                 <div>
-                  <span className="block text-4xl font-black text-white tracking-tighter">
+                  <span className="block text-4xl font-black theme-text-primary tracking-tighter">
                     {item.variants && Array.isArray(item.variants) 
                       ? item.variants.reduce((s, v) => s + (v.stock || 0), 0)
                       : item.stock}
                   </span>
-                  <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Total Units</span>
+                  <span className="text-[10px] font-black theme-text-muted uppercase tracking-widest">Total Units</span>
                 </div>
                 <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase border-2 ${
                   (item.stock || 0) > 50 ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-500' : 
@@ -444,12 +455,12 @@ const InventoryManagement = () => {
       {/* Modal */}
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-md">
             <motion.div 
               initial={{ opacity: 0, scale: 0.9, y: 30 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 30 }}
-              className="glass max-w-xl w-full max-h-[90vh] overflow-y-auto custom-scrollbar p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] border-2 border-gray-800 shadow-[0_50px_100px_rgba(0,0,0,0.5)] relative"
+              className="glass max-w-xl w-full max-h-[90vh] overflow-y-auto custom-scrollbar p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] border-2 theme-border shadow-[0_50px_100px_rgba(0,0,0,0.5)] relative"
             >
               <div className="absolute top-0 right-0 p-10 opacity-5 rotate-12 pointer-events-none">
                 <Package size={200} />
@@ -458,10 +469,10 @@ const InventoryManagement = () => {
               <div className="relative z-10">
                 <div className="flex justify-between items-center mb-10">
                   <div className="space-y-1">
-                    <h2 className="text-3xl font-black text-white uppercase tracking-tighter">
+                    <h2 className="text-3xl font-black theme-text-primary uppercase tracking-tighter">
                       {editingItem ? 'Update Prototype' : 'Initialize Product'}
                     </h2>
-                    <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Universal Catalog Entry</p>
+                    <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">Universal Catalog Entry</p>
                   </div>
                   <button onClick={() => setIsModalOpen(false)} className="p-3 bg-gray-900 text-gray-500 hover:text-white rounded-2xl transition-colors">
                     <X size={24} />
@@ -481,7 +492,7 @@ const InventoryManagement = () => {
                       required
                       value={formData.name}
                       onChange={(e) => setFormData({...formData, name: e.target.value})}
-                      className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-[1.5rem] py-5 px-8 focus:border-blue-500 outline-none transition-all font-bold text-lg text-white shadow-inner"
+                      className="w-full theme-input rounded-[1.5rem] py-5 px-8 shadow-inner font-bold text-lg"
                       placeholder="e.g. Ultra-Flex Scrub Top"
                     />
                   </div>
@@ -498,7 +509,7 @@ const InventoryManagement = () => {
                         list="category-options"
                         value={formData.category}
                         onChange={(e) => setFormData({...formData, category: e.target.value.toUpperCase()})}
-                        className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-[1.25rem] py-4 px-6 outline-none font-bold text-gray-300 focus:border-purple-500 uppercase"
+                        className="w-full theme-input rounded-[1.25rem] py-4 px-6 font-bold uppercase"
                         placeholder="Type or select category..."
                       />
                       <datalist id="category-options">
@@ -518,7 +529,7 @@ const InventoryManagement = () => {
                         type="text"
                         value={formData.fabric}
                         onChange={(e) => setFormData({...formData, fabric: e.target.value})}
-                        className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-[1.25rem] py-4 px-6 focus:border-indigo-500 outline-none transition-all font-bold text-white shadow-inner"
+                        className="w-full theme-input rounded-[1.25rem] py-4 px-6 shadow-inner font-bold"
                         placeholder="e.g. Cotton Blend"
                       />
                     </div>
@@ -544,29 +555,29 @@ const InventoryManagement = () => {
 
                     <div className="space-y-2">
                       {formData.variants.map((v, vi) => (
-                        <div key={vi} className="grid grid-cols-12 gap-2 items-center bg-gray-900/50 rounded-xl p-3 border border-gray-800">
+                        <div key={vi} className="grid grid-cols-12 gap-2 items-center theme-bg-subtle rounded-xl p-3 theme-border">
                           <div className="col-span-3">
                             <input type="text" value={v.color} placeholder="Color"
                               onChange={(e) => updateVariant(vi, 'color', e.target.value)}
-                              className="w-full bg-gray-950 border border-gray-700 rounded-lg py-2.5 px-3 outline-none focus:border-pink-500 text-xs font-bold text-white transition-all"
+                              className="w-full theme-input rounded-lg py-2.5 px-3 text-xs font-bold transition-all"
                             />
                           </div>
                           <div className="col-span-2">
                             <input type="text" value={v.size} placeholder="Size"
                               onChange={(e) => updateVariant(vi, 'size', e.target.value)}
-                              className="w-full bg-gray-950 border border-gray-700 rounded-lg py-2.5 px-3 outline-none focus:border-blue-500 text-xs font-bold text-white transition-all"
+                              className="w-full theme-input rounded-lg py-2.5 px-3 text-xs font-bold transition-all"
                             />
                           </div>
                           <div className="col-span-2">
                             <input type="number" min="0" value={v.stock} placeholder="Qty"
                               onChange={(e) => updateVariant(vi, 'stock', parseInt(e.target.value) || 0)}
-                              className="w-full bg-gray-950 border border-gray-700 rounded-lg py-2.5 px-3 outline-none focus:border-emerald-500 text-xs font-black text-white transition-all"
+                              className="w-full theme-input rounded-lg py-2.5 px-3 text-xs font-black transition-all"
                             />
                           </div>
                           <div className="col-span-3">
                             <input type="number" min="0" step="0.01" value={v.price} placeholder="Price"
                               onChange={(e) => updateVariant(vi, 'price', parseFloat(e.target.value) || 0)}
-                              className="w-full bg-gray-950 border border-gray-700 rounded-lg py-2.5 px-3 outline-none focus:border-emerald-500 text-xs font-black text-emerald-400 transition-all"
+                              className="w-full theme-input rounded-lg py-2.5 px-3 text-xs font-black transition-all"
                             />
                           </div>
                           <div className="col-span-2 flex justify-end">
@@ -635,13 +646,15 @@ const InventoryManagement = () => {
                     </div>
                   </div>
 
-                  <button 
+                  <Button 
                     type="submit"
-                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black py-6 rounded-[1.5rem] shadow-[0_20px_50px_rgba(37,99,235,0.3)] transition-all flex items-center justify-center space-x-4 active:scale-[0.98] text-sm uppercase tracking-[0.2em]"
+                    variant="primary"
+                    size="xl"
+                    icon={CheckCircle2}
+                    className="w-full justify-center"
                   >
-                    <CheckCircle2 size={24} />
-                    <span>{editingItem ? 'Finalize Master Update' : 'Initialize Stock Asset'}</span>
-                  </button>
+                    {editingItem ? 'Finalize Master Update' : 'Initialize Stock Asset'}
+                  </Button>
                 </form>
               </div>
             </motion.div>

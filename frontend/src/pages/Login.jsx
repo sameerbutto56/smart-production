@@ -72,15 +72,15 @@ const Login = () => {
             <Sparkles className="text-white" size={24} />
           </motion.div>
           
-          <h1 className="text-3xl md:text-4xl font-black text-white tracking-tighter uppercase italic leading-none mb-1">
+          <h1 className="text-3xl md:text-4xl font-black theme-text-primary tracking-tighter uppercase italic leading-none mb-1">
             SMART<br/>
             <span className="bg-gradient-to-r from-blue-400 via-indigo-400 to-emerald-400 bg-clip-text text-transparent">PRODUCTION</span>
           </h1>
           <div className="h-0.5 w-12 bg-gradient-to-r from-blue-600 to-emerald-600 mx-auto rounded-full mb-2"></div>
-          <p className="text-gray-500 text-[9px] font-black uppercase tracking-[0.4em]">Enterprise Workflow Intelligence</p>
+          <p className="theme-text-muted text-[9px] font-black uppercase tracking-[0.4em]">Enterprise Workflow Intelligence</p>
         </div>
 
-        <div className="glass p-6 md:p-8 rounded-[1.5rem] border border-gray-800 shadow-2xl backdrop-blur-3xl relative overflow-hidden group">
+        <div className="glass p-6 md:p-8 rounded-[1.5rem] border theme-border shadow-2xl backdrop-blur-3xl relative overflow-hidden group">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50"></div>
           
           <AnimatePresence mode="wait">
@@ -99,14 +99,14 @@ const Login = () => {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest ml-3">Authorized Identity</label>
+              <label className="text-[8px] font-black theme-text-muted uppercase tracking-widest ml-3">Authorized Identity</label>
               <div className="relative group/input">
-                <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within/input:text-blue-500 transition-colors" size={16} />
+                <Mail className="absolute left-5 top-1/2 -translate-y-1/2 theme-text-muted group-focus-within/input:text-blue-500 transition-colors" size={16} />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-xl py-3.5 pl-14 pr-6 focus:outline-none focus:border-blue-500 transition-all text-white font-bold placeholder-gray-700 text-xs"
+                  className="w-full theme-input rounded-xl py-3.5 pl-14 pr-6 focus:outline-none focus:border-blue-500 transition-all text-white font-bold placeholder-gray-700 text-xs"
                   placeholder={t('email')}
                   required
                 />
@@ -114,21 +114,21 @@ const Login = () => {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest ml-3">Access Encryption</label>
+              <label className="text-[8px] font-black theme-text-muted uppercase tracking-widest ml-3">Access Encryption</label>
               <div className="relative group/input">
-                <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within/input:text-blue-500 transition-colors" size={16} />
+                <Lock className="absolute left-5 top-1/2 -translate-y-1/2 theme-text-muted group-focus-within/input:text-blue-500 transition-colors" size={16} />
                 <input
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-xl py-3.5 pl-14 pr-12 focus:outline-none focus:border-blue-500 transition-all text-white font-bold placeholder-gray-700 text-xs"
+                  className="w-full theme-input rounded-xl py-3.5 pl-14 pr-12 focus:outline-none focus:border-blue-500 transition-all text-white font-bold placeholder-gray-700 text-xs"
                   placeholder="••••••••••••"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors focus:outline-none"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 theme-text-muted hover:text-gray-300 transition-colors focus:outline-none"
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
@@ -154,10 +154,10 @@ const Login = () => {
         </div>
 
         <div className="mt-4 text-center space-y-2">
-          <p className="text-[8px] text-gray-500 font-black uppercase tracking-[0.4em]">
+          <p className="text-[8px] theme-text-muted font-black uppercase tracking-[0.4em]">
             Build v1.0.5-OUTLET (READY)
           </p>
-          <p className="text-[7px] text-gray-600 font-bold uppercase tracking-widest">
+          <p className="text-[7px] theme-text-muted font-bold uppercase tracking-widest">
             Ctrl + F5 to refresh if updates don't show
           </p>
         </div>
