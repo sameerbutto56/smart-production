@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSearchParams } from 'react-router-dom';
 import { 
   Package, 
   User, 
@@ -26,7 +27,9 @@ import {
   Users,
   List,
   Grid,
-  X
+  X,
+  FileEdit,
+  Loader2
 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
@@ -48,6 +51,20 @@ const SmartOrderForm = () => {
   const [selectedProductCategory, setSelectedProductCategory] = useState('SCRUBS');
   const [productSearchTerm, setProductSearchTerm] = useState('');
   const [expandedProducts, setExpandedProducts] = useState({});
+  const [showEditRequest, setShowEditRequest] = useState(false);
+  const [editOrderNumber, setEditOrderNumber] = useState('');
+  const [editOrderData, setEditOrderData] = useState(null);
+  const [editOrderLoading, setEditOrderLoading] = useState(false);
+  const [editOrderError, setEditOrderError] = useState('');
+  const [editRequestChanges, setEditRequestChanges] = useState({
+    productType: '',
+    color: '',
+    size: '',
+    quantity: 1,
+    totalPrice: ''
+  });
+  const [editRequestReason, setEditRequestReason] = useState('');
+  const [editRequestSubmitting, setEditRequestSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
     orderNumber: '',
@@ -106,6 +123,7 @@ const SmartOrderForm = () => {
     }
   });
 
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const { isUrdu, LanguageToggle } = useLanguage();
   const useUrdu = isUrdu;
@@ -169,6 +187,12 @@ const SmartOrderForm = () => {
   };
 
   useEffect(() => {
+    if (searchParams.get('edit') === '1') {
+      setShowEditRequest(true);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
     fetchInventory();
 
     socket.on('inventory-updated', () => {
@@ -197,6 +221,89 @@ const SmartOrderForm = () => {
   };
 
   usePolling(fetchInventory, 5000);
+
+  const fetchOrderByNumber = async () => {
+    if (!editOrderNumber.trim()) {
+      setEditOrderError('Please enter an order number');
+      return;
+    }
+    setEditOrderLoading(true);
+    setEditOrderError('');
+    setEditOrderData(null);
+    try {
+      const token = sessionStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/api/orders`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { limit: 'all' }
+      });
+      const orders = Array.isArray(response.data) ? response.data : [];
+      const found = orders.find(o =>
+        o.orderNumber?.toLowerCase() === editOrderNumber.trim().toLowerCase() ||
+        o.id?.toLowerCase() === editOrderNumber.trim().toLowerCase()
+      );
+      if (found) {
+        setEditOrderData(found);
+        const pd = typeof found.productDetails === 'string' ? JSON.parse(found.productDetails) : found.productDetails;
+        if (Array.isArray(pd)) {
+          const first = pd[0]?.productDetails || pd[0];
+          setEditRequestChanges({
+            productType: first?.productType || '',
+            color: first?.color || '',
+            size: first?.size || '',
+            quantity: pd[0]?.quantity || found.quantity || 1,
+            totalPrice: found.totalPrice?.toString() || ''
+          });
+        } else if (pd?.productType) {
+          setEditRequestChanges({
+            productType: pd.productType || '',
+            color: pd.color || '',
+            size: pd.size || '',
+            quantity: found.quantity || 1,
+            totalPrice: found.totalPrice?.toString() || ''
+          });
+        }
+      } else {
+        setEditOrderError('No order found with that number/ID');
+      }
+    } catch (err) {
+      setEditOrderError('Error fetching order: ' + (err.response?.data?.message || err.message));
+    }
+    setEditOrderLoading(false);
+  };
+
+  const submitEditRequest = async () => {
+    if (!editOrderData || !editRequestChanges.productType) {
+      setEditOrderError('Please fetch an order and specify changes');
+      return;
+    }
+    setEditRequestSubmitting(true);
+    setEditOrderError('');
+    try {
+      const token = sessionStorage.getItem('token');
+      const requestedChanges = {
+        productDetails: {
+          productType: editRequestChanges.productType,
+          color: editRequestChanges.color,
+          size: editRequestChanges.size
+        },
+        quantity: parseInt(editRequestChanges.quantity) || 1,
+        totalPrice: parseFloat(editRequestChanges.totalPrice) || 0
+      };
+      await axios.post(`${API_URL}/api/orders/${editOrderData.id}/edit-request`,
+        { requestedChanges, reason: editRequestReason },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setShowEditRequest(false);
+      setEditOrderData(null);
+      setEditOrderNumber('');
+      setEditRequestReason('');
+      setEditRequestChanges({ productType: '', color: '', size: '', quantity: 1, totalPrice: '' });
+      alert('Edit request submitted successfully!');
+    } catch (err) {
+      setEditOrderError(err.response?.data?.message || 'Error submitting edit request');
+    }
+    setEditRequestSubmitting(false);
+  };
 
   // Standard Measurements Mapping
   const standardMeasurements = {
@@ -597,6 +704,14 @@ const SmartOrderForm = () => {
         <div className={`flex items-center gap-4 ${isUrdu ? 'flex-row-reverse' : ''}`}>
           <LanguageToggle />
 
+          <button
+            type="button"
+            onClick={() => setShowEditRequest(true)}
+            className="flex items-center gap-2 px-5 py-3 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-[1.2rem] font-black text-[9px] md:text-[10px] uppercase tracking-widest hover:bg-amber-500 hover:text-white transition-all active:scale-95 shadow-lg whitespace-nowrap"
+          >
+            <FileEdit size={14} />
+            <span className="hidden sm:inline">{useUrdu ? 'آرڈر میں تبدیلی' : 'EDIT ORDER'}</span>
+          </button>
 
           <div className="flex p-1.5 theme-bg backdrop-blur-3xl rounded-[1.8rem] border-2 theme-border shadow-2xl overflow-x-auto no-scrollbar">
             {filteredTabs.map((tab, index) => (
@@ -1900,6 +2015,195 @@ const SmartOrderForm = () => {
           </div>
         </motion.div>
       )}
+
+      {/* Order Edit Request Modal */}
+      <AnimatePresence>
+        {showEditRequest && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.85, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.85, y: 30 }}
+              className="glass max-w-lg w-full p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] border-2 theme-border shadow-[0_50px_100px_rgba(0,0,0,0.5)] max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-amber-500/10 rounded-xl">
+                    <FileEdit className="text-amber-400" size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black theme-text-primary uppercase tracking-tight">{useUrdu ? 'آرڈر میں تبدیلی' : 'Order Edit Request'}</h2>
+                    <p className="theme-text-muted text-[9px] font-black uppercase tracking-widest mt-0.5">{useUrdu ? 'تبدیلی کی درخواست جمع کروائیں' : 'Submit change request for review'}</p>
+                  </div>
+                </div>
+                <button onClick={() => { setShowEditRequest(false); setEditOrderData(null); setEditOrderError(''); }}
+                  className="theme-text-muted hover:text-white hover:bg-gray-800 p-2 rounded-full transition-all active:scale-95">
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Step 1: Enter Order Number */}
+              <div className="space-y-4 mb-6">
+                <label className="text-[9px] font-black theme-text-muted uppercase tracking-widest ml-2">{useUrdu ? 'آرڈر نمبر درج کریں' : 'Enter Order Number'}</label>
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    value={editOrderNumber}
+                    onChange={(e) => setEditOrderNumber(e.target.value)}
+                    className="flex-1 theme-input rounded-xl py-3 px-5 font-bold text-sm"
+                    placeholder="ORD-772 or Order ID"
+                    disabled={editOrderLoading}
+                  />
+                  <button
+                    type="button"
+                    onClick={fetchOrderByNumber}
+                    disabled={editOrderLoading}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-blue-500 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {editOrderLoading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+                    <span>{useUrdu ? 'تلاش کریں' : 'FETCH'}</span>
+                  </button>
+                </div>
+                {editOrderError && (
+                  <p className="text-red-400 text-xs font-bold flex items-center gap-2 mt-2">
+                    <AlertCircle size={12} /> {editOrderError}
+                  </p>
+                )}
+              </div>
+
+              {/* Step 2: Show Existing Order Details */}
+              {editOrderData && (
+                <>
+                  <div className="theme-bg-subtle rounded-2xl p-4 border theme-border mb-6 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-black theme-text-muted uppercase tracking-widest">{useUrdu ? 'موجودہ آرڈر' : 'Current Order'}</span>
+                      <span className={`text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider ${
+                        editOrderData.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' :
+                        editOrderData.status === 'IN_PROGRESS' ? 'bg-blue-500/20 text-blue-400' :
+                        'bg-yellow-500/20 text-yellow-400'
+                      }`}>{editOrderData.status}</span>
+                    </div>
+                    <p className="text-sm font-black theme-text-primary">#{editOrderData.orderNumber || editOrderData.id.substring(0, 8)}</p>
+                    <p className="text-xs theme-text-secondary font-bold">{editOrderData.customerName} • {editOrderData.customerPhone}</p>
+                    {(editOrderData.productDetails) && (
+                      <div className="pt-2 border-t theme-border">
+                        {(() => {
+                          try {
+                            const pd = typeof editOrderData.productDetails === 'string' ? JSON.parse(editOrderData.productDetails) : editOrderData.productDetails;
+                            if (Array.isArray(pd)) {
+                              return pd.map((item, idx) => {
+                                const d = item.productDetails || item;
+                                return <p key={idx} className="text-[9px] font-bold theme-text-muted">{d.productType} {d.color ? `• ${d.color}` : ''} {d.size ? `• ${d.size}` : ''} {item.quantity ? `x${item.quantity}` : ''}</p>;
+                              });
+                            } else if (pd?.productType) {
+                              return <p className="text-[9px] font-bold theme-text-muted">{pd.productType} {pd.color ? `• ${pd.color}` : ''} {pd.size ? `• ${pd.size}` : ''} x{editOrderData.quantity}</p>;
+                            }
+                            return null;
+                          } catch { return null; }
+                        })()}
+                      </div>
+                    )}
+                    <p className="text-[9px] font-bold theme-text-muted">{useUrdu ? 'تخلیق کردہ' : 'Created'}: {new Date(editOrderData.createdAt).toLocaleDateString()}</p>
+                  </div>
+
+                  {/* Step 3: Specify Changes */}
+                  <div className="space-y-4 mb-6">
+                    <label className="text-[9px] font-black theme-text-muted uppercase tracking-widest ml-2">{useUrdu ? 'مطلوبہ تبدیلیاں' : 'Requested Changes'}</label>
+                    
+                    <div>
+                      <label className="text-[9px] font-bold theme-text-muted mb-1 block ml-2">{useUrdu ? 'پروڈکٹ کا نام' : 'Product Type'}</label>
+                      <input
+                        type="text"
+                        value={editRequestChanges.productType}
+                        onChange={(e) => setEditRequestChanges({...editRequestChanges, productType: e.target.value})}
+                        className="w-full theme-input rounded-xl py-3 px-5 font-bold text-sm"
+                        placeholder="Shirt, Pant, Scrub, etc."
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[9px] font-bold theme-text-muted mb-1 block ml-2">{useUrdu ? 'رنگ' : 'Color'}</label>
+                        <input
+                          type="text"
+                          value={editRequestChanges.color}
+                          onChange={(e) => setEditRequestChanges({...editRequestChanges, color: e.target.value})}
+                          className="w-full theme-input rounded-xl py-3 px-5 font-bold text-sm"
+                          placeholder="Navy, Black, etc."
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-bold theme-text-muted mb-1 block ml-2">{useUrdu ? 'سائز' : 'Size'}</label>
+                        <input
+                          type="text"
+                          value={editRequestChanges.size}
+                          onChange={(e) => setEditRequestChanges({...editRequestChanges, size: e.target.value})}
+                          className="w-full theme-input rounded-xl py-3 px-5 font-bold text-sm"
+                          placeholder="S, M, L, XL, etc."
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[9px] font-bold theme-text-muted mb-1 block ml-2">{useUrdu ? 'تعداد' : 'Quantity'}</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={editRequestChanges.quantity}
+                          onChange={(e) => setEditRequestChanges({...editRequestChanges, quantity: e.target.value})}
+                          className="w-full theme-input rounded-xl py-3 px-5 font-bold text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-bold theme-text-muted mb-1 block ml-2">{useUrdu ? 'کل قیمت' : 'Total Price'}</label>
+                        <input
+                          type="number"
+                          value={editRequestChanges.totalPrice}
+                          onChange={(e) => setEditRequestChanges({...editRequestChanges, totalPrice: e.target.value})}
+                          className="w-full theme-input rounded-xl py-3 px-5 font-bold text-sm"
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[9px] font-bold theme-text-muted mb-1 block ml-2">{useUrdu ? 'وجہ (اختیاری)' : 'Reason (Optional)'}</label>
+                      <textarea
+                        value={editRequestReason}
+                        onChange={(e) => setEditRequestReason(e.target.value)}
+                        className="w-full theme-input rounded-xl py-3 px-5 font-medium text-sm resize-none h-20"
+                        placeholder={useUrdu ? 'تبدیلی کی وجہ بتائیں...' : 'Why are you requesting this change?'}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Submit / Cancel */}
+                  <div className="flex gap-4">
+                    <button
+                      type="button"
+                      onClick={() => { setShowEditRequest(false); setEditOrderData(null); setEditOrderError(''); }}
+                      disabled={editRequestSubmitting}
+                      className="flex-1 py-4 theme-bg theme-text-secondary rounded-xl font-black text-[9px] uppercase tracking-widest border-2 theme-border hover:border-gray-600 transition-all active:scale-95 disabled:opacity-50"
+                    >
+                      {useUrdu ? 'منسوخ کریں' : 'CANCEL'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={submitEditRequest}
+                      disabled={editRequestSubmitting || !editRequestChanges.productType}
+                      className="flex-1 py-4 bg-amber-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-amber-500 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {editRequestSubmitting ? <Loader2 size={14} className="animate-spin" /> : <FileEdit size={14} />}
+                      <span>{editRequestSubmitting ? (useUrdu ? 'بھیج رہا ہے...' : 'SUBMITTING...') : (useUrdu ? 'درخواست جمع کروائیں' : 'SUBMIT REQUEST')}</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

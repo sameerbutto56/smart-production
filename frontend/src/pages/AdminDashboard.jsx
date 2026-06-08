@@ -26,7 +26,10 @@ import {
   RotateCcw,
   CalendarDays,
   Filter,
-  Store as StoreIcon
+  Store as StoreIcon,
+  FileEdit,
+  ThumbsUp,
+  ThumbsDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -64,6 +67,14 @@ const AdminDashboard = () => {
   const [showPauseModal, setShowPauseModal] = useState(false);
   const [pausePassword, setPausePassword] = useState('');
   const [pausing, setPausing] = useState(false);
+
+  const [editRequests, setEditRequests] = useState([]);
+  const [editRequestsLoading, setEditRequestsLoading] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewRequestData, setReviewRequestData] = useState(null);
+  const [reviewAction, setReviewAction] = useState(''); // 'approve' or 'reject'
+  const [reviewRemarks, setReviewRemarks] = useState('');
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
 
   const handleDashboardSearch = (val) => {
     setContextSearch(val);
@@ -220,6 +231,73 @@ const AdminDashboard = () => {
       fetchOutletAnalytics(outletFilter, outletDateRange);
     }
   }, [outletFilter, outletDateRange]);
+
+  const fetchEditRequests = async () => {
+    setEditRequestsLoading(true);
+    try {
+      const token = sessionStorage.getItem('token');
+      if (!token) return;
+      const res = await axios.get(`${API_URL}/api/edit-requests`, {
+        params: { status: 'PENDING' },
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setEditRequests(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error('Error fetching edit requests:', err);
+    }
+    setEditRequestsLoading(false);
+  };
+
+  useEffect(() => {
+    fetchEditRequests();
+    socket.on('global-alert', () => {
+      fetchEditRequests();
+    });
+    return () => {
+      socket.off('global-alert');
+    };
+  }, []);
+
+  const handleApproveEditRequest = async () => {
+    if (!reviewRequestData) return;
+    setReviewSubmitting(true);
+    try {
+      const token = sessionStorage.getItem('token');
+      await axios.put(`${API_URL}/api/edit-requests/${reviewRequestData.id}/approve`,
+        { adminRemarks: reviewRemarks },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setShowReviewModal(false);
+      setReviewRequestData(null);
+      setReviewRemarks('');
+      fetchEditRequests();
+      fetchDashboardData();
+      toast.success('Edit request approved');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to approve edit request');
+    }
+    setReviewSubmitting(false);
+  };
+
+  const handleRejectEditRequest = async () => {
+    if (!reviewRequestData) return;
+    setReviewSubmitting(true);
+    try {
+      const token = sessionStorage.getItem('token');
+      await axios.put(`${API_URL}/api/edit-requests/${reviewRequestData.id}/reject`,
+        { adminRemarks: reviewRemarks },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setShowReviewModal(false);
+      setReviewRequestData(null);
+      setReviewRemarks('');
+      fetchEditRequests();
+      toast.success('Edit request rejected');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to reject edit request');
+    }
+    setReviewSubmitting(false);
+  };
 
   const handleTogglePause = async (e) => {
     e.preventDefault();
@@ -817,6 +895,131 @@ const AdminDashboard = () => {
         )}
       </section>
 
+      {/* Order Edit Requests - Admin only */}
+      {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'FAISAL') && (
+        <section className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="p-3 bg-amber-500/10 rounded-2xl">
+                <FileEdit className="text-amber-400" size={20} />
+              </div>
+              <div>
+                <h2 className="text-xl md:text-2xl font-black theme-text-primary uppercase tracking-tight">Order Edit Requests</h2>
+                <p className="theme-text-muted text-[9px] md:text-[10px] font-black uppercase tracking-widest mt-0.5">Pending approval</p>
+              </div>
+            </div>
+            <button onClick={fetchEditRequests} className="btn-ghost btn-sm">
+              <RotateCcw size={14} /> Refresh
+            </button>
+          </div>
+
+          {editRequestsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="animate-spin text-amber-500" size={28} />
+            </div>
+          ) : editRequests.length === 0 ? (
+            <div className="glass rounded-2xl md:rounded-[2rem] p-8 md:p-12 border theme-border text-center space-y-4">
+              <div className="w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center mx-auto border-2 border-gray-800">
+                <CheckCircle2 className="text-gray-700" size={32} />
+              </div>
+              <h3 className="text-lg font-black text-gray-500 uppercase">No Pending Requests</h3>
+              <p className="text-gray-600 text-xs font-bold uppercase tracking-widest">All edit requests have been processed.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+              {editRequests.map((req) => {
+                const order = req.order || {};
+                let currentProducts = [];
+                try {
+                  const pd = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+                  if (Array.isArray(pd)) {
+                    currentProducts = pd.map(item => {
+                      const d = item.productDetails || item;
+                      return `${d.productType || ''}${d.color ? ' - ' + d.color : ''}${d.size ? ' / ' + d.size : ''}${item.quantity ? ' x' + item.quantity : ''}`;
+                    });
+                  } else if (pd?.productType) {
+                    currentProducts = [`${pd.productType}${pd.color ? ' - ' + pd.color : ''}${pd.size ? ' / ' + pd.size : ''} x${order.quantity || 1}`];
+                  }
+                } catch { currentProducts = ['N/A']; }
+
+                let requestedProducts = [];
+                try {
+                  const rc = req.requestedChanges;
+                  if (rc?.items && Array.isArray(rc.items)) {
+                    requestedProducts = rc.items.map(item => {
+                      const d = item.productDetails || item;
+                      return `${d.productType || ''}${d.color ? ' - ' + d.color : ''}${d.size ? ' / ' + d.size : ''}${item.quantity ? ' x' + item.quantity : ''}`;
+                    });
+                  } else if (rc?.productDetails) {
+                    const pd = typeof rc.productDetails === 'string' ? JSON.parse(rc.productDetails) : rc.productDetails;
+                    if (pd?.productType) {
+                      requestedProducts = [`${pd.productType}${pd.color ? ' - ' + pd.color : ''}${pd.size ? ' / ' + pd.size : ''} x${rc.quantity || 1}`];
+                    } else {
+                      requestedProducts = [JSON.stringify(pd)];
+                    }
+                  } else {
+                    requestedProducts = [JSON.stringify(rc)];
+                  }
+                } catch { requestedProducts = ['N/A']; }
+
+                return (
+                  <div key={req.id} className="glass rounded-2xl p-5 border theme-border hover:border-amber-500/30 transition-all">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <p className="text-sm font-black theme-text-primary">#{order.orderNumber || order.id?.substring(0, 8) || 'N/A'}</p>
+                        <p className="text-[9px] theme-text-muted font-bold uppercase tracking-wider">{order.customerName || 'Unknown'}</p>
+                      </div>
+                      <span className="px-3 py-1.5 bg-amber-500/15 text-amber-400 rounded-lg text-[9px] font-black uppercase tracking-wider">
+                        {req.status}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 mb-4 text-[9px]">
+                      <div className="theme-bg rounded-xl p-3 border theme-border">
+                        <p className="font-black text-red-400 uppercase tracking-wider mb-1.5">Current</p>
+                        {currentProducts.map((p, i) => (
+                          <p key={i} className="font-bold theme-text-secondary">{p}</p>
+                        ))}
+                      </div>
+                      <div className="theme-bg rounded-xl p-3 border theme-border">
+                        <p className="font-black text-emerald-400 uppercase tracking-wider mb-1.5">Requested</p>
+                        {requestedProducts.map((p, i) => (
+                          <p key={i} className="font-bold theme-text-secondary">{p}</p>
+                        ))}
+                      </div>
+                    </div>
+
+                    {req.reason && (
+                      <p className="text-[9px] font-medium theme-text-muted mb-3 italic">"{req.reason}"</p>
+                    )}
+
+                    <div className="flex items-center justify-between text-[9px] font-bold theme-text-muted mb-4">
+                      <span>By: {req.requestedBy?.name || 'Unknown'}</span>
+                      <span>{new Date(req.requestedAt).toLocaleDateString()}</span>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => { setReviewRequestData(req); setReviewAction('approve'); setReviewRemarks(''); setShowReviewModal(true); }}
+                        className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-black text-[9px] uppercase tracking-wider hover:bg-emerald-500 transition-all active:scale-95 flex items-center justify-center gap-2"
+                      >
+                        <ThumbsUp size={12} /> Approve
+                      </button>
+                      <button
+                        onClick={() => { setReviewRequestData(req); setReviewAction('reject'); setReviewRemarks(''); setShowReviewModal(true); }}
+                        className="flex-1 py-3 bg-red-600 text-white rounded-xl font-black text-[9px] uppercase tracking-wider hover:bg-red-500 transition-all active:scale-95 flex items-center justify-center gap-2"
+                      >
+                        <ThumbsDown size={12} /> Reject
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
+
       {/* Outlet Analytics */}
       {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
         <section className="space-y-6">
@@ -1040,6 +1243,72 @@ const AdminDashboard = () => {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Review Edit Request Modal */}
+      <AnimatePresence>
+        {showReviewModal && reviewRequestData && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="glass max-w-md w-full p-4 md:p-8 rounded-[2rem] border-2 border-gray-800 shadow-[0_50px_100px_rgba(0,0,0,0.5)]"
+            >
+              <div className="flex items-center gap-4 mb-6">
+                <div className={`p-3 rounded-xl ${reviewAction === 'approve' ? 'bg-emerald-500/10' : 'bg-red-500/10'}`}>
+                  {reviewAction === 'approve' ? <ThumbsUp className="text-emerald-400" size={24} /> : <ThumbsDown className="text-red-400" size={24} />}
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-white uppercase tracking-tight">{reviewAction === 'approve' ? 'Approve Edit' : 'Reject Edit'}</h2>
+                  <p className="text-gray-400 text-xs font-bold">Order #{reviewRequestData.order?.orderNumber || reviewRequestData.orderId?.substring(0, 8)}</p>
+                </div>
+              </div>
+
+              {reviewAction === 'approve' && (
+                <div className="theme-bg rounded-xl p-4 border theme-border mb-4">
+                  <p className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-2">⚠ Inventory will auto-adjust</p>
+                  <p className="text-[9px] font-medium theme-text-muted">The system will automatically restore stock for removed products and deduct stock for new products.</p>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Admin Remarks (Optional)</label>
+                  <textarea
+                    value={reviewRemarks}
+                    onChange={(e) => setReviewRemarks(e.target.value)}
+                    className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-xl py-3 px-4 focus:border-gray-600 outline-none font-medium text-sm text-white mt-2 resize-none h-24"
+                    placeholder="Add remarks or comments..."
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setShowReviewModal(false); setReviewRequestData(null); }}
+                    disabled={reviewSubmitting}
+                    className="flex-1 py-3 bg-gray-800 text-gray-400 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-gray-700 transition-all disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={reviewAction === 'approve' ? handleApproveEditRequest : handleRejectEditRequest}
+                    disabled={reviewSubmitting}
+                    className={`flex-1 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 disabled:opacity-50 ${
+                      reviewAction === 'approve'
+                        ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+                        : 'bg-red-600 text-white hover:bg-red-500'
+                    }`}
+                  >
+                    {reviewSubmitting ? <Loader2 className="animate-spin" size={14} /> : reviewAction === 'approve' ? <ThumbsUp size={14} /> : <ThumbsDown size={14} />}
+                    <span>{reviewSubmitting ? 'Processing...' : reviewAction === 'approve' ? 'Confirm Approve' : 'Confirm Reject'}</span>
+                  </button>
+                </div>
+              </div>
             </motion.div>
           </div>
         )}

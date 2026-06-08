@@ -19,6 +19,7 @@ const {
   checkOrderInventory,
   getOutletAnalytics
 } = require('../controllers/order.controller');
+const { createEditRequest } = require('../controllers/editRequest.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 const router = express.Router();
 
@@ -67,5 +68,8 @@ router.get('/:orderId/inventory-check', authenticate, authorize(['STORE', 'ADMIN
 
 // Outlet-wise analytics
 router.get('/outlet-analytics', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), getOutletAnalytics);
+
+// Order Edit Request
+router.post('/:orderId/edit-request', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET']), createEditRequest);
 
 module.exports = router;

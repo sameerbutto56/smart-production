@@ -23,6 +23,8 @@ model User {
   stages       OrderStage[]
   createdOrders Order[]   @relation("OrderCreatedBy")
   stockRequests StockRequest[]
+  editRequestsRequested OrderEditRequest[] @relation("EditRequestedBy")
+  editRequestsReviewed  OrderEditRequest[] @relation("EditReviewedBy")
 }
 
 model Order {
@@ -64,6 +66,7 @@ model Order {
   deliveryType    String?      // PICKUP, IN_CITY, COURIER
   auditLogs       AuditLog[]
   stages          OrderStage[]
+  editRequests    OrderEditRequest[]
   createdBy       User?        @relation("OrderCreatedBy", fields: [createdById], references: [id])
 
   @@index([status])
@@ -154,6 +157,25 @@ model Allocation {
 
   @@index([personName])
   @@index([createdAt])
+}
+
+model OrderEditRequest {
+  id                String    @id @default(uuid())
+  orderId           String
+  requestedById     String
+  requestedChanges  Json      // Proposed new productDetails / items
+  reason            String?   // Optional reason for edit
+  status            String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  reviewedById      String?
+  adminRemarks      String?
+  requestedAt       DateTime  @default(now())
+  reviewedAt        DateTime?
+  order             Order     @relation(fields: [orderId], references: [id])
+  requestedBy       User      @relation("EditRequestedBy", fields: [requestedById], references: [id])
+  reviewedBy        User?    @relation("EditReviewedBy", fields: [reviewedById], references: [id])
+
+  @@index([orderId])
+  @@index([status])
 }
 
 model SystemSetting {
