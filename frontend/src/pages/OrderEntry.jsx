@@ -47,6 +47,7 @@ const SmartOrderForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedProductCategory, setSelectedProductCategory] = useState('SCRUBS');
   const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [expandedProducts, setExpandedProducts] = useState({});
 
   const [formData, setFormData] = useState({
     orderNumber: '',
@@ -280,32 +281,6 @@ const SmartOrderForm = () => {
       setError('Please select a Product first.');
       return;
     }
-
-    // Check stock before adding to cart
-    const selectedItem = productsInCategory.find(i => i.name === formData.productType);
-    if (selectedItem) {
-      const variants = selectedItem.variants && Array.isArray(selectedItem.variants) ? selectedItem.variants : [];
-      let availableStock = 0;
-      if (formData.color && formData.size) {
-        availableStock = variants
-          .filter(v => v.color === formData.color && v.size === formData.size)
-          .reduce((s, v) => s + (v.stock || 0), 0);
-      } else if (formData.color) {
-        availableStock = variants
-          .filter(v => v.color === formData.color)
-          .reduce((s, v) => s + (v.stock || 0), 0);
-      } else {
-        availableStock = variants.reduce((s, v) => s + (v.stock || 0), 0);
-      }
-      if (availableStock <= 0) {
-        setError('This product is out of stock and cannot be added to cart.');
-        return;
-      }
-      if (parseInt(formData.quantity) > availableStock) {
-        setError(`Only ${availableStock} units available in stock. Please reduce quantity.`);
-        return;
-      }
-    }
     
     const payload = {
       orderNumber: formData.orderNumber,
@@ -399,34 +374,6 @@ const SmartOrderForm = () => {
   const handleCheckout = async () => {
     if (cartItems.length === 0) return;
     if (isSubmitting) return; 
-
-    // Stock validation for all cart items
-    for (const item of cartItems) {
-      const pd = item.productDetails;
-      if (!pd?.productType) continue;
-      const invItem = productsInCategory.find(i => i.name === pd.productType);
-      if (!invItem) continue;
-      const variants = invItem.variants && Array.isArray(invItem.variants) ? invItem.variants : [];
-      let availableStock = 0;
-      if (pd.color && pd.size) {
-        availableStock = variants.filter(v => v.color === pd.color && v.size === pd.size).reduce((s, v) => s + (v.stock || 0), 0);
-      } else if (pd.color) {
-        availableStock = variants.filter(v => v.color === pd.color).reduce((s, v) => s + (v.stock || 0), 0);
-      } else {
-        availableStock = variants.reduce((s, v) => s + (v.stock || 0), 0);
-      }
-      const qty = parseInt(item.quantity) || 1;
-      if (availableStock <= 0) {
-        setError(`"${pd.productType}" is out of stock. Remove it from cart to place order.`);
-        setIsSubmitting(false);
-        return;
-      }
-      if (qty > availableStock) {
-        setError(`"${pd.productType}" only has ${availableStock} units in stock. Reduce quantity to continue.`);
-        setIsSubmitting(false);
-        return;
-      }
-    }
 
     setIsSubmitting(true);
     setLoading(true);
@@ -561,10 +508,10 @@ const SmartOrderForm = () => {
   const OptionCard = ({ label, value, current, onClick, icon: Icon, sublabel, color, disabled = false }) => (
     <button
       type="button"
-      onClick={() => { if (!disabled) onClick(value); }}
+      onClick={() => onClick(value)}
       className={`relative p-5 rounded-[1.5rem] border-2 transition-all flex flex-col items-start justify-between min-h-[9rem] h-auto w-full group ${
         disabled
-          ? 'border-red-900/50 bg-gray-800/20 text-gray-600 cursor-not-allowed opacity-50'
+          ? 'border-red-900/50 bg-gray-800/20 text-gray-600'
           : current === value 
             ? `border-blue-500 bg-blue-500/10 theme-text-primary shadow-xl shadow-blue-900/30` 
             : `theme-border theme-bg-subtle theme-text-secondary hover:border-gray-600 hover:bg-gray-800/60`
@@ -577,7 +524,7 @@ const SmartOrderForm = () => {
         <span className="block text-[9px] md:text-[11px] font-black uppercase tracking-wider whitespace-normal break-words leading-snug">{label}</span>
         {sublabel &&           <span className={`block text-[9px] md:text-[10px] mt-1 font-medium whitespace-normal break-words ${disabled ? 'text-red-400' : 'theme-text-muted'}`}>{sublabel}</span>}
       </div>
-      {!disabled && current === value && (
+      {current === value && (
         <motion.div layoutId="activeMark" className="absolute top-4 right-4 bg-blue-500 rounded-full p-1 shadow-lg">
           <CheckCircle2 size={14} className="text-white" />
         </motion.div>
@@ -1019,13 +966,11 @@ const SmartOrderForm = () => {
                       const totalStock = item.variants && Array.isArray(item.variants)
                         ? item.variants.reduce((sum, v) => sum + (v.stock || 0), 0)
                         : (item.stock || 0);
-                      const outOfStock = totalStock <= 0;
                       return (
                       <button
                         key={item.id}
                         type="button"
                         onClick={() => {
-                          if (outOfStock) return;
                           if (formData.productType === item.name) {
                             setFormData({...formData, productType: '', fabricType: '', color: '', productImage: null});
                           } else {
@@ -1041,8 +986,6 @@ const SmartOrderForm = () => {
                         className={`relative p-4 rounded-[1.5rem] border-2 transition-all flex flex-col items-center justify-between min-h-[10rem] w-full group ${
           formData.productType === item.name 
             ? 'border-blue-500 bg-blue-500/10 theme-text-primary shadow-xl shadow-blue-900/30' 
-            : outOfStock
-            ? 'border-red-900/50 bg-gray-800/20 text-gray-600 cursor-not-allowed opacity-50'
             : 'theme-border theme-bg-subtle theme-text-secondary hover:border-gray-600 hover:bg-gray-800/60'
                         }`}
                       >
@@ -1054,7 +997,7 @@ const SmartOrderForm = () => {
                             onError={(e) => { e.target.style.display = 'none' }}
                           />
                         )}
-                        <div className={`p-3 rounded-xl ${formData.productType === item.name ? 'bg-blue-500 text-white' : outOfStock ? 'bg-gray-700/50 text-gray-600' : 'bg-gray-700 text-gray-500 group-hover:text-gray-300'}`}>
+                        <div className={`p-3 rounded-xl ${formData.productType === item.name ? 'bg-blue-500 text-white' : 'bg-gray-700 text-gray-500 group-hover:text-gray-300'}`}>
                           <Package size={22} />
                         </div>
                         <div className="text-center w-full mt-2 space-y-2">
@@ -1065,7 +1008,7 @@ const SmartOrderForm = () => {
                             </span>
                             <span className="text-[9px] theme-text-muted ml-1">in stock</span>
                           </span>
-                          {item.variants && Array.isArray(item.variants) && item.variants.length > 0 ? (
+                          {expandedProducts[item.id] && item.variants && Array.isArray(item.variants) && item.variants.length > 0 ? (
                             <div className="space-y-1">
                               <div className="flex flex-wrap justify-center gap-1">
                                 {[...new Set(item.variants.filter(v => v.color).map(v => v.color))].map(c => (
@@ -1078,10 +1021,18 @@ const SmartOrderForm = () => {
                                 ))}
                               </div>
                             </div>
-                          ) : (
-                            item.color && <span className="block text-[9px] theme-text-muted font-bold truncate">{item.color}</span>
+                          ) : expandedProducts[item.id] && item.color ? (
+                            <span className="block text-[9px] theme-text-muted font-bold truncate">{item.color}</span>
+                          ) : null}
+                          {item.variants && Array.isArray(item.variants) && item.variants.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setExpandedProducts(prev => ({...prev, [item.id]: !prev[item.id]})); }}
+                              className="text-[8px] font-bold text-blue-400 hover:text-blue-300 transition-colors mt-1"
+                            >
+                              {expandedProducts[item.id] ? 'Show Less' : 'View Details'}
+                            </button>
                           )}
-                          {outOfStock && <span className="block text-[9px] text-red-400 font-black uppercase">Out of Stock</span>}
                         </div>
                         {formData.productType === item.name && (
                           <motion.div layoutId="activeProduct" className="absolute top-2 right-2 bg-blue-500 rounded-full p-1 shadow-lg">
@@ -1118,7 +1069,6 @@ const SmartOrderForm = () => {
                           onClick={(val) => setFormData({...formData, fabricType: val})}
                           icon={Layers}
                           sublabel={fStock > 0 ? `${fStock} units` : 'Out of stock'}
-                          disabled={fStock <= 0}
                         />
                       )})}
                     </div>
@@ -1186,9 +1136,9 @@ const SmartOrderForm = () => {
                         <button
                           key={c}
                           type="button"
-                          onClick={() => { if (stockForColor > 0) setFormData({...formData, color: c}); }}
+                          onClick={() => setFormData({...formData, color: c})}
                           className={`group relative w-full rounded-xl border-2 transition-all duration-200 flex flex-col items-center overflow-hidden ${
-                            formData.color === c ? 'border-white ring-2 ring-blue-500 scale-105 z-10' : stockForColor <= 0 ? 'border-red-900/50 opacity-40 cursor-not-allowed' : 'border-gray-700/50 hover:border-gray-500'
+                            formData.color === c ? 'border-white ring-2 ring-blue-500 scale-105 z-10' : 'border-gray-700/50 hover:border-gray-500'
                           }`}
                         >
                           <div className="w-full aspect-square flex items-center justify-center relative" style={{ backgroundColor: bgHex }}>
@@ -1197,14 +1147,9 @@ const SmartOrderForm = () => {
                                 <CheckCircle2 size={16} className={textClass} />
                               </div>
                             )}
-                            {stockForColor <= 0 && (
-                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                                <X size={16} className="text-red-400" />
-                              </div>
-                            )}
                           </div>
                           <div className="w-full py-1.5 px-1 theme-bg text-center">
-                            <p className={`text-[9px] font-black truncate ${stockForColor <= 0 ? 'text-red-400' : 'theme-text-primary'}`}>{c}</p>
+                            <p className="text-[9px] font-black truncate theme-text-primary">{c}</p>
                             <p className="text-[7px] font-bold theme-text-muted">{stockForColor} in stock</p>
                           </div>
                         </button>

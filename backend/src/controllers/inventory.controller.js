@@ -200,33 +200,25 @@ const allocateInventory = async (req, res) => {
 
     if (item.variants && Array.isArray(item.variants)) {
       let updatedVariants = [...item.variants];
-      let remaining = deductQty;
 
       if (color || size) {
         const matchIdx = updatedVariants.findIndex(v =>
           (!color || (v.color && v.color.toLowerCase() === color.toLowerCase())) &&
-          (!size || (v.size && v.size.toLowerCase() === size.toLowerCase())) &&
-          (v.stock || 0) > 0
+          (!size || (v.size && v.size.toLowerCase() === size.toLowerCase()))
         );
         if (matchIdx >= 0) {
-          const deductFromVariant = Math.min(remaining, updatedVariants[matchIdx].stock || 0);
-          updatedVariants[matchIdx] = { ...updatedVariants[matchIdx], stock: (updatedVariants[matchIdx].stock || 0) - deductFromVariant };
-          variantLabel = `${updatedVariants[matchIdx].color || ''} ${updatedVariants[matchIdx].size || ''}`.trim();
-          remaining -= deductFromVariant;
+          const available = updatedVariants[matchIdx].stock || 0;
+          if (available >= deductQty) {
+            updatedVariants[matchIdx] = { ...updatedVariants[matchIdx], stock: available - deductQty };
+            variantLabel = `${updatedVariants[matchIdx].color || ''} ${updatedVariants[matchIdx].size || ''}`.trim();
+          } else {
+            return res.status(400).json({ message: `Insufficient stock for variant ${color || ''} ${size || ''}. Only ${available} of ${deductQty} available.` });
+          }
+        } else {
+          return res.status(400).json({ message: `Variant not found: ${color || ''} ${size || ''}`.trim() });
         }
-      }
-
-      for (let i = 0; i < updatedVariants.length && remaining > 0; i++) {
-        if ((updatedVariants[i].stock || 0) > 0) {
-          const deductFromVariant = Math.min(remaining, updatedVariants[i].stock);
-          updatedVariants[i] = { ...updatedVariants[i], stock: (updatedVariants[i].stock || 0) - deductFromVariant };
-          if (!variantLabel) variantLabel = `${updatedVariants[i].color || ''} ${updatedVariants[i].size || ''}`.trim();
-          remaining -= deductFromVariant;
-        }
-      }
-
-      if (remaining > 0) {
-        return res.status(400).json({ message: `Insufficient stock. Only ${deductQty - remaining} of ${deductQty} available.` });
+      } else {
+        return res.status(400).json({ message: 'color and/or size are required for items with variants' });
       }
 
       const newTotal = updatedVariants.reduce((s, v) => s + (v.stock || 0), 0);

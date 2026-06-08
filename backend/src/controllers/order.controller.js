@@ -852,36 +852,32 @@ const deductInventory = async (order, userId) => {
 
     if (!inventoryItem || inventoryItem.stock <= 0) continue;
 
-    const deductQty = Math.min(prod.quantity, inventoryItem.stock);
+    const deductQty = prod.quantity || 1;
+    let variantLabel = '';
 
-    // If item has variants, deduct from the matching variant
+    // If item has variants, deduct ONLY from the exact matching variant
     if (inventoryItem.variants && Array.isArray(inventoryItem.variants)) {
       let updatedVariants = [...inventoryItem.variants];
-      let remaining = deductQty;
+      let deducted = 0;
 
       if (prod.color || prod.size) {
-        // Try to match by color and/or size
         const matchIdx = updatedVariants.findIndex(v =>
           (!prod.color || (v.color && v.color.toLowerCase() === prod.color.toLowerCase())) &&
-          (!prod.size || (v.size && v.size.toLowerCase() === prod.size.toLowerCase())) &&
-          (v.stock || 0) > 0
+          (!prod.size || (v.size && v.size.toLowerCase() === prod.size.toLowerCase()))
         );
         if (matchIdx >= 0) {
-          const deductFromVariant = Math.min(remaining, updatedVariants[matchIdx].stock || 0);
-          updatedVariants[matchIdx] = { ...updatedVariants[matchIdx], stock: (updatedVariants[matchIdx].stock || 0) - deductFromVariant };
-          remaining -= deductFromVariant;
+          const available = updatedVariants[matchIdx].stock || 0;
+          if (available >= deductQty) {
+            updatedVariants[matchIdx] = { ...updatedVariants[matchIdx], stock: available - deductQty };
+            variantLabel = `${updatedVariants[matchIdx].color || ''} ${updatedVariants[matchIdx].size || ''}`.trim();
+            deducted = deductQty;
+          }
         }
       }
 
-      // If specific variant not found or remaining, spread across all variants
-      if (remaining > 0) {
-        for (let i = 0; i < updatedVariants.length && remaining > 0; i++) {
-          if ((updatedVariants[i].stock || 0) > 0) {
-            const deductFromVariant = Math.min(remaining, updatedVariants[i].stock);
-            updatedVariants[i] = { ...updatedVariants[i], stock: (updatedVariants[i].stock || 0) - deductFromVariant };
-            remaining -= deductFromVariant;
-          }
-        }
+      if (deducted <= 0) {
+        // Skip — no exact variant match or insufficient stock for that variant
+        continue;
       }
 
       const newTotalStock = updatedVariants.reduce((s, v) => s + (v.stock || 0), 0);
@@ -890,13 +886,14 @@ const deductInventory = async (order, userId) => {
         data: { variants: updatedVariants, stock: newTotalStock }
       });
     } else {
-      // Legacy item without variants
+      // Legacy item without variants — simple decrement
+      const actualDeduct = Math.min(deductQty, inventoryItem.stock);
       await prisma.inventoryItem.update({
         where: { id: inventoryItem.id },
-        data: { stock: { decrement: deductQty } }
+        data: { stock: { decrement: actualDeduct } }
       });
     }
-    await createAuditLog(order.id, 'INVENTORY_DEDUCTED', `Deducted ${deductQty} unit(s) of ${inventoryItem.name} from stock (order creation).`, userId);
+    await createAuditLog(order.id, 'INVENTORY_DEDUCTED', `Deducted ${deductQty} unit(s) of ${inventoryItem.name}${variantLabel ? ' (' + variantLabel + ')' : ''} from stock (order fulfillment). Product ID: ${inventoryItem.id}`, userId);
   }
 };
 
