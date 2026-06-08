@@ -280,6 +280,32 @@ const SmartOrderForm = () => {
       setError('Please select a Product first.');
       return;
     }
+
+    // Check stock before adding to cart
+    const selectedItem = productsInCategory.find(i => i.name === formData.productType);
+    if (selectedItem) {
+      const variants = selectedItem.variants && Array.isArray(selectedItem.variants) ? selectedItem.variants : [];
+      let availableStock = 0;
+      if (formData.color && formData.size) {
+        availableStock = variants
+          .filter(v => v.color === formData.color && v.size === formData.size)
+          .reduce((s, v) => s + (v.stock || 0), 0);
+      } else if (formData.color) {
+        availableStock = variants
+          .filter(v => v.color === formData.color)
+          .reduce((s, v) => s + (v.stock || 0), 0);
+      } else {
+        availableStock = variants.reduce((s, v) => s + (v.stock || 0), 0);
+      }
+      if (availableStock <= 0) {
+        setError('This product is out of stock and cannot be added to cart.');
+        return;
+      }
+      if (parseInt(formData.quantity) > availableStock) {
+        setError(`Only ${availableStock} units available in stock. Please reduce quantity.`);
+        return;
+      }
+    }
     
     const payload = {
       orderNumber: formData.orderNumber,
@@ -504,24 +530,26 @@ const SmartOrderForm = () => {
     }
   };
 
-  const OptionCard = ({ label, value, current, onClick, icon: Icon, sublabel, color }) => (
+  const OptionCard = ({ label, value, current, onClick, icon: Icon, sublabel, color, disabled = false }) => (
     <button
       type="button"
-      onClick={() => onClick(value)}
+      onClick={() => { if (!disabled) onClick(value); }}
       className={`relative p-5 rounded-[1.5rem] border-2 transition-all flex flex-col items-start justify-between min-h-[9rem] h-auto w-full group ${
-        current === value 
-          ? `border-blue-500 bg-blue-500/10 theme-text-primary shadow-xl shadow-blue-900/30` 
-          : `theme-border theme-bg-subtle theme-text-secondary hover:border-gray-600 hover:bg-gray-800/60`
+        disabled
+          ? 'border-red-900/50 bg-gray-800/20 text-gray-600 cursor-not-allowed opacity-50'
+          : current === value 
+            ? `border-blue-500 bg-blue-500/10 theme-text-primary shadow-xl shadow-blue-900/30` 
+            : `theme-border theme-bg-subtle theme-text-secondary hover:border-gray-600 hover:bg-gray-800/60`
       }`}
     >
-      <div className={`p-3 rounded-xl ${current === value ? 'bg-blue-500 text-white' : 'bg-gray-700 text-gray-500 group-hover:text-gray-300'}`} style={color ? {backgroundColor: color} : {}}>
+      <div className={`p-3 rounded-xl ${disabled ? 'bg-gray-700/50 text-gray-600' : current === value ? 'bg-blue-500 text-white' : 'bg-gray-700 text-gray-500 group-hover:text-gray-300'}`} style={color ? {backgroundColor: color} : {}}>
         {Icon ? <Icon size={20} /> : <Package size={20} />}
       </div>
       <div className="text-left w-full mt-2">
         <span className="block text-[11px] font-black uppercase tracking-wider whitespace-normal break-words leading-snug">{label}</span>
-        {sublabel &&           <span className="block text-[10px] theme-text-muted mt-1 font-medium whitespace-normal break-words">{sublabel}</span>}
+        {sublabel &&           <span className={`block text-[10px] mt-1 font-medium whitespace-normal break-words ${disabled ? 'text-red-400' : 'theme-text-muted'}`}>{sublabel}</span>}
       </div>
-      {current === value && (
+      {!disabled && current === value && (
         <motion.div layoutId="activeMark" className="absolute top-4 right-4 bg-blue-500 rounded-full p-1 shadow-lg">
           <CheckCircle2 size={14} className="text-white" />
         </motion.div>
@@ -1056,6 +1084,7 @@ const SmartOrderForm = () => {
                           onClick={(val) => setFormData({...formData, fabricType: val})}
                           icon={Layers}
                           sublabel={fStock > 0 ? `${fStock} units` : 'Out of stock'}
+                          disabled={fStock <= 0}
                         />
                       )})}
                     </div>
@@ -1123,9 +1152,9 @@ const SmartOrderForm = () => {
                         <button
                           key={c}
                           type="button"
-                          onClick={() => setFormData({...formData, color: c})}
+                          onClick={() => { if (stockForColor > 0) setFormData({...formData, color: c}); }}
                           className={`group relative w-full rounded-xl border-2 transition-all duration-200 flex flex-col items-center overflow-hidden ${
-                            formData.color === c ? 'border-white ring-2 ring-blue-500 scale-105 z-10' : 'border-gray-700/50 hover:border-gray-500'
+                            formData.color === c ? 'border-white ring-2 ring-blue-500 scale-105 z-10' : stockForColor <= 0 ? 'border-red-900/50 opacity-40 cursor-not-allowed' : 'border-gray-700/50 hover:border-gray-500'
                           }`}
                         >
                           <div className="w-full aspect-square flex items-center justify-center relative" style={{ backgroundColor: bgHex }}>
@@ -1134,9 +1163,14 @@ const SmartOrderForm = () => {
                                 <CheckCircle2 size={20} className={textClass} />
                               </div>
                             )}
+                            {stockForColor <= 0 && (
+                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                <X size={24} className="text-red-400" />
+                              </div>
+                            )}
                           </div>
                           <div className="w-full py-1.5 px-1 theme-bg text-center">
-                            <p className="text-[9px] font-black theme-text-primary truncate">{c}</p>
+                            <p className={`text-[9px] font-black truncate ${stockForColor <= 0 ? 'text-red-400' : 'theme-text-primary'}`}>{c}</p>
                             <p className="text-[7px] font-bold theme-text-muted">{stockForColor} in stock</p>
                           </div>
                         </button>
