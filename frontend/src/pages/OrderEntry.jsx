@@ -2071,111 +2071,119 @@ const SmartOrderForm = () => {
                 )}
               </div>
 
-              {/* Step 2: Show Existing Order Details */}
+              {/* Step 2: Show Old Items vs New Items */}
               {editOrderData && (
                 <>
-                  <div className="theme-bg-subtle rounded-2xl p-4 border theme-border mb-6 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-black theme-text-muted uppercase tracking-widest">{useUrdu ? 'موجودہ آرڈر' : 'Current Order'}</span>
-                      <span className={`text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider ${
-                        editOrderData.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' :
-                        editOrderData.status === 'IN_PROGRESS' ? 'bg-blue-500/20 text-blue-400' :
-                        'bg-yellow-500/20 text-yellow-400'
-                      }`}>{editOrderData.status}</span>
+                  {/* Order Header */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <p className="text-sm font-black theme-text-primary">#{editOrderData.orderNumber || editOrderData.id.substring(0, 8)}</p>
+                      <p className="text-[9px] theme-text-secondary font-bold">{editOrderData.customerName} • {editOrderData.customerPhone}</p>
                     </div>
-                    <p className="text-sm font-black theme-text-primary">#{editOrderData.orderNumber || editOrderData.id.substring(0, 8)}</p>
-                    <p className="text-xs theme-text-secondary font-bold">{editOrderData.customerName} • {editOrderData.customerPhone}</p>
-                    {(editOrderData.productDetails) && (
-                      <div className="pt-2 border-t theme-border">
-                        {(() => {
-                          try {
-                            const pd = typeof editOrderData.productDetails === 'string' ? JSON.parse(editOrderData.productDetails) : editOrderData.productDetails;
-                            if (Array.isArray(pd)) {
-                              return pd.map((item, idx) => {
-                                const d = item.productDetails || item;
-                                return <p key={idx} className="text-[9px] font-bold theme-text-muted">{d.productType} {d.color ? `• ${d.color}` : ''} {d.size ? `• ${d.size}` : ''} {item.quantity ? `x${item.quantity}` : ''}</p>;
-                              });
-                            } else if (pd?.productType) {
-                              return <p className="text-[9px] font-bold theme-text-muted">{pd.productType} {pd.color ? `• ${pd.color}` : ''} {pd.size ? `• ${pd.size}` : ''} x{editOrderData.quantity}</p>;
-                            }
-                            return null;
-                          } catch { return null; }
-                        })()}
-                      </div>
-                    )}
-                    <p className="text-[9px] font-bold theme-text-muted">{useUrdu ? 'تخلیق کردہ' : 'Created'}: {new Date(editOrderData.createdAt).toLocaleDateString()}</p>
+                    <span className={`text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider ${
+                      editOrderData.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' :
+                      editOrderData.status === 'IN_PROGRESS' ? 'bg-blue-500/20 text-blue-400' :
+                      'bg-yellow-500/20 text-yellow-400'
+                    }`}>{editOrderData.status}</span>
                   </div>
 
-                  {/* Step 3: Specify Changes */}
-                  <div className="space-y-4 mb-6">
-                    <label className="text-[9px] font-black theme-text-muted uppercase tracking-widest ml-2">{useUrdu ? 'مطلوبہ تبدیلیاں' : 'Requested Changes'}</label>
-                    
-                    <div>
-                      <label className="text-[9px] font-bold theme-text-muted mb-1 block ml-2">{useUrdu ? 'پروڈکٹ کا نام' : 'Product Type'}</label>
-                      <input
-                        type="text"
-                        value={editRequestChanges.productType}
-                        onChange={(e) => setEditRequestChanges({...editRequestChanges, productType: e.target.value})}
-                        className="w-full theme-input rounded-xl py-3 px-5 font-bold text-sm"
-                        placeholder="Shirt, Pant, Scrub, etc."
-                      />
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[9px] font-bold theme-text-muted mb-1 block ml-2">{useUrdu ? 'رنگ' : 'Color'}</label>
-                        <input
-                          type="text"
-                          value={editRequestChanges.color}
-                          onChange={(e) => setEditRequestChanges({...editRequestChanges, color: e.target.value})}
-                          className="w-full theme-input rounded-xl py-3 px-5 font-bold text-sm"
-                          placeholder="Navy, Black, etc."
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-bold theme-text-muted mb-1 block ml-2">{useUrdu ? 'سائز' : 'Size'}</label>
-                        <input
-                          type="text"
-                          value={editRequestChanges.size}
-                          onChange={(e) => setEditRequestChanges({...editRequestChanges, size: e.target.value})}
-                          className="w-full theme-input rounded-xl py-3 px-5 font-bold text-sm"
-                          placeholder="S, M, L, XL, etc."
-                        />
-                      </div>
-                    </div>
+                  {/* Old Item(s) */}
+                  <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-4 mb-4">
+                    <p className="text-[9px] font-black text-red-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                      {useUrdu ? 'پرانی آئٹم' : 'Old Item(s)'}
+                    </p>
+                    {(() => {
+                      try {
+                        const pd = typeof editOrderData.productDetails === 'string' ? JSON.parse(editOrderData.productDetails) : editOrderData.productDetails;
+                        if (Array.isArray(pd)) {
+                          return pd.map((item, idx) => {
+                            const d = item.productDetails || item;
+                            return (
+                              <div key={idx} className="flex items-center gap-3 py-2 border-b border-red-500/10 last:border-0">
+                                <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center text-red-400 font-black text-[9px]">{idx + 1}</div>
+                                <div>
+                                  <p className="text-xs font-bold theme-text-primary">{d.productType || 'Unknown'}</p>
+                                  <p className="text-[9px] font-medium theme-text-muted">
+                                    {d.color ? `${d.color}` : ''}{d.color && d.size ? ' / ' : ''}{d.size ? `${d.size}` : ''} × {item.quantity || editOrderData.quantity || 1}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          });
+                        } else if (pd?.productType) {
+                          return (
+                            <div className="flex items-center gap-3 py-2">
+                              <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center text-red-400 font-black text-[9px]">1</div>
+                              <div>
+                                <p className="text-xs font-bold theme-text-primary">{pd.productType}</p>
+                                <p className="text-[9px] font-medium theme-text-muted">
+                                  {pd.color ? `${pd.color}` : ''}{pd.color && pd.size ? ' / ' : ''}{pd.size ? `${pd.size}` : ''} × {editOrderData.quantity || 1}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        }
+                        return <p className="text-[9px] theme-text-muted">No product details found</p>;
+                      } catch { return <p className="text-[9px] theme-text-muted">Error parsing details</p>; }
+                    })()}
+                  </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[9px] font-bold theme-text-muted mb-1 block ml-2">{useUrdu ? 'تعداد' : 'Quantity'}</label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={editRequestChanges.quantity}
-                          onChange={(e) => setEditRequestChanges({...editRequestChanges, quantity: e.target.value})}
-                          className="w-full theme-input rounded-xl py-3 px-5 font-bold text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-bold theme-text-muted mb-1 block ml-2">{useUrdu ? 'کل قیمت' : 'Total Price'}</label>
-                        <input
-                          type="number"
-                          value={editRequestChanges.totalPrice}
-                          onChange={(e) => setEditRequestChanges({...editRequestChanges, totalPrice: e.target.value})}
-                          className="w-full theme-input rounded-xl py-3 px-5 font-bold text-sm"
-                          placeholder="0"
-                        />
+                  {/* New Item(s) */}
+                  <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 mb-6">
+                    <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      {useUrdu ? 'نئی آئٹم' : 'New Item(s)'}
+                    </p>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 font-black text-[9px] shrink-0">1</div>
+                        <div className="flex-1 space-y-2">
+                          <input
+                            type="text"
+                            value={editRequestChanges.productType}
+                            onChange={(e) => setEditRequestChanges({...editRequestChanges, productType: e.target.value})}
+                            className="w-full theme-input rounded-xl py-2.5 px-4 font-bold text-sm"
+                            placeholder={useUrdu ? 'پروڈکٹ کا نام' : 'Product Type'}
+                          />
+                          <div className="grid grid-cols-3 gap-2">
+                            <input
+                              type="text"
+                              value={editRequestChanges.color}
+                              onChange={(e) => setEditRequestChanges({...editRequestChanges, color: e.target.value})}
+                              className="w-full theme-input rounded-xl py-2.5 px-4 font-bold text-sm"
+                              placeholder={useUrdu ? 'رنگ' : 'Color'}
+                            />
+                            <input
+                              type="text"
+                              value={editRequestChanges.size}
+                              onChange={(e) => setEditRequestChanges({...editRequestChanges, size: e.target.value})}
+                              className="w-full theme-input rounded-xl py-2.5 px-4 font-bold text-sm"
+                              placeholder={useUrdu ? 'سائز' : 'Size'}
+                            />
+                            <input
+                              type="number"
+                              min="1"
+                              value={editRequestChanges.quantity}
+                              onChange={(e) => setEditRequestChanges({...editRequestChanges, quantity: e.target.value})}
+                              className="w-full theme-input rounded-xl py-2.5 px-4 font-bold text-sm"
+                              placeholder="Qty"
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
+                  </div>
 
-                    <div>
-                      <label className="text-[9px] font-bold theme-text-muted mb-1 block ml-2">{useUrdu ? 'وجہ (اختیاری)' : 'Reason (Optional)'}</label>
-                      <textarea
-                        value={editRequestReason}
-                        onChange={(e) => setEditRequestReason(e.target.value)}
-                        className="w-full theme-input rounded-xl py-3 px-5 font-medium text-sm resize-none h-20"
-                        placeholder={useUrdu ? 'تبدیلی کی وجہ بتائیں...' : 'Why are you requesting this change?'}
-                      />
-                    </div>
+                  {/* Reason */}
+                  <div className="mb-6">
+                    <label className="text-[9px] font-black theme-text-muted uppercase tracking-widest ml-2">{useUrdu ? 'وجہ (اختیاری)' : 'Reason (Optional)'}</label>
+                    <textarea
+                      value={editRequestReason}
+                      onChange={(e) => setEditRequestReason(e.target.value)}
+                      className="w-full theme-input rounded-xl py-3 px-5 font-medium text-sm resize-none h-16 mt-2"
+                      placeholder={useUrdu ? 'تبدیلی کی وجہ بتائیں...' : 'Why are you requesting this change?'}
+                    />
                   </div>
 
                   {/* Submit / Cancel */}
