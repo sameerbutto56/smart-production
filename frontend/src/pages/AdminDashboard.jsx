@@ -29,7 +29,9 @@ import {
   Store as StoreIcon,
   FileEdit,
   ThumbsUp,
-  ThumbsDown
+  ThumbsDown,
+  ChevronDown,
+  Package
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -75,6 +77,9 @@ const AdminDashboard = () => {
   const [reviewAction, setReviewAction] = useState(''); // 'approve' or 'reject'
   const [reviewRemarks, setReviewRemarks] = useState('');
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [expandedEditRequest, setExpandedEditRequest] = useState(null);
+  const [inventorySearchResults, setInventorySearchResults] = useState({});
+  const [inventorySearchLoading, setInventorySearchLoading] = useState(false);
 
   const handleDashboardSearch = (val) => {
     setContextSearch(val);
@@ -257,6 +262,41 @@ const AdminDashboard = () => {
       socket.off('global-alert');
     };
   }, []);
+
+  useEffect(() => {
+    if (!expandedEditRequest) return;
+    const req = editRequests.find(r => r.id === expandedEditRequest);
+    if (!req) return;
+    let productTypes = [];
+    try {
+      const rc = req.requestedChanges;
+      if (rc?.items && Array.isArray(rc.items)) {
+        productTypes = [...new Set(rc.items.map(i => (i.productDetails?.productType || i.productType || '')).filter(Boolean))];
+      } else if (rc?.productDetails) {
+        const pd = typeof rc.productDetails === 'string' ? JSON.parse(rc.productDetails) : rc.productDetails;
+        if (pd?.productType) productTypes = [pd.productType];
+      }
+    } catch {}
+    if (productTypes.length === 0) return;
+    const fetchInventoryForProducts = async () => {
+      setInventorySearchLoading(true);
+      const token = sessionStorage.getItem('token');
+      if (!token) { setInventorySearchLoading(false); return; }
+      const results = {};
+      for (const name of productTypes) {
+        try {
+          const res = await axios.get(`${API_URL}/api/inventory/search`, {
+            params: { name },
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          results[name] = Array.isArray(res.data) ? res.data : [];
+        } catch { results[name] = []; }
+      }
+      setInventorySearchResults(prev => ({ ...prev, ...results }));
+      setInventorySearchLoading(false);
+    };
+    fetchInventoryForProducts();
+  }, [expandedEditRequest, editRequests]);
 
   const handleApproveEditRequest = async () => {
     if (!reviewRequestData) return;
@@ -895,7 +935,7 @@ const AdminDashboard = () => {
         )}
       </section>
 
-      {/* Order Edit Requests - Admin only */}
+      {/* Order Change Requests Dashboard */}
       {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'FAISAL') && (
         <section className="space-y-6">
           <div className="flex items-center justify-between">
@@ -904,13 +944,21 @@ const AdminDashboard = () => {
                 <FileEdit className="text-amber-400" size={20} />
               </div>
               <div>
-                <h2 className="text-xl md:text-2xl font-black theme-text-primary uppercase tracking-tight">Order Edit Requests</h2>
-                <p className="theme-text-muted text-[9px] md:text-[10px] font-black uppercase tracking-widest mt-0.5">Pending approval</p>
+                <h2 className="text-xl md:text-2xl font-black theme-text-primary uppercase tracking-tight">Order Change Requests</h2>
+                <p className="theme-text-muted text-[9px] md:text-[10px] font-black uppercase tracking-widest mt-0.5">
+                  {editRequests.length} pending request{editRequests.length !== 1 ? 's' : ''} — Auto-refreshing
+                </p>
               </div>
             </div>
-            <button onClick={fetchEditRequests} className="btn-ghost btn-sm">
-              <RotateCcw size={14} /> Refresh
-            </button>
+            <div className="flex items-center gap-3">
+              <span className="hidden sm:inline-flex items-center gap-2 text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Live
+              </span>
+              <button onClick={fetchEditRequests} className="btn-ghost btn-sm">
+                <RotateCcw size={14} /> Refresh
+              </button>
+            </div>
           </div>
 
           {editRequestsLoading ? (
@@ -923,24 +971,27 @@ const AdminDashboard = () => {
                 <CheckCircle2 className="text-gray-700" size={32} />
               </div>
               <h3 className="text-lg font-black text-gray-500 uppercase">No Pending Requests</h3>
-              <p className="text-gray-600 text-xs font-bold uppercase tracking-widest">All edit requests have been processed.</p>
+              <p className="text-gray-600 text-xs font-bold uppercase tracking-widest">All order change requests have been processed.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               {editRequests.map((req) => {
                 const order = req.order || {};
+                const source = req.requestedBy?.role === 'FAISAL' ? 'ONLINE ORDER' : order.outletName || req.requestedBy?.name || 'Unknown';
+                const isExpanded = expandedEditRequest === req.id;
+
                 let currentProducts = [];
                 try {
                   const pd = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
                   if (Array.isArray(pd)) {
                     currentProducts = pd.map(item => {
                       const d = item.productDetails || item;
-                      return `${d.productType || ''}${d.color ? ' - ' + d.color : ''}${d.size ? ' / ' + d.size : ''}${item.quantity ? ' x' + item.quantity : ''}`;
+                      return { name: d.productType || '', color: d.color || '', size: d.size || '', qty: item.quantity || 1 };
                     });
                   } else if (pd?.productType) {
-                    currentProducts = [`${pd.productType}${pd.color ? ' - ' + pd.color : ''}${pd.size ? ' / ' + pd.size : ''} x${order.quantity || 1}`];
+                    currentProducts = [{ name: pd.productType, color: pd.color || '', size: pd.size || '', qty: order.quantity || 1 }];
                   }
-                } catch { currentProducts = ['N/A']; }
+                } catch { currentProducts = []; }
 
                 let requestedProducts = [];
                 try {
@@ -948,71 +999,231 @@ const AdminDashboard = () => {
                   if (rc?.items && Array.isArray(rc.items)) {
                     requestedProducts = rc.items.map(item => {
                       const d = item.productDetails || item;
-                      return `${d.productType || ''}${d.color ? ' - ' + d.color : ''}${d.size ? ' / ' + d.size : ''}${item.quantity ? ' x' + item.quantity : ''}`;
+                      return { name: d.productType || '', color: d.color || '', size: d.size || '', qty: item.quantity || 1 };
                     });
                   } else if (rc?.productDetails) {
                     const pd = typeof rc.productDetails === 'string' ? JSON.parse(rc.productDetails) : rc.productDetails;
                     if (pd?.productType) {
-                      requestedProducts = [`${pd.productType}${pd.color ? ' - ' + pd.color : ''}${pd.size ? ' / ' + pd.size : ''} x${rc.quantity || 1}`];
-                    } else {
-                      requestedProducts = [JSON.stringify(pd)];
+                      requestedProducts = [{ name: pd.productType, color: pd.color || '', size: pd.size || '', qty: rc.quantity || 1 }];
                     }
-                  } else {
-                    requestedProducts = [JSON.stringify(rc)];
                   }
-                } catch { requestedProducts = ['N/A']; }
+                } catch { requestedProducts = []; }
 
                 return (
-                  <div key={req.id} className="glass rounded-2xl p-5 border theme-border hover:border-amber-500/30 transition-all">
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <p className="text-sm font-black theme-text-primary">#{order.orderNumber || order.id?.substring(0, 8) || 'N/A'}</p>
-                        <p className="text-[9px] theme-text-muted font-bold uppercase tracking-wider">{order.customerName || 'Unknown'}</p>
+                  <motion.div
+                    key={req.id}
+                    layout
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`glass rounded-2xl border transition-all cursor-pointer ${
+                      isExpanded ? 'border-amber-500/40 shadow-lg shadow-amber-900/20' : 'theme-border hover:border-amber-500/30'
+                    }`}
+                  >
+                    {/* Collapsed View - Summary */}
+                    <div
+                      onClick={() => setExpandedEditRequest(isExpanded ? null : req.id)}
+                      className="p-5"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-400 font-black text-sm">
+                            <FileEdit size={16} />
+                          </div>
+                          <div>
+                            <p className="text-sm font-black theme-text-primary">#{order.orderNumber || order.id?.substring(0, 8) || 'N/A'}</p>
+                            <p className="text-[9px] theme-text-muted font-bold">{order.customerName || 'Unknown'}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-1 bg-amber-500/15 text-amber-400 rounded-lg text-[8px] font-black uppercase tracking-wider">
+                            {req.status}
+                          </span>
+                          <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} className="text-gray-600">
+                            <ChevronDown size={14} />
+                          </motion.div>
+                        </div>
                       </div>
-                      <span className="px-3 py-1.5 bg-amber-500/15 text-amber-400 rounded-lg text-[9px] font-black uppercase tracking-wider">
-                        {req.status}
-                      </span>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-4 mb-4 text-[9px]">
-                      <div className="theme-bg rounded-xl p-3 border theme-border">
-                        <p className="font-black text-red-400 uppercase tracking-wider mb-1.5">Current</p>
-                        {currentProducts.map((p, i) => (
-                          <p key={i} className="font-bold theme-text-secondary">{p}</p>
-                        ))}
-                      </div>
-                      <div className="theme-bg rounded-xl p-3 border theme-border">
-                        <p className="font-black text-emerald-400 uppercase tracking-wider mb-1.5">Requested</p>
-                        {requestedProducts.map((p, i) => (
-                          <p key={i} className="font-bold theme-text-secondary">{p}</p>
-                        ))}
+                      <div className="flex items-center gap-4 text-[9px] font-bold theme-text-muted">
+                        <span className="flex items-center gap-1.5">
+                          <span className={`w-1.5 h-1.5 rounded-full ${source === 'ONLINE ORDER' ? 'bg-blue-400' : 'bg-purple-400'}`} />
+                          {source}
+                        </span>
+                        <span className="text-gray-700">|</span>
+                        <span>{new Date(req.requestedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                     </div>
 
-                    {req.reason && (
-                      <p className="text-[9px] font-medium theme-text-muted mb-3 italic">"{req.reason}"</p>
-                    )}
+                    {/* Expanded View - Full Details */}
+                    <AnimatePresence>
+                      {isExpanded && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="px-5 pb-5 border-t theme-border pt-4 space-y-4">
+                            {/* Old vs New Comparison */}
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="theme-bg rounded-xl p-3 border border-red-500/20">
+                                <p className="text-[8px] font-black text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                  <span className="w-1 h-1 rounded-full bg-red-400" /> Old Item(s)
+                                </p>
+                                {currentProducts.length > 0 ? currentProducts.map((p, i) => (
+                                  <div key={i} className="flex items-center gap-2 py-1.5 border-b border-red-500/10 last:border-0">
+                                    <span className="text-[9px] font-black text-red-400 w-4">{i + 1}.</span>
+                                    <div>
+                                      <p className="text-[10px] font-bold theme-text-primary">{p.name}</p>
+                                      {(p.color || p.size) && (
+                                        <p className="text-[8px] font-medium theme-text-muted">
+                                          {[p.color, p.size].filter(Boolean).join(' / ')} × {p.qty}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                )) : <p className="text-[8px] theme-text-muted italic">No items</p>}
+                              </div>
 
-                    <div className="flex items-center justify-between text-[9px] font-bold theme-text-muted mb-4">
-                      <span>By: {req.requestedBy?.name || 'Unknown'}</span>
-                      <span>{new Date(req.requestedAt).toLocaleDateString()}</span>
-                    </div>
+                              <div className="theme-bg rounded-xl p-3 border border-emerald-500/20">
+                                <p className="text-[8px] font-black text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                  <span className="w-1 h-1 rounded-full bg-emerald-400" /> New Item(s)
+                                </p>
+                                {requestedProducts.length > 0 ? requestedProducts.map((p, i) => (
+                                  <div key={i} className="flex items-center gap-2 py-1.5 border-b border-emerald-500/10 last:border-0">
+                                    <span className="text-[9px] font-black text-emerald-400 w-4">{i + 1}.</span>
+                                    <div>
+                                      <p className="text-[10px] font-bold theme-text-primary">{p.name}</p>
+                                      {(p.color || p.size) && (
+                                        <p className="text-[8px] font-medium theme-text-muted">
+                                          {[p.color, p.size].filter(Boolean).join(' / ')} × {p.qty}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                )) : <p className="text-[8px] theme-text-muted italic">No items</p>}
+                              </div>
+                            </div>
 
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => { setReviewRequestData(req); setReviewAction('approve'); setReviewRemarks(''); setShowReviewModal(true); }}
-                        className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-black text-[9px] uppercase tracking-wider hover:bg-emerald-500 transition-all active:scale-95 flex items-center justify-center gap-2"
-                      >
-                        <ThumbsUp size={12} /> Approve
-                      </button>
-                      <button
-                        onClick={() => { setReviewRequestData(req); setReviewAction('reject'); setReviewRemarks(''); setShowReviewModal(true); }}
-                        className="flex-1 py-3 bg-red-600 text-white rounded-xl font-black text-[9px] uppercase tracking-wider hover:bg-red-500 transition-all active:scale-95 flex items-center justify-center gap-2"
-                      >
-                        <ThumbsDown size={12} /> Reject
-                      </button>
-                    </div>
-                  </div>
+                            {/* Inventory Impact */}
+                            <div className="bg-amber-500/5 border border-amber-500/15 rounded-xl p-3">
+                              <p className="text-[8px] font-black text-amber-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                <RotateCcw size={10} /> Inventory Impact
+                              </p>
+                              <div className="space-y-1">
+                                {currentProducts.map((p, i) => (
+                                  <p key={i} className="text-[8px] font-bold text-green-400">
+                                    +{p.qty} {p.name} {p.color ? `(${p.color}` : ''}{p.color && p.size ? ' / ' : ''}{p.size ? `${p.size})` : ''} returned to stock
+                                  </p>
+                                ))}
+                                {requestedProducts.map((p, i) => (
+                                  <p key={i} className="text-[8px] font-bold text-red-400">
+                                    -{p.qty} {p.name} {p.color ? `(${p.color}` : ''}{p.color && p.size ? ' / ' : ''}{p.size ? `${p.size})` : ''} deducted from stock
+                                  </p>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Inventory Availability */}
+                            <div className="bg-indigo-500/5 border border-indigo-500/15 rounded-xl p-3">
+                              <p className="text-[8px] font-black text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                <Package size={10} /> Inventory Availability
+                              </p>
+                              {inventorySearchLoading ? (
+                                <div className="flex items-center gap-2 py-2">
+                                  <Loader2 className="animate-spin text-indigo-400" size={12} />
+                                  <span className="text-[8px] font-bold theme-text-muted">Checking inventory...</span>
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  {requestedProducts.map((p, i) => {
+                                    const items = inventorySearchResults[p.name] || [];
+                                    return (
+                                      <div key={i} className="theme-bg rounded-lg p-2 border theme-border">
+                                        <p className="text-[8px] font-black theme-text-primary mb-1.5 uppercase tracking-wider">{p.name}</p>
+                                        {items.length === 0 ? (
+                                          <p className="text-[8px] font-bold text-red-400 italic">No inventory records found</p>
+                                        ) : (
+                                          items.map((item, idx) => {
+                                            const v = item.variants && Array.isArray(item.variants) ? item.variants : [{ color: item.color || 'Default', size: item.size || 'Default', stock: item.stock || 0 }];
+                                            return (
+                                              <div key={idx} className="mb-1 last:mb-0">
+                                                {v.length === 1 && !item.variants ? (
+                                                  <div className="flex items-center justify-between py-1">
+                                                    <span className="text-[8px] font-medium theme-text-secondary">
+                                                      {[v[0].color, v[0].size].filter(Boolean).join(' / ')}
+                                                    </span>
+                                                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded ${
+                                                      v[0].stock === 0 ? 'bg-red-500/15 text-red-400' :
+                                                      v[0].stock <= 5 ? 'bg-amber-500/15 text-amber-400' :
+                                                      'bg-emerald-500/15 text-emerald-400'
+                                                    }`}>
+                                                      {v[0].stock} in stock
+                                                    </span>
+                                                  </div>
+                                                ) : (
+                                                  <div className="space-y-0.5">
+                                                    {v.map((variant, vi) => (
+                                                      <div key={vi} className="flex items-center justify-between py-0.5">
+                                                        <span className="text-[7px] font-medium theme-text-secondary">
+                                                          {[variant.color, variant.size].filter(Boolean).join(' / ')}
+                                                        </span>
+                                                        <span className={`text-[7px] font-bold px-1.5 py-0.5 rounded ${
+                                                          (variant.stock || 0) === 0 ? 'bg-red-500/15 text-red-400' :
+                                                          (variant.stock || 0) <= 5 ? 'bg-amber-500/15 text-amber-400' :
+                                                          'bg-emerald-500/15 text-emerald-400'
+                                                        }`}>
+                                                          {variant.stock || 0} in stock
+                                                        </span>
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            );
+                                          })
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Reason */}
+                            {req.reason && (
+                              <div className="theme-bg rounded-xl p-3 border theme-border">
+                                <p className="text-[8px] font-black theme-text-muted uppercase tracking-wider mb-1">Reason</p>
+                                <p className="text-[9px] font-medium italic theme-text-secondary">"{req.reason}"</p>
+                              </div>
+                            )}
+
+                            {/* Requester Info */}
+                            <div className="flex items-center justify-between text-[8px] font-bold theme-text-muted">
+                              <span>Requested by: {req.requestedBy?.name || 'Unknown'} ({req.requestedBy?.role || '?'})</span>
+                              <span>{new Date(req.requestedAt).toLocaleString()}</span>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex gap-3 pt-2">
+                              <button
+                                onClick={() => { setReviewRequestData(req); setReviewAction('approve'); setReviewRemarks(''); setShowReviewModal(true); }}
+                                className="flex-1 py-3.5 bg-emerald-600 text-white rounded-xl font-black text-[9px] uppercase tracking-wider hover:bg-emerald-500 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30"
+                              >
+                                <ThumbsUp size={13} /> Approve
+                              </button>
+                              <button
+                                onClick={() => { setReviewRequestData(req); setReviewAction('reject'); setReviewRemarks(''); setShowReviewModal(true); }}
+                                className="flex-1 py-3.5 bg-red-600 text-white rounded-xl font-black text-[9px] uppercase tracking-wider hover:bg-red-500 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-red-900/30"
+                              >
+                                <ThumbsDown size={13} /> Reject
+                              </button>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
                 );
               })}
             </div>

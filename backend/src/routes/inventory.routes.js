@@ -1,5 +1,5 @@
 const express = require('express');
-const { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem, clearAllInventory, bulkUploadInventory, allocateInventory, getAllocations, getAllocationStats } = require('../controllers/inventory.controller');
+const { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem, clearAllInventory, bulkUploadInventory, allocateInventory, getAllocations, getAllocationStats, searchInventory } = require('../controllers/inventory.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 const router = express.Router();
 const multer = require('multer');
@@ -11,6 +11,7 @@ router.post('/', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'FAISAL', 'STO
 router.post('/allocate', authenticate, authorize(['STORE', 'ADMIN', 'SUPER_ADMIN']), allocateInventory);
 router.get('/allocations', authenticate, getAllocations);
 router.get('/allocations/stats', authenticate, getAllocationStats);
+router.get('/search', authenticate, searchInventory);
 router.put('/:id', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'FAISAL', 'STORE']), updateInventoryItem);
 router.delete('/:id', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'FAISAL', 'STORE']), deleteInventoryItem);
 router.delete('/', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), clearAllInventory);

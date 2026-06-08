@@ -314,4 +314,21 @@ const getAllocationStats = async (req, res) => {
   }
 };
 
-module.exports = { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem, clearAllInventory, bulkUploadInventory, allocateInventory, getAllocations, getAllocationStats };
+const searchInventory = async (req, res) => {
+  try {
+    const { name } = req.query;
+    if (!name) {
+      return res.status(400).json({ message: 'Product name query parameter is required' });
+    }
+    const items = await prisma.inventoryItem.findMany({
+      where: {
+        name: { contains: name, mode: 'insensitive' }
+      }
+    });
+    res.json(items);
+  } catch (error) {
+    res.status(500).json({ message: 'Error searching inventory', error: error.message });
+  }
+};
+
+module.exports = { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem, clearAllInventory, bulkUploadInventory, allocateInventory, getAllocations, getAllocationStats, searchInventory };
