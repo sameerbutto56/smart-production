@@ -291,6 +291,26 @@ const SmartOrderForm = () => {
     } catch (err) {
       setEditOrderError('Error fetching order: ' + (err.response?.data?.message || err.message));
     }
+
+    // If order not found in active orders, check deleted records
+    if (!found) {
+      try {
+        const token = sessionStorage.getItem('token');
+        const delRes = await axios.get(`${API_URL}/api/orders/deleted-check`, {
+          params: { number: editOrderNumber.trim() },
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (delRes.data) {
+          setEditOrderData(null);
+          setEditOrderError(`This order (${delRes.data.orderNumber || editOrderNumber.trim()}) was deleted by Admin (${delRes.data.deletedBy?.name || 'Unknown'}) on ${new Date(delRes.data.deletedAt).toLocaleDateString()}. No changes can be made.`);
+          setEditOrderLoading(false);
+          return;
+        }
+      } catch (delErr) {
+        // Order not in deleted records either — keep original "not found" error
+      }
+    }
+
     setEditOrderLoading(false);
   };
 

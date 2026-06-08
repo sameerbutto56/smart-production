@@ -10,6 +10,8 @@ const {
   clearHistory,
   cancelOrder,
   deleteOrder,
+  getDeletedOrders,
+  checkDeletedOrder,
   updateDeliveryStatus,
   holdOrder,
   sendForDelivery,
@@ -40,7 +42,13 @@ router.put('/:orderId/stages/:stageId/approve', authenticate, authorize(['FAISAL
 router.put('/:orderId/stages/:stageId/reject', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), rejectStageCompletion);
 router.put('/:orderId/cancel', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), cancelOrder);
 router.put('/:orderId/hold', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), holdOrder);
-router.delete('/:orderId', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN']), deleteOrder);
+router.delete('/:orderId', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), deleteOrder);
+
+// Deleted orders (admin audit)
+router.get('/deleted-orders', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), getDeletedOrders);
+
+// Check if an order was deleted (for source visibility)
+router.get('/deleted-check', authenticate, checkDeletedOrder);
 
 // Control Center: Update payment status
 router.put('/:orderId/payment', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), updatePaymentStatus);
@@ -70,6 +78,6 @@ router.get('/:orderId/inventory-check', authenticate, authorize(['STORE', 'ADMIN
 router.get('/outlet-analytics', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), getOutletAnalytics);
 
 // Order Edit Request
-router.post('/:orderId/edit-request', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET']), createEditRequest);
+router.post('/:orderId/edit-request', authenticate, authorize(['FAISAL', 'ORDER_ENTRY', 'OUTLET']), createEditRequest);
 
 module.exports = router;

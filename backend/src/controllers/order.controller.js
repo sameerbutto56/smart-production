@@ -766,21 +766,151 @@ const cancelOrder = async (req, res) => {
   }
 };
 
+const restoreInventoryForDeletion = async (order, userId) => {
+  if (!order) return;
+  let parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+
+  const productsToRestore = [];
+  if (Array.isArray(parsedDetails)) {
+    parsedDetails.forEach(item => {
+      const pd = item.productDetails || item;
+      if (pd?.productType) {
+        productsToRestore.push({ productType: pd.productType, quantity: item.quantity || 1, color: pd.color, size: pd.size });
+      }
+    });
+  } else if (parsedDetails?.productType) {
+    productsToRestore.push({ productType: parsedDetails.productType, quantity: order.quantity || 1, color: parsedDetails.color, size: parsedDetails.size });
+  }
+
+  for (const prod of productsToRestore) {
+    const inventoryItem = await prisma.inventoryItem.findFirst({
+      where: {
+        name: { contains: prod.productType, mode: 'insensitive' },
+        category: { not: 'FABRIC' }
+      }
+    });
+    if (!inventoryItem) continue;
+
+    const restoreQty = prod.quantity || 1;
+    let variantLabel = '';
+
+    if (inventoryItem.variants && Array.isArray(inventoryItem.variants)) {
+      let updatedVariants = [...inventoryItem.variants];
+      if (prod.color || prod.size) {
+        const matchIdx = updatedVariants.findIndex(v =>
+          (!prod.color || (v.color && v.color.toLowerCase() === prod.color.toLowerCase())) &&
+          (!prod.size || (v.size && v.size.toLowerCase() === prod.size.toLowerCase()))
+        );
+        if (matchIdx >= 0) {
+          const current = updatedVariants[matchIdx].stock || 0;
+          updatedVariants[matchIdx] = { ...updatedVariants[matchIdx], stock: current + restoreQty };
+          variantLabel = `${updatedVariants[matchIdx].color || ''} ${updatedVariants[matchIdx].size || ''}`.trim();
+        }
+      }
+      const newTotalStock = updatedVariants.reduce((s, v) => s + (v.stock || 0), 0);
+      await prisma.inventoryItem.update({
+        where: { id: inventoryItem.id },
+        data: { variants: updatedVariants, stock: newTotalStock }
+      });
+    } else {
+      await prisma.inventoryItem.update({
+        where: { id: inventoryItem.id },
+        data: { stock: { increment: restoreQty } }
+      });
+    }
+    await createAuditLog(order.id, 'INVENTORY_RESTORED', `Restored ${restoreQty} unit(s) of ${inventoryItem.name}${variantLabel ? ' (' + variantLabel + ')' : ''} to stock (order deletion reversal). Product ID: ${inventoryItem.id}`, userId);
+  }
+};
+
 const deleteOrder = async (req, res) => {
   const { orderId } = req.params;
+  const userId = req.user?.id;
   try {
-    // Delete related records first due to foreign key constraints
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    // 1. Restore inventory at variant level
+    await restoreInventoryForDeletion(order, userId);
+
+    // 2. Create audit record before deletion
+    const deletedRecord = await prisma.deletedOrder.create({
+      data: {
+        orderNumber: order.orderNumber,
+        source: order.source === 'ONLINE' ? 'ONLINE ORDER' : (order.outletName || order.source),
+        customerName: order.customerName,
+        customerPhone: order.customerPhone,
+        productDetails: order.productDetails,
+        totalPrice: order.totalPrice || 0,
+        deletedAt: new Date(),
+        deletedById: userId
+      }
+    });
+
+    // 3. Delete child records
+    await prisma.orderEditRequest.deleteMany({ where: { orderId } });
     await prisma.orderStage.deleteMany({ where: { orderId } });
     await prisma.auditLog.deleteMany({ where: { orderId } });
     await prisma.order.delete({ where: { id: orderId } });
 
     const io = req.app.get('io');
-    io.emit('order-updated', { orderId, deleted: true });
+    io.emit('order-updated', { orderId, deleted: true, orderNumber: order.orderNumber });
 
-    res.json({ message: 'Order deleted permanently' });
+    res.json({ message: 'Order deleted permanently. Inventory restored.', deletedRecord });
   } catch (error) {
     console.error('Delete order error:', error);
     res.status(500).json({ message: 'Error deleting order', error: error.message });
+  }
+};
+
+const getDeletedOrders = async (req, res) => {
+  try {
+    const { source, limit } = req.query;
+    const where = {};
+    if (source) where.source = { contains: source, mode: 'insensitive' };
+
+    const records = await prisma.deletedOrder.findMany({
+      where,
+      include: {
+        deletedBy: { select: { id: true, name: true } }
+      },
+      orderBy: { deletedAt: 'desc' },
+      take: limit === 'all' ? undefined : (parseInt(limit) || 200)
+    });
+
+    res.json(records);
+  } catch (error) {
+    console.error('Get deleted orders error:', error);
+    res.status(500).json({ message: 'Error fetching deleted orders', error: error.message });
+  }
+};
+
+const checkDeletedOrder = async (req, res) => {
+  try {
+    const { number } = req.query;
+    if (!number) return res.status(400).json({ message: 'Order number is required' });
+
+    const deleted = await prisma.deletedOrder.findFirst({
+      where: {
+        OR: [
+          { orderNumber: { equals: number, mode: 'insensitive' } },
+          { id: number }
+        ]
+      },
+      select: {
+        orderNumber: true,
+        source: true,
+        customerName: true,
+        deletedAt: true,
+        deletedBy: { select: { name: true } }
+      }
+    });
+
+    if (!deleted) return res.status(404).json({ message: 'Order not found in deleted records' });
+
+    res.json(deleted);
+  } catch (error) {
+    console.error('Check deleted order error:', error);
+    res.status(500).json({ message: 'Error checking deleted order', error: error.message });
   }
 };
 
@@ -1259,6 +1389,8 @@ module.exports = {
   clearHistory,
   cancelOrder,
   deleteOrder,
+  getDeletedOrders,
+  checkDeletedOrder,
   updateDeliveryStatus,
   holdOrder,
   sendForDelivery,

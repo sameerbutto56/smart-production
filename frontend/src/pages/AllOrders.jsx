@@ -608,7 +608,18 @@ const AllOrders = () => {
                         </button>
                       ) : (
                         <div className="flex items-center justify-end space-x-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {/* Delete Action Removed per Request */}
+                          {['SUPER_ADMIN', 'ADMIN'].includes(user?.role) && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteOrder(order.id);
+                              }}
+                              className="bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white p-2 rounded-lg transition-all"
+                              title="Delete order permanently"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
                           <ChevronRight size={18} className="theme-text-muted" />
                         </div>
                       )}

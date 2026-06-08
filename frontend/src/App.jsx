@@ -18,6 +18,7 @@ import DeliverySheet from './pages/DeliverySheet';
 import WarehouseDashboard from './pages/WarehouseDashboard';
 import OutletStockRequest from './pages/OutletStockRequest';
 import EditRequestDashboard from './pages/EditRequestDashboard';
+import DeletedOrders from './pages/DeletedOrders';
 import { ThemeProvider } from './context/ThemeContext';
 
 const ProtectedRoute = ({ children }) => {
@@ -79,6 +80,7 @@ function App() {
                   <Route path="warehouse" element={<WarehouseDashboard />} />
                   <Route path="outlet-requests" element={<OutletStockRequest />} />
                   <Route path="edit-requests" element={<EditRequestDashboard />} />
+                  <Route path="deleted-orders" element={<DeletedOrders />} />
                 </Route>
               </Routes>
             </Router>

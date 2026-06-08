@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw, MessageSquare, History, Target, Trash2, Truck, Users, Phone, ShieldAlert } from 'lucide-react';
+import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw, MessageSquare, History, Target, Trash2, Truck, Users, Phone, ShieldAlert, RotateCcw } from 'lucide-react';
 import axios from 'axios';
 import { useLanguage } from '../context/LanguageContext';
 import Button from './Button';
+import toast from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -576,7 +577,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         <span>{order.status === 'ON_HOLD' ? 'RESUME' : t('Hold')}</span>
                       </button>
 
-                    </div>
+                      </div>
                     {order.paymentStatus !== 'FULL_PAID' && (
                       <button
                         onClick={() => {
@@ -594,6 +595,27 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       >
                         <AlertCircle size={16} />
                         <span className="text-[9px] md:text-[10px] font-black">{t('Pay')}</span>
+                      </button>
+                    )}
+                    {['SUPER_ADMIN', 'ADMIN'].includes(userRole) && (
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`⚠ PERMANENTLY DELETE this order?\\n\\nOrder #${order.orderNumber || order.id.substring(0, 8)}\\nCustomer: ${order.customerName}\\n\\nThis will restore inventory and create an audit record. THIS CANNOT BE UNDONE.`)) {
+                            axios.delete(`${API_URL}/api/orders/${order.id}`, {
+                              headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
+                            }).then(() => {
+                              toast.success('Order deleted permanently. Inventory restored.');
+                              window.location.reload();
+                            }).catch(err => {
+                              alert(err.response?.data?.message || 'Failed to delete order');
+                            });
+                          }
+                        }}
+                        className="flex-1 min-w-[100px] py-3 px-2 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white rounded-xl transition-all border border-red-500/20 active:scale-95 flex flex-col items-center justify-center gap-1"
+                        title="Delete order permanently"
+                      >
+                        <Trash2 size={16} />
+                        <span className="text-[9px] md:text-[10px] font-black">DELETE</span>
                       </button>
                     )}
                   </div>

@@ -149,6 +149,29 @@ const createEditRequest = async (req, res) => {
       return res.status(404).json({ message: 'Order not found' });
     }
 
+    // Source verification — only the original source can request changes
+    const userRole = req.user.role;
+    if (userRole === 'SUPER_ADMIN' || userRole === 'ADMIN') {
+      return res.status(403).json({ message: 'Admins cannot create edit requests. Use the Edit Request dashboard to review and manage requests.' });
+    }
+
+    if (order.outletName === 'ONLINE ORDER' && userRole !== 'FAISAL') {
+      return res.status(403).json({ message: 'Only the Online order portal can request changes for online orders.' });
+    }
+
+    if (order.source === 'OUTLET') {
+      let requesterOutlet = null;
+      const name = req.user.name || '';
+      if (name.includes('1') || name.toLowerCase().includes('johar')) requesterOutlet = 'JOHAR TOWN BRANCH';
+      else if (name.includes('2') || name.toLowerCase().includes('jail')) requesterOutlet = 'JAIL ROAD BRANCH';
+      else if (name.includes('3') || name.toLowerCase().includes('abbottabad')) requesterOutlet = 'ABBOTTABAD BRANCH';
+      else requesterOutlet = name || 'OUTLET';
+
+      if (order.outletName !== requesterOutlet) {
+        return res.status(403).json({ message: `You can only request changes for orders from ${requesterOutlet}. This order belongs to ${order.outletName}.` });
+      }
+    }
+
     const editRequest = await prisma.orderEditRequest.create({
       data: {
         orderId,

@@ -17,6 +17,7 @@ import {
   Warehouse,
   PauseCircle,
   FileEdit,
+  Trash2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import socket from '../socket';
@@ -51,6 +52,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     { name: 'Delivery Sheet', path: '/delivery-sheet', icon: ClipboardList, roles: ['SUPER_ADMIN', 'FAISAL', 'ADMIN', 'OUTLET'] },
     { name: 'History (Admin)', path: '/history', icon: History, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Deliveries', path: '/delivery', icon: Truck, roles: ['DELIVERY_BOY', 'SUPER_ADMIN'] },
+    { name: 'Deleted Orders', path: '/deleted-orders', icon: Trash2, roles: ['SUPER_ADMIN', 'ADMIN'] },
 
   ];
   

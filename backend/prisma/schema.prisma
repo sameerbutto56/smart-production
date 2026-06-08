@@ -25,6 +25,7 @@ model User {
   stockRequests StockRequest[]
   editRequestsRequested OrderEditRequest[] @relation("EditRequestedBy")
   editRequestsReviewed  OrderEditRequest[] @relation("EditReviewedBy")
+  deletedOrders         DeletedOrder[] @relation("OrderDeletedBy")
 }
 
 model Order {
@@ -176,6 +177,23 @@ model OrderEditRequest {
 
   @@index([orderId])
   @@index([status])
+}
+
+model DeletedOrder {
+  id            String   @id @default(uuid())
+  orderNumber   String?
+  source        String   // ONLINE, JOHAR TOWN BRANCH, etc.
+  customerName  String
+  customerPhone String?
+  productDetails String? // JSON: minimal product summary
+  totalPrice    Float?   @default(0)
+  deletedAt     DateTime @default(now())
+  deletedById   String
+  deletedBy     User     @relation("OrderDeletedBy", fields: [deletedById], references: [id])
+
+  @@index([orderNumber])
+  @@index([source])
+  @@index([deletedAt])
 }
 
 model SystemSetting {
