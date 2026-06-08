@@ -184,27 +184,18 @@ const createEditRequest = async (req, res) => {
 
 const getEditRequests = async (req, res) => {
   try {
-    const { status } = req.query;
+    const { status, stats } = req.query;
 
     const where = {};
-    if (status) where.status = status;
+    if (status && status !== 'ALL') where.status = status;
 
     const requests = await prisma.orderEditRequest.findMany({
       where,
       include: {
         order: {
-          select: {
-            id: true,
-            orderNumber: true,
-            customerName: true,
-            customerPhone: true,
-            productDetails: true,
-            quantity: true,
-            totalPrice: true,
-            type: true,
-            currentStage: true,
-            status: true,
-            createdAt: true
+          include: {
+            stages: { orderBy: { createdAt: 'desc' } },
+            auditLogs: { orderBy: { timestamp: 'desc' }, take: 20 }
           }
         },
         requestedBy: { select: { id: true, name: true, role: true } },
@@ -212,6 +203,18 @@ const getEditRequests = async (req, res) => {
       },
       orderBy: { requestedAt: 'desc' }
     });
+
+    if (stats === 'true') {
+      const total = requests.length;
+      const byStatus = { PENDING: 0, APPROVED: 0, REJECTED: 0 };
+      const bySource = {};
+      for (const req of requests) {
+        byStatus[req.status] = (byStatus[req.status] || 0) + 1;
+        const source = req.requestedBy?.role === 'FAISAL' ? 'ONLINE' : (req.order?.outletName || 'UNKNOWN');
+        bySource[source] = (bySource[source] || 0) + 1;
+      }
+      return res.json({ total, byStatus, bySource, requests });
+    }
 
     res.json(requests);
   } catch (error) {

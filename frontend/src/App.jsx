@@ -17,6 +17,7 @@ import DeliveryDashboard from './pages/DeliveryDashboard';
 import DeliverySheet from './pages/DeliverySheet';
 import WarehouseDashboard from './pages/WarehouseDashboard';
 import OutletStockRequest from './pages/OutletStockRequest';
+import EditRequestDashboard from './pages/EditRequestDashboard';
 import { ThemeProvider } from './context/ThemeContext';
 
 const ProtectedRoute = ({ children }) => {
@@ -77,6 +78,7 @@ function App() {
                   <Route path="delivery-sheet" element={<DeliverySheet />} />
                   <Route path="warehouse" element={<WarehouseDashboard />} />
                   <Route path="outlet-requests" element={<OutletStockRequest />} />
+                  <Route path="edit-requests" element={<EditRequestDashboard />} />
                 </Route>
               </Routes>
             </Router>
