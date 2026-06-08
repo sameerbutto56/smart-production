@@ -65,6 +65,9 @@ const SmartOrderForm = () => {
   });
   const [editRequestReason, setEditRequestReason] = useState('');
   const [editRequestSubmitting, setEditRequestSubmitting] = useState(false);
+  const [editInvSearch, setEditInvSearch] = useState('');
+  const [editShowInvDropdown, setEditShowInvDropdown] = useState(false);
+  const [editSelectedInvItem, setEditSelectedInvItem] = useState(null);
 
   const [formData, setFormData] = useState({
     orderNumber: '',
@@ -242,6 +245,26 @@ const SmartOrderForm = () => {
         o.id?.toLowerCase() === editOrderNumber.trim().toLowerCase()
       );
       if (found) {
+        // Source verification
+        const userRole = user?.role;
+        const foundSource = found.outletName || '';
+        if (userRole === 'OUTLET') {
+          const name = user?.name || '';
+          let myOutlet = name;
+          if (name.includes('1') || name.toLowerCase().includes('johar')) myOutlet = 'JOHAR TOWN BRANCH';
+          else if (name.includes('2') || name.toLowerCase().includes('jail')) myOutlet = 'JAIL ROAD BRANCH';
+          else if (name.includes('3') || name.toLowerCase().includes('abbottabad')) myOutlet = 'ABBOTTABAD BRANCH';
+          if (foundSource !== myOutlet) {
+            setEditOrderError(`This order belongs to ${foundSource}. You can only request changes for ${myOutlet} orders.`);
+            setEditOrderLoading(false);
+            return;
+          }
+        } else if (userRole === 'FAISAL' && foundSource !== 'ONLINE ORDER') {
+          setEditOrderError('You can only request changes for Online orders.');
+          setEditOrderLoading(false);
+          return;
+        }
+
         setEditOrderData(found);
         const pd = typeof found.productDetails === 'string' ? JSON.parse(found.productDetails) : found.productDetails;
         if (Array.isArray(pd)) {
@@ -704,14 +727,16 @@ const SmartOrderForm = () => {
         <div className={`flex items-center gap-4 ${isUrdu ? 'flex-row-reverse' : ''}`}>
           <LanguageToggle />
 
-          <button
-            type="button"
-            onClick={() => setShowEditRequest(true)}
-            className="flex items-center gap-2 px-5 py-3 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-[1.2rem] font-black text-[9px] md:text-[10px] uppercase tracking-widest hover:bg-amber-500 hover:text-white transition-all active:scale-95 shadow-lg whitespace-nowrap"
-          >
-            <FileEdit size={14} />
-            <span className="hidden sm:inline">{useUrdu ? 'آرڈر میں تبدیلی' : 'EDIT ORDER'}</span>
-          </button>
+          {user?.role !== 'SUPER_ADMIN' && user?.role !== 'ADMIN' && (
+            <button
+              type="button"
+              onClick={() => setShowEditRequest(true)}
+              className="flex items-center gap-2 px-5 py-3 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-[1.2rem] font-black text-[9px] md:text-[10px] uppercase tracking-widest hover:bg-amber-500 hover:text-white transition-all active:scale-95 shadow-lg whitespace-nowrap"
+            >
+              <FileEdit size={14} />
+              <span className="hidden sm:inline">{useUrdu ? 'آرڈر میں تبدیلی' : 'EDIT ORDER'}</span>
+            </button>
+          )}
 
           <div className="flex p-1.5 theme-bg backdrop-blur-3xl rounded-[1.8rem] border-2 theme-border shadow-2xl overflow-x-auto no-scrollbar">
             {filteredTabs.map((tab, index) => (
@@ -2138,29 +2163,103 @@ const SmartOrderForm = () => {
                     <div className="space-y-3">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 font-black text-[9px] shrink-0">1</div>
-                        <div className="flex-1 space-y-2">
+                        <div className="flex-1 space-y-2 relative">
+                          {/* Product Type Search */}
                           <input
                             type="text"
-                            value={editRequestChanges.productType}
-                            onChange={(e) => setEditRequestChanges({...editRequestChanges, productType: e.target.value})}
+                            value={editInvSearch}
+                            onChange={(e) => {
+                              setEditInvSearch(e.target.value);
+                              setEditShowInvDropdown(true);
+                              setEditRequestChanges({...editRequestChanges, productType: e.target.value, color: '', size: ''});
+                              setEditSelectedInvItem(null);
+                            }}
+                            onFocus={() => editInvSearch && setEditShowInvDropdown(true)}
+                            onBlur={() => setTimeout(() => setEditShowInvDropdown(false), 200)}
                             className="w-full theme-input rounded-xl py-2.5 px-4 font-bold text-sm"
-                            placeholder={useUrdu ? 'پروڈکٹ کا نام' : 'Product Type'}
+                            placeholder={useUrdu ? 'پروڈکٹ تلاش کریں...' : 'Search product from inventory...'}
                           />
+                          {/* Inventory Dropdown */}
+                          {editShowInvDropdown && editInvSearch.trim() && (
+                            <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-gray-900 border border-gray-800 rounded-xl max-h-48 overflow-y-auto shadow-2xl">
+                              {inventory
+                                .filter(i => i.name?.toLowerCase().includes(editInvSearch.toLowerCase()) && i.category !== 'FABRIC')
+                                .slice(0, 10)
+                                .map((item, idx) => (
+                                  <button
+                                    key={idx}
+                                    type="button"
+                                    onClick={() => {
+                                      setEditInvSearch(item.name);
+                                      setEditRequestChanges({...editRequestChanges, productType: item.name, color: '', size: ''});
+                                      setEditSelectedInvItem(item);
+                                      setEditShowInvDropdown(false);
+                                    }}
+                                    className="w-full text-left px-4 py-2.5 hover:bg-gray-800 transition-all border-b border-gray-800 last:border-0 flex items-center justify-between"
+                                  >
+                                    <span className="text-xs font-bold text-white">{item.name}</span>
+                                    <span className={`text-[8px] font-black px-2 py-0.5 rounded ${
+                                      item.stock === 0 ? 'bg-red-500/15 text-red-400' :
+                                      item.stock <= 5 ? 'bg-amber-500/15 text-amber-400' :
+                                      'bg-emerald-500/15 text-emerald-400'
+                                    }`}>{item.stock} in stock</span>
+                                  </button>
+                                ))}
+                              {inventory.filter(i => i.name?.toLowerCase().includes(editInvSearch.toLowerCase()) && i.category !== 'FABRIC').length === 0 && (
+                                <p className="text-center text-gray-500 text-[9px] font-bold py-3">No matching products</p>
+                              )}
+                            </div>
+                          )}
+                          {/* Color / Size / Qty */}
                           <div className="grid grid-cols-3 gap-2">
-                            <input
-                              type="text"
-                              value={editRequestChanges.color}
-                              onChange={(e) => setEditRequestChanges({...editRequestChanges, color: e.target.value})}
-                              className="w-full theme-input rounded-xl py-2.5 px-4 font-bold text-sm"
-                              placeholder={useUrdu ? 'رنگ' : 'Color'}
-                            />
-                            <input
-                              type="text"
-                              value={editRequestChanges.size}
-                              onChange={(e) => setEditRequestChanges({...editRequestChanges, size: e.target.value})}
-                              className="w-full theme-input rounded-xl py-2.5 px-4 font-bold text-sm"
-                              placeholder={useUrdu ? 'سائز' : 'Size'}
-                            />
+                            {editSelectedInvItem ? (() => {
+                              const variants = editSelectedInvItem.variants && Array.isArray(editSelectedInvItem.variants)
+                                ? editSelectedInvItem.variants
+                                : [{ color: editSelectedInvItem.color, size: editSelectedInvItem.size, stock: editSelectedInvItem.stock }];
+                              const colors = [...new Set(variants.filter(v => v.color).map(v => v.color))];
+                              const sizes = [...new Set(variants.filter(v => v.size).map(v => v.size))];
+                              return (
+                                <>
+                                  <div className="relative">
+                                    <select
+                                      value={editRequestChanges.color}
+                                      onChange={(e) => setEditRequestChanges({...editRequestChanges, color: e.target.value})}
+                                      className="w-full theme-input rounded-xl py-2.5 px-3 font-bold text-sm appearance-none cursor-pointer"
+                                    >
+                                      <option value="">{useUrdu ? 'رنگ' : 'Color'}</option>
+                                      {colors.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                  </div>
+                                  <div className="relative">
+                                    <select
+                                      value={editRequestChanges.size}
+                                      onChange={(e) => setEditRequestChanges({...editRequestChanges, size: e.target.value})}
+                                      className="w-full theme-input rounded-xl py-2.5 px-3 font-bold text-sm appearance-none cursor-pointer"
+                                    >
+                                      <option value="">{useUrdu ? 'سائز' : 'Size'}</option>
+                                      {sizes.map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                  </div>
+                                </>
+                              );
+                            })() : (
+                              <>
+                                <input
+                                  type="text"
+                                  value={editRequestChanges.color}
+                                  onChange={(e) => setEditRequestChanges({...editRequestChanges, color: e.target.value})}
+                                  className="w-full theme-input rounded-xl py-2.5 px-4 font-bold text-sm"
+                                  placeholder={useUrdu ? 'رنگ' : 'Color'}
+                                />
+                                <input
+                                  type="text"
+                                  value={editRequestChanges.size}
+                                  onChange={(e) => setEditRequestChanges({...editRequestChanges, size: e.target.value})}
+                                  className="w-full theme-input rounded-xl py-2.5 px-4 font-bold text-sm"
+                                  placeholder={useUrdu ? 'سائز' : 'Size'}
+                                />
+                              </>
+                            )}
                             <input
                               type="number"
                               min="1"
@@ -2170,6 +2269,34 @@ const SmartOrderForm = () => {
                               placeholder="Qty"
                             />
                           </div>
+                          {/* Stock Status */}
+                          {editSelectedInvItem && (() => {
+                            const variants = editSelectedInvItem.variants && Array.isArray(editSelectedInvItem.variants)
+                              ? editSelectedInvItem.variants
+                              : [{ color: editSelectedInvItem.color, size: editSelectedInvItem.size, stock: editSelectedInvItem.stock }];
+                            const selected = variants.find(v =>
+                              (!editRequestChanges.color || v.color === editRequestChanges.color) &&
+                              (!editRequestChanges.size || v.size === editRequestChanges.size)
+                            );
+                            const stock = selected?.stock ?? editSelectedInvItem.stock ?? 0;
+                            if (!editRequestChanges.color && !editRequestChanges.size) {
+                              const totalStock = variants.reduce((s, v) => s + (v.stock || 0), 0);
+                              return (
+                                <p className={`text-[9px] font-bold mt-1.5 text-center ${
+                                  totalStock === 0 ? 'text-red-400' : totalStock <= 5 ? 'text-amber-400' : 'text-emerald-400'
+                                }`}>
+                                  {totalStock} unit{totalStock !== 1 ? 's' : ''} available across all variants
+                                </p>
+                              );
+                            }
+                            return (
+                              <p className={`text-[9px] font-bold mt-1.5 text-center ${
+                                stock === 0 ? 'text-red-400' : stock <= 5 ? 'text-amber-400' : 'text-emerald-400'
+                              }`}>
+                                {stock === 0 ? 'Out of stock' : `${stock} in stock`}
+                              </p>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>
