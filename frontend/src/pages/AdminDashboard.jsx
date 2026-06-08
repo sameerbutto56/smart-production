@@ -30,8 +30,7 @@ import {
   FileEdit,
   ThumbsUp,
   ThumbsDown,
-  ChevronDown,
-  Package
+  ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
