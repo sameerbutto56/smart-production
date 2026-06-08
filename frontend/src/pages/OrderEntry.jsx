@@ -292,17 +292,28 @@ const SmartOrderForm = () => {
       setEditOrderError('Error fetching order: ' + (err.response?.data?.message || err.message));
     }
 
-    // If order not found in active orders, check deleted records
+    // If order not found in active orders, check deleted records with source isolation
     if (!found) {
       try {
         const token = sessionStorage.getItem('token');
+        const userRole = user?.role;
+        // Derive source for data isolation: only users can see delete status for their own source
+        let mySource = '';
+        if (userRole === 'FAISAL') {
+          mySource = 'ONLINE ORDER';
+        } else if (userRole === 'OUTLET') {
+          const name = user?.name || '';
+          if (name.includes('1') || name.toLowerCase().includes('johar')) mySource = 'JOHAR TOWN BRANCH';
+          else if (name.includes('2') || name.toLowerCase().includes('jail')) mySource = 'JAIL ROAD BRANCH';
+          else if (name.includes('3') || name.toLowerCase().includes('abbottabad')) mySource = 'ABBOTTABAD BRANCH';
+        }
         const delRes = await axios.get(`${API_URL}/api/orders/deleted-check`, {
-          params: { number: editOrderNumber.trim() },
+          params: { number: editOrderNumber.trim(), source: mySource || undefined },
           headers: { Authorization: `Bearer ${token}` }
         });
         if (delRes.data) {
           setEditOrderData(null);
-          setEditOrderError(`This order (${delRes.data.orderNumber || editOrderNumber.trim()}) was deleted by Admin (${delRes.data.deletedBy?.name || 'Unknown'}) on ${new Date(delRes.data.deletedAt).toLocaleDateString()}. No changes can be made.`);
+          setEditOrderError(`This order (${delRes.data.orderNumber || editOrderNumber.trim()}) was deleted by Admin on ${new Date(delRes.data.deletedAt).toLocaleDateString()}. No changes can be made.`);
           setEditOrderLoading(false);
           return;
         }

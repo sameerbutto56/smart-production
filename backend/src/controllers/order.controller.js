@@ -886,16 +886,23 @@ const getDeletedOrders = async (req, res) => {
 
 const checkDeletedOrder = async (req, res) => {
   try {
-    const { number } = req.query;
+    const { number, source } = req.query;
     if (!number) return res.status(400).json({ message: 'Order number is required' });
 
+    const whereClause = {
+      OR: [
+        { orderNumber: { equals: number, mode: 'insensitive' } },
+        { id: number }
+      ]
+    };
+
+    // Data isolation: if source is provided, only return orders matching that source
+    if (source) {
+      whereClause.source = { equals: source, mode: 'insensitive' };
+    }
+
     const deleted = await prisma.deletedOrder.findFirst({
-      where: {
-        OR: [
-          { orderNumber: { equals: number, mode: 'insensitive' } },
-          { id: number }
-        ]
-      },
+      where: whereClause,
       select: {
         orderNumber: true,
         source: true,
