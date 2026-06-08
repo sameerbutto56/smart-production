@@ -86,10 +86,10 @@ const ProgressChart = () => {
       <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4 mb-6">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-[0_0_30px_rgba(37,99,235,0.3)]">
-            <Zap size={24} className="text-white fill-current" />
+            <Zap size={20} className="text-white fill-current" />
           </div>
           <div>
-            <h1 className="text-3xl font-black tracking-tighter uppercase italic leading-none">{t('Production Chart')}</h1>
+            <h1 className="text-xl md:text-3xl font-black tracking-tighter uppercase italic leading-none">{t('Production Chart')}</h1>
             <div className="flex items-center gap-2 text-blue-500 font-bold tracking-widest text-[8px] mt-1">
               <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping" />
               {t('LIVE FEED')}
@@ -100,7 +100,7 @@ const ProgressChart = () => {
         <div className="flex items-center gap-8">
           <LanguageToggle />
           <div className="text-right hidden sm:block">
-            <div className="text-4xl font-black tracking-tighter font-mono leading-none">
+            <div className="text-2xl md:text-4xl font-black tracking-tighter font-mono leading-none">
               {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
             </div>
             <div className="text-gray-500 font-bold uppercase tracking-widest text-[9px] mt-1">
@@ -119,18 +119,18 @@ const ProgressChart = () => {
             className="p-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-xl text-red-500 transition-colors flex items-center justify-center"
             title="Logout"
           >
-            <LogOut size={24} />
+            <LogOut size={20} />
           </button>
         </div>
       </div>
 
       {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 md:gap-6 flex-1 min-h-0">
         
         {/* Floor Status - Left Sidebar */}
-        <div className="lg:col-span-2 glass-dark p-6 rounded-[2rem] border border-white/5 flex flex-col overflow-hidden min-h-[300px] lg:min-h-0">
+        <div className="lg:col-span-2 glass-dark p-4 md:p-6 rounded-xl md:rounded-[2rem] border border-white/5 flex flex-col overflow-hidden min-h-[300px] lg:min-h-0">
           <div className="flex items-center gap-3 mb-6">
-            <Layers className="text-blue-500" size={20} />
+            <Layers className="text-blue-500" size={16} />
             <h2 className="text-sm font-black uppercase tracking-wider">Floor Load</h2>
           </div>
           
@@ -161,10 +161,10 @@ const ProgressChart = () => {
         </div>
 
         {/* Live Stream - Center */}
-        <div className="lg:col-span-7 flex flex-col gap-6 overflow-hidden min-h-[400px] lg:min-h-0">
-          <div className="glass-dark p-6 rounded-[2rem] border border-white/5 flex-1 flex flex-col overflow-hidden">
+        <div className="lg:col-span-7 flex flex-col gap-3 md:gap-6 overflow-hidden min-h-[400px] lg:min-h-0">
+          <div className="glass-dark p-4 md:p-6 rounded-xl md:rounded-[2rem] border border-white/5 flex-1 flex flex-col overflow-hidden">
             <div className="flex items-center gap-3 mb-4">
-              <Activity className="text-indigo-500" size={20} />
+              <Activity className="text-indigo-500" size={16} />
               <h2 className="text-sm font-black uppercase tracking-wider">Active Batch Stream</h2>
             </div>
             
@@ -193,27 +193,27 @@ const ProgressChart = () => {
           </div>
 
           {/* Quick Metrics - Bottom Center */}
-          <div className="h-32 grid grid-cols-3 gap-4">
+          <div className="h-32 grid grid-cols-2 md:grid-cols-3 gap-4">
             <div className="glass-dark p-4 rounded-[2rem] border border-white/5 flex flex-col justify-center items-center">
               <p className="text-[8px] text-gray-500 font-black uppercase mb-1">Ready to Ship</p>
-              <p className="text-3xl font-black text-emerald-500">{orders.filter(o => o.status === 'OUT_FOR_DELIVERY').length}</p>
+              <p className="text-xl md:text-3xl font-black text-emerald-500">{orders.filter(o => o.status === 'OUT_FOR_DELIVERY').length}</p>
             </div>
             <div className="glass-dark p-4 rounded-[2rem] border border-white/5 flex flex-col justify-center items-center">
               <p className="text-[8px] text-gray-500 font-black uppercase mb-1">In Production</p>
-              <p className="text-3xl font-black text-blue-500">{orders.filter(o => o.status !== 'COMPLETED').length}</p>
+              <p className="text-xl md:text-3xl font-black text-blue-500">{orders.filter(o => o.status !== 'COMPLETED').length}</p>
             </div>
             <div className="glass-dark p-4 rounded-[2rem] border border-white/5 flex flex-col justify-center items-center">
               <p className="text-[8px] text-gray-500 font-black uppercase mb-1">Active Staff</p>
-              <p className="text-3xl font-black text-indigo-500">12</p>
+              <p className="text-xl md:text-3xl font-black text-indigo-500">12</p>
             </div>
           </div>
         </div>
 
         {/* Alerts & Personnel - Right Sidebar */}
-        <div className="lg:col-span-3 flex flex-col gap-6 overflow-hidden min-h-[400px] lg:min-h-0">
-          <div className="glass-dark p-6 rounded-[2rem] border border-red-500/20 bg-red-500/5 flex-1 flex flex-col overflow-hidden">
+        <div className="lg:col-span-3 flex flex-col gap-3 md:gap-6 overflow-hidden min-h-[400px] lg:min-h-0">
+          <div className="glass-dark p-4 md:p-6 rounded-xl md:rounded-[2rem] border border-red-500/20 bg-red-500/5 flex-1 flex flex-col overflow-hidden">
             <div className="flex items-center gap-3 mb-4 text-red-500">
-              <AlertCircle size={20} />
+              <AlertCircle size={16} />
               <h2 className="text-sm font-black uppercase tracking-wider">Critical Deadlines</h2>
             </div>
             
@@ -238,7 +238,7 @@ const ProgressChart = () => {
             </div>
           </div>
 
-          <div className="h-32 glass-dark p-6 rounded-[2rem] border border-white/5 flex items-center justify-center">
+          <div className="h-32 glass-dark p-4 md:p-6 rounded-xl md:rounded-[2rem] border border-white/5 flex items-center justify-center">
              <div className="flex -space-x-3">
               {[1, 2, 3, 4, 5].map(i => (
                 <div key={i} className="w-10 h-10 rounded-full border-4 border-black bg-blue-600 flex items-center justify-center text-[8px] font-black">

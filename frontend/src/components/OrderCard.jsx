@@ -156,7 +156,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
             initial={{ opacity: 0, x: -5 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: idx * 0.1 }}
-            className="text-[11px] flex items-center justify-between p-2 bg-gray-900/30 rounded-lg border border-gray-800/20"
+            className="text-[9px] md:text-[11px] flex items-center justify-between p-2 bg-gray-900/30 rounded-lg border border-gray-800/20"
           >
             <span className="text-gray-400 font-bold uppercase tracking-tighter">{item.label}: {item.val || 'N/A'}</span>
           </motion.li>
@@ -179,7 +179,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
             ].filter(m => m.v).map((m, i) => (
               <div key={i} className="bg-blue-500/5 p-2 rounded-lg border border-blue-500/10 text-center">
                 <p className="text-[7px] text-blue-400 font-black uppercase">{m.l}</p>
-                <p className="text-[10px] font-black text-white truncate">{m.v}</p>
+                <p className="text-[9px] md:text-[10px] font-black text-white truncate">{m.v}</p>
               </div>
             ))}
           </div>
@@ -189,21 +189,21 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
             <div className="grid grid-cols-2 gap-2">
               <div className="bg-gray-950/50 p-2 rounded-lg">
                 <p className="text-[7px] text-gray-500 font-black uppercase">Fit</p>
-                <p className="text-[10px] font-black text-white">{custom?.fitType || 'REGULAR'}</p>
+                <p className="text-[9px] md:text-[10px] font-black text-white">{custom?.fitType || 'REGULAR'}</p>
               </div>
               <div className="bg-gray-950/50 p-2 rounded-lg">
                 <p className="text-[7px] text-gray-500 font-black uppercase">Style</p>
-                <p className="text-[10px] font-black text-white">{custom?.stitchingStyle || 'STANDARD'}</p>
+                <p className="text-[9px] md:text-[10px] font-black text-white">{custom?.stitchingStyle || 'STANDARD'}</p>
               </div>
               {product?.gender === 'Female' && (
                 <>
                   <div className="bg-gray-950/50 p-2 rounded-lg">
                     <p className="text-[7px] text-gray-500 font-black uppercase">Sleeves</p>
-                    <p className="text-[10px] font-black text-white">{female.sleeves || 'N/A'}</p>
+                    <p className="text-[9px] md:text-[10px] font-black text-white">{female.sleeves || 'N/A'}</p>
                   </div>
                   <div className="bg-gray-950/50 p-2 rounded-lg">
                     <p className="text-[7px] text-gray-500 font-black uppercase">Shirt L.</p>
-                    <p className="text-[10px] font-black text-white">{female.shirtLength || 'N/A'}</p>
+                    <p className="text-[9px] md:text-[10px] font-black text-white">{female.shirtLength || 'N/A'}</p>
                   </div>
                 </>
               )}
@@ -223,7 +223,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               ].filter(s => s.v).map((s, i) => (
                 <div key={i} className="text-center p-1 bg-gray-900 rounded border border-gray-800">
                   <p className="text-[7px] text-gray-500 font-bold uppercase">{s.l}</p>
-                  <p className="text-[10px] font-black text-white">{s.v}"</p>
+                  <p className="text-[9px] md:text-[10px] font-black text-white">{s.v}"</p>
                 </div>
               ))}
             </div>
@@ -232,7 +232,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
           <div className="bg-blue-600/10 p-4 rounded-2xl border border-blue-500/20 text-center">
              <p className="text-[8px] text-blue-400 font-black uppercase tracking-[0.2em] mb-1">Order ID</p>
              <h4 className="text-xl font-black text-white">#{order.orderNumber}</h4>
-             <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">{order.customerName}</p>
+             <p className="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase mt-1">{order.customerName}</p>
           </div>
 
           {custom?.designNotes && (
@@ -241,7 +241,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 <MessageSquare size={10} />
                 <span>Design Notes:</span>
               </p>
-              <p className="text-[11px] text-gray-300 italic font-medium leading-tight">"{custom.designNotes}"</p>
+              <p className="text-[9px] md:text-[11px] text-gray-300 italic font-medium leading-tight">"{custom.designNotes}"</p>
             </div>
           )}
 
@@ -338,21 +338,21 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 <p className="text-xs text-gray-400 font-bold tracking-wide truncate">{order.customerName}</p>
                 
                 {order.customerPhone && (
-                  <p className="text-[10px] text-gray-500 font-medium flex items-center gap-1.5 mt-0.5">
+                  <p className="text-[9px] md:text-[10px] text-gray-500 font-medium flex items-center gap-1.5 mt-0.5">
                     <Phone size={10} className="text-pink-500/60" /> 
                     <span className="font-mono">{order.customerPhone}</span>
                   </p>
                 )}
                 
                 {order.address && (
-                  <p className="text-[10px] text-gray-400 font-medium flex items-center gap-1.5 mt-0.5">
-                    <span className="text-[11px] select-none">📍</span> 
+                  <p className="text-[9px] md:text-[10px] text-gray-400 font-medium flex items-center gap-1.5 mt-0.5">
+                    <span className="text-[9px] md:text-[11px] select-none">📍</span> 
                     <span className="truncate" title={order.address}>{order.address}</span>
                   </p>
                 )}
 
                 {order.totalPrice > 0 && (
-                  <p className="text-[10px] text-emerald-400 font-black flex items-center gap-1.5 mt-1 bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20 w-fit select-none">
+                  <p className="text-[9px] md:text-[10px] text-emerald-400 font-black flex items-center gap-1.5 mt-1 bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20 w-fit select-none">
                     <span className="text-xs">₨</span>
                     <span>{order.totalPrice.toLocaleString()}</span>
                   </p>
@@ -412,7 +412,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   <span className="text-[9px] text-emerald-500 font-black uppercase">Production Goal:</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`text-[10px] font-black ${new Date(productionDeadline).getTime() < Date.now() ? 'text-red-400 animate-pulse' : 'text-white'}`}>
+                  <span className={`text-[9px] md:text-[10px] font-black ${new Date(productionDeadline).getTime() < Date.now() ? 'text-red-400 animate-pulse' : 'text-white'}`}>
                     {(() => {
                       const diff = new Date(productionDeadline).getTime() - Date.now();
                       if (diff <= 0) return 'OVERDUE';
@@ -441,7 +441,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               <div className="p-2 bg-blue-500/10 rounded-xl group-hover:bg-blue-500/20 transition-colors">
                 <ClipboardList size={16} className="text-blue-400" />
               </div>
-              <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] group-hover:text-blue-300 transition-colors">
+              <h4 className="text-[9px] md:text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] group-hover:text-blue-300 transition-colors">
                 {t('Job Sheet Summary')}
               </h4>
             </div>
@@ -456,7 +456,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 
                 return (
                   <div className={`mt-4 p-3 rounded-xl border ${currentStage.rejectionReason.includes('Available') ? 'bg-emerald-500/10 border-emerald-500/20' : currentStage.rejectionReason.includes('PROBLEM') ? 'bg-orange-500/10 border-orange-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
-                    <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${currentStage.rejectionReason.includes('Available') ? 'text-emerald-400' : currentStage.rejectionReason.includes('PROBLEM') ? 'text-orange-400' : 'text-red-400'}`}>
+                    <p className={`text-[9px] md:text-[10px] font-black uppercase tracking-widest mb-1 ${currentStage.rejectionReason.includes('Available') ? 'text-emerald-400' : currentStage.rejectionReason.includes('PROBLEM') ? 'text-orange-400' : 'text-red-400'}`}>
                       {currentStage.rejectionReason.includes('Inventory') ? 'Store Inventory Check:' : currentStage.rejectionReason.includes('PROBLEM') ? 'Worker Reported Problem:' : (order.source === 'OUTLET' ? 'Branch Rejection Reason:' : 'Faisal Rejection Reason:')}
                     </p>
                     <p className="text-xs text-gray-300 italic">{currentStage.rejectionReason.replace('PROBLEM:', '')}</p>
@@ -465,7 +465,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               })()
             )}
             <div className="mt-5 pt-4 border-t border-gray-800 flex items-center justify-between">
-              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">{t('Click to Expand Job Sheet')}</span>
+              <span className="text-[9px] md:text-[10px] text-gray-500 font-bold uppercase tracking-widest">{t('Click to Expand Job Sheet')}</span>
               <div className="h-1.5 w-1.5 bg-blue-500 rounded-full animate-pulse shadow-[0_0_10px_#3b82f6]"></div>
             </div>
           </motion.div>
@@ -493,7 +493,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       </div>
                       <div className="flex-1 flex justify-between items-center">
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
+                          <span className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
                             {s.stageName.replace(/_/g, ' ')}
                           </span>
                           <span className="text-[8px] text-yellow-500/60">→ {order.source === 'OUTLET' ? t('Branch') : t('Faisal')}</span>
@@ -520,7 +520,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
             ) : isFaisal && order.status === 'ON_HOLD' ? (
               <button
                 onClick={() => handleHoldAction(true)}
-                className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-xl shadow-emerald-900/20"
+                className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-4 rounded-2xl text-[9px] md:text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-xl shadow-emerald-900/20"
               >
                 <RefreshCcw size={14} />
                 <span>RESUME ORDER</span>
@@ -528,7 +528,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
             ) : isFaisal && (order.status === 'WAITING_APPROVAL' || order.status === 'PENDING') && currentStage?.status === 'COMPLETED' ? (
               <button
                 onClick={() => setShowApprovalDialog(true)}
-                className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-xl shadow-blue-900/20"
+                className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-2xl text-[9px] md:text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-xl shadow-blue-900/20"
               >
                 <ChevronRight size={14} />
                 <span>{t('Initiate Next Phase')}</span>
@@ -539,7 +539,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   <div className="flex flex-wrap gap-2 w-full mt-2">
                     <button
                       onClick={() => setShowApprovalDialog(true)}
-                      className="flex-1 btn-ghost-success rounded-xl py-3 text-[10px] flex-col gap-1"
+                      className="flex-1 btn-ghost-success rounded-xl py-3 text-[9px] md:text-[10px] flex-col gap-1"
                     >
                       <Check size={16} />
                       <span>{t('Approve')}</span>
@@ -547,7 +547,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     {(currentStage?.rejectionReason?.includes('Out of Stock') || currentStage?.rejectionReason?.includes('PROBLEM')) ? (
                       <button
                         onClick={() => onUpdateStage(order.id, currentStage.id, 'reject', { reason: 'Problem Resolved - Please Proceed' })}
-                        className="flex-1 btn-ghost-warning rounded-xl py-3 text-[10px] flex-col gap-1"
+                        className="flex-1 btn-ghost-warning rounded-xl py-3 text-[9px] md:text-[10px] flex-col gap-1"
                       >
                         <RefreshCcw size={16} />
                         <span>{t('Send Again')}</span>
@@ -555,7 +555,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     ) : (
                       <button
                         onClick={() => setShowRejectionDialog(true)}
-                        className="flex-1 btn-ghost-danger rounded-xl py-3 text-[10px] flex-col gap-1"
+                        className="flex-1 btn-ghost-danger rounded-xl py-3 text-[9px] md:text-[10px] flex-col gap-1"
                       >
                         <X size={16} />
                         <span>{t('Reject')}</span>
@@ -565,7 +565,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
 
                       <button
                         onClick={() => order.status === 'ON_HOLD' ? handleHoldAction(true) : setShowHoldDialog(true)}
-                        className={`flex-1 min-w-[100px] py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 border ${
+                        className={`flex-1 min-w-[100px] py-3 px-2 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 border ${
                           order.status === 'ON_HOLD' 
                             ? 'bg-emerald-600/20 text-emerald-500 border-emerald-500/30' 
                             : 'bg-orange-600/10 hover:bg-orange-600 text-orange-500 hover:text-white border-orange-500/20'
@@ -593,13 +593,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         title="Update Payment"
                       >
                         <AlertCircle size={16} />
-                        <span className="text-[10px] font-black">{t('Pay')}</span>
+                        <span className="text-[9px] md:text-[10px] font-black">{t('Pay')}</span>
                       </button>
                     )}
                   </div>
                 </>
               ) : (
-                <div className="flex-1 bg-gray-800 text-gray-500 py-4 rounded-2xl text-[10px] font-black uppercase text-center border border-gray-700 italic">
+                <div className="flex-1 bg-gray-800 text-gray-500 py-4 rounded-2xl text-[9px] md:text-[10px] font-black uppercase text-center border border-gray-700 italic">
                   {t('Waiting for')} {order.source === 'OUTLET' ? t('Branch') : t('Faisal')} {t('Approval')}...
                 </div>
               )
@@ -611,12 +611,12 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     {invCheckLoading ? (
                       <div className="w-full p-4 bg-gray-900/30 rounded-2xl border border-gray-800 flex items-center justify-center space-x-3">
                         <RefreshCcw className="animate-spin text-blue-400" size={16} />
-                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Checking inventory...</span>
+                        <span className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-widest">Checking inventory...</span>
                       </div>
                     ) : invCheck && invCheck.report ? (
                       <div className="w-full space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Inventory Availability</span>
+                          <span className="text-[9px] md:text-[10px] font-black text-gray-500 uppercase tracking-widest">Inventory Availability</span>
                           <button onClick={() => setInvCheckExpanded(!invCheckExpanded)} className="text-[9px] font-black text-blue-400 hover:text-blue-300 uppercase tracking-widest">
                             {invCheckExpanded ? 'Collapse' : 'Details'}
                           </button>
@@ -640,7 +640,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         {/* Detailed table */}
                         {invCheckExpanded && (
                           <div className="overflow-x-auto bg-gray-950/50 rounded-xl border border-gray-800">
-                            <table className="w-full text-[10px]">
+                            <table className="w-full text-[9px] md:text-[10px]">
                               <thead>
                                 <tr className="border-b border-gray-800 text-[8px] font-black text-gray-500 uppercase tracking-widest">
                                   <th className="text-left p-2">Item</th>
@@ -768,20 +768,20 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   initial={{ opacity: 0, scale: 0.9, y: 20 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                  className="relative w-full max-w-lg bg-gray-900 border border-red-500/30 rounded-[2.5rem] p-8 shadow-2xl"
+                  className="relative w-full max-w-lg bg-gray-900 border border-red-500/30 rounded-xl md:rounded-[2.5rem] p-4 md:p-8 shadow-2xl"
                 >
                   <div className="flex items-center space-x-4 mb-6">
                     <div className="p-3 bg-red-500/20 rounded-2xl text-red-500">
-                      <AlertCircle size={24} />
+                      <AlertCircle size={20} />
                     </div>
                     <div>
                       <h3 className="text-xl font-black text-white uppercase tracking-tight">Report Problem</h3>
-                      <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">Sent directly to {order.source === 'OUTLET' ? 'Branch' : 'Faisal'} Control Center</p>
+                      <p className="text-gray-500 text-[9px] md:text-[10px] font-bold uppercase tracking-widest">Sent directly to {order.source === 'OUTLET' ? 'Branch' : 'Faisal'} Control Center</p>
                     </div>
                   </div>
 
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Describe what's wrong</label>
+                    <label className="text-[9px] md:text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Describe what's wrong</label>
                     <textarea 
                       autoFocus
                       className="w-full bg-gray-950 border-2 border-gray-800 rounded-2xl p-6 text-white text-sm font-bold outline-none focus:border-red-500/50 transition-all min-h-[120px] resize-none"
@@ -820,7 +820,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <div className={`w-2 h-2 rounded-full animate-pulse ${isDelayed ? 'bg-red-500' : 'bg-blue-500'}`}></div>
-                  <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
+                  <span className="text-[9px] md:text-[10px] font-black text-gray-500 uppercase tracking-widest">
                     {currentStage?.status === 'WAITING_APPROVAL' ? 'Authorization Pending' : 'Current Stage Limit'}
                   </span>
                 </div>
@@ -843,10 +843,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     <div className="flex justify-between items-center relative z-10">
                       <div className="flex items-center gap-2">
                         <Target size={14} className="text-indigo-400" />
-                        <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Production Goal</span>
+                        <span className="text-[9px] md:text-[10px] font-black text-indigo-400 uppercase tracking-widest">Production Goal</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`text-[10px] font-black font-mono ${new Date(productionDeadline).getTime() < Date.now() ? 'text-red-400 animate-pulse' : 'text-emerald-400'}`}>
+                        <span className={`text-[9px] md:text-[10px] font-black font-mono ${new Date(productionDeadline).getTime() < Date.now() ? 'text-red-400 animate-pulse' : 'text-emerald-400'}`}>
                           {(() => {
                             const diff = new Date(productionDeadline).getTime() - Date.now();
                             if (diff <= 0) return 'OVERDUE';
@@ -897,13 +897,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
           <motion.div 
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="relative w-full max-w-4xl bg-gray-900 border border-gray-800 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            className="relative w-full max-w-4xl bg-gray-900 border border-gray-800 rounded-xl md:rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
           >
-            <div className="p-8 border-b border-gray-800 flex justify-between items-center bg-gray-900/50 backdrop-blur-md sticky top-0 z-10">
+            <div className="p-4 md:p-8 border-b border-gray-800 flex justify-between items-center bg-gray-900/50 backdrop-blur-md sticky top-0 z-10">
               <div>
                 <div className="flex items-center space-x-4 mb-2">
-                  <h2 className="text-4xl font-black tracking-tighter text-white">#{order.orderNumber || order.id.substring(0, 8)}</h2>
-                  <span className="px-3 py-1 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase tracking-widest rounded-lg">
+                  <h2 className="text-2xl md:text-4xl font-black tracking-tighter text-white">#{order.orderNumber || order.id.substring(0, 8)}</h2>
+                  <span className="px-3 py-1 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[9px] md:text-[10px] font-black uppercase tracking-widest rounded-lg">
                     Full Production Job Sheet
                   </span>
                 </div>
@@ -913,14 +913,14 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 onClick={() => setShowFullSheet(false)}
                 className="p-4 hover:bg-gray-800 rounded-full text-gray-400 transition-colors"
               >
-                <X size={24} />
+                <X size={20} />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 md:space-y-10 custom-scrollbar">
               {userRole !== 'LOGO_DESIGN' && (
                 <section>
-                  <h4 className="text-[11px] font-black text-blue-500 uppercase tracking-[0.3em] mb-6">01. Material & Product Specs</h4>
+                  <h4 className="text-[9px] md:text-[11px] font-black text-blue-500 uppercase tracking-[0.3em] mb-6">01. Material & Product Specs</h4>
                   {isMultiItem ? (
                     <div className="overflow-x-auto rounded-2xl border border-gray-800">
                       <table className="w-full text-left">
@@ -967,7 +967,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       </table>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6">
                       {[
                         { label: 'Product Base', val: product?.productType },
                         { label: 'Fabric Type', val: product?.fabricType },
@@ -979,7 +979,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         { label: 'Payment', val: order.paymentStatus }
                       ].filter(i => i.val).map((item, i) => (
                         <div key={i} className="bg-gray-950/50 p-6 rounded-3xl border border-gray-800/50">
-                          <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-2">{item.label}</p>
+                          <p className="text-[9px] md:text-[10px] text-gray-500 font-black uppercase tracking-widest mb-2">{item.label}</p>
                           <p className="text-lg font-bold text-gray-200">{item.val || 'STANDARD'}</p>
                         </div>
                       ))}
@@ -989,8 +989,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               )}
 
               {!isMultiItem && userRole !== 'LOGO_DESIGN' && order.type === 'FULL_CUSTOM' && (
-                <section className="bg-blue-600/5 p-8 rounded-[2rem] border border-blue-500/10">
-                  <h4 className="text-[11px] font-black text-blue-400 uppercase tracking-[0.3em] mb-6">02. Precise Measurements (Inches)</h4>
+                <section className="bg-blue-600/5 p-4 md:p-8 rounded-xl md:rounded-[2rem] border border-blue-500/10">
+                  <h4 className="text-[9px] md:text-[11px] font-black text-blue-400 uppercase tracking-[0.3em] mb-6">02. Precise Measurements (Inches)</h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     {Object.entries(sizes || {}).map(([key, val], i) => (
                       <div key={i} className="text-center p-4 bg-gray-900 rounded-2xl border border-gray-800 shadow-sm">
@@ -1014,9 +1014,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 </section>
               )}
 
-              <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8">
                 <div>
-                  <h4 className="text-[11px] font-black text-emerald-500 uppercase tracking-[0.3em] mb-6">03. Branding & Tailoring</h4>
+                  <h4 className="text-[9px] md:text-[11px] font-black text-emerald-500 uppercase tracking-[0.3em] mb-6">03. Branding & Tailoring</h4>
                   <div className="space-y-4">
                     {[
                       { l: 'Branding Name', v: custom?.nameSpelling },
@@ -1026,23 +1026,23 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       { l: 'Stitching Style', v: custom?.stitchingStyle }
                     ].map((item, i) => (
                       <div key={i} className="flex justify-between items-center p-4 bg-gray-950/30 rounded-2xl border border-gray-800/30">
-                        <span className="text-[11px] text-gray-500 font-bold uppercase tracking-widest">{item.l}</span>
+                        <span className="text-[9px] md:text-[11px] text-gray-500 font-bold uppercase tracking-widest">{item.l}</span>
                         <span className="text-sm font-black text-emerald-400">{item.v || 'N/A'}</span>
                       </div>
                     ))}
                   </div>
                 </div>
                 <div>
-                  <h4 className="text-[11px] font-black text-yellow-500 uppercase tracking-[0.3em] mb-6">04. Design Notes & Special Requests</h4>
-                  <div className="h-full min-h-[200px] bg-yellow-500/5 p-8 rounded-3xl border border-yellow-500/10 italic text-gray-300 leading-relaxed text-sm shadow-inner">
+                  <h4 className="text-[9px] md:text-[11px] font-black text-yellow-500 uppercase tracking-[0.3em] mb-6">04. Design Notes & Special Requests</h4>
+                  <div className="h-full min-h-[200px] bg-yellow-500/5 p-4 md:p-8 rounded-3xl border border-yellow-500/10 italic text-gray-300 leading-relaxed text-sm shadow-inner">
                     {custom?.designNotes || 'No special design notes provided for this order.'}
                   </div>
                 </div>
               </section>
             </div>
 
-            <div className="p-8 bg-gray-950/80 border-t border-gray-800 flex justify-between items-center">
-              <div className="flex items-center space-x-4 text-[10px] text-gray-500 font-black uppercase tracking-widest">
+            <div className="p-4 md:p-8 bg-gray-950/80 border-t border-gray-800 flex justify-between items-center">
+              <div className="flex flex-wrap items-center space-x-4 text-[9px] md:text-[10px] text-gray-500 font-black uppercase tracking-widest">
                 <span>Created: {new Date(order.createdAt).toLocaleDateString()}</span>
                 <span className="w-1.5 h-1.5 bg-gray-700 rounded-full"></span>
                 <span>Stage: {currentStage?.stageName}</span>
@@ -1051,7 +1051,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 {isAdmin && (
                   <button
                     onClick={() => setShowForceModal(true)}
-                    className="bg-red-900/30 hover:bg-red-800/50 text-red-400 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-red-500/20 flex items-center gap-1.5"
+                    className="bg-red-900/30 hover:bg-red-800/50 text-red-400 px-4 py-3 rounded-2xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all border border-red-500/20 flex items-center gap-1.5"
                   >
                     <span className="text-xs">⚡</span> Force
                   </button>
@@ -1073,14 +1073,14 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
           <motion.div 
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="glass max-w-sm w-full p-8 rounded-[2rem] border-2 border-gray-800 shadow-2xl max-h-[90vh] overflow-y-auto"
+            className="glass max-w-sm w-full p-4 md:p-8 rounded-xl md:rounded-[2rem] border-2 border-gray-800 shadow-2xl max-h-[90vh] overflow-y-auto"
           >
             <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-4 text-center">Approve & Send To...</h3>
-            <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest text-center mb-8">Current Stage: {currentStage?.stageName.replace('_', ' ')} Complete</p>
+            <p className="text-gray-400 text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-center mb-8">Current Stage: {currentStage?.stageName.replace('_', ' ')} Complete</p>
             
             <div className="space-y-6 mb-8">
               <div className="space-y-3">
-                <label className="text-[10px] font-black text-blue-500 uppercase tracking-widest ml-1">Destination Stage</label>
+                <label className="text-[9px] md:text-[10px] font-black text-blue-500 uppercase tracking-widest ml-1">Destination Stage</label>
                 <select 
                   className="w-full bg-gray-950 border-2 border-gray-800 rounded-2xl py-4 px-6 outline-none focus:border-blue-500 transition-all text-white font-bold text-sm appearance-none"
                   onChange={(e) => setNextStage(e.target.value)}
@@ -1096,7 +1096,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               </div>
 
               <div className="space-y-3">
-                <label className="text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-1">Delivery Method (Optional)</label>
+                <label className="text-[9px] md:text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-1">Delivery Method (Optional)</label>
                 <div className="grid grid-cols-2 gap-2">
                   {[
                     { value: 'TCS', label: 'TCS Courier', icon: '📦' },
@@ -1123,7 +1123,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
 
               {(nextStage === 'DISPATCH' || currentStage?.stageName === 'DISPATCH') && (
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-purple-500 uppercase tracking-widest ml-1">Delivery Type</label>
+                  <label className="text-[9px] md:text-[10px] font-black text-purple-500 uppercase tracking-widest ml-1">Delivery Type</label>
                   <div className="grid grid-cols-3 gap-2">
                     {[
                       { value: 'COURIER', label: 'Courier', icon: '📦', desc: 'Ship via courier' },
@@ -1148,7 +1148,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
 
               {(order.type === 'FULL_CUSTOM' || order.type === 'READY_LOGO') && currentStage?.stageName === 'STORE' && (
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-1">Add Customization Amount ($)</label>
+                  <label className="text-[9px] md:text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-1">Add Customization Amount ($)</label>
                   <div className="relative">
                     <span className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-500 font-black">$</span>
                     <input 
@@ -1201,10 +1201,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
           <motion.div 
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="glass max-w-sm w-full p-8 rounded-[2rem] border-2 border-red-500/30 shadow-2xl"
+            className="glass max-w-sm w-full p-4 md:p-8 rounded-xl md:rounded-[2rem] border-2 border-red-500/30 shadow-2xl"
           >
             <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-4 text-center">Reject & Return</h3>
-            <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest text-center mb-8">Provide a reason for the worker</p>
+            <p className="text-gray-400 text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-center mb-8">Provide a reason for the worker</p>
             
             <textarea 
               value={rejectionReason}
@@ -1241,7 +1241,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
           <motion.div 
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="glass max-w-sm w-full p-8 rounded-[2rem] border-2 border-red-900/50 shadow-2xl"
+            className="glass max-w-sm w-full p-4 md:p-8 rounded-xl md:rounded-[2rem] border-2 border-red-900/50 shadow-2xl"
           >
             <div className="flex items-center justify-center mb-6">
               <div className="p-4 bg-red-500/20 rounded-full text-red-500">
@@ -1249,7 +1249,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               </div>
             </div>
             <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-4 text-center">Cancel Order?</h3>
-            <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest text-center mb-8">This will permanently stop production and notify the customer.</p>
+            <p className="text-gray-400 text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-center mb-8">This will permanently stop production and notify the customer.</p>
             
             <textarea 
               value={cancelReason}
@@ -1292,10 +1292,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
           <motion.div 
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="glass max-w-sm w-full p-8 rounded-[2rem] border-2 border-orange-500/30 shadow-2xl"
+            className="glass max-w-sm w-full p-4 md:p-8 rounded-xl md:rounded-[2rem] border-2 border-orange-500/30 shadow-2xl"
           >
             <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-4 text-center">{t('Hold')} Order</h3>
-            <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest text-center mb-8">Explain why this order is being paused</p>
+            <p className="text-gray-400 text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-center mb-8">Explain why this order is being paused</p>
             
             <textarea 
               value={holdReason}
@@ -1330,15 +1330,15 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="glass max-w-md w-full p-8 rounded-[2rem] border-2 border-red-500/30 shadow-2xl"
+            className="glass max-w-md w-full p-4 md:p-8 rounded-xl md:rounded-[2rem] border-2 border-red-500/30 shadow-2xl"
           >
             <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-2 text-center flex items-center justify-center gap-2">
               ⚡ Force Action
             </h3>
-            <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest text-center mb-8">Admin override — all actions are logged</p>
+            <p className="text-gray-400 text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-center mb-8">Admin override — all actions are logged</p>
 
             <div className="space-y-4 mb-6">
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {['FORCE_MOVE', 'FORCE_COMPLETE', 'EXTEND_DEADLINE'].map(a => (
                   <button
                     key={a}
@@ -1354,7 +1354,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
 
               {forceAction === 'FORCE_MOVE' && (
                 <div>
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 block">Target Stage</label>
+                  <label className="text-[9px] md:text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 block">Target Stage</label>
                   <select value={forceStage} onChange={(e) => setForceStage(e.target.value)} className="w-full bg-gray-950 border-2 border-gray-800 rounded-xl py-3 px-4 outline-none focus:border-red-500 text-white font-bold text-sm">
                     <option value="">Select stage...</option>
                     <option value="STORE">STORE</option>
@@ -1368,13 +1368,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
 
               {forceAction === 'EXTEND_DEADLINE' && (
                 <div>
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 block">Additional Hours</label>
+                  <label className="text-[9px] md:text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 block">Additional Hours</label>
                   <input type="number" min="1" value={forceHours} onChange={(e) => setForceHours(e.target.value)} className="w-full bg-gray-950 border-2 border-gray-800 rounded-xl py-3 px-4 outline-none focus:border-red-500 text-white font-black text-lg" placeholder="e.g. 24" />
                 </div>
               )}
 
               <div>
-                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 block">Reason (required)</label>
+                <label className="text-[9px] md:text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 block">Reason (required)</label>
                 <textarea value={forceReason} onChange={(e) => setForceReason(e.target.value)} className="w-full bg-gray-950 border-2 border-gray-800 rounded-xl py-3 px-4 outline-none focus:border-red-500 text-white font-bold text-sm min-h-[80px]" placeholder="Why is this force action needed?" />
               </div>
             </div>

@@ -112,7 +112,7 @@ const DeliverySheet = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto pb-20 px-4 space-y-8 screen-only">
+    <div className="max-w-7xl mx-auto pb-20 px-4 space-y-4 md:space-y-8 screen-only">
       {/* Print Stylesheet injection */}
       <style>{`
         @media print {
@@ -190,7 +190,7 @@ const DeliverySheet = () => {
             <div className="flex items-center gap-2">
               <span className="p-1.5 bg-yellow-500/10 text-yellow-500 rounded-lg text-xs font-black uppercase tracking-wider">manifest</span>
             </div>
-            <h1 className="text-3xl font-black theme-text-primary tracking-tight mt-1">Delivery Sheet</h1>
+            <h1 className="text-xl md:text-3xl font-black theme-text-primary tracking-tight mt-1">Delivery Sheet</h1>
           </div>
         </div>
 
@@ -230,10 +230,10 @@ const DeliverySheet = () => {
       </div>
 
       {/* Main Grid View */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-8">
         
         {/* Left Side: Manifest Sheet */}
-        <div className="lg:col-span-9 glass p-8 rounded-[2.5rem] border theme-border shadow-2xl relative overflow-hidden space-y-6">
+        <div className="lg:col-span-9 glass p-4 md:p-8 rounded-xl md:rounded-[2.5rem] border theme-border shadow-2xl relative overflow-hidden space-y-4 md:space-y-6">
           <div className="absolute top-0 right-0 w-48 h-48 bg-yellow-500/5 rounded-full blur-3xl" />
           
           <div className="flex items-center justify-between border-b theme-border pb-5">
@@ -241,7 +241,7 @@ const DeliverySheet = () => {
               <FileText className="text-yellow-500" size={24} />
               <h3 className="text-xl font-black theme-text-primary tracking-tight">Rider Dispatch Manifest</h3>
             </div>
-            <span className="text-[10px] font-black theme-text-muted uppercase tracking-widest theme-bg px-4 py-2 rounded-full border theme-border">
+            <span className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest theme-bg px-4 py-2 rounded-full border theme-border">
               Date: {new Date(selectedDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
             </span>
           </div>
@@ -352,8 +352,8 @@ const DeliverySheet = () => {
         </div>
 
         {/* Right Side: Financial & Summary Card */}
-        <div className="lg:col-span-3 space-y-6">
-          <div className="glass p-8 rounded-[2.5rem] border theme-border shadow-2xl relative overflow-hidden space-y-8">
+        <div className="lg:col-span-3 space-y-4 md:space-y-6">
+          <div className="glass p-4 md:p-8 rounded-xl md:rounded-[2.5rem] border theme-border shadow-2xl relative overflow-hidden space-y-4 md:space-y-8">
             <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-3xl" />
             
             <div className="flex items-center space-x-3 text-emerald-400">
@@ -362,9 +362,9 @@ const DeliverySheet = () => {
             </div>
 
             <div className="space-y-6">
-              <div className="theme-bg p-6 rounded-3xl border theme-border flex justify-between items-center shadow-inner">
+              <div className="theme-bg p-4 md:p-6 rounded-3xl border theme-border flex justify-between items-center shadow-inner">
                 <div>
-                  <p className="text-[10px] theme-text-muted font-black uppercase tracking-wider">COD Collected</p>
+                  <p className="text-[9px] md:text-[10px] theme-text-muted font-black uppercase tracking-wider">COD Collected</p>
                   <p className="text-2xl font-black theme-text-primary mt-1">₨{summary.totalCash.toLocaleString()}</p>
                 </div>
                 <div className="w-10 h-10 bg-amber-500/10 text-amber-500 rounded-xl flex items-center justify-center font-black">
@@ -372,9 +372,9 @@ const DeliverySheet = () => {
                 </div>
               </div>
 
-              <div className="theme-bg p-6 rounded-3xl border theme-border flex justify-between items-center shadow-inner">
+              <div className="theme-bg p-4 md:p-6 rounded-3xl border theme-border flex justify-between items-center shadow-inner">
                 <div>
-                  <p className="text-[10px] theme-text-muted font-black uppercase tracking-wider">Online / Prepaid</p>
+                  <p className="text-[9px] md:text-[10px] theme-text-muted font-black uppercase tracking-wider">Online / Prepaid</p>
                   <p className="text-2xl font-black theme-text-primary mt-1">₨{summary.totalOnline.toLocaleString()}</p>
                 </div>
                 <div className="w-10 h-10 bg-emerald-500/10 text-emerald-500 rounded-xl flex items-center justify-center font-black">
@@ -382,10 +382,10 @@ const DeliverySheet = () => {
                 </div>
               </div>
 
-              <div className="bg-yellow-500/10 p-6 rounded-3xl border-2 border-yellow-500/20 flex justify-between items-center shadow-lg">
+              <div className="bg-yellow-500/10 p-4 md:p-6 rounded-3xl border-2 border-yellow-500/20 flex justify-between items-center shadow-lg">
                 <div>
-                  <p className="text-[10px] text-yellow-500 font-black uppercase tracking-wider">Total Value</p>
-                  <p className="text-3xl font-black theme-text-primary mt-1">₨{summary.totalAmount.toLocaleString()}</p>
+                  <p className="text-[9px] md:text-[10px] text-yellow-500 font-black uppercase tracking-wider">Total Value</p>
+                  <p className="text-xl md:text-3xl font-black theme-text-primary mt-1">₨{summary.totalAmount.toLocaleString()}</p>
                 </div>
                 <div className="w-12 h-12 bg-yellow-500 text-black rounded-xl flex items-center justify-center font-black text-xl shadow-lg">
                   ₨

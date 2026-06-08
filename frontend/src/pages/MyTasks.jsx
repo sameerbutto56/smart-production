@@ -198,21 +198,21 @@ const MyTasks = () => {
   const displayedOrders = activeTab === 'unseen' ? unseenTasks : seenTasks;
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+    <div className="space-y-4 md:space-y-8 max-w-7xl mx-auto">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-6 mb-8">
         <div className="flex items-center space-x-4">
           <div className="p-4 bg-blue-600 rounded-3xl shadow-xl shadow-blue-900/30">
             <Activity className="text-white" size={32} />
           </div>
           <div>
-            <h1 className="text-3xl font-black theme-text-primary tracking-tight">Production Tasks</h1>
+            <h1 className="text-xl md:text-3xl font-black theme-text-primary tracking-tight">Production Tasks</h1>
             <p className="theme-text-secondary text-xs font-bold uppercase tracking-widest mt-1">Managing orders for {user?.role?.replace('_', ' ')}</p>
           </div>
         </div>
 
         <div className="flex flex-col md:flex-row items-end gap-4 w-full md:w-auto">
           <div className="relative group w-full md:w-80">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-blue-500 transition-colors" size={20} />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-blue-500 transition-colors" size={16} />
             <input
               type="text"
               placeholder="Search ID or Customer..."
@@ -240,7 +240,7 @@ const MyTasks = () => {
       </div>
 
       {/* Unseen / Seen Tabs */}
-      <div className="flex border-b theme-border mb-6 gap-6 relative">
+      <div className="flex border-b theme-border mb-6 gap-3 md:gap-6 relative">
         <button
           onClick={() => setActiveTab('unseen')}
           className={`pb-4 px-2 text-sm font-black uppercase tracking-widest transition-all relative flex items-center gap-2 ${
@@ -249,11 +249,11 @@ const MyTasks = () => {
         >
           <span>Unseen Tasks</span>
           {unseenTasks.length > 0 ? (
-            <span className="w-5 h-5 bg-red-500 text-[10px] text-white flex items-center justify-center rounded-full font-black animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]">
+            <span className="w-5 h-5 bg-red-500 text-[9px] md:text-[10px] text-white flex items-center justify-center rounded-full font-black animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]">
               {unseenTasks.length}
             </span>
           ) : (
-            <span className="text-[10px] bg-gray-800 theme-text-muted px-2 py-0.5 rounded-full font-black">0</span>
+            <span className="text-[9px] md:text-[10px] bg-gray-800 theme-text-muted px-2 py-0.5 rounded-full font-black">0</span>
           )}
           {activeTab === 'unseen' && (
             <motion.div layoutId="activeTabUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
@@ -267,7 +267,7 @@ const MyTasks = () => {
           }`}
         >
           <span>Active / Seen Tasks</span>
-          <span className="text-[10px] bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded-full font-black">
+          <span className="text-[9px] md:text-[10px] bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded-full font-black">
             {seenTasks.length}
           </span>
           {activeTab === 'seen' && (
@@ -297,26 +297,26 @@ const MyTasks = () => {
                     <AlertCircle size={18} className="text-red-400" />
                     <span className="text-xs font-black text-red-400 uppercase tracking-wider">Overdue</span>
                   </div>
-                  <p className="text-4xl font-black text-white">{overdue.length}</p>
-                  <p className="text-[10px] theme-text-secondary font-bold mt-1">Orders past production deadline</p>
+                  <p className="text-2xl md:text-4xl font-black text-white">{overdue.length}</p>
+                  <p className="text-[9px] md:text-[10px] theme-text-secondary font-bold mt-1">Orders past production deadline</p>
                 </div>
                 <div className="glass rounded-2xl p-5 border border-amber-500/20">
                   <div className="flex items-center gap-3 mb-2">
                     <Clock size={18} className="text-amber-400" />
                     <span className="text-xs font-black text-amber-400 uppercase tracking-wider">Approaching</span>
                   </div>
-                  <p className="text-4xl font-black text-white">{approaching.length}</p>
-                  <p className="text-[10px] theme-text-secondary font-bold mt-1">Deadline within 4 hours</p>
+                  <p className="text-2xl md:text-4xl font-black text-white">{approaching.length}</p>
+                  <p className="text-[9px] md:text-[10px] theme-text-secondary font-bold mt-1">Deadline within 4 hours</p>
                 </div>
                 <div className="glass rounded-2xl p-5 border border-emerald-500/20">
                   <div className="flex items-center gap-3 mb-2">
                     <Target size={18} className="text-emerald-400" />
                     <span className="text-xs font-black text-emerald-400 uppercase tracking-wider">Earliest Deadline</span>
                   </div>
-                  <p className="text-3xl font-black text-white">
+                  <p className="text-xl md:text-3xl font-black text-white">
                     {earliestDeadline ? earliestDeadline.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
                   </p>
-                  <p className="text-[10px] theme-text-secondary font-bold mt-1">
+                  <p className="text-[9px] md:text-[10px] theme-text-secondary font-bold mt-1">
                     {earliestDeadline ? earliestDeadline.toLocaleDateString() : 'No deadlines set'}
                   </p>
                 </div>
@@ -332,7 +332,7 @@ const MyTasks = () => {
           <p className="theme-text-secondary font-bold uppercase tracking-widest text-xs">Syncing floor data...</p>
         </div>
       ) : displayedOrders.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-6">
           <AnimatePresence mode="popLayout">
             {displayedOrders.map((order) => (
               <OrderCard 
@@ -350,9 +350,9 @@ const MyTasks = () => {
         <motion.div 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="h-96 flex flex-col items-center justify-center space-y-6 theme-bg-subtle rounded-[3rem] border-2 border-dashed theme-border"
+          className="h-96 flex flex-col items-center justify-center space-y-6 theme-bg-subtle rounded-2xl md:rounded-[3rem] border-2 border-dashed theme-border"
         >
-          <div className="p-8 theme-bg-subtle rounded-full">
+          <div className="p-4 md:p-8 theme-bg-subtle rounded-full">
             <Filter size={48} className="theme-text-muted" />
           </div>
           <div className="text-center">

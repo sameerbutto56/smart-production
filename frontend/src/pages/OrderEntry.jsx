@@ -571,11 +571,11 @@ const SmartOrderForm = () => {
       }`}
     >
       <div className={`p-3 rounded-xl ${disabled ? 'bg-gray-700/50 text-gray-600' : current === value ? 'bg-blue-500 text-white' : 'bg-gray-700 text-gray-500 group-hover:text-gray-300'}`} style={color ? {backgroundColor: color} : {}}>
-        {Icon ? <Icon size={20} /> : <Package size={20} />}
+        {Icon ? <Icon size={16} /> : <Package size={16} />}
       </div>
       <div className="text-left w-full mt-2">
-        <span className="block text-[11px] font-black uppercase tracking-wider whitespace-normal break-words leading-snug">{label}</span>
-        {sublabel &&           <span className={`block text-[10px] mt-1 font-medium whitespace-normal break-words ${disabled ? 'text-red-400' : 'theme-text-muted'}`}>{sublabel}</span>}
+        <span className="block text-[9px] md:text-[11px] font-black uppercase tracking-wider whitespace-normal break-words leading-snug">{label}</span>
+        {sublabel &&           <span className={`block text-[9px] md:text-[10px] mt-1 font-medium whitespace-normal break-words ${disabled ? 'text-red-400' : 'theme-text-muted'}`}>{sublabel}</span>}
       </div>
       {!disabled && current === value && (
         <motion.div layoutId="activeMark" className="absolute top-4 right-4 bg-blue-500 rounded-full p-1 shadow-lg">
@@ -639,10 +639,10 @@ const SmartOrderForm = () => {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-6">
         <div className={`flex items-center ${isUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-4'}`}>
           <div className="p-4 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl shadow-2xl shadow-blue-900/40 rotate-3">
-            <Sparkles className="text-white" size={24} />
+            <Sparkles className="text-white" size={16} />
           </div>
           <div className={isUrdu ? 'text-right' : ''}>
-            <h1 className="text-3xl font-black theme-text-primary tracking-tight leading-none">{isUrdu ? 'سمارٹ آرڈر انٹری' : 'Smart Order Flow'}</h1>
+            <h1 className="text-xl md:text-3xl font-black theme-text-primary tracking-tight leading-none">{isUrdu ? 'سمارٹ آرڈر انٹری' : 'Smart Order Flow'}</h1>
             <p className="theme-text-muted text-[9px] font-black uppercase tracking-[0.3em] mt-1.5">{isUrdu ? 'پیداواری بہاؤ کی ذہانت' : 'Conveyor Belt Intelligence'}</p>
           </div>
         </div>
@@ -657,7 +657,7 @@ const SmartOrderForm = () => {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-3 px-6 py-3.5 rounded-[1.2rem] text-[10px] font-black uppercase tracking-widest transition-all duration-500 ${
+                className={`flex items-center gap-3 px-6 py-3.5 rounded-[1.2rem] text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all duration-500 ${
                   activeTab === tab.id 
                     ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)] scale-105' 
                     : 'text-gray-600 hover:text-white hover:bg-gray-800/50'
@@ -706,19 +706,19 @@ const SmartOrderForm = () => {
               exit={{ opacity: 0, y: -20 }}
               className="grid grid-cols-1 lg:grid-cols-12 gap-8"
             >
-              <div className={`lg:col-span-8 glass p-10 rounded-[3rem] space-y-10 border theme-border shadow-2xl relative overflow-hidden ${useUrdu ? 'text-right' : ''}`}>
+              <div className={`lg:col-span-8 glass p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] space-y-6 md:space-y-10 border theme-border shadow-2xl relative overflow-hidden ${useUrdu ? 'text-right' : ''}`}>
                 <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/5 rounded-full blur-3xl" />
                 
                 <div className="flex items-center gap-4">
                   <div className="w-1.5 h-10 bg-blue-500 rounded-full shadow-[0_0_15px_rgba(59,130,246,0.6)]" />
-                  <h3 className="text-3xl font-black theme-text-primary tracking-tight">Identity</h3>
+                  <h3 className="text-xl md:text-3xl font-black theme-text-primary tracking-tight">Identity</h3>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-4">Order No.</label>
+                    <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-4">Order No.</label>
                     <div className="relative group">
-                      <Hash className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-500 transition-all duration-300`} size={24} />
+                      <Hash className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-500 transition-all duration-300`} size={16} />
                       <input
                         type="text"
                         onKeyDown={preventEnterSubmit}
@@ -732,9 +732,9 @@ const SmartOrderForm = () => {
                     </div>
                   </div>
                   <div className="space-y-4">
-                    <label className={`text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{t('customerName')}</label>
+                    <label className={`text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{t('customerName')}</label>
                     <div className="relative group">
-                      <User className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-500 transition-all duration-300`} size={24} />
+                      <User className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-500 transition-all duration-300`} size={16} />
                       <input
                         type="text"
                         onKeyDown={preventEnterSubmit}
@@ -750,7 +750,7 @@ const SmartOrderForm = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                   <div className="space-y-4">
-                    <label className={`text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{t('customerPhone')}</label>
+                    <label className={`text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{t('customerPhone')}</label>
                     <div className="relative group">
                       <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-pink-500/10 text-pink-500`}>
                         <Phone size={18} />
@@ -768,7 +768,7 @@ const SmartOrderForm = () => {
                   </div>
 
                   <div className="space-y-4">
-                    <label className={`text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'پتہ (Address) - اختیاری' : 'Customer Address (Optional)'}</label>
+                    <label className={`text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'پتہ (Address) - اختیاری' : 'Customer Address (Optional)'}</label>
                     <div className="relative group">
                       <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-blue-500/10 text-blue-500`}>
                         <span className="font-black text-xs">📍</span>
@@ -784,7 +784,7 @@ const SmartOrderForm = () => {
                     </div>
                   </div>
                   <div className="space-y-4">
-                    <label className={`text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'شہر (City) - اختیاری' : 'City (Optional)'}</label>
+                    <label className={`text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'شہر (City) - اختیاری' : 'City (Optional)'}</label>
                     <div className="relative group">
                       <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-blue-500/10 text-blue-500`}>
                         <span className="font-black text-xs">🏙️</span>
@@ -803,7 +803,7 @@ const SmartOrderForm = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                   <div className="space-y-4">
-                    <label className={`text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'کل رقم (Order Amount) - اختیاری' : 'Order Amount (Optional)'}</label>
+                    <label className={`text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'کل رقم (Order Amount) - اختیاری' : 'Order Amount (Optional)'}</label>
                     <div className="relative group">
                       <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-500`}>
                         <span className="font-black text-xs">₨</span>
@@ -849,7 +849,7 @@ const SmartOrderForm = () => {
                             <Layers size={16} />
                           </div>
                           <div className="min-w-0 truncate">
-                            <p className="font-black text-[10px] uppercase truncate">{t('dupatta')}</p>
+                            <p className="font-black text-[9px] md:text-[10px] uppercase truncate">{t('dupatta')}</p>
                           </div>
                         </div>
                         <input type="checkbox" checked={formData.femaleOptions.dupatta} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, dupatta: e.target.checked}})} className="w-5 h-5 shrink-0 ml-2 rounded border-2 border-gray-700 bg-gray-900 checked:bg-pink-600 transition-all cursor-pointer" />
@@ -860,7 +860,7 @@ const SmartOrderForm = () => {
                             <span className="font-black text-[9px]">ZIP</span>
                           </div>
                           <div className="min-w-0 truncate">
-                            <p className="font-black text-[10px] uppercase truncate">{t('zip')}</p>
+                            <p className="font-black text-[9px] md:text-[10px] uppercase truncate">{t('zip')}</p>
                           </div>
                         </div>
                         <input type="checkbox" checked={formData.femaleOptions.zip} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, zip: e.target.checked}})} className="w-5 h-5 shrink-0 ml-2 rounded border-2 border-gray-700 bg-gray-900 checked:bg-pink-600 transition-all cursor-pointer" />
@@ -870,19 +870,21 @@ const SmartOrderForm = () => {
                 </div>
               </div>
 
-              <div className={`lg:col-span-4 glass p-12 rounded-[3.5rem] space-y-10 border theme-border shadow-2xl ${useUrdu ? 'text-right' : ''}`}>
-                <h3 className={`text-xl font-black text-yellow-500 flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-3'}`}>
-                  <Star size={24} fill="currentColor" />
+              <div className={`lg:col-span-4 glass p-6 md:p-12 rounded-[2rem] md:rounded-[3.5rem] space-y-8 md:space-y-10 border theme-border shadow-2xl ${useUrdu ? 'text-right' : ''}`}>
+                <h3 className={`text-lg md:text-xl font-black text-yellow-500 flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-3'}`}>
+                  <Star size={16} fill="currentColor" />
                   <span>{useUrdu ? 'آرڈر کی تفصیل' : 'Protocol'}</span>
                 </h3>
                 
-                <div className="space-y-8">
-                  <div className="flex p-2 theme-bg rounded-2xl border-2 theme-border shadow-inner">
+                <div className="space-y-6 md:space-y-8">
+                  <div className="flex p-1.5 md:p-2 theme-bg rounded-xl md:rounded-2xl border-2 theme-border shadow-inner">
                     {!isOutlet && (
                       <button
                         type="button"
                         onClick={() => setFormData({...formData, type: 'STANDARD', advancePaid: false})}
-                        className={`flex-1 py-4 rounded-xl text-[10px] font-black transition-all ${formData.type === 'STANDARD' ? 'bg-blue-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'}`}
+                        className={`flex-1 py-3 md:py-4 px-1 rounded-lg md:rounded-xl text-[9px] md:text-[10px] font-black transition-all leading-tight text-center ${
+                          formData.type === 'STANDARD' ? 'bg-blue-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'
+                        }`}
                       >
                         {useUrdu ? URDU_LABELS.standard : 'STANDARD'}
                       </button>
@@ -890,29 +892,33 @@ const SmartOrderForm = () => {
                     <button
                       type="button"
                       onClick={() => setFormData({...formData, type: 'READY_LOGO', advancePaid: false})}
-                      className={`flex-1 py-4 rounded-xl text-[10px] font-black transition-all ${formData.type === 'READY_LOGO' ? 'bg-purple-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'}`}
+                      className={`flex-1 py-3 md:py-4 px-1 rounded-lg md:rounded-xl text-[9px] md:text-[10px] font-black transition-all leading-tight text-center ${
+                        formData.type === 'READY_LOGO' ? 'bg-purple-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'
+                      }`}
                     >
                       {useUrdu ? URDU_LABELS.logo : 'LOGO'}
                     </button>
                     <button
                       type="button"
                       onClick={() => setFormData({...formData, type: 'FULL_CUSTOM', advancePaid: true})}
-                      className={`flex-1 py-4 rounded-xl text-[10px] font-black transition-all ${formData.type === 'FULL_CUSTOM' ? 'bg-indigo-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'}`}
+                      className={`flex-1 py-3 md:py-4 px-1 rounded-lg md:rounded-xl text-[9px] md:text-[10px] font-black transition-all leading-tight text-center ${
+                        formData.type === 'FULL_CUSTOM' ? 'bg-indigo-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'
+                      }`}
                     >
                       {useUrdu ? URDU_LABELS.custom : 'CUSTOM'}
                     </button>
                   </div>
 
                   {/* Priority Level */}
-                  <div className="space-y-3">
-                    <label className="font-black text-xs uppercase tracking-widest theme-text-muted">{t('priority')}</label>
-                    <div className="grid grid-cols-3 gap-2">
+                  <div className="space-y-2 md:space-y-3">
+                    <label className="font-black text-[9px] md:text-xs uppercase tracking-widest theme-text-muted">{t('priority')}</label>
+                    <div className="grid grid-cols-3 gap-1.5 md:gap-2">
                       {['NORMAL', 'URGENT', 'SUPER_URGENT'].map((p) => (
                         <button
                           key={p}
                           type="button"
                           onClick={() => setFormData({...formData, priority: p})}
-                          className={`py-3 px-2 rounded-xl text-[10px] font-black transition-all border-2 ${
+                          className={`py-2.5 md:py-3 px-1 rounded-lg md:rounded-xl text-[8px] md:text-[10px] font-black transition-all border-2 leading-tight text-center ${
                             formData.priority === p
                               ? p === 'SUPER_URGENT'
                                 ? 'bg-red-600 text-white border-red-500 shadow-lg'
@@ -928,18 +934,18 @@ const SmartOrderForm = () => {
                     </div>
                   </div>
 
-                  <div className="space-y-5">
-                    <label className={`flex items-center justify-between p-6 theme-bg rounded-[1.5rem] border-2 theme-border cursor-pointer hover:border-emerald-500/30 transition-all group ${useUrdu ? 'flex-row-reverse' : ''}`}>
-                      <div className={`flex items-center space-x-4 ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                        <div className={`p-4 rounded-xl transition-all ${formData.advancePaid ? 'bg-emerald-600 text-white shadow-lg' : 'bg-gray-800 text-gray-600'}`}>
-                          <CheckCircle2 size={20} />
+                  <div className="space-y-4 md:space-y-5">
+                    <label className={`flex items-center justify-between p-4 md:p-6 theme-bg rounded-xl md:rounded-[1.5rem] border-2 theme-border cursor-pointer hover:border-emerald-500/30 transition-all group ${useUrdu ? 'flex-row-reverse' : ''}`}>
+                      <div className={`flex items-center space-x-3 md:space-x-4 ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                        <div className={`p-3 md:p-4 rounded-xl transition-all ${formData.advancePaid ? 'bg-emerald-600 text-white shadow-lg' : 'bg-gray-800 text-gray-600'}`}>
+                          <CheckCircle2 size={18} className="md:w-5 md:h-5" />
                         </div>
                         <div className={useUrdu ? 'text-right' : ''}>
-                          <p className="font-black text-sm uppercase">{t('advance')}</p>
-                          <p className="text-[10px] text-gray-600 font-bold">CONFIRMATION</p>
+                          <p className="font-black text-xs md:text-sm uppercase">{t('advance')}</p>
+                          <p className="text-[8px] md:text-[10px] text-gray-600 font-bold">CONFIRMATION</p>
                         </div>
                       </div>
-                      <input type="checkbox" checked={formData.advancePaid} onChange={(e) => setFormData({...formData, advancePaid: e.target.checked})} className="w-6 h-6 rounded-lg border-2 border-gray-700 bg-gray-900 checked:bg-emerald-600 transition-all cursor-pointer" />
+                      <input type="checkbox" checked={formData.advancePaid} onChange={(e) => setFormData({...formData, advancePaid: e.target.checked})} className="w-5 h-5 md:w-6 md:h-6 rounded-lg border-2 border-gray-700 bg-gray-900 checked:bg-emerald-600 transition-all cursor-pointer shrink-0" />
                     </label>
 
                     {/* Total Price */}
@@ -956,12 +962,12 @@ const SmartOrderForm = () => {
               initial={{ opacity: 0, x: 50 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -50 }}
-              className="space-y-10"
+              className="space-y-6 md:space-y-10"
             >
-              <div className="glass p-12 rounded-[3.5rem] border theme-border shadow-2xl">
-                <div className={`flex flex-col lg:flex-row lg:items-center justify-between mb-10 gap-8 ${useUrdu ? 'flex-row-reverse' : ''}`}>
+              <div className="glass p-6 md:p-12 rounded-[2rem] md:rounded-[3.5rem] border theme-border shadow-2xl">
+                <div className={`flex flex-col lg:flex-row lg:items-center justify-between mb-6 md:mb-10 gap-4 md:gap-8 ${useUrdu ? 'flex-row-reverse' : ''}`}>
                   <div className={`space-y-1 ${useUrdu ? 'text-right' : ''}`}>
-                    <h3 className={`text-3xl font-black theme-text-primary flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-4'}`}>
+                    <h3 className={`text-xl md:text-3xl font-black theme-text-primary flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-4'}`}>
                       <Package className="text-blue-500" size={32} />
                       <span>{t('productSelection')}</span>
                     </h3>
@@ -1087,14 +1093,14 @@ const SmartOrderForm = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                <div className={`lg:col-span-5 glass p-12 rounded-[3.5rem] border theme-border shadow-2xl ${useUrdu ? 'text-right' : ''}`}>
-                  <div className="space-y-1 mb-10">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-8">
+                <div className={`lg:col-span-5 glass p-6 md:p-12 rounded-[2rem] md:rounded-[3.5rem] border theme-border shadow-2xl ${useUrdu ? 'text-right' : ''}`}>
+                  <div className="space-y-1 mb-6 md:mb-10">
                     <h3 className={`text-2xl font-black text-emerald-400 flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-4'}`}>
                       <Layers size={28} />
                       <span>{t('fabric')}</span>
                     </h3>
-                    <p className={`theme-text-muted text-[10px] font-bold uppercase tracking-widest ${useUrdu ? 'mr-11' : 'ml-11'}`}>Step 2: Define fabric feel</p>
+                    <p className={`theme-text-muted text-[9px] md:text-[10px] font-bold uppercase tracking-widest ${useUrdu ? 'mr-11' : 'ml-11'}`}>Step 2: Define fabric feel</p>
                   </div>
                   {fabrics.length > 0 ? (
                     <div className="grid grid-cols-2 gap-5">
@@ -1123,14 +1129,14 @@ const SmartOrderForm = () => {
                   )}
                 </div>
 
-                <div className={`lg:col-span-7 glass p-12 rounded-[3.5rem] border theme-border shadow-2xl ${useUrdu ? 'text-right' : ''}`}>
-                  <div className={`flex flex-col sm:flex-row items-center justify-between mb-10 gap-6 ${useUrdu ? 'flex-row-reverse' : ''}`}>
+                <div className={`lg:col-span-7 glass p-6 md:p-12 rounded-[2rem] md:rounded-[3.5rem] border theme-border shadow-2xl ${useUrdu ? 'text-right' : ''}`}>
+                  <div className={`flex flex-col sm:flex-row items-center justify-between mb-6 md:mb-10 gap-3 md:gap-6 ${useUrdu ? 'flex-row-reverse' : ''}`}>
                     <div className="space-y-1">
                       <h3 className={`text-2xl font-black text-purple-400 flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-4'}`}>
                         <Palette size={28} />
                         <span>{t('color')} & {t('size')}</span>
                       </h3>
-                      <p className={`theme-text-muted text-[10px] font-bold uppercase tracking-widest ${useUrdu ? 'mr-11' : 'ml-11'}`}>Step 3: Visual scaling</p>
+                      <p className={`theme-text-muted text-[9px] md:text-[10px] font-bold uppercase tracking-widest ${useUrdu ? 'mr-11' : 'ml-11'}`}>Step 3: Visual scaling</p>
                     </div>
                     {!isAccessory(selectedProductCategory) && (
                       <div className={`flex p-1.5 theme-bg rounded-xl border-2 theme-border ${useUrdu ? 'flex-row-reverse' : ''}`}>
@@ -1188,12 +1194,12 @@ const SmartOrderForm = () => {
                           <div className="w-full aspect-square flex items-center justify-center relative" style={{ backgroundColor: bgHex }}>
                             {formData.color === c && (
                               <div className={`${textClass} bg-black/20 backdrop-blur-sm p-1.5 rounded-full`}>
-                                <CheckCircle2 size={20} className={textClass} />
+                                <CheckCircle2 size={16} className={textClass} />
                               </div>
                             )}
                             {stockForColor <= 0 && (
                               <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                                <X size={24} className="text-red-400" />
+                                <X size={16} className="text-red-400" />
                               </div>
                             )}
                           </div>
@@ -1212,13 +1218,13 @@ const SmartOrderForm = () => {
                     </div>
                   )}
 
-                  <div className={`mt-10 pt-10 border-t theme-border flex flex-col sm:flex-row items-center justify-between gap-8 ${useUrdu ? 'flex-row-reverse' : ''}`}>
+                  <div className={`mt-6 md:mt-10 pt-6 md:pt-10 border-t theme-border flex flex-col sm:flex-row items-center justify-between gap-4 md:gap-8 ${useUrdu ? 'flex-row-reverse' : ''}`}>
                     <div className="space-y-1">
                       <h3 className={`text-xl font-black text-blue-400 flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-4'}`}>
-                        <Hash size={24} />
+                        <Hash size={16} />
                         <span>{useUrdu ? 'آرڈر کی تعداد' : 'Order Quantity'}</span>
                       </h3>
-                      <p className="theme-text-muted text-[10px] font-bold uppercase tracking-widest">How many sets are needed?</p>
+                      <p className="theme-text-muted text-[9px] md:text-[10px] font-bold uppercase tracking-widest">How many sets are needed?</p>
                     </div>
                     
                     <div className="relative group w-full sm:w-64">
@@ -1246,24 +1252,24 @@ const SmartOrderForm = () => {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 1.1 }}
-              className="grid grid-cols-1 lg:grid-cols-2 gap-10"
+              className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-10"
             >
-              <div className={`glass p-12 rounded-[3.5rem] border theme-border space-y-10 shadow-2xl ${useUrdu ? 'text-right' : ''}`}>
+              <div className={`glass p-6 md:p-12 rounded-[2rem] md:rounded-[3.5rem] border theme-border space-y-6 md:space-y-10 shadow-2xl ${useUrdu ? 'text-right' : ''}`}>
                 <div className={`flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-5'}`}>
                   <div className="p-4 bg-purple-600 rounded-[1.5rem] shadow-xl shadow-purple-900/30">
                     <ImageIcon className="text-white" size={28} />
                   </div>
                   <div>
                     <h3 className="text-2xl font-black theme-text-primary">{t('branding')}</h3>
-                    <p className="theme-text-muted text-[10px] font-black uppercase tracking-widest mt-1">Logo & embroidery details</p>
+                    <p className="theme-text-muted text-[9px] md:text-[10px] font-black uppercase tracking-widest mt-1">Logo & embroidery details</p>
                   </div>
                 </div>
 
-                <div className="space-y-8">
+                <div className="space-y-4 md:space-y-8">
                   <div className="space-y-3">
                     <label className="text-xs font-black theme-text-muted uppercase tracking-[0.3em] ml-2">{t('articleName')}</label>
                     <div className="relative group">
-                      <Type className={`absolute ${useUrdu ? 'right-5' : 'left-5'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-purple-500 transition-colors`} size={24} />
+                      <Type className={`absolute ${useUrdu ? 'right-5' : 'left-5'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-purple-500 transition-colors`} size={16} />
                       <input
                         type="text"
                         onKeyDown={preventEnterSubmit}
@@ -1275,7 +1281,7 @@ const SmartOrderForm = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
                     <div className="space-y-3">
                       <label className="text-xs font-black theme-text-muted uppercase tracking-[0.3em] ml-2">{t('embroideryColor')}</label>
                       <select 
@@ -1307,22 +1313,22 @@ const SmartOrderForm = () => {
                 </div>
               </div>
 
-              <div className={`glass p-12 rounded-[3.5rem] border theme-border space-y-10 shadow-2xl ${useUrdu ? 'text-right' : ''}`}>
+              <div className={`glass p-6 md:p-12 rounded-[2rem] md:rounded-[3.5rem] border theme-border space-y-6 md:space-y-10 shadow-2xl ${useUrdu ? 'text-right' : ''}`}>
                 <div className={`flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-5'}`}>
                   <div className="p-4 bg-blue-600 rounded-[1.5rem] shadow-xl shadow-blue-900/30">
                     <Scissors className="text-white" size={28} />
                   </div>
                   <div>
                     <h3 className="text-2xl font-black theme-text-primary">{t('stitching')}</h3>
-                    <p className="theme-text-muted text-[10px] font-black uppercase tracking-widest mt-1">Conveyor belt tailoring specs</p>
+                    <p className="theme-text-muted text-[9px] md:text-[10px] font-black uppercase tracking-widest mt-1">Conveyor belt tailoring specs</p>
                   </div>
                 </div>
 
-                <div className="space-y-8">
+                <div className="space-y-4 md:space-y-8">
                   <div className="space-y-3">
                     <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-2">{useUrdu ? 'ڈیزائن ریفرنس' : 'Design Reference'}</label>
                     <div className="relative group">
-                      <Palette className={`absolute ${useUrdu ? 'right-5' : 'left-5'} top-6 text-gray-600 group-focus-within:text-blue-500 transition-colors`} size={24} />
+                      <Palette className={`absolute ${useUrdu ? 'right-5' : 'left-5'} top-6 text-gray-600 group-focus-within:text-blue-500 transition-colors`} size={16} />
                       <textarea
                         rows="4"
                         value={formData.designReference}
@@ -1333,7 +1339,7 @@ const SmartOrderForm = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
                     <div className="space-y-3">
                       <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-2">{t('stitchingStyle')}</label>
                       <div className={`flex p-2 theme-bg rounded-[1.5rem] border-2 theme-border h-[72px] ${useUrdu ? 'flex-row-reverse' : ''}`}>
@@ -1342,7 +1348,7 @@ const SmartOrderForm = () => {
                             key={s}
                             type="button"
                             onClick={() => setFormData({...formData, stitchingStyle: s})}
-                            className={`flex-1 rounded-xl text-[11px] font-black transition-all ${formData.stitchingStyle === s ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-600 hover:text-white'}`}
+                            className={`flex-1 rounded-xl text-[9px] md:text-[11px] font-black transition-all ${formData.stitchingStyle === s ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-600 hover:text-white'}`}
                           >
                             {s === 'STD' ? (useUrdu ? 'سنگل' : 'SINGLE') : (useUrdu ? 'ڈبل' : 'DOUBLE')}
                           </button>
@@ -1357,7 +1363,7 @@ const SmartOrderForm = () => {
                             key={f}
                             type="button"
                             onClick={() => setFormData({...formData, fitType: f})}
-                            className={`flex-1 rounded-xl text-[11px] font-black transition-all ${formData.fitType === f ? 'bg-indigo-600 text-white shadow-xl' : 'text-gray-600 hover:text-white'}`}
+                            className={`flex-1 rounded-xl text-[9px] md:text-[11px] font-black transition-all ${formData.fitType === f ? 'bg-indigo-600 text-white shadow-xl' : 'text-gray-600 hover:text-white'}`}
                           >
                             {f.toUpperCase()}
                           </button>
@@ -1385,15 +1391,15 @@ const SmartOrderForm = () => {
               initial={{ opacity: 0, y: 50 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -50 }}
-              className="glass p-16 rounded-[4rem] border theme-border shadow-2xl relative overflow-hidden"
+              className="glass p-6 md:p-16 rounded-2xl md:rounded-[4rem] border theme-border shadow-2xl relative overflow-hidden"
             >
               <div className="absolute -top-20 -right-20 opacity-5 select-none pointer-events-none">
                 <Ruler size={500} />
               </div>
               
-              <div className="relative z-10 space-y-16">
-                <div className="space-y-2 text-center mb-16">
-                  <h3 className="text-4xl font-black text-emerald-400 flex justify-center items-center space-x-6 uppercase tracking-tighter">
+              <div className="relative z-10 space-y-8 md:space-y-16">
+                <div className="space-y-2 text-center mb-8 md:mb-16">
+                  <h3 className="text-2xl md:text-4xl font-black text-emerald-400 flex justify-center items-center space-x-6 uppercase tracking-tighter">
                     <Ruler size={42} />
                     <span>Anatomical Precision Chart</span>
                   </h3>
@@ -1403,26 +1409,26 @@ const SmartOrderForm = () => {
                 <div className="relative flex flex-col md:flex-row items-center justify-center max-w-6xl mx-auto gap-4 lg:gap-12">
                   
                   {/* Left Measurements */}
-                  <div className="flex flex-col space-y-16 w-full md:w-1/3 z-20 items-center md:items-end">
+                  <div className="flex flex-col space-y-8 md:space-y-16 w-full md:w-1/3 z-20 items-center md:items-end">
                     <div className="group relative flex flex-col items-center md:items-end">
-                      <label className="block text-[11px] font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Shoulder</label>
+                      <label className="block text-[9px] md:text-[11px] font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Shoulder</label>
                       <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
-                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.shoulder} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, shoulder: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-right" placeholder="00" />
-                        <span className="absolute right-4 bottom-5 text-[10px] font-black text-emerald-500/50">IN</span>
+                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.shoulder} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, shoulder: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-right" placeholder="00" />
+                        <span className="absolute right-4 bottom-5 text-[9px] md:text-[10px] font-black text-emerald-500/50">IN</span>
                       </div>
                     </div>
                     <div className="group relative flex flex-col items-center md:items-end">
-                      <label className="block text-[11px] font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Chest</label>
+                      <label className="block text-[9px] md:text-[11px] font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Chest</label>
                       <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
-                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.chest} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, chest: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-right" placeholder="00" />
-                        <span className="absolute right-4 bottom-5 text-[10px] font-black text-emerald-500/50">IN</span>
+                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.chest} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, chest: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-right" placeholder="00" />
+                        <span className="absolute right-4 bottom-5 text-[9px] md:text-[10px] font-black text-emerald-500/50">IN</span>
                       </div>
                     </div>
                     <div className="group relative flex flex-col items-center md:items-end">
-                      <label className="block text-[11px] font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Sleeve</label>
+                      <label className="block text-[9px] md:text-[11px] font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Sleeve</label>
                       <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
-                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.sleeve} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, sleeve: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-right" placeholder="00" />
-                        <span className="absolute right-4 bottom-5 text-[10px] font-black text-emerald-500/50">IN</span>
+                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.sleeve} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, sleeve: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-right" placeholder="00" />
+                        <span className="absolute right-4 bottom-5 text-[9px] md:text-[10px] font-black text-emerald-500/50">IN</span>
                       </div>
                     </div>
                   </div>
@@ -1447,33 +1453,33 @@ const SmartOrderForm = () => {
                   </div>
 
                   {/* Right Measurements */}
-                  <div className="flex flex-col space-y-16 w-full md:w-1/3 z-20 items-center md:items-start">
+                  <div className="flex flex-col space-y-8 md:space-y-16 w-full md:w-1/3 z-20 items-center md:items-start">
                     <div className="group relative flex flex-col items-center md:items-start">
-                      <label className="block text-[11px] font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Waist</label>
+                      <label className="block text-[9px] md:text-[11px] font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Waist</label>
                       <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
-                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.waist} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, waist: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder="00" />
-                        <span className="absolute right-4 bottom-5 text-[10px] font-black text-emerald-500/50">IN</span>
+                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.waist} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, waist: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder="00" />
+                        <span className="absolute right-4 bottom-5 text-[9px] md:text-[10px] font-black text-emerald-500/50">IN</span>
                       </div>
                     </div>
                     <div className="group relative flex flex-col items-center md:items-start">
-                      <label className="block text-[11px] font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Hips</label>
+                      <label className="block text-[9px] md:text-[11px] font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Hips</label>
                       <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
-                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.hips} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, hips: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder="00" />
-                        <span className="absolute right-4 bottom-5 text-[10px] font-black text-emerald-500/50">IN</span>
+                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.hips} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, hips: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder="00" />
+                        <span className="absolute right-4 bottom-5 text-[9px] md:text-[10px] font-black text-emerald-500/50">IN</span>
                       </div>
                     </div>
                     <div className="group relative flex flex-col items-center md:items-start">
-                      <label className="block text-[11px] font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Length</label>
+                      <label className="block text-[9px] md:text-[11px] font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Length</label>
                       <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
-                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.length} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, length: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder="00" />
-                        <span className="absolute right-4 bottom-5 text-[10px] font-black text-emerald-500/50">IN</span>
+                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.length} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, length: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder="00" />
+                        <span className="absolute right-4 bottom-5 text-[9px] md:text-[10px] font-black text-emerald-500/50">IN</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
                 {formData.gender === 'Female' && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12 theme-bg-subtle p-8 rounded-[3rem] border theme-border">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8 mt-6 md:mt-12 theme-bg-subtle p-4 md:p-8 rounded-2xl md:rounded-[3rem] border theme-border">
                     <div className="space-y-4">
                       <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-2">Include Dupatta</label>
                       <label className="flex items-center justify-between p-4 theme-bg rounded-[1.5rem] border-2 theme-border cursor-pointer hover:border-pink-500/30 transition-all group h-full">
@@ -1514,7 +1520,7 @@ const SmartOrderForm = () => {
                   </div>
                 )}
 
-                <div className="mt-16 bg-emerald-500/5 border-2 border-emerald-500/10 rounded-[3rem] p-10 flex flex-col md:flex-row items-center md:items-start gap-8 shadow-inner">
+                <div className="mt-8 md:mt-16 bg-emerald-500/5 border-2 border-emerald-500/10 rounded-2xl md:rounded-[3rem] p-6 md:p-10 flex flex-col md:flex-row items-center md:items-start gap-4 md:gap-8 shadow-inner">
                   <div className="p-6 bg-emerald-600 rounded-[2rem] shadow-2xl shadow-emerald-900/50 rotate-6">
                     <CheckCircle2 size={28} className="text-white" />
                   </div>
@@ -1530,11 +1536,11 @@ const SmartOrderForm = () => {
           )}
         </AnimatePresence>
 
-        <div className={`flex flex-col sm:flex-row items-center justify-between pt-12 gap-8 border-t-2 theme-border ${useUrdu ? 'flex-row-reverse' : ''}`}>
+        <div className={`flex flex-col sm:flex-row items-center justify-between pt-6 md:pt-12 gap-4 md:gap-8 border-t-2 theme-border ${useUrdu ? 'flex-row-reverse' : ''}`}>
           <div className="flex flex-col space-y-4">
             <div className={`flex items-center space-x-3 text-gray-600 theme-bg-subtle px-6 py-3 rounded-2xl border theme-border ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
               <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.5)] animate-pulse" />
-              <span className="text-[10px] font-black uppercase tracking-[0.2em]">{useUrdu ? 'تصدیق شدہ نظام' : 'Validated System Protocol'}</span>
+              <span className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em]">{useUrdu ? 'تصدیق شدہ نظام' : 'Validated System Protocol'}</span>
             </div>
             {error && (
               <div className={`flex items-center space-x-3 text-red-500 bg-red-500/10 px-6 py-3 rounded-2xl border border-red-500/20 ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
@@ -1568,7 +1574,7 @@ const SmartOrderForm = () => {
               >
                 {loading || isSubmitting ? (useUrdu ? 'انتظار کریں...' : 'PROCESSING...') : (
                   <>
-                    <ShoppingCart size={24} className={useUrdu ? "order-2" : "order-1"} />
+                    <ShoppingCart size={16} className={useUrdu ? "order-2" : "order-1"} />
                     <span className={useUrdu ? "order-1" : "order-2"}>{useUrdu ? 'کارٹ میں شامل کریں' : 'ADD TO CART'}</span>
                   </>
                 )}
@@ -1617,7 +1623,7 @@ const SmartOrderForm = () => {
                 disabled={loading || isSubmitting}
                 className="flex-1 sm:px-16 py-6 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 group disabled:opacity-50"
               >
-                <CheckCircle2 size={24} />
+                <CheckCircle2 size={16} />
                 <span>{useUrdu ? 'آرڈر جمع کرائیں' : 'SUBMIT ORDER'}</span>
               </button>
             )}
@@ -1650,7 +1656,7 @@ const SmartOrderForm = () => {
                   onClick={handleAddMoreProducts}
                   className="w-full py-5 bg-blue-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-blue-900/50 hover:bg-blue-500 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3"
                 >
-                  <Plus size={20} />
+                  <Plus size={16} />
                   <span>{useUrdu ? 'مزید پروڈکٹس شامل کریں' : 'ADD MORE PRODUCTS'}</span>
                 </button>
                 
@@ -1663,7 +1669,7 @@ const SmartOrderForm = () => {
                     }}
                     className="w-full py-5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-indigo-900/50 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3"
                   >
-                    <ArrowRight size={20} />
+                    <ArrowRight size={16} />
                     <span>{useUrdu ? 'اگلے مرحلے پر جائیں' : 'PROCEED TO NEXT STEP'}</span>
                   </button>
                 ) : (
@@ -1675,7 +1681,7 @@ const SmartOrderForm = () => {
                     disabled={loading || isSubmitting}
                     className="w-full py-5 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-emerald-900/50 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3 disabled:opacity-50"
                   >
-                    <CheckCircle2 size={20} />
+                    <CheckCircle2 size={16} />
                     <span>{useUrdu ? 'آرڈر جمع کرائیں' : 'CHECKOUT ORDER'}</span>
                   </button>
                 )}
@@ -1701,14 +1707,14 @@ const SmartOrderForm = () => {
                 </div>
                 <div>
                   <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">Customization Details</h2>
-                  <p className="theme-text-muted text-[10px] font-black uppercase tracking-widest mt-1">Configure your product</p>
+                  <p className="theme-text-muted text-[9px] md:text-[10px] font-black uppercase tracking-widest mt-1">Configure your product</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                 {/* Custom Name / Text */}
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-2">Custom Name / Text</label>
+                  <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-2">Custom Name / Text</label>
                   <input
                     type="text"
                     value={customModalData.nameText}
@@ -1720,26 +1726,26 @@ const SmartOrderForm = () => {
 
                 {/* Placement */}
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-2">Placement</label>
+                  <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-2">Placement</label>
                   <div className="flex p-1.5 theme-bg rounded-[1.2rem] border-2 theme-border">
                     <button
                       type="button"
                       onClick={() => setCustomModalData({...customModalData, placement: 'left'})}
-                      className={`flex-1 py-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${customModalData.placement === 'left' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+                      className={`flex-1 py-3 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all ${customModalData.placement === 'left' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
                     >
                       Left Side
                     </button>
                     <button
                       type="button"
                       onClick={() => setCustomModalData({...customModalData, placement: 'right'})}
-                      className={`flex-1 py-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${customModalData.placement === 'right' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+                      className={`flex-1 py-3 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all ${customModalData.placement === 'right' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
                     >
                       Right Side
                     </button>
                     <button
                       type="button"
                       onClick={() => setCustomModalData({...customModalData, placement: 'center'})}
-                      className={`flex-1 py-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${customModalData.placement === 'center' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+                      className={`flex-1 py-3 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all ${customModalData.placement === 'center' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
                     >
                       Center
                     </button>
@@ -1748,7 +1754,7 @@ const SmartOrderForm = () => {
 
                 {/* Logo Details */}
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-2">Logo Details</label>
+                  <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-2">Logo Details</label>
                   <textarea
                     value={customModalData.logoDetails}
                     onChange={(e) => setCustomModalData({...customModalData, logoDetails: e.target.value})}
@@ -1759,7 +1765,7 @@ const SmartOrderForm = () => {
 
                 {/* Embroidery / Printing Instructions */}
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-2">Embroidery / Printing Instructions</label>
+                  <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-2">Embroidery / Printing Instructions</label>
                   <textarea
                     value={customModalData.embroideryInstructions}
                     onChange={(e) => setCustomModalData({...customModalData, embroideryInstructions: e.target.value})}
@@ -1770,19 +1776,19 @@ const SmartOrderForm = () => {
 
                 {/* Stitch Type */}
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-2">Stitch Type</label>
+                  <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-2">Stitch Type</label>
                   <div className="flex p-1.5 theme-bg rounded-[1.2rem] border-2 theme-border">
                     <button
                       type="button"
                       onClick={() => setCustomModalData({...customModalData, stitchType: 'single'})}
-                      className={`flex-1 py-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${customModalData.stitchType === 'single' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+                      className={`flex-1 py-3 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all ${customModalData.stitchType === 'single' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
                     >
                       Single
                     </button>
                     <button
                       type="button"
                       onClick={() => setCustomModalData({...customModalData, stitchType: 'double'})}
-                      className={`flex-1 py-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${customModalData.stitchType === 'double' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+                      className={`flex-1 py-3 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all ${customModalData.stitchType === 'double' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
                     >
                       Double
                     </button>
@@ -1791,7 +1797,7 @@ const SmartOrderForm = () => {
 
                 {/* Thread Color */}
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-2">Thread Color</label>
+                  <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-2">Thread Color</label>
                   <select
                     value={customModalData.threadColor}
                     onChange={(e) => setCustomModalData({...customModalData, threadColor: e.target.value})}
@@ -1809,9 +1815,9 @@ const SmartOrderForm = () => {
 
                 {/* Size Adjustment */}
                 <div className="space-y-3 md:col-span-2">
-                  <label className="text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-2">Size Adjustment / Scale: {customModalData.resizeScale}%</label>
+                  <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-2">Size Adjustment / Scale: {customModalData.resizeScale}%</label>
                   <div className="flex items-center gap-4">
-                    <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest w-12 text-right">50%</span>
+                    <span className="text-[9px] md:text-[10px] font-black text-gray-600 uppercase tracking-widest w-12 text-right">50%</span>
                     <input
                       type="range"
                       min="50"
@@ -1820,11 +1826,11 @@ const SmartOrderForm = () => {
                       onChange={(e) => setCustomModalData({...customModalData, resizeScale: parseInt(e.target.value)})}
                       className="flex-1 h-2 bg-gray-800 rounded-full appearance-none cursor-pointer accent-purple-500"
                     />
-                    <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest w-12">200%</span>
+                    <span className="text-[9px] md:text-[10px] font-black text-gray-600 uppercase tracking-widest w-12">200%</span>
                   </div>
                   <div className="flex justify-center mt-2">
                     <div className="theme-bg border-2 theme-border rounded-[1rem] px-6 py-3 inline-flex items-center gap-3">
-                      <span className="text-[10px] font-black theme-text-muted uppercase">Preview Scale:</span>
+                      <span className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase">Preview Scale:</span>
                       <span className="text-lg font-black text-purple-400">{customModalData.resizeScale}%</span>
                     </div>
                   </div>
@@ -1837,7 +1843,7 @@ const SmartOrderForm = () => {
                   onClick={handleCustomizationSave}
                   className="flex-1 py-5 bg-gradient-to-r from-purple-600 to-indigo-700 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-purple-900/50 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3"
                 >
-                  <CheckCircle2 size={20} />
+                  <CheckCircle2 size={16} />
                   <span>Save & Continue</span>
                 </button>
                 <button
@@ -1867,7 +1873,7 @@ const SmartOrderForm = () => {
           >
             <div className="relative">
               <ShoppingCart size={28} />
-              <span className="absolute -top-3 -right-3 bg-pink-500 text-white text-[10px] font-black w-6 h-6 flex items-center justify-center rounded-full border-2 border-gray-900 shadow-lg">
+              <span className="absolute -top-3 -right-3 bg-pink-500 text-white text-[9px] md:text-[10px] font-black w-6 h-6 flex items-center justify-center rounded-full border-2 border-gray-900 shadow-lg">
                 {cartItems.length}
               </span>
             </div>
@@ -1886,10 +1892,10 @@ const SmartOrderForm = () => {
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center space-x-3">
                 <div className="bg-blue-500/20 p-2.5 rounded-2xl">
-                  <ShoppingCart className="text-blue-500" size={24} />
+                  <ShoppingCart className="text-blue-500" size={16} />
                 </div>
                 <h3 className="text-xl font-black theme-text-primary tracking-tight">Your Cart</h3>
-                <span className="bg-gray-800 text-gray-300 text-[10px] font-black px-3 py-1.5 rounded-full ml-2">
+                <span className="bg-gray-800 text-gray-300 text-[9px] md:text-[10px] font-black px-3 py-1.5 rounded-full ml-2">
                   {cartItems.length} Items
                 </span>
               </div>
@@ -1897,7 +1903,7 @@ const SmartOrderForm = () => {
                 onClick={() => setIsCartOpen(false)}
                 className="theme-text-muted hover:text-white hover:bg-gray-800 p-2 rounded-full transition-all active:scale-95"
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
             
@@ -1906,7 +1912,7 @@ const SmartOrderForm = () => {
                 <div key={idx} className="theme-bg-subtle p-4 rounded-2xl flex justify-between items-center border theme-border hover:border-gray-700 transition-colors">
                   <div className="flex-1 min-w-0 pr-4">
                     <p className="text-sm font-black theme-text-primary truncate">{item.productDetails?.productType || 'Custom Item'}</p>
-                    <p className="text-[10px] theme-text-muted font-bold uppercase mt-1 truncate">
+                    <p className="text-[9px] md:text-[10px] theme-text-muted font-bold uppercase mt-1 truncate">
                       {item.quantity}x • {item.productDetails?.size || 'Custom'} • {item.productDetails?.color}
                     </p>
                   </div>
@@ -1927,7 +1933,7 @@ const SmartOrderForm = () => {
               disabled={loading || isSubmitting}
               className="w-full py-5 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-emerald-900/40 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3 disabled:opacity-50"
             >
-              <CheckCircle2 size={20} />
+              <CheckCircle2 size={16} />
               <span>Checkout Order</span>
             </button>
           </motion.div>
@@ -1945,7 +1951,7 @@ const SmartOrderForm = () => {
           </div>
           <div>
             <p className="font-black text-2xl tracking-tighter leading-none uppercase">{useUrdu ? 'آرڈر درج ہوگیا!' : 'Order Placed!'}</p>
-            <p className="text-[10px] font-black text-white/80 mt-2 uppercase tracking-[0.2em]">{useUrdu ? 'پیداواری لائن میں شامل کر دیا گیا' : 'Synced with Production Floor'}</p>
+            <p className="text-[9px] md:text-[10px] font-black text-white/80 mt-2 uppercase tracking-[0.2em]">{useUrdu ? 'پیداواری لائن میں شامل کر دیا گیا' : 'Synced with Production Floor'}</p>
           </div>
         </motion.div>
       )}

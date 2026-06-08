@@ -163,16 +163,16 @@ const History = () => {
   }, [filteredOrders]);
 
   return (
-    <div className="space-y-10 max-w-7xl mx-auto pb-20 px-4">
+    <div className="space-y-6 md:space-y-10 max-w-7xl mx-auto pb-20 px-4">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-10">
-        <div className="flex items-center space-x-6">
+        <div className="flex items-center space-x-3 md:space-x-6">
           <div className="p-4 bg-gradient-to-br from-indigo-600 to-purple-700 rounded-[1.8rem] shadow-2xl shadow-indigo-900/40 rotate-3">
             <HistoryIcon className="text-white" size={32} />
           </div>
           <div className={isUrdu ? 'text-right' : ''}>
-            <h1 className="text-4xl font-black theme-text-primary tracking-tight leading-none">{t('archive')}</h1>
-            <p className="theme-text-muted text-[10px] font-black uppercase tracking-[0.4em] mt-2">{t('performance')}</p>
+            <h1 className="text-2xl md:text-4xl font-black theme-text-primary tracking-tight leading-none">{t('archive')}</h1>
+            <p className="theme-text-muted text-[9px] md:text-[10px] font-black uppercase tracking-[0.4em] mt-2">{t('performance')}</p>
           </div>
         </div>
 
@@ -190,7 +190,7 @@ const History = () => {
             
             <button
               onClick={() => setIsGroupedView(!isGroupedView)}
-              className={`px-8 py-4 theme-bg-subtle border-2 theme-border rounded-2xl theme-text-primary font-black text-[10px] uppercase tracking-[0.2em] hover:bg-gray-800 transition-all flex items-center gap-3 ${useUrdu ? 'flex-row-reverse' : ''}`}
+              className={`px-8 py-4 theme-bg-subtle border-2 theme-border rounded-2xl theme-text-primary font-black text-[9px] md:text-[10px] uppercase tracking-[0.2em] hover:bg-gray-800 transition-all flex items-center gap-3 ${useUrdu ? 'flex-row-reverse' : ''}`}
             >
               {isGroupedView ? <List size={16} /> : <Users size={16} />}
               <span>{isGroupedView ? t('individualView') : t('bulkView')}</span>
@@ -199,7 +199,7 @@ const History = () => {
             {isAdmin && orders.length > 0 && (
               <button
                 onClick={exportToExcel}
-                className="flex items-center gap-3 px-8 py-4 bg-emerald-700 hover:bg-emerald-600 border-2 border-emerald-600 rounded-2xl text-white font-black text-[10px] uppercase tracking-[0.2em] transition-all shadow-xl shadow-emerald-900/30 active:scale-95"
+                className="flex items-center gap-3 px-8 py-4 bg-emerald-700 hover:bg-emerald-600 border-2 border-emerald-600 rounded-2xl text-white font-black text-[9px] md:text-[10px] uppercase tracking-[0.2em] transition-all shadow-xl shadow-emerald-900/30 active:scale-95"
                 title="Export complete history to Excel — Admin Only"
               >
                 <Download size={16} />
@@ -219,7 +219,7 @@ const History = () => {
             <p className="theme-text-muted font-bold text-xs uppercase tracking-widest">Loading archive data...</p>
           </div>
         ) : filteredOrders.length === 0 ? (
-          <div className="glass p-32 text-center rounded-[3rem] border-2 border-dashed theme-border">
+          <div className="glass p-32 text-center rounded-2xl md:rounded-[3rem] border-2 border-dashed theme-border">
             <div className="w-20 h-20 theme-bg rounded-full flex items-center justify-center mx-auto mb-6">
                <FileText className="text-gray-700" size={32} />
             </div>
@@ -235,9 +235,9 @@ const History = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.03 }}
-                className={`glass p-8 rounded-[2.5rem] border theme-border hover:border-indigo-500/30 transition-all group flex flex-col md:flex-row md:items-center justify-between gap-6 ${useUrdu ? 'flex-row-reverse' : ''}`}
+                className={`glass p-4 md:p-8 rounded-[2.5rem] border theme-border hover:border-indigo-500/30 transition-all group flex flex-col md:flex-row md:items-center justify-between gap-6 ${useUrdu ? 'flex-row-reverse' : ''}`}
               >
-                <div className={`flex items-center space-x-6 ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                <div className={`flex items-center space-x-3 md:space-x-6 ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
                   <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
                     <Users size={32} />
                   </div>
@@ -252,10 +252,10 @@ const History = () => {
                   </div>
                 </div>
 
-                <div className={`flex items-center gap-8 ${useUrdu ? 'flex-row-reverse' : ''}`}>
+                <div className={`flex items-center gap-4 md:gap-8 ${useUrdu ? 'flex-row-reverse' : ''}`}>
                   <div className="text-center">
-                    <p className="text-[10px] font-black theme-text-muted uppercase tracking-widest mb-1">{useUrdu ? 'تعداد' : 'QUANTITY'}</p>
-                    <p className="text-3xl font-black theme-text-primary">{group.totalQuantity}</p>
+                    <p className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest mb-1">{useUrdu ? 'تعداد' : 'QUANTITY'}</p>
+                    <p className="text-xl md:text-3xl font-black theme-text-primary">{group.totalQuantity}</p>
                   </div>
                   <button 
                     onClick={() => {
@@ -281,20 +281,20 @@ const History = () => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ delay: i * 0.03 }}
-                className={`glass p-6 rounded-[2rem] border theme-border hover:border-indigo-500/30 transition-all group flex flex-col md:flex-row md:items-center justify-between gap-6 ${useUrdu ? 'flex-row-reverse' : ''}`}
+                className={`glass p-4 md:p-6 rounded-[2rem] border theme-border hover:border-indigo-500/30 transition-all group flex flex-col md:flex-row md:items-center justify-between gap-6 ${useUrdu ? 'flex-row-reverse' : ''}`}
               >
-                <div className={`flex items-center space-x-6 ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                <div className={`flex items-center space-x-3 md:space-x-6 ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
                   <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg transition-transform group-hover:scale-110 ${
                     order.status === 'DELIVERED' ? 'bg-emerald-500/10 text-emerald-500 shadow-emerald-900/10' : 'bg-indigo-500/10 text-indigo-400 shadow-indigo-900/10'
                   }`}>
-                    {order.status === 'DELIVERED' ? <CheckCircle2 size={24} /> : <HistoryIcon size={24} />}
+                    {order.status === 'DELIVERED' ? <CheckCircle2 size={20} /> : <HistoryIcon size={20} />}
                   </div>
                   <div className={useUrdu ? 'text-right' : ''}>
                     <h3 className="font-black text-2xl tracking-tighter theme-text-primary">#{order.orderNumber || order.id.substring(0, 8)}</h3>
                     <div className={`flex items-center mt-1 ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-4'}`}>
                        <span className="theme-text-secondary text-sm font-bold">{order.customerName}</span>
                        <div className="w-1 h-1 bg-gray-700 rounded-full" />
-                       <span className="theme-text-muted text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                       <span className="theme-text-muted text-[9px] md:text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
                          <Users size={10} className="text-indigo-500/50" />
                          {order.outletName === 'FAISAL CONTROL' ? 'ONLINE ORDER' : 
                           order.outletName || (
@@ -308,7 +308,7 @@ const History = () => {
                           )}
                        </span>
                        <div className="w-1 h-1 bg-gray-700 rounded-full" />
-                       <span className="theme-text-muted text-[10px] font-black uppercase tracking-widest flex items-center">
+                       <span className="theme-text-muted text-[9px] md:text-[10px] font-black uppercase tracking-widest flex items-center">
                          <Calendar size={10} className={useUrdu ? "ml-1.5" : "mr-1.5"} />
                          {new Date(order.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
                        </span>
@@ -330,7 +330,7 @@ const History = () => {
                   
                   <button 
                     onClick={() => setSelectedAuditLog(order)}
-                    className="flex items-center space-x-2 theme-bg hover:bg-indigo-600 text-indigo-400 hover:text-white px-5 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border theme-border active:scale-95 group/btn"
+                    className="flex items-center space-x-2 theme-bg hover:bg-indigo-600 text-indigo-400 hover:text-white px-5 py-3 rounded-xl font-black text-[9px] md:text-[10px] uppercase tracking-widest transition-all border theme-border active:scale-95 group/btn"
                   >
                     <span className={useUrdu ? 'order-2' : 'order-1'}>{t('viewAudit')}</span>
                     <ChevronRight size={14} className={`transition-transform ${useUrdu ? 'order-1 rotate-180 group-hover:-translate-x-1' : 'order-2 group-hover/btn:translate-x-1'}`} />
@@ -351,11 +351,11 @@ const History = () => {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 50, scale: 0.95 }}
               onClick={(e) => e.stopPropagation()}
-              className="theme-bg border-2 theme-border rounded-[3rem] w-full max-w-3xl overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.8)]"
+              className="theme-bg border-2 theme-border rounded-2xl md:rounded-[3rem] w-full max-w-3xl overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.8)]"
             >
-              <div className="p-10 border-b theme-border flex justify-between items-center theme-bg-subtle">
+              <div className="p-4 md:p-10 border-b theme-border flex justify-between items-center theme-bg-subtle">
                 <div>
-                  <h3 className="text-3xl font-black theme-text-primary uppercase tracking-tight flex items-center gap-4">
+                  <h3 className="text-xl md:text-3xl font-black theme-text-primary uppercase tracking-tight flex items-center gap-4">
                     <ShieldCheck className="text-indigo-400" size={32} />
                     Audit Trail
                   </h3>
@@ -365,11 +365,11 @@ const History = () => {
                   onClick={() => setSelectedAuditLog(null)} 
                   className="p-3 bg-gray-800 rounded-full theme-text-muted hover:text-white hover:bg-red-500 transition-all active:scale-90"
                 >
-                  <X size={24} />
+                  <X size={20} />
                 </button>
               </div>
               
-              <div className="p-10 max-h-[60vh] overflow-y-auto no-scrollbar space-y-6">
+              <div className="p-4 md:p-10 max-h-[60vh] overflow-y-auto no-scrollbar space-y-4 md:space-y-6">
                 {selectedAuditLog.auditLogs && selectedAuditLog.auditLogs.length > 0 ? (
                   selectedAuditLog.auditLogs
                     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
@@ -387,10 +387,10 @@ const History = () => {
                         'bg-indigo-600 shadow-[0_0_10px_rgba(79,70,229,0.5)]'
                       }`} />
                       
-                      <div className="glass p-6 rounded-2xl border theme-border space-y-3">
+                      <div className="glass p-4 md:p-6 rounded-2xl border theme-border space-y-3">
                         <div className="flex items-center justify-between">
                           <h4 className="text-sm font-black theme-text-primary uppercase tracking-tight">{log.action}</h4>
-                          <span className="text-[10px] font-mono theme-text-muted">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                          <span className="text-[9px] md:text-[10px] font-mono theme-text-muted">{new Date(log.timestamp).toLocaleTimeString()}</span>
                         </div>
                         <div className="flex items-center space-x-3">
                           <div className="w-6 h-6 bg-gray-800 rounded-full flex items-center justify-center">
@@ -399,7 +399,7 @@ const History = () => {
                           <span className="text-xs theme-text-secondary font-bold uppercase tracking-widest">{log.user?.name || log.performedBy}</span>
                         </div>
                         {log.details && (
-                          <p className="text-[11px] theme-text-muted italic theme-bg-subtle p-3 rounded-xl border theme-border">
+                          <p className="text-[9px] md:text-[11px] theme-text-muted italic theme-bg-subtle p-3 rounded-xl border theme-border">
                              "{log.details}"
                           </p>
                         )}
@@ -417,7 +417,7 @@ const History = () => {
                 )}
               </div>
               
-              <div className="p-8 theme-bg-subtle border-t theme-border text-center">
+              <div className="p-4 md:p-8 theme-bg-subtle border-t theme-border text-center">
                  <p className="text-[9px] text-gray-700 font-black uppercase tracking-[0.3em]">Verified Secure Production Audit Trail</p>
               </div>
             </motion.div>

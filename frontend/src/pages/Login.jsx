@@ -145,7 +145,7 @@ const Login = () => {
                 <Loader2 className="animate-spin" size={18} />
               ) : (
                 <>
-                  <span className="uppercase tracking-[0.2em] text-[10px]">{t('Login')}</span>
+                  <span className="uppercase tracking-[0.2em] text-[9px] md:text-[10px]">{t('Login')}</span>
                   <ShieldCheck size={16} className="group-hover/btn:rotate-12 transition-transform" />
                 </>
               )}

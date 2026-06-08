@@ -242,22 +242,22 @@ const AllOrders = () => {
     return Object.values(groups).sort((a, b) => new Date(b.latestOrderDate) - new Date(a.latestOrderDate));
   }, [filteredOrders]);
   return (
-    <div className="space-y-10 max-w-7xl mx-auto pb-20 px-4">
+    <div className="space-y-6 md:space-y-10 max-w-7xl mx-auto pb-20 px-4">
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-10">
-        <div className="flex items-center space-x-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-10">
+        <div className="flex items-center space-x-3 md:space-x-6">
           <div className="p-4 bg-gradient-to-br from-emerald-600 to-teal-700 rounded-[1.8rem] shadow-2xl shadow-emerald-900/40 rotate-3">
             <Package className="text-white" size={32} />
           </div>
           <div>
-            <h1 className="text-4xl font-black theme-text-primary tracking-tight leading-none">Production Queue</h1>
-            <p className="theme-text-muted text-[10px] font-black uppercase tracking-[0.4em] mt-2">Live Monitoring</p>
+            <h1 className="text-2xl md:text-4xl font-black theme-text-primary tracking-tight leading-none">Production Queue</h1>
+            <p className="theme-text-muted text-[9px] md:text-[10px] font-black uppercase tracking-[0.4em] mt-2">Live Monitoring</p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-4">
            <div className="relative group w-full sm:w-72">
-               <Search className="absolute left-6 top-1/2 -translate-y-1/2 theme-text-muted group-focus-within:text-emerald-500 transition-all duration-300" size={20} />
+               <Search className="absolute left-6 top-1/2 -translate-y-1/2 theme-text-muted group-focus-within:text-emerald-500 transition-all duration-300" size={16} />
               <input
                 type="text"
                 placeholder="Search order number or name..."
@@ -269,7 +269,7 @@ const AllOrders = () => {
             
             <button
               onClick={() => setIsGroupedView(!isGroupedView)}
-              className={`px-8 py-4 theme-bg-subtle border-2 theme-border rounded-2xl theme-text-primary font-black text-[10px] uppercase tracking-[0.2em] hover:bg-gray-800 transition-all flex items-center gap-3 ${isUrdu ? 'flex-row-reverse' : ''}`}
+              className={`px-8 py-4 theme-bg-subtle border-2 theme-border rounded-2xl theme-text-primary font-black text-[9px] md:text-[10px] uppercase tracking-[0.2em] hover:bg-gray-800 transition-all flex items-center gap-3 ${isUrdu ? 'flex-row-reverse' : ''}`}
             >
               {isGroupedView ? <List size={16} /> : <Users size={16} />}
               <span>{isGroupedView ? (isUrdu ? 'انفرادی منظر' : 'INDIVIDUAL VIEW') : (isUrdu ? 'بڑی تعداد کا منظر' : 'BULK VIEW')}</span>
@@ -333,9 +333,9 @@ const AllOrders = () => {
         </div>
 
           {showFilters && (
-            <div className="absolute right-0 mt-3 w-72 theme-bg border theme-border rounded-2xl shadow-2xl p-6 z-50 space-y-6">
+            <div className="absolute right-0 mt-3 w-72 theme-bg border theme-border rounded-2xl shadow-2xl p-4 md:p-6 z-50 space-y-6">
               <div className="space-y-3">
-                <label className="text-[10px] font-black theme-text-muted uppercase tracking-widest">Order Status</label>
+                <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest">Order Status</label>
                 <select 
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
@@ -351,7 +351,7 @@ const AllOrders = () => {
               </div>
 
               <div className="space-y-3">
-                <label className="text-[10px] font-black theme-text-muted uppercase tracking-widest">Order Type</label>
+                <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest">Order Type</label>
                 <select 
                   value={filterType}
                   onChange={(e) => setFilterType(e.target.value)}
@@ -365,7 +365,7 @@ const AllOrders = () => {
               </div>
 
               <div className="flex items-center justify-between p-4 theme-bg border theme-border rounded-xl">
-                <span className="text-[10px] font-black theme-text-muted uppercase tracking-widest">Urgent Only</span>
+                <span className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest">Urgent Only</span>
                 <button 
                   onClick={() => setFilterUrgent(!filterUrgent)}
                   className={`w-10 h-5 rounded-full transition-all relative ${filterUrgent ? 'bg-blue-600' : 'bg-gray-800'}`}
@@ -381,7 +381,7 @@ const AllOrders = () => {
                   setFilterUrgent(false);
                   setShowFilters(false);
                 }}
-                className="w-full py-2 text-[10px] font-black uppercase theme-text-muted hover:text-white transition-colors"
+                className="w-full py-2 text-[9px] md:text-[10px] font-black uppercase theme-text-muted hover:text-white transition-colors"
               >
                 Reset Filters
               </button>
@@ -476,7 +476,7 @@ const AllOrders = () => {
                       <div className="text-xs theme-text-secondary font-bold">
                         {new Date(group.latestOrderDate).toLocaleDateString()}
                       </div>
-                      <div className="text-[10px] theme-text-muted mt-1 uppercase font-black tracking-widest">
+                      <div className="text-[9px] md:text-[10px] theme-text-muted mt-1 uppercase font-black tracking-widest">
                         {new Date(group.latestOrderDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     </td>
@@ -516,7 +516,7 @@ const AllOrders = () => {
                         </div>
                       )}
                       {order.customerPhone && (
-                        <div className="text-[10px] theme-text-muted font-bold mt-0.5">
+                        <div className="text-[9px] md:text-[10px] theme-text-muted font-bold mt-0.5">
                           {order.customerPhone}
                         </div>
                       )}
@@ -524,33 +524,33 @@ const AllOrders = () => {
                     <td className="px-6 py-4">
                       <div className="text-sm font-bold theme-text-primary">
                         {product?.productType || 'Standard Item'}
-                        {isMultiItem && <span className="ml-2 text-purple-400 text-[10px] font-black bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">+{rawPd.length - 1} more</span>}
+                        {isMultiItem && <span className="ml-2 text-purple-400 text-[9px] md:text-[10px] font-black bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">+{rawPd.length - 1} more</span>}
                         {order.quantity > 1 && <span className="ml-2 text-blue-400">x{order.quantity}</span>}
                       </div>
                       <div className="flex flex-wrap items-center gap-2 mt-1">
-                        <span className="text-[10px] theme-text-muted font-medium bg-gray-800/50 px-2 py-0.5 rounded border border-gray-700/50">
+                        <span className="text-[9px] md:text-[10px] theme-text-muted font-medium bg-gray-800/50 px-2 py-0.5 rounded border border-gray-700/50">
                           {product?.fabricType || 'STD FABRIC'}
                         </span>
                         {product?.color && (
                           <div className="flex items-center space-x-1 bg-gray-800/50 px-2 py-0.5 rounded border border-gray-700/50">
                             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: product.color.toLowerCase().replace(' ', '') }}></div>
-                            <span className="text-[10px] theme-text-muted font-medium uppercase">{product.color}</span>
+                            <span className="text-[9px] md:text-[10px] theme-text-muted font-medium uppercase">{product.color}</span>
                           </div>
                         )}
-                        <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase ${product?.gender === 'Female' ? 'bg-pink-500/10 text-pink-500' : 'bg-blue-500/10 text-blue-400'}`}>
+                        <span className={`text-[9px] md:text-[10px] font-black px-2 py-0.5 rounded uppercase ${product?.gender === 'Female' ? 'bg-pink-500/10 text-pink-500' : 'bg-blue-500/10 text-blue-400'}`}>
                           {product?.gender || 'MALE'}
                         </span>
                         {product?.femaleOptions?.dupatta && (
                           <span className="text-[9px] font-black bg-pink-600 text-white px-1.5 py-0.5 rounded uppercase">Dupatta</span>
                         )}
                       </div>
-                      <div className="text-[10px] theme-text-muted mt-1">
+                      <div className="text-[9px] md:text-[10px] theme-text-muted mt-1">
                         {order.advancePaid ? 'Payment: Advance' : 'Payment: Pending'}
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-2">
-                        <span className={`bg-gray-800 px-2 py-1 rounded-md text-[10px] font-black border border-gray-700 uppercase tracking-wider ${isWaitingApproval ? 'text-yellow-400 border-yellow-400/30' : 'text-gray-300'}`}>
+                        <span className={`bg-gray-800 px-2 py-1 rounded-md text-[9px] md:text-[10px] font-black border border-gray-700 uppercase tracking-wider ${isWaitingApproval ? 'text-yellow-400 border-yellow-400/30' : 'text-gray-300'}`}>
                           {isWaitingApproval ? `WAITING: ${order.currentStage.replace(/_/g, ' ')}` : order.currentStage.replace(/_/g, ' ')}
                         </span>
                         
@@ -576,21 +576,21 @@ const AllOrders = () => {
                     </td>
                     <td className="px-6 py-4">
                       {order.priority === 'SUPER_URGENT' ? (
-                        <div className="flex items-center space-x-2 text-red-400 text-[10px] font-black uppercase tracking-widest">
+                        <div className="flex items-center space-x-2 text-red-400 text-[9px] md:text-[10px] font-black uppercase tracking-widest">
                           <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
                           <span>SUPER URGENT</span>
                         </div>
                       ) : order.priority === 'URGENT' ? (
-                        <div className="flex items-center space-x-2 text-amber-400 text-[10px] font-black uppercase tracking-widest">
+                        <div className="flex items-center space-x-2 text-amber-400 text-[9px] md:text-[10px] font-black uppercase tracking-widest">
                           <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
                           <span>URGENT</span>
                         </div>
                       ) : (
-                        <span className="theme-text-muted text-[10px] font-black uppercase tracking-widest">Normal</span>
+                        <span className="theme-text-muted text-[9px] md:text-[10px] font-black uppercase tracking-widest">Normal</span>
                       )}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`text-[10px] font-black px-2 py-1 rounded-full uppercase border ${getStatusStyle(order.status)}`}>
+                      <span className={`text-[9px] md:text-[10px] font-black px-2 py-1 rounded-full uppercase border ${getStatusStyle(order.status)}`}>
                         {order.status.replace(/_/g, ' ')}
                       </span>
                     </td>
@@ -652,18 +652,18 @@ const AllOrders = () => {
             <motion.div 
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              className="relative w-full max-w-4xl theme-bg border theme-border rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+              className="relative w-full max-w-4xl theme-bg border theme-border rounded-xl md:rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
             >
               {/* Modal Header */}
-              <div className="p-8 border-b theme-border flex justify-between items-center theme-bg-subtle backdrop-blur-md sticky top-0 z-10">
+              <div className="p-4 md:p-8 border-b theme-border flex justify-between items-center theme-bg-subtle backdrop-blur-md sticky top-0 z-10">
                 <div>
                   <div className="flex items-center space-x-4 mb-2">
-                    <h2 className="text-4xl font-black tracking-tighter theme-text-primary">#{selectedOrder.orderNumber || selectedOrder.id.substring(0, 8)}</h2>
+                    <h2 className="text-2xl md:text-4xl font-black tracking-tighter theme-text-primary">#{selectedOrder.orderNumber || selectedOrder.id.substring(0, 8)}</h2>
                     <div className="flex items-center gap-2">
-                      <span className={`px-3 py-1 border text-[10px] font-black uppercase tracking-widest rounded-lg ${selectedOrder.source === 'OUTLET' ? 'bg-purple-500/10 border-purple-500/20 text-purple-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'}`}>
+                      <span className={`px-3 py-1 border text-[9px] md:text-[10px] font-black uppercase tracking-widest rounded-lg ${selectedOrder.source === 'OUTLET' ? 'bg-purple-500/10 border-purple-500/20 text-purple-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'}`}>
                         {selectedOrder.source || 'OUTLET'}: {selectedOrder.outletName || 'MAIN'}
                       </span>
-                      <span className="px-3 py-1 bg-gray-800 border border-gray-700 theme-text-secondary text-[10px] font-black uppercase tracking-widest rounded-lg">
+                      <span className="px-3 py-1 bg-gray-800 border border-gray-700 theme-text-secondary text-[9px] md:text-[10px] font-black uppercase tracking-widest rounded-lg">
                         Full Job Sheet
                       </span>
                     </div>
@@ -674,21 +674,21 @@ const AllOrders = () => {
                   onClick={() => setShowModal(false)}
                   className="p-4 hover:bg-gray-800 rounded-full theme-text-secondary transition-colors"
                 >
-                  <X size={24} />
+                  <X size={20} />
                 </button>
               </div>
 
               {/* Modal Content */}
-              <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar theme-text-primary">
+              <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 md:space-y-10 custom-scrollbar theme-text-primary">
                 
                 <section>
-                  <h4 className="text-[11px] font-black text-blue-500 uppercase tracking-[0.3em] mb-6">01. Material & Product Specs</h4>
+                  <h4 className="text-[9px] md:text-[11px] font-black text-blue-500 uppercase tracking-[0.3em] mb-6">01. Material & Product Specs</h4>
                   {isMultiItem ? (
                     <div className="space-y-6">
                       <div className="overflow-x-auto theme-bg border theme-border rounded-3xl p-4">
                         <table className="w-full text-left text-xs border-collapse">
                           <thead>
-                            <tr className="border-b theme-border theme-text-muted uppercase tracking-widest font-black text-[10px]">
+                            <tr className="border-b theme-border theme-text-muted uppercase tracking-widest font-black text-[9px] md:text-[10px]">
                               <th className="pb-3 pl-4">#</th>
                               <th className="pb-3">Product Base</th>
                               <th className="pb-3">Fabric & Color</th>
@@ -715,7 +715,7 @@ const AllOrders = () => {
                                       <span className="ml-2 bg-pink-500/20 text-pink-400 border border-pink-500/30 text-[9px] px-1.5 py-0.5 rounded font-black uppercase">Dupatta</span>
                                     )}
                                     {(c.nameSpelling || hasMeasurements) && (
-                                      <div className="mt-1.5 space-y-1 text-[10px] theme-text-secondary font-normal normal-case">
+                                      <div className="mt-1.5 space-y-1 text-[9px] md:text-[10px] theme-text-secondary font-normal normal-case">
                                         {c.nameSpelling && (
                                           <div>
                                             <span className="font-bold theme-text-muted uppercase tracking-wider text-[9px]">Branding:</span> {c.nameSpelling} ({c.nameColor || 'Standard'}, {c.logoPlacement || 'Standard'})
@@ -731,7 +731,7 @@ const AllOrders = () => {
                                   </td>
                                   <td className="py-4 theme-text-secondary">
                                     <div>{p.fabricType || 'STD FABRIC'}</div>
-                                    <div className="text-[10px] theme-text-muted font-medium uppercase mt-0.5 flex items-center gap-1.5">
+                                    <div className="text-[9px] md:text-[10px] theme-text-muted font-medium uppercase mt-0.5 flex items-center gap-1.5">
                                       {p.color && (
                                         <>
                                           <div className="w-2 h-2 rounded-full border border-gray-800" style={{ backgroundColor: p.color.toLowerCase().replace(' ', '') }}></div>
@@ -758,7 +758,7 @@ const AllOrders = () => {
                       </div>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6">
                       {[
                         { label: 'Product Base', val: product?.productType },
                         { label: 'Fabric Type', val: product?.fabricType },
@@ -768,8 +768,8 @@ const AllOrders = () => {
                         ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
                         { label: 'Payment', val: selectedOrder.paymentStatus || (selectedOrder.advancePaid ? 'ADVANCE' : 'PENDING') }
                       ].filter(i => i.val).map((item, i) => (
-                        <div key={i} className="theme-bg p-6 rounded-3xl border theme-border">
-                          <p className="text-[10px] theme-text-muted font-black uppercase tracking-widest mb-2">{item.label}</p>
+                        <div key={i} className="theme-bg p-4 md:p-6 rounded-3xl border theme-border">
+                          <p className="text-[9px] md:text-[10px] theme-text-muted font-black uppercase tracking-widest mb-2">{item.label}</p>
                           <p className="text-lg font-bold text-gray-200">{item.val || 'STANDARD'}</p>
                         </div>
                       ))}
@@ -778,8 +778,8 @@ const AllOrders = () => {
                 </section>
 
                 {!isMultiItem && selectedOrder.type === 'FULL_CUSTOM' && (
-                  <section className="bg-blue-600/5 p-8 rounded-[2rem] border border-blue-500/10">
-                    <h4 className="text-[11px] font-black text-blue-400 uppercase tracking-[0.3em] mb-6">02. Precise Measurements (Inches)</h4>
+                  <section className="bg-blue-600/5 p-4 md:p-8 rounded-[2rem] border border-blue-500/10">
+                    <h4 className="text-[9px] md:text-[11px] font-black text-blue-400 uppercase tracking-[0.3em] mb-6">02. Precise Measurements (Inches)</h4>
                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                       {Object.entries(sizes || {}).map(([key, val], i) => (
                         <div key={i} className="text-center p-4 theme-bg-subtle rounded-2xl border theme-border shadow-sm">
@@ -803,9 +803,9 @@ const AllOrders = () => {
                   </section>
                 )}
 
-                <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8">
                   <div>
-                    <h4 className="text-[11px] font-black text-emerald-500 uppercase tracking-[0.3em] mb-6">03. Branding & Tailoring</h4>
+                    <h4 className="text-[9px] md:text-[11px] font-black text-emerald-500 uppercase tracking-[0.3em] mb-6">03. Branding & Tailoring</h4>
                     <div className="space-y-4">
                       {[
                         { l: 'Branding Name', v: custom?.nameSpelling },
@@ -815,21 +815,21 @@ const AllOrders = () => {
                         { l: 'Stitching Style', v: custom?.stitchingStyle }
                       ].map((item, i) => (
                         <div key={i} className="flex justify-between items-center p-4 theme-bg rounded-2xl border theme-border">
-                          <span className="text-[11px] theme-text-muted font-bold uppercase tracking-widest">{item.l}</span>
+                          <span className="text-[9px] md:text-[11px] theme-text-muted font-bold uppercase tracking-widest">{item.l}</span>
                           <span className="text-sm font-black text-emerald-400">{item.v || 'N/A'}</span>
                         </div>
                       ))}
                     </div>
                   </div>
                   <div>
-                    <h4 className="text-[11px] font-black text-yellow-500 uppercase tracking-[0.3em] mb-6">04. Design Notes & Reference</h4>
+                    <h4 className="text-[9px] md:text-[11px] font-black text-yellow-500 uppercase tracking-[0.3em] mb-6">04. Design Notes & Reference</h4>
                     <div className="space-y-4">
-                      <div className="bg-yellow-500/5 p-6 rounded-3xl border border-yellow-500/10 italic theme-text-secondary text-sm shadow-inner">
+                      <div className="bg-yellow-500/5 p-4 md:p-6 rounded-3xl border border-yellow-500/10 italic theme-text-secondary text-sm shadow-inner">
                         <p className="text-[9px] text-yellow-600 font-black uppercase mb-2">Instructions:</p>
                         {custom?.designNotes || 'No special design notes.'}
                       </div>
                       {custom?.designReference && (
-                        <div className="bg-blue-500/5 p-6 rounded-3xl border border-blue-500/10 italic theme-text-secondary text-sm shadow-inner">
+                        <div className="bg-blue-500/5 p-4 md:p-6 rounded-3xl border border-blue-500/10 italic theme-text-secondary text-sm shadow-inner">
                           <p className="text-[9px] text-blue-600 font-black uppercase mb-2">Design Cross-Reference:</p>
                           {custom.designReference}
                         </div>
@@ -840,8 +840,8 @@ const AllOrders = () => {
 
                 <section>
                    <div className="flex justify-between items-center mb-6">
-                      <h4 className="text-[11px] font-black text-blue-500 uppercase tracking-[0.3em]">05. Production Timeline</h4>
-                      <span className="text-[10px] font-black theme-text-muted uppercase tracking-widest bg-gray-950 px-3 py-1 rounded-full border border-gray-800">
+                      <h4 className="text-[9px] md:text-[11px] font-black text-blue-500 uppercase tracking-[0.3em]">05. Production Timeline</h4>
+                      <span className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest bg-gray-950 px-3 py-1 rounded-full border border-gray-800">
                         Total Workflow: {
                           (() => {
                             const pipelines = {
@@ -888,14 +888,14 @@ const AllOrders = () => {
                               'theme-bg theme-border'
                             }`}>
                               <div className="flex items-center gap-3">
-                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] md:text-[10px] font-black ${
                                   isCompleted ? 'bg-emerald-500 text-white' : 
                                   isCurrent ? 'bg-blue-500 text-white' : 
                                   'bg-gray-800 theme-text-muted'
                                 }`}>
                                   {i + 1}
                                 </div>
-                                <span className={`text-[10px] font-black uppercase tracking-widest ${isCompleted ? 'text-emerald-400' : isCurrent ? 'text-blue-400' : 'theme-text-muted'}`}>
+                                <span className={`text-[9px] md:text-[10px] font-black uppercase tracking-widest ${isCompleted ? 'text-emerald-400' : isCurrent ? 'text-blue-400' : 'theme-text-muted'}`}>
                                   {stageName.replace(/_/g, ' ')}
                                 </span>
                               </div>
@@ -912,8 +912,8 @@ const AllOrders = () => {
                 </section>
               </div>
 
-              <div className="p-8 theme-bg border-t theme-border flex justify-between items-center">
-                <div className="flex items-center space-x-4 text-[10px] theme-text-muted font-black uppercase tracking-widest">
+              <div className="p-4 md:p-8 theme-bg border-t theme-border flex justify-between items-center">
+                <div className="flex items-center space-x-4 text-[9px] md:text-[10px] theme-text-muted font-black uppercase tracking-widest">
                   <span>Created: {new Date(selectedOrder.createdAt).toLocaleDateString()}</span>
                   <span className="w-1.5 h-1.5 bg-gray-700 rounded-full"></span>
                   <span>Stage: {selectedOrder.currentStage}</span>

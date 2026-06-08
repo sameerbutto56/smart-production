@@ -142,7 +142,7 @@ const OutletStockRequest = () => {
   };
 
   return (
-    <div className="space-y-8 pb-20 px-4">
+    <div className="space-y-4 md:space-y-8 pb-20 px-4">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center space-x-4">
@@ -150,12 +150,12 @@ const OutletStockRequest = () => {
             <Building2 className="text-white" size={28} />
           </div>
           <div>
-            <h1 className="text-3xl font-black theme-text-primary tracking-tight">{outletName}</h1>
+            <h1 className="text-xl md:text-3xl font-black theme-text-primary tracking-tight">{outletName}</h1>
             <p className="theme-text-secondary text-sm font-medium uppercase tracking-widest">Outlet Stock Request Portal</p>
           </div>
         </div>
         <button onClick={fetchData} className="theme-bg-subtle hover:bg-gray-700 theme-text-primary font-black py-3 px-6 rounded-2xl transition-all flex items-center space-x-3 active:scale-95 border theme-border">
-          <RefreshCcw size={20} />
+          <RefreshCcw size={16} />
           <span>Refresh</span>
         </button>
       </div>
@@ -187,7 +187,7 @@ const OutletStockRequest = () => {
         <>
           {/* Stock Request Tab */}
           {activeTab === 'request' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-8">
               {/* Inventory Items */}
               <div className="lg:col-span-2 space-y-6">
                 <div className="relative group">
@@ -221,7 +221,7 @@ const OutletStockRequest = () => {
                         <div className="flex justify-between items-start mb-3">
                           <div>
                             <h3 className="font-black theme-text-primary text-sm">{item.name}</h3>
-                            <p className="text-[10px] font-bold theme-text-muted uppercase tracking-wider">{item.category}</p>
+                            <p className="text-[9px] md:text-[10px] font-bold theme-text-muted uppercase tracking-wider">{item.category}</p>
                           </div>
                           <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${
                             item.stock <= 10 ? 'border-red-500/20 bg-red-500/5 text-red-500' : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-500'
@@ -273,7 +273,7 @@ const OutletStockRequest = () => {
                   <div className="text-center py-10">
                     <Package size={40} className="mx-auto text-gray-700 mb-3" />
                     <p className="theme-text-muted font-black text-xs uppercase tracking-widest">Cart is empty</p>
-                    <p className="text-[10px] theme-text-muted font-bold mt-1">Add items to request stock</p>
+                    <p className="text-[9px] md:text-[10px] theme-text-muted font-bold mt-1">Add items to request stock</p>
                   </div>
                 ) : (
                   <div className="space-y-3 mb-6">
@@ -347,7 +347,7 @@ const OutletStockRequest = () => {
                   <div className="text-center py-16">
                     <ClipboardList size={48} className="mx-auto text-gray-700 mb-4" />
                     <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No requests yet</p>
-                    <p className="text-[10px] theme-text-muted font-bold mt-1">Go to Request Stock tab to place an order</p>
+                    <p className="text-[9px] md:text-[10px] theme-text-muted font-bold mt-1">Go to Request Stock tab to place an order</p>
                   </div>
                 ) : (
                   requests.map((req, i) => {
@@ -373,9 +373,9 @@ const OutletStockRequest = () => {
                                 <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase border ${sc}`}>{req.status.replace('_', ' ')}</span>
                               </div>
                               <div className="flex items-center space-x-4 mt-1">
-                                <p className="text-[10px] font-bold theme-text-muted">Requested: {req.quantity}</p>
-                                <p className="text-[10px] font-bold text-emerald-500">Approved: {req.approvedQty}</p>
-                                <p className="text-[10px] font-bold theme-text-muted">{new Date(req.createdAt).toLocaleDateString()}</p>
+                                <p className="text-[9px] md:text-[10px] font-bold theme-text-muted">Requested: {req.quantity}</p>
+                                <p className="text-[9px] md:text-[10px] font-bold text-emerald-500">Approved: {req.approvedQty}</p>
+                                <p className="text-[9px] md:text-[10px] font-bold theme-text-muted">{new Date(req.createdAt).toLocaleDateString()}</p>
                               </div>
                             </div>
                           </div>

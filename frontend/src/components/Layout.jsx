@@ -105,11 +105,11 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
             </div>
           )}
           <button onClick={isCollapsed ? toggleCollapse : toggle} className={`${isCollapsed ? 'hidden lg:block' : 'lg:hidden'} text-gray-400 hover:text-white`}>
-            {isCollapsed ? <Menu size={24} /> : <X size={24} />}
+            {isCollapsed ? <Menu size={20} /> : <X size={20} />}
           </button>
           {!isCollapsed && (
             <button onClick={toggleCollapse} className="hidden lg:block text-gray-500 hover:text-white">
-              <Menu size={20} />
+              <Menu size={16} />
             </button>
           )}
         </div>
@@ -127,7 +127,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
               }`}
               title={isCollapsed ? t(item.name) : ""}
             >
-              <item.icon size={20} className={location.pathname === item.path ? 'text-white' : 'group-hover:text-blue-400'} />
+              <item.icon size={16} className={location.pathname === item.path ? 'text-white' : 'group-hover:text-blue-400'} />
               {!isCollapsed && <span className="font-bold text-xs tracking-wide">{t(item.name)}</span>}
             </Link>
           ))}
@@ -185,7 +185,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
                 onClick={handleLogout}
                 className="flex items-center space-x-3 w-full p-3 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all font-bold text-xs"
               >
-                <LogOut size={20} />
+                <LogOut size={16} />
                 <span>Logout</span>
               </button>
             </>
@@ -195,7 +195,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
               className="p-3 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all"
               title="Logout"
             >
-              <LogOut size={20} />
+              <LogOut size={16} />
             </button>
           )}
         </div>
@@ -329,7 +329,7 @@ const Layout = () => {
               onClick={() => setIsSidebarOpen(true)}
               className={`${isUrdu ? 'order-last' : ''} lg:hidden p-2 text-gray-400 hover:text-white bg-gray-800 rounded-lg`}
             >
-              <Menu size={20} />
+              <Menu size={16} />
             </button>
             
             {/* Search Input */}
@@ -344,7 +344,7 @@ const Layout = () => {
                     setLocalSearch(e.target.value);
                     setContextSearch(e.target.value);
                   }}
-                  className="w-full bg-gray-900/50 border border-gray-800 rounded-xl py-2.5 pl-12 pr-4 focus:outline-none focus:border-blue-500/50 transition-all text-[11px] font-black uppercase tracking-widest text-white shadow-inner"
+                  className="w-full bg-gray-900/50 border border-gray-800 rounded-xl py-2.5 pl-12 pr-4 focus:outline-none focus:border-blue-500/50 transition-all text-[9px] md:text-[11px] font-black uppercase tracking-widest text-white shadow-inner"
                 />
               </form>
             )}
@@ -353,7 +353,7 @@ const Layout = () => {
           <div className="flex items-center gap-3">
             <LanguageToggle />
             <div className="hidden md:flex flex-col items-end text-right">
-              <span className="text-[10px] font-black text-white uppercase tracking-widest">{user?.role?.replace('_', ' ')}</span>
+              <span className="text-[9px] md:text-[10px] font-black text-white uppercase tracking-widest">{user?.role?.replace('_', ' ')}</span>
               <span className="text-[8px] font-bold text-gray-500 uppercase tracking-tighter">Active Session</span>
             </div>
           </div>
@@ -361,7 +361,7 @@ const Layout = () => {
 
         {systemPaused && (
           <div className="bg-red-600/20 border-b-2 border-red-500/30 px-6 py-3 flex items-center justify-center gap-3 flex-shrink-0">
-            <PauseCircle className="text-red-400 animate-pulse" size={20} />
+            <PauseCircle className="text-red-400 animate-pulse" size={16} />
             <span className="text-red-300 font-black text-xs uppercase tracking-widest">System Paused — All production operations are suspended for holidays</span>
           </div>
         )}

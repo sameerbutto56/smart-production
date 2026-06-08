@@ -120,7 +120,7 @@ const AdminDashboard = () => {
             <div className="flex items-start">
               <div className="flex-shrink-0 pt-0.5">
                 <div className="h-10 w-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
-                  <ClipboardList size={20} />
+                  <ClipboardList size={16} />
                 </div>
               </div>
               <div className="ml-3 flex-1">
@@ -388,7 +388,7 @@ const AdminDashboard = () => {
 
   if (fetchingError && allOrders.length === 0) {
     return (
-      <div className="h-[80vh] flex flex-col items-center justify-center space-y-6 glass rounded-[3rem] border-2 border-red-500/20">
+      <div className="h-[80vh] flex flex-col items-center justify-center space-y-6 glass rounded-2xl md:rounded-[3rem] border-2 border-red-500/20">
         <AlertTriangle className="text-red-500" size={64} />
         <div className="text-center">
           <h2 className="text-2xl font-black theme-text-primary uppercase italic">Connection Fragmented</h2>
@@ -409,20 +409,20 @@ const AdminDashboard = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black theme-text-primary tracking-tight">Control Center</h1>
-          <p className="theme-text-secondary font-bold uppercase tracking-widest text-[10px] mt-1">Production Approval Hub</p>
+          <h1 className="text-xl md:text-3xl font-black theme-text-primary tracking-tight">Control Center</h1>
+          <p className="theme-text-secondary font-bold uppercase tracking-widest text-[9px] md:text-[10px] mt-1">Production Approval Hub</p>
         </div>
         <div className="flex items-center gap-4">
           {systemPaused && (
             <div className="flex items-center gap-2 bg-red-500/20 border border-red-500/30 px-4 py-2.5 rounded-xl">
               <PauseCircle className="text-red-400" size={18} />
-              <span className="text-red-400 font-black text-[10px] uppercase tracking-widest">System Paused</span>
+              <span className="text-red-400 font-black text-[9px] md:text-[10px] uppercase tracking-widest">System Paused</span>
             </div>
           )}
           {user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' ? (<>
           <button
             onClick={() => setShowPauseModal(true)}
-            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all shadow-lg active:scale-95 ${
+            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] transition-all shadow-lg active:scale-95 ${
               systemPaused
                 ? 'bg-emerald-500/10 hover:bg-emerald-500 hover:text-white text-emerald-400 border border-emerald-500/20'
                 : 'bg-red-500/10 hover:bg-red-500 hover:text-white text-red-400 border border-red-500/20'
@@ -435,7 +435,7 @@ const AdminDashboard = () => {
             onClick={() => {
               alert('Notification Alert Broadcasted!');
             }}
-            className="flex items-center gap-2 bg-yellow-500/10 hover:bg-yellow-500 hover:text-white text-yellow-500 border border-yellow-500/20 px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all shadow-lg active:scale-95"
+            className="flex items-center gap-2 bg-yellow-500/10 hover:bg-yellow-500 hover:text-white text-yellow-500 border border-yellow-500/20 px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] transition-all shadow-lg active:scale-95"
           >
             <BellRing size={16} />
             <span>Send Alert</span>
@@ -453,7 +453,7 @@ const AdminDashboard = () => {
         <div className="flex flex-col md:flex-row items-center gap-6 relative z-10">
           <div className="flex items-center space-x-4 shrink-0">
             <div className="p-3 bg-blue-500 rounded-2xl shadow-lg shadow-blue-500/20 rotate-3">
-              <Search className="text-white" size={24} />
+              <Search className="text-white" size={20} />
             </div>
             <div>
               <h2 className="text-xl font-black theme-text-primary uppercase tracking-tight">Search Production</h2>
@@ -462,7 +462,7 @@ const AdminDashboard = () => {
           </div>
 
           <div className="relative flex-1 w-full">
-            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-blue-400 transition-colors" size={24} />
+            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-blue-400 transition-colors" size={20} />
             <input
               type="text"
               placeholder="ENTER ORDER NUMBER (e.g. 070) OR CUSTOMER NAME..."
@@ -530,23 +530,23 @@ const AdminDashboard = () => {
               key={trackedOrder.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mt-12 theme-bg rounded-[2.5rem] p-10 theme-border shadow-2xl"
+              className="mt-6 md:mt-12 theme-bg rounded-xl md:rounded-[2.5rem] p-4 md:p-10 theme-border shadow-2xl"
             >
-              <div className="flex justify-between items-start mb-12">
-                <div className="flex items-center space-x-6">
+              <div className="flex justify-between items-start mb-6 md:mb-12">
+                <div className="flex items-center space-x-3 md:space-x-6">
                   <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-3xl flex items-center justify-center font-black text-2xl shadow-xl">
                     {trackedOrder.customerName.charAt(0)}
                   </div>
                   <div>
                     <h4 className="text-2xl font-black theme-text-primary tracking-tight">{trackedOrder.customerName}</h4>
-                    <p className="theme-text-muted font-bold uppercase tracking-widest text-[10px] mt-1">Order #{trackedOrder.orderNumber || trackedOrder.id.substring(0, 8)}</p>
+                    <p className="theme-text-muted font-bold uppercase tracking-widest text-[9px] md:text-[10px] mt-1">Order #{trackedOrder.orderNumber || trackedOrder.id.substring(0, 8)}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                    <span className="bg-blue-500/10 text-blue-400 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border border-blue-500/20">
+                    <span className="bg-blue-500/10 text-blue-400 px-4 py-2 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest border border-blue-500/20">
                         {trackedOrder.status.replace(/_/g, ' ')}
                     </span>
-                    <p className="text-[10px] theme-text-muted font-black mt-2 uppercase tracking-widest">{trackedOrder.currentStage.replace(/_/g, ' ')} Phase</p>
+                    <p className="text-[9px] md:text-[10px] theme-text-muted font-black mt-2 uppercase tracking-widest">{trackedOrder.currentStage.replace(/_/g, ' ')} Phase</p>
                 </div>
               </div>
 
@@ -612,7 +612,7 @@ const AdminDashboard = () => {
                                   {stageName.replace(/_/g, ' ')}
                                 </span>
                               </div>
-                              <span className={`text-[10px] font-bold font-mono ${isCompleted ? 'text-emerald-600' : isOrderEntry ? 'text-gray-400' : 'text-gray-500'}`}>
+                              <span className={`text-[9px] md:text-[10px] font-bold font-mono ${isCompleted ? 'text-emerald-600' : isOrderEntry ? 'text-gray-400' : 'text-gray-500'}`}>
                                 {displayTime}
                               </span>
                             </div>
@@ -657,7 +657,7 @@ const AdminDashboard = () => {
               </span>
             </div>
             <h3 className="theme-text-muted text-[9px] font-black uppercase tracking-[0.2em]">{stat.title}</h3>
-            <p className="text-3xl font-black theme-text-primary mt-1 tracking-tighter">{stat.value}</p>
+            <p className="text-xl md:text-3xl font-black theme-text-primary mt-1 tracking-tighter">{stat.value}</p>
           </motion.div>
         ))}
       </div>
@@ -671,7 +671,7 @@ const AdminDashboard = () => {
         <div className="flex items-center space-x-3 min-w-max">
           <button
             onClick={() => setFilterStage('ALL')}
-            className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+            className={`px-6 py-3 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all ${
               filterStage === 'ALL' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' : 'theme-bg theme-text-muted hover:text-gray-300'
             }`}
           >
@@ -684,7 +684,7 @@ const AdminDashboard = () => {
               <button
                 key={stage.id}
                 onClick={() => setFilterStage(stage.id)}
-                className={`flex items-center space-x-3 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
+                className={`flex items-center space-x-3 px-6 py-3 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all border ${
                   filterStage === stage.id 
                     ? 'bg-blue-600/10 border-blue-500 text-blue-400 shadow-lg shadow-blue-900/10' 
                     : 'bg-gray-950 border-transparent text-gray-600 hover:border-gray-800 hover:text-gray-400'
@@ -707,7 +707,7 @@ const AdminDashboard = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <div className="p-3 bg-blue-500/10 rounded-2xl">
-                <Package className="text-blue-400" size={24} />
+                <Package className="text-blue-400" size={20} />
               </div>
               <div>
                 <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">{filterStage.replace(/_/g, ' ')} Orders</h2>
@@ -722,7 +722,7 @@ const AdminDashboard = () => {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
             {filteredOrdersByStage.length > 0 ? (
               filteredOrdersByStage.map(order => (
                 <OrderCard 
@@ -733,7 +733,7 @@ const AdminDashboard = () => {
                 />
               ))
             ) : (
-              <div className="col-span-full py-20 text-center glass rounded-[3rem] theme-border">
+              <div className="col-span-full py-6 md:py-20 text-center glass rounded-2xl md:rounded-[3rem] theme-border">
                 <Package className="mx-auto theme-text-muted mb-4" size={48} />
                 <h3 className="theme-text-muted font-black uppercase">No orders in this phase</h3>
               </div>
@@ -744,17 +744,17 @@ const AdminDashboard = () => {
  
       {/* Initiation Queue */}
       {initiationQueue.length > 0 && (
-        <section className="mb-12">
+        <section className="mb-6 md:mb-12">
           <div className="flex items-center space-x-4 mb-8">
             <div className="p-3 bg-blue-500/10 rounded-2xl">
-              <Sparkles className="text-blue-400" size={24} />
+              <Sparkles className="text-blue-400" size={20} />
             </div>
             <div>
               <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">Initiation Queue</h2>
               <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">New orders waiting to start production</p>
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
             {initiationQueue.map(order => (
               <OrderCard 
                 key={order.id} 
@@ -775,7 +775,7 @@ const AdminDashboard = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div className="flex items-center space-x-4">
             <div className="p-3 bg-amber-500/10 rounded-2xl">
-              <ClipboardList className="text-amber-400" size={24} />
+              <ClipboardList className="text-amber-400" size={20} />
             </div>
             <div>
               <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">Delivery Setup</h2>
@@ -796,7 +796,7 @@ const AdminDashboard = () => {
         </div>
 
         {deliverySetupQueue.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
             {deliverySetupQueue.map(order => (
               <OrderCard 
                 key={order.id} 
@@ -807,7 +807,7 @@ const AdminDashboard = () => {
             ))}
           </div>
         ) : (
-          <div className="glass p-16 rounded-[3rem] border border-gray-800 text-center space-y-4">
+          <div className="glass p-4 md:p-16 rounded-2xl md:rounded-[3rem] border border-gray-800 text-center space-y-4">
             <div className="w-20 h-20 bg-gray-900 rounded-full flex items-center justify-center mx-auto border-2 border-gray-800">
               <CheckCircle2 className="text-gray-700" size={40} />
             </div>
@@ -823,7 +823,7 @@ const AdminDashboard = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <div className="p-3 bg-purple-500/10 rounded-2xl">
-                <StoreIcon className="text-purple-400" size={24} />
+                <StoreIcon className="text-purple-400" size={20} />
               </div>
               <div>
                 <h2 className="text-2xl font-black text-white uppercase tracking-tight">Outlet Analytics</h2>
@@ -861,7 +861,7 @@ const AdminDashboard = () => {
                 <button
                   key={r.key}
                   onClick={() => setOutletDateRange(r.key)}
-                  className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                  className={`px-3 py-2 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all ${
                     outletDateRange === r.key ? 'bg-purple-600 text-white' : 'bg-gray-900 text-gray-500 hover:text-gray-300'
                   }`}
                 >
@@ -870,7 +870,7 @@ const AdminDashboard = () => {
               ))}
               <button
                 onClick={() => setOutletDateRange('custom')}
-                className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1 ${
+                className={`px-3 py-2 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1 ${
                   outletDateRange === 'custom' ? 'bg-purple-600 text-white' : 'bg-gray-900 text-gray-500 hover:text-gray-300'
                 }`}
               >
@@ -887,7 +887,7 @@ const AdminDashboard = () => {
                   className="bg-gray-950 border-2 border-gray-800 rounded-xl py-2 px-3 text-xs font-bold text-white outline-none focus:border-purple-500" />
                 <button
                   onClick={() => fetchOutletAnalytics(outletFilter, 'custom')}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-purple-500 transition-all"
+                  className="px-4 py-2 bg-purple-600 text-white rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest hover:bg-purple-500 transition-all"
                 >
                   Apply
                 </button>
@@ -897,7 +897,7 @@ const AdminDashboard = () => {
 
           {/* Analytics Cards */}
           {analyticsLoading ? (
-            <div className="flex items-center justify-center py-16">
+            <div className="flex items-center justify-center py-4 md:py-16">
               <Loader2 className="animate-spin text-purple-500" size={32} />
             </div>
           ) : outletAnalytics ? (
@@ -934,13 +934,13 @@ const AdminDashboard = () => {
                   <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
                     <DollarSign size={12} className="text-emerald-400" /> Total Revenue
                   </p>
-                  <p className="text-3xl font-black text-emerald-400 mt-2">${Number(outletAnalytics.summary.totalRevenue).toLocaleString()}</p>
+                  <p className="text-xl md:text-3xl font-black text-emerald-400 mt-2">${Number(outletAnalytics.summary.totalRevenue).toLocaleString()}</p>
                 </div>
                 <div className="glass rounded-xl p-5 border border-gray-800">
                   <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
                     <ShoppingCart size={12} className="text-blue-400" /> Avg Order Value
                   </p>
-                  <p className="text-3xl font-black text-blue-400 mt-2">${Number(outletAnalytics.summary.avgOrderValue).toFixed(2)}</p>
+                  <p className="text-xl md:text-3xl font-black text-blue-400 mt-2">${Number(outletAnalytics.summary.avgOrderValue).toFixed(2)}</p>
                 </div>
               </div>
 
@@ -951,9 +951,9 @@ const AdminDashboard = () => {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {Object.entries(outletAnalytics.stockRequests).map(([status, data]) => (
                       <div key={status} className="bg-gray-900/50 rounded-lg p-3 border border-gray-800">
-                        <p className="text-[10px] font-black text-gray-400 uppercase">{status}</p>
+                        <p className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase">{status}</p>
                         <p className="text-lg font-black text-white">{data.count} requests</p>
-                        <p className="text-[10px] text-gray-500">{data.totalQty} units</p>
+                        <p className="text-[9px] md:text-[10px] text-gray-500">{data.totalQty} units</p>
                       </div>
                     ))}
                   </div>
@@ -980,9 +980,9 @@ const AdminDashboard = () => {
                           <tr key={o.id} className="border-b border-gray-800/50 text-sm">
                             <td className="py-2 pr-4 font-bold text-white">#{o.orderNumber || o.id.substring(0, 6)}</td>
                             <td className="py-2 pr-4 text-gray-300">{o.customerName}</td>
-                            <td className="py-2 pr-4 text-gray-400 text-[10px]">{o.outletName || '—'}</td>
+                            <td className="py-2 pr-4 text-gray-400 text-[9px] md:text-[10px]">{o.outletName || '—'}</td>
                             <td className="py-2 pr-4">
-                              <span className={`text-[10px] font-black px-2 py-1 rounded ${
+                              <span className={`text-[9px] md:text-[10px] font-black px-2 py-1 rounded ${
                                 o.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' :
                                 o.status === 'IN_PROGRESS' ? 'bg-blue-500/20 text-blue-400' :
                                 o.status === 'PENDING' ? 'bg-yellow-500/20 text-yellow-400' :
@@ -1010,7 +1010,7 @@ const AdminDashboard = () => {
         {showPauseModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-              className="glass max-w-md w-full p-8 rounded-[2rem] border-2 border-gray-800 shadow-[0_50px_100px_rgba(0,0,0,0.5)]">
+              className="glass max-w-md w-full p-4 md:p-8 rounded-[2rem] border-2 border-gray-800 shadow-[0_50px_100px_rgba(0,0,0,0.5)]">
               <div className="flex items-center gap-4 mb-6">
                 <div className={`p-3 rounded-xl ${systemPaused ? 'bg-emerald-500/10' : 'bg-red-500/10'}`}>
                   {systemPaused ? <PlayCircle className="text-emerald-400" size={28} /> : <PauseCircle className="text-red-400" size={28} />}
@@ -1022,7 +1022,7 @@ const AdminDashboard = () => {
               </div>
               <form onSubmit={handleTogglePause} className="space-y-4">
                 <div>
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Confirm Password</label>
+                  <label className="text-[9px] md:text-[10px] font-black text-gray-500 uppercase tracking-widest">Confirm Password</label>
                   <input type="password" value={pausePassword} onChange={(e) => setPausePassword(e.target.value)}
                     className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-xl py-3 px-4 focus:border-red-500 outline-none font-black text-lg text-white mt-2"
                     placeholder="Enter your password" required />
