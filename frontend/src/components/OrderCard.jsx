@@ -380,6 +380,27 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   {(isWaitingApproval || order.status === 'ON_HOLD') && <AlertCircle size={8} />}
                   {order.status === 'ON_HOLD' ? t('Hold') : t(currentStage?.stageName)}
                 </span>
+                {['SUPER_ADMIN', 'ADMIN'].includes(userRole) && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm(`⚠ PERMANENTLY DELETE this order?\n\nOrder #${order.orderNumber || order.id.substring(0, 8)}\nCustomer: ${order.customerName}\n\nThis will restore inventory and create an audit record. THIS CANNOT BE UNDONE.`)) {
+                        axios.delete(`${API_URL}/api/orders/${order.id}`, {
+                          headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
+                        }).then(() => {
+                          toast.success('Order deleted permanently. Inventory restored.');
+                          window.location.reload();
+                        }).catch(err => {
+                          alert(err.response?.data?.message || 'Failed to delete order');
+                        });
+                      }
+                    }}
+                    className="ml-2 p-1.5 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white rounded-lg transition-all border border-red-500/20"
+                    title="Delete order permanently"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                )}
           </div>
 
           <div className="flex flex-col bg-gray-950/50 p-3 rounded-xl border border-gray-800/50 mb-4 gap-2">

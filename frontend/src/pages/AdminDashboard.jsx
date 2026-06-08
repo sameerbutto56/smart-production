@@ -253,9 +253,13 @@ const AdminDashboard = () => {
   };
 
   useEffect(() => {
-    fetchEditRequests();
-    socket.on('global-alert', () => {
+    if (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') {
       fetchEditRequests();
+    }
+    socket.on('global-alert', () => {
+      if (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') {
+        fetchEditRequests();
+      }
     });
     return () => {
       socket.off('global-alert');
@@ -935,7 +939,7 @@ const AdminDashboard = () => {
       </section>
 
       {/* Order Change Requests Dashboard */}
-      {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'FAISAL') && (
+      {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
         <section className="space-y-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
