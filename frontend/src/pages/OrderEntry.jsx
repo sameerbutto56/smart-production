@@ -400,6 +400,34 @@ const SmartOrderForm = () => {
     if (cartItems.length === 0) return;
     if (isSubmitting) return; 
 
+    // Stock validation for all cart items
+    for (const item of cartItems) {
+      const pd = item.productDetails;
+      if (!pd?.productType) continue;
+      const invItem = productsInCategory.find(i => i.name === pd.productType);
+      if (!invItem) continue;
+      const variants = invItem.variants && Array.isArray(invItem.variants) ? invItem.variants : [];
+      let availableStock = 0;
+      if (pd.color && pd.size) {
+        availableStock = variants.filter(v => v.color === pd.color && v.size === pd.size).reduce((s, v) => s + (v.stock || 0), 0);
+      } else if (pd.color) {
+        availableStock = variants.filter(v => v.color === pd.color).reduce((s, v) => s + (v.stock || 0), 0);
+      } else {
+        availableStock = variants.reduce((s, v) => s + (v.stock || 0), 0);
+      }
+      const qty = parseInt(item.quantity) || 1;
+      if (availableStock <= 0) {
+        setError(`"${pd.productType}" is out of stock. Remove it from cart to place order.`);
+        setIsSubmitting(false);
+        return;
+      }
+      if (qty > availableStock) {
+        setError(`"${pd.productType}" only has ${availableStock} units in stock. Reduce quantity to continue.`);
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     setLoading(true);
     setError('');
