@@ -1351,13 +1351,13 @@ const AdminDashboard = () => {
                   <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
                     <DollarSign size={12} className="text-emerald-400" /> Total Revenue
                   </p>
-                  <p className="text-xl md:text-3xl font-black text-emerald-400 mt-2">${Number(outletAnalytics.summary.totalRevenue).toLocaleString()}</p>
+                  <p className="text-xl md:text-3xl font-black text-emerald-400 mt-2">₨{Number(outletAnalytics.summary.totalRevenue).toLocaleString()}</p>
                 </div>
                 <div className="glass rounded-xl p-5 border border-gray-800">
                   <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
                     <ShoppingCart size={12} className="text-blue-400" /> Avg Order Value
                   </p>
-                  <p className="text-xl md:text-3xl font-black text-blue-400 mt-2">${Number(outletAnalytics.summary.avgOrderValue).toFixed(2)}</p>
+                  <p className="text-xl md:text-3xl font-black text-blue-400 mt-2">₨{Number(outletAnalytics.summary.avgOrderValue).toFixed(2)}</p>
                 </div>
               </div>
 
@@ -1406,7 +1406,7 @@ const AdminDashboard = () => {
                                 'bg-red-500/20 text-red-400'
                               }`}>{o.status}</span>
                             </td>
-                            <td className="py-2 pr-4 text-right font-bold text-white">${o.totalPrice || 0}</td>
+                            <td className="py-2 pr-4 text-right font-bold text-white">₨{o.totalPrice || 0}</td>
                           </tr>
                         ))}
                       </tbody>

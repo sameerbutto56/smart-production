@@ -1018,7 +1018,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         { label: 'Order Size', val: product?.size },
                         { label: 'Gender', val: product?.gender },
                         ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
-                        { label: 'Customization Charge', val: `$${order.customizationPrice || 0}` },
+                        { label: 'Customization Charge', val: `₨${order.customizationPrice || 0}` },
                         { label: 'Payment', val: order.paymentStatus }
                       ].filter(i => i.val).map((item, i) => (
                         <div key={i} className="bg-gray-950/50 p-6 rounded-3xl border border-gray-800/50">
@@ -1191,9 +1191,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
 
               {(order.type === 'FULL_CUSTOM' || order.type === 'READY_LOGO') && currentStage?.stageName === 'STORE' && (
                 <div className="space-y-3">
-                  <label className="text-[9px] md:text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-1">Add Customization Amount ($)</label>
+                  <label className="text-[9px] md:text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-1">Add Customization Amount (₨)</label>
                   <div className="relative">
-                    <span className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-500 font-black">$</span>
+                    <span className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-500 font-black">₨</span>
                     <input 
                       type="number"
                       value={customizationAmount}

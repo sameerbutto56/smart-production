@@ -464,7 +464,7 @@ const DeliverySheet = () => {
                     <td>{productSummary}</td>
                     <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{order.quantity}</td>
                     <td>{payMethod === 'ONLINE_TRANSFER' ? 'Online' : 'Cash'}</td>
-                    <td style={{ fontWeight: 'bold' }}>Rs. {Number(order.totalPrice || 0).toLocaleString()}</td>
+                    <td style={{ fontWeight: 'bold' }}>₨ {Number(order.totalPrice || 0).toLocaleString()}</td>
                     <td style={{ fontSize: '9px', color: '#555555' }}>
                       {order.stages?.find(s => s.stageName === 'DELIVERED' || s.stageName === 'OUT_FOR_DELIVERY')?.rejectionReason || ''}
                     </td>
@@ -478,15 +478,15 @@ const DeliverySheet = () => {
         <div className="summary-box">
           <div className="summary-row">
             <span>Total Cash (COD):</span>
-            <span>Rs. {summary.totalCash.toLocaleString()}</span>
+            <span>₨ {summary.totalCash.toLocaleString()}</span>
           </div>
           <div className="summary-row">
             <span>Total Online:</span>
-            <span>Rs. {summary.totalOnline.toLocaleString()}</span>
+            <span>₨ {summary.totalOnline.toLocaleString()}</span>
           </div>
           <div className="summary-row" style={{ fontSize: '14px', borderTop: '2px solid #000000', paddingTop: '6px', marginTop: '6px' }}>
             <span>Total Amount:</span>
-            <span>Rs. {summary.totalAmount.toLocaleString()}</span>
+            <span>₨ {summary.totalAmount.toLocaleString()}</span>
           </div>
         </div>
 
