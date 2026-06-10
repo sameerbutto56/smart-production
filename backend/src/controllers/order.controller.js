@@ -523,14 +523,8 @@ const requestStageCompletion = async (req, res) => {
     // STORE stage: classify items + deduct non-manufactured
     if (currentStage.stageName === 'STORE' && (inventoryStatus === 'have_it' || inventoryStatus === 'Available')) {
       try {
-        const { inventoryItems, productionItems, itemFulfillment } = await classifyOrderItems(order);
-        // Deduct non-manufactured items from inventory
+        const { inventoryItems, productionItems } = await classifyOrderItems(order);
         await deductInventoryItems(order, req.user.id, inventoryItems);
-        // Store fulfillment plan on order
-        await prisma.order.update({
-          where: { id: orderId },
-          data: { itemFulfillment }
-        });
         await createAuditLog(orderId, 'INVENTORY_CONFIRMED',
           `Classified ${inventoryItems.length} inventory item(s) and ${productionItems.length} production item(s). Non-manufactured stock deducted.`,
           req.user.id);
@@ -548,42 +542,21 @@ const requestStageCompletion = async (req, res) => {
     // Create production record when PRODUCTION stage completes
     if (currentStage.stageName === 'PRODUCTION') {
       await createProductionRecordFromOrder(order, 'PRODUCTION');
-      // Mark production items as completed in itemFulfillment
-      const existing = order.itemFulfillment || {};
-      for (const [key, val] of Object.entries(existing)) {
-        if (val.deductionType === 'production') {
-          existing[key].status = 'completed';
-        }
-      }
-      await prisma.order.update({ where: { id: orderId }, data: { itemFulfillment: existing } });
     }
 
     // Determine next stage dynamically
     let actualNextStage = null;
     const stageName = currentStage.stageName;
 
-    if (stageName === 'STORE') {
-      // After STORE: next is LOGO_DESIGN for READY_LOGO/FULL_CUSTOM, DISPATCH for STANDARD
+    if (stageName === 'LOGO_DESIGN') {
+      const { productionItems } = await classifyOrderItems(order);
+      actualNextStage = productionItems.length > 0 ? 'PRODUCTION' : 'DISPATCH';
+    } else {
       const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
       const currentIndex = stages.indexOf(stageName);
-      actualNextStage = stages[currentIndex + 1];
-    } else if (stageName === 'LOGO_DESIGN') {
-      // After LOGO_DESIGN: check if any production items exist
-      const fulfill = order.itemFulfillment;
-      if (fulfill && Object.keys(fulfill).length > 0) {
-        const hasProduction = Object.values(fulfill).some(v => v.deductionType === 'production' && v.status !== 'completed');
-        actualNextStage = hasProduction ? 'PRODUCTION' : 'DISPATCH';
-      } else {
-        // Legacy order without itemFulfillment — use standard pipeline
-        const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
-        const currentIndex = stages.indexOf(stageName);
+      if (currentIndex >= 0 && currentIndex < stages.length - 1) {
         actualNextStage = stages[currentIndex + 1];
       }
-    } else {
-      // Standard pipeline for other stages
-      const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
-      const currentIndex = stages.indexOf(stageName);
-      actualNextStage = stages[currentIndex + 1];
     }
 
     if (actualNextStage) {
@@ -649,12 +622,8 @@ const approveStageCompletion = async (req, res) => {
     // STORE stage classification on approval
     if (currentStageRecord.stageName === 'STORE') {
       try {
-        const { inventoryItems, productionItems, itemFulfillment } = await classifyOrderItems(order);
+        const { inventoryItems, productionItems } = await classifyOrderItems(order);
         await deductInventoryItems(order, req.user.id, inventoryItems);
-        await prisma.order.update({
-          where: { id: orderId },
-          data: { itemFulfillment }
-        });
         await createAuditLog(orderId, 'INVENTORY_CONFIRMED',
           `Classified ${inventoryItems.length} inventory item(s) and ${productionItems.length} production item(s). Non-manufactured stock deducted.`,
           req.user.id);
@@ -666,13 +635,6 @@ const approveStageCompletion = async (req, res) => {
     // Create production record when PRODUCTION stage is approved
     if (currentStageRecord.stageName === 'PRODUCTION') {
       await createProductionRecordFromOrder(order, 'PRODUCTION');
-      const existing = order.itemFulfillment || {};
-      for (const [key, val] of Object.entries(existing)) {
-        if (val.deductionType === 'production') {
-          existing[key].status = 'completed';
-        }
-      }
-      await prisma.order.update({ where: { id: orderId }, data: { itemFulfillment: existing } });
     }
     
     // Update Customization Price, Delivery Method and Delivery Type if provided
@@ -698,16 +660,8 @@ const approveStageCompletion = async (req, res) => {
     let actualNextStage = nextStage;
     if (!actualNextStage) {
       if (currentStageRecord.stageName === 'LOGO_DESIGN') {
-        const orderWithFulfillment = await prisma.order.findUnique({ where: { id: orderId } });
-        const fulfill = orderWithFulfillment?.itemFulfillment;
-        if (fulfill && Object.keys(fulfill).length > 0) {
-          const hasProduction = Object.values(fulfill).some(v => v.deductionType === 'production' && v.status !== 'completed');
-          actualNextStage = hasProduction ? 'PRODUCTION' : 'DISPATCH';
-        } else {
-          const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
-          const currentIndex = stages.indexOf(currentStageRecord.stageName);
-          actualNextStage = stages[currentIndex + 1];
-        }
+        const { productionItems } = await classifyOrderItems(order);
+        actualNextStage = productionItems.length > 0 ? 'PRODUCTION' : 'DISPATCH';
       } else {
         const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
         const currentIndex = stages.indexOf(currentStageRecord.stageName);
@@ -1207,7 +1161,6 @@ const classifyOrderItems = async (order) => {
 
   const inventoryItems = [];
   const productionItems = [];
-  const itemFulfillment = {};
 
   for (const item of items) {
     const pd = item.productDetails || item;
@@ -1215,7 +1168,6 @@ const classifyOrderItems = async (order) => {
     if (!productType) continue;
 
     const quantity = item.quantity || 1;
-    const key = productType.toLowerCase().replace(/\s+/g, '_');
 
     try {
       const invItem = await prisma.inventoryItem.findFirst({
@@ -1224,18 +1176,15 @@ const classifyOrderItems = async (order) => {
 
       if (invItem && invItem.isManufactured === false) {
         inventoryItems.push({ productType, quantity, color: pd.color, size: pd.size, inventoryItem: invItem });
-        itemFulfillment[key] = { productType, quantity, deductionType: 'inventory', status: 'pending' };
       } else {
         productionItems.push({ productType, quantity, color: pd.color, size: pd.size });
-        itemFulfillment[key] = { productType, quantity, deductionType: 'production', status: 'pending' };
       }
     } catch {
       productionItems.push({ productType, quantity, color: pd.color, size: pd.size });
-      itemFulfillment[key] = { productType, quantity, deductionType: 'production', status: 'pending' };
     }
   }
 
-  return { inventoryItems, productionItems, itemFulfillment };
+  return { inventoryItems, productionItems };
 };
 
 const deductInventoryItems = async (order, userId, itemList) => {
@@ -1375,10 +1324,8 @@ const addOrderToInventory = async (req, res) => {
     if (alreadyAdded) return res.status(400).json({ message: 'Inventory already added for this order' });
 
     // Determine which items to add — only production-manufactured items
-    const fulfillment = (order.itemFulfillment && typeof order.itemFulfillment === 'object') ? order.itemFulfillment : {};
-    const productionProductTypes = Object.values(fulfillment)
-      .filter(v => v && v.deductionType === 'production')
-      .map(v => (v.productType || '').toLowerCase());
+    const { productionItems } = await classifyOrderItems(order);
+    const productionProductTypes = productionItems.map(p => p.productType.toLowerCase());
 
     let parsedDetails;
     try {

@@ -836,18 +836,15 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   </div>
                 ) : currentStage?.stageName === 'STORE_RECEIVE' ? (
                   <>
-                    {(order.itemFulfillment || invCheck?.report) && (
+                    {invCheck?.report?.length > 0 && (
                       <div className="w-full mb-3 p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20">
                         <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest text-center mb-2">
                           Production items received — Add to inventory before dispatch
                         </p>
                         <div className="space-y-1">
-                          {(order.itemFulfillment
-                            ? Object.values(order.itemFulfillment).filter(v => v.deductionType === 'production')
-                            : invCheck?.report?.filter(r => r.classification === 'production') || []
-                          ).map((item, idx) => (
+                          {invCheck.report.filter(r => r.classification === 'production').map((item, idx) => (
                             <div key={idx} className="flex items-center justify-between text-[8px]">
-                              <span className="text-amber-300 font-bold">{item.productType || item.itemName} x{item.quantity || item.requiredQty}</span>
+                              <span className="text-amber-300 font-bold">{item.itemName} x{item.requiredQty}</span>
                               <span className="text-amber-500">{item.status === 'completed' ? '✓ Produced' : 'Pending'}</span>
                             </div>
                           ))}
