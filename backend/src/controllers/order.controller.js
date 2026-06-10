@@ -1213,16 +1213,19 @@ const classifyOrderItems = async (order) => {
     const quantity = item.quantity || 1;
     const key = productType.toLowerCase().replace(/\s+/g, '_');
 
-    const invItem = await prisma.inventoryItem.findFirst({
-      where: { name: { contains: productType, mode: 'insensitive' }, category: { not: 'FABRIC' } }
-    });
+    try {
+      const invItem = await prisma.inventoryItem.findFirst({
+        where: { name: { contains: productType, mode: 'insensitive' }, category: { not: 'FABRIC' } }
+      });
 
-    const isManufactured = invItem ? (invItem.isManufactured !== false) : true;
-
-    if (invItem && !isManufactured) {
-      inventoryItems.push({ productType, quantity, color: pd.color, size: pd.size, inventoryItem: invItem });
-      itemFulfillment[key] = { productType, quantity, deductionType: 'inventory', status: 'pending' };
-    } else {
+      if (invItem && invItem.isManufactured === false) {
+        inventoryItems.push({ productType, quantity, color: pd.color, size: pd.size, inventoryItem: invItem });
+        itemFulfillment[key] = { productType, quantity, deductionType: 'inventory', status: 'pending' };
+      } else {
+        productionItems.push({ productType, quantity, color: pd.color, size: pd.size });
+        itemFulfillment[key] = { productType, quantity, deductionType: 'production', status: 'pending' };
+      }
+    } catch {
       productionItems.push({ productType, quantity, color: pd.color, size: pd.size });
       itemFulfillment[key] = { productType, quantity, deductionType: 'production', status: 'pending' };
     }
@@ -1662,14 +1665,58 @@ const checkOrderInventory = async (req, res) => {
 
     const report = [];
     for (const prod of productsToCheck) {
-      const inventoryItem = await prisma.inventoryItem.findFirst({
-        where: {
-          name: { contains: prod.productType, mode: 'insensitive' },
-          category: { not: 'FABRIC' }
-        }
-      });
+      try {
+        const inventoryItem = await prisma.inventoryItem.findFirst({
+          where: {
+            name: { contains: prod.productType, mode: 'insensitive' },
+            category: { not: 'FABRIC' }
+          }
+        });
 
-      if (!inventoryItem) {
+        if (!inventoryItem) {
+          report.push({
+            itemName: prod.productType,
+            requiredQty: prod.quantity,
+            availableQty: 0,
+            status: 'not_found',
+            classification: 'production',
+            variants: []
+          });
+          continue;
+        }
+
+        let availableQty = 0;
+        let variantDetails = [];
+        if (inventoryItem.variants && Array.isArray(inventoryItem.variants)) {
+          variantDetails = inventoryItem.variants.map(v => ({
+            color: v.color,
+            size: v.size,
+            stock: v.stock || 0
+          }));
+          availableQty = inventoryItem.variants.reduce((sum, v) => sum + (v.stock || 0), 0);
+        } else {
+          availableQty = inventoryItem.stock || 0;
+        }
+
+        let status = 'available';
+        if (availableQty === 0) status = 'out_of_stock';
+        else if (availableQty < prod.quantity) status = 'insufficient';
+
+        const classification = inventoryItem.isManufactured === false ? 'inventory' : 'production';
+        report.push({
+          itemId: inventoryItem.id,
+          itemName: inventoryItem.name,
+          category: inventoryItem.category,
+          requiredQty: prod.quantity,
+          availableQty,
+          status,
+          classification,
+          variants: variantDetails,
+          requestedColor: prod.color,
+          requestedSize: prod.size,
+          customization: prod.customization
+        });
+      } catch {
         report.push({
           itemName: prod.productType,
           requiredQty: prod.quantity,
@@ -1678,41 +1725,7 @@ const checkOrderInventory = async (req, res) => {
           classification: 'production',
           variants: []
         });
-        continue;
       }
-
-      // Check variant-specific availability
-      let availableQty = 0;
-      let variantDetails = [];
-      if (inventoryItem.variants && Array.isArray(inventoryItem.variants)) {
-        variantDetails = inventoryItem.variants.map(v => ({
-          color: v.color,
-          size: v.size,
-          stock: v.stock || 0
-        }));
-        availableQty = inventoryItem.variants.reduce((sum, v) => sum + (v.stock || 0), 0);
-      } else {
-        availableQty = inventoryItem.stock || 0;
-      }
-
-      let status = 'available';
-      if (availableQty === 0) status = 'out_of_stock';
-      else if (availableQty < prod.quantity) status = 'insufficient';
-
-      const classification = inventoryItem.isManufactured === false ? 'inventory' : 'production';
-      report.push({
-        itemId: inventoryItem.id,
-        itemName: inventoryItem.name,
-        category: inventoryItem.category,
-        requiredQty: prod.quantity,
-        availableQty,
-        status,
-        classification,
-        variants: variantDetails,
-        requestedColor: prod.color,
-        requestedSize: prod.size,
-        customization: prod.customization
-      });
     }
 
     res.json({
