@@ -1367,7 +1367,12 @@ const addOrderToInventory = async (req, res) => {
       throw e;
     }
     if (!order) return res.status(404).json({ message: 'Order not found' });
-    if (order.inventoryAdded) return res.status(400).json({ message: 'Inventory already added for this order' });
+
+    // Check via audit log if inventory was already added
+    const alreadyAdded = await prisma.auditLog.findFirst({
+      where: { orderId, action: 'INVENTORY_ADDED' }
+    });
+    if (alreadyAdded) return res.status(400).json({ message: 'Inventory already added for this order' });
 
     // Determine which items to add — only production-manufactured items
     const fulfillment = (order.itemFulfillment && typeof order.itemFulfillment === 'object') ? order.itemFulfillment : {};
@@ -1450,11 +1455,6 @@ const addOrderToInventory = async (req, res) => {
         addedItems.push({ name: inventoryItem.name, quantity: qty, action: 'created' });
       }
     }
-
-    await prisma.order.update({
-      where: { id: orderId },
-      data: { inventoryAdded: true }
-    });
 
     await createAuditLog(orderId, 'INVENTORY_ADDED', `Products added to store inventory from production: ${addedItems.map(i => `${i.name} x${i.quantity} (${i.action})`).join(', ')}`, req.user.id);
 

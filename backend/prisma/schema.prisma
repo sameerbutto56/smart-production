@@ -72,7 +72,6 @@ model Order {
   productionCost   Float?     @default(0)
   grossProfit      Float?     @default(0)
   netProfit        Float?     @default(0)
-  inventoryAdded  Boolean    @default(false)
   auditLogs       AuditLog[]
    stages          OrderStage[]
    editRequests    OrderEditRequest[]
