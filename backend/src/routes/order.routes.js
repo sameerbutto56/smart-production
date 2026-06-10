@@ -20,7 +20,11 @@ const {
   setDeliveryType,
   checkOrderInventory,
   getOutletAnalytics,
-  addOrderToInventory
+  addOrderToInventory,
+  manualRouteOrder,
+  markOrderAsSeen,
+  getUnseenOrders,
+  getRoutingHistory
 } = require('../controllers/order.controller');
 const { createEditRequest } = require('../controllers/editRequest.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
@@ -83,5 +87,15 @@ router.get('/outlet-analytics', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']
 
 // Order Edit Request
 router.post('/:orderId/edit-request', authenticate, authorize(['FAISAL', 'ORDER_ENTRY', 'OUTLET']), createEditRequest);
+
+// Manual Routing (Admin/FAISAL only)
+router.post('/:orderId/route', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'FAISAL']), manualRouteOrder);
+
+// Seen/Unseen
+router.post('/:orderId/mark-seen', authenticate, markOrderAsSeen);
+router.get('/unseen-tasks', authenticate, getUnseenOrders);
+
+// Routing History
+router.get('/:orderId/routing-history', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'FAISAL']), getRoutingHistory);
 
 module.exports = router;

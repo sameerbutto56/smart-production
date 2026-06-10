@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw, MessageSquare, History, Target, Trash2, Truck, Users, Phone, ShieldAlert, RotateCcw, Lock, Package } from 'lucide-react';
+import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw, MessageSquare, History, Target, Trash2, Truck, Users, Phone, ShieldAlert, RotateCcw, Lock, Package, AlertTriangle } from 'lucide-react';
 import axios from 'axios';
 import { useLanguage } from '../context/LanguageContext';
 import Button from './Button';
@@ -138,8 +138,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const custom = parseJSON(order.customization);
 
   const pipelines = {
-    'STANDARD': ['ORDER_ENTRY', 'STORE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-    'STANDARD_PRODUCTION': ['ORDER_ENTRY', 'STORE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+    'STANDARD': ['ORDER_ENTRY', 'STORE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
     'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
     'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY']
   };
@@ -698,6 +697,57 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                   <span>Record Payment</span>
                                 </button>
                               )}
+                              <button
+                                onClick={async () => {
+                                  setShowMoreActions(false);
+                                  const dest = prompt('Route Order To:\n(STORE / LOGO_DESIGN / PRODUCTION / STORE_RECEIVE / DISPATCH / OUT_FOR_DELIVERY / ORDER_ENTRY)');
+                                  if (dest) {
+                                    const destUpper = dest.trim().toUpperCase().replace(/ /g, '_');
+                                    const valid = ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'];
+                                    if (valid.includes(destUpper)) {
+                                      try {
+                                        const token = sessionStorage.getItem('token');
+                                        await axios.post(`${API_URL}/api/orders/${order.id}/route`, {
+                                          destinationStage: destUpper,
+                                          remarks: `Manual route from OrderCard by ${userRole}`
+                                        }, { headers: { Authorization: `Bearer ${token}` } });
+                                        toast.success(`Order routed to ${destUpper.replace(/_/g, ' ')}`);
+                                        window.location.reload();
+                                      } catch (err) {
+                                        alert('Route failed: ' + (err.response?.data?.message || err.message));
+                                      }
+                                    } else {
+                                      alert('Invalid destination. Valid: STORE, LOGO_DESIGN, PRODUCTION, STORE_RECEIVE, DISPATCH, OUT_FOR_DELIVERY, ORDER_ENTRY');
+                                    }
+                                  }
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-3 text-[9px] font-black uppercase tracking-wider text-blue-400 hover:bg-blue-500/10 transition-all border-b border-gray-800"
+                              >
+                                <Package size={14} />
+                                <span>Route Order To...</span>
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  setShowMoreActions(false);
+                                  try {
+                                    const token = sessionStorage.getItem('token');
+                                    const res = await axios.get(`${API_URL}/api/orders/${order.id}/routing-history`, {
+                                      headers: { Authorization: `Bearer ${token}` }
+                                    });
+                                    const history = res.data;
+                                    const historyStr = history.map((h, i) =>
+                                      `${i + 1}. ${h.previousStage} → ${h.newStage} by ${h.sentBy || 'System'} (${new Date(h.createdAt).toLocaleString()})${h.remarks ? ': ' + h.remarks : ''}`
+                                    ).join('\n');
+                                    alert(historyStr || 'No routing history found for this order.');
+                                  } catch (err) {
+                                    alert('Error fetching routing history');
+                                  }
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-3 text-[9px] font-black uppercase tracking-wider text-purple-400 hover:bg-purple-500/10 transition-all border-b border-gray-800"
+                              >
+                                <History size={14} />
+                                <span>Routing History</span>
+                              </button>
                               {['SUPER_ADMIN', 'ADMIN'].includes(userRole) && (
                                 <button
                                   onClick={() => {
@@ -735,6 +785,24 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               !isFaisal && currentStage?.status !== 'COMPLETED' && (
                 currentStage?.stageName === 'STORE' ? (
                   <>
+                    {/* Route Order To dropdown for manual routing */}
+                    <div className="w-full mb-2 space-y-1.5">
+                      <label className="text-[8px] font-black text-blue-400 uppercase tracking-widest flex items-center gap-1.5">
+                        Route Order To
+                        <span className="px-1 py-0.5 bg-blue-500/10 text-blue-400 rounded text-[7px] tracking-wider">MANUAL</span>
+                      </label>
+                      <select
+                        className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2.5 px-3 outline-none focus:border-blue-500 transition-all text-white text-[10px] font-bold appearance-none"
+                        value={nextStage}
+                        onChange={(e) => setNextStage(e.target.value)}
+                      >
+                        <option value="">Auto-route (default)</option>
+                        <option value="PRODUCTION">Send to Production</option>
+                        <option value="LOGO_DESIGN">Send to Logo Design</option>
+                        <option value="DISPATCH">Send to Dispatch</option>
+                        <option value="ORDER_ENTRY">Return to Order Entry</option>
+                      </select>
+                    </div>
                     {/* Inventory Availability Report */}
                     {invCheckLoading ? (
                       <div className="w-full p-4 bg-gray-900/30 rounded-2xl border border-gray-800 flex items-center justify-center space-x-3">
@@ -749,7 +817,6 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             {invCheckExpanded ? 'Collapse' : 'Details'}
                           </button>
                         </div>
-                        {/* Summary badges */}
                         <div className="flex flex-wrap gap-2">
                           <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase border border-emerald-500/20 bg-emerald-500/10 text-emerald-400">
                             {invCheck.summary.available} Available
@@ -765,7 +832,6 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             </span>
                           )}
                         </div>
-                        {/* Detailed table */}
                         {invCheckExpanded && (
                           <div className="overflow-x-auto bg-gray-950/50 rounded-xl border border-gray-800">
                             <table className="w-full text-[9px] md:text-[10px]">
@@ -823,14 +889,15 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         onClick={() => {
-                          if (window.confirm('Confirm classification and route items?')) {
-                            onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Available' });
+                          const msg = nextStage ? `Route to ${nextStage.replace(/_/g, ' ')}?` : 'Confirm classification and route items?';
+                          if (window.confirm(msg)) {
+                            onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Available', nextStage: nextStage || undefined });
                           }
                         }}
                         className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-[9px] md:text-xs font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
                       >
                         <CheckCircle size={14} />
-                        <span>Process & Route</span>
+                        <span>{nextStage ? `Route to ${nextStage.replace(/_/g, ' ')}` : 'Process & Route'}</span>
                       </button>
                       <button
                         onClick={() => {
@@ -872,21 +939,11 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   </div>
                 ) : currentStage?.stageName === 'STORE_RECEIVE' ? (
                   <>
-                    {invCheck?.report?.length > 0 && (
-                      <div className="w-full mb-3 p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20">
-                        <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest text-center mb-2">
-                          Production items received — Add to inventory before dispatch
-                        </p>
-                        <div className="space-y-1">
-                          {invCheck.report.filter(r => r.classification === 'production').map((item, idx) => (
-                            <div key={idx} className="flex items-center justify-between text-[8px]">
-                              <span className="text-amber-300 font-bold">{item.itemName} x{item.requiredQty}</span>
-                              <span className="text-amber-500">{item.status === 'completed' ? '✓ Produced' : 'Pending'}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                    <div className="w-full mb-3 p-3 bg-blue-600/10 rounded-2xl border border-blue-500/30">
+                      <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest text-center">
+                        Items returned from Production
+                      </p>
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         onClick={async () => {
@@ -1295,20 +1352,27 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
             
             <div className="space-y-6 mb-8">
               <div className="space-y-3">
-                <label className="text-[9px] md:text-[10px] font-black text-blue-500 uppercase tracking-widest ml-1">Destination Stage</label>
-                <select 
-                  className="w-full bg-gray-950 border-2 border-gray-800 rounded-2xl py-4 px-6 outline-none focus:border-blue-500 transition-all text-white font-bold text-sm appearance-none"
-                  onChange={(e) => setNextStage(e.target.value)}
-                  value={nextStage || ''}
-                >
-                  <option value="">Select Next Stage...</option>
-                  <option value="STORE">Send to STORE</option>
-                  <option value="LOGO_DESIGN">Send to LOGO & NAME DESIGN</option>
-                  <option value="PRODUCTION">Send to PRODUCTION</option>
-                  <option value="STORE_RECEIVE">Send to STORE (Receive from Production)</option>
-                  <option value="DISPATCH">Send to DISPATCH</option>
-                  <option value="OUT_FOR_DELIVERY">Send to DELIVERY</option>
-                </select>
+                    <label className="text-[9px] md:text-[10px] font-black text-blue-500 uppercase tracking-widest ml-1 flex items-center gap-2">
+                      <span>Route Order To</span>
+                      <span className="px-1.5 py-0.5 bg-blue-500/10 text-blue-400 rounded text-[7px] font-black tracking-wider">MANUAL</span>
+                    </label>
+                    <select 
+                      className="w-full bg-gray-950 border-2 border-gray-800 rounded-2xl py-4 px-6 outline-none focus:border-blue-500 transition-all text-white font-bold text-sm appearance-none"
+                      onChange={(e) => setNextStage(e.target.value)}
+                      value={nextStage || ''}
+                    >
+                      <option value="">Select destination...</option>
+                      <option value="STORE">Send to STORE</option>
+                      <option value="LOGO_DESIGN">Send to LOGO & NAME DESIGN</option>
+                      <option value="PRODUCTION">Send to PRODUCTION</option>
+                      <option value="STORE_RECEIVE">Send to STORE — Coming From Production</option>
+                      <option value="DISPATCH">Send to DISPATCH</option>
+                      <option value="OUT_FOR_DELIVERY">Send to DELIVERY</option>
+                      <option disabled className="border-t border-gray-800">──────────</option>
+                      <option value="ORDER_ENTRY">Return to ORDER ENTRY</option>
+                      <option value="NOT_AVAILABLE">Mark as NOT AVAILABLE</option>
+                      <option value="REJECT">Reject Order</option>
+                    </select>
               </div>
 
               <div className="space-y-3">

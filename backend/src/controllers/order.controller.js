@@ -19,13 +19,24 @@ const sortByPriority = (orders) => {
 };
 
 const NEXT_STAGES = {
-  'STANDARD': ['STORE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-  'STANDARD_PRODUCTION': ['STORE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+  'STANDARD': ['STORE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
   'READY_LOGO': ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
   'FULL_CUSTOM': ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY']
 };
  
 const AUTO_TRANSITION_STAGES = ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
+
+const getRolesForStage = (stageName) => {
+  const map = {
+    'STORE': ['STORE', 'STORE_EMPLOYEE'],
+    'LOGO_DESIGN': ['LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER'],
+    'PRODUCTION': ['PRODUCTION'],
+    'STORE_RECEIVE': ['STORE', 'STORE_EMPLOYEE'],
+    'DISPATCH': ['DISPATCH', 'MAIN_EMPLOYEE'],
+    'OUT_FOR_DELIVERY': ['OUT_FOR_DELIVERY', 'DELIVERY_BOY']
+  };
+  return map[stageName] || ['ADMIN', 'FAISAL'];
+};
 
 const getStageDurations = async (priority = 'NORMAL') => {
   const setting = await prisma.systemSetting.findUnique({
@@ -512,7 +523,7 @@ const getOrders = async (req, res) => {
 
 const requestStageCompletion = async (req, res) => {
   const { orderId, stageId } = req.params;
-  const { inventoryStatus } = req.body;
+  const { inventoryStatus, nextStage: manualNextStage } = req.body;
 
   try {
     if (await isSystemPaused()) {
@@ -545,30 +556,10 @@ const requestStageCompletion = async (req, res) => {
       await createProductionRecordFromOrder(order, 'PRODUCTION');
     }
 
-    // Determine next stage dynamically
-    let actualNextStage = null;
-    const stageName = currentStage.stageName;
-
-    if (stageName === 'LOGO_DESIGN') {
-      const { productionItems } = await classifyOrderItems(order);
-      actualNextStage = productionItems.length > 0 ? 'PRODUCTION' : 'DISPATCH';
-    } else if (stageName === 'STORE') {
-      const { productionItems } = await classifyOrderItems(order);
-      if (productionItems.length > 0) {
-        // Standard orders needing production get re-typed so subsequent stages follow the production pipeline
-        if (order.type === 'STANDARD') {
-          await prisma.order.update({ where: { id: orderId }, data: { type: 'STANDARD_PRODUCTION' } });
-          order.type = 'STANDARD_PRODUCTION';
-        }
-        actualNextStage = 'PRODUCTION';
-      } else {
-        const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
-        const currentIndex = stages.indexOf(stageName);
-        if (currentIndex >= 0 && currentIndex < stages.length - 1) {
-          actualNextStage = stages[currentIndex + 1];
-        }
-      }
-    } else {
+    // Determine next stage — use manual route if provided, else auto-advance via pipeline
+    let actualNextStage = manualNextStage || null;
+    if (!actualNextStage) {
+      const stageName = currentStage.stageName;
       const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
       const currentIndex = stages.indexOf(stageName);
       if (currentIndex >= 0 && currentIndex < stages.length - 1) {
@@ -595,7 +586,34 @@ const requestStageCompletion = async (req, res) => {
         data: { currentStage: actualNextStage }
       });
 
-      await createAuditLog(orderId, 'STAGE_AUTO_TRANSITION', `${currentStage.stageName} completed. Auto-moved to ${actualNextStage}.`, req.user.id);
+      // Log routing history
+      const recipientUsers = await prisma.user.findMany({
+        where: { role: { in: getRolesForStage(actualNextStage) } },
+        select: { id: true }
+      });
+      await prisma.routingHistory.create({
+        data: {
+          orderId,
+          sentByUserId: req.user.id,
+          sentToStage: actualNextStage,
+          sentToUserIds: JSON.stringify(recipientUsers.map(u => u.id)),
+          previousStage: currentStage.stageName,
+          newStage: actualNextStage,
+          remarks: manualNextStage ? `Manually routed to ${actualNextStage} by ${req.user.name || 'Worker'}` : `Auto-advanced to ${actualNextStage}`,
+          createdAt: new Date()
+        }
+      }).catch(e => console.error('Routing history log error:', e));
+
+      // Reset seen status for recipients
+      for (const user of recipientUsers) {
+        await prisma.seenTask.deleteMany({
+          where: { userId: user.id, orderId, stageName: actualNextStage }
+        }).catch(() => {});
+      }
+
+      await createAuditLog(orderId, manualNextStage ? 'MANUAL_ROUTE' : 'STAGE_AUTO_TRANSITION',
+        `${currentStage.stageName} completed. ${manualNextStage ? `Manually routed to ${actualNextStage}` : `Auto-moved to ${actualNextStage}`}.`,
+        req.user.id);
     } else if (currentStage.stageName === 'OUT_FOR_DELIVERY') {
       // FINAL STAGE COMPLETED
       await prisma.order.update({
@@ -673,29 +691,38 @@ const approveStageCompletion = async (req, res) => {
       });
     }
 
-    // Determine next stage
+    // Determine next stage — use manual nextStage if provided, else auto-advance via pipeline
     let actualNextStage = nextStage;
     if (!actualNextStage) {
-      if (currentStageRecord.stageName === 'LOGO_DESIGN') {
-        const { productionItems } = await classifyOrderItems(order);
-        actualNextStage = productionItems.length > 0 ? 'PRODUCTION' : 'DISPATCH';
-      } else if (currentStageRecord.stageName === 'STORE') {
-        const { productionItems } = await classifyOrderItems(order);
-        if (productionItems.length > 0) {
-          if (order.type === 'STANDARD') {
-            await prisma.order.update({ where: { id: orderId }, data: { type: 'STANDARD_PRODUCTION' } });
-            order.type = 'STANDARD_PRODUCTION';
-          }
-          actualNextStage = 'PRODUCTION';
-        } else {
-          const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
-          const currentIndex = stages.indexOf(currentStageRecord.stageName);
-          actualNextStage = stages[currentIndex + 1];
+      const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
+      const currentIndex = stages.indexOf(currentStageRecord.stageName);
+      actualNextStage = stages[currentIndex + 1];
+    }
+
+    // Log routing history when stage is completed and next stage is known
+    if (actualNextStage) {
+      const recipientUsers = await prisma.user.findMany({
+        where: { role: { in: getRolesForStage(actualNextStage) } },
+        select: { id: true }
+      });
+      await prisma.routingHistory.create({
+        data: {
+          orderId,
+          sentByUserId: req.user.id,
+          sentToStage: actualNextStage,
+          sentToUserIds: JSON.stringify(recipientUsers.map(u => u.id)),
+          previousStage: currentStageRecord.stageName,
+          newStage: actualNextStage,
+          remarks: `Manually routed by ${req.user.name || 'Admin'}`,
+          createdAt: new Date()
         }
-      } else {
-        const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
-        const currentIndex = stages.indexOf(currentStageRecord.stageName);
-        actualNextStage = stages[currentIndex + 1];
+      }).catch(e => console.error('Routing history log error:', e));
+
+      // Mark as unseen for all recipient users
+      for (const user of recipientUsers) {
+        await prisma.seenTask.deleteMany({
+          where: { userId: user.id, orderId, stageName: actualNextStage }
+        }).catch(() => {});
       }
     }
 
@@ -1896,6 +1923,196 @@ const calculateAndRecordRevenue = async (order) => {
   }
 };
 
+// ====== MANUAL ROUTING ======
+const manualRouteOrder = async (req, res) => {
+  const { orderId } = req.params;
+  const { destinationStage, remarks } = req.body;
+
+  try {
+    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: true } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    // Complete current active stage
+    const currentStage = order.stages.find(s =>
+      ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
+    );
+    if (currentStage) {
+      await prisma.orderStage.update({
+        where: { id: currentStage.id },
+        data: { status: 'COMPLETED', completedAt: new Date(), rejectionReason: `Routed to ${destinationStage} by ${req.user.name}` }
+      });
+    }
+
+    // Create destination stage
+    const durations = await getStageDurations(order.priority);
+    const deadline = calculateDeadline(new Date(), durations[destinationStage] || 24);
+    await prisma.orderStage.create({
+      data: { orderId, stageName: destinationStage, status: 'PENDING', deadlineAt: deadline }
+    });
+
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { currentStage: destinationStage, status: 'IN_PROGRESS' }
+    });
+
+    // Record routing history
+    const recipientUsers = await prisma.user.findMany({
+      where: { role: { in: getRolesForStage(destinationStage) } },
+      select: { id: true }
+    });
+    await prisma.routingHistory.create({
+      data: {
+        orderId,
+        sentByUserId: req.user.id,
+        sentToStage: destinationStage,
+        sentToUserIds: JSON.stringify(recipientUsers.map(u => u.id)),
+        previousStage: currentStage?.stageName || 'UNKNOWN',
+        newStage: destinationStage,
+        remarks: remarks || `Manual route by ${req.user.name}`,
+        createdAt: new Date()
+      }
+    });
+
+    // Reset seen status for all recipient users so it appears as Unseen
+    for (const user of recipientUsers) {
+      await prisma.seenTask.deleteMany({
+        where: { userId: user.id, orderId, stageName: destinationStage }
+      }).catch(() => {});
+    }
+
+    await createAuditLog(orderId, 'MANUAL_ROUTE', `Manually routed from ${currentStage?.stageName || 'UNKNOWN'} to ${destinationStage} by ${req.user.name}. Remarks: ${remarks || 'N/A'}`, req.user.id);
+
+    const io = req.app.get('io');
+    io.emit('order-updated', { orderId, createdById: order.createdById });
+
+    res.json({ message: `Order routed to ${destinationStage}`, nextStage: destinationStage });
+  } catch (error) {
+    res.status(500).json({ message: 'Error routing order', error: error.message });
+  }
+};
+
+const getRolesForStageBasedOnRole = (role) => {
+  const map = {
+    'STORE': ['STORE', 'STORE_RECEIVE'],
+    'STORE_EMPLOYEE': ['STORE', 'STORE_RECEIVE'],
+    'PRODUCTION': ['PRODUCTION'],
+    'LOGO_DESIGN': ['LOGO_DESIGN'],
+    'LOGO_DESIGN_EMPLOYEE': ['LOGO_DESIGN'],
+    'LOGO_DESIGNER': ['LOGO_DESIGN'],
+    'DISPATCH': ['DISPATCH'],
+    'MAIN_EMPLOYEE': ['DISPATCH'],
+    'OUT_FOR_DELIVERY': ['OUT_FOR_DELIVERY'],
+  };
+  return map[role] || [];
+};
+
+// ====== SEEN / UNSEEN ======
+const markOrderAsSeen = async (req, res) => {
+  const { orderId } = req.params;
+  const userId = req.user.id;
+
+  try {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    await prisma.seenTask.upsert({
+      where: { userId_orderId_stageName: { userId, orderId, stageName: order.currentStage } },
+      update: { seenAt: new Date() },
+      create: { userId, orderId, stageName: order.currentStage, seenAt: new Date() }
+    });
+
+    res.json({ message: 'Order marked as seen' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error marking as seen', error: error.message });
+  }
+};
+
+const getUnseenOrders = async (req, res) => {
+  const userId = req.user.id;
+  const userRole = req.user.role;
+
+  try {
+    // Find orders that are in stages relevant to this user's role
+    const relevantStages = getRolesForStageBasedOnRole(userRole);
+    const orders = await prisma.order.findMany({
+      where: {
+        currentStage: { in: relevantStages },
+        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
+      },
+      include: {
+        stages: { orderBy: { createdAt: 'desc' } },
+        auditLogs: { orderBy: { timestamp: 'desc' }, take: 5 },
+        createdBy: { select: { name: true } }
+      }
+    });
+
+    // Check which ones have been seen
+    const seenRecords = await prisma.seenTask.findMany({
+      where: {
+        userId,
+        orderId: { in: orders.map(o => o.id) },
+        stageName: { in: orders.map(o => o.currentStage) }
+      }
+    });
+    const seenOrderIds = new Set(seenRecords.map(r => `${r.orderId}-${r.stageName}`));
+
+    const unseen = orders.filter(o => !seenOrderIds.has(`${o.id}-${o.currentStage}`));
+    const seen = orders.filter(o => seenOrderIds.has(`${o.id}-${o.currentStage}`));
+
+    // Sort by priority then creation date
+    const sortOrders = (list) => list.sort((a, b) => {
+      const pa = PRIORITY_ORDER[a.priority] ?? 2;
+      const pb = PRIORITY_ORDER[b.priority] ?? 2;
+      if (pa !== pb) return pa - pb;
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+
+    res.json({ unseen: sortOrders(unseen), seen: sortOrders(seen) });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching unseen orders', error: error.message });
+  }
+};
+
+// ====== ROUTING HISTORY ======
+const getRoutingHistory = async (req, res) => {
+  const { orderId } = req.params;
+
+  try {
+    const history = await prisma.routingHistory.findMany({
+      where: { orderId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        sentByUser: { select: { id: true, name: true } }
+      }
+    });
+
+    // If sentByUser relation doesn't exist due to schema, manually attach user names
+    const enriched = await Promise.all(history.map(async (entry) => {
+      let senderName = 'System';
+      if (entry.sentByUserId) {
+        try {
+          const user = await prisma.user.findUnique({ where: { id: entry.sentByUserId }, select: { name: true } });
+          if (user) senderName = user.name;
+        } catch {}
+      }
+      return {
+        id: entry.id,
+        orderId: entry.orderId,
+        sentBy: senderName,
+        sentToStage: entry.sentToStage,
+        previousStage: entry.previousStage,
+        newStage: entry.newStage,
+        remarks: entry.remarks,
+        createdAt: entry.createdAt
+      };
+    }));
+
+    res.json(enriched);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching routing history', error: error.message });
+  }
+};
+
 module.exports = { 
   createOrder, 
   getOrders, 
@@ -1917,5 +2134,9 @@ module.exports = {
   setDeliveryType,
   checkOrderInventory,
   getOutletAnalytics,
-  addOrderToInventory
+  addOrderToInventory,
+  manualRouteOrder,
+  markOrderAsSeen,
+  getUnseenOrders,
+  getRoutingHistory
 };

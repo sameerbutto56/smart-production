@@ -5,7 +5,7 @@ import OrderCard from '../components/OrderCard';
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
 import { useLanguage } from '../context/LanguageContext';
-import { Search, Filter, Loader2, Sparkles, AlertCircle, Activity, Clock, Target } from 'lucide-react';
+import { Search, Filter, Loader2, Sparkles, AlertCircle, Activity, Clock, Target, History, X } from 'lucide-react';
 import socket from '../socket';
 import toast from 'react-hot-toast';
 
@@ -14,10 +14,13 @@ const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'l
 const MyTasks = () => {
   const { user } = useAuth();
   const { t, LanguageToggle, isUrdu } = useLanguage();
-  const [orders, setOrders] = useState([]);
+  const [unseenOrders, setUnseenOrders] = useState([]);
+  const [seenOrders, setSeenOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const { searchTerm: contextSearch, setSearchTerm: setContextSearch } = useSearch();
   const [searchTerm, setSearchTerm] = useState(contextSearch);
+  const [routingHistory, setRoutingHistory] = useState([]);
+  const [showRoutingHistory, setShowRoutingHistory] = useState(false);
 
   useEffect(() => {
     setSearchTerm(contextSearch);
@@ -27,26 +30,39 @@ const MyTasks = () => {
     setSearchTerm(val);
     setContextSearch(val);
   };
-  const [seenOrders, setSeenOrders] = useState(() => {
-    try {
-      const saved = localStorage.getItem('seen_orders');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+
   const [activeTab, setActiveTab] = useState('unseen');
 
-  const markAsSeen = (orderId) => {
-    setSeenOrders(prev => {
-      const updated = [...new Set([...prev, orderId])];
-      localStorage.setItem('seen_orders', JSON.stringify(updated));
-      return updated;
-    });
-    toast.success('Task accepted! Moved to active list.');
+  const markAsSeen = async (orderId) => {
+    try {
+      const token = sessionStorage.getItem('token');
+      await axios.post(`${API_URL}/api/orders/${orderId}/mark-seen`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      // Move from unseen to seen locally
+      const moved = unseenOrders.filter(o => o.id === orderId);
+      setUnseenOrders(prev => prev.filter(o => o.id !== orderId));
+      setSeenOrders(prev => [...moved, ...prev]);
+      toast.success('Task accepted! Moved to active list.');
+    } catch (error) {
+      console.error('Error marking as seen:', error);
+      toast.error('Failed to mark as seen');
+    }
   };
 
   const [urgencyFilter, setUrgencyFilter] = useState('ALL');
+
+  const fetchRoutingHistory = async () => {
+    try {
+      const token = sessionStorage.getItem('token');
+      const res = await axios.get(`${API_URL}/api/orders/routing-history`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setRoutingHistory(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error('Error fetching routing history:', err);
+    }
+  };
 
   useEffect(() => {
     fetchTasks();
@@ -72,12 +88,24 @@ const MyTasks = () => {
   const fetchTasks = async () => {
     try {
       const token = sessionStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/api/orders?status=active`, {
+      const response = await axios.get(`${API_URL}/api/orders/unseen-tasks`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setOrders(response.data);
+      setUnseenOrders(response.data.unseen || []);
+      setSeenOrders(response.data.seen || []);
     } catch (error) {
       console.error('Error fetching tasks:', error);
+      // Fallback to old endpoint
+      try {
+        const token = sessionStorage.getItem('token');
+        const response = await axios.get(`${API_URL}/api/orders?status=active`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setUnseenOrders(response.data || []);
+        setSeenOrders([]);
+      } catch (e2) {
+        console.error('Fallback error:', e2);
+      }
     } finally {
       setLoading(false);
     }
@@ -85,15 +113,6 @@ const MyTasks = () => {
 
   const handleAction = async (orderId, stageId, action, payload = {}) => {
     try {
-      // Auto mark as seen on action
-      if (!seenOrders.includes(orderId)) {
-        setSeenOrders(prev => {
-          const updated = [...new Set([...prev, orderId])];
-          localStorage.setItem('seen_orders', JSON.stringify(updated));
-          return updated;
-        });
-      }
-
       const token = sessionStorage.getItem('token');
       const endpoint = `${API_URL}/api/orders/${orderId}/stages/${stageId}/${action}`;
       await axios.put(endpoint, payload, {
@@ -106,96 +125,26 @@ const MyTasks = () => {
     }
   };
 
-  const shouldShowOrder = (order) => {
-    if (!user) return false;
-    const stageRoleMap = {
-      'STORE': ['STORE', 'STORE_RECEIVE'],
-      'STORE_EMPLOYEE': ['STORE', 'STORE_RECEIVE'],
-      'PRODUCTION': ['PRODUCTION'],
-      'LOGO_DESIGN': ['LOGO_DESIGN'],
-      'LOGO_DESIGN_EMPLOYEE': ['LOGO_DESIGN'],
-      'LOGO_DESIGNER': ['LOGO_DESIGN'],
-      'DISPATCH': ['DISPATCH'],
-      'MAIN_EMPLOYEE': ['DISPATCH'],
-      'OUT_FOR_DELIVERY': ['OUT_FOR_DELIVERY'],
-    };
+  const displayedOrders = useMemo(() => {
+    const source = activeTab === 'unseen' ? unseenOrders : seenOrders;
+    if (!searchTerm || searchTerm.trim() === "") return source;
 
-    const targetStages = stageRoleMap[user.role] || [];
-    
-    if (!targetStages.includes(order.currentStage) || order.status === 'COMPLETED') {
-      return false;
-    }
-
-    const currentStageData = order.stages?.find(s => s.stageName === order.currentStage);
-    if (currentStageData && currentStageData.status === 'WAITING_APPROVAL') {
-      return false;
-    }
-
-    return true;
-  };
-
-  const filteredOrders = useMemo(() => {
-    const result = orders.filter(order => {
-      // 1. Check if order should be visible to this role
-      if (!shouldShowOrder(order)) return false;
-      
-      // 2. Urgency Filter (Apply even if no search term)
-      if (urgencyFilter === 'URGENT' && order.priority === 'NORMAL') return false;
-      if (urgencyFilter === 'STANDARD' && order.priority !== 'NORMAL') return false;
-
-      // 3. If no search term, show everything remaining
-      if (!searchTerm || searchTerm.trim() === "") return true;
-
-      const searchLower = searchTerm.toLowerCase().trim();
-
-      // 4. Check for matches (safely)
+    const searchLower = searchTerm.toLowerCase().trim();
+    return source.filter(order => {
       const nameMatch = (order.customerName || "").toLowerCase().includes(searchLower);
       const idMatch = (order.id || "").toLowerCase().includes(searchLower);
       const orderNumMatch = (order.orderNumber || "").toLowerCase().includes(searchLower);
-
       return nameMatch || idMatch || orderNumMatch;
     });
+  }, [activeTab, unseenOrders, seenOrders, searchTerm]);
 
-    // Sort: Urgent first, then Delayed, then normally by createdAt
-    result.sort((a, b) => {
-      // 1. URGENT
-      const aUrgent = !!a.urgent;
-      const bUrgent = !!b.urgent;
-      if (aUrgent && !bUrgent) return -1;
-      if (!aUrgent && bUrgent) return 1;
-
-      // 2. Delayed
-      const getDelay = (order) => {
-        const stage = order.stages?.find(s => s.stageName === order.currentStage);
-        if (!stage?.deadlineAt || stage.status === 'COMPLETED') return 0;
-        const diff = new Date(stage.deadlineAt).getTime() - new Date().getTime();
-        return diff < 0 ? Math.abs(diff) : 0; // The larger the positive delay, the more delayed
-      };
-
-      const aDelay = getDelay(a);
-      const bDelay = getDelay(b);
-      
-      if (aDelay > 0 || bDelay > 0) {
-        return bDelay - aDelay; // Most delayed first
-      }
-
-      // 3. Fallback to createdAt (oldest first)
-      return new Date(a.createdAt) - new Date(b.createdAt);
-    });
-
-    return result;
-  }, [orders, searchTerm, urgencyFilter, user]);
-
-  // Split into unseen and seen
-  const unseenTasks = useMemo(() => {
-    return filteredOrders.filter(o => !seenOrders.includes(o.id));
-  }, [filteredOrders, seenOrders]);
-
-  const seenTasks = useMemo(() => {
-    return filteredOrders.filter(o => seenOrders.includes(o.id));
-  }, [filteredOrders, seenOrders]);
-
-  const displayedOrders = activeTab === 'unseen' ? unseenTasks : seenTasks;
+  // Apply urgency filter
+  const filteredOrders = useMemo(() => {
+    if (urgencyFilter === 'ALL') return displayedOrders;
+    return displayedOrders.filter(o =>
+      urgencyFilter === 'URGENT' ? o.priority !== 'NORMAL' : o.priority === 'NORMAL'
+    );
+  }, [displayedOrders, urgencyFilter]);
 
   return (
     <div className="space-y-4 md:space-y-8 max-w-7xl mx-auto">
@@ -248,9 +197,9 @@ const MyTasks = () => {
           }`}
         >
           <span>Unseen Tasks</span>
-          {unseenTasks.length > 0 ? (
+          {unseenOrders.length > 0 ? (
             <span className="w-5 h-5 bg-red-500 text-[9px] md:text-[10px] text-white flex items-center justify-center rounded-full font-black animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]">
-              {unseenTasks.length}
+              {unseenOrders.length}
             </span>
           ) : (
             <span className="text-[9px] md:text-[10px] bg-gray-800 theme-text-muted px-2 py-0.5 rounded-full font-black">0</span>
@@ -268,11 +217,22 @@ const MyTasks = () => {
         >
           <span>Active / Seen Tasks</span>
           <span className="text-[9px] md:text-[10px] bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded-full font-black">
-            {seenTasks.length}
+            {seenOrders.length}
           </span>
           {activeTab === 'seen' && (
             <motion.div layoutId="activeTabUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
           )}
+        </button>
+      </div>
+
+      {/* Routing History Button */}
+      <div className="flex items-center gap-2 mb-4">
+        <button
+          onClick={() => { fetchRoutingHistory(); setShowRoutingHistory(true); }}
+          className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-[9px] font-black uppercase tracking-widest text-gray-400 transition-all"
+        >
+          <History size={14} />
+          Routing History
         </button>
       </div>
 
@@ -331,10 +291,10 @@ const MyTasks = () => {
           <Loader2 className="animate-spin text-blue-500" size={48} />
           <p className="theme-text-secondary font-bold uppercase tracking-widest text-xs">Syncing floor data...</p>
         </div>
-      ) : displayedOrders.length > 0 ? (
+      ) : filteredOrders.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-6">
           <AnimatePresence mode="popLayout">
-            {displayedOrders.map((order) => (
+            {filteredOrders.map((order) => (
               <OrderCard 
                 key={order.id} 
                 order={order} 
@@ -367,6 +327,69 @@ const MyTasks = () => {
           </div>
         </motion.div>
       )}
+
+      {/* Routing History Modal */}
+      <AnimatePresence>
+        {showRoutingHistory && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-gray-950/90 backdrop-blur-sm"
+              onClick={() => setShowRoutingHistory(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="relative w-full max-w-2xl bg-gray-900 border border-gray-800 rounded-xl md:rounded-[2.5rem] p-6 shadow-2xl max-h-[80vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-xl font-black text-white uppercase tracking-tight">Routing History</h3>
+                  <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">Complete audit trail</p>
+                </div>
+                <button onClick={() => setShowRoutingHistory(false)} className="p-2 hover:bg-gray-800 rounded-full text-gray-400 transition-colors">
+                  <X size={18} />
+                </button>
+              </div>
+
+              {routingHistory.length === 0 ? (
+                <div className="text-center py-12 text-gray-500 font-black uppercase tracking-widest text-[9px]">
+                  No routing history found
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {routingHistory.map((entry, idx) => (
+                    <div key={entry.id || idx} className="flex items-start gap-4 p-4 bg-gray-950/50 rounded-xl border border-gray-800">
+                      <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <History size={14} className="text-blue-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] font-black text-white">{entry.sentBy || 'System'}</span>
+                          <span className="text-gray-600 text-[8px]">→</span>
+                          <span className="text-[9px] font-black text-blue-400 uppercase tracking-wider">{entry.sentToStage?.replace(/_/g, ' ')}</span>
+                        </div>
+                        <p className="text-[8px] text-gray-500 font-bold">
+                          <span className="text-gray-600">{entry.previousStage?.replace(/_/g, ' ')}</span> → <span className="text-blue-400">{entry.newStage?.replace(/_/g, ' ')}</span>
+                        </p>
+                        {entry.remarks && (
+                          <p className="text-[8px] text-gray-600 italic mt-1">{entry.remarks}</p>
+                        )}
+                        <p className="text-[7px] text-gray-700 font-bold mt-1">
+                          {new Date(entry.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -26,6 +26,7 @@ model User {
   editRequestsRequested OrderEditRequest[] @relation("EditRequestedBy")
   editRequestsReviewed  OrderEditRequest[] @relation("EditReviewedBy")
   deletedOrders         DeletedOrder[] @relation("OrderDeletedBy")
+  routingHistoryEntries  RoutingHistory[] @relation("RoutingHistorySentBy")
 }
 
 model Order {
@@ -268,4 +269,32 @@ model ProductionInventory {
 
   @@index([productionDate])
   @@index([source])
+}
+
+model SeenTask {
+  id        String   @id @default(uuid())
+  userId    String
+  orderId   String
+  stageName String
+  seenAt    DateTime @default(now())
+
+  @@unique([userId, orderId, stageName])
+  @@index([userId, stageName])
+  @@index([orderId])
+}
+
+model RoutingHistory {
+  id              String   @id @default(uuid())
+  orderId         String
+  sentByUserId    String?
+  sentToStage     String
+  sentToUserIds   String?  // JSON array of user IDs who received it
+  previousStage   String
+  newStage        String
+  remarks         String?
+  createdAt       DateTime @default(now())
+  sentByUser      User?    @relation("RoutingHistorySentBy", fields: [sentByUserId], references: [id])
+
+  @@index([orderId])
+  @@index([createdAt])
 }

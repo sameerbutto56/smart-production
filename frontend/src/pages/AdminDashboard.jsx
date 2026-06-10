@@ -61,7 +61,7 @@ const PIPELINE_STAGES = [
   { id: 'STORE', label: 'Store', icon: Package },
   { id: 'LOGO_DESIGN', label: 'Logo Design', icon: Circle },
   { id: 'PRODUCTION', label: 'Production', icon: Circle },
-  { id: 'STORE_RECEIVE', label: 'Store Receive', icon: RotateCcw },
+  { id: 'STORE_RECEIVE', label: 'Coming From Production', icon: RotateCcw },
   { id: 'DISPATCH', label: 'Dispatch', icon: Truck },
   { id: 'OUT_FOR_DELIVERY', label: 'Out for Delivery', icon: Truck },
 ];
@@ -795,7 +795,36 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Pipeline Stage Content */}
-                {filterStage === 'DISPATCH' ? (
+                {filterStage === 'STORE_RECEIVE' ? (
+                  <section className="space-y-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-4">
+                        <div className="p-3 bg-blue-500/10 rounded-2xl">
+                          <RotateCcw className="text-blue-400" size={20} />
+                        </div>
+                        <div>
+                          <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">Coming From Production</h2>
+                          <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">Items returned from production — add to inventory before dispatch</p>
+                        </div>
+                      </div>
+                      <button onClick={() => setFilterStage('ALL')} className="theme-text-muted hover:text-white transition-colors text-xs font-black uppercase tracking-widest flex items-center gap-2">
+                        <X size={14} /> Close
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
+                      {filteredOrdersByStage.length > 0 ? (
+                        filteredOrdersByStage.map(order => (
+                          <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} />
+                        ))
+                      ) : (
+                        <div className="col-span-full py-6 md:py-20 text-center glass rounded-2xl md:rounded-[3rem] theme-border">
+                          <RotateCcw className="mx-auto theme-text-muted mb-4" size={48} />
+                          <h3 className="theme-text-muted font-black uppercase">No items coming from production</h3>
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                ) : filterStage === 'DISPATCH' ? (
                   <section>
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                       <div className="flex items-center space-x-4">
