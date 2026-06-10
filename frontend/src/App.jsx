@@ -19,6 +19,7 @@ import WarehouseDashboard from './pages/WarehouseDashboard';
 import OutletStockRequest from './pages/OutletStockRequest';
 import EditRequestDashboard from './pages/EditRequestDashboard';
 import DeletedOrders from './pages/DeletedOrders';
+import RevenueAnalytics from './pages/RevenueAnalytics';
 import { ThemeProvider } from './context/ThemeContext';
 
 const ProtectedRoute = ({ children }) => {
@@ -81,6 +82,7 @@ function App() {
                   <Route path="outlet-requests" element={<OutletStockRequest />} />
                   <Route path="edit-requests" element={<EditRequestDashboard />} />
                   <Route path="deleted-orders" element={<DeletedOrders />} />
+                  <Route path="revenue-analytics" element={<RevenueAnalytics />} />
                 </Route>
               </Routes>
             </Router>

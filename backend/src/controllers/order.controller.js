@@ -19,12 +19,12 @@ const sortByPriority = (orders) => {
 };
 
 const NEXT_STAGES = {
-  'STANDARD': ['STORE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-  'READY_LOGO': ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-  'FULL_CUSTOM': ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY']
+  'STANDARD': ['STORE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+  'READY_LOGO': ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+  'FULL_CUSTOM': ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY']
 };
  
-const AUTO_TRANSITION_STAGES = ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'];
+const AUTO_TRANSITION_STAGES = ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
 
 const getStageDurations = async (priority = 'NORMAL') => {
   const setting = await prisma.systemSetting.findUnique({
@@ -32,7 +32,7 @@ const getStageDurations = async (priority = 'NORMAL') => {
   });
 
   let config = {
-    stageDurations: { STORE: 24, PRODUCTION: 48, LOGO_DESIGN: 24, DISPATCH: 12, OUT_FOR_DELIVERY: 12 },
+    stageDurations: { STORE: 24, LOGO_DESIGN: 24, PRODUCTION: 48, STORE_RECEIVE: 12, DISPATCH: 12, OUT_FOR_DELIVERY: 12 },
     slaMultipliers: { NORMAL: 1, URGENT: 0.75, SUPER_URGENT: 0.5 }
   };
 
@@ -429,6 +429,8 @@ const requestStageCompletion = async (req, res) => {
         }
       });
       await createAuditLog(orderId, 'ORDER_COMPLETED', `Order fully completed after final delivery stage.`, req.user.id);
+      const completedOrder = await prisma.order.findUnique({ where: { id: orderId } });
+      if (completedOrder) await calculateAndRecordRevenue(completedOrder);
     }
     
     const io = req.app.get('io');
@@ -518,6 +520,9 @@ const approveStageCompletion = async (req, res) => {
         where: { id: orderId },
         data: { status: 'COMPLETED', currentStage: 'COMPLETED' }
       });
+      // Record revenue on completion
+      const completedOrder = await prisma.order.findUnique({ where: { id: orderId } });
+      if (completedOrder) await calculateAndRecordRevenue(completedOrder);
     }
 
     await createAuditLog(orderId, 'STAGE_APPROVED', `${currentStageRecord.stageName} processed. ${actualNextStage ? `Sent to: ${actualNextStage}` : 'Order completed.'}${customizationPrice ? ` | Added Cost: $${customizationPrice}` : ''}${deliveryMethod ? ` | Delivery: ${deliveryMethod}` : ''}`, req.user.id);
@@ -945,6 +950,10 @@ const updateDeliveryStatus = async (req, res) => {
       },
       include: { stages: true }
     });
+
+    if (deliveryStatus === 'DELIVERED') {
+      await calculateAndRecordRevenue(updatedOrder);
+    }
 
     await createAuditLog(
       orderId,
@@ -1382,6 +1391,44 @@ const getOutletAnalytics = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching outlet analytics', error: error.message });
+  }
+};
+
+const calculateAndRecordRevenue = async (order) => {
+  try {
+    const productCost = order.productCost || 0;
+    const logoCharges = order.logoCharges || 0;
+    const namePrintingCharges = order.namePrintingCharges || 0;
+    const customizationCharges = order.customizationPrice || 0;
+    const productionCost = order.productionCost || 0;
+    const totalCost = productCost + logoCharges + namePrintingCharges + customizationCharges + productionCost;
+    const totalRevenue = order.totalPrice || 0;
+    const totalProfit = totalRevenue - totalCost;
+
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { grossProfit: totalProfit, netProfit: totalProfit - (logoCharges + namePrintingCharges + customizationCharges) }
+    });
+
+    await prisma.revenueRecord.create({
+      data: {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        orderType: order.type,
+        source: order.source === 'INTERNAL' || order.source === 'ONLINE' ? 'ONLINE' : 'OUTLET',
+        outletName: order.outletName,
+        orderAmount: totalRevenue,
+        productCost,
+        logoCharges,
+        namePrintingCharges,
+        customizationCharges,
+        productionCost,
+        totalRevenue,
+        totalProfit
+      }
+    });
+  } catch (err) {
+    console.error('Revenue calculation error:', err);
   }
 };
 

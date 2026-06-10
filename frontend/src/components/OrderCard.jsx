@@ -131,9 +131,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const custom = parseJSON(order.customization);
 
   const pipelines = {
-    'STANDARD': ['ORDER_ENTRY', 'STORE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-    'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-    'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY']
+    'STANDARD': ['ORDER_ENTRY', 'STORE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+    'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+    'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY']
   };
 
   const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
@@ -263,6 +263,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
     const stageMap = {
       'NAME_LOGO': ['Name Embroidery', 'Color Check'],
       'CUSTOM_LOGO': ['Logo Design Apply', 'Custom Pattern'],
+      'STORE_RECEIVE': ['Verify Items from Production', 'Check Quality & Quantity', 'Confirm Receipt'],
       'DISPATCH': ['Verify Packing ID', 'Attach Shipping Label', 'Assign to Delivery Partner'],
       'OUT_FOR_DELIVERY': ['Contact Customer', 'Verify Address', 'Deliver Package']
     };
@@ -1131,8 +1132,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 >
                   <option value="">Select Next Stage...</option>
                   <option value="STORE">Send to STORE</option>
-                  <option value="PRODUCTION">Send to PRODUCTION</option>
                   <option value="LOGO_DESIGN">Send to LOGO & NAME DESIGN</option>
+                  <option value="PRODUCTION">Send to PRODUCTION</option>
+                  <option value="STORE_RECEIVE">Send to STORE (Receive from Production)</option>
                   <option value="DISPATCH">Send to DISPATCH</option>
                   <option value="OUT_FOR_DELIVERY">Send to DELIVERY</option>
                 </select>
@@ -1403,6 +1405,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     <option value="STORE">STORE</option>
                     <option value="LOGO_DESIGN">LOGO DESIGN</option>
                     <option value="PRODUCTION">PRODUCTION</option>
+                    <option value="STORE_RECEIVE">STORE RECEIVE</option>
                     <option value="DISPATCH">DISPATCH</option>
                     <option value="OUT_FOR_DELIVERY">OUT FOR DELIVERY</option>
                   </select>

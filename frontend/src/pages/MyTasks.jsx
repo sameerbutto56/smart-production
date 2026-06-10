@@ -109,8 +109,8 @@ const MyTasks = () => {
   const shouldShowOrder = (order) => {
     if (!user) return false;
     const stageRoleMap = {
-      'STORE': ['STORE'],
-      'STORE_EMPLOYEE': ['STORE'],
+      'STORE': ['STORE', 'STORE_RECEIVE'],
+      'STORE_EMPLOYEE': ['STORE', 'STORE_RECEIVE'],
       'PRODUCTION': ['PRODUCTION'],
       'LOGO_DESIGN': ['LOGO_DESIGN'],
       'LOGO_DESIGN_EMPLOYEE': ['LOGO_DESIGN'],

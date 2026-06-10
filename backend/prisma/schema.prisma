@@ -50,7 +50,7 @@ model Order {
   status          String       @default("PENDING")
   deliveryMethod  String?
   advancePaid     Boolean      @default(false)
-  productImage    String?      // NEW: Store product image URL
+  productImage    String?
   source          String       @default("OUTLET")
   outletName      String?
   createdAt       DateTime     @default(now())
@@ -64,7 +64,14 @@ model Order {
   trackingNumber  String?
   courierDetails  Json?
   dispatchStatus  String       @default("PENDING")
-  deliveryType    String?      // PICKUP, IN_CITY, COURIER
+  deliveryType    String?
+  // Revenue / Cost tracking fields
+  productCost      Float?     @default(0)
+  logoCharges      Float?     @default(0)
+  namePrintingCharges Float?  @default(0)
+  productionCost   Float?     @default(0)
+  grossProfit      Float?     @default(0)
+  netProfit        Float?     @default(0)
   auditLogs       AuditLog[]
   stages          OrderStage[]
   editRequests    OrderEditRequest[]
@@ -73,6 +80,29 @@ model Order {
   @@index([status])
   @@index([currentStage])
   @@index([customerPhone])
+}
+
+model RevenueRecord {
+  id              String   @id @default(uuid())
+  orderId         String?
+  orderNumber     String?
+  orderType       String   // STANDARD, READY_LOGO, FULL_CUSTOM
+  source          String   // ONLINE, OUTLET
+  outletName      String?
+  orderAmount     Float    @default(0)
+  productCost     Float    @default(0)
+  logoCharges     Float    @default(0)
+  namePrintingCharges Float @default(0)
+  customizationCharges Float @default(0)
+  productionCost  Float    @default(0)
+  totalRevenue    Float    @default(0)
+  totalProfit     Float    @default(0)
+  createdAt       DateTime @default(now())
+
+  @@index([source])
+  @@index([outletName])
+  @@index([orderType])
+  @@index([createdAt])
 }
 
 model OrderStage {
