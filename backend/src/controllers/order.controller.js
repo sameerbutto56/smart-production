@@ -134,43 +134,47 @@ const createProductionRecordFromOrder = async (order, stageCompleted) => {
       const sellVal = parseFloat(order.totalPrice || 0) / items.length;
       const profit = sellVal - totalCost;
 
-      await prisma.productionRecord.create({
-        data: {
-          productName,
-          quantity: qty,
-          rawMaterialCost: rawCost,
-          productionCost: prodCost,
-          totalCost,
-          sellingValue: sellVal,
-          profit,
-          source: orderSource,
-          orderId: order.id,
-          notes: `Auto-created from order stage completion`,
-          productionDate: new Date()
-        }
-      });
-
-      // Upsert into ProductionInventory
-      const existing = await prisma.productionInventory.findFirst({
-        where: { productName, productionCost: prodCost, sellingValue: sellVal, source: orderSource }
-      });
-      if (existing) {
-        await prisma.productionInventory.update({
-          where: { id: existing.id },
-          data: { quantity: { increment: qty }, profitMargin: sellVal > 0 ? ((sellVal - totalCost) / sellVal) * 100 : 0 }
-        });
-      } else {
-        await prisma.productionInventory.create({
+      try {
+        await prisma.productionRecord.create({
           data: {
             productName,
             quantity: qty,
+            rawMaterialCost: rawCost,
             productionCost: prodCost,
+            totalCost,
             sellingValue: sellVal,
-            profitMargin: sellVal > 0 ? ((sellVal - totalCost) / sellVal) * 100 : 0,
+            profit,
             source: orderSource,
+            orderId: order.id,
+            notes: `Auto-created from order stage completion`,
             productionDate: new Date()
           }
         });
+      } catch (e) {
+        if (e?.code === 'P2021') { continue; }
+        throw e;
+      }
+
+      try {
+        const existing = await prisma.productionInventory.findFirst({
+          where: { productName, productionCost: prodCost, sellingValue: sellVal, source: orderSource }
+        });
+        if (existing) {
+          await prisma.productionInventory.update({
+            where: { id: existing.id },
+            data: { quantity: { increment: qty }, profitMargin: sellVal > 0 ? ((sellVal - totalCost) / sellVal) * 100 : 0 }
+          });
+        } else {
+          await prisma.productionInventory.create({
+            data: {
+              productName, quantity: qty, productionCost: prodCost, sellingValue: sellVal,
+              profitMargin: sellVal > 0 ? ((sellVal - totalCost) / sellVal) * 100 : 0,
+              source: orderSource, productionDate: new Date()
+            }
+          });
+        }
+      } catch (e) {
+        if (e?.code !== 'P2021') throw e;
       }
     }
   } catch (e) {
