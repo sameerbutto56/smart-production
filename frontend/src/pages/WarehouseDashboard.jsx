@@ -227,12 +227,12 @@ const WarehouseDashboard = () => {
 
   // Analytics data
   const outletStats = requests.reduce((acc, r) => {
-    if (!acc[r.outletName]) acc[r.outletName] = { name: r.outletName, requested: 0, approved: 0, pending: 0, count: 0, completed: 0, rejected: 0 };
+    if (!acc[r.outletName]) acc[r.outletName] = { name: r.outletName, requested: 0, approved: 0, pending: 0, count: 0, completed: 0, rejected: 0, received: 0 };
     acc[r.outletName].requested += r.quantity;
     acc[r.outletName].approved += r.approvedQty;
     acc[r.outletName].pending += (r.quantity - r.approvedQty);
     acc[r.outletName].count += 1;
-    if (r.status === 'COMPLETED') acc[r.outletName].completed += 1;
+    if (r.status === 'COMPLETED') { acc[r.outletName].completed += 1; acc[r.outletName].received += r.approvedQty; }
     if (r.status === 'REJECTED') acc[r.outletName].rejected += 1;
     return acc;
   }, {});
@@ -652,7 +652,8 @@ const WarehouseDashboard = () => {
                           </div>
                           {outlet.completed > 0 && (
                             <div className="mt-3 pt-3 border-t theme-border flex justify-between text-[9px] md:text-[10px] font-bold">
-                              <span className="text-purple-400">{outlet.completed} Completed</span>
+                              <span className="text-purple-400">{outlet.completed} Requests Completed</span>
+                              <span className="text-emerald-400">{outlet.received} Products Received</span>
                               {outlet.rejected > 0 && <span className="text-red-400">{outlet.rejected} Rejected</span>}
                             </div>
                           )}

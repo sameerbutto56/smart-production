@@ -203,7 +203,17 @@ const InventoryManagement = () => {
       )) return true;
     }
     return false;
-  });
+  }).sort((a, b) => a.name.localeCompare(b.name));
+
+  const groupedItems = React.useMemo(() => {
+    const groups = {};
+    filteredItems.forEach(item => {
+      const letter = (item.name?.[0] || '#').toUpperCase();
+      if (!groups[letter]) groups[letter] = [];
+      groups[letter].push(item);
+    });
+    return Object.keys(groups).sort().map(letter => ({ letter, items: groups[letter] }));
+  }, [filteredItems]);
 
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this item?')) return;
@@ -353,20 +363,28 @@ const InventoryManagement = () => {
 
       {/* Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-8">
-        <AnimatePresence mode="popLayout">
-          {loading ? (
-            <div className="col-span-full py-32 flex flex-col items-center justify-center space-y-4">
-              <RefreshCcw className="animate-spin text-blue-500" size={48} />
-              <p className="text-gray-500 font-black text-xs uppercase tracking-widest">Accessing Secure Database...</p>
+        {loading ? (
+          <div className="col-span-full py-32 flex flex-col items-center justify-center space-y-4">
+            <RefreshCcw className="animate-spin text-blue-500" size={48} />
+            <p className="text-gray-500 font-black text-xs uppercase tracking-widest">Accessing Secure Database...</p>
+          </div>
+        ) : groupedItems.map(group => [
+          <div key={`header-${group.letter}`} className="col-span-full">
+            <div className="flex items-center gap-3 pt-2 pb-0">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-900/30">
+                <span className="font-black text-white text-lg">{group.letter}</span>
+              </div>
+              <div className="h-px flex-1 bg-gradient-to-r from-emerald-500/20 to-transparent" />
+              <span className="text-[9px] font-bold text-gray-600 uppercase tracking-widest">{group.items.length} items</span>
             </div>
-          ) : filteredItems.map((item, i) => (
+          </div>,
+          ...group.items.map((item, i) => (
             <motion.div
               key={item.id}
               layout
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ delay: i * 0.03 }}
+              transition={{ delay: i * 0.02 }}
               className="glass p-4 md:p-8 rounded-xl md:rounded-[2.5rem] border-2 theme-border hover:border-emerald-500/40 transition-all group relative overflow-hidden"
             >
               <div className="absolute -right-6 -top-6 w-32 h-32 bg-gradient-to-br from-emerald-500/10 to-blue-500/10 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
@@ -458,8 +476,8 @@ const InventoryManagement = () => {
                 </div>
               </div>
             </motion.div>
-          ))}
-        </AnimatePresence>
+          ))
+        ]).flat()}
       </div>
 
       {/* Modal */}

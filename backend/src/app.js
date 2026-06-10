@@ -76,4 +76,4 @@ const safeIo = {
 };
 app.set('io', safeIo);
 
-module.exports = { app, prisma };
+module.exports = app;

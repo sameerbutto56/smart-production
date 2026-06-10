@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw, MessageSquare, History, Target, Trash2, Truck, Users, Phone, ShieldAlert, RotateCcw } from 'lucide-react';
+import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw, MessageSquare, History, Target, Trash2, Truck, Users, Phone, ShieldAlert, RotateCcw, Lock } from 'lucide-react';
 import axios from 'axios';
 import { useLanguage } from '../context/LanguageContext';
 import Button from './Button';
@@ -381,6 +381,11 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   {(isWaitingApproval || order.status === 'ON_HOLD') && <AlertCircle size={8} />}
                   {order.status === 'ON_HOLD' ? t('Hold') : t(currentStage?.stageName)}
                 </span>
+                {!isWaitingApproval && order.status !== 'PENDING' && order.status !== 'REJECTED' && order.status !== 'ON_HOLD' && ['OUTLET'].includes(userRole) && (
+                  <span className="px-1.5 py-0.5 rounded-full text-[8px] font-black tracking-tighter bg-gray-800/50 text-gray-500 border border-gray-700/50 flex items-center gap-0.5">
+                    <Lock size={7} />
+                  </span>
+                )}
                 {['SUPER_ADMIN', 'ADMIN'].includes(userRole) && (
                   <button
                     onClick={(e) => {
@@ -403,6 +408,43 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   </button>
                 )}
           </div>
+
+          {/* Product Details Strip */}
+          {(product?.color || product?.size || product?.fabricType || product?.productType || order.quantity > 0 || order.customizationPrice > 0) && (
+            <div className="mb-3 flex flex-wrap items-center gap-1.5 bg-gray-950/50 p-2 rounded-xl border border-gray-800/50">
+              {product?.productType && (
+                <span className="text-[8px] font-black text-gray-400 uppercase tracking-tighter bg-gray-900 px-2 py-0.5 rounded-md">{product.productType}</span>
+              )}
+              {product?.fabricType && (
+                <span className="text-[8px] font-black text-gray-400 uppercase tracking-tighter bg-gray-900 px-2 py-0.5 rounded-md">{product.fabricType}</span>
+              )}
+              {product?.color && (
+                <span className="text-[8px] font-black text-white uppercase tracking-tighter bg-gray-900 px-2 py-0.5 rounded-md flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: product.color.toLowerCase() }}></span>
+                  {product.color}
+                </span>
+              )}
+              {product?.size && (
+                <span className="text-[8px] font-black text-gray-400 uppercase tracking-tighter bg-gray-900 px-2 py-0.5 rounded-md">Size: {product.size}</span>
+              )}
+              <span className="text-[8px] font-black text-blue-400 bg-blue-900/30 px-2 py-0.5 rounded-md">Qty: {order.quantity || 1}</span>
+              {order.customizationPrice > 0 && (
+                <span className="text-[8px] font-black text-emerald-400 bg-emerald-900/30 px-2 py-0.5 rounded-md">Custom: ₨{Number(order.customizationPrice).toLocaleString()}</span>
+              )}
+              {order.paymentStatus && (
+                <span className={`text-[8px] font-black px-2 py-0.5 rounded-md uppercase tracking-tighter ${
+                  order.paymentStatus === 'FULL_PAID' ? 'bg-emerald-500/20 text-emerald-400' :
+                  order.paymentStatus === 'ADVANCE_PAID' ? 'bg-amber-500/20 text-amber-400' :
+                  'bg-red-500/20 text-red-400'
+                }`}>
+                  {order.paymentStatus === 'FULL_PAID' ? 'Paid' : order.paymentStatus === 'ADVANCE_PAID' ? 'Advance' : 'Unpaid'}
+                </span>
+              )}
+              {order.deliveryType && (
+                <span className="text-[8px] font-black text-purple-400 bg-purple-900/30 px-2 py-0.5 rounded-md uppercase">{order.deliveryType.replace(/_/g, ' ')}</span>
+              )}
+            </div>
+          )}
 
           <div className="flex flex-col bg-gray-950/50 p-3 rounded-xl border border-gray-800/50 mb-4 gap-2">
             <div className="flex items-center justify-between">

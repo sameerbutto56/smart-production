@@ -29,7 +29,8 @@ import {
   Grid,
   X,
   FileEdit,
-  Loader2
+  Loader2,
+  Lock
 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
@@ -51,6 +52,7 @@ const SmartOrderForm = () => {
   const [selectedProductCategory, setSelectedProductCategory] = useState('SCRUBS');
   const [productSearchTerm, setProductSearchTerm] = useState('');
   const [expandedProducts, setExpandedProducts] = useState({});
+  const [showReview, setShowReview] = useState(false);
   const [showEditRequest, setShowEditRequest] = useState(false);
   const [editOrderNumber, setEditOrderNumber] = useState('');
   const [editOrderData, setEditOrderData] = useState(null);
@@ -475,7 +477,7 @@ const SmartOrderForm = () => {
         additionalFeatures: formData.additionalFeatures
       },
       sizeData: formData.measurements,
-      totalPrice: parseFloat(formData.totalPrice) || 0
+      totalPrice: computedTotalPrice > 0 ? computedTotalPrice : (parseFloat(formData.totalPrice) || 0)
     };
 
     setCartItems([...cartItems, payload]);
@@ -704,7 +706,9 @@ const SmartOrderForm = () => {
     const catUpper = cat.toUpperCase();
     return ['SCRUBS', 'COAT', 'CAP', 'CAPS'].includes(catUpper);
   };
-  const productsInCategory = inventory.filter(i => i.category === selectedProductCategory);
+  const productsInCategory = inventory
+    .filter(i => i.category === selectedProductCategory)
+    .sort((a, b) => a.name.localeCompare(b.name));
   // Get unique product names in selected category
   const uniqueProductNames = [...new Set(productsInCategory.map(i => i.name))];
   // Selected product item (single product with variants array)
@@ -727,6 +731,21 @@ const SmartOrderForm = () => {
   const availableSizes = formData.productType && selectedProductVariants.length > 0
     ? [...new Set(selectedProductVariants.filter(v => v.size).map(v => v.size))]
     : [];
+
+  // Compute inventory-based unit price  
+  const computedUnitPrice = (() => {
+    if (!selectedProduct) return 0;
+    const price = selectedProduct.price || 0;
+    if (selectedProductVariants.length > 0) {
+      const match = selectedProductVariants.find(v =>
+        (!formData.color || v.color === formData.color) &&
+        (!formData.size || v.size === formData.size)
+      );
+      return match?.price || price;
+    }
+    return price;
+  })();
+  const computedTotalPrice = computedUnitPrice * (formData.quantity || 1);
 
   const allTabs = [
     { id: 'basic', label: '1. Basics', icon: Layout },
@@ -921,7 +940,7 @@ const SmartOrderForm = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                   <div className="space-y-4">
-                    <label className={`text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'کل رقم (Order Amount) - اختیاری' : 'Order Amount (Optional)'}</label>
+                    <label className={`text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'کل رقم (Inventory Auto-Calculated)' : 'Order Amount (Auto-Calculated)'}</label>
                     <div className="relative group">
                       <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-500`}>
                         <span className="font-black text-xs">₨</span>
@@ -929,12 +948,17 @@ const SmartOrderForm = () => {
                       <input
                         type="number"
                         onKeyDown={preventEnterSubmit}
-                        value={formData.totalPrice}
+                        value={formData.totalPrice || (computedTotalPrice > 0 ? computedTotalPrice : '')}
                         onChange={(e) => setFormData({...formData, totalPrice: e.target.value})}
                         className={`w-full theme-input rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all text-xl font-bold`}
-                        placeholder="e.g. 2650"
+                        placeholder={computedUnitPrice > 0 ? `₨${computedUnitPrice} x ${formData.quantity || 1} = ₨${computedTotalPrice.toLocaleString()}` : "e.g. 2650"}
                       />
                     </div>
+                    {computedUnitPrice > 0 && (
+                      <p className={`text-[9px] font-bold text-emerald-400/80 ${useUrdu ? 'text-right' : ''}`}>
+                        {useUrdu ? `فہرست قیمت: ₨${computedUnitPrice} × ${formData.quantity || 1} = ₨${computedTotalPrice.toLocaleString()}` : `₨${Number(computedUnitPrice).toLocaleString()} per unit × ${formData.quantity || 1} = ₨${Number(computedTotalPrice).toLocaleString()}`}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -1179,6 +1203,16 @@ const SmartOrderForm = () => {
                             </span>
                             <span className="text-[9px] theme-text-muted ml-1">in stock</span>
                           </span>
+                          {(item.price > 0 || (item.variants && Array.isArray(item.variants) && item.variants.some(v => v.price))) && (
+                            <span className="block text-xs font-black text-emerald-400">
+                              ₨{Number(
+                                (item.variants && Array.isArray(item.variants) && item.variants.length > 0
+                                  ? (item.variants.find(v => v.price)?.price || item.price)
+                                  : item.price)
+                              ).toLocaleString()}
+                              <span className="text-[8px] theme-text-muted ml-0.5">/unit</span>
+                            </span>
+                          )}
                           {expandedProducts[item.id] && item.variants && Array.isArray(item.variants) && item.variants.length > 0 ? (
                             <div className="space-y-1">
                               <div className="flex flex-wrap justify-center gap-1">
@@ -1735,7 +1769,7 @@ const SmartOrderForm = () => {
             {(activeTab === filteredTabs[filteredTabs.length - 1].id && (formData.type !== 'STANDARD' || cartItems.length > 0)) && (
               <button
                 type="button"
-                onClick={handleCheckout}
+                onClick={() => setShowReview(true)}
                 disabled={loading || isSubmitting}
                 className="flex-1 sm:px-16 py-6 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 group disabled:opacity-50"
               >
@@ -1792,7 +1826,7 @@ const SmartOrderForm = () => {
                   <button
                     onClick={() => {
                       setShowAddMore(false);
-                      handleCheckout();
+                      setShowReview(true);
                     }}
                     disabled={loading || isSubmitting}
                     className="w-full py-5 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-emerald-900/50 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3 disabled:opacity-50"
@@ -2033,6 +2067,11 @@ const SmartOrderForm = () => {
                     </p>
                   </div>
                   <div className="text-right shrink-0">
+                    {item.quantity > 1 && item.totalPrice > 0 && (
+                      <p className="text-[8px] theme-text-muted font-bold">
+                        ₨{Number(item.totalPrice / item.quantity).toLocaleString()} × {item.quantity}
+                      </p>
+                    )}
                     <p className="text-sm font-black text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-xl">
                       ₨{Number(item.totalPrice).toLocaleString()}
                     </p>
@@ -2072,6 +2111,216 @@ const SmartOrderForm = () => {
         </motion.div>
       )}
 
+      {/* Order Review Modal */}
+      <AnimatePresence>
+        {showReview && (
+          <div className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.85, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.85, y: 30 }}
+              className="glass max-w-3xl w-full p-6 md:p-10 rounded-[3rem] border-2 theme-border shadow-[0_50px_100px_rgba(0,0,0,0.5)] max-h-[90vh] overflow-y-auto custom-scrollbar"
+            >
+              <div className="flex items-center gap-4 mb-6">
+                <div className="p-4 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-[1.5rem] shadow-xl">
+                  <List className="text-white" size={24} />
+                </div>
+                <div>
+                  <h2 className="text-xl md:text-2xl font-black theme-text-primary uppercase tracking-tight">
+                    {useUrdu ? 'آرڈر کا جائزہ' : 'Order Review & Summary'}
+                  </h2>
+                  <p className="theme-text-muted text-[9px] md:text-[10px] font-black uppercase tracking-widest mt-1">
+                    {useUrdu ? 'جمع کرانے سے پہلے تصدیق کریں' : 'Please verify before submitting'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Customer Info */}
+              <div className="bg-gray-950/50 p-4 md:p-6 rounded-[2rem] border border-gray-800/50 mb-4">
+                <h3 className="text-[9px] md:text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                  <User size={12} /> {useUrdu ? 'گاہک کی معلومات' : 'Customer Information'}
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-[8px] font-black text-gray-500 uppercase tracking-wider">{useUrdu ? 'نام' : 'Name'}</span>
+                    <p className="font-bold text-white">{cartItems[0]?.customerName || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="text-[8px] font-black text-gray-500 uppercase tracking-wider">{useUrdu ? 'فون' : 'Phone'}</span>
+                    <p className="font-bold text-white">{cartItems[0]?.customerPhone || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="text-[8px] font-black text-gray-500 uppercase tracking-wider">{useUrdu ? 'پتہ' : 'Address'}</span>
+                    <p className="font-bold text-white">{cartItems[0]?.address || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="text-[8px] font-black text-gray-500 uppercase tracking-wider">{useUrdu ? 'شہر' : 'City'}</span>
+                    <p className="font-bold text-white">{cartItems[0]?.city || 'N/A'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Order Info */}
+              <div className="bg-gray-950/50 p-4 md:p-6 rounded-[2rem] border border-gray-800/50 mb-4">
+                <h3 className="text-[9px] md:text-[10px] font-black text-emerald-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                  <Package size={12} /> {useUrdu ? 'آرڈر کی تفصیلات' : 'Order Details'}
+                </h3>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <span className="text-[8px] font-black px-2 py-1 bg-gray-900 rounded-md text-gray-300 uppercase">{cartItems[0]?.type}</span>
+                  <span className="text-[8px] font-black px-2 py-1 bg-gray-900 rounded-md text-gray-300 uppercase">{cartItems[0]?.priority}</span>
+                  {cartItems[0]?.advancePaid && <span className="text-[8px] font-black px-2 py-1 bg-amber-900/30 rounded-md text-amber-400 uppercase">ADVANCE PAID</span>}
+                </div>
+              </div>
+
+              {/* Products Table */}
+              <div className="bg-gray-950/50 p-4 md:p-6 rounded-[2rem] border border-gray-800/50 mb-4">
+                <h3 className="text-[9px] md:text-[10px] font-black text-purple-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                  <ShoppingCart size={12} /> {useUrdu ? 'پروڈکٹس' : 'Products'} ({cartItems.length})
+                </h3>
+                <div className="overflow-x-auto rounded-xl border border-gray-800">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-gray-800 bg-gray-950/80">
+                        <th className="py-2 px-3 text-[8px] font-black text-gray-500 uppercase tracking-widest">#</th>
+                        <th className="py-2 px-3 text-[8px] font-black text-gray-500 uppercase tracking-widest">{useUrdu ? 'پروڈکٹ' : 'Product'}</th>
+                        <th className="py-2 px-3 text-[8px] font-black text-gray-500 uppercase tracking-widest">Color / Size</th>
+                        <th className="py-2 px-3 text-[8px] font-black text-gray-500 uppercase tracking-widest text-center">Qty</th>
+                        <th className="py-2 px-3 text-[8px] font-black text-gray-500 uppercase tracking-widest text-right">{useUrdu ? 'قیمت' : 'Price'}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cartItems.map((item, idx) => {
+                        const pd = item.productDetails || {};
+                        return (
+                          <tr key={idx} className="border-b border-gray-800/50 hover:bg-gray-900/30">
+                            <td className="py-3 px-3 text-gray-500 font-black">{idx + 1}</td>
+                            <td className="py-3 px-3 text-white font-bold uppercase">{pd.productType || '—'}</td>
+                            <td className="py-3 px-3 text-gray-300 uppercase">
+                              {pd.color || pd.size ? `${pd.color || '—'} / ${pd.size || '—'}` : '—'}
+                            </td>
+                            <td className="py-3 px-3 text-center text-white font-black">{item.quantity || 1}</td>
+                            <td className="py-3 px-3 text-right text-emerald-400 font-black">₨{Number(item.totalPrice || 0).toLocaleString()}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    {cartItems.length > 0 && (
+                      <tfoot>
+                        <tr className="border-t border-gray-800 bg-gray-950/50">
+                          <td colSpan="3" className="py-3 px-3"></td>
+                          <td className="py-3 px-3 text-center text-white font-black text-sm">
+                            {cartItems.reduce((s, i) => s + (parseInt(i.quantity) || 1), 0)}
+                          </td>
+                          <td className="py-3 px-3 text-right text-emerald-400 font-black text-sm">
+                            ₨{cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0).toLocaleString()}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+              </div>
+
+              {/* Customization Summary */}
+              {(formData.nameSpelling || formData.stitchingStyle || formData.fitType || formData.designNotes) && (
+                <div className="bg-gray-950/50 p-4 md:p-6 rounded-[2rem] border border-gray-800/50 mb-4">
+                  <h3 className="text-[9px] md:text-[10px] font-black text-amber-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                    <Scissors size={12} /> {useUrdu ? 'کسٹمائزیشن' : 'Customization'}
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
+                    {formData.nameSpelling && (
+                      <div className="bg-gray-900/50 p-2 rounded-lg">
+                        <span className="text-[7px] font-black text-gray-500 uppercase tracking-wider">{useUrdu ? 'نام' : 'Name'}</span>
+                        <p className="font-bold text-white text-xs">{formData.nameSpelling}</p>
+                      </div>
+                    )}
+                    {formData.stitchingStyle && (
+                      <div className="bg-gray-900/50 p-2 rounded-lg">
+                        <span className="text-[7px] font-black text-gray-500 uppercase tracking-wider">{useUrdu ? 'سلائی' : 'Stitching'}</span>
+                        <p className="font-bold text-white text-xs">{formData.stitchingStyle}</p>
+                      </div>
+                    )}
+                    {formData.fitType && (
+                      <div className="bg-gray-900/50 p-2 rounded-lg">
+                        <span className="text-[7px] font-black text-gray-500 uppercase tracking-wider">{useUrdu ? 'فٹ' : 'Fit'}</span>
+                        <p className="font-bold text-white text-xs">{formData.fitType}</p>
+                      </div>
+                    )}
+                  </div>
+                  {formData.designNotes && (
+                    <div className="mt-2 bg-yellow-500/5 p-3 rounded-xl border border-yellow-500/10">
+                      <p className="text-[7px] font-black text-yellow-500 uppercase tracking-wider mb-1">{useUrdu ? 'ڈیزائن نوٹس' : 'Design Notes'}</p>
+                      <p className="text-xs text-gray-300 italic">"{formData.designNotes}"</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Measurements Summary */}
+              {Object.values(formData.measurements).some(v => v) && (
+                <div className="bg-gray-950/50 p-4 md:p-6 rounded-[2rem] border border-gray-800/50 mb-6">
+                  <h3 className="text-[9px] md:text-[10px] font-black text-cyan-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                    <Ruler size={12} /> {useUrdu ? 'پیمائش' : 'Measurements'}
+                  </h3>
+                  <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                    {Object.entries(formData.measurements).filter(([_, v]) => v).map(([key, val], i) => (
+                      <div key={i} className="bg-gray-900/50 p-2 rounded-lg text-center">
+                        <p className="text-[7px] font-black text-gray-500 uppercase tracking-wider">{key}</p>
+                        <p className="font-bold text-white text-xs">{val}"</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Financial Summary */}
+              <div className="bg-gray-950/50 p-4 md:p-6 rounded-[2rem] border border-gray-800/50 mb-6">
+                <h3 className="text-[9px] md:text-[10px] font-black text-emerald-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                  ₨ {useUrdu ? 'مالیاتی خلاصہ' : 'Financial Summary'}
+                </h3>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-gray-400">{useUrdu ? 'کل آرڈر' : 'Total Order Value'}</span>
+                    <span className="font-black text-white">₨{cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-gray-400">{useUrdu ? 'کل آئٹمز' : 'Total Items'}</span>
+                    <span className="font-black text-white">{cartItems.reduce((s, i) => s + (parseInt(i.quantity) || 1), 0)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-gray-400">{useUrdu ? 'ایڈوانس' : 'Advance Payment'}</span>
+                    <span className={`font-black ${cartItems[0]?.advancePaid ? 'text-amber-400' : 'text-gray-500'}`}>
+                      {cartItems[0]?.advancePaid ? (useUrdu ? 'ہاں' : 'Yes') : (useUrdu ? 'نہیں' : 'No')}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowReview(false)}
+                  className="flex-1 py-5 bg-gray-800 text-gray-400 rounded-[1.5rem] font-black text-sm uppercase tracking-widest hover:bg-gray-700 transition-all active:scale-95 border border-gray-700"
+                >
+                  {useUrdu ? 'ترمیم کریں' : 'EDIT'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowReview(false);
+                    handleCheckout();
+                  }}
+                  disabled={loading || isSubmitting}
+                  className="flex-1 py-5 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-emerald-900/50 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50"
+                >
+                  <CheckCircle2 size={16} />
+                  <span>{loading || isSubmitting ? (useUrdu ? 'جمع کر رہا ہے...' : 'SUBMITTING...') : (useUrdu ? 'تصدیق کریں' : 'CONFIRM & SUBMIT')}</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Order Edit Request Modal */}
       <AnimatePresence>
         {showEditRequest && (
@@ -2096,6 +2345,14 @@ const SmartOrderForm = () => {
                   className="theme-text-muted hover:text-white hover:bg-gray-800 p-2 rounded-full transition-all active:scale-95">
                   <X size={16} />
                 </button>
+              </div>
+
+              {/* Lock Notice */}
+              <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3 mb-4 flex items-center gap-3">
+                <Lock size={12} className="text-amber-400 shrink-0" />
+                <p className="text-[9px] text-amber-300 font-bold leading-tight">
+                  {useUrdu ? 'آرڈر جمع ہونے کے بعد براہ راست ترمیم ممکن نہیں۔ تبدیلیوں کا جائزہ لے کر منظور کیا جائے گا۔' : 'Orders are locked after submission. Changes require admin review & approval.'}
+                </p>
               </div>
 
               {/* Step 1: Enter Order Number */}

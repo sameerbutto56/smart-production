@@ -128,7 +128,7 @@ const OutletStockRequest = () => {
   const filteredInventory = inventory.filter(item =>
     !searchTerm || item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.category?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  ).sort((a, b) => a.name.localeCompare(b.name));
 
   const cartItems = Object.values(cart);
   const cartTotal = cartItems.reduce((sum, item) => sum + item.qty, 0);
@@ -223,11 +223,13 @@ const OutletStockRequest = () => {
                             <h3 className="font-black theme-text-primary text-sm">{item.name}</h3>
                             <p className="text-[9px] md:text-[10px] font-bold theme-text-muted uppercase tracking-wider">{item.category}</p>
                           </div>
-                          <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${
-                            item.stock <= 10 ? 'border-red-500/20 bg-red-500/5 text-red-500' : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-500'
-                          }`}>
-                            {item.stock} left
-                          </div>
+                          {item.stock !== undefined && (
+                            <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${
+                              item.stock <= 10 ? 'border-red-500/20 bg-red-500/5 text-red-500' : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-500'
+                            }`}>
+                              {item.stock} left
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-center justify-between mt-4">
                           <p className="text-lg font-bold theme-text-secondary">{item.color ? [item.color, item.size].filter(Boolean).join(' • ') : item.size || item.fabric || ''}</p>

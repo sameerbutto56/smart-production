@@ -145,14 +145,41 @@ const createOrder = async (req, res) => {
     let finalSizeData = sizeData;
 
     if (items && Array.isArray(items) && items.length > 0) {
-      // Store all items as an array in productDetails for multi-item orders
-      finalProductDetails = items.map(item => ({
-        productDetails: item.productDetails,
-        customization: item.customization,
-        sizeData: item.sizeData,
-        quantity: item.quantity || 1,
-        totalPrice: item.totalPrice || 0
-      }));
+      // Look up inventory prices and calculate server-side pricing
+      const processedItems = [];
+      for (const item of items) {
+        const pd = item.productDetails || {};
+        let unitPrice = 0;
+        if (pd.productType) {
+          const inventoryItem = await prisma.inventoryItem.findFirst({
+            where: {
+              name: { contains: pd.productType, mode: 'insensitive' },
+              category: { not: 'FABRIC' }
+            }
+          });
+          if (inventoryItem) {
+            if (inventoryItem.variants && Array.isArray(inventoryItem.variants)) {
+              const matchingVariant = inventoryItem.variants.find(v =>
+                (!pd.color || (v.color && v.color.toLowerCase() === pd.color.toLowerCase())) &&
+                (!pd.size || (v.size && v.size.toLowerCase() === pd.size.toLowerCase()))
+              );
+              unitPrice = matchingVariant?.price || inventoryItem.price || 0;
+            } else {
+              unitPrice = inventoryItem.price || 0;
+            }
+          }
+        }
+        const qty = item.quantity || 1;
+        processedItems.push({
+          productDetails: pd,
+          customization: item.customization,
+          sizeData: item.sizeData,
+          quantity: qty,
+          unitPrice,
+          totalPrice: unitPrice * qty
+        });
+      }
+      finalProductDetails = processedItems;
       // Keep the first item's customization & sizeData as the primary for backward compat
       finalCustomization = items[0].customization || customization;
       finalSizeData = items[0].sizeData || sizeData;
@@ -189,7 +216,9 @@ const createOrder = async (req, res) => {
         sizeData: finalSizeData ? JSON.stringify(finalSizeData) : null,
         advancePaid: advancePaid || false,
         productImage,
-        totalPrice: parseFloat(req.body.totalPrice) || 0,
+        totalPrice: finalProductDetails && Array.isArray(finalProductDetails)
+          ? finalProductDetails.reduce((sum, item) => sum + (item.totalPrice || 0), 0)
+          : (parseFloat(req.body.totalPrice) || 0),
         shopifyOrderId,
         paymentDeadline: paymentDeadline ? new Date(paymentDeadline) : (type === 'READY_LOGO' ? new Date(Date.now() + 48 * 60 * 60 * 1000) : null),
         currentStage: 'ORDER_ENTRY',

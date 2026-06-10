@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { 
+import {
   LayoutDashboard, 
   Package, 
   ClipboardList, 
@@ -19,6 +19,7 @@ import {
   FileEdit,
   Trash2,
   BarChart3,
+  TrendingUp,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import socket from '../socket';
@@ -46,6 +47,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     { name: 'Order Entry', path: '/order-entry', icon: ClipboardList, roles: ['ORDER_ENTRY', 'FAISAL', 'SUPER_ADMIN', 'OUTLET'] },
     { name: 'Edit Request', path: '/edit-requests', icon: FileEdit, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Analytics', path: '/revenue-analytics', icon: BarChart3, roles: ['SUPER_ADMIN', 'ADMIN'] },
+    { name: 'Sales Analytics', path: '/sales-analytics', icon: TrendingUp, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Inventory', path: '/inventory', icon: Package, roles: ['SUPER_ADMIN', 'ADMIN', 'STORE'] },
     { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['STORE', 'PRODUCTION', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'] },
     { name: 'Warehouse', path: '/warehouse', icon: Warehouse, roles: ['STORE', 'ADMIN', 'SUPER_ADMIN'] },

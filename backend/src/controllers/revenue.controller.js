@@ -193,4 +193,74 @@ const getProductionAnalytics = async (req, res) => {
   }
 };
 
-module.exports = { getRevenueAnalytics, getExecutiveSummary, getProductionAnalytics };
+const getSalesAnalytics = async (req, res) => {
+  try {
+    const { dateFrom, dateTo } = req.query;
+
+    const dateFilter = {};
+    if (dateFrom || dateTo) {
+      dateFilter.createdAt = {};
+      if (dateFrom) dateFilter.createdAt.gte = new Date(dateFrom);
+      if (dateTo) dateFilter.createdAt.lte = new Date(dateTo);
+    }
+
+    const orders = await prisma.order.findMany({
+      where: {
+        ...dateFilter,
+        status: { notIn: ['REJECTED', 'CANCELLED'] }
+      },
+      select: {
+        source: true,
+        outletName: true,
+        quantity: true,
+        totalPrice: true
+      }
+    });
+
+    const online = { orders: 0, itemsSold: 0, salesValue: 0, profit: 0 };
+    const outletMap = {};
+
+    orders.forEach(o => {
+      const isOnline = o.source === 'ONLINE' || o.source === 'INTERNAL';
+      if (isOnline) {
+        online.orders++;
+        online.itemsSold += o.quantity || 0;
+        online.salesValue += o.totalPrice || 0;
+      } else {
+        const name = o.outletName || 'UNKNOWN';
+        if (!outletMap[name]) outletMap[name] = { name, orders: 0, itemsSold: 0, salesValue: 0, profit: 0 };
+        outletMap[name].orders++;
+        outletMap[name].itemsSold += o.quantity || 0;
+        outletMap[name].salesValue += o.totalPrice || 0;
+      }
+    });
+
+    const revenueAgg = await prisma.revenueRecord.groupBy({
+      by: ['source', 'outletName'],
+      where: dateFilter,
+      _sum: { totalProfit: true }
+    });
+
+    revenueAgg.forEach(r => {
+      if (r.source === 'ONLINE') {
+        online.profit += r._sum.totalProfit || 0;
+      } else {
+        const name = r.outletName || 'UNKNOWN';
+        if (outletMap[name]) outletMap[name].profit += r._sum.totalProfit || 0;
+      }
+    });
+
+    const outlets = Object.values(outletMap).sort((a, b) => b.salesValue - a.salesValue);
+    const combined = {
+      totalBusinessSales: online.salesValue + outlets.reduce((s, o) => s + o.salesValue, 0),
+      totalOrders: online.orders + outlets.reduce((s, o) => s + o.orders, 0),
+      totalProductsSold: online.itemsSold + outlets.reduce((s, o) => s + o.itemsSold, 0)
+    };
+
+    res.json({ online, outlets, combined });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching sales analytics', error: error.message });
+  }
+};
+
+module.exports = { getRevenueAnalytics, getExecutiveSummary, getProductionAnalytics, getSalesAnalytics };

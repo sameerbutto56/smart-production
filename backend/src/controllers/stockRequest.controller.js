@@ -216,4 +216,45 @@ const exportRequestsExcel = async (req, res) => {
   }
 };
 
-module.exports = { createRequest, getRequests, getRequestById, approveRequest, rejectRequest, completeRequest, getLowStockItems, exportRequestsExcel };
+const getWarehouseAnalytics = async (req, res) => {
+  try {
+    const { dateFrom, dateTo } = req.query;
+    const dateFilter = {};
+    if (dateFrom || dateTo) {
+      dateFilter.createdAt = {};
+      if (dateFrom) dateFilter.createdAt.gte = new Date(dateFrom);
+      if (dateTo) dateFilter.createdAt.lte = new Date(dateTo);
+    }
+
+    const requestStats = await prisma.stockRequest.groupBy({
+      by: ['outletName'],
+      where: dateFilter,
+      _count: { id: true },
+      _sum: { quantity: true, approvedQty: true }
+    });
+
+    const outletNames = requestStats.map(s => s.outletName);
+    const completedStats = outletNames.length > 0 ? await Promise.all(
+      outletNames.map(name =>
+        prisma.stockRequest.aggregate({
+          where: { ...dateFilter, outletName: name, status: 'COMPLETED' },
+          _sum: { approvedQty: true }
+        })
+      )
+    ) : [];
+
+    const analytics = requestStats.map((s, i) => ({
+      outletName: s.outletName,
+      totalRequestsSent: s._count.id,
+      totalRequestedQty: s._sum.quantity || 0,
+      totalApprovedQty: s._sum.approvedQty || 0,
+      totalProductsReceived: completedStats[i]?._sum.approvedQty || 0
+    }));
+
+    res.json(analytics);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching warehouse analytics', error: error.message });
+  }
+};
+
+module.exports = { createRequest, getRequests, getRequestById, approveRequest, rejectRequest, completeRequest, getLowStockItems, exportRequestsExcel, getWarehouseAnalytics };

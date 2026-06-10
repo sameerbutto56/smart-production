@@ -3,7 +3,11 @@ const xlsx = require('xlsx');
 
 const getInventory = async (req, res) => {
   try {
-    const items = await prisma.inventoryItem.findMany();
+    const items = await prisma.inventoryItem.findMany({ orderBy: { name: 'asc' } });
+    if (req.user?.role === 'OUTLET') {
+      const sanitized = items.map(({ stock, variants, ...rest }) => rest);
+      return res.json(sanitized);
+    }
     res.json(items);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching inventory', error: error.message });
