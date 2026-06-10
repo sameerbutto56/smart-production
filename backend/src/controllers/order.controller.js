@@ -565,12 +565,15 @@ const requestStageCompletion = async (req, res) => {
       actualNextStage = stages[currentIndex + 1];
     } else if (stageName === 'LOGO_DESIGN') {
       // After LOGO_DESIGN: check if any production items exist
-      const fulfill = order.itemFulfillment || {};
-      const hasProduction = Object.values(fulfill).some(v => v.deductionType === 'production' && v.status !== 'completed');
-      if (hasProduction) {
-        actualNextStage = 'PRODUCTION';
+      const fulfill = order.itemFulfillment;
+      if (fulfill && Object.keys(fulfill).length > 0) {
+        const hasProduction = Object.values(fulfill).some(v => v.deductionType === 'production' && v.status !== 'completed');
+        actualNextStage = hasProduction ? 'PRODUCTION' : 'DISPATCH';
       } else {
-        actualNextStage = 'DISPATCH';
+        // Legacy order without itemFulfillment — use standard pipeline
+        const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
+        const currentIndex = stages.indexOf(stageName);
+        actualNextStage = stages[currentIndex + 1];
       }
     } else {
       // Standard pipeline for other stages
@@ -692,9 +695,15 @@ const approveStageCompletion = async (req, res) => {
     if (!actualNextStage) {
       if (currentStageRecord.stageName === 'LOGO_DESIGN') {
         const orderWithFulfillment = await prisma.order.findUnique({ where: { id: orderId } });
-        const fulfill = orderWithFulfillment?.itemFulfillment || {};
-        const hasProduction = Object.values(fulfill).some(v => v.deductionType === 'production' && v.status !== 'completed');
-        actualNextStage = hasProduction ? 'PRODUCTION' : 'DISPATCH';
+        const fulfill = orderWithFulfillment?.itemFulfillment;
+        if (fulfill && Object.keys(fulfill).length > 0) {
+          const hasProduction = Object.values(fulfill).some(v => v.deductionType === 'production' && v.status !== 'completed');
+          actualNextStage = hasProduction ? 'PRODUCTION' : 'DISPATCH';
+        } else {
+          const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
+          const currentIndex = stages.indexOf(currentStageRecord.stageName);
+          actualNextStage = stages[currentIndex + 1];
+        }
       } else {
         const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
         const currentIndex = stages.indexOf(currentStageRecord.stageName);
