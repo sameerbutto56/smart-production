@@ -73,7 +73,6 @@ model Order {
   grossProfit      Float?     @default(0)
   netProfit        Float?     @default(0)
   inventoryAdded  Boolean    @default(false)
-  itemFulfillment Json?
   auditLogs       AuditLog[]
    stages          OrderStage[]
    editRequests    OrderEditRequest[]
@@ -152,9 +151,8 @@ model InventoryItem {
   price     Float?
   imageUrl  String?
   metadata  String?
-  variants       Json?    // Array of {color, size, stock, price}
-  isManufactured Boolean @default(true)
-  createdAt      DateTime @default(now())
+  variants  Json?    // Array of {color, size, stock, price}
+  createdAt DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
 

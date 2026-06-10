@@ -179,7 +179,7 @@ const getProductionDashboard = async (req, res) => {
 
     const monthlyMap = {};
     records.forEach(r => {
-      const month = new Date(r.productionDate).toLocaleString('default', { month: 'short', year: '2-digit' });
+      const month = new Date(r.productionDate).toLocaleString('en-US', { month: 'short', year: '2-digit' });
       if (!monthlyMap[month]) monthlyMap[month] = { name: month, quantity: 0, profit: 0, sellingValue: 0 };
       monthlyMap[month].quantity += r.quantity;
       monthlyMap[month].profit += r.profit;

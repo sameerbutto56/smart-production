@@ -1359,15 +1359,21 @@ const deductInventory = async (order, userId) => {
 const addOrderToInventory = async (req, res) => {
   const { orderId } = req.params;
   try {
-    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    let order;
+    try {
+      order = await prisma.order.findUnique({ where: { id: orderId } });
+    } catch (e) {
+      if (e?.code === 'P2021') return res.status(503).json({ message: 'DB schema outdated — run npx prisma db push' });
+      throw e;
+    }
     if (!order) return res.status(404).json({ message: 'Order not found' });
     if (order.inventoryAdded) return res.status(400).json({ message: 'Inventory already added for this order' });
 
     // Determine which items to add — only production-manufactured items
-    const fulfillment = order.itemFulfillment || {};
+    const fulfillment = (order.itemFulfillment && typeof order.itemFulfillment === 'object') ? order.itemFulfillment : {};
     const productionProductTypes = Object.values(fulfillment)
-      .filter(v => v.deductionType === 'production')
-      .map(v => v.productType?.toLowerCase());
+      .filter(v => v && v.deductionType === 'production')
+      .map(v => (v.productType || '').toLowerCase());
 
     let parsedDetails;
     try {
@@ -1380,7 +1386,7 @@ const addOrderToInventory = async (req, res) => {
     const productsToAdd = [];
     const addItemIfProduction = (pd, quantity) => {
       if (!pd?.productType) return;
-      const ptLower = pd.productType.toLowerCase();
+      const ptLower = (pd.productType || '').toLowerCase();
       if (productionProductTypes.length === 0 || productionProductTypes.some(ppt => ptLower.includes(ppt) || ppt.includes(ptLower))) {
         productsToAdd.push({ productType: pd.productType, quantity, color: pd.color, size: pd.size });
       }
