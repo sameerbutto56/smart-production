@@ -49,6 +49,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const [invCheck, setInvCheck] = useState(null);
   const [invCheckLoading, setInvCheckLoading] = useState(false);
   const [invCheckExpanded, setInvCheckExpanded] = useState(false);
+  const [showMoreActions, setShowMoreActions] = useState(false);
+  const [showJobSheet, setShowJobSheet] = useState(false);
+  const [showProdHistory, setShowProdHistory] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -308,142 +311,165 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
         layout
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className={`glass rounded-3xl overflow-hidden mb-6 ${order.priority === 'SUPER_URGENT' ? 'card-super-urgent border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : order.priority === 'URGENT' ? 'card-urgent' : isDelayed ? 'card-delayed' : 'border border-gray-800'} ${order.status === 'REJECTED' ? 'border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.1)]' : order.status === 'ON_HOLD' ? 'border-orange-500/50 shadow-[0_0_20px_rgba(249,115,22,0.1)]' : ''}`}
+        className={`glass rounded-3xl overflow-hidden max-w-full mb-6 ${order.priority === 'SUPER_URGENT' ? 'card-super-urgent border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : order.priority === 'URGENT' ? 'card-urgent' : isDelayed ? 'card-delayed' : 'border border-gray-800'} ${order.status === 'REJECTED' ? 'border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.1)]' : order.status === 'ON_HOLD' ? 'border-orange-500/50 shadow-[0_0_20px_rgba(249,115,22,0.1)]' : ''}`}
       >
-        <div className="p-4">
-          <div className="flex justify-between items-start mb-4 gap-2">
-            <div className="flex items-center gap-4 flex-1 min-w-0">
+        <div className="p-3 md:p-4">
+          <div className="flex justify-between items-start gap-2 md:gap-3 mb-2 md:mb-3">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
               {order.productImage && (
-                <div className="flex-shrink-0 w-12 h-12 rounded-xl overflow-hidden border border-gray-700 shadow-lg">
+                <div className="flex-shrink-0 w-10 h-10 md:w-12 md:h-12 rounded-xl overflow-hidden border border-gray-700 shadow-lg">
                   <img src={order.productImage} alt="Product" className="w-full h-full object-cover" />
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
-                  <h3 className="font-black text-lg tracking-tighter text-white break-all">#{order.orderNumber || order.id.substring(0, 8)}</h3>
+                <div className="flex flex-wrap items-center gap-1 mb-0.5">
+                  <h3 className="font-black text-base md:text-lg tracking-tighter text-white truncate max-w-[120px] md:max-w-none">#{order.orderNumber || order.id.substring(0, 8)}</h3>
                   {order.priority === 'SUPER_URGENT' && (
-                    <span className="bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse uppercase tracking-tighter flex items-center gap-1">
+                    <span className="bg-red-600 text-white text-[7px] md:text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse uppercase tracking-tighter flex items-center gap-1">
                       <span>⚡</span> SUPER URGENT
                     </span>
                   )}
                   {order.priority === 'URGENT' && (
-                    <span className="bg-amber-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse uppercase tracking-tighter flex items-center gap-1">
+                    <span className="bg-amber-500 text-white text-[7px] md:text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse uppercase tracking-tighter flex items-center gap-1">
                       <span>⚡</span> URGENT
                     </span>
                   )}
-                  <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter ${
+                  <span className={`text-[7px] md:text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter ${
                     order.type === 'FULL_CUSTOM' ? 'bg-indigo-600' : order.type === 'READY_LOGO' ? 'bg-purple-600' : 'bg-gray-700'
                   }`}>
                     {order.type}
                   </span>
                   {order.deliveryMethod && (
-                    <span className="bg-emerald-600 text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter flex items-center gap-1">
-                       <Truck size={8} /> {order.deliveryMethod.replace(/_/g, ' ')}
+                    <span className="bg-emerald-600 text-[7px] md:text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter flex items-center gap-1">
+                       <Truck size={7} /> {order.deliveryMethod.replace(/_/g, ' ')}
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-gray-400 font-bold tracking-wide truncate">{order.customerName}</p>
-                
-                {order.customerPhone && (
-                  <p className="text-[9px] md:text-[10px] text-gray-500 font-medium flex items-center gap-1.5 mt-0.5">
-                    <Phone size={10} className="text-pink-500/60" /> 
-                    <span className="font-mono">{order.customerPhone}</span>
-                  </p>
-                )}
-                
-                {order.address && (
-                  <p className="text-[9px] md:text-[10px] text-gray-400 font-medium flex items-center gap-1.5 mt-0.5">
-                    <span className="text-[9px] md:text-[11px] select-none">📍</span> 
-                    <span className="truncate" title={order.address}>{order.address}</span>
-                  </p>
-                )}
-
-                {order.totalPrice > 0 && (
-                  <p className="text-[9px] md:text-[10px] text-emerald-400 font-black flex items-center gap-1.5 mt-1 bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20 w-fit select-none">
-                    <span className="text-xs">₨</span>
-                    <span>{order.totalPrice.toLocaleString()}</span>
-                  </p>
-                )}
-
-                <p className="text-[9px] text-gray-500 font-black uppercase mt-1.5 flex items-center gap-1.5">
-                  <Users size={10} className="text-blue-500/50" />
-                  {t('Placed By')}: <span className="text-gray-400">
-                    {order.outletName === 'FAISAL CONTROL' ? 'ONLINE ORDER' : 
-                     order.outletName || (
-                       order.createdBy?.role === 'FAISAL' ? 'ONLINE ORDER' :
-                       order.createdBy?.role === 'OUTLET' ? (
-                         (order.createdBy?.name?.includes('1') || order.createdBy?.name?.toLowerCase().includes('johar')) ? 'JOHAR TOWN BRANCH' :
-                         (order.createdBy?.name?.includes('2') || order.createdBy?.name?.toLowerCase().includes('jail')) ? 'JAIL ROAD BRANCH' :
-                         (order.createdBy?.name?.includes('3') || order.createdBy?.name?.toLowerCase().includes('abbottabad')) ? 'ABBOTTABAD BRANCH' :
-                         order.createdBy?.name
-                       ) : order.createdBy?.name || 'System'
-                     )}
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <p className="text-[11px] md:text-xs text-gray-400 font-bold tracking-wide truncate max-w-[140px] md:max-w-[200px]">{order.customerName}</p>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[7px] font-black tracking-widest ${order.status === 'ON_HOLD' ? 'bg-orange-500/20 text-orange-400' : isWaitingApproval ? 'bg-orange-500 text-white animate-pulse' : 'bg-blue-500/10 text-blue-400'} border border-current flex items-center gap-1`}>
+                    {(isWaitingApproval || order.status === 'ON_HOLD') && <AlertCircle size={7} />}
+                    {order.status === 'ON_HOLD' ? t('Hold') : t(currentStage?.stageName)}
                   </span>
+                  {!isWaitingApproval && order.status !== 'PENDING' && order.status !== 'REJECTED' && order.status !== 'ON_HOLD' && ['OUTLET'].includes(userRole) && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[7px] font-black tracking-tighter bg-gray-800/50 text-gray-500 border border-gray-700/50 flex items-center gap-0.5">
+                      <Lock size={7} />
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
+                  {order.customerPhone && (
+                    <span className="text-[8px] md:text-[9px] text-gray-500 font-medium flex items-center gap-1">
+                      <Phone size={8} className="text-pink-500/60" /> 
+                      <span className="font-mono">{order.customerPhone}</span>
+                    </span>
+                  )}
+                  {order.totalPrice > 0 && (
+                    <span className="text-[8px] md:text-[9px] text-emerald-400 font-black flex items-center gap-1 bg-emerald-500/10 px-1.5 py-0.5 rounded-md border border-emerald-500/20">
+                      <span>₨</span>
+                      <span>{order.totalPrice.toLocaleString()}</span>
+                    </span>
+                  )}
+                </div>
+                <p className="text-[7px] md:text-[8px] text-gray-600 font-black uppercase mt-0.5 flex items-center gap-1">
+                  <Users size={7} className="text-blue-500/50" />
+                  {order.outletName === 'FAISAL CONTROL' ? 'ONLINE ORDER' : 
+                   order.outletName || (
+                     order.createdBy?.role === 'FAISAL' ? 'ONLINE ORDER' :
+                     order.createdBy?.role === 'OUTLET' ? (
+                       (order.createdBy?.name?.includes('1') || order.createdBy?.name?.toLowerCase().includes('johar')) ? 'JOHAR TOWN BRANCH' :
+                       (order.createdBy?.name?.includes('2') || order.createdBy?.name?.toLowerCase().includes('jail')) ? 'JAIL ROAD BRANCH' :
+                       (order.createdBy?.name?.includes('3') || order.createdBy?.name?.toLowerCase().includes('abbottabad')) ? 'ABBOTTABAD BRANCH' :
+                       order.createdBy?.name
+                     ) : order.createdBy?.name || 'System'
+                  )}
                 </p>
               </div>
             </div>
-                <span className={`px-2 py-0.5 rounded-full text-[8px] font-black tracking-widest ${order.status === 'ON_HOLD' ? 'bg-orange-500/20 text-orange-400' : isWaitingApproval ? 'bg-orange-500 text-white animate-pulse' : 'bg-blue-500/10 text-blue-400'} border border-current flex items-center gap-1`}>
-                  {(isWaitingApproval || order.status === 'ON_HOLD') && <AlertCircle size={8} />}
-                  {order.status === 'ON_HOLD' ? t('Hold') : t(currentStage?.stageName)}
+            {/* Compact Timer & SLA */}
+            <div className="flex-shrink-0 flex flex-col items-end gap-0.5 min-w-[70px]">
+              <div className={`font-mono text-xs md:text-sm tracking-tighter leading-none ${urgencyColor}`}>
+                {timeLeft}
+              </div>
+              <div className="flex items-center gap-1 flex-wrap justify-end">
+                {deadlineStatus === 'ON_TIME' && <span className="text-[6px] bg-emerald-500/10 text-emerald-400 px-1 py-0.5 rounded-sm font-black uppercase">ON TIME</span>}
+                {deadlineStatus === 'APPROACHING' && <span className="text-[6px] bg-amber-500/10 text-amber-400 px-1 py-0.5 rounded-sm font-black uppercase">APPROACHING</span>}
+                {deadlineStatus === 'OVERDUE' && <span className="text-[6px] bg-red-500/10 text-red-400 px-1 py-0.5 rounded-sm font-black uppercase animate-pulse">OVERDUE</span>}
+                {deadlineStatus === 'COMPLETED' && <span className="text-[6px] bg-gray-500/10 text-gray-400 px-1 py-0.5 rounded-sm font-black uppercase">COMPLETED</span>}
+              </div>
+              <span className="text-[6px] text-gray-600 font-mono">
+                {currentStage?.deadlineAt ? new Date(currentStage.deadlineAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+              </span>
+              {isCurrentlyInProduction && productionDeadline && (
+                <div className={`text-[6px] font-mono ${new Date(productionDeadline).getTime() < Date.now() ? 'text-red-400' : 'text-emerald-400'}`}>
+                  🎯 {(() => {
+                    const diff = new Date(productionDeadline).getTime() - Date.now();
+                    if (diff <= 0) return 'OVERDUE';
+                    const h = Math.floor(diff / 3600000);
+                    const m = Math.floor((diff % 3600000) / 60000);
+                    return `${h}h ${m}m`;
+                  })()}
+                </div>
+              )}
+              {order.address && (
+                <span className="text-[7px] text-gray-500 font-medium truncate max-w-[90px] md:max-w-[140px] text-right" title={order.address}>
+                  📍 {order.address}
                 </span>
-                {!isWaitingApproval && order.status !== 'PENDING' && order.status !== 'REJECTED' && order.status !== 'ON_HOLD' && ['OUTLET'].includes(userRole) && (
-                  <span className="px-1.5 py-0.5 rounded-full text-[8px] font-black tracking-tighter bg-gray-800/50 text-gray-500 border border-gray-700/50 flex items-center gap-0.5">
-                    <Lock size={7} />
-                  </span>
-                )}
-                {['SUPER_ADMIN', 'ADMIN'].includes(userRole) && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (window.confirm(`⚠ PERMANENTLY DELETE this order?\n\nOrder #${order.orderNumber || order.id.substring(0, 8)}\nCustomer: ${order.customerName}\n\nThis will restore inventory and create an audit record. THIS CANNOT BE UNDONE.`)) {
-                        axios.delete(`${API_URL}/api/orders/${order.id}`, {
-                          headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
-                        }).then(() => {
-                          toast.success('Order deleted permanently. Inventory restored.');
-                          window.location.reload();
-                        }).catch(err => {
-                          alert(err.response?.data?.message || 'Failed to delete order');
-                        });
-                      }
-                    }}
-                    className="ml-2 p-1.5 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white rounded-lg transition-all border border-red-500/20"
-                    title="Delete order permanently"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                )}
+              )}
+              {['SUPER_ADMIN', 'ADMIN'].includes(userRole) && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (window.confirm(`⚠ PERMANENTLY DELETE this order?\n\nOrder #${order.orderNumber || order.id.substring(0, 8)}\nCustomer: ${order.customerName}\n\nThis will restore inventory and create an audit record. THIS CANNOT BE UNDONE.`)) {
+                      axios.delete(`${API_URL}/api/orders/${order.id}`, {
+                        headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
+                      }).then(() => {
+                        toast.success('Order deleted permanently. Inventory restored.');
+                        window.location.reload();
+                      }).catch(err => {
+                        alert(err.response?.data?.message || 'Failed to delete order');
+                      });
+                    }
+                  }}
+                  className="p-1 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white rounded-lg transition-all border border-red-500/20 mt-0.5"
+                  title="Delete order permanently"
+                >
+                  <Trash2 size={10} />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Product Details Strip */}
           {(product?.color || product?.size || product?.fabricType || product?.productType || order.quantity > 0 || order.customizationPrice > 0 || order.logoCharges > 0 || order.namePrintingCharges > 0) && (
             <div className="mb-3 flex flex-wrap items-center gap-1.5 bg-gray-950/50 p-2 rounded-xl border border-gray-800/50">
               {product?.productType && (
-                <span className="text-[8px] font-black text-gray-400 uppercase tracking-tighter bg-gray-900 px-2 py-0.5 rounded-md">{product.productType}</span>
+                <span className="text-[7px] md:text-[8px] font-black text-gray-400 uppercase tracking-tighter bg-gray-900 px-2 py-0.5 rounded-md truncate max-w-[100px]">{product.productType}</span>
               )}
               {product?.fabricType && (
-                <span className="text-[8px] font-black text-gray-400 uppercase tracking-tighter bg-gray-900 px-2 py-0.5 rounded-md">{product.fabricType}</span>
+                <span className="text-[7px] md:text-[8px] font-black text-gray-400 uppercase tracking-tighter bg-gray-900 px-2 py-0.5 rounded-md truncate max-w-[100px]">{product.fabricType}</span>
               )}
               {product?.color && (
-                <span className="text-[8px] font-black text-white uppercase tracking-tighter bg-gray-900 px-2 py-0.5 rounded-md flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: product.color.toLowerCase() }}></span>
+                <span className="text-[7px] md:text-[8px] font-black text-white uppercase tracking-tighter bg-gray-900 px-2 py-0.5 rounded-md flex items-center gap-1 truncate max-w-[100px]">
+                  <span className="w-2 h-2 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: product.color.toLowerCase() }}></span>
                   {product.color}
                 </span>
               )}
               {product?.size && (
-                <span className="text-[8px] font-black text-gray-400 uppercase tracking-tighter bg-gray-900 px-2 py-0.5 rounded-md">Size: {product.size}</span>
+                <span className="text-[7px] md:text-[8px] font-black text-gray-400 uppercase tracking-tighter bg-gray-900 px-2 py-0.5 rounded-md">Size: {product.size}</span>
               )}
-              <span className="text-[8px] font-black text-blue-400 bg-blue-900/30 px-2 py-0.5 rounded-md">Qty: {order.quantity || 1}</span>
+              <span className="text-[7px] md:text-[8px] font-black text-blue-400 bg-blue-900/30 px-2 py-0.5 rounded-md">Qty: {order.quantity || 1}</span>
               {order.logoCharges > 0 && (
-                <span className="text-[8px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-md">Logo: ₨{Number(order.logoCharges).toLocaleString()}</span>
+                <span className="text-[7px] md:text-[8px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-md">Logo: ₨{Number(order.logoCharges).toLocaleString()}</span>
               )}
               {order.namePrintingCharges > 0 && (
-                <span className="text-[8px] font-black text-purple-400 bg-purple-900/30 px-2 py-0.5 rounded-md">Name: ₨{Number(order.namePrintingCharges).toLocaleString()}</span>
+                <span className="text-[7px] md:text-[8px] font-black text-purple-400 bg-purple-900/30 px-2 py-0.5 rounded-md">Name: ₨{Number(order.namePrintingCharges).toLocaleString()}</span>
               )}
               {order.customizationPrice > 0 && (
-                <span className="text-[8px] font-black text-emerald-400 bg-emerald-900/30 px-2 py-0.5 rounded-md">Custom: ₨{Number(order.customizationPrice).toLocaleString()}</span>
+                <span className="text-[7px] md:text-[8px] font-black text-emerald-400 bg-emerald-900/30 px-2 py-0.5 rounded-md">Custom: ₨{Number(order.customizationPrice).toLocaleString()}</span>
               )}
               {order.paymentStatus && (
-                <span className={`text-[8px] font-black px-2 py-0.5 rounded-md uppercase tracking-tighter ${
+                <span className={`text-[7px] md:text-[8px] font-black px-2 py-0.5 rounded-md uppercase tracking-tighter ${
                   order.paymentStatus === 'FULL_PAID' ? 'bg-emerald-500/20 text-emerald-400' :
                   order.paymentStatus === 'ADVANCE_PAID' ? 'bg-amber-500/20 text-amber-400' :
                   'bg-red-500/20 text-red-400'
@@ -452,156 +478,152 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 </span>
               )}
               {order.courierDetails?.payments?.length > 0 && (
-                <span className="text-[7px] font-bold text-gray-500">
+                <span className="text-[6px] md:text-[7px] font-bold text-gray-500">
                   ₨{order.courierDetails.payments.reduce((s, p) => s + (p.amount || 0), 0).toLocaleString()} / ₨{(order.totalPrice || 0).toLocaleString()}
                 </span>
               )}
               {order.deliveryType && (
-                <span className="text-[8px] font-black text-purple-400 bg-purple-900/30 px-2 py-0.5 rounded-md uppercase">{order.deliveryType.replace(/_/g, ' ')}</span>
+                <span className="text-[7px] md:text-[8px] font-black text-purple-400 bg-purple-900/30 px-2 py-0.5 rounded-md uppercase truncate max-w-[120px]">{order.deliveryType.replace(/_/g, ' ')}</span>
               )}
             </div>
           )}
-
-          <div className="flex flex-col bg-gray-950/50 p-3 rounded-xl border border-gray-800/50 mb-4 gap-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <div className={`p-1.5 rounded-lg ${isDelayed ? 'bg-red-500/10' : 'bg-gray-800/50'}`}>
-                  <Clock size={14} className={isDelayed ? 'text-red-500' : 'text-blue-400'} />
+          {/* Collapsible Job Sheet Summary */}
+          <div className="mb-3 bg-gray-950/30 rounded-2xl border border-gray-800/50 overflow-hidden">
+            <button
+              onClick={() => setShowJobSheet((prev) => !prev)}
+              className="w-full flex items-center justify-between p-3 md:p-4 hover:bg-gray-900/50 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-blue-500/10 rounded-lg">
+                  <ClipboardList size={14} className="text-blue-400" />
                 </div>
-                <div className="flex flex-col">
-                  <span className={`font-mono text-sm tracking-tighter leading-none ${urgencyColor}`}>
-                    {timeLeft}
-                  </span>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <span className="text-[7px] text-gray-500 font-black uppercase">{t('Time Left')}</span>
-                    {deadlineStatus === 'ON_TIME' && <span className="text-[6px] bg-emerald-500/10 text-emerald-400 px-1 py-0.5 rounded-sm font-black uppercase">ON TIME</span>}
-                    {deadlineStatus === 'APPROACHING' && <span className="text-[6px] bg-amber-500/10 text-amber-400 px-1 py-0.5 rounded-sm font-black uppercase">APPROACHING</span>}
-                    {deadlineStatus === 'OVERDUE' && <span className="text-[6px] bg-red-500/10 text-red-400 px-1 py-0.5 rounded-sm font-black uppercase animate-pulse">OVERDUE</span>}
-                    {deadlineStatus === 'COMPLETED' && <span className="text-[6px] bg-gray-500/10 text-gray-400 px-1 py-0.5 rounded-sm font-black uppercase">COMPLETED</span>}
+                <span className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-[0.15em]">{t('Job Sheet Summary')}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {!showJobSheet && (
+                  <span className="text-[6px] text-blue-500/60 font-black uppercase tracking-widest">{t('Tap to View')}</span>
+                )}
+                <motion.div animate={{ rotate: showJobSheet ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                  <ChevronRight size={12} className="text-gray-500" />
+                </motion.div>
+              </div>
+            </button>
+            <AnimatePresence initial={false}>
+              {showJobSheet && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25, ease: 'easeInOut' }}
+                  className="overflow-hidden"
+                >
+                  <div className="px-3 md:px-4 pb-3 md:pb-4 space-y-3">
+                    <ul className="space-y-2">
+                      {renderTasks()}
+                    </ul>
+                    {currentStage?.rejectionReason && (
+                      (() => {
+                        const isOrderProfile = ['ORDER_ENTRY', 'OUTLET'].includes(String(userRole || '').toUpperCase().trim());
+                        const isInventoryReason = currentStage.rejectionReason.includes('Inventory') || currentStage.rejectionReason.includes('Stock');
+                        if (isOrderProfile && isInventoryReason) return null;
+                        return (
+                          <div className={`p-2.5 rounded-xl border ${currentStage.rejectionReason.includes('Available') ? 'bg-emerald-500/10 border-emerald-500/20' : currentStage.rejectionReason.includes('PROBLEM') ? 'bg-orange-500/10 border-orange-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
+                            <p className={`text-[8px] md:text-[9px] font-black uppercase tracking-widest mb-0.5 ${currentStage.rejectionReason.includes('Available') ? 'text-emerald-400' : currentStage.rejectionReason.includes('PROBLEM') ? 'text-orange-400' : 'text-red-400'}`}>
+                              {currentStage.rejectionReason.includes('Inventory') ? 'Store Inventory Check:' : currentStage.rejectionReason.includes('PROBLEM') ? 'Worker Reported Problem:' : (order.source === 'OUTLET' ? 'Branch Rejection Reason:' : 'Faisal Rejection Reason:')}
+                            </p>
+                            <p className="text-[9px] text-gray-300 italic leading-tight line-clamp-2">{currentStage.rejectionReason.replace('PROBLEM:', '')}</p>
+                          </div>
+                        );
+                      })()
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setShowFullSheet(true); }}
+                      className="w-full py-2.5 bg-gray-900 hover:bg-gray-800 rounded-xl text-[8px] font-black uppercase tracking-widest text-blue-400 hover:text-blue-300 transition-all border border-gray-800"
+                    >
+                      {t('View Full Job Sheet')} →
+                    </button>
                   </div>
-                </div>
-              </div>
-              <div className="text-[8px] text-gray-500 font-black uppercase tracking-widest bg-gray-900 px-2 py-0.5 rounded-md">
-                {currentStage?.deadlineAt ? new Date(currentStage.deadlineAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'NO DEADLINE'}
-              </div>
-            </div>
-
-            {isCurrentlyInProduction && productionDeadline && (
-              <div className="pt-3 border-t border-gray-800 flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Target size={12} className="text-emerald-500" />
-                  <span className="text-[9px] text-emerald-500 font-black uppercase">Production Goal:</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-[9px] md:text-[10px] font-black ${new Date(productionDeadline).getTime() < Date.now() ? 'text-red-400 animate-pulse' : 'text-white'}`}>
-                    {(() => {
-                      const diff = new Date(productionDeadline).getTime() - Date.now();
-                      if (diff <= 0) return 'OVERDUE';
-                      const h = Math.floor(diff / 3600000);
-                      const m = Math.floor((diff % 3600000) / 60000);
-                      return `${h}h ${m}m`;
-                    })()}
-                  </span>
-                  <span className="text-[8px] text-gray-500">
-                    {new Date(productionDeadline).toLocaleDateString()} {new Date(productionDeadline).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
-              </div>
-            )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-          <motion.div 
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => setShowFullSheet(true)}
-            className="mb-6 p-5 bg-gradient-to-br from-gray-900 to-black rounded-3xl border border-gray-800 hover:border-blue-500/50 transition-all cursor-pointer group shadow-xl relative overflow-hidden"
-          >
-            <div className="absolute top-0 right-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity">
-              <ChevronRight size={16} className="text-blue-400" />
-            </div>
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="p-2 bg-blue-500/10 rounded-xl group-hover:bg-blue-500/20 transition-colors">
-                <ClipboardList size={16} className="text-blue-400" />
-              </div>
-              <h4 className="text-[9px] md:text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] group-hover:text-blue-300 transition-colors">
-                {t('Job Sheet Summary')}
-              </h4>
-            </div>
-            <ul className="space-y-3">
-              {renderTasks()}
-            </ul>
-            {currentStage?.rejectionReason && (
-              (() => {
-                const isOrderProfile = ['ORDER_ENTRY', 'OUTLET'].includes(String(userRole || '').toUpperCase().trim());
-                const isInventoryReason = currentStage.rejectionReason.includes('Inventory') || currentStage.rejectionReason.includes('Stock');
-                if (isOrderProfile && isInventoryReason) return null;
-                
-                return (
-                  <div className={`mt-4 p-3 rounded-xl border ${currentStage.rejectionReason.includes('Available') ? 'bg-emerald-500/10 border-emerald-500/20' : currentStage.rejectionReason.includes('PROBLEM') ? 'bg-orange-500/10 border-orange-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
-                    <p className={`text-[9px] md:text-[10px] font-black uppercase tracking-widest mb-1 ${currentStage.rejectionReason.includes('Available') ? 'text-emerald-400' : currentStage.rejectionReason.includes('PROBLEM') ? 'text-orange-400' : 'text-red-400'}`}>
-                      {currentStage.rejectionReason.includes('Inventory') ? 'Store Inventory Check:' : currentStage.rejectionReason.includes('PROBLEM') ? 'Worker Reported Problem:' : (order.source === 'OUTLET' ? 'Branch Rejection Reason:' : 'Faisal Rejection Reason:')}
-                    </p>
-                    <p className="text-xs text-gray-300 italic">{currentStage.rejectionReason.replace('PROBLEM:', '')}</p>
-                  </div>
-                );
-              })()
-            )}
-            <div className="mt-5 pt-4 border-t border-gray-800 flex items-center justify-between">
-              <span className="text-[9px] md:text-[10px] text-gray-500 font-bold uppercase tracking-widest">{t('Click to Expand Job Sheet')}</span>
-              <div className="h-1.5 w-1.5 bg-blue-500 rounded-full animate-pulse shadow-[0_0_10px_#3b82f6]"></div>
-            </div>
-          </motion.div>
 
-          {/* Production Tracking Timeline */}
+          {/* Collapsible Production Timeline */}
           {order.stages?.some(s => s.status === 'COMPLETED') && (
-            <div className="mb-6 px-4 py-3 bg-gray-950/30 rounded-2xl border border-gray-800/50">
-              <h5 className="text-[8px] font-black text-gray-500 uppercase tracking-[0.2em] mb-3 flex items-center justify-between">
+            <div className="mb-3 bg-gray-950/30 rounded-2xl border border-gray-800/50 overflow-hidden">
+              <button
+                onClick={() => setShowProdHistory((prev) => !prev)}
+                className="w-full flex items-center justify-between p-3 md:p-4 hover:bg-gray-900/50 transition-colors"
+              >
                 <div className="flex items-center gap-2">
-                  <History size={10} />
-                  {t('Production History')}
+                  <div className="p-1.5 bg-emerald-500/10 rounded-lg">
+                    <History size={14} className="text-emerald-400" />
+                  </div>
+                  <span className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-[0.15em]">{t('Production History')}</span>
                 </div>
-              </h5>
-              <div className="space-y-2 relative">
-                {order.stages
-                  .filter(s => s.status === 'COMPLETED')
-                  .sort((a, b) => new Date(a.completedAt) - new Date(b.completedAt))
-                  .map((s, idx) => (
-                    <div key={idx} className="flex items-start gap-3">
-                      <div className="flex flex-col items-center">
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                        {idx !== order.stages.filter(s => s.status === 'COMPLETED').length - 1 && (
-                          <div className="w-[1px] h-4 bg-gray-800"></div>
-                        )}
-                      </div>
-                      <div className="flex-1 flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
-                            {s.stageName.replace(/_/g, ' ')}
-                          </span>
-                          <span className="text-[8px] text-yellow-500/60">→ {order.source === 'OUTLET' ? t('Branch') : t('Faisal')}</span>
-                        </div>
-                        <span className="text-[9px] text-gray-600 font-medium">
-                          {new Date(s.completedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} | {new Date(s.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[6px] text-gray-600 font-black">{order.stages.filter(s => s.status === 'COMPLETED').length} stages</span>
+                  <motion.div animate={{ rotate: showProdHistory ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                    <ChevronRight size={12} className="text-gray-500" />
+                  </motion.div>
+                </div>
+              </button>
+              <AnimatePresence initial={false}>
+                {showProdHistory && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.25, ease: 'easeInOut' }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-3 md:px-4 pb-3 md:pb-4">
+                      <div className="space-y-1.5 relative">
+                        {order.stages
+                          .filter(s => s.status === 'COMPLETED')
+                          .sort((a, b) => new Date(a.completedAt) - new Date(b.completedAt))
+                          .map((s, idx) => (
+                            <div key={idx} className="flex items-start gap-2.5">
+                              <div className="flex flex-col items-center pt-0.5">
+                                <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></div>
+                                {idx !== order.stages.filter(s => s.status === 'COMPLETED').length - 1 && (
+                                  <div className="w-[1px] h-3.5 bg-gray-800"></div>
+                                )}
+                              </div>
+                              <div className="flex-1 flex flex-wrap justify-between items-center gap-1 min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-tighter">
+                                    {s.stageName.replace(/_/g, ' ')}
+                                  </span>
+                                  <span className="text-[7px] text-yellow-500/60">→ {order.source === 'OUTLET' ? t('Branch') : t('Faisal')}</span>
+                                </div>
+                                <span className="text-[8px] text-gray-600 font-medium whitespace-nowrap">
+                                  {new Date(s.completedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} {new Date(s.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
                       </div>
                     </div>
-                  ))}
-              </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )}
 
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 w-full">
             {isUnseen ? (
               <button
                 onClick={onMarkSeen}
-                className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-2xl text-xs font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-xl shadow-blue-900/40 border border-blue-400/20"
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-3 md:py-4 rounded-2xl text-[10px] md:text-xs font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-xl shadow-blue-900/40 border border-blue-400/20"
               >
-                <CheckCircle size={16} className="text-blue-300" />
+                <CheckCircle size={14} className="text-blue-300" />
                 <span>📥 ACCEPT TASK & START WORK</span>
               </button>
             ) : isFaisal && order.status === 'ON_HOLD' ? (
               <button
                 onClick={() => handleHoldAction(true)}
-                className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-4 rounded-2xl text-[9px] md:text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-xl shadow-emerald-900/20"
+                className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-3 md:py-4 rounded-2xl text-[9px] md:text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-xl shadow-emerald-900/20"
               >
                 <RefreshCcw size={14} />
                 <span>RESUME ORDER</span>
@@ -609,7 +631,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
             ) : isFaisal && (order.status === 'WAITING_APPROVAL' || order.status === 'PENDING') && currentStage?.status === 'COMPLETED' ? (
               <button
                 onClick={() => setShowApprovalDialog(true)}
-                className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-2xl text-[9px] md:text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-xl shadow-blue-900/20"
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-3 md:py-4 rounded-2xl text-[9px] md:text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-xl shadow-blue-900/20"
               >
                 <ChevronRight size={14} />
                 <span>{t('Initiate Next Phase')}</span>
@@ -617,77 +639,90 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
             ) : isWaitingApproval ? (
               isFaisal ? (
                 <>
-                  <div className="flex flex-wrap gap-2 w-full mt-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5 w-full">
                     <button
                       onClick={() => setShowApprovalDialog(true)}
-                      className="flex-1 btn-ghost-success rounded-xl py-3 text-[9px] md:text-[10px] flex-col gap-1"
+                      className="btn-ghost-success rounded-xl py-2.5 md:py-3 text-[8px] md:text-[10px] flex-col gap-0.5"
                     >
-                      <Check size={16} />
+                      <Check size={14} />
                       <span>{t('Approve')}</span>
                     </button>
                     {(currentStage?.rejectionReason?.includes('Out of Stock') || currentStage?.rejectionReason?.includes('PROBLEM')) ? (
                       <button
                         onClick={() => onUpdateStage(order.id, currentStage.id, 'reject', { reason: 'Problem Resolved - Please Proceed' })}
-                        className="flex-1 btn-ghost-warning rounded-xl py-3 text-[9px] md:text-[10px] flex-col gap-1"
+                        className="btn-ghost-warning rounded-xl py-2.5 md:py-3 text-[8px] md:text-[10px] flex-col gap-0.5"
                       >
-                        <RefreshCcw size={16} />
+                        <RefreshCcw size={14} />
                         <span>{t('Send Again')}</span>
                       </button>
                     ) : (
                       <button
                         onClick={() => setShowRejectionDialog(true)}
-                        className="flex-1 btn-ghost-danger rounded-xl py-3 text-[9px] md:text-[10px] flex-col gap-1"
+                        className="btn-ghost-danger rounded-xl py-2.5 md:py-3 text-[8px] md:text-[10px] flex-col gap-0.5"
                       >
-                        <X size={16} />
+                        <X size={14} />
                         <span>{t('Reject')}</span>
                       </button>
                     )}
-                    <div className="flex gap-2">
-
-                      <button
-                        onClick={() => order.status === 'ON_HOLD' ? handleHoldAction(true) : setShowHoldDialog(true)}
-                        className={`flex-1 min-w-[100px] py-3 px-2 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 border ${
-                          order.status === 'ON_HOLD' 
-                            ? 'bg-emerald-600/20 text-emerald-500 border-emerald-500/30' 
-                            : 'bg-orange-600/10 hover:bg-orange-600 text-orange-500 hover:text-white border-orange-500/20'
-                        }`}
-                        title={order.status === 'ON_HOLD' ? 'Resume Order' : 'Put on Hold'}
-                      >
-                        <Clock size={16} />
-                        <span>{order.status === 'ON_HOLD' ? 'RESUME' : t('Hold')}</span>
-                      </button>
-
+                    <button
+                      onClick={() => order.status === 'ON_HOLD' ? handleHoldAction(true) : setShowHoldDialog(true)}
+                      className={`py-2.5 md:py-3 px-2 rounded-xl text-[8px] md:text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-0.5 active:scale-95 border ${
+                        order.status === 'ON_HOLD' 
+                          ? 'bg-emerald-600/20 text-emerald-500 border-emerald-500/30' 
+                          : 'bg-orange-600/10 hover:bg-orange-600 text-orange-500 hover:text-white border-orange-500/20'
+                      }`}
+                      title={order.status === 'ON_HOLD' ? 'Resume Order' : 'Put on Hold'}
+                    >
+                      <Clock size={14} />
+                      <span>{order.status === 'ON_HOLD' ? 'RESUME' : t('Hold')}</span>
+                    </button>
+                    {(order.paymentStatus !== 'FULL_PAID' || ['SUPER_ADMIN', 'ADMIN'].includes(userRole)) && (
+                      <div className="relative">
+                        <button
+                          onClick={() => setShowMoreActions(!showMoreActions)}
+                          className="w-full py-2.5 md:py-3 px-1 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all border border-gray-600/30 bg-gray-800/50 hover:bg-gray-700 text-gray-400 hover:text-white flex flex-col items-center justify-center gap-0.5 active:scale-95"
+                        >
+                          <span className="text-base leading-none">⋮</span>
+                          <span>MORE</span>
+                        </button>
+                        {showMoreActions && (
+                          <>
+                            <div className="fixed inset-0 z-30" onClick={() => setShowMoreActions(false)} />
+                            <div className="absolute bottom-full right-0 z-40 mb-2 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl overflow-hidden min-w-[170px]">
+                              {order.paymentStatus !== 'FULL_PAID' && (
+                                <button
+                                  onClick={() => { setShowMoreActions(false); setShowPaymentModal(true); setPaymentAmount(''); setPaymentMethod('CASH'); }}
+                                  className="w-full flex items-center gap-3 px-4 py-3 text-[9px] font-black uppercase tracking-wider text-yellow-400 hover:bg-yellow-500/10 transition-all border-b border-gray-800"
+                                >
+                                  <AlertCircle size={14} />
+                                  <span>Record Payment</span>
+                                </button>
+                              )}
+                              {['SUPER_ADMIN', 'ADMIN'].includes(userRole) && (
+                                <button
+                                  onClick={() => {
+                                    setShowMoreActions(false);
+                                    if (window.confirm(`⚠ PERMANENTLY DELETE this order?\n\nOrder #${order.orderNumber || order.id.substring(0, 8)}\nCustomer: ${order.customerName}\n\nThis will restore inventory and create an audit record. THIS CANNOT BE UNDONE.`)) {
+                                      axios.delete(`${API_URL}/api/orders/${order.id}`, {
+                                        headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
+                                      }).then(() => {
+                                        toast.success('Order deleted permanently. Inventory restored.');
+                                        window.location.reload();
+                                      }).catch(err => {
+                                        alert(err.response?.data?.message || 'Failed to delete order');
+                                      });
+                                    }
+                                  }}
+                                  className="w-full flex items-center gap-3 px-4 py-3 text-[9px] font-black uppercase tracking-wider text-red-400 hover:bg-red-500/10 transition-all"
+                                >
+                                  <Trash2 size={14} />
+                                  <span>Delete Order</span>
+                                </button>
+                              )}
+                            </div>
+                          </>
+                        )}
                       </div>
-                    {order.paymentStatus !== 'FULL_PAID' && (
-                      <button
-                        onClick={() => { setShowPaymentModal(true); setPaymentAmount(''); setPaymentMethod('CASH'); }}
-                        className="flex-1 min-w-[100px] py-3 px-2 bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white rounded-xl transition-all border border-yellow-500/20 active:scale-95 flex flex-col items-center justify-center gap-1"
-                        title="Record Payment"
-                      >
-                        <AlertCircle size={16} />
-                        <span className="text-[9px] md:text-[10px] font-black">{t('Pay')}</span>
-                      </button>
-                    )}
-                    {['SUPER_ADMIN', 'ADMIN'].includes(userRole) && (
-                      <button
-                        onClick={() => {
-                          if (window.confirm(`⚠ PERMANENTLY DELETE this order?\\n\\nOrder #${order.orderNumber || order.id.substring(0, 8)}\\nCustomer: ${order.customerName}\\n\\nThis will restore inventory and create an audit record. THIS CANNOT BE UNDONE.`)) {
-                            axios.delete(`${API_URL}/api/orders/${order.id}`, {
-                              headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
-                            }).then(() => {
-                              toast.success('Order deleted permanently. Inventory restored.');
-                              window.location.reload();
-                            }).catch(err => {
-                              alert(err.response?.data?.message || 'Failed to delete order');
-                            });
-                          }
-                        }}
-                        className="flex-1 min-w-[100px] py-3 px-2 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white rounded-xl transition-all border border-red-500/20 active:scale-95 flex flex-col items-center justify-center gap-1"
-                        title="Delete order permanently"
-                      >
-                        <Trash2 size={16} />
-                        <span className="text-[9px] md:text-[10px] font-black">DELETE</span>
-                      </button>
                     )}
                   </div>
                 </>
@@ -785,17 +820,17 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         </div>
                       </div>
                     )}
-                    <div className="flex w-full space-x-2">
+                    <div className="grid grid-cols-2 gap-2">
                       <button
                         onClick={() => {
                           if (window.confirm('Confirm classification and route items?')) {
                             onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Available' });
                           }
                         }}
-                        className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex flex-col xl:flex-row items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
+                        className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-[9px] md:text-xs font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
                       >
                         <CheckCircle size={14} />
-                        <span>Process & Route Items</span>
+                        <span>Process & Route</span>
                       </button>
                       <button
                         onClick={() => {
@@ -803,7 +838,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Out of Stock' });
                           }
                         }}
-                        className="flex-1 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex flex-col xl:flex-row items-center justify-center gap-1 active:scale-95 shadow-lg shadow-red-900/20"
+                        className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-2.5 md:py-3 rounded-xl text-[9px] md:text-xs font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-red-900/20"
                       >
                         <AlertCircle size={14} />
                         <span>Missing / Unavailable</span>
@@ -811,7 +846,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     </div>
                   </>
                 ) : ['LOGO_DESIGN', 'NAME_LOGO', 'CUSTOM_LOGO'].includes(currentStage?.stageName) ? (
-                  <div className="flex w-full space-x-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => {
                         const nextIdx = currentPipeline.indexOf(currentStage?.stageName) + 1;
@@ -820,19 +855,19 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           onUpdateStage(order.id, currentStage.id, 'request');
                         }
                       }}
-                      className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-3 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
+                      className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
                     >
                       <CheckCircle size={14} />
                       <span>Design Complete</span>
-                      <span className="text-[7px] text-emerald-200 tracking-widest">→ {(() => { const ni = currentPipeline.indexOf(currentStage?.stageName) + 1; return currentPipeline[ni]?.replace(/_/g, ' ') || 'NEXT'; })()}</span>
+                      <span className="text-[6px] md:text-[7px] text-emerald-200 tracking-widest">→ {(() => { const ni = currentPipeline.indexOf(currentStage?.stageName) + 1; return currentPipeline[ni]?.replace(/_/g, ' ') || 'NEXT'; })()}</span>
                     </button>
                     <button
                       onClick={() => setShowProblemModal(true)}
-                      className="flex-1 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-3 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-red-900/20"
+                      className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-2.5 md:py-3 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-red-900/20"
                     >
                       <AlertCircle size={14} />
                       <span>Design Problem</span>
-                      <span className="text-[7px] text-red-200 tracking-widest">→ NOTIFY {order.source === 'OUTLET' ? 'BRANCH' : 'FAISAL'}</span>
+                      <span className="text-[6px] md:text-[7px] text-red-200 tracking-widest">→ NOTIFY {order.source === 'OUTLET' ? 'BRANCH' : 'FAISAL'}</span>
                     </button>
                   </div>
                 ) : currentStage?.stageName === 'STORE_RECEIVE' ? (
@@ -852,7 +887,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         </div>
                       </div>
                     )}
-                    <div className="flex w-full space-x-2">
+                    <div className="grid grid-cols-2 gap-2">
                       <button
                         onClick={async () => {
                           try {
@@ -866,7 +901,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             toast.error(error.response?.data?.message || 'Error adding to inventory');
                           }
                         }}
-                        className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-3 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
+                        className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
                       >
                         <Package size={14} />
                         <span>Add to Inventory</span>
@@ -877,7 +912,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             onUpdateStage(order.id, currentStage.id, 'request');
                           }
                         }}
-                        className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-3 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-blue-900/20"
+                        className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-2.5 md:py-3 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-blue-900/20"
                       >
                         <Truck size={14} />
                         <span>Send for Dispatch</span>
@@ -885,10 +920,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     </div>
                   </>
                 ) : (
-                  <div className="flex w-full space-x-2">
+                  <div className="w-full">
                     {currentStage?.stageName === 'OUT_FOR_DELIVERY' ? (
                       <div className="flex flex-col gap-2 w-full">
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                           <button
                             onClick={() => {
                               if (window.confirm('Confirm delivery complete? This will mark order as COMPLETED.')) {
@@ -900,9 +935,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                 }).then(() => { window.location.reload(); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
                               }
                             }}
-                            className="bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-lg shadow-emerald-900/30"
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 md:py-3 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-lg shadow-emerald-900/30"
                           >
-                            <CheckCircle size={14} className="mx-auto mb-1" />
+                            <CheckCircle size={12} className="mx-auto mb-0.5" />
                             DELIVERED
                           </button>
                           <button
@@ -917,9 +952,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                 }).then(() => { window.location.reload(); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
                               }
                             }}
-                            className="bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white py-3 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all border border-red-500/20 active:scale-95"
+                            className="bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white py-2.5 md:py-3 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all border border-red-500/20 active:scale-95"
                           >
-                            <AlertTriangle size={14} className="mx-auto mb-1" />
+                            <AlertTriangle size={12} className="mx-auto mb-0.5" />
                             FAILED
                           </button>
                           <button
@@ -932,30 +967,30 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                 headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
                               }).then(() => { window.location.reload(); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
                             }}
-                            className="bg-amber-600/10 hover:bg-amber-600 text-amber-500 hover:text-white py-3 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all border border-amber-500/20 active:scale-95"
+                            className="bg-amber-600/10 hover:bg-amber-600 text-amber-500 hover:text-white py-2.5 md:py-3 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all border border-amber-500/20 active:scale-95"
                           >
-                            <Clock size={14} className="mx-auto mb-1" />
+                            <Clock size={12} className="mx-auto mb-0.5" />
                             RESCHEDULE
                           </button>
                         </div>
                         <button
                           onClick={() => setShowProblemModal(true)}
-                          className="bg-red-600/5 hover:bg-red-600/20 text-red-500/50 hover:text-red-400 py-2 rounded-xl text-[8px] font-black uppercase tracking-wider transition-all border border-red-500/10"
+                          className="bg-red-600/5 hover:bg-red-600/20 text-red-500/50 hover:text-red-400 py-2 rounded-xl text-[7px] md:text-[8px] font-black uppercase tracking-wider transition-all border border-red-500/10"
                         >
                           REPORT PROBLEM
                         </button>
                       </div>
                     ) : (
-                      <>
+                      <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => {
                         if (window.confirm('Confirm this stage is fully complete?')) {
                           onUpdateStage(order.id, currentStage.id, 'request');
                         }
                       }}
-                      className="flex-[2] bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-2xl text-xs font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center space-x-3 active:scale-95 shadow-lg shadow-blue-900/20"
+                      className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-2.5 md:py-3 rounded-xl text-[9px] md:text-xs font-black uppercase tracking-[0.15em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-lg shadow-blue-900/20"
                     >
-                      <CheckCircle size={18} />
+                      <CheckCircle size={14} />
                       <span>{(() => {
                         const nextStageIdx = currentPipeline.indexOf(currentStage?.stageName) + 1;
                         const nextStage = currentPipeline[nextStageIdx];
@@ -964,12 +999,12 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     </button>
                     <button
                       onClick={() => setShowProblemModal(true)}
-                      className="flex-1 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white py-4 rounded-2xl text-xs font-black uppercase transition-all flex items-center justify-center space-x-2 border border-red-500/20 active:scale-95"
+                      className="bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white py-2.5 md:py-3 rounded-xl text-[9px] md:text-xs font-black uppercase transition-all flex items-center justify-center space-x-2 border border-red-500/20 active:scale-95"
                     >
-                      <AlertCircle size={16} />
+                      <AlertCircle size={14} />
                       <span>PROBLEM</span>
                     </button>
-                    </>
+                    </div>
                     )}
                   </div>
                 )
@@ -1039,74 +1074,29 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
           </AnimatePresence>
         </div>
         
-        <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <div className={`w-2 h-2 rounded-full animate-pulse ${isDelayed ? 'bg-red-500' : 'bg-blue-500'}`}></div>
-                  <span className="text-[9px] md:text-[10px] font-black text-gray-500 uppercase tracking-widest">
-                    {currentStage?.status === 'WAITING_APPROVAL' ? 'Authorization Pending' : 'Current Stage Limit'}
-                  </span>
-                </div>
-                <span className={`text-sm font-black font-mono ${urgencyColor}`}>
-                  {timeLeft}
-                </span>
-              </div>
-              <div className="flex gap-1 mt-1">
-                {deadlineStatus === 'ON_TIME' && <span className="text-[6px] bg-emerald-500/10 text-emerald-400 px-1 py-0.5 rounded-sm font-black uppercase">ON TIME</span>}
-                {deadlineStatus === 'APPROACHING' && <span className="text-[6px] bg-amber-500/10 text-amber-400 px-1 py-0.5 rounded-sm font-black uppercase">APPROACHING</span>}
-                {deadlineStatus === 'OVERDUE' && <span className="text-[6px] bg-red-500/10 text-red-400 px-1 py-0.5 rounded-sm font-black uppercase animate-pulse">OVERDUE</span>}
-                {deadlineStatus === 'COMPLETED' && <span className="text-[6px] bg-gray-500/10 text-gray-400 px-1 py-0.5 rounded-sm font-black uppercase">COMPLETED</span>}
-              </div>
-
-              {isCurrentlyInProduction && productionDeadline && (
-                <div className="p-4 bg-indigo-600/5 rounded-2xl border border-indigo-600/10 relative overflow-hidden group/goal">
-                  <div className="absolute top-0 right-0 p-2 opacity-10 group-hover/goal:opacity-30 transition-opacity">
-                    <Target size={32} />
-                  </div>
-                    <div className="flex justify-between items-center relative z-10">
-                      <div className="flex items-center gap-2">
-                        <Target size={14} className="text-indigo-400" />
-                        <span className="text-[9px] md:text-[10px] font-black text-indigo-400 uppercase tracking-widest">Production Goal</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[9px] md:text-[10px] font-black font-mono ${new Date(productionDeadline).getTime() < Date.now() ? 'text-red-400 animate-pulse' : 'text-emerald-400'}`}>
-                          {(() => {
-                            const diff = new Date(productionDeadline).getTime() - Date.now();
-                            if (diff <= 0) return 'OVERDUE';
-                            const h = Math.floor(diff / 3600000);
-                            const m = Math.floor((diff % 3600000) / 60000);
-                            return `${h}h ${m}m`;
-                          })()}
-                        </span>
-                        <span className="text-[9px] text-gray-500">
-                          {new Date(productionDeadline).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                    </div>
-                  <div className="mt-2 h-1 bg-gray-900 rounded-full overflow-hidden">
-                    <motion.div 
-                      initial={{ width: 0 }}
-                      animate={{ width: '100%' }}
-                      transition={{ duration: 2, ease: "easeOut" }}
-                      className="h-full bg-gradient-to-r from-indigo-600 to-blue-500 shadow-[0_0_10px_#4f46e566]"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div className="w-full h-3 bg-gray-950 rounded-full overflow-hidden border border-gray-800 shadow-inner p-[2px]">
-                <motion.div 
-                  initial={{ width: 0 }}
-                  animate={{ 
-                    width: `${Math.max(5, ((currentPipeline.indexOf(currentStage?.stageName) + 1) / currentPipeline.length) * 100)}%`
-                  }}
-                  transition={{ duration: 1, ease: "easeOut" }}
-                  className={`h-full rounded-full bg-gradient-to-r ${isDelayed ? 'from-red-600 to-orange-500' : 'from-blue-600 to-emerald-500'} shadow-lg relative`}
-                >
-                  <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
-                </motion.div>
-              </div>
-            </div>
+        {/* Pipeline Progress Bar */}
+        <div className="px-3 md:px-4 pb-3 md:pb-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[7px] text-gray-600 font-black uppercase tracking-widest">
+              {currentStage?.status === 'WAITING_APPROVAL' ? 'Authorization Pending' : currentStage?.stageName?.replace(/_/g, ' ') || 'Processing'}
+            </span>
+            <span className="text-[8px] text-gray-600 font-mono">
+              {currentPipeline.indexOf(currentStage?.stageName) + 1}/{currentPipeline.length}
+            </span>
+          </div>
+          <div className="w-full h-2 bg-gray-950 rounded-full overflow-hidden border border-gray-800">
+            <motion.div 
+              initial={{ width: 0 }}
+              animate={{ 
+                width: `${Math.max(5, ((currentPipeline.indexOf(currentStage?.stageName) + 1) / currentPipeline.length) * 100)}%`
+              }}
+              transition={{ duration: 1, ease: "easeOut" }}
+              className={`h-full rounded-full bg-gradient-to-r ${isDelayed ? 'from-red-600 to-orange-500' : 'from-blue-600 to-emerald-500'} shadow-lg relative`}
+            >
+              <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+            </motion.div>
+          </div>
+        </div>
       </motion.div>
 
       {showFullSheet && (
