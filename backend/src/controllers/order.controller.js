@@ -106,6 +106,78 @@ const checkAndSetProductionDeadline = async (orderId, newStageName, deadlineAt, 
   }
 };
 
+const createProductionRecordFromOrder = async (order, stageCompleted) => {
+  if (stageCompleted !== 'PRODUCTION') return;
+  try {
+    let items = [];
+    let parsedDetails;
+    try {
+      parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+    } catch { return; }
+    if (!parsedDetails) return;
+
+    if (Array.isArray(parsedDetails)) {
+      items = parsedDetails;
+    } else {
+      items = [{ productDetails: parsedDetails, quantity: order.quantity || 1 }];
+    }
+
+    const orderSource = order.source === 'ONLINE' || order.source === 'INTERNAL' ? 'ONLINE' : 'OUTLET';
+
+    for (const item of items) {
+      const pd = item.productDetails || item;
+      const productName = pd.productType || pd.name || 'Unknown Product';
+      const qty = item.quantity || 1;
+      const rawCost = parseFloat(order.productCost || 0) / items.length;
+      const prodCost = parseFloat(order.productionCost || 0) / items.length;
+      const totalCost = rawCost + prodCost;
+      const sellVal = parseFloat(order.totalPrice || 0) / items.length;
+      const profit = sellVal - totalCost;
+
+      await prisma.productionRecord.create({
+        data: {
+          productName,
+          quantity: qty,
+          rawMaterialCost: rawCost,
+          productionCost: prodCost,
+          totalCost,
+          sellingValue: sellVal,
+          profit,
+          source: orderSource,
+          orderId: order.id,
+          notes: `Auto-created from order stage completion`,
+          productionDate: new Date()
+        }
+      });
+
+      // Upsert into ProductionInventory
+      const existing = await prisma.productionInventory.findFirst({
+        where: { productName, productionCost: prodCost, sellingValue: sellVal, source: orderSource }
+      });
+      if (existing) {
+        await prisma.productionInventory.update({
+          where: { id: existing.id },
+          data: { quantity: { increment: qty }, profitMargin: sellVal > 0 ? ((sellVal - totalCost) / sellVal) * 100 : 0 }
+        });
+      } else {
+        await prisma.productionInventory.create({
+          data: {
+            productName,
+            quantity: qty,
+            productionCost: prodCost,
+            sellingValue: sellVal,
+            profitMargin: sellVal > 0 ? ((sellVal - totalCost) / sellVal) * 100 : 0,
+            source: orderSource,
+            productionDate: new Date()
+          }
+        });
+      }
+    }
+  } catch (e) {
+    console.error('Error creating production record from order:', e);
+  }
+};
+
 
 
 
@@ -460,6 +532,11 @@ const requestStageCompletion = async (req, res) => {
       data: { status: 'COMPLETED', completedAt: new Date() }
     });
 
+    // Create production record when PRODUCTION stage completes
+    if (currentStage.stageName === 'PRODUCTION') {
+      await createProductionRecordFromOrder(order, 'PRODUCTION');
+    }
+
     // Auto-transition to next stage
     const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
     const currentIndex = stages.indexOf(currentStage.stageName);
@@ -524,6 +601,11 @@ const approveStageCompletion = async (req, res) => {
     });
 
     const order = await prisma.order.findUnique({ where: { id: orderId } });
+
+    // Create production record when PRODUCTION stage is approved
+    if (currentStageRecord.stageName === 'PRODUCTION') {
+      await createProductionRecordFromOrder(order, 'PRODUCTION');
+    }
     
     // Update Customization Price, Delivery Method and Delivery Type if provided
     const updateData = {};
