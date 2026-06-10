@@ -765,17 +765,36 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         )}
                       </div>
                     ) : null}
+                    {invCheck && invCheck.report && (
+                      <div className="w-full mb-3 p-3 bg-gray-900/40 rounded-xl border border-gray-800">
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Routing Plan</p>
+                        <div className="space-y-1.5">
+                          {invCheck.report.map((item, idx) => (
+                            <div key={idx} className="flex items-center justify-between text-[9px]">
+                              <span className="text-white font-bold">{item.itemName} x{item.requiredQty}</span>
+                              <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase ${
+                                item.classification === 'inventory'
+                                  ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                                  : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                              }`}>
+                                {item.classification === 'inventory' ? 'From Inventory' : 'Send to Production'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div className="flex w-full space-x-2">
                       <button
                         onClick={() => {
-                          if (window.confirm('Confirm items are IN STOCK and allocate?')) {
+                          if (window.confirm('Confirm classification and route items?')) {
                             onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Available' });
                           }
                         }}
                         className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex flex-col xl:flex-row items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
                       >
                         <CheckCircle size={14} />
-                        <span>Confirm & Allocate</span>
+                        <span>Process & Route Items</span>
                       </button>
                       <button
                         onClick={() => {
@@ -817,11 +836,24 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   </div>
                 ) : currentStage?.stageName === 'STORE_RECEIVE' ? (
                   <>
-                    <div className="w-full mb-3 p-4 bg-amber-500/10 rounded-2xl border border-amber-500/20">
-                      <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest text-center">
-                        Order received from Production — Add to inventory before dispatch
-                      </p>
-                    </div>
+                    {(order.itemFulfillment || invCheck?.report) && (
+                      <div className="w-full mb-3 p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20">
+                        <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest text-center mb-2">
+                          Production items received — Add to inventory before dispatch
+                        </p>
+                        <div className="space-y-1">
+                          {(order.itemFulfillment
+                            ? Object.values(order.itemFulfillment).filter(v => v.deductionType === 'production')
+                            : invCheck?.report?.filter(r => r.classification === 'production') || []
+                          ).map((item, idx) => (
+                            <div key={idx} className="flex items-center justify-between text-[8px]">
+                              <span className="text-amber-300 font-bold">{item.productType || item.itemName} x{item.quantity || item.requiredQty}</span>
+                              <span className="text-amber-500">{item.status === 'completed' ? '✓ Produced' : 'Pending'}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div className="flex w-full space-x-2">
                       <button
                         onClick={async () => {

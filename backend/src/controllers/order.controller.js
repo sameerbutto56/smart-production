@@ -516,13 +516,22 @@ const requestStageCompletion = async (req, res) => {
     const currentStage = await prisma.orderStage.findUnique({ where: { id: stageId } });
     const order = await prisma.order.findUnique({ where: { id: orderId } });
 
-    // Inventory deduction on Store confirmation
+    // STORE stage: classify items + deduct non-manufactured
     if (currentStage.stageName === 'STORE' && (inventoryStatus === 'have_it' || inventoryStatus === 'Available')) {
       try {
-        await deductInventory(order, req.user.id);
-        await createAuditLog(orderId, 'INVENTORY_CONFIRMED', 'Store confirmed inventory available & allocated. Stock deducted.', req.user.id);
+        const { inventoryItems, productionItems, itemFulfillment } = await classifyOrderItems(order);
+        // Deduct non-manufactured items from inventory
+        await deductInventoryItems(order, req.user.id, inventoryItems);
+        // Store fulfillment plan on order
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { itemFulfillment }
+        });
+        await createAuditLog(orderId, 'INVENTORY_CONFIRMED',
+          `Classified ${inventoryItems.length} inventory item(s) and ${productionItems.length} production item(s). Non-manufactured stock deducted.`,
+          req.user.id);
       } catch (invErr) {
-        console.error('Inventory deduction error:', invErr);
+        console.error('Classification / deduction error:', invErr);
       }
     }
 
@@ -535,12 +544,40 @@ const requestStageCompletion = async (req, res) => {
     // Create production record when PRODUCTION stage completes
     if (currentStage.stageName === 'PRODUCTION') {
       await createProductionRecordFromOrder(order, 'PRODUCTION');
+      // Mark production items as completed in itemFulfillment
+      const existing = order.itemFulfillment || {};
+      for (const [key, val] of Object.entries(existing)) {
+        if (val.deductionType === 'production') {
+          existing[key].status = 'completed';
+        }
+      }
+      await prisma.order.update({ where: { id: orderId }, data: { itemFulfillment: existing } });
     }
 
-    // Auto-transition to next stage
-    const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
-    const currentIndex = stages.indexOf(currentStage.stageName);
-    const actualNextStage = stages[currentIndex + 1];
+    // Determine next stage dynamically
+    let actualNextStage = null;
+    const stageName = currentStage.stageName;
+
+    if (stageName === 'STORE') {
+      // After STORE: next is LOGO_DESIGN for READY_LOGO/FULL_CUSTOM, DISPATCH for STANDARD
+      const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
+      const currentIndex = stages.indexOf(stageName);
+      actualNextStage = stages[currentIndex + 1];
+    } else if (stageName === 'LOGO_DESIGN') {
+      // After LOGO_DESIGN: check if any production items exist
+      const fulfill = order.itemFulfillment || {};
+      const hasProduction = Object.values(fulfill).some(v => v.deductionType === 'production' && v.status !== 'completed');
+      if (hasProduction) {
+        actualNextStage = 'PRODUCTION';
+      } else {
+        actualNextStage = 'DISPATCH';
+      }
+    } else {
+      // Standard pipeline for other stages
+      const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
+      const currentIndex = stages.indexOf(stageName);
+      actualNextStage = stages[currentIndex + 1];
+    }
 
     if (actualNextStage) {
       const durations = await getStageDurations(order.priority);
@@ -602,9 +639,33 @@ const approveStageCompletion = async (req, res) => {
 
     const order = await prisma.order.findUnique({ where: { id: orderId } });
 
+    // STORE stage classification on approval
+    if (currentStageRecord.stageName === 'STORE') {
+      try {
+        const { inventoryItems, productionItems, itemFulfillment } = await classifyOrderItems(order);
+        await deductInventoryItems(order, req.user.id, inventoryItems);
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { itemFulfillment }
+        });
+        await createAuditLog(orderId, 'INVENTORY_CONFIRMED',
+          `Classified ${inventoryItems.length} inventory item(s) and ${productionItems.length} production item(s). Non-manufactured stock deducted.`,
+          req.user.id);
+      } catch (invErr) {
+        console.error('Classification / deduction error:', invErr);
+      }
+    }
+
     // Create production record when PRODUCTION stage is approved
     if (currentStageRecord.stageName === 'PRODUCTION') {
       await createProductionRecordFromOrder(order, 'PRODUCTION');
+      const existing = order.itemFulfillment || {};
+      for (const [key, val] of Object.entries(existing)) {
+        if (val.deductionType === 'production') {
+          existing[key].status = 'completed';
+        }
+      }
+      await prisma.order.update({ where: { id: orderId }, data: { itemFulfillment: existing } });
     }
     
     // Update Customization Price, Delivery Method and Delivery Type if provided
@@ -629,9 +690,16 @@ const approveStageCompletion = async (req, res) => {
     // Determine next stage
     let actualNextStage = nextStage;
     if (!actualNextStage) {
-      const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
-      const currentIndex = stages.indexOf(currentStageRecord.stageName);
-      actualNextStage = stages[currentIndex + 1];
+      if (currentStageRecord.stageName === 'LOGO_DESIGN') {
+        const orderWithFulfillment = await prisma.order.findUnique({ where: { id: orderId } });
+        const fulfill = orderWithFulfillment?.itemFulfillment || {};
+        const hasProduction = Object.values(fulfill).some(v => v.deductionType === 'production' && v.status !== 'completed');
+        actualNextStage = hasProduction ? 'PRODUCTION' : 'DISPATCH';
+      } else {
+        const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
+        const currentIndex = stages.indexOf(currentStageRecord.stageName);
+        actualNextStage = stages[currentIndex + 1];
+      }
     }
 
     if (actualNextStage) {
@@ -1120,6 +1188,87 @@ const updateDeliveryStatus = async (req, res) => {
   }
 };
 
+const classifyOrderItems = async (order) => {
+  let parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+  const items = Array.isArray(parsedDetails) ? parsedDetails : (parsedDetails?.productType ? [parsedDetails] : []);
+
+  const inventoryItems = [];
+  const productionItems = [];
+  const itemFulfillment = {};
+
+  for (const item of items) {
+    const pd = item.productDetails || item;
+    const productType = pd?.productType;
+    if (!productType) continue;
+
+    const quantity = item.quantity || 1;
+    const key = productType.toLowerCase().replace(/\s+/g, '_');
+
+    const invItem = await prisma.inventoryItem.findFirst({
+      where: { name: { contains: productType, mode: 'insensitive' }, category: { not: 'FABRIC' } }
+    });
+
+    const isManufactured = invItem ? invItem.isManufactured : true;
+
+    if (invItem && !isManufactured && (invItem.stock > 0 || (invItem.variants && Array.isArray(invItem.variants) && invItem.variants.reduce((s, v) => s + (v.stock || 0), 0) > 0))) {
+      inventoryItems.push({ productType, quantity, color: pd.color, size: pd.size, inventoryItem: invItem });
+      itemFulfillment[key] = { productType, quantity, deductionType: 'inventory', status: 'pending' };
+    } else {
+      productionItems.push({ productType, quantity, color: pd.color, size: pd.size });
+      itemFulfillment[key] = { productType, quantity, deductionType: 'production', status: 'pending' };
+    }
+  }
+
+  return { inventoryItems, productionItems, itemFulfillment };
+};
+
+const deductInventoryItems = async (order, userId, itemList) => {
+  if (!order || !itemList?.length) return;
+
+  for (const prod of itemList) {
+    const inventoryItem = prod.inventoryItem;
+    if (!inventoryItem) continue;
+
+    const deductQty = prod.quantity || 1;
+    let variantLabel = '';
+
+    if (inventoryItem.variants && Array.isArray(inventoryItem.variants)) {
+      let updatedVariants = [...inventoryItem.variants];
+      let deducted = 0;
+
+      if (prod.color || prod.size) {
+        const matchIdx = updatedVariants.findIndex(v =>
+          (!prod.color || (v.color && v.color.toLowerCase() === prod.color.toLowerCase())) &&
+          (!prod.size || (v.size && v.size.toLowerCase() === prod.size.toLowerCase()))
+        );
+        if (matchIdx >= 0) {
+          const available = updatedVariants[matchIdx].stock || 0;
+          if (available >= deductQty) {
+            updatedVariants[matchIdx] = { ...updatedVariants[matchIdx], stock: available - deductQty };
+            variantLabel = `${updatedVariants[matchIdx].color || ''} ${updatedVariants[matchIdx].size || ''}`.trim();
+            deducted = deductQty;
+          }
+        }
+      }
+
+      if (deducted <= 0) continue;
+
+      const newTotalStock = updatedVariants.reduce((s, v) => s + (v.stock || 0), 0);
+      await prisma.inventoryItem.update({
+        where: { id: inventoryItem.id },
+        data: { variants: updatedVariants, stock: newTotalStock }
+      });
+    } else {
+      const actualDeduct = Math.min(deductQty, inventoryItem.stock);
+      await prisma.inventoryItem.update({
+        where: { id: inventoryItem.id },
+        data: { stock: { decrement: actualDeduct } }
+      });
+    }
+    await createAuditLog(order.id, 'INVENTORY_DEDUCTED', `Deducted ${deductQty} unit(s) of ${inventoryItem.name}${variantLabel ? ' (' + variantLabel + ')' : ''} from stock (non-manufactured item fulfillment). Product ID: ${inventoryItem.id}`, userId);
+  }
+};
+
 const deductInventory = async (order, userId) => {
   if (!order) return;
   let parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
@@ -1198,6 +1347,12 @@ const addOrderToInventory = async (req, res) => {
     if (!order) return res.status(404).json({ message: 'Order not found' });
     if (order.inventoryAdded) return res.status(400).json({ message: 'Inventory already added for this order' });
 
+    // Determine which items to add — only production-manufactured items
+    const fulfillment = order.itemFulfillment || {};
+    const productionProductTypes = Object.values(fulfillment)
+      .filter(v => v.deductionType === 'production')
+      .map(v => v.productType?.toLowerCase());
+
     let parsedDetails;
     try {
       parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
@@ -1207,19 +1362,24 @@ const addOrderToInventory = async (req, res) => {
     if (!parsedDetails) return res.status(400).json({ message: 'No product details found' });
 
     const productsToAdd = [];
+    const addItemIfProduction = (pd, quantity) => {
+      if (!pd?.productType) return;
+      const ptLower = pd.productType.toLowerCase();
+      if (productionProductTypes.length === 0 || productionProductTypes.some(ppt => ptLower.includes(ppt) || ppt.includes(ptLower))) {
+        productsToAdd.push({ productType: pd.productType, quantity, color: pd.color, size: pd.size });
+      }
+    };
+
     if (Array.isArray(parsedDetails)) {
       parsedDetails.forEach(item => {
-        const pd = item.productDetails || item;
-        if (pd?.productType) {
-          productsToAdd.push({ productType: pd.productType, quantity: item.quantity || 1, color: pd.color, size: pd.size });
-        }
+        addItemIfProduction(item.productDetails || item, item.quantity || 1);
       });
     } else if (parsedDetails?.productType) {
-      productsToAdd.push({ productType: parsedDetails.productType, quantity: order.quantity || 1, color: parsedDetails.color, size: parsedDetails.size });
+      addItemIfProduction(parsedDetails, order.quantity || 1);
     }
 
     if (productsToAdd.length === 0) {
-      return res.status(400).json({ message: 'No products to add to inventory' });
+      return res.status(400).json({ message: 'No production items to add to inventory' });
     }
 
     const addedItems = [];
@@ -1506,6 +1666,7 @@ const checkOrderInventory = async (req, res) => {
           requiredQty: prod.quantity,
           availableQty: 0,
           status: 'not_found',
+          classification: 'production',
           variants: []
         });
         continue;
@@ -1529,6 +1690,7 @@ const checkOrderInventory = async (req, res) => {
       if (availableQty === 0) status = 'out_of_stock';
       else if (availableQty < prod.quantity) status = 'insufficient';
 
+      const classification = inventoryItem.isManufactured ? 'production' : 'inventory';
       report.push({
         itemId: inventoryItem.id,
         itemName: inventoryItem.name,
@@ -1536,6 +1698,7 @@ const checkOrderInventory = async (req, res) => {
         requiredQty: prod.quantity,
         availableQty,
         status,
+        classification,
         variants: variantDetails,
         requestedColor: prod.color,
         requestedSize: prod.size,
@@ -1551,7 +1714,9 @@ const checkOrderInventory = async (req, res) => {
         totalItems: report.length,
         available: report.filter(r => r.status === 'available').length,
         insufficient: report.filter(r => r.status === 'insufficient').length,
-        outOfStock: report.filter(r => r.status === 'out_of_stock' || r.status === 'not_found').length
+        outOfStock: report.filter(r => r.status === 'out_of_stock' || r.status === 'not_found').length,
+        inventoryItems: report.filter(r => r.classification === 'inventory').length,
+        productionItems: report.filter(r => r.classification === 'production').length
       }
     });
   } catch (error) {
