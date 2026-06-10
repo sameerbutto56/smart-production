@@ -805,7 +805,8 @@ const getAnalytics = async (req, res) => {
       prisma.order.count({ where: { priority: { in: ['URGENT', 'SUPER_URGENT'] } } }),
       prisma.order.aggregate({
         where: {
-          updatedAt: { gte: today }
+          updatedAt: { gte: today },
+          status: { in: ['COMPLETED', 'DELIVERED'] }
         },
         _sum: {
           totalPrice: true
@@ -1723,7 +1724,7 @@ const getOutletAnalytics = async (req, res) => {
       prisma.order.count({ where: { ...orderWhere, status: 'PENDING' } }),
       prisma.order.count({ where: { ...orderWhere, status: 'IN_PROGRESS' } }),
       prisma.order.count({ where: { ...orderWhere, status: { in: ['CANCELLED', 'REJECTED'] } } }),
-      prisma.order.aggregate({ where: orderWhere, _sum: { totalPrice: true }, _avg: { totalPrice: true } }),
+      prisma.order.aggregate({ where: { ...orderWhere, status: { in: ['COMPLETED', 'DELIVERED'] } }, _sum: { totalPrice: true }, _avg: { totalPrice: true } }),
       outletName ? Promise.resolve([]) : prisma.order.groupBy({
         by: ['outletName'],
         _count: { id: true },
@@ -1731,22 +1732,6 @@ const getOutletAnalytics = async (req, res) => {
         orderBy: { _count: { id: 'desc' } }
       })
     ]);
-
-    // Stock requests per outlet
-    const stockWhere = { ...dateFilter };
-    if (outletName) stockWhere.outletName = outletName;
-    const stockRequests = await prisma.stockRequest.groupBy({
-      by: ['status'],
-      _count: { id: true },
-      _sum: { quantity: true },
-      where: stockWhere
-    });
-
-    // Inventory levels
-    const inventory = await prisma.inventoryItem.findMany({
-      select: { name: true, stock: true, category: true },
-      orderBy: { stock: 'asc' }
-    });
 
     // Recent orders for the outlet
     const recentOrders = await prisma.order.findMany({
@@ -1766,12 +1751,6 @@ const getOutletAnalytics = async (req, res) => {
         totalRevenue: revenueAgg._sum.totalPrice || 0,
         avgOrderValue: revenueAgg._avg.totalPrice || 0
       },
-      stockRequests: stockRequests.reduce((acc, r) => {
-        acc[r.status] = { count: r._count.id, totalQty: r._sum.quantity || 0 };
-        return acc;
-      }, {}),
-      inventory: inventory.filter(i => i.stock < 50).slice(0, 10),
-      lowStockCount: inventory.filter(i => i.stock < 10).length,
       outlets: outletNames ? outletNames.map(o => ({ name: o.outletName, orderCount: o._count.id })) : [{ name: outletName, orderCount: totalOrders }],
       recentOrders
     });
