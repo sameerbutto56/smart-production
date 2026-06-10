@@ -19,7 +19,8 @@ const {
   forceAction,
   setDeliveryType,
   checkOrderInventory,
-  getOutletAnalytics
+  getOutletAnalytics,
+  addOrderToInventory
 } = require('../controllers/order.controller');
 const { createEditRequest } = require('../controllers/editRequest.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
@@ -73,6 +74,9 @@ router.put('/:orderId/delivery-type', authenticate, authorize(['SUPER_ADMIN', 'F
 
 // Inventory availability check for Store department
 router.get('/:orderId/inventory-check', authenticate, authorize(['STORE', 'ADMIN', 'SUPER_ADMIN', 'FAISAL']), checkOrderInventory);
+
+// Add products from production order to store inventory
+router.post('/:orderId/add-to-inventory', authenticate, authorize(['STORE', 'ADMIN', 'SUPER_ADMIN']), addOrderToInventory);
 
 // Outlet-wise analytics
 router.get('/outlet-analytics', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), getOutletAnalytics);

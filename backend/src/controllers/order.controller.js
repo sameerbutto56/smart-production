@@ -1191,6 +1191,100 @@ const deductInventory = async (order, userId) => {
   }
 };
 
+const addOrderToInventory = async (req, res) => {
+  const { orderId } = req.params;
+  try {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (order.inventoryAdded) return res.status(400).json({ message: 'Inventory already added for this order' });
+
+    let parsedDetails;
+    try {
+      parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+    } catch {
+      return res.status(400).json({ message: 'Invalid product details' });
+    }
+    if (!parsedDetails) return res.status(400).json({ message: 'No product details found' });
+
+    const productsToAdd = [];
+    if (Array.isArray(parsedDetails)) {
+      parsedDetails.forEach(item => {
+        const pd = item.productDetails || item;
+        if (pd?.productType) {
+          productsToAdd.push({ productType: pd.productType, quantity: item.quantity || 1, color: pd.color, size: pd.size });
+        }
+      });
+    } else if (parsedDetails?.productType) {
+      productsToAdd.push({ productType: parsedDetails.productType, quantity: order.quantity || 1, color: parsedDetails.color, size: parsedDetails.size });
+    }
+
+    if (productsToAdd.length === 0) {
+      return res.status(400).json({ message: 'No products to add to inventory' });
+    }
+
+    const addedItems = [];
+    for (const prod of productsToAdd) {
+      const qty = prod.quantity || 1;
+      let inventoryItem = await prisma.inventoryItem.findFirst({
+        where: { name: { contains: prod.productType, mode: 'insensitive' } }
+      });
+
+      if (inventoryItem) {
+        if (inventoryItem.variants && Array.isArray(inventoryItem.variants)) {
+          let updatedVariants = [...inventoryItem.variants];
+          const matchIdx = updatedVariants.findIndex(v =>
+            (!prod.color || (v.color && v.color.toLowerCase() === prod.color.toLowerCase())) &&
+            (!prod.size || (v.size && v.size.toLowerCase() === prod.size.toLowerCase()))
+          );
+          if (matchIdx >= 0) {
+            updatedVariants[matchIdx] = { ...updatedVariants[matchIdx], stock: (updatedVariants[matchIdx].stock || 0) + qty };
+          } else {
+            updatedVariants.push({ color: prod.color || '', size: prod.size || '', stock: qty, price: 0 });
+          }
+          const newTotalStock = updatedVariants.reduce((s, v) => s + (v.stock || 0), 0);
+          await prisma.inventoryItem.update({
+            where: { id: inventoryItem.id },
+            data: { variants: updatedVariants, stock: newTotalStock }
+          });
+        } else {
+          await prisma.inventoryItem.update({
+            where: { id: inventoryItem.id },
+            data: { stock: { increment: qty } }
+          });
+        }
+        addedItems.push({ name: inventoryItem.name, quantity: qty, action: 'updated' });
+      } else {
+        inventoryItem = await prisma.inventoryItem.create({
+          data: {
+            name: prod.productType,
+            category: 'PRODUCTION',
+            stock: qty,
+            color: prod.color || null,
+            size: prod.size || null,
+            price: 0,
+            variants: prod.color || prod.size ? [{ color: prod.color || '', size: prod.size || '', stock: qty, price: 0 }] : null
+          }
+        });
+        addedItems.push({ name: inventoryItem.name, quantity: qty, action: 'created' });
+      }
+    }
+
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { inventoryAdded: true }
+    });
+
+    await createAuditLog(orderId, 'INVENTORY_ADDED', `Products added to store inventory from production: ${addedItems.map(i => `${i.name} x${i.quantity} (${i.action})`).join(', ')}`, req.user.id);
+
+    const io = req.app.get('io');
+    if (io) io.emit('inventory-updated', { source: 'production', orderId });
+
+    res.json({ message: 'Products added to inventory successfully', items: addedItems });
+  } catch (error) {
+    res.status(500).json({ message: 'Error adding to inventory', error: error.message });
+  }
+};
+
 const sendForDelivery = async (req, res) => {
   const { orderId } = req.params;
   try {
@@ -1600,5 +1694,6 @@ module.exports = {
   forceAction,
   setDeliveryType,
   checkOrderInventory,
-  getOutletAnalytics
+  getOutletAnalytics,
+  addOrderToInventory
 };

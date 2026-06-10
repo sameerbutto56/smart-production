@@ -72,10 +72,11 @@ model Order {
   productionCost   Float?     @default(0)
   grossProfit      Float?     @default(0)
   netProfit        Float?     @default(0)
-  auditLogs       AuditLog[]
-  stages          OrderStage[]
-  editRequests    OrderEditRequest[]
-  createdBy       User?        @relation("OrderCreatedBy", fields: [createdById], references: [id])
+   inventoryAdded  Boolean    @default(false)
+   auditLogs       AuditLog[]
+   stages          OrderStage[]
+   editRequests    OrderEditRequest[]
+   createdBy       User?        @relation("OrderCreatedBy", fields: [createdById], references: [id])
 
   @@index([status])
   @@index([currentStage])

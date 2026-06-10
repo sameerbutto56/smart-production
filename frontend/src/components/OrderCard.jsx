@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw, MessageSquare, History, Target, Trash2, Truck, Users, Phone, ShieldAlert, RotateCcw, Lock } from 'lucide-react';
+import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw, MessageSquare, History, Target, Trash2, Truck, Users, Phone, ShieldAlert, RotateCcw, Lock, Package } from 'lucide-react';
 import axios from 'axios';
 import { useLanguage } from '../context/LanguageContext';
 import Button from './Button';
@@ -815,6 +815,45 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       <span className="text-[7px] text-red-200 tracking-widest">→ NOTIFY {order.source === 'OUTLET' ? 'BRANCH' : 'FAISAL'}</span>
                     </button>
                   </div>
+                ) : currentStage?.stageName === 'STORE_RECEIVE' ? (
+                  <>
+                    <div className="w-full mb-3 p-4 bg-amber-500/10 rounded-2xl border border-amber-500/20">
+                      <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest text-center">
+                        Order received from Production — Add to inventory before dispatch
+                      </p>
+                    </div>
+                    <div className="flex w-full space-x-2">
+                      <button
+                        onClick={async () => {
+                          try {
+                            const token = sessionStorage.getItem('token');
+                            await axios.post(`${API_URL}/api/orders/${order.id}/add-to-inventory`, {}, {
+                              headers: { Authorization: `Bearer ${token}` }
+                            });
+                            toast.success('Products added to store inventory');
+                            if (onUpdateStage) onUpdateStage(order.id, currentStage.id, 'request', {});
+                          } catch (error) {
+                            toast.error(error.response?.data?.message || 'Error adding to inventory');
+                          }
+                        }}
+                        className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-3 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
+                      >
+                        <Package size={14} />
+                        <span>Add to Inventory</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (window.confirm('Send this order for dispatch?')) {
+                            onUpdateStage(order.id, currentStage.id, 'request');
+                          }
+                        }}
+                        className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-3 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-blue-900/20"
+                      >
+                        <Truck size={14} />
+                        <span>Send for Dispatch</span>
+                      </button>
+                    </div>
+                  </>
                 ) : (
                   <div className="flex w-full space-x-2">
                     <button
