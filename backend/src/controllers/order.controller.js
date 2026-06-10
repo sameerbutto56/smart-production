@@ -20,6 +20,7 @@ const sortByPriority = (orders) => {
 
 const NEXT_STAGES = {
   'STANDARD': ['STORE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+  'STANDARD_PRODUCTION': ['STORE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
   'READY_LOGO': ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
   'FULL_CUSTOM': ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY']
 };
@@ -551,6 +552,22 @@ const requestStageCompletion = async (req, res) => {
     if (stageName === 'LOGO_DESIGN') {
       const { productionItems } = await classifyOrderItems(order);
       actualNextStage = productionItems.length > 0 ? 'PRODUCTION' : 'DISPATCH';
+    } else if (stageName === 'STORE') {
+      const { productionItems } = await classifyOrderItems(order);
+      if (productionItems.length > 0) {
+        // Standard orders needing production get re-typed so subsequent stages follow the production pipeline
+        if (order.type === 'STANDARD') {
+          await prisma.order.update({ where: { id: orderId }, data: { type: 'STANDARD_PRODUCTION' } });
+          order.type = 'STANDARD_PRODUCTION';
+        }
+        actualNextStage = 'PRODUCTION';
+      } else {
+        const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
+        const currentIndex = stages.indexOf(stageName);
+        if (currentIndex >= 0 && currentIndex < stages.length - 1) {
+          actualNextStage = stages[currentIndex + 1];
+        }
+      }
     } else {
       const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
       const currentIndex = stages.indexOf(stageName);
@@ -662,6 +679,19 @@ const approveStageCompletion = async (req, res) => {
       if (currentStageRecord.stageName === 'LOGO_DESIGN') {
         const { productionItems } = await classifyOrderItems(order);
         actualNextStage = productionItems.length > 0 ? 'PRODUCTION' : 'DISPATCH';
+      } else if (currentStageRecord.stageName === 'STORE') {
+        const { productionItems } = await classifyOrderItems(order);
+        if (productionItems.length > 0) {
+          if (order.type === 'STANDARD') {
+            await prisma.order.update({ where: { id: orderId }, data: { type: 'STANDARD_PRODUCTION' } });
+            order.type = 'STANDARD_PRODUCTION';
+          }
+          actualNextStage = 'PRODUCTION';
+        } else {
+          const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
+          const currentIndex = stages.indexOf(currentStageRecord.stageName);
+          actualNextStage = stages[currentIndex + 1];
+        }
       } else {
         const stages = NEXT_STAGES[order.type] || NEXT_STAGES['STANDARD'];
         const currentIndex = stages.indexOf(currentStageRecord.stageName);
@@ -748,19 +778,48 @@ const rejectStageCompletion = async (req, res) => {
 
 const updatePaymentStatus = async (req, res) => {
   const { orderId } = req.params;
-  const { paymentStatus } = req.body;
+  const { paymentStatus, paidAmount, paymentMethod: method } = req.body;
 
   try {
-    const order = await prisma.order.update({
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    // Track payment transactions in courierDetails JSON field
+    let courierDetails = order.courierDetails || {};
+    if (typeof courierDetails === 'string') courierDetails = JSON.parse(courierDetails);
+    if (!courierDetails.payments) courierDetails.payments = [];
+
+    if (paidAmount && parseFloat(paidAmount) > 0) {
+      courierDetails.payments.push({
+        method: method || 'CASH',
+        amount: parseFloat(paidAmount),
+        date: new Date().toISOString(),
+        recordedBy: req.user.id
+      });
+    }
+
+    // Calculate total paid vs total price to determine actual status
+    const totalPaid = courierDetails.payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    const totalPrice = order.totalPrice || 0;
+    let finalPaymentStatus = paymentStatus;
+    if (totalPaid >= totalPrice) {
+      finalPaymentStatus = 'FULL_PAID';
+    } else if (totalPaid > 0) {
+      finalPaymentStatus = 'ADVANCE_PAID';
+    }
+
+    const updatedOrder = await prisma.order.update({
       where: { id: orderId },
       data: { 
-        paymentStatus,
-        advancePaid: paymentStatus === 'ADVANCE_PAID' || paymentStatus === 'FULL_PAID'
+        paymentStatus: finalPaymentStatus,
+        advancePaid: finalPaymentStatus === 'ADVANCE_PAID' || finalPaymentStatus === 'FULL_PAID',
+        courierDetails,
+        paymentMethod: method || order.paymentMethod
       }
     });
 
     // If it was waiting for payment and now advance is paid, move to first module (STORE)
-    if (order.status === 'WAITING_PAYMENT' && order.advancePaid) {
+    if (updatedOrder.status === 'WAITING_PAYMENT' && updatedOrder.advancePaid) {
       const durations = await getStageDurations(order.priority);
       const deadline = calculateDeadline(new Date(), durations['STORE'] || 24);
       await prisma.orderStage.create({
@@ -772,7 +831,7 @@ const updatePaymentStatus = async (req, res) => {
         }
       });
       
-      const updated = await prisma.order.update({
+      await prisma.order.update({
         where: { id: orderId },
         data: { 
           status: 'IN_PROGRESS',
@@ -782,12 +841,14 @@ const updatePaymentStatus = async (req, res) => {
     }
 
     const io = req.app.get('io');
-    io.emit('order-updated', { orderId, paymentStatus: order.paymentStatus, createdById: order.createdById });
-    io.emit('payment-updated', { orderId, order });
+    io.emit('order-updated', { orderId, paymentStatus: updatedOrder.paymentStatus, createdById: updatedOrder.createdById });
+    io.emit('payment-updated', { orderId, order: updatedOrder });
 
-    await createAuditLog(orderId, 'PAYMENT_UPDATED', `Payment status changed to: ${paymentStatus}`, req.user.id);
+    await createAuditLog(orderId, 'PAYMENT_UPDATED',
+      `Payment: ${finalPaymentStatus} | Total paid: ${totalPaid}/${totalPrice} | Method: ${method || 'CASH'} | Amount: ${paidAmount || 'status-only'}`,
+      req.user.id);
 
-    res.json({ message: 'Payment status updated', order });
+    res.json({ message: 'Payment status updated', order: updatedOrder, totalPaid, remainingBalance: Math.max(0, totalPrice - totalPaid) });
   } catch (error) {
     res.status(500).json({ message: 'Error updating payment', error: error.message });
   }
@@ -1112,7 +1173,7 @@ const checkDeletedOrder = async (req, res) => {
 
 const updateDeliveryStatus = async (req, res) => {
   const { orderId } = req.params;
-  const { deliveryStatus, remarks, paymentMethod } = req.body; // deliveryStatus: 'DELIVERED' | 'NOT_RESPONDED'
+  const { deliveryStatus, remarks, paymentMethod } = req.body; // deliveryStatus: 'DELIVERED' | 'NOT_RESPONDED' | 'FAILED' | 'RESCHEDULED'
   const userId = req.user?.id;
 
   try {
@@ -1122,34 +1183,72 @@ const updateDeliveryStatus = async (req, res) => {
     const order = await prisma.order.findUnique({ where: { id: orderId } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    const updatedOrder = await prisma.order.update({
-      where: { id: orderId },
-      data: {
-        status: deliveryStatus === 'DELIVERED' ? 'COMPLETED' : order.status,
-        currentStage: deliveryStatus === 'DELIVERED' ? 'DELIVERED' : order.currentStage,
-        paymentStatus: deliveryStatus === 'DELIVERED' ? 'FULL_PAID' : order.paymentStatus,
-        advancePaid: deliveryStatus === 'DELIVERED' ? true : order.advancePaid,
-        paymentMethod: paymentMethod || (deliveryStatus === 'DELIVERED' ? 'CASH' : order.paymentMethod),
-        updatedAt: new Date()
-      },
-      include: { stages: true }
-    });
-
-    if (deliveryStatus === 'DELIVERED') {
+    if (deliveryStatus === 'FAILED' || deliveryStatus === 'NOT_RESPONDED') {
+      // Mark delivery as failed but keep order in OUT_FOR_DELIVERY for retry
+      await prisma.order.update({
+        where: { id: orderId },
+        data: {
+          dispatchStatus: 'FAILED',
+          updatedAt: new Date()
+        }
+      });
+      await createAuditLog(orderId, 'DELIVERY_FAILED', remarks || `Delivery failed / No response. Order queued for retry.`, userId);
+    } else if (deliveryStatus === 'RESCHEDULED') {
+      // Extend the OUT_FOR_DELIVERY deadline to tomorrow
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      // Update the OUT_FOR_DELIVERY stage deadline
+      const outStage = await prisma.orderStage.findFirst({
+        where: { orderId, stageName: 'OUT_FOR_DELIVERY', status: 'PENDING' }
+      });
+      if (outStage) {
+        await prisma.orderStage.update({
+          where: { id: outStage.id },
+          data: { deadlineAt: tomorrow }
+        });
+      }
+      await prisma.order.update({
+        where: { id: orderId },
+        data: { dispatchStatus: 'RESCHEDULED', updatedAt: new Date() }
+      });
+      await createAuditLog(orderId, 'DELIVERY_RESCHEDULED', remarks || `Delivery rescheduled to ${tomorrow.toLocaleDateString()}.`, userId);
+    } else if (deliveryStatus === 'DELIVERED') {
+      const updatedOrder = await prisma.order.update({
+        where: { id: orderId },
+        data: {
+          status: 'COMPLETED',
+          currentStage: 'DELIVERED',
+          paymentStatus: 'FULL_PAID',
+          advancePaid: true,
+          dispatchStatus: 'DELIVERED',
+          paymentMethod: paymentMethod || 'CASH',
+          updatedAt: new Date()
+        },
+        include: { stages: true }
+      });
       await calculateAndRecordRevenue(updatedOrder);
+      await createAuditLog(orderId, 'DELIVERED', remarks || 'Order delivered to customer', userId);
+
+      const io = req.app.get('io');
+      io.emit('order-updated', { order: updatedOrder, createdById: order.createdById });
+      return res.json(updatedOrder);
     }
 
-    await createAuditLog(
-      orderId,
-      deliveryStatus === 'DELIVERED' ? 'DELIVERED' : 'NOT_RESPONDED',
-      remarks || (deliveryStatus === 'DELIVERED' ? 'Order delivered to customer' : 'Customer did not respond'),
-      userId
-    );
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { updatedAt: new Date() }
+    });
+
+    await createAuditLog(orderId, 'DELIVERY_STATUS_UPDATED', `Delivery status: ${deliveryStatus}. ${remarks || ''}`, userId);
 
     const io = req.app.get('io');
-    io.emit('order-updated', { order: updatedOrder, createdById: order.createdById });
+    const freshOrder = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { stages: { orderBy: { createdAt: 'desc' } } }
+    });
+    io.emit('order-updated', { order: freshOrder, createdById: order.createdById });
 
-    res.json(updatedOrder);
+    res.json(freshOrder);
   } catch (error) {
     console.error('Delivery status update error:', error);
     res.status(500).json({ message: 'Error updating delivery status', error: error.message });

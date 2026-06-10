@@ -34,6 +34,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const [showProblemModal, setShowProblemModal] = useState(false);
   const [problemNote, setProblemNote] = useState('');
   const [deliveryMethod, setDeliveryMethod] = useState('');
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('CASH');
+  const [paymentLoading, setPaymentLoading] = useState(false);
   const [selectedDeliveryType, setSelectedDeliveryType] = useState('');
   const [showForceModal, setShowForceModal] = useState(false);
   const [forceAction, setForceAction] = useState('FORCE_MOVE');
@@ -132,6 +136,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
 
   const pipelines = {
     'STANDARD': ['ORDER_ENTRY', 'STORE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+    'STANDARD_PRODUCTION': ['ORDER_ENTRY', 'STORE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
     'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
     'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY']
   };
@@ -446,6 +451,11 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   {order.paymentStatus === 'FULL_PAID' ? 'Paid' : order.paymentStatus === 'ADVANCE_PAID' ? 'Advance' : 'Unpaid'}
                 </span>
               )}
+              {order.courierDetails?.payments?.length > 0 && (
+                <span className="text-[7px] font-bold text-gray-500">
+                  ₨{order.courierDetails.payments.reduce((s, p) => s + (p.amount || 0), 0).toLocaleString()} / ₨{(order.totalPrice || 0).toLocaleString()}
+                </span>
+              )}
               {order.deliveryType && (
                 <span className="text-[8px] font-black text-purple-400 bg-purple-900/30 px-2 py-0.5 rounded-md uppercase">{order.deliveryType.replace(/_/g, ' ')}</span>
               )}
@@ -650,18 +660,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       </div>
                     {order.paymentStatus !== 'FULL_PAID' && (
                       <button
-                        onClick={() => {
-                          const status = order.paymentStatus === 'PENDING' ? 'ADVANCE_PAID' : 'FULL_PAID';
-                          axios.put(`${API_URL}/api/orders/${order.id}/payment`, { paymentStatus: status }, {
-                            headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
-                          }).then(() => {
-                          }).catch(err => {
-                            console.error('Payment update failed:', err);
-                            alert('Payment update failed');
-                          });
-                        }}
+                        onClick={() => { setShowPaymentModal(true); setPaymentAmount(''); setPaymentMethod('CASH'); }}
                         className="flex-1 min-w-[100px] py-3 px-2 bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white rounded-xl transition-all border border-yellow-500/20 active:scale-95 flex flex-col items-center justify-center gap-1"
-                        title="Update Payment"
+                        title="Record Payment"
                       >
                         <AlertCircle size={16} />
                         <span className="text-[9px] md:text-[10px] font-black">{t('Pay')}</span>
@@ -885,6 +886,67 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   </>
                 ) : (
                   <div className="flex w-full space-x-2">
+                    {currentStage?.stageName === 'OUT_FOR_DELIVERY' ? (
+                      <div className="flex flex-col gap-2 w-full">
+                        <div className="grid grid-cols-3 gap-2">
+                          <button
+                            onClick={() => {
+                              if (window.confirm('Confirm delivery complete? This will mark order as COMPLETED.')) {
+                                axios.put(`${API_URL}/api/orders/${order.id}/delivery-status`, {
+                                  deliveryStatus: 'DELIVERED',
+                                  remarks: 'Delivered successfully'
+                                }, {
+                                  headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
+                                }).then(() => { window.location.reload(); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
+                              }
+                            }}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-lg shadow-emerald-900/30"
+                          >
+                            <CheckCircle size={14} className="mx-auto mb-1" />
+                            DELIVERED
+                          </button>
+                          <button
+                            onClick={() => {
+                              const reason = prompt('Reason for failure?');
+                              if (reason !== null) {
+                                axios.put(`${API_URL}/api/orders/${order.id}/delivery-status`, {
+                                  deliveryStatus: 'FAILED',
+                                  remarks: reason || 'Delivery failed'
+                                }, {
+                                  headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
+                                }).then(() => { window.location.reload(); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
+                              }
+                            }}
+                            className="bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white py-3 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all border border-red-500/20 active:scale-95"
+                          >
+                            <AlertTriangle size={14} className="mx-auto mb-1" />
+                            FAILED
+                          </button>
+                          <button
+                            onClick={() => {
+                              const date = prompt('Reschedule to date? (YYYY-MM-DD) or leave blank for tomorrow');
+                              axios.put(`${API_URL}/api/orders/${order.id}/delivery-status`, {
+                                deliveryStatus: 'RESCHEDULED',
+                                remarks: date ? `Rescheduled to ${date}` : 'Rescheduled to next day'
+                              }, {
+                                headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
+                              }).then(() => { window.location.reload(); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
+                            }}
+                            className="bg-amber-600/10 hover:bg-amber-600 text-amber-500 hover:text-white py-3 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all border border-amber-500/20 active:scale-95"
+                          >
+                            <Clock size={14} className="mx-auto mb-1" />
+                            RESCHEDULE
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => setShowProblemModal(true)}
+                          className="bg-red-600/5 hover:bg-red-600/20 text-red-500/50 hover:text-red-400 py-2 rounded-xl text-[8px] font-black uppercase tracking-wider transition-all border border-red-500/10"
+                        >
+                          REPORT PROBLEM
+                        </button>
+                      </div>
+                    ) : (
+                      <>
                     <button
                       onClick={() => {
                         if (window.confirm('Confirm this stage is fully complete?')) {
@@ -897,7 +959,6 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       <span>{(() => {
                         const nextStageIdx = currentPipeline.indexOf(currentStage?.stageName) + 1;
                         const nextStage = currentPipeline[nextStageIdx];
-                        if (currentStage?.stageName === 'OUT_FOR_DELIVERY') return t('DELIVERY COMPLETE');
                         return nextStage ? `${t('MOVE TO')} ${t(nextStage.replace(/_/g, ' '))}` : t('COMPLETE TASK');
                       })()}</span>
                     </button>
@@ -908,6 +969,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       <AlertCircle size={16} />
                       <span>PROBLEM</span>
                     </button>
+                    </>
+                    )}
                   </div>
                 )
               )
@@ -1262,10 +1325,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 <label className="text-[9px] md:text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-1">Delivery Method (Optional)</label>
                 <div className="grid grid-cols-2 gap-2">
                   {[
+                    { value: 'ANIMAL', label: 'Animal Delivery', icon: '🐪' },
                     { value: 'TCS', label: 'TCS Courier', icon: '📦' },
-                    { value: 'SELF_PICKUP', label: 'Self Pickup', icon: '🏪' },
-                    { value: 'ENAMELS_DELIVERY', label: 'Enamels Delivery', icon: '🚚' },
-                    { value: 'SHOPIFY', label: 'Shopify Delivery', icon: '🛒' },
+                    { value: 'ASSIGNED_PARTNER', label: 'Assigned Partner', icon: '👤' },
                   ].map(method => (
                     <button
                       key={method.value}
@@ -1575,6 +1637,117 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               >
                 Cancel
               </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Payment Modal */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="glass max-w-sm w-full p-6 rounded-[2rem] border-2 border-gray-800 shadow-[0_50px_100px_rgba(0,0,0,0.5)]"
+          >
+            <div className="flex items-center gap-3 mb-5">
+              <div className="p-3 rounded-xl bg-yellow-500/10">
+                <AlertCircle className="text-yellow-400" size={22} />
+              </div>
+              <div>
+                <h2 className="text-xl font-black text-white uppercase tracking-tight">Record Payment</h2>
+                <p className="text-gray-400 text-[10px] font-bold">Order #{order.orderNumber || order.id.substring(0, 8)}</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Total Price</label>
+                <p className="text-2xl font-black text-white mt-1">₨{order.totalPrice?.toLocaleString() || '0'}</p>
+              </div>
+
+              {order.courierDetails?.payments?.length > 0 && (
+                <div className="theme-bg rounded-xl p-3 border theme-border max-h-24 overflow-y-auto">
+                  <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1">Payment History</p>
+                  {order.courierDetails.payments.map((p, i) => (
+                    <div key={i} className="flex items-center justify-between text-[9px] py-0.5 border-b border-gray-800/50 last:border-0">
+                      <span className="font-bold text-gray-400">{p.method}</span>
+                      <span className="font-black text-emerald-400">₨{p.amount?.toLocaleString()}</span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between text-[9px] pt-1 mt-1 border-t border-gray-700">
+                    <span className="font-black text-gray-300">Total Paid</span>
+                    <span className="font-black text-emerald-400">₨{order.courierDetails.payments.reduce((s, p) => s + (p.amount || 0), 0).toLocaleString()}</span>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Amount (₨)</label>
+                <input
+                  type="number"
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value)}
+                  className="w-full bg-gray-950 border-2 border-gray-800 rounded-xl py-3 px-4 outline-none focus:border-yellow-500 text-white font-black text-lg mt-1"
+                  placeholder="Enter payment amount"
+                />
+              </div>
+
+              <div>
+                <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2 block">Payment Method</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { value: 'CASH', label: 'Cash', icon: '💵' },
+                    { value: 'ONLINE', label: 'Online Transfer', icon: '🏦' },
+                  ].map(m => (
+                    <button
+                      key={m.value}
+                      type="button"
+                      onClick={() => setPaymentMethod(m.value)}
+                      className={`p-3 rounded-xl border-2 text-center transition-all ${
+                        paymentMethod === m.value ? 'border-yellow-500 bg-yellow-500/10 text-yellow-400' : 'border-gray-800 bg-gray-950 text-gray-400'
+                      }`}
+                    >
+                      <span className="text-lg block mb-1">{m.icon}</span>
+                      <span className="text-[9px] font-black uppercase">{m.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setShowPaymentModal(false)}
+                  className="flex-1 py-3 bg-gray-800 text-gray-400 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-gray-700 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={!paymentAmount || parseFloat(paymentAmount) <= 0 || paymentLoading}
+                  onClick={async () => {
+                    setPaymentLoading(true);
+                    try {
+                      const token = sessionStorage.getItem('token');
+                      await axios.put(`${API_URL}/api/orders/${order.id}/payment`, {
+                        paidAmount: parseFloat(paymentAmount),
+                        paymentMethod,
+                        paymentStatus: 'ADVANCE_PAID'
+                      }, {
+                        headers: { Authorization: `Bearer ${token}` }
+                      });
+                      setShowPaymentModal(false);
+                      window.location.reload();
+                    } catch (err) {
+                      alert('Payment failed: ' + (err.response?.data?.message || err.message));
+                    }
+                    setPaymentLoading(false);
+                  }}
+                  className="flex-1 py-3 bg-yellow-600 text-white rounded-xl font-black text-xs uppercase tracking-wider hover:bg-yellow-500 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {paymentLoading ? 'Processing...' : 'Record Payment'}
+                </button>
+              </div>
             </div>
           </motion.div>
         </div>

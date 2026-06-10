@@ -59,9 +59,11 @@ const TOP_TABS = [
 const PIPELINE_STAGES = [
   { id: 'ORDER_ENTRY', label: 'Order Entry', icon: ClipboardList },
   { id: 'STORE', label: 'Store', icon: Package },
-  { id: 'PRODUCTION', label: 'Production', icon: Circle },
   { id: 'LOGO_DESIGN', label: 'Logo Design', icon: Circle },
+  { id: 'PRODUCTION', label: 'Production', icon: Circle },
+  { id: 'STORE_RECEIVE', label: 'Store Receive', icon: RotateCcw },
   { id: 'DISPATCH', label: 'Dispatch', icon: Truck },
+  { id: 'OUT_FOR_DELIVERY', label: 'Out for Delivery', icon: Truck },
 ];
 
 const BRANCHES = [
