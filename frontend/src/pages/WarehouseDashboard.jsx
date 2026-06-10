@@ -4,7 +4,8 @@ import {
   Package, ShoppingCart, CheckCircle2, XCircle, AlertTriangle,
   RefreshCcw, Search, Clock, Truck, Building2, PlusCircle,
   Eye, ThumbsUp, ThumbsDown, FileText, BarChart3, MinusCircle,
-  CheckCircle, AlertCircle, Download, TrendingUp, User, Gift, Send
+  CheckCircle, AlertCircle, Download, TrendingUp, User, Gift, Send,
+  Factory, Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -14,7 +15,7 @@ import { usePolling } from '../hooks/usePolling';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
-const TABS = ['dashboard', 'requests', 'inventory', 'analytics', 'history', 'allocation'];
+const TABS = ['dashboard', 'requests', 'inventory', 'production', 'analytics', 'history', 'allocation'];
 const COLORS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899'];
 
 const WarehouseDashboard = () => {
@@ -42,6 +43,7 @@ const WarehouseDashboard = () => {
   const [allocPage, setAllocPage] = useState(1);
   const [allocSearch, setAllocSearch] = useState('');
   const [allocLoading, setAllocLoading] = useState(false);
+  const [productionInventory, setProductionInventory] = useState([]);
 
   useEffect(() => {
     if (activeTab === 'allocation') {
@@ -70,6 +72,9 @@ const WarehouseDashboard = () => {
         setInventory(invRes.data);
         const reqRes = await axios.get(`${API_URL}/api/stock-requests`, { headers: { Authorization: `Bearer ${token}` } });
         setRequests(reqRes.data);
+      } else if (activeTab === 'production') {
+        const invRes = await axios.get(`${API_URL}/api/production/inventory`, { headers: { Authorization: `Bearer ${token}` } });
+        setProductionInventory(invRes.data);
       }
     } catch (error) {
       if (!silent) {
@@ -300,6 +305,7 @@ const WarehouseDashboard = () => {
                 {tab === 'dashboard' && <><BarChart3 size={14} className="inline mr-2" />Dashboard</>}
                 {tab === 'requests' && <><ShoppingCart size={14} className="inline mr-2" />Requests {pendingRequests.length > 0 && <span className="ml-1 bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{pendingRequests.length}</span>}</>}
                 {tab === 'inventory' && <><Package size={14} className="inline mr-2" />Inventory</>}
+                {tab === 'production' && <><Factory size={14} className="inline mr-2" />Production Inventory</>}
                 {tab === 'analytics' && <><TrendingUp size={14} className="inline mr-2" />Analytics</>}
                 {tab === 'history' && <><Clock size={14} className="inline mr-2" />History</>}
                 {tab === 'allocation' && <><Gift size={14} className="inline mr-2" />Allocation</>}
@@ -599,6 +605,65 @@ const WarehouseDashboard = () => {
                     ) : null)}
                   </motion.div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Production Inventory Tab */}
+          {activeTab === 'production' && (
+            <div className="space-y-4 md:space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="font-black theme-text-primary text-lg uppercase tracking-wider">Production Inventory</h2>
+                <span className="text-xs font-bold theme-text-muted">Finished products from Production</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {productionInventory.length === 0 ? (
+                  <div className="col-span-full text-center py-16">
+                    <Factory size={48} className="mx-auto text-gray-700 mb-4" />
+                    <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No production inventory items yet</p>
+                  </div>
+                ) : (
+                  productionInventory.map((item, i) => (
+                    <motion.div key={item.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
+                      className="glass p-5 rounded-2xl border-2 theme-border hover:border-amber-500/30 transition-all">
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center space-x-3">
+                          <div className="p-2.5 bg-amber-500/10 rounded-xl">
+                            <Factory size={18} className="text-amber-400" />
+                          </div>
+                          <div>
+                            <h3 className="font-black theme-text-primary text-sm">{item.productName}</h3>
+                            <span className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase border border-blue-500/20 bg-blue-500/5 text-blue-400">
+                              {item.source}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="px-3 py-1 rounded-full text-[9px] font-black uppercase border border-emerald-500/20 bg-emerald-500/5 text-emerald-400">
+                          {item.quantity} units
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t theme-border text-center">
+                        <div>
+                          <p className="text-[8px] font-black theme-text-muted uppercase">Cost</p>
+                          <p className="font-bold text-xs theme-text-primary">₨{item.productionCost?.toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-[8px] font-black theme-text-muted uppercase">Value</p>
+                          <p className="font-bold text-xs text-emerald-400">₨{item.sellingValue?.toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-[8px] font-black theme-text-muted uppercase">Margin</p>
+                          <p className={`font-bold text-xs ${item.profitMargin >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {item.profitMargin?.toFixed(1)}%
+                          </p>
+                        </div>
+                      </div>
+                      <p className="text-[8px] font-bold theme-text-muted mt-3">
+                        {new Date(item.productionDate).toLocaleDateString()}
+                      </p>
+                    </motion.div>
+                  ))
+                )}
               </div>
             </div>
           )}
