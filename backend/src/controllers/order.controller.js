@@ -52,6 +52,23 @@ const getStageDurations = async (priority = 'NORMAL') => {
  
 
 
+const getBrandingRates = async () => {
+  try {
+    const setting = await prisma.systemSetting.findUnique({ where: { key: 'BRANDING_CHARGES' } });
+    if (setting) {
+      const parsed = JSON.parse(setting.value);
+      return {
+        logoCharge: parsed.logoCharge ?? 500,
+        namePrintingCharge: parsed.namePrintingCharge ?? 300,
+        customizationCharge: parsed.customizationCharge ?? 200
+      };
+    }
+  } catch (e) {
+    console.error('Error parsing BRANDING_CHARGES:', e);
+  }
+  return { logoCharge: 500, namePrintingCharge: 300, customizationCharge: 200 };
+};
+
 const createAuditLog = async (orderId, action, details, userId) => {
   try {
     // If no userId, we can't create the log because it's required in schema
@@ -185,6 +202,25 @@ const createOrder = async (req, res) => {
       finalSizeData = items[0].sizeData || sizeData;
     }
 
+    // Calculate branding/logo charges
+    let parsedCustomization = finalCustomization;
+    if (typeof finalCustomization === 'string') {
+      try { parsedCustomization = JSON.parse(finalCustomization); } catch (e) { parsedCustomization = {}; }
+    }
+    const brandingRates = await getBrandingRates();
+    const hasLogo = !!(logoDesign || (items && items.some(i => i.logoDesign || i.customization?.logoDetails)));
+    const hasNamePrinting = !!(parsedCustomization?.nameSpelling || (items && items.some(i => i.customization?.nameSpelling)));
+    const hasCustomization = !!(type === 'FULL_CUSTOM' || parsedCustomization?.stitchingStyle === 'DBL' || (items && items.some(i => i.customization?.stitchingStyle === 'DBL')));
+
+    const finalLogoCharges = parseFloat(req.body.logoCharges) || (hasLogo ? brandingRates.logoCharge : 0);
+    const finalNamePrintingCharges = parseFloat(req.body.namePrintingCharges) || (hasNamePrinting ? brandingRates.namePrintingCharge : 0);
+    const finalCustomizationPrice = parseFloat(req.body.customizationPrice) || (hasCustomization ? brandingRates.customizationCharge : 0);
+
+    let baseTotal = finalProductDetails && Array.isArray(finalProductDetails)
+      ? finalProductDetails.reduce((sum, item) => sum + (item.totalPrice || 0), 0)
+      : (parseFloat(req.body.totalPrice) || 0);
+    const finalTotalPrice = baseTotal + finalLogoCharges + finalNamePrintingCharges + finalCustomizationPrice;
+
     const order = await prisma.order.create({
       data: {
         orderNumber,
@@ -211,14 +247,15 @@ const createOrder = async (req, res) => {
         quantity: parseInt(quantity) || 1,
         logoDesign,
         logoName,
+        logoCharges: finalLogoCharges,
+        namePrintingCharges: finalNamePrintingCharges,
+        customizationPrice: finalCustomizationPrice,
         customization: finalCustomization ? JSON.stringify(finalCustomization) : null,
         productDetails: finalProductDetails ? JSON.stringify(finalProductDetails) : null,
         sizeData: finalSizeData ? JSON.stringify(finalSizeData) : null,
         advancePaid: advancePaid || false,
         productImage,
-        totalPrice: finalProductDetails && Array.isArray(finalProductDetails)
-          ? finalProductDetails.reduce((sum, item) => sum + (item.totalPrice || 0), 0)
-          : (parseFloat(req.body.totalPrice) || 0),
+        totalPrice: finalTotalPrice,
         shopifyOrderId,
         paymentDeadline: paymentDeadline ? new Date(paymentDeadline) : (type === 'READY_LOGO' ? new Date(Date.now() + 48 * 60 * 60 * 1000) : null),
         currentStage: 'ORDER_ENTRY',

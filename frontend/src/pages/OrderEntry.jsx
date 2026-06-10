@@ -96,6 +96,11 @@ const SmartOrderForm = () => {
     logoColor: '',
     logoPlacement: '',
 
+    // Branding Charges (optional manual input)
+    logoCharges: '',
+    namePrintingCharges: '',
+    customizationPrice: '',
+
     // Advanced Stitching
     stitchingStyle: '',
     fitType: 'Regular',
@@ -412,22 +417,15 @@ const SmartOrderForm = () => {
   const [cartItems, setCartItems] = useState([]);
   const [showAddMore, setShowAddMore] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [showCustomizationModal, setShowCustomizationModal] = useState(false);
-  const [customModalData, setCustomModalData] = useState({
-    nameText: '',
-    placement: 'left',
-    logoDetails: '',
-    embroideryInstructions: '',
-    stitchType: 'single',
-    threadColor: '',
-    resizeScale: 100,
-  });
 
   const resetProductFields = () => {
     setFormData(prev => ({
       ...prev,
       quantity: 1,
       totalPrice: '',
+      logoCharges: '',
+      namePrintingCharges: '',
+      customizationPrice: '',
       productType: '',
       fabricType: '',
       color: '',
@@ -435,7 +433,7 @@ const SmartOrderForm = () => {
       logoDesign: '',
       logoName: '',
       gender: 'Male',
-      femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long' }
+      femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: false }
     }));
   };
 
@@ -445,6 +443,7 @@ const SmartOrderForm = () => {
       return;
     }
     
+    const brandingTotal = (parseFloat(formData.logoCharges) || 0) + (parseFloat(formData.namePrintingCharges) || 0) + (parseFloat(formData.customizationPrice) || 0);
     const payload = {
       orderNumber: formData.orderNumber,
       customerName: formData.customerName,
@@ -457,6 +456,9 @@ const SmartOrderForm = () => {
       advancePaid: formData.advancePaid,
       logoDesign: formData.logoDesign,
       logoName: formData.logoName,
+      logoCharges: parseFloat(formData.logoCharges) || 0,
+      namePrintingCharges: parseFloat(formData.namePrintingCharges) || 0,
+      customizationPrice: parseFloat(formData.customizationPrice) || 0,
       productDetails: {
         productType: formData.productType,
         fabricType: formData.fabricType,
@@ -477,27 +479,13 @@ const SmartOrderForm = () => {
         additionalFeatures: formData.additionalFeatures
       },
       sizeData: formData.measurements,
-      totalPrice: computedTotalPrice > 0 ? computedTotalPrice : (parseFloat(formData.totalPrice) || 0)
+      totalPrice: (computedTotalPrice > 0 ? computedTotalPrice : (parseFloat(formData.totalPrice) || 0)) + brandingTotal
     };
 
     setCartItems([...cartItems, payload]);
 
-    if (formData.type === 'STANDARD') {
-      setShowAddMore(true);
-    } else if (formData.type !== 'STANDARD' && isCustomizableProduct(selectedProductCategory)) {
-      setShowAddMore(false);
-      setCustomModalData({
-        nameText: formData.nameSpelling || '',
-        placement: formData.logoPlacement === 'RightChest' ? 'right' : 'left',
-        logoDetails: formData.logoDesign || '',
-        embroideryInstructions: formData.designNotes || '',
-        stitchType: formData.stitchingStyle === 'DBL' ? 'double' : 'single',
-        threadColor: formData.nameColor || '',
-        resizeScale: 100,
-      });
-      setShowCustomizationModal(true);
-    } else {
-      setShowAddMore(false);
+    setShowAddMore(formData.type === 'STANDARD');
+    if (formData.type !== 'STANDARD') {
       const currentIdx = filteredTabs.findIndex(t => t.id === activeTab);
       if (currentIdx !== -1 && currentIdx < filteredTabs.length - 1) {
         resetProductFields();
@@ -506,12 +494,62 @@ const SmartOrderForm = () => {
     }
   };
 
+  const removeCartItem = (idx) => {
+    const newCart = cartItems.filter((_, i) => i !== idx);
+    setCartItems(newCart);
+  };
+
+  const editCartItem = (idx, tab) => {
+    const item = cartItems[idx];
+    const pd = item.productDetails || {};
+    const cust = item.customization || {};
+    removeCartItem(idx);
+    setFormData(prev => ({
+      ...prev,
+      productType: pd.productType || '',
+      fabricType: pd.fabricType || '',
+      color: pd.color || '',
+      size: pd.size || '',
+      gender: pd.gender || 'Male',
+      femaleOptions: pd.femaleOptions || { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: false },
+      quantity: item.quantity || 1,
+      totalPrice: '',
+      logoCharges: item.logoCharges?.toString() || '',
+      namePrintingCharges: item.namePrintingCharges?.toString() || '',
+      customizationPrice: item.customizationPrice?.toString() || '',
+      logoDesign: item.logoDesign || '',
+      logoName: item.logoName || '',
+      nameSpelling: cust.nameSpelling || '',
+      nameColor: cust.nameColor || '',
+      logoColor: cust.logoColor || '',
+      logoPlacement: cust.logoPlacement || '',
+      stitchingStyle: cust.stitchingStyle || '',
+      fitType: cust.fitType || 'Regular',
+      designNotes: cust.designNotes || '',
+      designReference: cust.designReference || '',
+      additionalFeatures: cust.additionalFeatures || [],
+      measurements: {
+        chest: item.sizeData?.chest || '',
+        shoulder: item.sizeData?.shoulder || '',
+        length: item.sizeData?.length || '',
+        sleeve: item.sizeData?.sleeve || '',
+        waist: item.sizeData?.waist || '',
+        hips: item.sizeData?.hips || '',
+      },
+    }));
+    setShowReview(false);
+    setActiveTab(tab);
+  };
+
   const handleAddMoreProducts = () => {
     // Reset product selection but KEEP customer basics
     setFormData(prev => ({
       ...prev,
       quantity: 1,
       totalPrice: '',
+      logoCharges: '',
+      namePrintingCharges: '',
+      customizationPrice: '',
       productType: '',
       fabricType: '',
       color: '',
@@ -528,7 +566,7 @@ const SmartOrderForm = () => {
       additionalFeatures: [],
       measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hips: '' },
       gender: 'Male',
-      femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long' }
+      femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: false }
     }));
     setShowAddMore(false);
     setActiveTab('product');
@@ -543,31 +581,20 @@ const SmartOrderForm = () => {
     setError('');
 
     try {
-      // Apply the final customization and measurements to ALL items in the cart
+      // Each item keeps its OWN customization and measurements from add-to-cart
+      // No merging of current formData — preserves per-item integrity
       const finalItems = cartItems.map(item => ({
         productDetails: item.productDetails,
-        customization: {
-          nameSpelling: formData.nameSpelling || item.customization?.nameSpelling,
-          nameColor: formData.nameColor || item.customization?.nameColor,
-          logoColor: formData.logoColor || item.customization?.logoColor,
-          logoPlacement: formData.logoPlacement || item.customization?.logoPlacement,
-          stitchingStyle: formData.stitchingStyle || item.customization?.stitchingStyle,
-          fitType: formData.fitType || item.customization?.fitType,
-          designNotes: formData.designNotes || item.customization?.designNotes,
-          designReference: formData.designReference || item.customization?.designReference,
-          additionalFeatures: formData.additionalFeatures?.length > 0 ? formData.additionalFeatures : item.customization?.additionalFeatures
-        },
-        sizeData: {
-          chest: formData.measurements.chest || item.sizeData?.chest,
-          shoulder: formData.measurements.shoulder || item.sizeData?.shoulder,
-          length: formData.measurements.length || item.sizeData?.length,
-          sleeve: formData.measurements.sleeve || item.sizeData?.sleeve,
-          waist: formData.measurements.waist || item.sizeData?.waist,
-          hips: formData.measurements.hips || item.sizeData?.hips,
-        },
+        customization: item.customization || {},
+        sizeData: item.sizeData || {},
         quantity: parseInt(item.quantity) || 1,
         totalPrice: parseFloat(item.totalPrice) || 0
       }));
+
+      // Sum branding charges from all cart items
+      const totalLogoCharges = cartItems.reduce((s, i) => s + (parseFloat(i.logoCharges) || 0), 0);
+      const totalNamePrintingCharges = cartItems.reduce((s, i) => s + (parseFloat(i.namePrintingCharges) || 0), 0);
+      const totalCustomizationPrice = cartItems.reduce((s, i) => s + (parseFloat(i.customizationPrice) || 0), 0);
 
       // Build ONE single order with all items combined
       const firstItem = cartItems[0];
@@ -582,15 +609,18 @@ const SmartOrderForm = () => {
         advancePaid: firstItem.advancePaid,
         logoDesign: firstItem.logoDesign,
         logoName: firstItem.logoName,
+        logoCharges: totalLogoCharges,
+        namePrintingCharges: totalNamePrintingCharges,
+        customizationPrice: totalCustomizationPrice,
         // Items array — all products in this single order
         items: finalItems,
         // Use first item's product as the primary (for backward compat)
         productDetails: finalItems[0].productDetails,
         customization: finalItems[0].customization,
         sizeData: finalItems[0].sizeData,
-        // Sum totals across all items
+        // Sum totals across all items + branding charges
         quantity: finalItems.reduce((sum, item) => sum + (item.quantity || 1), 0),
-        totalPrice: finalItems.reduce((sum, item) => sum + (item.totalPrice || 0), 0),
+        totalPrice: finalItems.reduce((sum, item) => sum + (item.totalPrice || 0), 0) + totalLogoCharges + totalNamePrintingCharges + totalCustomizationPrice,
       };
 
       // Send ONE single API call for the entire order
@@ -628,7 +658,7 @@ const SmartOrderForm = () => {
         additionalFeatures: [],
         measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hips: '' },
         gender: 'Male',
-        femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long' }
+        femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: false }
       });
       setActiveTab('basic');
       setTimeout(() => setSuccess(false), 3000);
@@ -639,33 +669,6 @@ const SmartOrderForm = () => {
     }
     setLoading(false);
     setIsSubmitting(false);
-  };
-
-  const handleCustomizationSave = () => {
-    setFormData(prev => ({
-      ...prev,
-      nameSpelling: customModalData.nameText,
-      logoPlacement: customModalData.placement === 'right' ? 'RightChest' : 'LeftChest',
-      logoDesign: customModalData.logoDetails,
-      designNotes: customModalData.embroideryInstructions,
-      stitchingStyle: customModalData.stitchType === 'double' ? 'DBL' : 'STD',
-      nameColor: customModalData.threadColor,
-    }));
-    setShowCustomizationModal(false);
-    resetProductFields();
-    const currentIdx = filteredTabs.findIndex(t => t.id === activeTab);
-    if (currentIdx !== -1 && currentIdx < filteredTabs.length - 1) {
-      setActiveTab(filteredTabs[currentIdx + 1].id);
-    }
-  };
-
-  const handleCustomizationSkip = () => {
-    setShowCustomizationModal(false);
-    resetProductFields();
-    const currentIdx = filteredTabs.findIndex(t => t.id === activeTab);
-    if (currentIdx !== -1 && currentIdx < filteredTabs.length - 1) {
-      setActiveTab(filteredTabs[currentIdx + 1].id);
-    }
   };
 
   const OptionCard = ({ label, value, current, onClick, icon: Icon, sublabel, color, disabled = false }) => (
@@ -984,7 +987,7 @@ const SmartOrderForm = () => {
                   </div>
 
                   {formData.gender === 'Female' && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <label className="flex items-center justify-between p-3 theme-bg rounded-[1.5rem] border-2 theme-border cursor-pointer hover:border-pink-500/30 transition-all group h-full overflow-hidden">
                         <div className="flex items-center gap-2 min-w-0">
                           <div className={`p-2.5 rounded-xl transition-all shrink-0 ${formData.femaleOptions.dupatta ? 'bg-pink-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
@@ -1006,6 +1009,32 @@ const SmartOrderForm = () => {
                           </div>
                         </div>
                         <input type="checkbox" checked={formData.femaleOptions.zip} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, zip: e.target.checked}})} className="w-5 h-5 shrink-0 ml-2 rounded border-2 border-gray-700 bg-gray-900 checked:bg-pink-600 transition-all cursor-pointer" />
+                      </label>
+                      <label className="flex items-center justify-between p-3 theme-bg rounded-[1.5rem] border-2 theme-border cursor-pointer hover:border-pink-500/30 transition-all group h-full overflow-hidden">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className={`p-2.5 rounded-xl transition-all shrink-0 flex items-center justify-center ${formData.femaleOptions.cap ? 'bg-pink-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
+                            <span className="font-black text-[9px]">CAP</span>
+                          </div>
+                          <div className="min-w-0 truncate">
+                            <p className="font-black text-[9px] md:text-[10px] uppercase truncate">{t('cap') || 'Cap'}</p>
+                          </div>
+                        </div>
+                        <input type="checkbox" checked={formData.femaleOptions.cap} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, cap: e.target.checked}})} className="w-5 h-5 shrink-0 ml-2 rounded border-2 border-gray-700 bg-gray-900 checked:bg-pink-600 transition-all cursor-pointer" />
+                      </label>
+                    </div>
+                  )}
+                  {formData.gender === 'Male' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-1 gap-4">
+                      <label className="flex items-center justify-between p-3 theme-bg rounded-[1.5rem] border-2 theme-border cursor-pointer hover:border-blue-500/30 transition-all group h-full overflow-hidden">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className={`p-2.5 rounded-xl transition-all shrink-0 flex items-center justify-center ${formData.femaleOptions.cap ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
+                            <span className="font-black text-[9px]">CAP</span>
+                          </div>
+                          <div className="min-w-0 truncate">
+                            <p className="font-black text-[9px] md:text-[10px] uppercase truncate">{t('cap') || 'Cap'}</p>
+                          </div>
+                        </div>
+                        <input type="checkbox" checked={formData.femaleOptions.cap} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, cap: e.target.checked}})} className="w-5 h-5 shrink-0 ml-2 rounded border-2 border-gray-700 bg-gray-900 checked:bg-blue-600 transition-all cursor-pointer" />
                       </label>
                     </div>
                   )}
@@ -1460,6 +1489,19 @@ const SmartOrderForm = () => {
                       </select>
                     </div>
                   </div>
+                  <div className="space-y-3">
+                    <label className="text-xs font-black theme-text-muted uppercase tracking-[0.3em] ml-2">{useUrdu ? 'لوگو ڈیزائن' : 'Logo Design'}</label>
+                    <div className="relative group">
+                      <ImageIcon className={`absolute ${useUrdu ? 'right-5' : 'left-5'} top-5 text-gray-600 group-focus-within:text-purple-500 transition-colors`} size={16} />
+                      <textarea
+                        rows="3"
+                        value={formData.logoDesign}
+                        onChange={(e) => setFormData({...formData, logoDesign: e.target.value})}
+                        className={`w-full theme-input rounded-[1.5rem] py-5 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all font-medium text-sm resize-none`}
+                        placeholder={useUrdu ? 'لوگو کی تفصیلات، فائل ریفرنس، یا اپ لوڈ ہدایات...' : "Describe logo, file reference, or upload instructions..."}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -1530,6 +1572,58 @@ const SmartOrderForm = () => {
                       placeholder={useUrdu ? 'خصوصی ہدایات یہاں درج کریں...' : "Add special requests for the production floor..."}
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* Optional Branding Charges Input */}
+              <div className="lg:col-span-2 glass p-4 md:p-6 rounded-[2rem] border border-amber-500/20 bg-amber-500/5">
+                <h4 className="text-[9px] md:text-[10px] font-black text-amber-400 uppercase tracking-[0.2em] mb-4">{useUrdu ? 'اختیاری برانڈنگ چارجز' : 'Optional Branding Charges'}</h4>
+                <p className="text-[8px] md:text-[9px] text-gray-500 font-bold uppercase tracking-wider mb-4">{useUrdu ? 'اگر لاگو ہو تو چارجز درج کریں، ورنہ خالی چھوڑ دیں' : 'Enter charges if applicable, leave blank if none'}</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[8px] font-black theme-text-muted uppercase tracking-widest">{useUrdu ? 'لوگو چارج' : 'Logo Charge (₨)'}</label>
+                    <input
+                      type="number"
+                      min="0"
+                      onKeyDown={preventEnterSubmit}
+                      value={formData.logoCharges}
+                      onChange={(e) => setFormData({...formData, logoCharges: e.target.value})}
+                      className="w-full theme-input rounded-xl py-3 px-4 text-sm font-bold"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[8px] font-black theme-text-muted uppercase tracking-widest">{useUrdu ? 'نام پرنٹنگ چارج' : 'Name Printing Charge (₨)'}</label>
+                    <input
+                      type="number"
+                      min="0"
+                      onKeyDown={preventEnterSubmit}
+                      value={formData.namePrintingCharges}
+                      onChange={(e) => setFormData({...formData, namePrintingCharges: e.target.value})}
+                      className="w-full theme-input rounded-xl py-3 px-4 text-sm font-bold"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[8px] font-black theme-text-muted uppercase tracking-widest">{useUrdu ? 'کسٹمائزیشن چارج' : 'Customization Charge (₨)'}</label>
+                    <input
+                      type="number"
+                      min="0"
+                      onKeyDown={preventEnterSubmit}
+                      value={formData.customizationPrice}
+                      onChange={(e) => setFormData({...formData, customizationPrice: e.target.value})}
+                      className="w-full theme-input rounded-xl py-3 px-4 text-sm font-bold"
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+                <div className="border-t border-amber-500/10 pt-3 mt-4 flex justify-between items-center">
+                  <span className="text-[9px] font-bold text-gray-400">{useUrdu ? 'برانڈنگ چارجز کل' : 'Total Branding Charges'}</span>
+                  <span className="font-black text-white">₨{(
+                    (parseFloat(formData.logoCharges) || 0) +
+                    (parseFloat(formData.namePrintingCharges) || 0) +
+                    (parseFloat(formData.customizationPrice) || 0)
+                  ).toLocaleString()}</span>
                 </div>
               </div>
             </motion.div>
@@ -1629,7 +1723,7 @@ const SmartOrderForm = () => {
                 </div>
 
                 {formData.gender === 'Female' && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8 mt-6 md:mt-12 theme-bg-subtle p-4 md:p-8 rounded-2xl md:rounded-[3rem] border theme-border">
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4 md:gap-8 mt-6 md:mt-12 theme-bg-subtle p-4 md:p-8 rounded-2xl md:rounded-[3rem] border theme-border">
                     <div className="space-y-4">
                       <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-2">Include Dupatta</label>
                       <label className="flex items-center justify-between p-4 theme-bg rounded-[1.5rem] border-2 theme-border cursor-pointer hover:border-pink-500/30 transition-all group h-full">
@@ -1642,6 +1736,34 @@ const SmartOrderForm = () => {
                           </div>
                         </div>
                         <input type="checkbox" checked={formData.femaleOptions.dupatta} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, dupatta: e.target.checked}})} className="w-5 h-5 rounded border-2 border-gray-700 bg-gray-900 checked:bg-pink-600 transition-all cursor-pointer" />
+                      </label>
+                    </div>
+                    <div className="space-y-4">
+                      <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-2">Include Zip</label>
+                      <label className="flex items-center justify-between p-4 theme-bg rounded-[1.5rem] border-2 theme-border cursor-pointer hover:border-pink-500/30 transition-all group h-full">
+                        <div className="flex items-center space-x-4">
+                          <div className={`p-3 rounded-xl transition-all flex items-center justify-center ${formData.femaleOptions.zip ? 'bg-pink-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
+                            <span className="font-black text-sm">ZIP</span>
+                          </div>
+                          <div>
+                            <p className="font-black text-sm uppercase">Zip</p>
+                          </div>
+                        </div>
+                        <input type="checkbox" checked={formData.femaleOptions.zip} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, zip: e.target.checked}})} className="w-5 h-5 rounded border-2 border-gray-700 bg-gray-900 checked:bg-pink-600 transition-all cursor-pointer" />
+                      </label>
+                    </div>
+                    <div className="space-y-4">
+                      <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-2">Include Cap</label>
+                      <label className="flex items-center justify-between p-4 theme-bg rounded-[1.5rem] border-2 theme-border cursor-pointer hover:border-pink-500/30 transition-all group h-full">
+                        <div className="flex items-center space-x-4">
+                          <div className={`p-3 rounded-xl transition-all flex items-center justify-center ${formData.femaleOptions.cap ? 'bg-pink-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
+                            <span className="font-black text-sm">CAP</span>
+                          </div>
+                          <div>
+                            <p className="font-black text-sm uppercase">Cap</p>
+                          </div>
+                        </div>
+                        <input type="checkbox" checked={formData.femaleOptions.cap} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, cap: e.target.checked}})} className="w-5 h-5 rounded border-2 border-gray-700 bg-gray-900 checked:bg-pink-600 transition-all cursor-pointer" />
                       </label>
                     </div>
                     <div className="space-y-4">
@@ -1666,6 +1788,24 @@ const SmartOrderForm = () => {
                         <option value="short">Short Shirt</option>
                         <option value="long">Long Shirt</option>
                       </select>
+                    </div>
+                  </div>
+                )}
+                {formData.gender === 'Male' && (
+                  <div className="grid grid-cols-1 md:grid-cols-1 gap-4 md:gap-8 mt-6 md:mt-12 theme-bg-subtle p-4 md:p-8 rounded-2xl md:rounded-[3rem] border theme-border">
+                    <div className="space-y-4">
+                      <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-2">Include Cap</label>
+                      <label className="flex items-center justify-between p-4 theme-bg rounded-[1.5rem] border-2 theme-border cursor-pointer hover:border-blue-500/30 transition-all group h-full">
+                        <div className="flex items-center space-x-4">
+                          <div className={`p-3 rounded-xl transition-all flex items-center justify-center ${formData.femaleOptions.cap ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
+                            <span className="font-black text-sm">CAP</span>
+                          </div>
+                          <div>
+                            <p className="font-black text-sm uppercase">Cap</p>
+                          </div>
+                        </div>
+                        <input type="checkbox" checked={formData.femaleOptions.cap} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, cap: e.target.checked}})} className="w-5 h-5 rounded border-2 border-gray-700 bg-gray-900 checked:bg-blue-600 transition-all cursor-pointer" />
+                      </label>
                     </div>
                   </div>
                 )}
@@ -1843,170 +1983,7 @@ const SmartOrderForm = () => {
 
       {/* Customization Modal */}
       <AnimatePresence>
-        {showCustomizationModal && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.85, y: 30 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.85, y: 30 }}
-              className="glass max-w-2xl w-full p-8 md:p-12 rounded-[3rem] border-2 theme-border shadow-[0_50px_100px_rgba(0,0,0,0.5)] max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex items-center gap-4 mb-8">
-                <div className="p-4 bg-gradient-to-br from-purple-600 to-indigo-700 rounded-[1.5rem] shadow-xl">
-                  <Scissors className="text-white" size={28} />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">Customization Details</h2>
-                  <p className="theme-text-muted text-[9px] md:text-[10px] font-black uppercase tracking-widest mt-1">Configure your product</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-                {/* Custom Name / Text */}
-                <div className="space-y-3">
-                  <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-2">Custom Name / Text</label>
-                  <input
-                    type="text"
-                    value={customModalData.nameText}
-                    onChange={(e) => setCustomModalData({...customModalData, nameText: e.target.value})}
-                    className="w-full theme-input rounded-[1.2rem] py-4 px-6 transition-all font-bold text-lg"
-                    placeholder="e.g. DR. ALEX RIVERA"
-                  />
-                </div>
-
-                {/* Placement */}
-                <div className="space-y-3">
-                  <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-2">Placement</label>
-                  <div className="flex p-1.5 theme-bg rounded-[1.2rem] border-2 theme-border">
-                    <button
-                      type="button"
-                      onClick={() => setCustomModalData({...customModalData, placement: 'left'})}
-                      className={`flex-1 py-3 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all ${customModalData.placement === 'left' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
-                    >
-                      Left Side
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCustomModalData({...customModalData, placement: 'right'})}
-                      className={`flex-1 py-3 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all ${customModalData.placement === 'right' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
-                    >
-                      Right Side
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCustomModalData({...customModalData, placement: 'center'})}
-                      className={`flex-1 py-3 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all ${customModalData.placement === 'center' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
-                    >
-                      Center
-                    </button>
-                  </div>
-                </div>
-
-                {/* Logo Details */}
-                <div className="space-y-3">
-                  <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-2">Logo Details</label>
-                  <textarea
-                    value={customModalData.logoDetails}
-                    onChange={(e) => setCustomModalData({...customModalData, logoDetails: e.target.value})}
-                    className="w-full theme-input rounded-[1.2rem] py-4 px-6 transition-all font-medium text-sm resize-none h-24"
-                    placeholder="Describe logo, file reference, or upload instructions..."
-                  />
-                </div>
-
-                {/* Embroidery / Printing Instructions */}
-                <div className="space-y-3">
-                  <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-2">Embroidery / Printing Instructions</label>
-                  <textarea
-                    value={customModalData.embroideryInstructions}
-                    onChange={(e) => setCustomModalData({...customModalData, embroideryInstructions: e.target.value})}
-                    className="w-full theme-input rounded-[1.2rem] py-4 px-6 transition-all font-medium text-sm resize-none h-24"
-                    placeholder={'E.g. Single needle, 1 color logo, 1" height...'}
-                  />
-                </div>
-
-                {/* Stitch Type */}
-                <div className="space-y-3">
-                  <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-2">Stitch Type</label>
-                  <div className="flex p-1.5 theme-bg rounded-[1.2rem] border-2 theme-border">
-                    <button
-                      type="button"
-                      onClick={() => setCustomModalData({...customModalData, stitchType: 'single'})}
-                      className={`flex-1 py-3 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all ${customModalData.stitchType === 'single' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
-                    >
-                      Single
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCustomModalData({...customModalData, stitchType: 'double'})}
-                      className={`flex-1 py-3 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all ${customModalData.stitchType === 'double' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
-                    >
-                      Double
-                    </button>
-                  </div>
-                </div>
-
-                {/* Thread Color */}
-                <div className="space-y-3">
-                  <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-2">Thread Color</label>
-                  <select
-                    value={customModalData.threadColor}
-                    onChange={(e) => setCustomModalData({...customModalData, threadColor: e.target.value})}
-                    className="w-full theme-input rounded-[1.2rem] py-4 px-6 font-bold appearance-none"
-                  >
-                    <option value="">Standard White</option>
-                    <option value="Gold">Metallic Gold</option>
-                    <option value="Silver">Polished Silver</option>
-                    <option value="Navy">Royal Navy</option>
-                    <option value="Wine">Premium Wine</option>
-                    <option value="Black">Deep Black</option>
-                    <option value="Red">Signature Red</option>
-                  </select>
-                </div>
-
-                {/* Size Adjustment */}
-                <div className="space-y-3 md:col-span-2">
-                  <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-2">Size Adjustment / Scale: {customModalData.resizeScale}%</label>
-                  <div className="flex items-center gap-4">
-                    <span className="text-[9px] md:text-[10px] font-black text-gray-600 uppercase tracking-widest w-12 text-right">50%</span>
-                    <input
-                      type="range"
-                      min="50"
-                      max="200"
-                      value={customModalData.resizeScale}
-                      onChange={(e) => setCustomModalData({...customModalData, resizeScale: parseInt(e.target.value)})}
-                      className="flex-1 h-2 bg-gray-800 rounded-full appearance-none cursor-pointer accent-purple-500"
-                    />
-                    <span className="text-[9px] md:text-[10px] font-black text-gray-600 uppercase tracking-widest w-12">200%</span>
-                  </div>
-                  <div className="flex justify-center mt-2">
-                    <div className="theme-bg border-2 theme-border rounded-[1rem] px-6 py-3 inline-flex items-center gap-3">
-                      <span className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase">Preview Scale:</span>
-                      <span className="text-lg font-black text-purple-400">{customModalData.resizeScale}%</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-4">
-                <button
-                  type="button"
-                  onClick={handleCustomizationSave}
-                  className="flex-1 py-5 bg-gradient-to-r from-purple-600 to-indigo-700 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-purple-900/50 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3"
-                >
-                  <CheckCircle2 size={16} />
-                  <span>Save & Continue</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCustomizationSkip}
-                  className="py-5 px-8 theme-bg theme-text-secondary rounded-[1.5rem] font-black text-sm uppercase tracking-widest border-2 theme-border hover:border-gray-600 hover:text-white transition-all active:scale-95"
-                >
-                  Skip Customization
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
+        
       </AnimatePresence>
 
       {/* Floating Cart Panel & FAB */}
@@ -2065,6 +2042,13 @@ const SmartOrderForm = () => {
                     <p className="text-[9px] md:text-[10px] theme-text-muted font-bold uppercase mt-1 truncate">
                       {item.quantity}x • {item.productDetails?.size || 'Custom'} • {item.productDetails?.color}
                     </p>
+                    {(item.logoCharges || item.namePrintingCharges || item.customizationPrice) && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {item.logoCharges > 0 && <span className="text-[7px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">Logo: ₨{item.logoCharges}</span>}
+                        {item.namePrintingCharges > 0 && <span className="text-[7px] font-black text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">Name: ₨{item.namePrintingCharges}</span>}
+                        {item.customizationPrice > 0 && <span className="text-[7px] font-black text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded">Custom: ₨{item.customizationPrice}</span>}
+                      </div>
+                    )}
                   </div>
                   <div className="text-right shrink-0">
                     {item.quantity > 1 && item.totalPrice > 0 && (
@@ -2172,106 +2156,98 @@ const SmartOrderForm = () => {
                 </div>
               </div>
 
-              {/* Products Table */}
+              {/* Products Table with Per-Item Customization & Inline Edit */}
               <div className="bg-gray-950/50 p-4 md:p-6 rounded-[2rem] border border-gray-800/50 mb-4">
                 <h3 className="text-[9px] md:text-[10px] font-black text-purple-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
                   <ShoppingCart size={12} /> {useUrdu ? 'پروڈکٹس' : 'Products'} ({cartItems.length})
                 </h3>
-                <div className="overflow-x-auto rounded-xl border border-gray-800">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-gray-800 bg-gray-950/80">
-                        <th className="py-2 px-3 text-[8px] font-black text-gray-500 uppercase tracking-widest">#</th>
-                        <th className="py-2 px-3 text-[8px] font-black text-gray-500 uppercase tracking-widest">{useUrdu ? 'پروڈکٹ' : 'Product'}</th>
-                        <th className="py-2 px-3 text-[8px] font-black text-gray-500 uppercase tracking-widest">Color / Size</th>
-                        <th className="py-2 px-3 text-[8px] font-black text-gray-500 uppercase tracking-widest text-center">Qty</th>
-                        <th className="py-2 px-3 text-[8px] font-black text-gray-500 uppercase tracking-widest text-right">{useUrdu ? 'قیمت' : 'Price'}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {cartItems.map((item, idx) => {
-                        const pd = item.productDetails || {};
-                        return (
-                          <tr key={idx} className="border-b border-gray-800/50 hover:bg-gray-900/30">
-                            <td className="py-3 px-3 text-gray-500 font-black">{idx + 1}</td>
-                            <td className="py-3 px-3 text-white font-bold uppercase">{pd.productType || '—'}</td>
-                            <td className="py-3 px-3 text-gray-300 uppercase">
-                              {pd.color || pd.size ? `${pd.color || '—'} / ${pd.size || '—'}` : '—'}
-                            </td>
-                            <td className="py-3 px-3 text-center text-white font-black">{item.quantity || 1}</td>
-                            <td className="py-3 px-3 text-right text-emerald-400 font-black">₨{Number(item.totalPrice || 0).toLocaleString()}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                    {cartItems.length > 0 && (
-                      <tfoot>
-                        <tr className="border-t border-gray-800 bg-gray-950/50">
-                          <td colSpan="3" className="py-3 px-3"></td>
-                          <td className="py-3 px-3 text-center text-white font-black text-sm">
-                            {cartItems.reduce((s, i) => s + (parseInt(i.quantity) || 1), 0)}
-                          </td>
-                          <td className="py-3 px-3 text-right text-emerald-400 font-black text-sm">
-                            ₨{cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0).toLocaleString()}
-                          </td>
-                        </tr>
-                      </tfoot>
-                    )}
-                  </table>
+                <div className="space-y-3">
+                  {cartItems.map((item, idx) => {
+                    const pd = item.productDetails || {};
+                    const cust = item.customization || {};
+                    const hasCust = cust.nameSpelling || cust.stitchingStyle || cust.fitType || cust.designNotes || item.logoDesign;
+                    const hasMeas = Object.values(item.sizeData || {}).some(v => v);
+                    const isCustom = item.type === 'FULL_CUSTOM';
+                    return (
+                      <div key={idx} className="bg-gray-900/50 rounded-xl border border-gray-800/70 p-3 md:p-4">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[8px] font-black text-gray-500">#{idx + 1}</span>
+                              <span className="text-sm font-black text-white uppercase truncate">{pd.productType || '—'}</span>
+                              {pd.gender && <span className="text-[7px] font-black text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">{pd.gender}</span>}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                              <span className="text-[10px] text-gray-300 uppercase font-bold">{pd.color || '—'} / {pd.size || '—'}</span>
+                              {pd.fabricType && <span className="text-[8px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">{pd.fabricType}</span>}
+                              <span className="text-[9px] font-black text-blue-400">×{item.quantity || 1}</span>
+                            </div>
+                            {hasCust && (
+                              <div className="flex flex-wrap gap-1 mt-1.5">
+                                {cust.nameSpelling && <span className="text-[7px] font-black text-purple-400 bg-purple-900/30 px-1.5 py-0.5 rounded">Name: {cust.nameSpelling}</span>}
+                                {cust.stitchingStyle && <span className="text-[7px] font-black text-blue-400 bg-blue-900/30 px-1.5 py-0.5 rounded">{cust.stitchingStyle === 'DBL' ? 'Double' : 'Single'} Stitch</span>}
+                                {cust.fitType && <span className="text-[7px] font-black text-indigo-400 bg-indigo-900/30 px-1.5 py-0.5 rounded">{cust.fitType} Fit</span>}
+                                {item.logoDesign && <span className="text-[7px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded">Has Logo</span>}
+                                {cust.designNotes && <span className="text-[7px] font-black text-yellow-400 bg-yellow-900/30 px-1.5 py-0.5 rounded truncate max-w-[120px]">{cust.designNotes}</span>}
+                              </div>
+                            )}
+                            {hasMeas && (
+                              <div className="flex flex-wrap gap-1 mt-1.5">
+                                {Object.entries(item.sizeData || {}).filter(([_, v]) => v).map(([key, val]) => (
+                                  <span key={key} className="text-[7px] font-black text-cyan-400 bg-cyan-900/30 px-1.5 py-0.5 rounded">{key}: {val}"</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-right shrink-0 flex flex-col items-end gap-1.5">
+                            <span className="text-sm font-black text-emerald-400">₨{Number(item.totalPrice || 0).toLocaleString()}</span>
+                            <div className="flex flex-wrap gap-1 justify-end">
+                              <button
+                                type="button"
+                                onClick={() => editCartItem(idx, 'product')}
+                                className="text-[7px] font-black text-blue-400 bg-blue-900/40 px-2 py-0.5 rounded-md hover:bg-blue-700 transition-colors"
+                              >
+                                {useUrdu ? 'پروڈکٹ' : 'Product'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => editCartItem(idx, 'custom')}
+                                className="text-[7px] font-black text-purple-400 bg-purple-900/40 px-2 py-0.5 rounded-md hover:bg-purple-700 transition-colors"
+                              >
+                                {useUrdu ? 'کسٹم' : 'Custom'}
+                              </button>
+                              {isCustom && (
+                                <button
+                                  type="button"
+                                  onClick={() => editCartItem(idx, 'sizes')}
+                                  className="text-[7px] font-black text-cyan-400 bg-cyan-900/40 px-2 py-0.5 rounded-md hover:bg-cyan-700 transition-colors"
+                                >
+                                  {useUrdu ? 'سائز' : 'Size'}
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => removeCartItem(idx)}
+                                className="text-[7px] font-black text-red-400 bg-red-900/40 px-2 py-0.5 rounded-md hover:bg-red-700 transition-colors"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
+                {cartItems.length > 0 && (
+                  <div className="flex justify-end items-center gap-4 mt-3 pt-3 border-t border-gray-800/50">
+                    <span className="text-[9px] text-gray-400 font-black uppercase tracking-wider">{useUrdu ? 'کل آئٹمز' : 'Total Items'}: <span className="text-white">{cartItems.reduce((s, i) => s + (parseInt(i.quantity) || 1), 0)}</span></span>
+                    <span className="text-sm font-black text-emerald-400">{useUrdu ? 'کل قیمت' : 'Total'}: ₨{cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0).toLocaleString()}</span>
+                  </div>
+                )}
               </div>
 
-              {/* Customization Summary */}
-              {(formData.nameSpelling || formData.stitchingStyle || formData.fitType || formData.designNotes) && (
-                <div className="bg-gray-950/50 p-4 md:p-6 rounded-[2rem] border border-gray-800/50 mb-4">
-                  <h3 className="text-[9px] md:text-[10px] font-black text-amber-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
-                    <Scissors size={12} /> {useUrdu ? 'کسٹمائزیشن' : 'Customization'}
-                  </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
-                    {formData.nameSpelling && (
-                      <div className="bg-gray-900/50 p-2 rounded-lg">
-                        <span className="text-[7px] font-black text-gray-500 uppercase tracking-wider">{useUrdu ? 'نام' : 'Name'}</span>
-                        <p className="font-bold text-white text-xs">{formData.nameSpelling}</p>
-                      </div>
-                    )}
-                    {formData.stitchingStyle && (
-                      <div className="bg-gray-900/50 p-2 rounded-lg">
-                        <span className="text-[7px] font-black text-gray-500 uppercase tracking-wider">{useUrdu ? 'سلائی' : 'Stitching'}</span>
-                        <p className="font-bold text-white text-xs">{formData.stitchingStyle}</p>
-                      </div>
-                    )}
-                    {formData.fitType && (
-                      <div className="bg-gray-900/50 p-2 rounded-lg">
-                        <span className="text-[7px] font-black text-gray-500 uppercase tracking-wider">{useUrdu ? 'فٹ' : 'Fit'}</span>
-                        <p className="font-bold text-white text-xs">{formData.fitType}</p>
-                      </div>
-                    )}
-                  </div>
-                  {formData.designNotes && (
-                    <div className="mt-2 bg-yellow-500/5 p-3 rounded-xl border border-yellow-500/10">
-                      <p className="text-[7px] font-black text-yellow-500 uppercase tracking-wider mb-1">{useUrdu ? 'ڈیزائن نوٹس' : 'Design Notes'}</p>
-                      <p className="text-xs text-gray-300 italic">"{formData.designNotes}"</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Measurements Summary */}
-              {Object.values(formData.measurements).some(v => v) && (
-                <div className="bg-gray-950/50 p-4 md:p-6 rounded-[2rem] border border-gray-800/50 mb-6">
-                  <h3 className="text-[9px] md:text-[10px] font-black text-cyan-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
-                    <Ruler size={12} /> {useUrdu ? 'پیمائش' : 'Measurements'}
-                  </h3>
-                  <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                    {Object.entries(formData.measurements).filter(([_, v]) => v).map(([key, val], i) => (
-                      <div key={i} className="bg-gray-900/50 p-2 rounded-lg text-center">
-                        <p className="text-[7px] font-black text-gray-500 uppercase tracking-wider">{key}</p>
-                        <p className="font-bold text-white text-xs">{val}"</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {/* Customization & Measurements now shown per-item in the products table above */}
 
               {/* Financial Summary */}
               <div className="bg-gray-950/50 p-4 md:p-6 rounded-[2rem] border border-gray-800/50 mb-6">
@@ -2280,8 +2256,32 @@ const SmartOrderForm = () => {
                 </h3>
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-400">{useUrdu ? 'کل آرڈر' : 'Total Order Value'}</span>
-                    <span className="font-black text-white">₨{cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0).toLocaleString()}</span>
+                    <span className="text-xs text-gray-400">{useUrdu ? 'آئٹمز کل' : 'Items Subtotal'}</span>
+                    <span className="font-black text-gray-300">₨{cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) - parseFloat(i.logoCharges || 0) - parseFloat(i.namePrintingCharges || 0) - parseFloat(i.customizationPrice || 0)), 0).toLocaleString()}</span>
+                  </div>
+                  {cartItems.some(i => i.logoCharges) && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-amber-400">{useUrdu ? 'لوگو چارج' : 'Logo Charge'}</span>
+                      <span className="font-black text-amber-400">₨{cartItems.reduce((s, i) => s + (parseInt(i.logoCharges) || 0), 0).toLocaleString()}</span>
+                    </div>
+                  )}
+                  {cartItems.some(i => i.namePrintingCharges) && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-purple-400">{useUrdu ? 'نام پرنٹنگ' : 'Name Printing'}</span>
+                      <span className="font-black text-purple-400">₨{cartItems.reduce((s, i) => s + (parseInt(i.namePrintingCharges) || 0), 0).toLocaleString()}</span>
+                    </div>
+                  )}
+                  {cartItems.some(i => parseFloat(i.customizationPrice) > 0) && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-cyan-400">{useUrdu ? 'کسٹمائزیشن' : 'Customization'}</span>
+                      <span className="font-black text-cyan-400">₨{cartItems.reduce((s, i) => s + (parseFloat(i.customizationPrice) || 0), 0).toLocaleString()}</span>
+                    </div>
+                  )}
+                  <div className="border-t border-gray-700/50 pt-2 flex justify-between items-center">
+                    <span className="text-xs font-bold text-gray-200">{useUrdu ? 'کل آرڈر' : 'Total Order Value'}</span>
+                    <span className="font-black text-white text-base">₨{(
+                      cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0)
+                    ).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-xs text-gray-400">{useUrdu ? 'کل آئٹمز' : 'Total Items'}</span>

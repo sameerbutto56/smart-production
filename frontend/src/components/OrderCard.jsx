@@ -410,7 +410,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
           </div>
 
           {/* Product Details Strip */}
-          {(product?.color || product?.size || product?.fabricType || product?.productType || order.quantity > 0 || order.customizationPrice > 0) && (
+          {(product?.color || product?.size || product?.fabricType || product?.productType || order.quantity > 0 || order.customizationPrice > 0 || order.logoCharges > 0 || order.namePrintingCharges > 0) && (
             <div className="mb-3 flex flex-wrap items-center gap-1.5 bg-gray-950/50 p-2 rounded-xl border border-gray-800/50">
               {product?.productType && (
                 <span className="text-[8px] font-black text-gray-400 uppercase tracking-tighter bg-gray-900 px-2 py-0.5 rounded-md">{product.productType}</span>
@@ -428,6 +428,12 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 <span className="text-[8px] font-black text-gray-400 uppercase tracking-tighter bg-gray-900 px-2 py-0.5 rounded-md">Size: {product.size}</span>
               )}
               <span className="text-[8px] font-black text-blue-400 bg-blue-900/30 px-2 py-0.5 rounded-md">Qty: {order.quantity || 1}</span>
+              {order.logoCharges > 0 && (
+                <span className="text-[8px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-md">Logo: ₨{Number(order.logoCharges).toLocaleString()}</span>
+              )}
+              {order.namePrintingCharges > 0 && (
+                <span className="text-[8px] font-black text-purple-400 bg-purple-900/30 px-2 py-0.5 rounded-md">Name: ₨{Number(order.namePrintingCharges).toLocaleString()}</span>
+              )}
               {order.customizationPrice > 0 && (
                 <span className="text-[8px] font-black text-emerald-400 bg-emerald-900/30 px-2 py-0.5 rounded-md">Custom: ₨{Number(order.customizationPrice).toLocaleString()}</span>
               )}
@@ -1061,6 +1067,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         { label: 'Order Size', val: product?.size },
                         { label: 'Gender', val: product?.gender },
                         ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
+                        ...(order.logoCharges > 0 ? [{ label: 'Logo Charge', val: `₨${order.logoCharges}` }] : []),
+                        ...(order.namePrintingCharges > 0 ? [{ label: 'Name Printing', val: `₨${order.namePrintingCharges}` }] : []),
                         { label: 'Customization Charge', val: `₨${order.customizationPrice || 0}` },
                         { label: 'Payment', val: order.paymentStatus }
                       ].filter(i => i.val).map((item, i) => (
