@@ -191,21 +191,28 @@ const InventoryManagement = () => {
 
   const totalStock = formData.variants.reduce((sum, v) => sum + (parseInt(v.stock) || 0), 0);
 
-  const filteredItems = items.filter(item => {
-    const term = searchTerm.toLowerCase();
-    if (item.name?.toLowerCase().includes(term)) return true;
-    if (item.category?.toLowerCase().includes(term)) return true;
-    if (item.color?.toLowerCase().includes(term)) return true;
-    if (item.variants && Array.isArray(item.variants)) {
-      if (item.variants.some(v => 
-        (v.color && v.color.toLowerCase().includes(term)) ||
-        (v.size && v.size.toLowerCase().includes(term))
-      )) return true;
-    }
-    return false;
-  }).sort((a, b) => a.name.localeCompare(b.name));
+  const filteredItems = items
+    .filter(item => {
+      const term = searchTerm.toLowerCase();
+      if (!term) return true;
+      if (item.name?.toLowerCase().includes(term)) return true;
+      if (item.category?.toLowerCase().includes(term)) return true;
+      if (item.color?.toLowerCase().includes(term)) return true;
+      if (item.variants && Array.isArray(item.variants)) {
+        if (item.variants.some(v => 
+          (v.color && v.color.toLowerCase().includes(term)) ||
+          (v.size && v.size.toLowerCase().includes(term))
+        )) return true;
+      }
+      return false;
+    })
+    .sort((a, b) => {
+      const nameA = a.name || '';
+      const nameB = b.name || '';
+      return nameA.localeCompare(nameB);
+    });
 
-  const groupedItems = React.useMemo(() => {
+  const groupedItems = (() => {
     const groups = {};
     filteredItems.forEach(item => {
       const letter = (item.name?.[0] || '#').toUpperCase();
@@ -213,7 +220,7 @@ const InventoryManagement = () => {
       groups[letter].push(item);
     });
     return Object.keys(groups).sort().map(letter => ({ letter, items: groups[letter] }));
-  }, [filteredItems]);
+  })();
 
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this item?')) return;
@@ -325,7 +332,7 @@ const InventoryManagement = () => {
       {/* Filters Bar */}
       <div className="flex flex-col lg:flex-row gap-3 md:gap-6">
         <div className="relative flex-1">
-          <div className="absolute left-4 top-1/2 -translate-y-1/2 p-2 bg-emerald-500/10 rounded-xl">
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 p-2 bg-emerald-500/10 rounded-xl z-10">
             <Search className="text-emerald-400" size={16} />
           </div>
           <input 
@@ -333,18 +340,19 @@ const InventoryManagement = () => {
             placeholder="Search by name, color, or category..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-gray-900/60 backdrop-blur-xl border-2 border-gray-800/80 rounded-2xl py-4 pl-14 pr-12 text-sm font-bold text-white placeholder-gray-600 focus:border-emerald-500/50 focus:shadow-[0_0_20px_rgba(16,185,129,0.15)] transition-all outline-none"
+            className="w-full bg-gray-900 border-2 border-gray-700 rounded-2xl py-4 pl-14 pr-12 text-sm font-bold text-white placeholder-gray-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 transition-all outline-none"
+            style={{ color: '#ffffff' }}
           />
           {searchTerm && (
             <button
               onClick={() => setSearchTerm('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg transition-all"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg transition-all z-10"
             >
-              <X size={14} className="text-gray-400" />
+              <X size={14} className="text-white" />
             </button>
           )}
         </div>
-        <div className="flex bg-gray-900/40 backdrop-blur-xl border-2 border-gray-800/80 rounded-2xl p-1 overflow-x-auto no-scrollbar">
+        <div className="flex bg-gray-900 border-2 border-gray-700 rounded-2xl p-1 overflow-x-auto no-scrollbar">
           {['ALL', ...allCategories].map(cat => (
             <button 
               key={cat} 
@@ -352,7 +360,7 @@ const InventoryManagement = () => {
               className={`px-5 py-2.5 text-[9px] md:text-[10px] font-black rounded-xl transition-all whitespace-nowrap ${
                 (searchTerm === cat || (cat === 'ALL' && searchTerm === '')) 
                   ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/30' 
-                  : 'text-gray-500 hover:text-white hover:bg-gray-800/80'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-700'
               }`}
             >
               {cat}
@@ -361,12 +369,29 @@ const InventoryManagement = () => {
         </div>
       </div>
 
+      {/* Search Status Bar */}
+      {searchTerm && (
+        <div className="flex items-center gap-2 text-[10px] font-bold text-emerald-400">
+          <Search size={12} />
+          <span>{filteredItems.length} result{filteredItems.length !== 1 ? 's' : ''} for "<span className="text-white">{searchTerm}</span>"</span>
+          <button onClick={() => setSearchTerm('')} className="ml-2 text-[9px] text-gray-500 hover:text-white underline">clear</button>
+        </div>
+      )}
+
       {/* Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-8">
         {loading ? (
           <div className="col-span-full py-32 flex flex-col items-center justify-center space-y-4">
             <RefreshCcw className="animate-spin text-blue-500" size={48} />
             <p className="text-gray-500 font-black text-xs uppercase tracking-widest">Accessing Secure Database...</p>
+          </div>
+        ) : filteredItems.length === 0 ? (
+          <div className="col-span-full py-20 flex flex-col items-center justify-center space-y-3 text-center">
+            <div className="p-4 bg-gray-800 rounded-2xl">
+              <Search size={32} className="text-gray-600" />
+            </div>
+            <p className="text-gray-400 font-black text-sm">No items found matching "<span className="text-white">{searchTerm}</span>"</p>
+            <button onClick={() => setSearchTerm('')} className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 underline">Clear search</button>
           </div>
         ) : groupedItems.map(group => [
           <div key={`header-${group.letter}`} className="col-span-full">
