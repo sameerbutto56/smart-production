@@ -48,16 +48,20 @@ import { PauseCircle, PlayCircle } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
-const TABS = [
+const TOP_TABS = [
   { id: 'all_phases', label: 'All Phases', icon: LayoutDashboard },
+  { id: 'edit_requests', label: 'Order Change Requests', icon: FileEdit },
+  { id: 'recent_orders', label: 'Recent Orders', icon: History },
+  { id: 'analytics', label: 'Outlet Analytics', icon: StoreIcon },
+  { id: 'settings', label: 'System Settings', icon: ShieldAlert },
+];
+
+const PIPELINE_STAGES = [
   { id: 'ORDER_ENTRY', label: 'Order Entry', icon: ClipboardList },
   { id: 'STORE', label: 'Store', icon: Package },
   { id: 'PRODUCTION', label: 'Production', icon: Circle },
   { id: 'LOGO_DESIGN', label: 'Logo Design', icon: Circle },
   { id: 'DISPATCH', label: 'Dispatch', icon: Truck },
-  { id: 'edit_requests', label: 'Order Change Requests', icon: FileEdit },
-  { id: 'recent_orders', label: 'Recent Orders', icon: History },
-  { id: 'analytics', label: 'Outlet Analytics', icon: StoreIcon },
 ];
 
 const BRANCHES = [
@@ -113,15 +117,6 @@ const AdminDashboard = () => {
   const [outletCustomTo, setOutletCustomTo] = useState('');
   const [outletAnalytics, setOutletAnalytics] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
-
-  const stageList = [
-    { id: 'ORDER_ENTRY', icon: ClipboardList },
-    { id: 'STORE', icon: Package },
-    { id: 'PRODUCTION', icon: Circle },
-    { id: 'LOGO_DESIGN', icon: Circle },
-    { id: 'DISPATCH', icon: Truck },
-    { id: 'OUT_FOR_DELIVERY', icon: Truck },
-  ];
 
   useEffect(() => {
     fetchDashboardData();
@@ -514,11 +509,6 @@ const AdminDashboard = () => {
     return allOrders.filter(o => o.currentStage === filterStage && o.status !== 'COMPLETED');
   }, [allOrders, filterStage]);
 
-  const filteredOrdersByTabStage = useMemo(() => {
-    if (!activeTab || ['all_phases', 'edit_requests', 'recent_orders', 'analytics', 'DISPATCH'].includes(activeTab)) return [];
-    return allOrders.filter(o => o.currentStage === activeTab && o.status !== 'COMPLETED');
-  }, [allOrders, activeTab]);
-
   const recentOrdersList = useMemo(() => {
     return [...allOrders]
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
@@ -726,16 +716,16 @@ const AdminDashboard = () => {
       {/* Tab Bar */}
       <div className="theme-bg-subtle p-2 rounded-[2rem] theme-border overflow-x-auto no-scrollbar">
         <div className="flex items-center gap-1.5 min-w-max">
-          {TABS.map((tab) => {
+          {TOP_TABS.map((tab) => {
             const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
-            if ((tab.id === 'edit_requests' || tab.id === 'analytics') && !isAdmin) return null;
+            if ((tab.id === 'edit_requests' || tab.id === 'analytics' || tab.id === 'settings') && !isAdmin) return null;
             return (
               <button
                 key={tab.id}
                 onClick={() => {
                   setActiveTab(prev => prev === tab.id ? null : tab.id);
-                  if (tab.id === 'edit_requests') fetchEditRequests();
                   if (tab.id === 'all_phases') setFilterStage('ALL');
+                  if (tab.id === 'edit_requests') fetchEditRequests();
                 }}
                 className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
                   activeTab === tab.id
@@ -747,9 +737,6 @@ const AdminDashboard = () => {
                 {tab.label}
                 {tab.id === 'edit_requests' && editRequests.length > 0 && (
                   <span className="ml-1 px-1.5 py-0.5 bg-amber-500 text-white rounded text-[7px] font-black">{editRequests.length}</span>
-                )}
-                {['ORDER_ENTRY', 'STORE', 'PRODUCTION', 'LOGO_DESIGN', 'DISPATCH'].includes(tab.id) && (
-                  <span className="ml-1 px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded text-[7px] font-black">{getStageCount(tab.id)}</span>
                 )}
               </button>
             );
@@ -767,46 +754,85 @@ const AdminDashboard = () => {
             exit={{ opacity: 0, y: -10 }}
             className="space-y-6"
           >
-            {/* All Phases Tab */}
+            {/* All Phases Tab — Pipeline Sub-Tabs */}
             {activeTab === 'all_phases' && (
               <>
-                {/* Phase Filter Bar */}
-                <div className="theme-bg-subtle p-4 rounded-[2rem] theme-border">
-                  <div className="flex items-center space-x-3 min-w-max overflow-x-auto no-scrollbar">
+                {/* Pipeline Sub-Tab Bar */}
+                <div className="theme-bg-subtle p-2 rounded-[2rem] theme-border overflow-x-auto no-scrollbar">
+                  <div className="flex items-center gap-1.5 min-w-max">
                     <button
                       onClick={() => setFilterStage('ALL')}
-                      className={`px-6 py-3 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all ${
-                        filterStage === 'ALL' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' : 'theme-bg theme-text-muted hover:text-gray-300'
+                      className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                        filterStage === 'ALL'
+                          ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
+                          : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
                       }`}
                     >
-                      All Phases ({activeOrdersCount})
+                      <LayoutDashboard size={13} />
+                      All ({activeOrdersCount})
                     </button>
-                    <div className="w-px h-8 bg-gray-800 mx-2"></div>
-                    {stageList.map((stage) => {
+                    {PIPELINE_STAGES.map((stage) => {
                       const count = getStageCount(stage.id);
                       return (
                         <button
                           key={stage.id}
                           onClick={() => setFilterStage(stage.id)}
-                          className={`flex items-center space-x-3 px-6 py-3 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all border ${
-                            filterStage === stage.id 
-                              ? 'bg-blue-600/10 border-blue-500 text-blue-400 shadow-lg shadow-blue-900/10' 
-                              : 'bg-gray-950 border-transparent text-gray-600 hover:border-gray-800 hover:text-gray-400'
+                          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                            filterStage === stage.id
+                              ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
+                              : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
                           }`}
                         >
-                          <stage.icon size={14} />
-                          <span>{stage.id.replace(/_/g, ' ')}</span>
-                          <span className={`ml-2 px-2 py-0.5 rounded-md ${filterStage === stage.id ? 'bg-blue-500 text-white' : 'bg-gray-800 text-gray-500'}`}>
-                            {count}
-                          </span>
+                          <stage.icon size={13} />
+                          {stage.label}
+                          <span className="ml-0.5 px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded text-[7px] font-black">{count}</span>
                         </button>
                       );
                     })}
                   </div>
                 </div>
 
-                {/* Filtered Orders List */}
-                {filterStage !== 'ALL' && (
+                {/* Pipeline Stage Content */}
+                {filterStage === 'DISPATCH' ? (
+                  <section>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                      <div className="flex items-center space-x-4">
+                        <div className="p-3 bg-amber-500/10 rounded-2xl">
+                          <ClipboardList className="text-amber-400" size={20} />
+                        </div>
+                        <div>
+                          <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">Delivery Setup</h2>
+                          <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">Orders at Dispatch awaiting delivery configuration</p>
+                        </div>
+                      </div>
+                      <div className="relative w-full md:w-auto min-w-[200px]">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                        <input
+                          type="text"
+                          placeholder="Search by ID or Name..."
+                          value={contextSearch}
+                          onChange={(e) => handleDashboardSearch(e.target.value)}
+                          className="w-full theme-input rounded-xl py-3 pl-12 pr-4 text-sm font-bold"
+                        />
+                      </div>
+                    </div>
+                    {deliverySetupQueue.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
+                        {deliverySetupQueue.map(order => (
+                          <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="glass p-4 md:p-16 rounded-2xl md:rounded-[3rem] border border-gray-800 text-center space-y-4">
+                        <div className="w-20 h-20 bg-gray-900 rounded-full flex items-center justify-center mx-auto border-2 border-gray-800">
+                          <CheckCircle2 className="text-gray-700" size={40} />
+                        </div>
+                        <h3 className="text-xl font-black text-gray-500 uppercase">All delivered</h3>
+                        <p className="text-gray-600 text-sm font-bold max-w-xs mx-auto uppercase tracking-widest">No orders pending delivery configuration.</p>
+                      </div>
+                    )}
+                  </section>
+                ) : filterStage !== 'ALL' ? (
                   <section className="space-y-6">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4">
@@ -818,23 +844,14 @@ const AdminDashboard = () => {
                           <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">Active orders in this phase</p>
                         </div>
                       </div>
-                      <button 
-                        onClick={() => setFilterStage('ALL')}
-                        className="theme-text-muted hover:text-white transition-colors text-xs font-black uppercase tracking-widest flex items-center gap-2"
-                      >
-                        <X size={14} /> Close Filter
+                      <button onClick={() => setFilterStage('ALL')} className="theme-text-muted hover:text-white transition-colors text-xs font-black uppercase tracking-widest flex items-center gap-2">
+                        <X size={14} /> Close
                       </button>
                     </div>
-
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
                       {filteredOrdersByStage.length > 0 ? (
                         filteredOrdersByStage.map(order => (
-                          <OrderCard 
-                            key={order.id} 
-                            order={order} 
-                            userRole={user?.role}
-                            onUpdateStage={handleAction}
-                          />
+                          <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} />
                         ))
                       ) : (
                         <div className="col-span-full py-6 md:py-20 text-center glass rounded-2xl md:rounded-[3rem] theme-border">
@@ -844,115 +861,28 @@ const AdminDashboard = () => {
                       )}
                     </div>
                   </section>
-                )}
-
-                {/* Initiation Queue */}
-                {initiationQueue.length > 0 && (
-                  <section className="mb-6 md:mb-12">
-                    <div className="flex items-center space-x-4 mb-8">
-                      <div className="p-3 bg-blue-500/10 rounded-2xl">
-                        <Sparkles className="text-blue-400" size={20} />
+                ) : (
+                  /* Initiation Queue — shown when no pipeline sub-tab selected */
+                  initiationQueue.length > 0 && (
+                    <section className="mb-6 md:mb-12">
+                      <div className="flex items-center space-x-4 mb-8">
+                        <div className="p-3 bg-blue-500/10 rounded-2xl">
+                          <Sparkles className="text-blue-400" size={20} />
+                        </div>
+                        <div>
+                          <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">Initiation Queue</h2>
+                          <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">New orders waiting to start production</p>
+                        </div>
                       </div>
-                      <div>
-                        <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">Initiation Queue</h2>
-                        <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">New orders waiting to start production</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
+                        {initiationQueue.map(order => (
+                          <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} />
+                        ))}
                       </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
-                      {initiationQueue.map(order => (
-                        <OrderCard 
-                          key={order.id} 
-                          order={order} 
-                          userRole={user?.role}
-                          onUpdateStage={handleAction}
-                        />
-                      ))}
-                    </div>
-                  </section>
+                    </section>
+                  )
                 )}
               </>
-            )}
-
-            {/* Stage Tabs: ORDER_ENTRY, STORE, PRODUCTION, LOGO_DESIGN */}
-            {['ORDER_ENTRY', 'STORE', 'PRODUCTION', 'LOGO_DESIGN'].includes(activeTab) && (
-              <section className="space-y-6">
-                <div className="flex items-center space-x-4">
-                  <div className="p-3 bg-blue-500/10 rounded-2xl">
-                    <Package className="text-blue-400" size={20} />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">{activeTab.replace(/_/g, ' ')} Orders</h2>
-                    <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">Active orders in {activeTab.replace(/_/g, ' ')} phase</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
-                  {filteredOrdersByTabStage.length > 0 ? (
-                    filteredOrdersByTabStage.map(order => (
-                      <OrderCard 
-                        key={order.id} 
-                        order={order} 
-                        userRole={user?.role}
-                        onUpdateStage={handleAction}
-                      />
-                    ))
-                  ) : (
-                    <div className="col-span-full py-20 text-center glass rounded-2xl md:rounded-[3rem] theme-border">
-                      <Package className="mx-auto theme-text-muted mb-4" size={48} />
-                      <h3 className="theme-text-muted font-black uppercase">No orders in {activeTab.replace(/_/g, ' ')}</h3>
-                    </div>
-                  )}
-                </div>
-              </section>
-            )}
-
-            {/* Dispatch Tab */}
-            {activeTab === 'DISPATCH' && (
-              <section>
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-                  <div className="flex items-center space-x-4">
-                    <div className="p-3 bg-amber-500/10 rounded-2xl">
-                      <ClipboardList className="text-amber-400" size={20} />
-                    </div>
-                    <div>
-                      <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">Delivery Setup</h2>
-                      <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">Orders at Dispatch awaiting delivery configuration</p>
-                    </div>
-                  </div>
-                  
-                  <div className="relative w-full md:w-auto min-w-[200px]">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-                    <input
-                      type="text"
-                      placeholder="Search by ID or Name..."
-                      value={contextSearch}
-                      onChange={(e) => handleDashboardSearch(e.target.value)}
-                      className="w-full theme-input rounded-xl py-3 pl-12 pr-4 text-sm font-bold"
-                    />
-                  </div>
-                </div>
-
-                {deliverySetupQueue.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
-                    {deliverySetupQueue.map(order => (
-                      <OrderCard 
-                        key={order.id} 
-                        order={order} 
-                        userRole={user?.role}
-                        onUpdateStage={handleAction}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="glass p-4 md:p-16 rounded-2xl md:rounded-[3rem] border border-gray-800 text-center space-y-4">
-                    <div className="w-20 h-20 bg-gray-900 rounded-full flex items-center justify-center mx-auto border-2 border-gray-800">
-                      <CheckCircle2 className="text-gray-700" size={40} />
-                    </div>
-                    <h3 className="text-xl font-black text-gray-500 uppercase">All delivered</h3>
-                    <p className="text-gray-600 text-sm font-bold max-w-xs mx-auto uppercase tracking-widest">No orders pending delivery configuration.</p>
-                  </div>
-                )}
-              </section>
             )}
 
             {/* Order Change Requests Tab */}
@@ -1465,7 +1395,7 @@ const AdminDashboard = () => {
       </AnimatePresence>
 
       {/* Admin Settings */}
-      {user?.role === 'SUPER_ADMIN' && !activeTab && <AdminSettings />}
+      {activeTab === 'settings' && <AdminSettings />}
 
       {/* Pause Modal */}
       <AnimatePresence>
