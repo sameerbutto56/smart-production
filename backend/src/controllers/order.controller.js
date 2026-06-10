@@ -1217,9 +1217,9 @@ const classifyOrderItems = async (order) => {
       where: { name: { contains: productType, mode: 'insensitive' }, category: { not: 'FABRIC' } }
     });
 
-    const isManufactured = invItem ? invItem.isManufactured : true;
+    const isManufactured = invItem ? (invItem.isManufactured !== false) : true;
 
-    if (invItem && !isManufactured && (invItem.stock > 0 || (invItem.variants && Array.isArray(invItem.variants) && invItem.variants.reduce((s, v) => s + (v.stock || 0), 0) > 0))) {
+    if (invItem && !isManufactured) {
       inventoryItems.push({ productType, quantity, color: pd.color, size: pd.size, inventoryItem: invItem });
       itemFulfillment[key] = { productType, quantity, deductionType: 'inventory', status: 'pending' };
     } else {
@@ -1699,7 +1699,7 @@ const checkOrderInventory = async (req, res) => {
       if (availableQty === 0) status = 'out_of_stock';
       else if (availableQty < prod.quantity) status = 'insufficient';
 
-      const classification = inventoryItem.isManufactured ? 'production' : 'inventory';
+      const classification = inventoryItem.isManufactured === false ? 'inventory' : 'production';
       report.push({
         itemId: inventoryItem.id,
         itemName: inventoryItem.name,
