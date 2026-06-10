@@ -233,3 +233,39 @@ model SystemSetting {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model ProductionRecord {
+  id              String   @id @default(uuid())
+  productName     String
+  quantity        Int
+  rawMaterialCost Float    @default(0)
+  productionCost  Float    @default(0)
+  totalCost       Float    @default(0)
+  sellingValue    Float    @default(0)
+  profit          Float    @default(0)
+  productionDate  DateTime @default(now())
+  source          String   @default("OUTLET")
+  orderId         String?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([productionDate])
+  @@index([source])
+}
+
+model ProductionInventory {
+  id              String   @id @default(uuid())
+  productName     String
+  quantity        Int
+  productionCost  Float    @default(0)
+  sellingValue    Float    @default(0)
+  profitMargin    Float    @default(0)
+  source          String   @default("OUTLET")
+  productionDate  DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([productionDate])
+  @@index([source])
+}

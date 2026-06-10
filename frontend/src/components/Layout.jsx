@@ -20,6 +20,7 @@ import {
   Trash2,
   BarChart3,
   TrendingUp,
+  Factory,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import socket from '../socket';
@@ -57,6 +58,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     { name: 'History (Admin)', path: '/history', icon: History, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Deliveries', path: '/delivery', icon: Truck, roles: ['DELIVERY_BOY', 'SUPER_ADMIN'] },
     { name: 'Deleted Orders', path: '/deleted-orders', icon: Trash2, roles: ['SUPER_ADMIN', 'ADMIN'] },
+    { name: 'Production', path: '/production', icon: Factory, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'PRODUCTION'] },
 
   ];
   
