@@ -445,6 +445,8 @@ const getOrders = async (req, res) => {
     // 1. Role boundary isolation
     if (role === 'OUTLET' || role === 'FAISAL') {
       where.createdById = id;
+      // STORE_RECEIVE is Store-only — never show in Online/Outlet modules
+      where.currentStage = { not: 'STORE_RECEIVE' };
     }
 
     // 2. Add database-level filters based on page context

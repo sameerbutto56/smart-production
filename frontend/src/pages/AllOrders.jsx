@@ -242,7 +242,11 @@ const AllOrders = () => {
     const isControlCenter = ['SUPER_ADMIN', 'ADMIN'].includes(userRole);
     const matchesRole = isControlCenter || isOwner;
     
-    return matchesSearch && matchesStatus && matchesType && matchesUrgent && matchesRole;
+    // STORE_RECEIVE is Store-only — never show in Online/Outlet/AllOrders views
+    const isStoreRole = ['STORE', 'STORE_EMPLOYEE'].includes(userRole);
+    const notStoreReceive = isStoreRole || order.currentStage !== 'STORE_RECEIVE';
+    
+    return matchesSearch && matchesStatus && matchesType && matchesUrgent && matchesRole && notStoreReceive;
   });
 
   const groupedOrders = useMemo(() => {
