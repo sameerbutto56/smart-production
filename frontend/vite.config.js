@@ -9,11 +9,9 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom') ||
+                id.includes('framer-motion') || id.includes('react-hot-toast')) {
               return 'vendor-react';
-            }
-            if (id.includes('framer-motion') || id.includes('lucide-react') || id.includes('react-hot-toast')) {
-              return 'vendor-ui';
             }
             if (id.includes('axios') || id.includes('date-fns')) {
               return 'vendor-utils';
