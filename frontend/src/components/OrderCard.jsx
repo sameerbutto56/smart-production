@@ -54,6 +54,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const [showMoreActions, setShowMoreActions] = useState(false);
   const [showJobSheet, setShowJobSheet] = useState(false);
   const [showProdHistory, setShowProdHistory] = useState(false);
+  const [trackingUrl, setTrackingUrl] = useState('');
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -1100,7 +1101,128 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       );
                     })()}
                   </>
-                ) : ['DISPATCH', 'ORDER_ENTRY', 'OUTLET'].includes(currentStage?.stageName) ? (
+                ) : currentStage?.stageName === 'DISPATCH' ? (
+                  <>
+                    {!order.deliveryType ? (
+                      <div className="w-full space-y-2">
+                        <label className="text-[8px] font-black text-purple-400 uppercase tracking-widest flex items-center gap-1.5">
+                          <Truck size={12} />
+                          Delivery Method
+                          <span className="px-1 py-0.5 bg-purple-500/10 text-purple-400 rounded text-[7px] tracking-wider">SELECT</span>
+                        </label>
+                        <select
+                          className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2.5 px-3 outline-none focus:border-purple-500 transition-all text-white text-[10px] font-bold appearance-none"
+                          value={nextStage}
+                          onChange={(e) => setNextStage(e.target.value)}
+                        >
+                          <option value="">Select delivery method...</option>
+                          <option value="ENAMELS">Enamels Delivery</option>
+                          <option value="TCS">TCS</option>
+                          <option value="POST_EX">Post Ex</option>
+                        </select>
+                        <input
+                          type="text"
+                          value={trackingUrl}
+                          onChange={(e) => setTrackingUrl(e.target.value)}
+                          placeholder="Tracking URL / Number (optional)"
+                          className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2.5 px-3 outline-none focus:border-purple-500 transition-all text-white text-[10px] font-bold"
+                        />
+                        <button
+                          onClick={async () => {
+                            if (!nextStage) return alert('Please select delivery method');
+                            try {
+                              const token = sessionStorage.getItem('token');
+                              await axios.post(`${API_URL}/api/orders/${order.id}/dispatch`, {
+                                deliveryMethod: nextStage,
+                                trackingUrl: trackingUrl || undefined
+                              }, { headers: { Authorization: `Bearer ${token}` } });
+                              toast.success(`Dispatched via ${nextStage}`);
+                              setNextStage('');
+                              setTrackingUrl('');
+                            } catch (err) {
+                              alert('Failed: ' + (err.response?.data?.message || err.message));
+                            }
+                          }}
+                          className="w-full py-2.5 rounded-xl text-[8px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 active:scale-95 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg shadow-purple-900/20"
+                        >
+                          <ChevronRight size={12} />
+                          <span>Confirm Dispatch</span>
+                        </button>
+                      </div>
+                    ) : order.deliveryType === 'ENAMELS' ? (
+                      <div className="w-full p-3 bg-emerald-600/10 rounded-xl border border-emerald-500/20 text-center">
+                        <div className="flex items-center justify-center gap-2 mb-1">
+                          <CheckCircle size={14} className="text-emerald-400" />
+                          <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Routed to Enamels Delivery</span>
+                        </div>
+                        <span className="text-[8px] text-emerald-600/70">→ Out for Delivery</span>
+                      </div>
+                    ) : ['TCS', 'POST_EX'].includes(order.deliveryType) ? (
+                      <div className="w-full space-y-2">
+                        <div className="flex items-center justify-between p-2.5 bg-gray-900/40 rounded-xl border border-gray-800">
+                          <div>
+                            <span className="text-[8px] font-black text-purple-400 uppercase tracking-widest">{order.deliveryType}</span>
+                            {order.trackingNumber && (
+                              <p className="text-[8px] text-gray-500 mt-0.5">Tracking: {order.trackingNumber}</p>
+                            )}
+                          </div>
+                          <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase ${
+                            order.dispatchStatus === 'DELIVERED'
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                              : order.dispatchStatus === 'RETURNED'
+                                ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                                : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+                          }`}>
+                            {order.dispatchStatus || 'PENDING'}
+                          </span>
+                        </div>
+                        {order.dispatchStatus === 'PENDING' && (
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              onClick={async () => {
+                                if (!window.confirm('Mark as DELIVERED?')) return;
+                                try {
+                                  const token = sessionStorage.getItem('token');
+                                  await axios.put(`${API_URL}/api/orders/${order.id}/dispatch-status`, { dispatchStatus: 'DELIVERED' }, { headers: { Authorization: `Bearer ${token}` } });
+                                  toast.success('Marked as Delivered');
+                                } catch (err) {
+                                  alert('Failed: ' + (err.response?.data?.message || err.message));
+                                }
+                              }}
+                              className="py-2 rounded-xl text-[8px] font-black uppercase tracking-wider transition-all bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/20 flex items-center justify-center gap-1"
+                            >
+                              <CheckCircle size={12} />
+                              Mark Delivered
+                            </button>
+                            <button
+                              onClick={async () => {
+                                if (!window.confirm('Mark as RETURNED?')) return;
+                                try {
+                                  const token = sessionStorage.getItem('token');
+                                  await axios.put(`${API_URL}/api/orders/${order.id}/dispatch-status`, { dispatchStatus: 'RETURNED' }, { headers: { Authorization: `Bearer ${token}` } });
+                                  toast.success('Marked as Returned');
+                                } catch (err) {
+                                  alert('Failed: ' + (err.response?.data?.message || err.message));
+                                }
+                              }}
+                              className="py-2 rounded-xl text-[8px] font-black uppercase tracking-wider transition-all bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-900/20 flex items-center justify-center gap-1"
+                            >
+                              <X size={12} />
+                              Mark Returned
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+                    <button
+                      onClick={() => setShowProblemModal(true)}
+                      className="w-full py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white text-[8px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 active:scale-95 shadow-lg shadow-red-900/20"
+                    >
+                      <AlertCircle size={12} />
+                      <span>Report Problem</span>
+                    </button>
+                  </>
+                ) : ['ORDER_ENTRY', 'OUTLET'].includes(currentStage?.stageName) ? (
                   <>
                     <div className="w-full space-y-2">
                       <label className="text-[8px] font-black text-blue-400 uppercase tracking-widest flex items-center gap-1.5">

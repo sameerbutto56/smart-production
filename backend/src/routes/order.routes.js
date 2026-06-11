@@ -30,7 +30,9 @@ const {
   refundOrder,
   getRefundQueue,
   processRefund,
-  bulkRouteOrders
+  bulkRouteOrders,
+  dispatchOrder,
+  updateDispatchStatus
 } = require('../controllers/order.controller');
 const { createEditRequest } = require('../controllers/editRequest.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
@@ -113,5 +115,9 @@ router.get('/store-requests', authenticate, getStoreRequests);
 
 // Routing History
 router.get('/:orderId/routing-history', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'FAISAL']), getRoutingHistory);
+
+// Dispatch Management
+router.post('/:orderId/dispatch', authenticate, authorize(['DISPATCH', 'MAIN_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), dispatchOrder);
+router.put('/:orderId/dispatch-status', authenticate, authorize(['DISPATCH', 'MAIN_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), updateDispatchStatus);
 
 module.exports = router;

@@ -2565,6 +2565,138 @@ const getRoutingHistory = async (req, res) => {
   }
 };
 
+// ====== DISPATCH MANAGEMENT ======
+const dispatchOrder = async (req, res) => {
+  const { orderId } = req.params;
+  const { deliveryMethod, trackingUrl } = req.body;
+  const validMethods = ['ENAMELS', 'TCS', 'POST_EX'];
+  if (!validMethods.includes(deliveryMethod)) {
+    return res.status(400).json({ message: 'Invalid delivery method. Must be ENAMELS, TCS, or POST_EX.' });
+  }
+
+  try {
+    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: true } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (order.currentStage !== 'DISPATCH') {
+      return res.status(400).json({ message: 'Order is not in DISPATCH stage' });
+    }
+
+    const updateData = {
+      deliveryType: deliveryMethod,
+      ...(trackingUrl ? { trackingNumber: trackingUrl } : {})
+    };
+
+    if (deliveryMethod === 'ENAMELS') {
+      // Complete DISPATCH stage and route to OUT_FOR_DELIVERY
+      const currentStage = order.stages.find(s =>
+        ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
+      );
+      if (currentStage) {
+        await prisma.orderStage.update({
+          where: { id: currentStage.id },
+          data: { status: 'COMPLETED', completedAt: new Date(), rejectionReason: `Dispatched via Enamels Delivery` }
+        });
+      }
+
+      const durations = await getStageDurations(order.priority);
+      const deadline = calculateDeadline(new Date(), durations['OUT_FOR_DELIVERY'] || 24);
+      await prisma.orderStage.create({
+        data: { orderId, stageName: 'OUT_FOR_DELIVERY', status: 'PENDING', deadlineAt: deadline }
+      });
+
+      updateData.currentStage = 'OUT_FOR_DELIVERY';
+      updateData.status = 'IN_PROGRESS';
+
+      // Routing history for ENAMELS
+      const recipientUsers = await prisma.user.findMany({
+        where: { role: { in: getRolesForStage('OUT_FOR_DELIVERY') } },
+        select: { id: true }
+      });
+      await prisma.routingHistory.create({
+        data: {
+          orderId,
+          sentByUserId: req.user.id,
+          sentToStage: 'OUT_FOR_DELIVERY',
+          sentToUserIds: JSON.stringify(recipientUsers.map(u => u.id)),
+          previousStage: 'DISPATCH',
+          newStage: 'OUT_FOR_DELIVERY',
+          remarks: `Dispatched via Enamels Delivery. Tracking: ${trackingUrl || 'N/A'}`,
+          createdAt: new Date()
+        }
+      }).catch(() => {});
+      await prisma.seenTask.deleteMany({
+        where: { userId: { in: recipientUsers.map(u => u.id) }, orderId, stageName: 'OUT_FOR_DELIVERY' }
+      }).catch(() => {});
+
+      await createAuditLog(orderId, 'DISPATCHED_ENAMELS', `Dispatched via Enamels Delivery. Tracking: ${trackingUrl || 'N/A'}`, req.user.id);
+    } else {
+      // TCS / POST_EX — stay in DISPATCH, set dispatchStatus to PENDING
+      updateData.dispatchStatus = 'PENDING';
+      await createAuditLog(orderId, 'DISPATCHED_COURIER', `Dispatched via ${deliveryMethod}. Tracking: ${trackingUrl || 'N/A'}`, req.user.id);
+
+      await prisma.routingHistory.create({
+        data: {
+          orderId,
+          sentByUserId: req.user.id,
+          sentToStage: 'DISPATCH',
+          sentToUserIds: '[]',
+          previousStage: 'DISPATCH',
+          newStage: 'DISPATCH',
+          remarks: `Dispatched via ${deliveryMethod}. Tracking: ${trackingUrl || 'N/A'}. Status: PENDING`,
+          createdAt: new Date()
+        }
+      }).catch(() => {});
+    }
+
+    await prisma.order.update({ where: { id: orderId }, data: updateData });
+
+    const io = req.app.get('io');
+    if (io) io.emit('order-updated', { orderId, createdById: order.createdById });
+
+    res.json({ message: `Order dispatched via ${deliveryMethod}`, deliveryMethod, trackingUrl });
+  } catch (error) {
+    res.status(500).json({ message: 'Error dispatching order', error: error.message });
+  }
+};
+
+const updateDispatchStatus = async (req, res) => {
+  const { orderId } = req.params;
+  const { dispatchStatus } = req.body;
+  const validStatuses = ['DELIVERED', 'RETURNED'];
+  if (!validStatuses.includes(dispatchStatus)) {
+    return res.status(400).json({ message: 'Invalid dispatch status. Must be DELIVERED or RETURNED.' });
+  }
+
+  try {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (order.currentStage !== 'DISPATCH') {
+      return res.status(400).json({ message: 'Order is not in DISPATCH stage' });
+    }
+    if (!order.deliveryType || !['TCS', 'POST_EX'].includes(order.deliveryType)) {
+      return res.status(400).json({ message: 'Only TCS/Post Ex orders can have dispatch status updated' });
+    }
+
+    const updateData = { dispatchStatus, updatedAt: new Date() };
+
+    if (dispatchStatus === 'DELIVERED') {
+      await createAuditLog(orderId, 'DISPATCH_DELIVERED', `Order delivered via ${order.deliveryType}. Tracking: ${order.trackingNumber || 'N/A'}`, req.user.id);
+    } else if (dispatchStatus === 'RETURNED') {
+      updateData.currentStage = 'RETURNED';
+      await createAuditLog(orderId, 'DISPATCH_RETURNED', `Order returned via ${order.deliveryType}. Tracking: ${order.trackingNumber || 'N/A'}`, req.user.id);
+    }
+
+    await prisma.order.update({ where: { id: orderId }, data: updateData });
+
+    const io = req.app.get('io');
+    if (io) io.emit('order-updated', { orderId, createdById: order.createdById });
+
+    res.json({ message: `Dispatch status updated to ${dispatchStatus}` });
+  } catch (error) {
+    res.status(500).json({ message: 'Error updating dispatch status', error: error.message });
+  }
+};
+
 module.exports = { 
   createOrder, 
   getOrders, 
@@ -2596,5 +2728,7 @@ module.exports = {
   refundOrder,
   getRefundQueue,
   processRefund,
-  bulkRouteOrders
+  bulkRouteOrders,
+  dispatchOrder,
+  updateDispatchStatus
 };
