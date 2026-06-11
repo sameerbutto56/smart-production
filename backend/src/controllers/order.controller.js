@@ -39,19 +39,19 @@ const AUTO_TRANSITION_STAGES = ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_REC
 // Validates forward-only stage transitions to prevent routing loops
 const validateStageTransition = (fromStage, toStage, orderType) => {
   const validTransitions = {
-    'STORE': { 'STANDARD': 'PRODUCTION', 'READY_LOGO': 'LOGO_DESIGN', 'FULL_CUSTOM': 'LOGO_DESIGN' },
-    'LOGO_DESIGN': { 'STANDARD': 'PRODUCTION', 'READY_LOGO': 'PRODUCTION', 'FULL_CUSTOM': 'PRODUCTION' },
-    'PRODUCTION': { 'STANDARD': 'STORE_RECEIVE', 'READY_LOGO': 'STORE_RECEIVE', 'FULL_CUSTOM': 'STORE_RECEIVE' },
-    'STORE_RECEIVE': { 'STANDARD': 'DISPATCH', 'READY_LOGO': 'DISPATCH', 'FULL_CUSTOM': 'DISPATCH' },
-    'DISPATCH': { 'STANDARD': 'OUT_FOR_DELIVERY', 'READY_LOGO': 'OUT_FOR_DELIVERY', 'FULL_CUSTOM': 'OUT_FOR_DELIVERY' },
-    'OUT_FOR_DELIVERY': { 'STANDARD': null, 'READY_LOGO': null, 'FULL_CUSTOM': null }
+    'STORE': { 'STANDARD': ['PRODUCTION', 'DISPATCH', 'LOGO_DESIGN'], 'READY_LOGO': ['LOGO_DESIGN'], 'FULL_CUSTOM': ['LOGO_DESIGN'] },
+    'LOGO_DESIGN': { 'STANDARD': ['PRODUCTION'], 'READY_LOGO': ['PRODUCTION'], 'FULL_CUSTOM': ['PRODUCTION'] },
+    'PRODUCTION': { 'STANDARD': ['STORE_RECEIVE'], 'READY_LOGO': ['STORE_RECEIVE'], 'FULL_CUSTOM': ['STORE_RECEIVE'] },
+    'STORE_RECEIVE': { 'STANDARD': ['DISPATCH'], 'READY_LOGO': ['DISPATCH'], 'FULL_CUSTOM': ['DISPATCH'] },
+    'DISPATCH': { 'STANDARD': ['OUT_FOR_DELIVERY'], 'READY_LOGO': ['OUT_FOR_DELIVERY'], 'FULL_CUSTOM': ['OUT_FOR_DELIVERY'] },
+    'OUT_FOR_DELIVERY': { 'STANDARD': [], 'READY_LOGO': [], 'FULL_CUSTOM': [] }
   };
 
-  const expectedNext = validTransitions[fromStage]?.[orderType];
-  if (!expectedNext || toStage !== expectedNext) {
-    return { valid: false, expected: expectedNext, message: `Invalid transition from ${fromStage} to ${toStage}. ${expectedNext ? `Must route to ${expectedNext}.` : 'No forward transition available from this stage.'}` };
+  const allowed = validTransitions[fromStage]?.[orderType];
+  if (!allowed || !allowed.includes(toStage)) {
+    return { valid: false, expected: allowed?.[0], message: `Invalid transition from ${fromStage} to ${toStage}. ${allowed?.length ? `Allowed: ${allowed.join(', ')}.` : 'No forward transition available from this stage.'}` };
   }
-  return { valid: true, expected: expectedNext };
+  return { valid: true, expected: toStage };
 };
 
 const getRolesForStage = (stageName) => {
