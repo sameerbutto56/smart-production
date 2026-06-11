@@ -1830,6 +1830,47 @@ const addOrderToInventory = async (req, res) => {
 
     await createAuditLog(orderId, 'INVENTORY_ADDED', `Products added to store inventory from production: ${addedItems.map(i => `${i.name} x${i.quantity} (${i.action})`).join(', ')}`, req.user.id);
 
+    // Also add to production inventory records
+    const orderSource = order.source === 'ONLINE' || order.source === 'INTERNAL' ? 'ONLINE' : 'OUTLET';
+    for (const prod of productsToAdd) {
+      const productName = prod.productType;
+      const qty = prod.quantity || 1;
+      const rawCost = parseFloat(order.productCost || 0) / productsToAdd.length;
+      const prodCost = parseFloat(order.productionCost || 0) / productsToAdd.length;
+      const totalCost = rawCost + prodCost;
+      const sellVal = parseFloat(order.totalPrice || 0) / productsToAdd.length;
+      const profit = sellVal - totalCost;
+      try {
+        await prisma.productionRecord.create({
+          data: {
+            productName, quantity: qty, rawMaterialCost: rawCost, productionCost: prodCost,
+            totalCost, sellingValue: sellVal, profit, source: orderSource,
+            orderId: order.id, notes: 'Added to inventory by Store',
+            productionDate: new Date()
+          }
+        });
+      } catch (e) { if (e?.code !== 'P2021') throw e; }
+      try {
+        const existing = await prisma.productionInventory.findFirst({
+          where: { productName, productionCost: prodCost, sellingValue: sellVal, source: orderSource }
+        });
+        if (existing) {
+          await prisma.productionInventory.update({
+            where: { id: existing.id },
+            data: { quantity: { increment: qty }, profitMargin: sellVal > 0 ? ((sellVal - totalCost) / sellVal) * 100 : 0 }
+          });
+        } else {
+          await prisma.productionInventory.create({
+            data: {
+              productName, quantity: qty, productionCost: prodCost, sellingValue: sellVal,
+              profitMargin: sellVal > 0 ? ((sellVal - totalCost) / sellVal) * 100 : 0,
+              source: orderSource, productionDate: new Date()
+            }
+          });
+        }
+      } catch (e) { if (e?.code !== 'P2021') throw e; }
+    }
+
     const io = req.app.get('io');
     if (io) io.emit('inventory-updated', { source: 'production', orderId });
 
