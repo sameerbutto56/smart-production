@@ -171,11 +171,23 @@ const AdminDashboard = () => {
         toast.success(`Order #${data.orderId?.substring(0, 8)}: Payment ${data.order.paymentStatus}`, { icon: '💰' });
     });
 
+    socket.on('stage-rejected', () => {
+      fetchDashboardData();
+    });
+
+    // Polling fallback every 15 seconds
+    const pollInterval = setInterval(() => {
+      fetchDashboardData();
+      fetchAnalytics();
+    }, 15000);
+
     return () => {
       socket.off('order-updated');
       socket.off('new-order');
       socket.off('stage-completion-requested');
       socket.off('payment-updated');
+      socket.off('stage-rejected');
+      clearInterval(pollInterval);
     };
   }, []);
 

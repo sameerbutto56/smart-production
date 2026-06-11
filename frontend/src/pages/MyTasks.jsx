@@ -79,9 +79,30 @@ const MyTasks = () => {
       });
     });
 
+    socket.on('new-order', () => {
+      fetchTasks();
+    });
+
+    socket.on('stage-completion-requested', () => {
+      fetchTasks();
+    });
+
+    socket.on('payment-updated', () => {
+      fetchTasks();
+    });
+
+    // Polling fallback every 15 seconds
+    const pollInterval = setInterval(() => {
+      fetchTasks();
+    }, 15000);
+
     return () => {
       socket.off('order-updated');
       socket.off('stage-rejected');
+      socket.off('new-order');
+      socket.off('stage-completion-requested');
+      socket.off('payment-updated');
+      clearInterval(pollInterval);
     };
   }, []);
 

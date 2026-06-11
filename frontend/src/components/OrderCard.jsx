@@ -801,6 +801,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         <option value="LOGO_DESIGN">Send to Logo Design</option>
                         <option value="DISPATCH">Send to Dispatch</option>
                         <option value="ORDER_ENTRY">Return to Order Entry</option>
+                        <option value="ORDER_ENTRY">Return to Previous Department</option>
+                        <option disabled className="border-t border-gray-800">──────────</option>
+                        <option value="NOT_AVAILABLE">Mark as Not Available</option>
+                        <option value="REJECT">Reject Order</option>
                       </select>
                     </div>
                     {/* Inventory Availability Report */}
@@ -889,15 +893,26 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         onClick={() => {
-                          const msg = nextStage ? `Route to ${nextStage.replace(/_/g, ' ')}?` : 'Confirm classification and route items?';
-                          if (window.confirm(msg)) {
-                            onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Available', nextStage: nextStage || undefined });
+                          if (nextStage === 'NOT_AVAILABLE') {
+                            if (window.confirm('Mark items as NOT AVAILABLE?')) {
+                              onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Out of Stock' });
+                            }
+                          } else if (nextStage === 'REJECT') {
+                            const reason = prompt('Reason for rejection:');
+                            if (reason !== null) {
+                              onUpdateStage(order.id, currentStage.id, 'reject', { reason: `Rejected by Store: ${reason}` });
+                            }
+                          } else {
+                            const msg = nextStage ? `Route to ${nextStage.replace(/_/g, ' ')}?` : 'Confirm classification and route items?';
+                            if (window.confirm(msg)) {
+                              onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Available', nextStage: nextStage || undefined });
+                            }
                           }
                         }}
                         className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-[9px] md:text-xs font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
                       >
                         <CheckCircle size={14} />
-                        <span>{nextStage ? `Route to ${nextStage.replace(/_/g, ' ')}` : 'Process & Route'}</span>
+                        <span>{nextStage === 'NOT_AVAILABLE' ? 'Mark as Not Available' : nextStage === 'REJECT' ? 'Reject Order' : nextStage ? `Route to ${nextStage.replace(/_/g, ' ')}` : 'Process & Route'}</span>
                       </button>
                       <button
                         onClick={() => {
@@ -916,17 +931,15 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => {
-                        const nextIdx = currentPipeline.indexOf(currentStage?.stageName) + 1;
-                        const nextStageName = currentPipeline[nextIdx]?.replace(/_/g, ' ') || 'NEXT STAGE';
-                        if (window.confirm(`Design complete! Send to ${nextStageName}?`)) {
-                          onUpdateStage(order.id, currentStage.id, 'request');
+                        if (window.confirm('Design complete! Send to Production?')) {
+                          onUpdateStage(order.id, currentStage.id, 'request', { nextStage: 'PRODUCTION' });
                         }
                       }}
                       className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
                     >
                       <CheckCircle size={14} />
-                      <span>Design Complete</span>
-                      <span className="text-[6px] md:text-[7px] text-emerald-200 tracking-widest">→ {(() => { const ni = currentPipeline.indexOf(currentStage?.stageName) + 1; return currentPipeline[ni]?.replace(/_/g, ' ') || 'NEXT'; })()}</span>
+                      <span>Send to Production</span>
+                      <span className="text-[6px] md:text-[7px] text-emerald-200 tracking-widest">→ PRODUCTION</span>
                     </button>
                     <button
                       onClick={() => setShowProblemModal(true)}
@@ -934,6 +947,29 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     >
                       <AlertCircle size={14} />
                       <span>Design Problem</span>
+                      <span className="text-[6px] md:text-[7px] text-red-200 tracking-widest">→ NOTIFY {order.source === 'OUTLET' ? 'BRANCH' : 'FAISAL'}</span>
+                    </button>
+                  </div>
+                ) : currentStage?.stageName === 'PRODUCTION' ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => {
+                        if (window.confirm('Production complete? Items will return to Store.')) {
+                          onUpdateStage(order.id, currentStage.id, 'request', { nextStage: 'STORE_RECEIVE' });
+                        }
+                      }}
+                      className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
+                    >
+                      <CheckCircle size={14} />
+                      <span>Production Complete</span>
+                      <span className="text-[6px] md:text-[7px] text-emerald-200 tracking-widest">→ Coming From Production</span>
+                    </button>
+                    <button
+                      onClick={() => setShowProblemModal(true)}
+                      className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-2.5 md:py-3 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-red-900/20"
+                    >
+                      <AlertCircle size={14} />
+                      <span>Report Problem</span>
                       <span className="text-[6px] md:text-[7px] text-red-200 tracking-widest">→ NOTIFY {order.source === 'OUTLET' ? 'BRANCH' : 'FAISAL'}</span>
                     </button>
                   </div>
