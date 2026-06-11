@@ -975,10 +975,25 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   </div>
                 ) : currentStage?.stageName === 'STORE_RECEIVE' ? (
                   <>
-                    <div className="w-full mb-3 p-3 bg-blue-600/10 rounded-2xl border border-blue-500/30">
-                      <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest text-center">
-                        Items returned from Production
-                      </p>
+                    <div className="w-full mb-3 p-4 bg-gradient-to-r from-blue-600/20 to-purple-600/20 rounded-2xl border border-blue-500/40 shadow-lg shadow-blue-900/30">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-gradient-to-br from-blue-500/30 to-purple-500/30 rounded-xl">
+                          <RotateCcw size={18} className="text-blue-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Returned From Production</p>
+                          {(() => {
+                            const prodStage = order.stages?.find(s => s.stageName === 'PRODUCTION' && s.status === 'COMPLETED');
+                            if (prodStage?.completedAt) {
+                              return <p className="text-[8px] text-gray-500 font-medium mt-0.5">Completed {new Date(prodStage.completedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}</p>;
+                            }
+                            return null;
+                          })()}
+                        </div>
+                        <div className="px-2.5 py-1 bg-emerald-500/15 rounded-lg border border-emerald-500/30">
+                          <span className="text-[7px] font-black text-emerald-400 uppercase tracking-wider">Completed</span>
+                        </div>
+                      </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <button
@@ -989,7 +1004,6 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                               headers: { Authorization: `Bearer ${token}` }
                             });
                             toast.success('Products added to store inventory');
-                            if (onUpdateStage) onUpdateStage(order.id, currentStage.id, 'request', {});
                           } catch (error) {
                             toast.error(error.response?.data?.message || 'Error adding to inventory');
                           }
@@ -998,19 +1012,47 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       >
                         <Package size={14} />
                         <span>Add to Inventory</span>
+                        <span className="text-[6px] md:text-[7px] text-emerald-200 tracking-widest">To stock</span>
                       </button>
                       <button
                         onClick={() => {
-                          if (window.confirm('Send this order for dispatch?')) {
+                          if (window.confirm('Approve inventory entry and send for dispatch?')) {
                             onUpdateStage(order.id, currentStage.id, 'request');
                           }
                         }}
                         className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-2.5 md:py-3 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-blue-900/20"
                       >
-                        <Truck size={14} />
-                        <span>Send for Dispatch</span>
+                        <CheckCircle size={14} />
+                        <span>Approve Inventory Entry</span>
+                        <span className="text-[6px] md:text-[7px] text-blue-200 tracking-widest">→ DISPATCH</span>
                       </button>
                     </div>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const token = sessionStorage.getItem('token');
+                          const res = await axios.get(`${API_URL}/api/orders/${order.id}/routing-history`, {
+                            headers: { Authorization: `Bearer ${token}` }
+                          });
+                          const history = res.data;
+                          const prodFiltered = history.filter(h =>
+                            h.previousStage === 'PRODUCTION' || h.newStage === 'PRODUCTION' ||
+                            h.previousStage === 'STORE_RECEIVE' || h.newStage === 'STORE_RECEIVE'
+                          );
+                          const display = (prodFiltered.length > 0 ? prodFiltered : history);
+                          const historyStr = display.map((h, i) =>
+                            `${i + 1}. ${h.previousStage} → ${h.newStage} by ${h.sentBy || 'System'} (${new Date(h.createdAt).toLocaleString()})${h.remarks ? ': ' + h.remarks : ''}`
+                          ).join('\n');
+                          alert(historyStr || 'No production history found for this order.');
+                        } catch (err) {
+                          alert('Error fetching production history');
+                        }
+                      }}
+                      className="w-full mt-2 flex items-center justify-center gap-2 px-3 py-2.5 bg-purple-600/10 hover:bg-purple-600/20 rounded-xl border border-purple-500/20 text-[8px] font-black uppercase tracking-wider text-purple-400 transition-all"
+                    >
+                      <History size={12} />
+                      View Production History
+                    </button>
                   </>
                 ) : (
                   <div className="w-full">

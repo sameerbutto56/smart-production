@@ -110,7 +110,7 @@ const AdminDashboard = () => {
 
   const [analytics, setAnalytics] = useState(null);
   const [filterStage, setFilterStage] = useState('ALL');
-  const [storeSubTab, setStoreSubTab] = useState('tasks');
+  const [storeSubTab, setStoreSubTab] = useState('unseen');
   const [storeUnseenData, setStoreUnseenData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [fetchingError, setFetchingError] = useState(false);
@@ -850,20 +850,34 @@ const AdminDashboard = () => {
                       </button>
                     </div>
 
-                    {/* Store Subtabs */}
+                    {/* Store Subtabs: Unseen | Seen | Production Orders */}
                     <div className="flex gap-2 mb-6">
                       <button
-                        onClick={() => setStoreSubTab('tasks')}
+                        onClick={() => setStoreSubTab('unseen')}
                         className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
-                          storeSubTab === 'tasks'
+                          storeSubTab === 'unseen'
                             ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
                             : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
                         }`}
                       >
                         <Package size={13} />
-                        Store Tasks
+                        Unseen Tasks
+                        <span className={`ml-1 px-1.5 py-0.5 rounded text-[7px] font-black ${storeUnseenData ? 'bg-orange-500/20 text-orange-400' : 'bg-gray-800 text-gray-400'}`}>
+                          {storeUnseenData ? storeUnseenData.unseen.filter(o => o.currentStage === 'STORE').length : allOrders.filter(o => o.currentStage === 'STORE' && o.status !== 'COMPLETED').length}
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => setStoreSubTab('seen')}
+                        className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                          storeSubTab === 'seen'
+                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
+                            : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
+                        }`}
+                      >
+                        <Package size={13} />
+                        Seen Tasks
                         <span className="ml-1 px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded text-[7px] font-black">
-                          {storeUnseenData ? storeUnseenData.unseen.filter(o => o.currentStage === 'STORE').length + storeUnseenData.seen.filter(o => o.currentStage === 'STORE').length : allOrders.filter(o => o.currentStage === 'STORE' && o.status !== 'COMPLETED').length}
+                          {storeUnseenData ? storeUnseenData.seen.filter(o => o.currentStage === 'STORE').length : 0}
                         </span>
                       </button>
                       <button
@@ -911,33 +925,21 @@ const AdminDashboard = () => {
                       </>
                     ) : (
                       <>
-                        <div className="flex items-center gap-3 mb-6">
-                          <button
-                            onClick={() => setStoreSubTab('tasks')}
-                            className={`px-4 py-2 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all ${
-                              storeSubTab === 'tasks'
-                                ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
-                                : 'text-gray-500 hover:text-gray-300'
-                            }`}
-                          >
-                            All Store Tasks
-                          </button>
-                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
                           {(storeUnseenData
-                            ? [...storeUnseenData.unseen.filter(o => o.currentStage === 'STORE'), ...storeUnseenData.seen.filter(o => o.currentStage === 'STORE')]
+                            ? (storeSubTab === 'unseen' ? storeUnseenData.unseen.filter(o => o.currentStage === 'STORE') : storeUnseenData.seen.filter(o => o.currentStage === 'STORE'))
                             : allOrders.filter(o => o.currentStage === 'STORE' && o.status !== 'COMPLETED')
                           ).length > 0 ? (
                             (storeUnseenData
-                              ? [...storeUnseenData.unseen.filter(o => o.currentStage === 'STORE'), ...storeUnseenData.seen.filter(o => o.currentStage === 'STORE')]
+                              ? (storeSubTab === 'unseen' ? storeUnseenData.unseen.filter(o => o.currentStage === 'STORE') : storeUnseenData.seen.filter(o => o.currentStage === 'STORE'))
                               : allOrders.filter(o => o.currentStage === 'STORE' && o.status !== 'COMPLETED')
                             ).map(order => (
-                              <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} />
+                              <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} isUnseen={storeSubTab === 'unseen' && !!storeUnseenData} onMarkSeen={() => {}} />
                             ))
                           ) : (
                             <div className="col-span-full py-6 md:py-20 text-center glass rounded-2xl md:rounded-[3rem] theme-border">
                               <Package className="mx-auto theme-text-muted mb-4" size={48} />
-                              <h3 className="theme-text-muted font-black uppercase">No store tasks</h3>
+                              <h3 className="theme-text-muted font-black uppercase">{storeSubTab === 'unseen' ? 'No unseen tasks' : 'No seen tasks'}</h3>
                             </div>
                           )}
                         </div>
