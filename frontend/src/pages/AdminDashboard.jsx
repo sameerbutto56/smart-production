@@ -61,7 +61,6 @@ const PIPELINE_STAGES = [
   { id: 'STORE', label: 'Store', icon: Package },
   { id: 'LOGO_DESIGN', label: 'Logo Design', icon: Circle },
   { id: 'PRODUCTION', label: 'Production', icon: Circle },
-  { id: 'STORE_RECEIVE', label: 'Coming From Production', icon: RotateCcw },
   { id: 'DISPATCH', label: 'Dispatch', icon: Truck },
   { id: 'OUT_FOR_DELIVERY', label: 'Out for Delivery', icon: Truck },
 ];
@@ -111,6 +110,8 @@ const AdminDashboard = () => {
 
   const [analytics, setAnalytics] = useState(null);
   const [filterStage, setFilterStage] = useState('ALL');
+  const [storeSubTab, setStoreSubTab] = useState('tasks');
+  const [storeUnseenData, setStoreUnseenData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [fetchingError, setFetchingError] = useState(false);
   const [outletFilter, setOutletFilter] = useState('');
@@ -124,10 +125,12 @@ const AdminDashboard = () => {
     fetchDashboardData();
     fetchAnalytics();
     fetchPauseStatus();
+    fetchStoreUnseenTasks();
 
     socket.on('order-updated', (data) => {
       fetchDashboardData();
       fetchAnalytics();
+      fetchStoreUnseenTasks();
       if (data?.paymentStatus) {
         toast.success(`Payment updated: ${data.paymentStatus}`);
       }
@@ -136,6 +139,7 @@ const AdminDashboard = () => {
     socket.on('new-order', (order) => {
       fetchDashboardData();
       fetchAnalytics();
+      fetchStoreUnseenTasks();
       toast.success(`New Order Received: #${order.orderNumber || order.id.substring(0, 8)}`, {
         icon: '🛍️',
         duration: 5000
@@ -145,6 +149,7 @@ const AdminDashboard = () => {
     socket.on('stage-completion-requested', (data) => {
       fetchDashboardData();
       fetchAnalytics();
+      fetchStoreUnseenTasks();
       toast.custom((t) => (
         <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-gray-900 shadow-2xl rounded-[1.5rem] pointer-events-auto flex ring-1 ring-emerald-500/50 border border-emerald-500/20 p-4`}>
           <div className="flex-1 w-0 p-1">
@@ -168,17 +173,20 @@ const AdminDashboard = () => {
 
     socket.on('payment-updated', (data) => {
         fetchDashboardData();
+        fetchStoreUnseenTasks();
         toast.success(`Order #${data.orderId?.substring(0, 8)}: Payment ${data.order.paymentStatus}`, { icon: '💰' });
     });
 
     socket.on('stage-rejected', () => {
       fetchDashboardData();
+      fetchStoreUnseenTasks();
     });
 
     // Polling fallback every 15 seconds
     const pollInterval = setInterval(() => {
       fetchDashboardData();
       fetchAnalytics();
+      fetchStoreUnseenTasks();
     }, 15000);
 
     return () => {
@@ -510,11 +518,27 @@ const AdminDashboard = () => {
     })
   , [allOrders, contextSearch]);
 
+  const fetchStoreUnseenTasks = useCallback(async () => {
+    try {
+      const token = sessionStorage.getItem('token');
+      if (!token) return;
+      const res = await axios.get(`${API_URL}/api/orders/unseen-tasks`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setStoreUnseenData(res.data);
+    } catch (e) {
+      console.error('Failed to fetch store unseen tasks:', e);
+    }
+  }, []);
+
   const activeOrdersCount = useMemo(() => 
     allOrders.filter(o => o.status !== 'COMPLETED').length
   , [allOrders]);
 
   const getStageCount = useCallback((stageId) => {
+    if (stageId === 'STORE') {
+      return allOrders.filter(o => (o.currentStage === 'STORE' || o.currentStage === 'STORE_RECEIVE') && o.status !== 'COMPLETED').length;
+    }
     return allOrders.filter(o => o.currentStage === stageId && o.status !== 'COMPLETED').length;
   }, [allOrders]);
 
@@ -807,34 +831,116 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Pipeline Stage Content */}
-                {filterStage === 'STORE_RECEIVE' ? (
+                {filterStage === 'STORE' ? (
                   <section className="space-y-6">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between mb-6">
                       <div className="flex items-center space-x-4">
                         <div className="p-3 bg-blue-500/10 rounded-2xl">
-                          <RotateCcw className="text-blue-400" size={20} />
+                          <Package className="text-blue-400" size={20} />
                         </div>
                         <div>
-                          <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">Coming From Production</h2>
-                          <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">Items returned from production — add to inventory before dispatch</p>
+                          <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">Store Module</h2>
+                          <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">Manage store tasks and production returns</p>
                         </div>
                       </div>
                       <button onClick={() => setFilterStage('ALL')} className="theme-text-muted hover:text-white transition-colors text-xs font-black uppercase tracking-widest flex items-center gap-2">
                         <X size={14} /> Close
                       </button>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
-                      {filteredOrdersByStage.length > 0 ? (
-                        filteredOrdersByStage.map(order => (
-                          <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} />
-                        ))
-                      ) : (
-                        <div className="col-span-full py-6 md:py-20 text-center glass rounded-2xl md:rounded-[3rem] theme-border">
-                          <RotateCcw className="mx-auto theme-text-muted mb-4" size={48} />
-                          <h3 className="theme-text-muted font-black uppercase">No items coming from production</h3>
-                        </div>
-                      )}
+
+                    {/* Store Subtabs */}
+                    <div className="flex gap-2 mb-6">
+                      <button
+                        onClick={() => setStoreSubTab('tasks')}
+                        className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                          storeSubTab === 'tasks'
+                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
+                            : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
+                        }`}
+                      >
+                        <Package size={13} />
+                        Store Tasks
+                        <span className="ml-1 px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded text-[7px] font-black">
+                          {storeUnseenData ? storeUnseenData.unseen.filter(o => o.currentStage === 'STORE').length + storeUnseenData.seen.filter(o => o.currentStage === 'STORE').length : allOrders.filter(o => o.currentStage === 'STORE' && o.status !== 'COMPLETED').length}
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => setStoreSubTab('production')}
+                        className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                          storeSubTab === 'production'
+                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
+                            : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
+                        }`}
+                      >
+                        <RotateCcw size={13} />
+                        Production Orders
+                        <span className="ml-1 px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded text-[7px] font-black">
+                          {allOrders.filter(o => o.currentStage === 'STORE_RECEIVE' && o.status !== 'COMPLETED').length}
+                        </span>
+                      </button>
                     </div>
+
+                    {/* Subtab Content */}
+                    {storeSubTab === 'production' ? (
+                      <>
+                        <div className="flex items-center justify-between mb-6">
+                          <div className="flex items-center space-x-4">
+                            <div className="p-3 bg-blue-500/10 rounded-2xl">
+                              <RotateCcw className="text-blue-400" size={20} />
+                            </div>
+                            <div>
+                              <h3 className="text-xl font-black theme-text-primary uppercase tracking-tight">Coming From Production</h3>
+                              <p className="theme-text-muted text-[9px] font-bold uppercase tracking-widest">Items returned from production — add to inventory before dispatch</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
+                          {allOrders.filter(o => o.currentStage === 'STORE_RECEIVE' && o.status !== 'COMPLETED').length > 0 ? (
+                            allOrders.filter(o => o.currentStage === 'STORE_RECEIVE' && o.status !== 'COMPLETED').map(order => (
+                              <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} />
+                            ))
+                          ) : (
+                            <div className="col-span-full py-6 md:py-20 text-center glass rounded-2xl md:rounded-[3rem] theme-border">
+                              <RotateCcw className="mx-auto theme-text-muted mb-4" size={48} />
+                              <h3 className="theme-text-muted font-black uppercase">No items coming from production</h3>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-3 mb-6">
+                          <button
+                            onClick={() => setStoreSubTab('tasks')}
+                            className={`px-4 py-2 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all ${
+                              storeSubTab === 'tasks'
+                                ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
+                                : 'text-gray-500 hover:text-gray-300'
+                            }`}
+                          >
+                            All Store Tasks
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
+                          {(storeUnseenData
+                            ? [...storeUnseenData.unseen.filter(o => o.currentStage === 'STORE'), ...storeUnseenData.seen.filter(o => o.currentStage === 'STORE')]
+                            : allOrders.filter(o => o.currentStage === 'STORE' && o.status !== 'COMPLETED')
+                          ).length > 0 ? (
+                            (storeUnseenData
+                              ? [...storeUnseenData.unseen.filter(o => o.currentStage === 'STORE'), ...storeUnseenData.seen.filter(o => o.currentStage === 'STORE')]
+                              : allOrders.filter(o => o.currentStage === 'STORE' && o.status !== 'COMPLETED')
+                            ).map(order => (
+                              <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} />
+                            ))
+                          ) : (
+                            <div className="col-span-full py-6 md:py-20 text-center glass rounded-2xl md:rounded-[3rem] theme-border">
+                              <Package className="mx-auto theme-text-muted mb-4" size={48} />
+                              <h3 className="theme-text-muted font-black uppercase">No store tasks</h3>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </section>
                 ) : filterStage === 'DISPATCH' ? (
                   <section>
