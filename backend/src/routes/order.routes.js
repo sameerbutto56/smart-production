@@ -100,7 +100,7 @@ router.get('/outlet-analytics', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']
 router.post('/:orderId/edit-request', authenticate, authorize(['FAISAL', 'ORDER_ENTRY', 'OUTLET']), createEditRequest);
 
 // Manual Routing (Admin/FAISAL only)
-router.post('/:orderId/route', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'FAISAL']), manualRouteOrder);
+router.post('/:orderId/route', authenticate, authorize(['STORE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), manualRouteOrder);
 
 // Bulk Routing (all authenticated workers)
 router.post('/bulk-route', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), bulkRouteOrders);
