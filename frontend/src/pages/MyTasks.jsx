@@ -16,6 +16,7 @@ const MyTasks = () => {
   const { t, LanguageToggle, isUrdu } = useLanguage();
   const [unseenOrders, setUnseenOrders] = useState([]);
   const [seenOrders, setSeenOrders] = useState([]);
+  const [productionOrders, setProductionOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const { searchTerm: contextSearch, setSearchTerm: setContextSearch } = useSearch();
   const [searchTerm, setSearchTerm] = useState(contextSearch);
@@ -145,14 +146,21 @@ const MyTasks = () => {
   const fetchTasks = async () => {
     try {
       const token = sessionStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/api/orders/unseen-tasks`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setUnseenOrders(response.data.unseen || []);
-      setSeenOrders(response.data.seen || []);
+      const [tasksRes, prodRes] = await Promise.all([
+        axios.get(`${API_URL}/api/orders/unseen-tasks`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        axios.get(`${API_URL}/api/orders/production-returned`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }).catch(() => null)
+      ]);
+      setUnseenOrders(tasksRes.data.unseen || []);
+      setSeenOrders(tasksRes.data.seen || []);
+      if (prodRes) {
+        setProductionOrders(prodRes.data.seen ? [...(prodRes.data.unseen || []), ...(prodRes.data.seen || [])] : (prodRes.data || []));
+      }
     } catch (error) {
       console.error('Error fetching tasks:', error);
-      // Fallback to old endpoint
       try {
         const token = sessionStorage.getItem('token');
         const response = await axios.get(`${API_URL}/api/orders?status=active`, {
@@ -183,7 +191,7 @@ const MyTasks = () => {
   };
 
   const displayedOrders = useMemo(() => {
-    const source = activeTab === 'unseen' ? unseenOrders : seenOrders;
+    const source = activeTab === 'unseen' ? unseenOrders : activeTab === 'seen' ? seenOrders : productionOrders;
     if (!searchTerm || searchTerm.trim() === "") return source;
 
     const searchLower = searchTerm.toLowerCase().trim();
@@ -193,7 +201,7 @@ const MyTasks = () => {
       const orderNumMatch = (order.orderNumber || "").toLowerCase().includes(searchLower);
       return nameMatch || idMatch || orderNumMatch;
     });
-  }, [activeTab, unseenOrders, seenOrders, searchTerm]);
+  }, [activeTab, unseenOrders, seenOrders, productionOrders, searchTerm]);
 
   // Apply urgency filter
   const filteredOrders = useMemo(() => {
@@ -245,7 +253,7 @@ const MyTasks = () => {
         </div>
       </div>
 
-      {/* Unseen / Seen Tabs */}
+      {/* Unseen / Seen / Production Tabs */}
       <div className="flex border-b theme-border mb-6 gap-3 md:gap-6 relative">
         <button
           onClick={() => setActiveTab('unseen')}
@@ -280,6 +288,23 @@ const MyTasks = () => {
             <motion.div layoutId="activeTabUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
           )}
         </button>
+
+        {user?.role === 'STORE' && (
+          <button
+            onClick={() => setActiveTab('production')}
+            className={`pb-4 px-2 text-sm font-black uppercase tracking-widest transition-all relative flex items-center gap-2 ${
+              activeTab === 'production' ? 'text-blue-500' : 'theme-text-muted hover:theme-text-primary'
+            }`}
+          >
+            <span>Production Orders</span>
+            <span className="text-[9px] md:text-[10px] bg-emerald-600/20 text-emerald-400 px-2 py-0.5 rounded-full font-black">
+              {productionOrders.length}
+            </span>
+            {activeTab === 'production' && (
+              <motion.div layoutId="activeTabUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
+            )}
+          </button>
+        )}
       </div>
 
       {/* Routing History Button */}
@@ -351,18 +376,18 @@ const MyTasks = () => {
       ) : filteredOrders.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-6">
           <AnimatePresence mode="popLayout">
-            {filteredOrders.map((order) => (
-              <OrderCard 
-                key={order.id} 
-                order={order} 
-                userRole={user?.role}
-                onUpdateStage={handleAction}
-                isUnseen={activeTab === 'unseen'}
-                onMarkSeen={() => markAsSeen(order.id)}
-                selected={selectedOrderIds.has(order.id)}
-                onToggleSelect={toggleOrderSelection}
-              />
-            ))}
+              {filteredOrders.map((order) => (
+                <OrderCard 
+                  key={order.id} 
+                  order={order} 
+                  userRole={user?.role}
+                  onUpdateStage={handleAction}
+                  isUnseen={activeTab === 'unseen' || activeTab === 'production'}
+                  onMarkSeen={() => markAsSeen(order.id)}
+                  selected={selectedOrderIds.has(order.id)}
+                  onToggleSelect={toggleOrderSelection}
+                />
+              ))}
           </AnimatePresence>
         </div>
       ) : (
@@ -376,12 +401,14 @@ const MyTasks = () => {
           </div>
           <div className="text-center">
             <h3 className="text-xl font-bold theme-text-secondary">
-              {activeTab === 'unseen' ? 'No Unseen Tasks' : 'No Active Tasks'}
+              {activeTab === 'unseen' ? 'No Unseen Tasks' : activeTab === 'seen' ? 'No Active Tasks' : 'No Production Orders'}
             </h3>
             <p className="text-sm theme-text-muted mt-2">
               {activeTab === 'unseen' 
                 ? 'All newly assigned tasks have been acknowledged.' 
-                : 'No active production tasks are currently in progress.'}
+                : activeTab === 'seen'
+                ? 'No active production tasks are currently in progress.'
+                : 'No orders have been received from production yet.'}
             </p>
           </div>
         </motion.div>
