@@ -1045,32 +1045,61 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         </div>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        onClick={async () => {
-                          try {
-                            const token = sessionStorage.getItem('token');
-                            await axios.post(`${API_URL}/api/orders/${order.id}/route`, { destinationStage: 'DISPATCH', remarks: 'Approved inventory entry, routing to dispatch' }, { headers: { Authorization: `Bearer ${token}` } });
-                            toast.success('Approved — routed to Dispatch');
-                          } catch (err) {
-                            alert('Failed: ' + (err.response?.data?.message || err.message));
-                          }
-                        }}
-                        className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
-                      >
-                        <CheckCircle size={14} />
-                        <span>Approve Inventory Entry</span>
-                        <span className="text-[6px] md:text-[7px] text-emerald-200 tracking-widest">→ ROUTE TO DISPATCH</span>
-                      </button>
-                      <button
-                        onClick={() => setShowProblemModal(true)}
-                        className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-2.5 md:py-3 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-red-900/20"
-                      >
-                        <AlertCircle size={14} />
-                        <span>Report Problem</span>
-                        <span className="text-[6px] md:text-[7px] text-red-200 tracking-widest">→ NOTIFY {order.source === 'OUTLET' ? 'BRANCH' : 'FAISAL'}</span>
-                      </button>
-                    </div>
+                    {(() => {
+                      const inventoryAdded = order.auditLogs?.some(l => l.action === 'INVENTORY_ADDED');
+                      return (
+                        <div className="grid grid-cols-2 gap-2">
+                          {!inventoryAdded ? (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const token = sessionStorage.getItem('token');
+                                  await axios.post(`${API_URL}/api/orders/${order.id}/add-to-inventory`, {}, {
+                                    headers: { Authorization: `Bearer ${token}` }
+                                  });
+                                  toast.success('Inventory updated! Now send to Dispatch.');
+                                  if (typeof onUpdateStage === 'function') {
+                                    onUpdateStage(order.id, currentStage.id, 'refresh', {});
+                                  }
+                                } catch (err) {
+                                  alert('Failed: ' + (err.response?.data?.message || err.message));
+                                }
+                              }}
+                              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-2.5 md:py-3 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-blue-900/20"
+                            >
+                              <Package size={14} />
+                              <span>Add to Inventory</span>
+                              <span className="text-[6px] md:text-[7px] text-blue-200 tracking-widest">→ UPDATE STOCK</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const token = sessionStorage.getItem('token');
+                                  await axios.post(`${API_URL}/api/orders/${order.id}/route`, { destinationStage: 'DISPATCH', remarks: 'Inventory added, routing to dispatch' }, { headers: { Authorization: `Bearer ${token}` } });
+                                  toast.success('Sent to Dispatch');
+                                } catch (err) {
+                                  alert('Failed: ' + (err.response?.data?.message || err.message));
+                                }
+                              }}
+                              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
+                            >
+                              <Truck size={14} />
+                              <span>Send to Dispatch</span>
+                              <span className="text-[6px] md:text-[7px] text-emerald-200 tracking-widest">→ ROUTE TO DISPATCH</span>
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setShowProblemModal(true)}
+                            className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-2.5 md:py-3 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-red-900/20"
+                          >
+                            <AlertCircle size={14} />
+                            <span>Report Problem</span>
+                            <span className="text-[6px] md:text-[7px] text-red-200 tracking-widest">→ NOTIFY {order.source === 'OUTLET' ? 'BRANCH' : 'FAISAL'}</span>
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </>
                 ) : ['DISPATCH', 'ORDER_ENTRY', 'OUTLET'].includes(currentStage?.stageName) ? (
                   <>

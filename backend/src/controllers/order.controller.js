@@ -603,11 +603,6 @@ const requestStageCompletion = async (req, res) => {
       data: { status: 'COMPLETED', completedAt: new Date() }
     });
 
-    // Create production record when PRODUCTION stage completes
-    if (currentStage.stageName === 'PRODUCTION') {
-      await createProductionRecordFromOrder(order, 'PRODUCTION');
-    }
-
     // Determine next stage — use manual route if provided, else auto-advance via pipeline
     let actualNextStage = manualNextStage || null;
     if (!actualNextStage) {
@@ -732,11 +727,6 @@ const approveStageCompletion = async (req, res) => {
       }
     }
 
-    // Create production record when PRODUCTION stage is approved
-    if (currentStageRecord.stageName === 'PRODUCTION') {
-      await createProductionRecordFromOrder(order, 'PRODUCTION');
-    }
-    
     // Update Customization Price, Delivery Method and Delivery Type if provided
     const updateData = {};
     if (customizationPrice && parseFloat(customizationPrice) > 0) {
