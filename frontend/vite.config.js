@@ -12,7 +12,7 @@ export default defineConfig({
             if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
               return 'vendor-react';
             }
-            if (id.includes('framer-motion') || id.includes('lucide-react') || id.includes('react-hot-toast')) {
+            if (id.includes('framer-motion') || id.includes('motion-') || id.includes('lucide-react') || id.includes('react-hot-toast')) {
               return 'vendor-ui';
             }
             if (id.includes('axios') || id.includes('date-fns')) {
