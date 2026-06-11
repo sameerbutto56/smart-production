@@ -3,7 +3,7 @@ const { PrismaClient } = require('@prisma/client');
 const globalForPrisma = global;
 
 const datasourceUrl = process.env.DATABASE_URL
-  ? `${process.env.DATABASE_URL}${process.env.DATABASE_URL.includes('?') ? '&' : '?'}pgbouncer=true&connection_limit=1`
+  ? `${process.env.DATABASE_URL}${process.env.DATABASE_URL.includes('?') ? '&' : '?'}pgbouncer=true&connection_limit=2&pool_timeout=10`
   : undefined;
 
 const prisma = globalForPrisma.prisma || new PrismaClient({
