@@ -88,25 +88,28 @@ const AllOrders = () => {
     fetchUnseenData();
     fetchStoreRequests();
 
-    socket.on('order-updated', (data) => {
+    const onOrderUpdated = (data) => {
       if (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || data?.createdById === user?.id) {
         fetchOrders();
         fetchUnseenData();
         fetchStoreRequests();
       }
-    });
+    };
 
-    socket.on('new-order', (order) => {
+    const onNewOrder = (order) => {
       if (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || order?.createdById === user?.id) {
         fetchOrders();
         fetchUnseenData();
         toast(`New order created: #${order.orderNumber || order.id.substring(0,8)}`, { icon: '📦' });
       }
-    });
+    };
+
+    socket.on('order-updated', onOrderUpdated);
+    socket.on('new-order', onNewOrder);
 
     return () => {
-      socket.off('order-updated');
-      socket.off('new-order');
+      socket.off('order-updated', onOrderUpdated);
+      socket.off('new-order', onNewOrder);
     };
   }, [location.state]);
 

@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const dotenv = require('dotenv');
 const path = require('path');
 const multer = require('multer');
@@ -24,6 +25,7 @@ const upload = multer({
   }
 });
 
+app.use(compression());
 app.use(cors({
   origin: frontendUrl,
   credentials: frontendUrl !== "*"

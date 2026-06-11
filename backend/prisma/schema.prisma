@@ -66,6 +66,11 @@ model Order {
   courierDetails  Json?
   dispatchStatus  String       @default("PENDING")
   deliveryType    String?
+  refundStatus    String       @default("NONE")           // NONE, REQUESTED, PROCESSING, REFUNDED, PARTIAL
+  refundReason    String?
+  refundNote      String?
+  refundedAt      DateTime?
+  refundedById    String?
   storeRequested  Boolean      @default(false)
   storeRequestedAt DateTime?
   // Revenue / Cost tracking fields
@@ -83,6 +88,13 @@ model Order {
   @@index([status])
   @@index([currentStage])
   @@index([customerPhone])
+  @@index([storeRequested, storeRequestedAt])
+  @@index([priority, createdAt])
+  @@index([refundStatus])
+  @@index([createdById])
+  @@index([dispatchStatus])
+  @@index([source])
+  @@index([currentStage, status])
 }
 
 model RevenueRecord {
@@ -127,6 +139,9 @@ model OrderStage {
   @@index([orderId])
   @@index([status])
   @@index([stageName])
+  @@index([status, deadlineAt])
+  @@index([assignedEmployeeId])
+  @@index([orderId, stageName])
 }
 
 model AuditLog {
@@ -140,6 +155,9 @@ model AuditLog {
   user        User      @relation(fields: [performedBy], references: [id])
 
   @@index([orderId])
+  @@index([orderId, action])
+  @@index([performedBy])
+  @@index([timestamp])
 }
 
 model InventoryItem {
@@ -156,6 +174,10 @@ model InventoryItem {
   variants  Json?    // Array of {color, size, stock, price}
   createdAt DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  @@index([name])
+  @@index([category])
+  @@index([name, category])
 }
 
 model StockRequest {
@@ -283,6 +305,7 @@ model SeenTask {
   @@unique([userId, orderId, stageName])
   @@index([userId, stageName])
   @@index([orderId])
+  @@index([seenAt])
 }
 
 model RoutingHistory {
@@ -299,4 +322,7 @@ model RoutingHistory {
 
   @@index([orderId])
   @@index([createdAt])
+  @@index([sentToStage])
+  @@index([newStage])
+  @@index([previousStage, newStage])
 }

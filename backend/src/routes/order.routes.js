@@ -24,8 +24,13 @@ const {
   manualRouteOrder,
   markOrderAsSeen,
   getUnseenOrders,
+  getStoreProductionOrders,
   getRoutingHistory,
-  getStoreRequests
+  getStoreRequests,
+  refundOrder,
+  getRefundQueue,
+  processRefund,
+  bulkRouteOrders
 } = require('../controllers/order.controller');
 const { createEditRequest } = require('../controllers/editRequest.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
@@ -65,8 +70,13 @@ router.get('/analytics', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMI
 // Send order for delivery (from AllOrders page)
 router.put('/:orderId/send-for-delivery', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), sendForDelivery);
 
-// Delivery Boy: Update delivery status (Delivered / Not Responded)
+// Delivery Boy: Update delivery status (Delivered / Not Responded / Refund Requested)
 router.put('/:orderId/delivery', authenticate, authorize(['DELIVERY_BOY', 'FAISAL', 'SUPER_ADMIN']), updateDeliveryStatus);
+
+// Refund Management
+router.post('/:orderId/refund', authenticate, authorize(['DELIVERY_BOY', 'FAISAL', 'SUPER_ADMIN', 'ADMIN']), refundOrder);
+router.get('/refund-queue', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'DELIVERY_BOY']), getRefundQueue);
+router.post('/:orderId/process-refund', authenticate, authorize(['FAISAL', 'SUPER_ADMIN', 'ADMIN']), processRefund);
 
 // Force Actions (Admin/FAISAL only)
 router.post('/:orderId/force', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'FAISAL']), forceAction);
@@ -92,9 +102,13 @@ router.post('/:orderId/edit-request', authenticate, authorize(['FAISAL', 'ORDER_
 // Manual Routing (Admin/FAISAL only)
 router.post('/:orderId/route', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'FAISAL']), manualRouteOrder);
 
+// Bulk Routing (all authenticated workers)
+router.post('/bulk-route', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), bulkRouteOrders);
+
 // Seen/Unseen
 router.post('/:orderId/mark-seen', authenticate, markOrderAsSeen);
 router.get('/unseen-tasks', authenticate, getUnseenOrders);
+router.get('/production-returned', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), getStoreProductionOrders);
 router.get('/store-requests', authenticate, getStoreRequests);
 
 // Routing History

@@ -21,6 +21,38 @@ const MyTasks = () => {
   const [searchTerm, setSearchTerm] = useState(contextSearch);
   const [routingHistory, setRoutingHistory] = useState([]);
   const [showRoutingHistory, setShowRoutingHistory] = useState(false);
+  const [selectedOrderIds, setSelectedOrderIds] = useState(new Set());
+  const [bulkDestination, setBulkDestination] = useState('');
+  const [bulkRouting, setBulkRouting] = useState(false);
+
+  const toggleOrderSelection = (orderId) => {
+    setSelectedOrderIds(prev => {
+      const next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId); else next.add(orderId);
+      return next;
+    });
+  };
+
+  const handleBulkRoute = async () => {
+    if (!bulkDestination || selectedOrderIds.size === 0) return;
+    setBulkRouting(true);
+    try {
+      const token = sessionStorage.getItem('token');
+      await axios.post(`${API_URL}/api/orders/bulk-route`, {
+        orderIds: Array.from(selectedOrderIds),
+        destinationStage: bulkDestination,
+        remarks: 'Bulk routed from MyTasks'
+      }, { headers: { Authorization: `Bearer ${token}` } });
+      toast.success(`Routed ${selectedOrderIds.size} order(s) to ${bulkDestination.replace(/_/g, ' ')}`);
+      setSelectedOrderIds(new Set());
+      setBulkDestination('');
+      fetchOrders();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Bulk route failed');
+    } finally {
+      setBulkRouting(false);
+    }
+  };
 
   useEffect(() => {
     setSearchTerm(contextSearch);
@@ -46,7 +78,7 @@ const MyTasks = () => {
       toast.success('Task accepted! Moved to active list.');
     } catch (error) {
       console.error('Error marking as seen:', error);
-      toast.error('Failed to mark as seen');
+      toast.error(error.response?.data?.error || 'Failed to mark as seen');
     }
   };
 
@@ -70,49 +102,44 @@ const MyTasks = () => {
     taskTimerRef.current = setTimeout(() => {
       taskTimerRef.current = null;
       fetchTasks();
-    }, 400);
+    }, 100);
   };
 
   useEffect(() => {
-    fetchTasks();
-
-    socket.on('order-updated', () => {
-      queueTaskRefresh();
-    });
-
-    socket.on('stage-rejected', (data) => {
+    const onOrderUpdated = () => queueTaskRefresh();
+    const onStageRejected = (data) => {
       queueTaskRefresh();
       toast.error(`Task Rejected: Order #${data.orderId.substring(0, 8)}`, {
         duration: 8000,
         icon: <AlertCircle className="text-red-500" />
       });
-    });
+    };
+    const onNewOrder = () => queueTaskRefresh();
+    const onStageCompletionRequested = () => queueTaskRefresh();
+    const onPaymentUpdated = () => queueTaskRefresh();
 
-    socket.on('new-order', () => {
-      queueTaskRefresh();
-    });
-
-    socket.on('stage-completion-requested', () => {
-      queueTaskRefresh();
-    });
-
-    socket.on('payment-updated', () => {
-      queueTaskRefresh();
-    });
-
-    // Polling fallback every 15 seconds
-    const pollInterval = setInterval(() => {
-      fetchTasks();
-    }, 15000);
+    socket.on('order-updated', onOrderUpdated);
+    socket.on('stage-rejected', onStageRejected);
+    socket.on('new-order', onNewOrder);
+    socket.on('stage-completion-requested', onStageCompletionRequested);
+    socket.on('payment-updated', onPaymentUpdated);
 
     return () => {
-      socket.off('order-updated');
-      socket.off('stage-rejected');
-      socket.off('new-order');
-      socket.off('stage-completion-requested');
-      socket.off('payment-updated');
-      clearInterval(pollInterval);
+      socket.off('order-updated', onOrderUpdated);
+      socket.off('stage-rejected', onStageRejected);
+      socket.off('new-order', onNewOrder);
+      socket.off('stage-completion-requested', onStageCompletionRequested);
+      socket.off('payment-updated', onPaymentUpdated);
     };
+  }, [queueTaskRefresh]);
+
+  // Initial data load
+  useEffect(() => { fetchTasks(); }, []);
+
+  // Polling fallback every 30 seconds (reduced from 15s)
+  useEffect(() => {
+    const pollInterval = setInterval(() => { fetchTasks(); }, 30000);
+    return () => clearInterval(pollInterval);
   }, []);
 
   const fetchTasks = async () => {
@@ -332,6 +359,8 @@ const MyTasks = () => {
                 onUpdateStage={handleAction}
                 isUnseen={activeTab === 'unseen'}
                 onMarkSeen={() => markAsSeen(order.id)}
+                selected={selectedOrderIds.has(order.id)}
+                onToggleSelect={toggleOrderSelection}
               />
             ))}
           </AnimatePresence>
@@ -418,6 +447,48 @@ const MyTasks = () => {
               )}
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Bulk Action Bar */}
+      <AnimatePresence>
+        {selectedOrderIds.size > 0 && (
+          <motion.div
+            initial={{ y: 80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 80, opacity: 0 }}
+            className="fixed bottom-0 left-0 right-0 z-50 theme-bg/95 backdrop-blur-xl border-t-2 theme-border px-4 py-4 md:px-6"
+          >
+            <div className="max-w-6xl mx-auto flex items-center gap-3 flex-wrap">
+              <button
+                onClick={() => setSelectedOrderIds(new Set())}
+                className="px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-xs font-black text-gray-400 transition-all"
+              >
+                Clear ({selectedOrderIds.size})
+              </button>
+              <div className="h-6 w-px bg-gray-700/50" />
+              <select
+                value={bulkDestination}
+                onChange={e => setBulkDestination(e.target.value)}
+                className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-xs font-black text-white outline-none focus:border-blue-500 min-w-[130px]"
+              >
+                <option value="">Send to...</option>
+                <option value="STORE">Store</option>
+                <option value="LOGO_DESIGN">Logo Design</option>
+                <option value="PRODUCTION">Production</option>
+                <option value="STORE_RECEIVE">Store Inventory</option>
+                <option value="DISPATCH">Dispatch</option>
+              </select>
+              <button
+                disabled={!bulkDestination || bulkRouting}
+                onClick={handleBulkRoute}
+                className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all"
+              >
+                {bulkRouting ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
+                Send Selected ({selectedOrderIds.size})
+              </button>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

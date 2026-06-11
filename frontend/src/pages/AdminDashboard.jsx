@@ -112,6 +112,7 @@ const AdminDashboard = () => {
   const [filterStage, setFilterStage] = useState('ALL');
   const [storeSubTab, setStoreSubTab] = useState('unseen');
   const [storeUnseenData, setStoreUnseenData] = useState(null);
+  const [storeProductionData, setStoreProductionData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [fetchingError, setFetchingError] = useState(false);
   const [outletFilter, setOutletFilter] = useState('');
@@ -120,26 +121,20 @@ const AdminDashboard = () => {
   const [outletCustomTo, setOutletCustomTo] = useState('');
   const [outletAnalytics, setOutletAnalytics] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [selectedOrderIds, setSelectedOrderIds] = useState(new Set());
+  const [bulkDestination, setBulkDestination] = useState('');
+  const [bulkRouting, setBulkRouting] = useState(false);
 
   useEffect(() => {
-    fetchDashboardData();
-    fetchAnalytics();
-    fetchPauseStatus();
-    fetchStoreUnseenTasks();
-
-    socket.on('order-updated', () => {
-      queueRefresh();
-    });
-
-    socket.on('new-order', (order) => {
+    const onOrderUpdated = () => queueRefresh();
+    const onNewOrder = (order) => {
       queueRefresh();
       toast.success(`New Order Received: #${order.orderNumber || order.id.substring(0, 8)}`, {
         icon: '🛍️',
         duration: 5000
       });
-    });
-
-    socket.on('stage-completion-requested', (data) => {
+    };
+    const onStageCompletionRequested = (data) => {
       queueRefresh();
       toast.custom((t) => (
         <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-gray-900 shadow-2xl rounded-[1.5rem] pointer-events-auto flex ring-1 ring-emerald-500/50 border border-emerald-500/20 p-4`}>
@@ -160,32 +155,46 @@ const AdminDashboard = () => {
           </div>
         </div>
       ), { duration: 6000 });
-    });
-
-    socket.on('payment-updated', (data) => {
+    };
+    const onPaymentUpdated = (data) => {
         queueRefresh();
         toast.success(`Order #${data.orderId?.substring(0, 8)}: Payment ${data.order.paymentStatus}`, { icon: '💰' });
-    });
+    };
+    const onStageRejected = () => { queueRefresh(); };
 
-    socket.on('stage-rejected', () => {
-      queueRefresh();
-    });
+    socket.on('order-updated', onOrderUpdated);
+    socket.on('new-order', onNewOrder);
+    socket.on('stage-completion-requested', onStageCompletionRequested);
+    socket.on('payment-updated', onPaymentUpdated);
+    socket.on('stage-rejected', onStageRejected);
 
-    // Polling fallback every 15 seconds
+    return () => {
+      socket.off('order-updated', onOrderUpdated);
+      socket.off('new-order', onNewOrder);
+      socket.off('stage-completion-requested', onStageCompletionRequested);
+      socket.off('payment-updated', onPaymentUpdated);
+      socket.off('stage-rejected', onStageRejected);
+    };
+  }, [queueRefresh]);
+
+  // Initial data load
+  useEffect(() => {
+    fetchDashboardData();
+    fetchAnalytics();
+    fetchPauseStatus();
+    fetchStoreUnseenTasks();
+    fetchStoreProductionData();
+  }, []);
+
+  // Polling fallback every 30 seconds (reduced from 15s)
+  useEffect(() => {
     const pollInterval = setInterval(() => {
       fetchDashboardData();
       fetchAnalytics();
       fetchStoreUnseenTasks();
-    }, 15000);
-
-    return () => {
-      socket.off('order-updated');
-      socket.off('new-order');
-      socket.off('stage-completion-requested');
-      socket.off('payment-updated');
-      socket.off('stage-rejected');
-      clearInterval(pollInterval);
-    };
+      fetchStoreProductionData();
+    }, 30000);
+    return () => clearInterval(pollInterval);
   }, []);
 
   const fetchAnalytics = async () => {
@@ -421,6 +430,20 @@ const AdminDashboard = () => {
     }
   };
 
+  const markAsSeen = async (orderId) => {
+    try {
+      const token = sessionStorage.getItem('token');
+      await axios.post(`${API_URL}/api/orders/${orderId}/mark-seen`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchStoreUnseenTasks();
+      fetchStoreProductionData();
+    } catch (error) {
+      console.error('Error marking as seen:', error);
+      alert(error.response?.data?.error || 'Failed to mark as seen');
+    }
+  };
+
   const handleAction = async (orderId, stageId, action, payload = {}) => {
     try {
       const token = sessionStorage.getItem('token');
@@ -431,9 +454,51 @@ const AdminDashboard = () => {
       fetchDashboardData();
       fetchAnalytics();
       fetchStoreUnseenTasks();
+      fetchStoreProductionData();
     } catch (error) {
       console.error(`Error performing ${action}:`, error);
       alert(error.response?.data?.message || 'Action failed');
+    }
+  };
+
+  const toggleOrderSelection = (orderId) => {
+    setSelectedOrderIds(prev => {
+      const next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId); else next.add(orderId);
+      return next;
+    });
+  };
+
+  const selectAllOrders = (orders) => {
+    if (selectedOrderIds.size > 0) {
+      setSelectedOrderIds(new Set());
+    } else {
+      setSelectedOrderIds(new Set(orders.map(o => o.id)));
+    }
+  };
+
+  const handleBulkRoute = async () => {
+    if (!bulkDestination || selectedOrderIds.size === 0) return;
+    setBulkRouting(true);
+    try {
+      const token = sessionStorage.getItem('token');
+      await axios.post(`${API_URL}/api/orders/bulk-route`, {
+        orderIds: Array.from(selectedOrderIds),
+        destinationStage: bulkDestination,
+        remarks: `Bulk routed from ${filterStage}`
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert(`Routed ${selectedOrderIds.size} order(s) to ${bulkDestination.replace(/_/g, ' ')}`);
+      setSelectedOrderIds(new Set());
+      setBulkDestination('');
+      fetchDashboardData();
+      fetchStoreUnseenTasks();
+      fetchStoreProductionData();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Bulk route failed');
+    } finally {
+      setBulkRouting(false);
     }
   };
 
@@ -522,6 +587,19 @@ const AdminDashboard = () => {
     }
   }, []);
 
+  const fetchStoreProductionData = useCallback(async () => {
+    try {
+      const token = sessionStorage.getItem('token');
+      if (!token) return;
+      const res = await axios.get(`${API_URL}/api/orders/production-returned`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setStoreProductionData(res.data);
+    } catch (e) {
+      console.error('Failed to fetch store production data:', e);
+    }
+  }, []);
+
   const refreshTimerRef = useRef(null);
   const queueRefresh = () => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
@@ -530,7 +608,8 @@ const AdminDashboard = () => {
       fetchDashboardData();
       fetchAnalytics();
       fetchStoreUnseenTasks();
-    }, 400);
+      fetchStoreProductionData();
+    }, 100);
   };
 
   const activeOrdersCount = useMemo(() => 
@@ -539,7 +618,7 @@ const AdminDashboard = () => {
 
   const getStageCount = useCallback((stageId) => {
     if (stageId === 'STORE') {
-      return allOrders.filter(o => (o.currentStage === 'STORE' || o.currentStage === 'STORE_RECEIVE') && o.status !== 'COMPLETED').length;
+      return allOrders.filter(o => o.currentStage === 'STORE' && o.status !== 'COMPLETED').length;
     }
     return allOrders.filter(o => o.currentStage === stageId && o.status !== 'COMPLETED').length;
   }, [allOrders]);
@@ -850,11 +929,11 @@ const AdminDashboard = () => {
                       </button>
                     </div>
 
-                    {/* Store Subtabs: Unseen | Seen | Production Orders */}
-                    <div className="flex gap-2 mb-6">
+                    {/* Store Subtabs: Unseen | Seen | Active Tasks | Production Tasks */}
+                    <div className="flex gap-2 mb-6 overflow-x-auto">
                       <button
                         onClick={() => setStoreSubTab('unseen')}
-                        className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                        className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
                           storeSubTab === 'unseen'
                             ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
                             : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
@@ -868,7 +947,7 @@ const AdminDashboard = () => {
                       </button>
                       <button
                         onClick={() => setStoreSubTab('seen')}
-                        className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                        className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
                           storeSubTab === 'seen'
                             ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
                             : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
@@ -881,17 +960,31 @@ const AdminDashboard = () => {
                         </span>
                       </button>
                       <button
+                        onClick={() => setStoreSubTab('active')}
+                        className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                          storeSubTab === 'active'
+                            ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40'
+                            : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
+                        }`}
+                      >
+                        <AlertCircle size={13} />
+                        Active Tasks
+                        <span className="ml-1 px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded text-[7px] font-black">
+                          {allOrders.filter(o => o.currentStage === 'STORE' && o.status !== 'COMPLETED').length}
+                        </span>
+                      </button>
+                      <button
                         onClick={() => setStoreSubTab('production')}
-                        className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                        className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
                           storeSubTab === 'production'
                             ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
                             : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
                         }`}
                       >
                         <RotateCcw size={13} />
-                        Production Orders
+                        Production Tasks
                         <span className="ml-1 px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded text-[7px] font-black">
-                          {allOrders.filter(o => o.currentStage === 'STORE_RECEIVE' && o.status !== 'COMPLETED').length}
+                          {storeProductionData ? (storeProductionData.unseen.length + storeProductionData.seen.length) : allOrders.filter(o => o.currentStage === 'STORE_RECEIVE' && o.status !== 'COMPLETED').length}
                         </span>
                       </button>
                     </div>
@@ -905,20 +998,54 @@ const AdminDashboard = () => {
                               <RotateCcw className="text-blue-400" size={20} />
                             </div>
                             <div>
-                              <h3 className="text-xl font-black theme-text-primary uppercase tracking-tight">Coming From Production</h3>
-                              <p className="theme-text-muted text-[9px] font-bold uppercase tracking-widest">Items returned from production — add to inventory before dispatch</p>
+                              <h3 className="text-xl font-black theme-text-primary uppercase tracking-tight">Production Tasks</h3>
+                              <p className="theme-text-muted text-[9px] font-bold uppercase tracking-widest">Items returned from production — review before dispatch</p>
                             </div>
                           </div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
-                          {allOrders.filter(o => o.currentStage === 'STORE_RECEIVE' && o.status !== 'COMPLETED').length > 0 ? (
-                            allOrders.filter(o => o.currentStage === 'STORE_RECEIVE' && o.status !== 'COMPLETED').map(order => (
-                              <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} />
-                            ))
-                          ) : (
+                          {storeProductionData ? (() => {
+                            const productionOrders = [...storeProductionData.unseen, ...storeProductionData.seen];
+                            return productionOrders.length > 0 ? (
+                              productionOrders.map(order => (
+                                <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} selected={selectedOrderIds.has(order.id)} onToggleSelect={toggleOrderSelection} isUnseen={storeProductionData.unseen.some(o => o.id === order.id)} onMarkSeen={() => markAsSeen(order.id)} />
+                              ))
+                            ) : (
+                              <div className="col-span-full py-6 md:py-20 text-center glass rounded-2xl md:rounded-[3rem] theme-border">
+                                <RotateCcw className="mx-auto theme-text-muted mb-4" size={48} />
+                                <h3 className="theme-text-muted font-black uppercase">No items coming from production</h3>
+                              </div>
+                            );
+                          })() : (
                             <div className="col-span-full py-6 md:py-20 text-center glass rounded-2xl md:rounded-[3rem] theme-border">
                               <RotateCcw className="mx-auto theme-text-muted mb-4" size={48} />
                               <h3 className="theme-text-muted font-black uppercase">No items coming from production</h3>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    ) : storeSubTab === 'active' ? (
+                      <>
+                        <div className="flex items-center justify-between mb-6">
+                          <div className="flex items-center space-x-4">
+                            <div className="p-3 bg-emerald-500/10 rounded-2xl">
+                              <AlertCircle className="text-emerald-400" size={20} />
+                            </div>
+                            <div>
+                              <h3 className="text-xl font-black theme-text-primary uppercase tracking-tight">Active Tasks</h3>
+                              <p className="theme-text-muted text-[9px] font-bold uppercase tracking-widest">All active store tasks and production returns</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
+                          {allOrders.filter(o => o.currentStage === 'STORE' && o.status !== 'COMPLETED').length > 0 ? (
+                            allOrders.filter(o => o.currentStage === 'STORE' && o.status !== 'COMPLETED').map(order => (
+                              <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} selected={selectedOrderIds.has(order.id)} onToggleSelect={toggleOrderSelection} />
+                            ))
+                          ) : (
+                            <div className="col-span-full py-6 md:py-20 text-center glass rounded-2xl md:rounded-[3rem] theme-border">
+                              <AlertCircle className="mx-auto theme-text-muted mb-4" size={48} />
+                              <h3 className="theme-text-muted font-black uppercase">No active tasks</h3>
                             </div>
                           )}
                         </div>
@@ -934,7 +1061,7 @@ const AdminDashboard = () => {
                               ? (storeSubTab === 'unseen' ? storeUnseenData.unseen.filter(o => o.currentStage === 'STORE') : storeUnseenData.seen.filter(o => o.currentStage === 'STORE'))
                               : allOrders.filter(o => o.currentStage === 'STORE' && o.status !== 'COMPLETED')
                             ).map(order => (
-                              <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} isUnseen={storeSubTab === 'unseen' && !!storeUnseenData} onMarkSeen={() => {}} />
+                               <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} isUnseen={storeSubTab === 'unseen' && !!storeUnseenData} onMarkSeen={() => markAsSeen(order.id)} selected={selectedOrderIds.has(order.id)} onToggleSelect={toggleOrderSelection} />
                             ))
                           ) : (
                             <div className="col-span-full py-6 md:py-20 text-center glass rounded-2xl md:rounded-[3rem] theme-border">
@@ -972,7 +1099,7 @@ const AdminDashboard = () => {
                     {deliverySetupQueue.length > 0 ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
                         {deliverySetupQueue.map(order => (
-                          <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} />
+                          <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} selected={selectedOrderIds.has(order.id)} onToggleSelect={toggleOrderSelection} />
                         ))}
                       </div>
                     ) : (
@@ -1004,7 +1131,7 @@ const AdminDashboard = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
                       {filteredOrdersByStage.length > 0 ? (
                         filteredOrdersByStage.map(order => (
-                          <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} />
+                          <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} selected={selectedOrderIds.has(order.id)} onToggleSelect={toggleOrderSelection} />
                         ))
                       ) : (
                         <div className="col-span-full py-6 md:py-20 text-center glass rounded-2xl md:rounded-[3rem] theme-border">
@@ -1029,7 +1156,7 @@ const AdminDashboard = () => {
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
                         {initiationQueue.map(order => (
-                          <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} />
+                          <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} selected={selectedOrderIds.has(order.id)} onToggleSelect={toggleOrderSelection} />
                         ))}
                       </div>
                     </section>
@@ -1653,6 +1780,48 @@ const AdminDashboard = () => {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Bulk Action Bar */}
+      <AnimatePresence>
+        {selectedOrderIds.size > 0 && (
+          <motion.div
+            initial={{ y: 80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 80, opacity: 0 }}
+            className="fixed bottom-0 left-0 right-0 z-50 theme-bg/95 backdrop-blur-xl border-t-2 theme-border px-4 py-4 md:px-6"
+          >
+            <div className="max-w-6xl mx-auto flex items-center gap-3 flex-wrap">
+              <button
+                onClick={() => setSelectedOrderIds(new Set())}
+                className="px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-xs font-black text-gray-400 transition-all"
+              >
+                Clear ({selectedOrderIds.size})
+              </button>
+              <div className="h-6 w-px bg-gray-700/50" />
+              <select
+                value={bulkDestination}
+                onChange={e => setBulkDestination(e.target.value)}
+                className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-xs font-black text-white outline-none focus:border-blue-500 min-w-[130px]"
+              >
+                <option value="">Send to...</option>
+                <option value="STORE">Store</option>
+                <option value="LOGO_DESIGN">Logo Design</option>
+                <option value="PRODUCTION">Production</option>
+                <option value="STORE_RECEIVE">Store Inventory</option>
+                <option value="DISPATCH">Dispatch</option>
+              </select>
+              <button
+                disabled={!bulkDestination || bulkRouting}
+                onClick={handleBulkRoute}
+                className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all"
+              >
+                {bulkRouting ? <Loader2 className="animate-spin" size={14} /> : <ArrowUpRight size={14} />}
+                Send Selected ({selectedOrderIds.size})
+              </button>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

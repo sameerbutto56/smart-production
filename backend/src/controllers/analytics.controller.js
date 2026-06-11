@@ -42,11 +42,15 @@ const getUnifiedAnalytics = async (req, res) => {
     const totalGrossProfit = revenueAgg._sum.grossProfit || 0;
     const totalNetProfit = revenueAgg._sum.netProfit || 0;
 
-    // Stage breakdown
-    const stages = ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
-    const stageCounts = {};
-    for (const s of stages) {
-      stageCounts[s] = await safeCount('order', { ...filter, currentStage: s });
+    // Stage breakdown — single groupBy query instead of 7 sequential queries
+    const stageCounts = { ORDER_ENTRY: 0, STORE: 0, LOGO_DESIGN: 0, PRODUCTION: 0, STORE_RECEIVE: 0, DISPATCH: 0, OUT_FOR_DELIVERY: 0 };
+    const stageGroups = await prisma.order.groupBy({
+      by: ['currentStage'],
+      where: { ...filter, currentStage: { in: ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'] } },
+      _count: { id: true }
+    });
+    for (const g of stageGroups) {
+      stageCounts[g.currentStage] = g._count.id;
     }
 
     // Production analytics

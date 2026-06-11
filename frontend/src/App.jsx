@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -8,20 +8,23 @@ import Layout from './components/Layout';
 import Login from './pages/Login';
 import AdminDashboard from './pages/AdminDashboard';
 import MyTasks from './pages/MyTasks';
-import OrderEntry from './pages/OrderEntry';
-import InventoryManagement from './pages/InventoryManagement';
-import AllOrders from './pages/AllOrders';
-import History from './pages/History';
-import ProgressChart from './pages/ProgressChart';
-import DeliveryDashboard from './pages/DeliveryDashboard';
-import DeliverySheet from './pages/DeliverySheet';
-import WarehouseDashboard from './pages/WarehouseDashboard';
-import OutletStockRequest from './pages/OutletStockRequest';
-import EditRequestDashboard from './pages/EditRequestDashboard';
-import DeletedOrders from './pages/DeletedOrders';
-import ProductionDashboard from './pages/ProductionDashboard';
-import UnifiedAnalytics from './pages/UnifiedAnalytics';
 import { ThemeProvider } from './context/ThemeContext';
+
+// Lazy-loaded route components — split into separate chunks
+const OrderEntry = lazy(() => import('./pages/OrderEntry'));
+const InventoryManagement = lazy(() => import('./pages/InventoryManagement'));
+const AllOrders = lazy(() => import('./pages/AllOrders'));
+const History = lazy(() => import('./pages/History'));
+const ProgressChart = lazy(() => import('./pages/ProgressChart'));
+const DeliveryDashboard = lazy(() => import('./pages/DeliveryDashboard'));
+const DeliverySheet = lazy(() => import('./pages/DeliverySheet'));
+const WarehouseDashboard = lazy(() => import('./pages/WarehouseDashboard'));
+const OutletStockRequest = lazy(() => import('./pages/OutletStockRequest'));
+const EditRequestDashboard = lazy(() => import('./pages/EditRequestDashboard'));
+const DeletedOrders = lazy(() => import('./pages/DeletedOrders'));
+const ProductionDashboard = lazy(() => import('./pages/ProductionDashboard'));
+const RefundManagement = lazy(() => import('./pages/RefundManagement'));
+const UnifiedAnalytics = lazy(() => import('./pages/UnifiedAnalytics'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -59,13 +62,17 @@ function App() {
                 
                 <Route path="/progress" element={
                   <ProtectedRoute>
-                    <ProgressChart />
+                    <Suspense fallback={<div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>}>
+                      <ProgressChart />
+                    </Suspense>
                   </ProtectedRoute>
                 } />
                 
                 <Route path="/" element={
                   <ProtectedRoute>
-                    <Layout />
+                    <Suspense fallback={<div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>}>
+                      <Layout />
+                    </Suspense>
                   </ProtectedRoute>
                 }>
                   <Route index element={
@@ -85,6 +92,7 @@ function App() {
                   <Route path="deleted-orders" element={<DeletedOrders />} />
                   <Route path="analytics" element={<UnifiedAnalytics />} />
                   <Route path="production" element={<ProductionDashboard />} />
+                  <Route path="refund-management" element={<RefundManagement />} />
                 </Route>
               </Routes>
             </Router>

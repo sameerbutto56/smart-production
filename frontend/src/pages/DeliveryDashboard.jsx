@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import socket from '../socket';
 import {
   Truck, CheckCircle2, PhoneOff, Phone,
-  RefreshCw, ClipboardList, Search
+  RefreshCw, ClipboardList, Search, AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
@@ -13,7 +13,7 @@ import { useLanguage } from '../context/LanguageContext';
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
 /* ─── single order card ─── */
-const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMethods }) => {
+const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMethods, halfPayments, setHalfPayments }) => {
   const getStatus = () => {
     if (order.currentStage === 'DELIVERED' || order.status === 'COMPLETED') return 'DELIVERED';
     if (order.auditLogs?.find(l => l.action === 'NOT_RESPONDED')) return 'NOT_RESPONDED';
@@ -132,10 +132,10 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
             {/* Payment Method Selector */}
             <div className="bg-gray-800/40 rounded-2xl p-3 border border-gray-700/50">
               <p className="text-[9px] theme-text-muted font-black uppercase tracking-widest mb-2">Payment Method</p>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={() => setPaymentMethods(prev => ({ ...prev, [order.id]: 'CASH' }))}
-                  className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all ${
+                  onClick={() => { setPaymentMethods(prev => ({ ...prev, [order.id]: 'CASH' })); setHalfPayments(prev => ({ ...prev, [order.id]: undefined })); }}
+                  className={`flex-1 min-w-[80px] py-2.5 rounded-xl text-xs font-black transition-all ${
                     (paymentMethods[order.id] || 'CASH') === 'CASH'
                       ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40'
                       : 'bg-gray-800 theme-text-secondary border border-gray-700'
@@ -144,21 +144,71 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
                   💵 Cash
                 </button>
                 <button
-                  onClick={() => setPaymentMethods(prev => ({ ...prev, [order.id]: 'ONLINE_TRANSFER' }))}
-                  className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all ${
+                  onClick={() => { setPaymentMethods(prev => ({ ...prev, [order.id]: 'ONLINE_TRANSFER' })); setHalfPayments(prev => ({ ...prev, [order.id]: undefined })); }}
+                  className={`flex-1 min-w-[80px] py-2.5 rounded-xl text-xs font-black transition-all ${
                     paymentMethods[order.id] === 'ONLINE_TRANSFER'
                       ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
                       : 'bg-gray-800 theme-text-secondary border border-gray-700'
                   }`}
                 >
-                  💳 Online Transfer
+                  💳 Online
+                </button>
+                <button
+                  onClick={() => {
+                    setPaymentMethods(prev => ({ ...prev, [order.id]: 'HALF_CASH_HALF_ONLINE' }));
+                    if (!halfPayments?.[order.id]) {
+                      const total = Number(order.totalPrice || 0);
+                      setHalfPayments(prev => ({ ...prev, [order.id]: { cash: Math.floor(total / 2), online: Math.ceil(total / 2) } }));
+                    }
+                  }}
+                  className={`flex-1 min-w-[80px] py-2.5 rounded-xl text-xs font-black transition-all ${
+                    paymentMethods[order.id] === 'HALF_CASH_HALF_ONLINE'
+                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/40'
+                      : 'bg-gray-800 theme-text-secondary border border-gray-700'
+                  }`}
+                >
+                  💜 Half & Half
                 </button>
               </div>
+              {paymentMethods[order.id] === 'HALF_CASH_HALF_ONLINE' && (
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div>
+                    <p className="text-[8px] theme-text-muted font-black uppercase tracking-widest mb-1">Cash Amount</p>
+                    <input
+                      type="number"
+                      value={halfPayments?.[order.id]?.cash || 0}
+                      onChange={e => setHalfPayments(prev => ({ ...prev, [order.id]: { ...prev?.[order.id], cash: Math.min(Number(e.target.value) || 0, order.totalPrice || 0) } }))}
+                      className="w-full px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 text-white font-black text-sm outline-none focus:border-purple-500"
+                      min="0"
+                      max={order.totalPrice || 0}
+                    />
+                  </div>
+                  <div>
+                    <p className="text-[8px] theme-text-muted font-black uppercase tracking-widest mb-1">Online Amount</p>
+                    <input
+                      type="number"
+                      value={halfPayments?.[order.id]?.online || 0}
+                      onChange={e => setHalfPayments(prev => ({ ...prev, [order.id]: { ...prev?.[order.id], online: Math.min(Number(e.target.value) || 0, order.totalPrice || 0) } }))}
+                      className="w-full px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 text-white font-black text-sm outline-none focus:border-purple-500"
+                      min="0"
+                      max={order.totalPrice || 0}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
               <button
                 disabled={loading}
-                onClick={() => onAction(order.id, 'DELIVERED', '', paymentMethods[order.id] || 'CASH')}
+                onClick={() => {
+                  const method = paymentMethods[order.id] || 'CASH';
+                  if (method === 'HALF_CASH_HALF_ONLINE') {
+                    const hp = halfPayments?.[order.id] || { cash: 0, online: 0 };
+                    onAction(order.id, 'DELIVERED', '', method, hp.cash, hp.online);
+                  } else {
+                    onAction(order.id, 'DELIVERED', '', method);
+                  }
+                }}
                 className="flex flex-col items-center justify-center gap-1.5 py-5 bg-emerald-600 text-white rounded-2xl font-black active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-emerald-900/40"
               >
                 <CheckCircle2 size={28} />
@@ -175,6 +225,18 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
                 <span className="text-[9px] opacity-70 font-bold">جواب نہیں</span>
               </button>
             </div>
+            <button
+              disabled={loading}
+              onClick={() => {
+                const reason = prompt('Reason for return:');
+                if (!reason) return;
+                onAction(order.id, 'RETURN', reason);
+              }}
+              className="w-full flex items-center justify-center gap-2 py-3 bg-orange-600/10 hover:bg-orange-600/20 rounded-2xl border border-orange-500/20 text-sm font-black uppercase tracking-wider text-orange-400 active:scale-95 transition-all"
+            >
+              <AlertCircle size={18} />
+              Return Order
+            </button>
           </>
         )}
 
@@ -202,6 +264,7 @@ const DeliveryDashboard = () => {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('PENDING');
   const [paymentMethods, setPaymentMethods] = useState({});
+  const [halfPayments, setHalfPayments] = useState({});
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -233,10 +296,23 @@ const DeliveryDashboard = () => {
     };
   }, [fetchOrders]);
 
-  const handleAction = async (orderId, deliveryStatus, remarks, paymentMethod) => {
+  const handleAction = async (orderId, deliveryStatus, remarks, paymentMethod, cashAmount, onlineAmount) => {
     try {
       setActionLoading(true);
-      await axios.put(`${API_URL}/api/orders/${orderId}/delivery`, { deliveryStatus, remarks, paymentMethod }, {
+      if (deliveryStatus === 'RETURN') {
+        await axios.post(`${API_URL}/api/orders/${orderId}/refund`, { reason: remarks || 'Returned by delivery boy' }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        toast.success('Order returned — moved to Refund Management');
+        fetchOrders();
+        return;
+      }
+      const body = { deliveryStatus, remarks, paymentMethod };
+      if (paymentMethod === 'HALF_CASH_HALF_ONLINE') {
+        body.cashAmount = cashAmount || 0;
+        body.onlineAmount = onlineAmount || 0;
+      }
+      await axios.put(`${API_URL}/api/orders/${orderId}/delivery`, body, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (deliveryStatus === 'DELIVERED') {
@@ -357,6 +433,8 @@ const DeliveryDashboard = () => {
               loading={actionLoading}
               paymentMethods={paymentMethods}
               setPaymentMethods={setPaymentMethods}
+              halfPayments={halfPayments}
+              setHalfPayments={setHalfPayments}
             />
           ))}
         </div>

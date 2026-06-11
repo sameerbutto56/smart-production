@@ -8,12 +8,13 @@ import toast from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
-const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSeen }) => {
+const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSeen, selected, onToggleSelect }) => {
   const { t, isUrdu, LanguageToggle } = useLanguage();
   const currentStage = order.stages.find(s => s.status === 'WAITING_APPROVAL') || 
                       order.stages.find(s => s.status === 'ON_HOLD') ||
                       order.stages.find(s => s.status === 'IN_PROGRESS') || 
                       order.stages.find(s => s.status === 'PENDING') || 
+                      order.stages.find(s => s.stageName === order.currentStage) || 
                       order.stages[0];
 
   const isFaisal = ['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET'].includes(userRole);
@@ -314,6 +315,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
       >
         <div className="p-3 md:p-4">
           <div className="flex justify-between items-start gap-2 md:gap-3 mb-2 md:mb-3">
+            {onToggleSelect && (
+              <div className="flex-shrink-0 pt-1" onClick={e => { e.stopPropagation(); onToggleSelect(order.id); }}>
+                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all cursor-pointer ${selected ? 'bg-blue-600 border-blue-500' : 'border-gray-600 hover:border-blue-400'}`}>
+                  {selected && <Check size={12} className="text-white" />}
+                </div>
+              </div>
+            )}
             <div className="flex items-center gap-3 flex-1 min-w-0">
               {order.productImage && (
                 <div className="flex-shrink-0 w-10 h-10 md:w-12 md:h-12 rounded-xl overflow-hidden border border-gray-700 shadow-lg">
@@ -424,7 +432,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
                       }).then(() => {
                         toast.success('Order deleted permanently. Inventory restored.');
-                        window.location.reload();
+                        // Parent component will refresh via socket event
                       }).catch(err => {
                         alert(err.response?.data?.message || 'Failed to delete order');
                       });
@@ -712,7 +720,6 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                           remarks: `Manual route from OrderCard by ${userRole}`
                                         }, { headers: { Authorization: `Bearer ${token}` } });
                                         toast.success(`Order routed to ${destUpper.replace(/_/g, ' ')}`);
-                                        window.location.reload();
                                       } catch (err) {
                                         alert('Route failed: ' + (err.response?.data?.message || err.message));
                                       }
@@ -757,7 +764,6 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                         headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
                                       }).then(() => {
                                         toast.success('Order deleted permanently. Inventory restored.');
-                                        window.location.reload();
                                       }).catch(err => {
                                         alert(err.response?.data?.message || 'Failed to delete order');
                                       });
@@ -782,8 +788,35 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 </div>
               )
             ) : (
-              !isFaisal && currentStage?.status !== 'COMPLETED' && (
-                currentStage?.stageName === 'STORE' ? (
+              !isFaisal && (
+                currentStage?.status === 'COMPLETED' ? (
+                  <div className="w-full p-4 bg-gray-900/50 rounded-2xl border border-gray-800 text-center">
+                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Task Already Completed</p>
+                    <p className="text-[8px] text-gray-500 mb-3">This task was completed by another user. You can route it forward if needed.</p>
+                    <div className="flex gap-2 justify-center">
+                      <button
+                        onClick={() => {
+                          const next = window.prompt('Send to which stage?\n(STORE / LOGO_DESIGN / PRODUCTION / STORE_RECEIVE / DISPATCH)');
+                          if (next) {
+                            onUpdateStage(order.id, currentStage.id, 'request', { nextStage: next.trim().toUpperCase().replace(/ /g, '_') });
+                          }
+                        }}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[8px] font-black uppercase tracking-wider transition-all"
+                      >
+                        Route Forward
+                      </button>
+                      <button
+                        onClick={() => {
+                          onUpdateStage(order.id, currentStage.id, 'request', {});
+                        }}
+                        className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-xl text-[8px] font-black uppercase tracking-wider transition-all"
+                      >
+                        Re-request Completion
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  currentStage?.stageName === 'STORE' ? (
                   <>
                     {/* Route Order To dropdown for manual routing */}
                     <div className="w-full mb-2 space-y-1.5">
@@ -800,9 +833,11 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         <option value="PRODUCTION">Send to Production</option>
                         <option value="LOGO_DESIGN">Send to Logo Design</option>
                         <option value="DISPATCH">Send to Dispatch</option>
-                        <option value="ORDER_ENTRY">Return to Order Entry</option>
-                        <option value="ORDER_ENTRY">Return to Previous Department</option>
+                        <option disabled className="text-gray-600">─ Return to Source ─</option>
+                        {(!order.source || order.source === 'ONLINE') && <option value="RETURN_ONLINE">Send back to Online</option>}
+                        {(!order.source || order.source === 'OUTLET') && <option value="RETURN_OUTLET">Send back to Outlet</option>}
                         <option disabled className="border-t border-gray-800">──────────</option>
+                        <option value="HOLD">Hold / Pending</option>
                         <option value="NOT_AVAILABLE">Mark as Not Available</option>
                         <option value="REJECT">Reject Order</option>
                       </select>
@@ -902,6 +937,18 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             if (reason !== null) {
                               onUpdateStage(order.id, currentStage.id, 'reject', { reason: `Rejected by Store: ${reason}` });
                             }
+                          } else if (nextStage === 'RETURN_ONLINE') {
+                            if (window.confirm('Send back to Online?')) {
+                              onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Available', nextStage: 'ORDER_ENTRY', remarks: 'Returned to Online by Store' });
+                            }
+                          } else if (nextStage === 'RETURN_OUTLET') {
+                            if (window.confirm('Send back to Outlet?')) {
+                              onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Available', nextStage: 'ORDER_ENTRY', remarks: 'Returned to Outlet by Store' });
+                            }
+                          } else if (nextStage === 'HOLD') {
+                            if (window.confirm('Place order on HOLD / Pending?')) {
+                              onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Hold', nextStage: 'ORDER_ENTRY', remarks: 'Hold / Pending by Store' });
+                            }
                           } else {
                             const msg = nextStage ? `Route to ${nextStage.replace(/_/g, ' ')}?` : 'Confirm classification and route items?';
                             if (window.confirm(msg)) {
@@ -912,7 +959,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-[9px] md:text-xs font-black uppercase tracking-widest transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
                       >
                         <CheckCircle size={14} />
-                        <span>{nextStage === 'NOT_AVAILABLE' ? 'Mark as Not Available' : nextStage === 'REJECT' ? 'Reject Order' : nextStage ? `Route to ${nextStage.replace(/_/g, ' ')}` : 'Process & Route'}</span>
+                        <span>{nextStage === 'NOT_AVAILABLE' ? 'Mark as Not Available' : nextStage === 'REJECT' ? 'Reject Order' : nextStage === 'RETURN_ONLINE' ? 'Send back to Online' : nextStage === 'RETURN_OUTLET' ? 'Send back to Outlet' : nextStage === 'HOLD' ? 'Place on Hold' : nextStage ? `Route to ${nextStage.replace(/_/g, ' ')}` : 'Process & Route'}</span>
                       </button>
                       <button
                         onClick={() => {
@@ -1000,31 +1047,88 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         onClick={async () => {
                           try {
                             const token = sessionStorage.getItem('token');
-                            await axios.post(`${API_URL}/api/orders/${order.id}/add-to-inventory`, {}, {
-                              headers: { Authorization: `Bearer ${token}` }
-                            });
-                            toast.success('Products added to store inventory');
-                          } catch (error) {
-                            toast.error(error.response?.data?.message || 'Error adding to inventory');
+                            await axios.post(`${API_URL}/api/orders/${order.id}/route`, { destinationStage: 'DISPATCH', remarks: 'Approved inventory entry, routing to dispatch' }, { headers: { Authorization: `Bearer ${token}` } });
+                            toast.success('Approved — routed to Dispatch');
+                          } catch (err) {
+                            alert('Failed: ' + (err.response?.data?.message || err.message));
                           }
                         }}
                         className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
                       >
-                        <Package size={14} />
-                        <span>Add to Inventory</span>
-                        <span className="text-[6px] md:text-[7px] text-emerald-200 tracking-widest">To stock</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (window.confirm('Approve inventory entry and send for dispatch?')) {
-                            onUpdateStage(order.id, currentStage.id, 'request');
-                          }
-                        }}
-                        className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-2.5 md:py-3 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-blue-900/20"
-                      >
                         <CheckCircle size={14} />
                         <span>Approve Inventory Entry</span>
-                        <span className="text-[6px] md:text-[7px] text-blue-200 tracking-widest">→ DISPATCH</span>
+                        <span className="text-[6px] md:text-[7px] text-emerald-200 tracking-widest">→ ROUTE TO DISPATCH</span>
+                      </button>
+                      <button
+                        onClick={() => setShowProblemModal(true)}
+                        className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-2.5 md:py-3 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-red-900/20"
+                      >
+                        <AlertCircle size={14} />
+                        <span>Report Problem</span>
+                        <span className="text-[6px] md:text-[7px] text-red-200 tracking-widest">→ NOTIFY {order.source === 'OUTLET' ? 'BRANCH' : 'FAISAL'}</span>
+                      </button>
+                    </div>
+                  </>
+                ) : ['DISPATCH', 'ORDER_ENTRY', 'OUTLET'].includes(currentStage?.stageName) ? (
+                  <>
+                    <div className="w-full space-y-2">
+                      <label className="text-[8px] font-black text-blue-400 uppercase tracking-widest flex items-center gap-1.5">
+                        <Truck size={12} />
+                        Dispatch Method
+                        <span className="px-1 py-0.5 bg-blue-500/10 text-blue-400 rounded text-[7px] tracking-wider">SELECT</span>
+                      </label>
+                      <select
+                        className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2.5 px-3 outline-none focus:border-blue-500 transition-all text-white text-[10px] font-bold appearance-none"
+                        value={nextStage}
+                        onChange={(e) => setNextStage(e.target.value)}
+                      >
+                        <option value="">Select dispatch method...</option>
+                        <option value="DISPATCH">Normal Delivery</option>
+                        <option value="DISPATCH_TCS">TCS</option>
+                        <option value="DISPATCH_RIDER">Rider / Delivery Boy</option>
+                        <option value="DISPATCH_COURIER">Courier Service</option>
+                        <option disabled className="border-t border-gray-800">──────────</option>
+                        <option value="HOLD">Hold Order</option>
+                        <option value="PRODUCTION">Return to Production</option>
+                      </select>  
+                      <button
+                        onClick={() => {
+                          const dispatchMethod = {
+                            'DISPATCH': 'Normal Delivery',
+                            'DISPATCH_TCS': 'TCS',
+                            'DISPATCH_RIDER': 'Rider / Delivery Boy',
+                            'DISPATCH_COURIER': 'Courier Service',
+                            'HOLD': 'Hold',
+                            'PRODUCTION': 'Return to Production'
+                          }[nextStage] || '';
+                          const confirmMsg = dispatchMethod === 'Hold'
+                            ? 'Place order on HOLD?'
+                            : dispatchMethod === 'Return to Production'
+                              ? 'Return order back to production?'
+                              : `Send for dispatch via ${dispatchMethod}?`;
+                          if (!nextStage) return alert('Please select dispatch method');
+                          if (window.confirm(confirmMsg)) {
+                            const next = nextStage.startsWith('DISPATCH_') ? 'DISPATCH' : nextStage;
+                            const remarks = nextStage.startsWith('DISPATCH_')
+                              ? `Dispatched via ${dispatchMethod}`
+                              : dispatchMethod === 'Hold'
+                                ? 'Hold / Pending by Store'
+                                : 'Returned to Production by Store';
+                            onUpdateStage(order.id, currentStage.id, 'request', { nextStage: next, remarks, dispatchMethod: dispatchMethod === 'Normal Delivery' ? undefined : dispatchMethod });
+                          }
+                        }}
+                        className={`w-full py-2.5 rounded-xl text-[8px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 active:scale-95 ${
+                          nextStage && !nextStage.startsWith('HOLD') && nextStage !== 'PRODUCTION'
+                            ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-900/20'
+                            : nextStage === 'HOLD'
+                              ? 'bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-500 hover:to-orange-500 text-white shadow-lg shadow-yellow-900/20'
+                              : nextStage === 'PRODUCTION'
+                                ? 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white shadow-lg shadow-red-900/20'
+                                : 'bg-gray-800 text-gray-500'
+                        }`}
+                      >
+                        <ChevronRight size={12} />
+                        <span>{nextStage === 'HOLD' ? 'Place on Hold' : nextStage === 'PRODUCTION' ? 'Return to Production' : 'Confirm & Dispatch'}</span>
                       </button>
                     </div>
                     <button
@@ -1062,12 +1166,12 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           <button
                             onClick={() => {
                               if (window.confirm('Confirm delivery complete? This will mark order as COMPLETED.')) {
-                                axios.put(`${API_URL}/api/orders/${order.id}/delivery-status`, {
+                                axios.put(`${API_URL}/api/orders/${order.id}/delivery`, {
                                   deliveryStatus: 'DELIVERED',
                                   remarks: 'Delivered successfully'
                                 }, {
                                   headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
-                                }).then(() => { window.location.reload(); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
+                                }).then(() => { toast.success('Marked as DELIVERED'); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
                               }
                             }}
                             className="bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 md:py-3 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-lg shadow-emerald-900/30"
@@ -1079,12 +1183,12 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             onClick={() => {
                               const reason = prompt('Reason for failure?');
                               if (reason !== null) {
-                                axios.put(`${API_URL}/api/orders/${order.id}/delivery-status`, {
+                                axios.put(`${API_URL}/api/orders/${order.id}/delivery`, {
                                   deliveryStatus: 'FAILED',
                                   remarks: reason || 'Delivery failed'
                                 }, {
                                   headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
-                                }).then(() => { window.location.reload(); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
+                                }).then(() => { toast.success('Marked as FAILED'); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
                               }
                             }}
                             className="bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white py-2.5 md:py-3 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all border border-red-500/20 active:scale-95"
@@ -1095,12 +1199,12 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           <button
                             onClick={() => {
                               const date = prompt('Reschedule to date? (YYYY-MM-DD) or leave blank for tomorrow');
-                              axios.put(`${API_URL}/api/orders/${order.id}/delivery-status`, {
+                              axios.put(`${API_URL}/api/orders/${order.id}/delivery`, {
                                 deliveryStatus: 'RESCHEDULED',
                                 remarks: date ? `Rescheduled to ${date}` : 'Rescheduled to next day'
                               }, {
                                 headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
-                              }).then(() => { window.location.reload(); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
+                              }).then(() => { toast.success('Delivery rescheduled'); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
                             }}
                             className="bg-amber-600/10 hover:bg-amber-600 text-amber-500 hover:text-white py-2.5 md:py-3 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all border border-amber-500/20 active:scale-95"
                           >
@@ -1108,6 +1212,26 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             RESCHEDULE
                           </button>
                         </div>
+                        <button
+                          onClick={async () => {
+                            if (window.confirm('Request refund for this order?')) {
+                              try {
+                                const token = sessionStorage.getItem('token');
+                                const reason = prompt('Reason for refund:') || 'Not specified';
+                                await axios.post(`${API_URL}/api/orders/${order.id}/refund`, { reason }, {
+                                  headers: { Authorization: `Bearer ${token}` }
+                                });
+                                toast.success('Refund requested — moved to Refund Management');
+                              } catch (err) {
+                                alert('Refund failed: ' + (err.response?.data?.message || err.message));
+                              }
+                            }
+                          }}
+                          className="w-full flex items-center justify-center gap-2 py-2.5 bg-orange-600/10 hover:bg-orange-600/20 rounded-xl border border-orange-500/20 text-[8px] font-black uppercase tracking-wider text-orange-400 transition-all"
+                        >
+                          <AlertCircle size={12} />
+                          Refund Order
+                        </button>
                         <button
                           onClick={() => setShowProblemModal(true)}
                           className="bg-red-600/5 hover:bg-red-600/20 text-red-500/50 hover:text-red-400 py-2 rounded-xl text-[7px] md:text-[8px] font-black uppercase tracking-wider transition-all border border-red-500/10"
@@ -1144,7 +1268,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   </div>
                 )
               )
-            )}
+            )
+          )}
           </div>
 
           <AnimatePresence>
@@ -1754,7 +1879,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     setForceStage('');
                     setForceHours('');
                     setForceReason('');
-                    window.location.reload();
+                    toast.success('Force action executed successfully');
                   } catch (err) {
                     alert('Force action failed: ' + (err.response?.data?.error || err.message));
                   }
@@ -1869,7 +1994,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         headers: { Authorization: `Bearer ${token}` }
                       });
                       setShowPaymentModal(false);
-                      window.location.reload();
+                      toast.success('Payment recorded successfully');
                     } catch (err) {
                       alert('Payment failed: ' + (err.response?.data?.message || err.message));
                     }

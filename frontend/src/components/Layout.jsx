@@ -21,6 +21,7 @@ import {
   BarChart3,
   TrendingUp,
   Factory,
+  RotateCcw,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import socket from '../socket';
@@ -58,6 +59,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     { name: 'Deliveries', path: '/delivery', icon: Truck, roles: ['DELIVERY_BOY', 'SUPER_ADMIN'] },
     { name: 'Deleted Orders', path: '/deleted-orders', icon: Trash2, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Production', path: '/production', icon: Factory, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'PRODUCTION'] },
+    { name: 'Refund Management', path: '/refund-management', icon: RotateCcw, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'DELIVERY_BOY'] },
 
   ];
   

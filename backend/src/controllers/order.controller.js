@@ -1,10 +1,20 @@
 const prisma = require('../prisma');
 const { calculateDeadline } = require('../utils/deadline');
 
+// In-memory cache for frequently accessed settings
+const cache = {
+  systemPaused: { value: false, expiresAt: 0 },
+  stageDurations: { value: null, expiresAt: 0 },
+};
+
+const CACHE_TTL = 30000; // 30 seconds
+
 const isSystemPaused = async () => {
+  if (Date.now() < cache.systemPaused.expiresAt) return cache.systemPaused.value;
   try {
     const setting = await prisma.systemSetting.findUnique({ where: { key: 'SYSTEM_PAUSED' } });
-    return setting ? setting.value === 'true' : false;
+    cache.systemPaused = { value: setting ? setting.value === 'true' : false, expiresAt: Date.now() + CACHE_TTL };
+    return cache.systemPaused.value;
   } catch { return false; }
 };
 
@@ -26,6 +36,24 @@ const NEXT_STAGES = {
  
 const AUTO_TRANSITION_STAGES = ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
 
+// Validates forward-only stage transitions to prevent routing loops
+const validateStageTransition = (fromStage, toStage, orderType) => {
+  const validTransitions = {
+    'STORE': { 'STANDARD': 'PRODUCTION', 'READY_LOGO': 'LOGO_DESIGN', 'FULL_CUSTOM': 'LOGO_DESIGN' },
+    'LOGO_DESIGN': { 'STANDARD': 'PRODUCTION', 'READY_LOGO': 'PRODUCTION', 'FULL_CUSTOM': 'PRODUCTION' },
+    'PRODUCTION': { 'STANDARD': 'STORE_RECEIVE', 'READY_LOGO': 'STORE_RECEIVE', 'FULL_CUSTOM': 'STORE_RECEIVE' },
+    'STORE_RECEIVE': { 'STANDARD': 'DISPATCH', 'READY_LOGO': 'DISPATCH', 'FULL_CUSTOM': 'DISPATCH' },
+    'DISPATCH': { 'STANDARD': 'OUT_FOR_DELIVERY', 'READY_LOGO': 'OUT_FOR_DELIVERY', 'FULL_CUSTOM': 'OUT_FOR_DELIVERY' },
+    'OUT_FOR_DELIVERY': { 'STANDARD': null, 'READY_LOGO': null, 'FULL_CUSTOM': null }
+  };
+
+  const expectedNext = validTransitions[fromStage]?.[orderType];
+  if (!expectedNext || toStage !== expectedNext) {
+    return { valid: false, expected: expectedNext, message: `Invalid transition from ${fromStage} to ${toStage}. ${expectedNext ? `Must route to ${expectedNext}.` : 'No forward transition available from this stage.'}` };
+  }
+  return { valid: true, expected: expectedNext };
+};
+
 const getRolesForStage = (stageName) => {
   const map = {
     'STORE': ['STORE', 'STORE_EMPLOYEE'],
@@ -39,6 +67,15 @@ const getRolesForStage = (stageName) => {
 };
 
 const getStageDurations = async (priority = 'NORMAL') => {
+  if (Date.now() < cache.stageDurations.expiresAt && cache.stageDurations.value) {
+    const slaMultiplier = cache.stageDurations.value.slaMultipliers?.[priority] ?? 1;
+    const adjusted = {};
+    for (const [stage, hours] of Object.entries(cache.stageDurations.value.stageDurations)) {
+      adjusted[stage] = Math.round((hours * slaMultiplier) * 100) / 100;
+    }
+    return adjusted;
+  }
+
   const setting = await prisma.systemSetting.findUnique({
     where: { key: 'DEADLINE_CONFIG' }
   });
@@ -51,6 +88,8 @@ const getStageDurations = async (priority = 'NORMAL') => {
   if (setting) {
     try { config = { ...config, ...JSON.parse(setting.value) }; } catch (e) { console.error('Error parsing DEADLINE_CONFIG:', e); }
   }
+
+  cache.stageDurations = { value: config, expiresAt: Date.now() + CACHE_TTL };
 
   const slaMultiplier = config.slaMultipliers?.[priority] ?? 1;
   const durations = config.stageDurations || {};
@@ -438,7 +477,10 @@ const getOrders = async (req, res) => {
 
     const role = String(req.user.role || '').toUpperCase().trim();
     const id = req.user.id;
-    const { status: filterStatus, limit } = req.query;
+    const { status: filterStatus, limit, skip, page } = req.query;
+    const pageNum = parseInt(page) || 0;
+    const skipVal = parseInt(skip) || 0;
+    const takeLimit = limit === 'all' ? undefined : (parseInt(limit) || 200);
 
     let where = {};
 
@@ -476,10 +518,11 @@ const getOrders = async (req, res) => {
           },
           include: {
             stages: { orderBy: { createdAt: 'desc' } },
-            auditLogs: { orderBy: { timestamp: 'desc' } },
+            auditLogs: { orderBy: { timestamp: 'desc' }, take: 5 },
             createdBy: { select: { name: true } }
           },
-          orderBy: { createdAt: 'desc' }
+          orderBy: { createdAt: 'desc' },
+          take: 500
         });
 
         const completedOrders = await prisma.order.findMany({
@@ -489,7 +532,7 @@ const getOrders = async (req, res) => {
           },
           include: {
             stages: { orderBy: { createdAt: 'desc' } },
-            auditLogs: { orderBy: { timestamp: 'desc' } },
+            auditLogs: { orderBy: { timestamp: 'desc' }, take: 5 },
             createdBy: { select: { name: true } }
           },
           orderBy: { createdAt: 'desc' },
@@ -502,6 +545,8 @@ const getOrders = async (req, res) => {
 
     const orders = await prisma.order.findMany({
       where,
+      skip: pageNum > 0 ? (pageNum - 1) * takeLimit : skipVal,
+      take: takeLimit,
       include: {
         stages: {
           orderBy: { createdAt: 'desc' }
@@ -513,9 +558,14 @@ const getOrders = async (req, res) => {
           select: { name: true }
         }
       },
-      orderBy: { createdAt: 'desc' },
-      take: limit === 'all' ? undefined : (parseInt(limit) || 200)
+      orderBy: { createdAt: 'desc' }
     });
+    
+    // When pagination is requested, include total count
+    if (pageNum > 0 || skipVal > 0) {
+      const total = await prisma.order.count({ where });
+      return res.json({ orders: sortByPriority(orders), total, page: pageNum || 1, totalPages: Math.ceil(total / takeLimit) });
+    }
     
     res.json(sortByPriority(orders));
   } catch (error) {
@@ -525,7 +575,7 @@ const getOrders = async (req, res) => {
 
 const requestStageCompletion = async (req, res) => {
   const { orderId, stageId } = req.params;
-  const { inventoryStatus, nextStage: manualNextStage } = req.body;
+  const { inventoryStatus, nextStage: manualNextStage, remarks } = req.body;
 
   try {
     if (await isSystemPaused()) {
@@ -569,6 +619,17 @@ const requestStageCompletion = async (req, res) => {
       }
     }
 
+    // Enforce forward-only routing to prevent loops
+    if (actualNextStage && currentStage.stageName !== 'ORDER_ENTRY') {
+      const validation = validateStageTransition(currentStage.stageName, actualNextStage, order.type);
+      if (!validation.valid) {
+        await createAuditLog(orderId, 'ROUTE_BLOCKED',
+          `Blocked invalid transition from ${currentStage.stageName} to ${actualNextStage} by ${req.user.name}. ${validation.message}`,
+          req.user.id);
+        return res.status(400).json({ message: validation.message, expectedNext: validation.expected });
+      }
+    }
+
     if (actualNextStage) {
       const durations = await getStageDurations(order.priority);
       const deadline = calculateDeadline(new Date(), durations[actualNextStage] || 24);
@@ -583,9 +644,13 @@ const requestStageCompletion = async (req, res) => {
       });
       await checkAndSetProductionDeadline(orderId, actualNextStage, deadline, req.user.id);
 
+      const isStoreRoutingBack = ['STORE', 'STORE_EMPLOYEE'].includes(req.user.role) && actualNextStage !== 'DISPATCH';
       await prisma.order.update({
         where: { id: orderId },
-        data: { currentStage: actualNextStage }
+        data: {
+          currentStage: actualNextStage,
+          ...(isStoreRoutingBack ? { storeRequested: true, storeRequestedAt: new Date() } : {})
+        }
       });
 
       // Log routing history
@@ -601,17 +666,15 @@ const requestStageCompletion = async (req, res) => {
           sentToUserIds: JSON.stringify(recipientUsers.map(u => u.id)),
           previousStage: currentStage.stageName,
           newStage: actualNextStage,
-          remarks: manualNextStage ? `Manually routed to ${actualNextStage} by ${req.user.name || 'Worker'}` : `Auto-advanced to ${actualNextStage}`,
+          remarks: remarks || (manualNextStage ? `Manually routed to ${actualNextStage} by ${req.user.name || 'Worker'}` : `Auto-advanced to ${actualNextStage}`),
           createdAt: new Date()
         }
       }).catch(e => console.error('Routing history log error:', e));
 
-      // Reset seen status for recipients
-      for (const user of recipientUsers) {
-        await prisma.seenTask.deleteMany({
-          where: { userId: user.id, orderId, stageName: actualNextStage }
-        }).catch(() => {});
-      }
+      // Reset seen status for recipients — single batch query
+      await prisma.seenTask.deleteMany({
+        where: { userId: { in: recipientUsers.map(u => u.id) }, orderId, stageName: actualNextStage }
+      }).catch(() => {});
 
       await createAuditLog(orderId, manualNextStage ? 'MANUAL_ROUTE' : 'STAGE_AUTO_TRANSITION',
         `${currentStage.stageName} completed. ${manualNextStage ? `Manually routed to ${actualNextStage}` : `Auto-moved to ${actualNextStage}`}.`,
@@ -701,6 +764,17 @@ const approveStageCompletion = async (req, res) => {
       actualNextStage = stages[currentIndex + 1];
     }
 
+    // Enforce forward-only routing to prevent loops
+    if (actualNextStage && currentStageRecord.stageName !== 'ORDER_ENTRY') {
+      const validation = validateStageTransition(currentStageRecord.stageName, actualNextStage, order.type);
+      if (!validation.valid) {
+        await createAuditLog(orderId, 'ROUTE_BLOCKED',
+          `Blocked invalid transition from ${currentStageRecord.stageName} to ${actualNextStage} by ${req.user.name}. ${validation.message}`,
+          req.user.id);
+        return res.status(400).json({ message: validation.message, expectedNext: validation.expected });
+      }
+    }
+
     // Log routing history when stage is completed and next stage is known
     if (actualNextStage) {
       const recipientUsers = await prisma.user.findMany({
@@ -720,12 +794,10 @@ const approveStageCompletion = async (req, res) => {
         }
       }).catch(e => console.error('Routing history log error:', e));
 
-      // Mark as unseen for all recipient users
-      for (const user of recipientUsers) {
-        await prisma.seenTask.deleteMany({
-          where: { userId: user.id, orderId, stageName: actualNextStage }
-        }).catch(() => {});
-      }
+      // Mark as unseen for all recipient users — single batch query
+      await prisma.seenTask.deleteMany({
+        where: { userId: { in: recipientUsers.map(u => u.id) }, orderId, stageName: actualNextStage }
+      }).catch(() => {});
     }
 
     if (actualNextStage) {
@@ -1202,7 +1274,7 @@ const checkDeletedOrder = async (req, res) => {
 
 const updateDeliveryStatus = async (req, res) => {
   const { orderId } = req.params;
-  const { deliveryStatus, remarks, paymentMethod } = req.body; // deliveryStatus: 'DELIVERED' | 'NOT_RESPONDED' | 'FAILED' | 'RESCHEDULED'
+  const { deliveryStatus, remarks, paymentMethod, cashAmount, onlineAmount } = req.body; // deliveryStatus: 'DELIVERED' | 'NOT_RESPONDED' | 'FAILED' | 'RESCHEDULED'
   const userId = req.user?.id;
 
   try {
@@ -1242,15 +1314,45 @@ const updateDeliveryStatus = async (req, res) => {
       });
       await createAuditLog(orderId, 'DELIVERY_RESCHEDULED', remarks || `Delivery rescheduled to ${tomorrow.toLocaleDateString()}.`, userId);
     } else if (deliveryStatus === 'DELIVERED') {
+      // Handle half-cash-half-online payment
+      let courierDetails = order.courierDetails || {};
+      if (typeof courierDetails === 'string') courierDetails = JSON.parse(courierDetails);
+      if (!courierDetails.payments) courierDetails.payments = [];
+
+      if (paymentMethod === 'HALF_CASH_HALF_ONLINE') {
+        courierDetails.payments.push({
+          method: 'CASH',
+          amount: parseFloat(cashAmount || 0),
+          date: new Date().toISOString(),
+          recordedBy: userId
+        }, {
+          method: 'ONLINE_TRANSFER',
+          amount: parseFloat(onlineAmount || 0),
+          date: new Date().toISOString(),
+          recordedBy: userId
+        });
+      } else {
+        courierDetails.payments.push({
+          method: paymentMethod || 'CASH',
+          amount: order.totalPrice || 0,
+          date: new Date().toISOString(),
+          recordedBy: userId
+        });
+      }
+
+      const totalPaid = courierDetails.payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+      const paymentStatus = totalPaid >= (order.totalPrice || 0) ? 'FULL_PAID' : 'PARTIAL_PAID';
+
       const updatedOrder = await prisma.order.update({
         where: { id: orderId },
         data: {
           status: 'COMPLETED',
           currentStage: 'DELIVERED',
-          paymentStatus: 'FULL_PAID',
+          paymentStatus,
           advancePaid: true,
           dispatchStatus: 'DELIVERED',
           paymentMethod: paymentMethod || 'CASH',
+          courierDetails,
           updatedAt: new Date()
         },
         include: { stages: true }
@@ -1284,6 +1386,190 @@ const updateDeliveryStatus = async (req, res) => {
   }
 };
 
+const refundOrder = async (req, res) => {
+  const { orderId } = req.params;
+  const { reason, note } = req.body;
+  try {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        refundStatus: 'REQUESTED',
+        refundReason: reason || 'Not specified',
+        refundNote: note || '',
+        refundedAt: new Date(),
+        refundedById: req.user.id,
+        dispatchStatus: 'RETURNED',
+        currentStage: 'RETURNED',
+        status: 'RETURNED',
+        updatedAt: new Date()
+      }
+    });
+
+    await createAuditLog(orderId, 'REFUND_REQUESTED', `Refund requested by ${req.user.name || 'Delivery'}. Reason: ${reason || 'N/A'}`, req.user.id);
+
+    const io = req.app.get('io');
+    io.emit('order-updated', { orderId, createdById: order.createdById });
+
+    res.json({ message: 'Refund requested successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error processing refund request', error: error.message });
+  }
+};
+
+const getRefundQueue = async (req, res) => {
+  try {
+    const orders = await prisma.order.findMany({
+      where: {
+        refundStatus: { not: 'NONE' },
+        OR: [
+          { dispatchStatus: { in: ['FAILED', 'RETURNED'] } },
+          { refundStatus: 'REQUESTED' },
+          { currentStage: { in: ['OUT_FOR_DELIVERY', 'DISPATCH', 'RETURNED'] } }
+        ]
+      },
+      include: {
+        stages: { orderBy: { createdAt: 'desc' }, take: 5 },
+        createdBy: { select: { name: true } }
+      },
+      orderBy: { refundedAt: 'desc' }
+    });
+
+    res.json(orders || []);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching refund queue', error: error.message });
+  }
+};
+
+const processRefund = async (req, res) => {
+  const { orderId } = req.params;
+  const { action, note } = req.body; // action: 'PROCESSING' | 'REFUNDED'
+  try {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    let refundStatus = action === 'REFUNDED' ? 'REFUNDED' : 'PROCESSING';
+    let auditAction = action === 'REFUNDED' ? 'REFUND_COMPLETED' : 'REFUND_PROCESSING';
+    let auditMessage = action === 'REFUNDED'
+      ? `Refund completed by ${req.user.name}. Note: ${note || 'N/A'}`
+      : `Refund processing started by ${req.user.name}. Note: ${note || 'N/A'}`;
+    let updateData = {
+      refundStatus,
+      refundNote: note || order.refundNote || '',
+      updatedAt: new Date()
+    };
+
+    if (action === 'REFUNDED') {
+      updateData.dispatchStatus = 'REFUNDED';
+      updateData.currentStage = 'REFUNDED';
+      updateData.status = 'REFUNDED';
+    }
+
+    await prisma.order.update({ where: { id: orderId }, data: updateData });
+    await createAuditLog(orderId, auditAction, auditMessage, req.user.id);
+
+    const io = req.app.get('io');
+    io.emit('order-updated', { orderId, createdById: order.createdById });
+
+    res.json({ message: `Refund ${action === 'REFUNDED' ? 'completed' : 'processing started'}` });
+  } catch (error) {
+    res.status(500).json({ message: 'Error processing refund', error: error.message });
+  }
+};
+
+// ====== BULK ROUTING ======
+const bulkRouteOrders = async (req, res) => {
+  const { orderIds, destinationStage, remarks } = req.body;
+  try {
+    if (!Array.isArray(orderIds) || orderIds.length === 0) {
+      return res.status(400).json({ message: 'orderIds must be a non-empty array' });
+    }
+    if (!destinationStage) {
+      return res.status(400).json({ message: 'destinationStage is required' });
+    }
+
+    const results = [];
+    const errors = [];
+
+    for (const orderId of orderIds) {
+      try {
+        const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: true } });
+        if (!order) { errors.push({ orderId, error: 'Order not found' }); continue; }
+
+        const currentStage = order.stages.find(s =>
+          ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
+        );
+
+        if (currentStage) {
+          const validation = validateStageTransition(currentStage.stageName, destinationStage, order.type);
+          if (!validation.valid) {
+            errors.push({ orderId, error: validation.message });
+            continue;
+          }
+        }
+
+        // Complete current stage
+        if (currentStage) {
+          await prisma.orderStage.update({
+            where: { id: currentStage.id },
+            data: { status: 'COMPLETED', completedAt: new Date(), rejectionReason: `Bulk routed to ${destinationStage}` }
+          });
+        }
+
+        // Create destination stage
+        const durations = await getStageDurations(order.priority);
+        const deadline = calculateDeadline(new Date(), durations[destinationStage] || 24);
+        await prisma.orderStage.create({
+          data: { orderId, stageName: destinationStage, status: 'PENDING', deadlineAt: deadline }
+        });
+
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { currentStage: destinationStage, status: 'IN_PROGRESS' }
+        });
+
+        // Routing history
+        const recipientUsers = await prisma.user.findMany({
+          where: { role: { in: getRolesForStage(destinationStage) } },
+          select: { id: true }
+        });
+        await prisma.routingHistory.create({
+          data: {
+            orderId,
+            sentByUserId: req.user.id,
+            sentToStage: destinationStage,
+            sentToUserIds: JSON.stringify(recipientUsers.map(u => u.id)),
+            previousStage: currentStage?.stageName || 'UNKNOWN',
+            newStage: destinationStage,
+            remarks: remarks || `Bulk route to ${destinationStage} by ${req.user.name}`,
+            createdAt: new Date()
+          }
+        }).catch(() => {});
+
+        // Reset seen status for recipients
+        await prisma.seenTask.deleteMany({
+          where: { userId: { in: recipientUsers.map(u => u.id) }, orderId, stageName: destinationStage }
+        }).catch(() => {});
+
+        await createAuditLog(orderId, 'BULK_ROUTE', `Bulk routed from ${currentStage?.stageName || 'UNKNOWN'} to ${destinationStage} by ${req.user.name}`, req.user.id);
+
+        const io = req.app.get('io');
+        io.emit('order-updated', { orderId, createdById: order.createdById });
+
+        results.push({ orderId, status: 'routed', nextStage: destinationStage });
+      } catch (err) {
+        errors.push({ orderId, error: err.message });
+      }
+    }
+
+    res.json({ message: `Routed ${results.length} order(s) with ${errors.length} error(s)`, results, errors });
+  } catch (error) {
+    res.status(500).json({ message: 'Error in bulk routing', error: error.message });
+  }
+};
+
 const classifyOrderItems = async (order) => {
   let parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
   const items = Array.isArray(parsedDetails) ? parsedDetails : (parsedDetails?.productType ? [parsedDetails] : []);
@@ -1291,24 +1577,30 @@ const classifyOrderItems = async (order) => {
   const inventoryItems = [];
   const productionItems = [];
 
+  // Batch-fetch all inventory items in a single query
+  const productTypes = items.map(item => (item.productDetails || item)?.productType).filter(Boolean);
+  const uniqueTypes = [...new Set(productTypes)];
+  const allInvItems = uniqueTypes.length > 0
+    ? await prisma.inventoryItem.findMany({
+        where: {
+          category: { not: 'FABRIC' },
+          OR: uniqueTypes.map(name => ({ name: { contains: name, mode: 'insensitive' } }))
+        },
+        select: { id: true, name: true, isManufactured: true, stock: true, variants: true, category: true }
+      })
+    : [];
+
   for (const item of items) {
     const pd = item.productDetails || item;
     const productType = pd?.productType;
     if (!productType) continue;
 
     const quantity = item.quantity || 1;
+    const invItem = allInvItems.find(inv => inv.name.toLowerCase().includes(productType.toLowerCase()));
 
-    try {
-      const invItem = await prisma.inventoryItem.findFirst({
-        where: { name: { contains: productType, mode: 'insensitive' }, category: { not: 'FABRIC' } }
-      });
-
-      if (invItem && invItem.isManufactured === false) {
-        inventoryItems.push({ productType, quantity, color: pd.color, size: pd.size, inventoryItem: invItem });
-      } else {
-        productionItems.push({ productType, quantity, color: pd.color, size: pd.size });
-      }
-    } catch {
+    if (invItem && invItem.isManufactured === false) {
+      inventoryItems.push({ productType, quantity, color: pd.color, size: pd.size, inventoryItem: invItem });
+    } else {
       productionItems.push({ productType, quantity, color: pd.color, size: pd.size });
     }
   }
@@ -1318,6 +1610,8 @@ const classifyOrderItems = async (order) => {
 
 const deductInventoryItems = async (order, userId, itemList) => {
   if (!order || !itemList?.length) return;
+
+  const updates = [];
 
   for (const prod of itemList) {
     const inventoryItem = prod.inventoryItem;
@@ -1348,19 +1642,26 @@ const deductInventoryItems = async (order, userId, itemList) => {
       if (deducted <= 0) continue;
 
       const newTotalStock = updatedVariants.reduce((s, v) => s + (v.stock || 0), 0);
-      await prisma.inventoryItem.update({
-        where: { id: inventoryItem.id },
-        data: { variants: updatedVariants, stock: newTotalStock }
-      });
+      updates.push(
+        prisma.inventoryItem.update({
+          where: { id: inventoryItem.id },
+          data: { variants: updatedVariants, stock: newTotalStock }
+        }),
+        createAuditLog(order.id, 'INVENTORY_DEDUCTED', `Deducted ${deductQty} unit(s) of ${inventoryItem.name}${variantLabel ? ' (' + variantLabel + ')' : ''} from stock (non-manufactured item fulfillment). Product ID: ${inventoryItem.id}`, userId)
+      );
     } else {
       const actualDeduct = Math.min(deductQty, inventoryItem.stock);
-      await prisma.inventoryItem.update({
-        where: { id: inventoryItem.id },
-        data: { stock: { decrement: actualDeduct } }
-      });
+      updates.push(
+        prisma.inventoryItem.update({
+          where: { id: inventoryItem.id },
+          data: { stock: { decrement: actualDeduct } }
+        }),
+        createAuditLog(order.id, 'INVENTORY_DEDUCTED', `Deducted ${deductQty} unit(s) of ${inventoryItem.name} from stock (non-manufactured item fulfillment). Product ID: ${inventoryItem.id}`, userId)
+      );
     }
-    await createAuditLog(order.id, 'INVENTORY_DEDUCTED', `Deducted ${deductQty} unit(s) of ${inventoryItem.name}${variantLabel ? ' (' + variantLabel + ')' : ''} from stock (non-manufactured item fulfillment). Product ID: ${inventoryItem.id}`, userId);
   }
+
+  await Promise.all(updates);
 };
 
 const deductInventory = async (order, userId) => {
@@ -1750,14 +2051,23 @@ const checkOrderInventory = async (req, res) => {
     }
 
     const report = [];
+
+    // Batch-fetch all inventory items in a single query
+    const productTypes = productsToCheck.map(p => p.productType).filter(Boolean);
+    const uniqueTypes = [...new Set(productTypes)];
+    const allInvItems = uniqueTypes.length > 0
+      ? await prisma.inventoryItem.findMany({
+          where: {
+            category: { not: 'FABRIC' },
+            OR: uniqueTypes.map(name => ({ name: { contains: name, mode: 'insensitive' } }))
+          },
+          select: { id: true, name: true, isManufactured: true, stock: true, variants: true, category: true }
+        })
+      : [];
+
     for (const prod of productsToCheck) {
       try {
-        const inventoryItem = await prisma.inventoryItem.findFirst({
-          where: {
-            name: { contains: prod.productType, mode: 'insensitive' },
-            category: { not: 'FABRIC' }
-          }
-        });
+        const inventoryItem = allInvItems.find(inv => inv.name.toLowerCase().includes(prod.productType.toLowerCase()));
 
         if (!inventoryItem) {
           report.push({
@@ -1938,6 +2248,14 @@ const manualRouteOrder = async (req, res) => {
     const currentStage = order.stages.find(s =>
       ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
     );
+
+    // Enforce forward-only routing to prevent loops (except for SUPER_ADMIN)
+    if (currentStage && req.user.role !== 'SUPER_ADMIN') {
+      const validation = validateStageTransition(currentStage.stageName, destinationStage, order.type);
+      if (!validation.valid) {
+        return res.status(400).json({ message: validation.message, expectedNext: validation.expected });
+      }
+    }
     if (currentStage) {
       await prisma.orderStage.update({
         where: { id: currentStage.id },
@@ -1980,12 +2298,10 @@ const manualRouteOrder = async (req, res) => {
       }
     });
 
-    // Reset seen status for all recipient users so it appears as Unseen
-    for (const user of recipientUsers) {
-      await prisma.seenTask.deleteMany({
-        where: { userId: user.id, orderId, stageName: destinationStage }
-      }).catch(() => {});
-    }
+    // Reset seen status for all recipient users — single batch query
+    await prisma.seenTask.deleteMany({
+      where: { userId: { in: recipientUsers.map(u => u.id) }, orderId, stageName: destinationStage }
+    }).catch(() => {});
 
     await createAuditLog(orderId, 'MANUAL_ROUTE', `Manually routed from ${currentStage?.stageName || 'UNKNOWN'} to ${destinationStage} by ${req.user.name}. Remarks: ${remarks || 'N/A'}`, req.user.id);
 
@@ -2000,8 +2316,8 @@ const manualRouteOrder = async (req, res) => {
 
 const getRolesForStageBasedOnRole = (role) => {
   const map = {
-    'STORE': ['STORE', 'STORE_RECEIVE'],
-    'STORE_EMPLOYEE': ['STORE', 'STORE_RECEIVE'],
+    'STORE': ['STORE'],
+    'STORE_EMPLOYEE': ['STORE'],
     'PRODUCTION': ['PRODUCTION'],
     'LOGO_DESIGN': ['LOGO_DESIGN'],
     'LOGO_DESIGN_EMPLOYEE': ['LOGO_DESIGN'],
@@ -2034,9 +2350,43 @@ const markOrderAsSeen = async (req, res) => {
   }
 };
 
+const getStoreProductionOrders = async (req, res) => {
+  const userId = req.user.id;
+  const limit = parseInt(req.query.limit) || 200;
+
+  try {
+    const orders = await prisma.order.findMany({
+      where: {
+        currentStage: 'STORE_RECEIVE',
+        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
+      },
+      include: {
+        stages: { orderBy: { createdAt: 'desc' } },
+        auditLogs: { orderBy: { timestamp: 'desc' }, take: 5 },
+        createdBy: { select: { name: true } }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit
+    });
+
+    const seenRecords = await prisma.seenTask.findMany({
+      where: { userId, orderId: { in: orders.map(o => o.id) }, stageName: 'STORE_RECEIVE' }
+    });
+    const seenOrderIds = new Set(seenRecords.map(r => r.orderId));
+
+    res.json({
+      unseen: orders.filter(o => !seenOrderIds.has(o.id)),
+      seen: orders.filter(o => seenOrderIds.has(o.id))
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching production-returned orders', error: error.message });
+  }
+};
+
 const getUnseenOrders = async (req, res) => {
   const userId = req.user.id;
   const userRole = req.user.role;
+  const limit = parseInt(req.query.limit) || 250;
 
   try {
     // Find orders that are in stages relevant to this user's role
@@ -2050,7 +2400,8 @@ const getUnseenOrders = async (req, res) => {
         stages: { orderBy: { createdAt: 'desc' } },
         auditLogs: { orderBy: { timestamp: 'desc' }, take: 5 },
         createdBy: { select: { name: true } }
-      }
+      },
+      take: limit
     });
 
     // Check which ones have been seen
@@ -2085,6 +2436,7 @@ const getStoreRequests = async (req, res) => {
   try {
     const userId = req.user.id;
     const userRole = req.user.role;
+    const limit = parseInt(req.query.limit) || 250;
 
     // Determine which source orders to return based on user role
     const isOutlet = userRole === 'OUTLET';
@@ -2100,7 +2452,8 @@ const getStoreRequests = async (req, res) => {
         stages: { orderBy: { createdAt: 'desc' } },
         createdBy: { select: { name: true } }
       },
-      orderBy: { storeRequestedAt: 'desc' }
+      orderBy: { storeRequestedAt: 'desc' },
+      take: limit
     });
 
     // Seen/unseen split
@@ -2187,6 +2540,11 @@ module.exports = {
   manualRouteOrder,
   markOrderAsSeen,
   getUnseenOrders,
+  getStoreProductionOrders,
   getRoutingHistory,
-  getStoreRequests
+  getStoreRequests,
+  refundOrder,
+  getRefundQueue,
+  processRefund,
+  bulkRouteOrders
 };

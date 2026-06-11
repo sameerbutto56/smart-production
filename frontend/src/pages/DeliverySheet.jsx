@@ -331,16 +331,48 @@ const DeliverySheet = () => {
                           ₨{Number(order.totalPrice || 0).toLocaleString()}
                         </td>
                         <td className="py-4 px-3 text-right">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black border uppercase ${
-                            order.currentStage === 'DELIVERED' || order.status === 'COMPLETED'
-                              ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
-                              : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20 animate-pulse'
-                          }`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${
-                              order.currentStage === 'DELIVERED' || order.status === 'COMPLETED' ? 'bg-emerald-500' : 'bg-yellow-500'
-                            }`} />
-                            {order.currentStage === 'DELIVERED' || order.status === 'COMPLETED' ? 'Delivered' : 'Pending'}
-                          </span>
+                          {order.currentStage === 'DELIVERED' || order.status === 'COMPLETED' ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black border uppercase bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              Delivered
+                            </span>
+                          ) : (
+                            <div className="flex flex-col gap-1.5">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black border uppercase bg-yellow-500/10 text-yellow-500 border-yellow-500/20 animate-pulse">
+                                <span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
+                                Pending
+                              </span>
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={async () => {
+                                    if (!window.confirm('Mark this order as DELIVERED?')) return;
+                                    try {
+                                      await axios.put(`${API_URL}/api/orders/${order.id}/delivery`, { deliveryStatus: 'DELIVERED', remarks: 'Delivered via TCS/Courier' }, { headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` } });
+                                      toast.success('Marked as DELIVERED');
+                                      fetchOrders();
+                                    } catch (err) { toast.error(err.response?.data?.message || err.message); }
+                                  }}
+                                  className="text-[7px] font-black uppercase bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded-lg transition-all"
+                                >
+                                  Delivered
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    const reason = prompt('Reason for refund:');
+                                    if (!reason) return;
+                                    try {
+                                      await axios.post(`${API_URL}/api/orders/${order.id}/refund`, { reason }, { headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` } });
+                                      toast.success('Refund requested');
+                                      fetchOrders();
+                                    } catch (err) { toast.error(err.response?.data?.message || err.message); }
+                                  }}
+                                  className="text-[7px] font-black uppercase bg-orange-600 hover:bg-orange-500 text-white px-2 py-1 rounded-lg transition-all"
+                                >
+                                  Refund
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     );

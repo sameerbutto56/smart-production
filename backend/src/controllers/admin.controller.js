@@ -1,6 +1,10 @@
 const prisma = require('../prisma');
 const bcrypt = require('bcryptjs');
 
+// Cache for pause status — avoids DB hits every 2s from every client
+const pauseStatusCache = { value: null, expiresAt: 0 };
+const PAUSE_CACHE_TTL = 10000; // 10 seconds
+
 const clearAllData = async (req, res) => {
   const { password } = req.body;
   const adminId = req.user.id;
@@ -41,6 +45,8 @@ const togglePause = async (req, res) => {
       update: { value: String(newPaused) },
       create: { key: 'SYSTEM_PAUSED', value: String(newPaused) }
     });
+    pauseStatusCache.value = newPaused;
+    pauseStatusCache.expiresAt = Date.now() + PAUSE_CACHE_TTL;
     res.json({ paused: newPaused, message: newPaused ? 'System paused for holidays.' : 'System resumed.' });
   } catch (error) {
     res.status(500).json({ message: 'Failed to toggle pause', error: error.message });
@@ -49,8 +55,13 @@ const togglePause = async (req, res) => {
 
 const getPauseStatus = async (req, res) => {
   try {
+    if (Date.now() < pauseStatusCache.expiresAt && pauseStatusCache.value !== null) {
+      return res.json({ paused: pauseStatusCache.value });
+    }
     const existing = await prisma.systemSetting.findUnique({ where: { key: 'SYSTEM_PAUSED' } });
-    res.json({ paused: existing ? existing.value === 'true' : false });
+    pauseStatusCache.value = existing ? existing.value === 'true' : false;
+    pauseStatusCache.expiresAt = Date.now() + PAUSE_CACHE_TTL;
+    res.json({ paused: pauseStatusCache.value });
   } catch (error) {
     res.status(500).json({ message: 'Failed to get pause status', error: error.message });
   }
