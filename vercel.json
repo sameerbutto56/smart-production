@@ -1,5 +1,5 @@
 {
-  "installCommand": "rm -f package-lock.json frontend/package-lock.json backend/package-lock.json && npm install",
+  "installCommand": "npm install",
   "buildCommand": "npm --prefix frontend run build",
   "outputDirectory": "frontend/dist",
   "functions": {
