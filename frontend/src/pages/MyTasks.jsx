@@ -382,7 +382,7 @@ const MyTasks = () => {
                   order={order} 
                   userRole={user?.role}
                   onUpdateStage={handleAction}
-                  isUnseen={activeTab === 'unseen' || activeTab === 'production'}
+                  isUnseen={activeTab === 'unseen'}
                   onMarkSeen={() => markAsSeen(order.id)}
                   selected={selectedOrderIds.has(order.id)}
                   onToggleSelect={toggleOrderSelection}
