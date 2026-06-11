@@ -127,7 +127,6 @@ const AdminDashboard = () => {
   const [bulkRouting, setBulkRouting] = useState(false);
 
   const queueRefreshRef = useRef();
-  queueRefreshRef.current = queueRefresh;
 
   useEffect(() => {
     const onOrderUpdated = () => queueRefreshRef.current?.();
@@ -615,6 +614,7 @@ const AdminDashboard = () => {
       fetchStoreProductionData();
     }, 100);
   };
+  queueRefreshRef.current = queueRefresh;
 
   const activeOrdersCount = useMemo(() => 
     allOrders.filter(o => o.status !== 'COMPLETED').length
