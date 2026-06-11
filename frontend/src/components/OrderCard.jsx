@@ -1057,7 +1057,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                   await axios.post(`${API_URL}/api/orders/${order.id}/add-to-inventory`, {}, {
                                     headers: { Authorization: `Bearer ${token}` }
                                   });
-                                  toast.success('Inventory updated! Now send to Dispatch.');
+                                  toast.success('Inventory updated!');
                                 } catch (err) {
                                   alert('Failed: ' + (err.response?.data?.message || err.message));
                                 }
