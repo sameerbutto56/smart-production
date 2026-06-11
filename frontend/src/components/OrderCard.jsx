@@ -10,6 +10,7 @@ const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'l
 
 const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSeen, selected, onToggleSelect }) => {
   const { t, isUrdu, LanguageToggle } = useLanguage();
+  const [localInventoryAdded, setLocalInventoryAdded] = useState(false);
   const currentStage = order.stages.find(s => s.status === 'WAITING_APPROVAL') || 
                       order.stages.find(s => s.status === 'ON_HOLD') ||
                       order.stages.find(s => s.status === 'IN_PROGRESS') || 
@@ -1046,7 +1047,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       </div>
                     </div>
                     {(() => {
-                      const inventoryAdded = order.auditLogs?.some(l => l.action === 'INVENTORY_ADDED');
+                      const inventoryAdded = localInventoryAdded || order.auditLogs?.some(l => l.action === 'INVENTORY_ADDED');
                       return (
                         <div className="grid grid-cols-2 gap-2">
                           {!inventoryAdded ? (
@@ -1057,6 +1058,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                   await axios.post(`${API_URL}/api/orders/${order.id}/add-to-inventory`, {}, {
                                     headers: { Authorization: `Bearer ${token}` }
                                   });
+                                  setLocalInventoryAdded(true);
                                   toast.success('Inventory updated!');
                                 } catch (err) {
                                   alert('Failed: ' + (err.response?.data?.message || err.message));
