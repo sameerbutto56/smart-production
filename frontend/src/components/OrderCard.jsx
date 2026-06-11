@@ -92,18 +92,17 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
     return () => clearInterval(timer);
   }, [currentStage]);
 
-  useEffect(() => {
-    if (currentStage?.stageName === 'STORE' && order.id) {
-      setInvCheckLoading(true);
-      const token = sessionStorage.getItem('token');
-      axios.get(`${API_URL}/api/orders/${order.id}/inventory-check`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-        .then(res => setInvCheck(res.data))
-        .catch(err => console.error('Error checking inventory:', err))
-        .finally(() => setInvCheckLoading(false));
-    }
-  }, [currentStage?.stageName, order.id]);
+  const handleInventoryCheck = useCallback(() => {
+    if (!currentStage || invCheck) return;
+    setInvCheckLoading(true);
+    const token = sessionStorage.getItem('token');
+    axios.get(`${API_URL}/api/orders/${order.id}/inventory-check`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => setInvCheck(res.data))
+      .catch(err => console.error('Error checking inventory:', err))
+      .finally(() => setInvCheckLoading(false));
+  }, [order.id, currentStage, invCheck]);
 
   const parseJSON = (data) => {
     try {
@@ -905,7 +904,11 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           </div>
                         )}
                       </div>
-                    ) : null}
+                    ) : (
+                      <button onClick={handleInventoryCheck} className="w-full py-2.5 rounded-xl bg-blue-600/10 border border-blue-500/20 text-blue-400 text-[9px] font-black uppercase tracking-widest hover:bg-blue-600/20 transition-all">
+                        <Package size={14} className="inline mr-1.5" />Check Inventory
+                      </button>
+                    )}
                     {invCheck && invCheck.report && (
                       <div className="w-full mb-3 p-3 bg-gray-900/40 rounded-xl border border-gray-800">
                         <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Routing Plan</p>

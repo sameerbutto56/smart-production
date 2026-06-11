@@ -1571,7 +1571,12 @@ const bulkRouteOrders = async (req, res) => {
 };
 
 const classifyOrderItems = async (order) => {
-  let parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+  let parsedDetails;
+  try {
+    parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+  } catch {
+    return { inventoryItems: [], productionItems: [] };
+  }
   const items = Array.isArray(parsedDetails) ? parsedDetails : (parsedDetails?.productType ? [parsedDetails] : []);
 
   const inventoryItems = [];
@@ -2024,7 +2029,12 @@ const checkOrderInventory = async (req, res) => {
     const order = await prisma.order.findUnique({ where: { id: orderId } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    let parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+    let parsedDetails;
+    try {
+      parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+    } catch {
+      return res.json({ orderId: order.id, orderNumber: order.orderNumber, report: [], summary: { totalItems: 0, available: 0, insufficient: 0, outOfStock: 0, inventoryItems: 0, productionItems: 0 } });
+    }
     const productsToCheck = [];
 
     if (Array.isArray(parsedDetails)) {
@@ -2055,15 +2065,20 @@ const checkOrderInventory = async (req, res) => {
     // Batch-fetch all inventory items in a single query
     const productTypes = productsToCheck.map(p => p.productType).filter(Boolean);
     const uniqueTypes = [...new Set(productTypes)];
-    const allInvItems = uniqueTypes.length > 0
-      ? await prisma.inventoryItem.findMany({
+    let allInvItems = [];
+    if (uniqueTypes.length > 0) {
+      try {
+        allInvItems = await prisma.inventoryItem.findMany({
           where: {
             category: { not: 'FABRIC' },
             OR: uniqueTypes.map(name => ({ name: { contains: name, mode: 'insensitive' } }))
           },
           select: { id: true, name: true, stock: true, variants: true, category: true }
-        })
-      : [];
+        });
+      } catch (dbErr) {
+        console.error('InventoryItem query failed:', dbErr);
+      }
+    }
 
     for (const prod of productsToCheck) {
       try {
@@ -2138,7 +2153,8 @@ const checkOrderInventory = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ message: 'Error checking inventory', error: error.message });
+    console.error('checkOrderInventory error:', error);
+    res.status(500).json({ message: 'Error checking inventory', error: error.message, stack: error.stack });
   }
 };
 
