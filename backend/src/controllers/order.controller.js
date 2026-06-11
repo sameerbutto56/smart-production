@@ -1872,7 +1872,10 @@ const addOrderToInventory = async (req, res) => {
     }
 
     const io = req.app.get('io');
-    if (io) io.emit('inventory-updated', { source: 'production', orderId });
+    if (io) {
+      io.emit('inventory-updated', { source: 'production', orderId });
+      io.emit('order-updated', { orderId, createdById: order.createdById });
+    }
 
     res.json({ message: 'Products added to inventory successfully', items: addedItems });
   } catch (error) {

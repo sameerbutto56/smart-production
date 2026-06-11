@@ -1058,9 +1058,6 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                     headers: { Authorization: `Bearer ${token}` }
                                   });
                                   toast.success('Inventory updated! Now send to Dispatch.');
-                                  if (typeof onUpdateStage === 'function') {
-                                    onUpdateStage(order.id, currentStage.id, 'refresh', {});
-                                  }
                                 } catch (err) {
                                   alert('Failed: ' + (err.response?.data?.message || err.message));
                                 }
