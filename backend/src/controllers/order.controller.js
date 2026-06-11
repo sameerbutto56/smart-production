@@ -1586,7 +1586,7 @@ const classifyOrderItems = async (order) => {
           category: { not: 'FABRIC' },
           OR: uniqueTypes.map(name => ({ name: { contains: name, mode: 'insensitive' } }))
         },
-        select: { id: true, name: true, isManufactured: true, stock: true, variants: true, category: true }
+        select: { id: true, name: true, stock: true, variants: true, category: true }
       })
     : [];
 
@@ -1598,7 +1598,7 @@ const classifyOrderItems = async (order) => {
     const quantity = item.quantity || 1;
     const invItem = allInvItems.find(inv => inv.name.toLowerCase().includes(productType.toLowerCase()));
 
-    if (invItem && invItem.isManufactured === false) {
+    if (invItem) {
       inventoryItems.push({ productType, quantity, color: pd.color, size: pd.size, inventoryItem: invItem });
     } else {
       productionItems.push({ productType, quantity, color: pd.color, size: pd.size });
@@ -2061,7 +2061,7 @@ const checkOrderInventory = async (req, res) => {
             category: { not: 'FABRIC' },
             OR: uniqueTypes.map(name => ({ name: { contains: name, mode: 'insensitive' } }))
           },
-          select: { id: true, name: true, isManufactured: true, stock: true, variants: true, category: true }
+          select: { id: true, name: true, stock: true, variants: true, category: true }
         })
       : [];
 
@@ -2098,7 +2098,7 @@ const checkOrderInventory = async (req, res) => {
         if (availableQty === 0) status = 'out_of_stock';
         else if (availableQty < prod.quantity) status = 'insufficient';
 
-        const classification = inventoryItem.isManufactured === false ? 'inventory' : 'production';
+        const classification = 'production';
         report.push({
           itemId: inventoryItem.id,
           itemName: inventoryItem.name,
