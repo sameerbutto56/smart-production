@@ -186,7 +186,6 @@ const SmartOrderForm = () => {
     required: 'یہ خانہ لازمی ہے',
     priority: 'ترجیح',
     normal: 'عام',
-    urgent: 'ارجنٹ',
     super_urgent: 'انتہائی اہم'
   };
 
@@ -240,6 +239,7 @@ const SmartOrderForm = () => {
     setEditOrderLoading(true);
     setEditOrderError('');
     setEditOrderData(null);
+    let found = null;
     try {
       const token = sessionStorage.getItem('token');
       const response = await axios.get(`${API_URL}/api/orders`, {
@@ -247,7 +247,7 @@ const SmartOrderForm = () => {
         params: { limit: 'all' }
       });
       const orders = Array.isArray(response.data) ? response.data : [];
-      const found = orders.find(o =>
+      found = orders.find(o =>
         o.orderNumber?.toLowerCase() === editOrderNumber.trim().toLowerCase() ||
         o.id?.toLowerCase() === editOrderNumber.trim().toLowerCase()
       );
@@ -636,7 +636,6 @@ const SmartOrderForm = () => {
         customerPhone: '',
         address: '',
         city: '',
-    city: '',
         type: 'STANDARD',
         priority: 'NORMAL',
         advancePaid: false,

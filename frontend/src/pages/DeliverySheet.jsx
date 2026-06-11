@@ -280,7 +280,6 @@ const DeliverySheet = () => {
                   </tr>
                 ) : (
                   filteredOrders.map((order, idx) => {
-                    let pd = {};
                     let productSummary = 'Standard';
                     try {
                       let raw = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
@@ -290,10 +289,10 @@ const DeliverySheet = () => {
                           return `${p.productType || 'Item'} (${item.quantity || 1})`;
                         }).join(', ');
                       } else if (Array.isArray(raw)) {
-                        pd = raw[0]?.productDetails || raw[0] || {};
+                        const pd = raw[0]?.productDetails || raw[0] || {};
                         productSummary = pd?.productType || 'Standard';
                       } else {
-                        pd = raw || {};
+                        const pd = raw || {};
                         productSummary = pd?.productType || 'Standard';
                       }
                     } catch {}
@@ -467,7 +466,6 @@ const DeliverySheet = () => {
               </tr>
             ) : (
               filteredOrders.map((order, idx) => {
-                let pd = {};
                 let productSummary = 'Standard';
                 try {
                   let raw = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
@@ -477,10 +475,10 @@ const DeliverySheet = () => {
                       return `${p.productType || 'Item'} (${item.quantity || 1})`;
                     }).join(', ');
                   } else if (Array.isArray(raw)) {
-                    pd = raw[0]?.productDetails || raw[0] || {};
+                    const pd = raw[0]?.productDetails || raw[0] || {};
                     productSummary = pd?.productType || 'Standard';
                   } else {
-                    pd = raw || {};
+                    const pd = raw || {};
                     productSummary = pd?.productType || 'Standard';
                   }
                 } catch {}

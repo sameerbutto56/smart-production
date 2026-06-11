@@ -5,6 +5,7 @@ import {
   Users, 
   Clock, 
   AlertTriangle, 
+  AlertCircle,
   ArrowUpRight, 
   Trash2, 
   Lock, 
@@ -125,17 +126,20 @@ const AdminDashboard = () => {
   const [bulkDestination, setBulkDestination] = useState('');
   const [bulkRouting, setBulkRouting] = useState(false);
 
+  const queueRefreshRef = useRef();
+  queueRefreshRef.current = queueRefresh;
+
   useEffect(() => {
-    const onOrderUpdated = () => queueRefresh();
+    const onOrderUpdated = () => queueRefreshRef.current?.();
     const onNewOrder = (order) => {
-      queueRefresh();
+      queueRefreshRef.current?.();
       toast.success(`New Order Received: #${order.orderNumber || order.id.substring(0, 8)}`, {
         icon: '🛍️',
         duration: 5000
       });
     };
     const onStageCompletionRequested = (data) => {
-      queueRefresh();
+      queueRefreshRef.current?.();
       toast.custom((t) => (
         <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-gray-900 shadow-2xl rounded-[1.5rem] pointer-events-auto flex ring-1 ring-emerald-500/50 border border-emerald-500/20 p-4`}>
           <div className="flex-1 w-0 p-1">
@@ -157,10 +161,10 @@ const AdminDashboard = () => {
       ), { duration: 6000 });
     };
     const onPaymentUpdated = (data) => {
-        queueRefresh();
+        queueRefreshRef.current?.();
         toast.success(`Order #${data.orderId?.substring(0, 8)}: Payment ${data.order.paymentStatus}`, { icon: '💰' });
     };
-    const onStageRejected = () => { queueRefresh(); };
+    const onStageRejected = () => { queueRefreshRef.current?.(); };
 
     socket.on('order-updated', onOrderUpdated);
     socket.on('new-order', onNewOrder);
@@ -175,7 +179,7 @@ const AdminDashboard = () => {
       socket.off('payment-updated', onPaymentUpdated);
       socket.off('stage-rejected', onStageRejected);
     };
-  }, [queueRefresh]);
+  }, []);
 
   // Initial data load
   useEffect(() => {
@@ -540,7 +544,7 @@ const AdminDashboard = () => {
       const activeSearch = contextSearch;
       if (!activeSearch) return true;
       const search = activeSearch.toLowerCase();
-      return o.id.toLowerCase().includes(search) || 
+      return o.id?.toLowerCase().includes(search) || 
              (o.orderNumber && o.orderNumber.toLowerCase().includes(search)) || 
              (o.customerName && o.customerName.toLowerCase().includes(search));
     }).sort((a, b) => {
@@ -559,14 +563,14 @@ const AdminDashboard = () => {
       const activeSearch = contextSearch;
       if (!activeSearch) return true;
       const search = activeSearch.toLowerCase();
-      return o.id.toLowerCase().includes(search) || 
+      return o.id?.toLowerCase().includes(search) || 
              (o.orderNumber && o.orderNumber.toLowerCase().includes(search)) || 
              (o.customerName && o.customerName.toLowerCase().includes(search));
     }).sort((a, b) => {
       const activeSearch = contextSearch?.toLowerCase();
       if (activeSearch) {
-        const aMatch = o => o.orderNumber?.toLowerCase().includes(activeSearch) || o.id.toLowerCase().includes(activeSearch);
-        const bMatch = o => o.orderNumber?.toLowerCase().includes(activeSearch) || o.id.toLowerCase().includes(activeSearch);
+        const aMatch = o => o.orderNumber?.toLowerCase().includes(activeSearch) || o.id?.toLowerCase().includes(activeSearch);
+        const bMatch = o => o.orderNumber?.toLowerCase().includes(activeSearch) || o.id?.toLowerCase().includes(activeSearch);
         if (aMatch(a) && !bMatch(b)) return -1;
         if (!aMatch(a) && bMatch(b)) return 1;
       }
@@ -574,7 +578,7 @@ const AdminDashboard = () => {
     })
   , [allOrders, contextSearch]);
 
-  const fetchStoreUnseenTasks = useCallback(async () => {
+  const fetchStoreUnseenTasks = async () => {
     try {
       const token = sessionStorage.getItem('token');
       if (!token) return;
@@ -585,9 +589,9 @@ const AdminDashboard = () => {
     } catch (e) {
       console.error('Failed to fetch store unseen tasks:', e);
     }
-  }, []);
+  };
 
-  const fetchStoreProductionData = useCallback(async () => {
+  const fetchStoreProductionData = async () => {
     try {
       const token = sessionStorage.getItem('token');
       if (!token) return;
@@ -598,7 +602,7 @@ const AdminDashboard = () => {
     } catch (e) {
       console.error('Failed to fetch store production data:', e);
     }
-  }, []);
+  };
 
   const refreshTimerRef = useRef(null);
   const queueRefresh = () => {
@@ -741,7 +745,7 @@ const AdminDashboard = () => {
                 const query = contextSearch.trim().toLowerCase();
                 const found = allOrders.find(o => 
                   o.orderNumber?.toLowerCase().includes(query) || 
-                  o.id.toLowerCase().includes(query) ||
+                  o.id?.toLowerCase().includes(query) ||
                   o.customerName?.toLowerCase().includes(query)
                 );
                 if (found) {
@@ -762,7 +766,7 @@ const AdminDashboard = () => {
             if (!query) return;
             const found = allOrders.find(o => 
               o.orderNumber?.toLowerCase().includes(query) || 
-              o.id.toLowerCase().includes(query) ||
+              o.id?.toLowerCase().includes(query) ||
               o.customerName?.toLowerCase().includes(query)
             );
             if (found) {

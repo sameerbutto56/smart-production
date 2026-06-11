@@ -88,7 +88,7 @@ const History = () => {
   const filteredOrders = orders.filter(o => {
     const matchesSearch = o.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       o.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      o.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       o.customerPhone?.includes(searchTerm);
       
     const userRole = String(user?.role || '').toUpperCase().trim();

@@ -33,14 +33,6 @@ const InventoryManagement = () => {
   const { user, loading: authLoading } = useAuth();
   const { t, LanguageToggle, isUrdu } = useLanguage();
 
-  if (authLoading) {
-    return null;
-  }
-
-  const userRole = String(user?.role || '').toUpperCase().trim();
-  if (user && !['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'STORE'].includes(userRole)) {
-    return <Navigate to="/dashboard" replace={true} />;
-  }
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -58,6 +50,33 @@ const InventoryManagement = () => {
 
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = React.useRef(null);
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      fetchInventory();
+    }
+  }, [authLoading, user]);
+
+  usePolling(async () => {
+    if (authLoading || !user) return;
+    try {
+      const token = sessionStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/api/inventory`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setItems(response.data);
+    } catch (error) {}
+  }, 15000);
+
+  if (authLoading) {
+    return null;
+  }
+
+  const userRole = String(user?.role || '').toUpperCase().trim();
+  if (user && !['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'STORE'].includes(userRole)) {
+    return <Navigate to="/dashboard" replace={true} />;
+  }
 
   const handleFileUpload = async (file) => {
     if (!file) return;
@@ -96,10 +115,6 @@ const InventoryManagement = () => {
     }
   };
 
-  useEffect(() => {
-    fetchInventory();
-  }, []);
-
   const fetchInventory = async () => {
     setLoading(true);
     try {
@@ -113,16 +128,6 @@ const InventoryManagement = () => {
     }
     setLoading(false);
   };
-
-  usePolling(async () => {
-    try {
-      const token = sessionStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/api/inventory`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setItems(response.data);
-    } catch (error) {}
-  }, 15000);
 
   const handleOpenModal = (item = null) => {
     if (item) {
@@ -234,8 +239,6 @@ const InventoryManagement = () => {
       console.error('Error deleting inventory item:', error);
     }
   };
-
-  const fileInputRef = React.useRef(null);
 
   const handleBulkUpload = async (e) => {
     const file = e.target.files[0];

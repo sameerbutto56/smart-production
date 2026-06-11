@@ -47,7 +47,7 @@ const MyTasks = () => {
       toast.success(`Routed ${selectedOrderIds.size} order(s) to ${bulkDestination.replace(/_/g, ' ')}`);
       setSelectedOrderIds(new Set());
       setBulkDestination('');
-      fetchOrders();
+      fetchTasks();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Bulk route failed');
     } finally {
