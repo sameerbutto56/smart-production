@@ -384,6 +384,35 @@ const SmartOrderForm = () => {
     });
   };
 
+  const validateProductConfig = () => {
+    const accessory = isAccessory(selectedProductCategory);
+    
+    // 1. Basic validation (customer details must be present)
+    if (!isOutlet && !formData.orderNumber.trim()) return t('orderNo') + ' ' + t('required');
+    if (!formData.customerName.trim()) return t('customerName') + ' ' + t('required');
+    if (!formData.customerPhone.trim()) return t('customerPhone') + ' ' + t('required');
+    if (formData.type === 'FULL_CUSTOM' && !formData.advancePaid) return 'Advance payment is compulsory for custom orders.';
+
+    // 2. Product validation
+    if (!formData.productType) return 'Please select a Product first.';
+    
+    // 3. Customizations validation
+    if (formData.type !== 'STANDARD') {
+      if (formData.type === 'FULL_CUSTOM' && !formData.stitchingStyle) return 'Please select a Stitch Pattern.';
+      if (formData.type === 'FULL_CUSTOM' && !formData.fitType) return 'Please select a Fit Profile.';
+      
+      // 4. Tailoring measurements validation
+      if (formData.type === 'FULL_CUSTOM' && !accessory) {
+        const m = formData.measurements;
+        if (!m.chest || !m.shoulder || !m.length || !m.sleeve || !m.waist || !m.hips) {
+          return 'All precise measurements are required for custom tailoring.';
+        }
+      }
+    }
+    
+    return null;
+  };
+
   const validateCurrentTab = () => {
     setError('');
     const accessory = isAccessory(selectedProductCategory);
@@ -395,7 +424,7 @@ const SmartOrderForm = () => {
       if (formData.type === 'FULL_CUSTOM' && !formData.advancePaid) return 'Advance payment is compulsory for custom orders.';
     }
     if (activeTab === 'product') {
-      if (!formData.productType && cartItems.length === 0) return 'Please select a Product (Step 1).';
+      if (!formData.productType) return 'Please select a Product.';
     }
     if (activeTab === 'custom') {
       if (formData.type === 'FULL_CUSTOM' && !formData.stitchingStyle) return 'Please select a Stitch Pattern.';
@@ -418,28 +447,10 @@ const SmartOrderForm = () => {
   const [showAddMore, setShowAddMore] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
-  const resetProductFields = () => {
-    setFormData(prev => ({
-      ...prev,
-      quantity: 1,
-      totalPrice: '',
-      logoCharges: '',
-      namePrintingCharges: '',
-      customizationPrice: '',
-      productType: '',
-      fabricType: '',
-      color: '',
-      size: '',
-      logoDesign: '',
-      logoName: '',
-      gender: 'Male',
-      femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: false }
-    }));
-  };
-
   const handleAddToCart = () => {
-    if (!formData.productType) {
-      setError('Please select a Product first.');
+    const validationError = validateProductConfig();
+    if (validationError) {
+      setError(validationError);
       return;
     }
     
@@ -452,7 +463,7 @@ const SmartOrderForm = () => {
       city: formData.city,
       type: formData.type,
       priority: formData.priority,
-      quantity: formData.quantity,
+      quantity: parseInt(formData.quantity) || 1,
       advancePaid: formData.advancePaid,
       logoDesign: formData.logoDesign,
       logoName: formData.logoName,
@@ -484,14 +495,48 @@ const SmartOrderForm = () => {
 
     setCartItems([...cartItems, payload]);
 
-    setShowAddMore(formData.type === 'STANDARD');
-    if (formData.type !== 'STANDARD') {
-      const currentIdx = filteredTabs.findIndex(t => t.id === activeTab);
-      if (currentIdx !== -1 && currentIdx < filteredTabs.length - 1) {
-        resetProductFields();
-        setActiveTab(filteredTabs[currentIdx + 1].id);
-      }
-    }
+    // Completely clear product/customization/measurement fields in formData
+    setFormData(prev => ({
+      ...prev,
+      quantity: 1,
+      totalPrice: '',
+      logoCharges: '',
+      namePrintingCharges: '',
+      customizationPrice: '',
+      productType: '',
+      fabricType: '',
+      color: '',
+      size: '',
+      logoDesign: '',
+      logoName: '',
+      nameSpelling: '',
+      nameColor: '',
+      logoColor: '',
+      logoPlacement: '',
+      stitchingStyle: '',
+      fitType: 'Regular',
+      designNotes: '',
+      designReference: '',
+      additionalFeatures: [],
+      measurements: {
+        chest: '',
+        shoulder: '',
+        length: '',
+        sleeve: '',
+        waist: '',
+        hips: '',
+        shirtLength: '',
+        trouserLength: '',
+        bottom: '',
+        thigh: '',
+        mori: '',
+        ganda: ''
+      },
+      gender: 'Male',
+      femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: false }
+    }));
+
+    setShowAddMore(true);
   };
 
   const removeCartItem = (idx) => {
@@ -535,6 +580,12 @@ const SmartOrderForm = () => {
         sleeve: item.sizeData?.sleeve || '',
         waist: item.sizeData?.waist || '',
         hips: item.sizeData?.hips || '',
+        shirtLength: item.sizeData?.shirtLength || '',
+        trouserLength: item.sizeData?.trouserLength || '',
+        bottom: item.sizeData?.bottom || '',
+        thigh: item.sizeData?.thigh || '',
+        mori: item.sizeData?.mori || '',
+        ganda: item.sizeData?.ganda || ''
       },
     }));
     setShowReview(false);
@@ -542,32 +593,6 @@ const SmartOrderForm = () => {
   };
 
   const handleAddMoreProducts = () => {
-    // Reset product selection but KEEP customer basics
-    setFormData(prev => ({
-      ...prev,
-      quantity: 1,
-      totalPrice: '',
-      logoCharges: '',
-      namePrintingCharges: '',
-      customizationPrice: '',
-      productType: '',
-      fabricType: '',
-      color: '',
-      size: '',
-      logoDesign: '',
-      logoName: '',
-      nameSpelling: '',
-      nameColor: '',
-      logoColor: '',
-      logoPlacement: '',
-      stitchingStyle: '',
-      fitType: 'Regular',
-      designNotes: '',
-      additionalFeatures: [],
-      measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hips: '' },
-      gender: 'Male',
-      femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: false }
-    }));
     setShowAddMore(false);
     setActiveTab('product');
   };
@@ -581,8 +606,6 @@ const SmartOrderForm = () => {
     setError('');
 
     try {
-      // Each item keeps its OWN customization and measurements from add-to-cart
-      // No merging of current formData — preserves per-item integrity
       const finalItems = cartItems.map(item => ({
         productDetails: item.productDetails,
         customization: item.customization || {},
@@ -596,7 +619,6 @@ const SmartOrderForm = () => {
       const totalNamePrintingCharges = cartItems.reduce((s, i) => s + (parseFloat(i.namePrintingCharges) || 0), 0);
       const totalCustomizationPrice = cartItems.reduce((s, i) => s + (parseFloat(i.customizationPrice) || 0), 0);
 
-      // Build ONE single order with all items combined
       const firstItem = cartItems[0];
       const combinedOrder = {
         orderNumber: firstItem.orderNumber,
@@ -612,24 +634,19 @@ const SmartOrderForm = () => {
         logoCharges: totalLogoCharges,
         namePrintingCharges: totalNamePrintingCharges,
         customizationPrice: totalCustomizationPrice,
-        // Items array — all products in this single order
         items: finalItems,
-        // Use first item's product as the primary (for backward compat)
         productDetails: finalItems[0].productDetails,
         customization: finalItems[0].customization,
         sizeData: finalItems[0].sizeData,
-        // Sum totals across all items + branding charges
         quantity: finalItems.reduce((sum, item) => sum + (item.quantity || 1), 0),
-        totalPrice: finalItems.reduce((sum, item) => sum + (item.totalPrice || 0), 0) + totalLogoCharges + totalNamePrintingCharges + totalCustomizationPrice,
+        totalPrice: cartItems.reduce((sum, item) => sum + (parseFloat(item.totalPrice) || 0), 0),
       };
 
-      // Send ONE single API call for the entire order
       await axios.post(`${API_URL}/api/orders`, combinedOrder);
       
       setCartItems([]);
       setSuccess(true);
       
-      // Reset full form
       setFormData({
         orderNumber: '',
         customerName: '',
@@ -654,8 +671,22 @@ const SmartOrderForm = () => {
         stitchingStyle: '',
         fitType: 'Regular',
         designNotes: '',
+        designReference: '',
         additionalFeatures: [],
-        measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hips: '' },
+        measurements: {
+          chest: '',
+          shoulder: '',
+          length: '',
+          sleeve: '',
+          waist: '',
+          hips: '',
+          shirtLength: '',
+          trouserLength: '',
+          bottom: '',
+          thigh: '',
+          mori: '',
+          ganda: ''
+        },
         gender: 'Male',
         femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: false }
       });
@@ -1853,23 +1884,6 @@ const SmartOrderForm = () => {
               </button>
             )}
 
-            {/* Add to Cart button - only on the product selection tab */}
-            {activeTab === 'product' && (
-              <button
-                type="button"
-                onClick={handleAddToCart}
-                disabled={loading || isSubmitting}
-                className="flex-1 sm:px-16 py-6 theme-bg text-blue-400 border-2 border-blue-500/50 rounded-[1.5rem] font-black text-sm shadow-2xl hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all active:scale-95 flex items-center justify-center space-x-4 disabled:opacity-50"
-              >
-                {loading || isSubmitting ? (useUrdu ? 'انتظار کریں...' : 'PROCESSING...') : (
-                  <>
-                    <ShoppingCart size={16} className={useUrdu ? "order-2" : "order-1"} />
-                    <span className={useUrdu ? "order-1" : "order-2"}>{useUrdu ? 'کارٹ میں شامل کریں' : 'ADD TO CART'}</span>
-                  </>
-                )}
-              </button>
-            )}
-            
             {/* NEXT button - for intermediate tabs */}
             {activeTab !== filteredTabs[filteredTabs.length - 1].id && (
               <button
@@ -1880,22 +1894,8 @@ const SmartOrderForm = () => {
                     setError(errMsg);
                     return;
                   }
-                  
-                  // Special behavior for selection tab on logo/custom orders:
-                  // If product selected, automatically add to cart and transition
-                  if (activeTab === 'product' && formData.type !== 'STANDARD') {
-                    if (formData.productType) {
-                      handleAddToCart();
-                    } else if (cartItems.length > 0) {
-                      const currentIdx = filteredTabs.findIndex(t => t.id === activeTab);
-                      setActiveTab(filteredTabs[currentIdx + 1].id);
-                    } else {
-                      setError('Please select a Product first.');
-                    }
-                  } else {
-                    const currentIdx = filteredTabs.findIndex(t => t.id === activeTab);
-                    setActiveTab(filteredTabs[currentIdx + 1].id);
-                  }
+                  const currentIdx = filteredTabs.findIndex(t => t.id === activeTab);
+                  setActiveTab(filteredTabs[currentIdx + 1].id);
                 }}
                 className="flex-1 sm:px-16 py-6 bg-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl shadow-blue-900/50 hover:bg-blue-500 hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 group"
               >
@@ -1904,8 +1904,25 @@ const SmartOrderForm = () => {
               </button>
             )}
 
-            {/* SUBMIT ORDER button - on the last tab */}
-            {(activeTab === filteredTabs[filteredTabs.length - 1].id && (formData.type !== 'STANDARD' || cartItems.length > 0)) && (
+            {/* Add to Cart button - only on the last tab */}
+            {activeTab === filteredTabs[filteredTabs.length - 1].id && (
+              <button
+                type="button"
+                onClick={handleAddToCart}
+                disabled={loading || isSubmitting}
+                className="flex-1 sm:px-16 py-6 theme-bg text-blue-400 border-2 border-blue-500/50 rounded-[1.5rem] font-black text-sm shadow-2xl hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all active:scale-95 flex items-center justify-center space-x-4 disabled:opacity-50"
+              >
+                {loading || isSubmitting ? (useUrdu ? 'انتظار کریں...' : 'PROCESSING...') : (
+                  <>
+                    <ShoppingCart size={16} className={useUrdu ? "order-2" : "order-1"} />
+                    <span className={useUrdu ? "order-1" : "order-2"}>{useUrdu ? 'کارٹ میں شامل کریں' : 'ADD ITEM TO CART'}</span>
+                  </>
+                )}
+              </button>
+            )}
+
+            {/* CHECKOUT button - only on the last tab when cart has items */}
+            {activeTab === filteredTabs[filteredTabs.length - 1].id && cartItems.length > 0 && (
               <button
                 type="button"
                 onClick={() => setShowReview(true)}
@@ -1913,7 +1930,7 @@ const SmartOrderForm = () => {
                 className="flex-1 sm:px-16 py-6 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 group disabled:opacity-50"
               >
                 <CheckCircle2 size={16} />
-                <span>{useUrdu ? 'آرڈر جمع کرائیں' : 'SUBMIT ORDER'}</span>
+                <span>{useUrdu ? 'آرڈر چیک آؤٹ کریں' : 'CHECKOUT'}</span>
               </button>
             )}
           </div>
@@ -1946,34 +1963,19 @@ const SmartOrderForm = () => {
                   className="w-full py-5 bg-blue-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-blue-900/50 hover:bg-blue-500 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3"
                 >
                   <Plus size={16} />
-                  <span>{useUrdu ? 'مزید پروڈکٹس شامل کریں' : 'ADD MORE PRODUCTS'}</span>
+                  <span>{useUrdu ? 'دوسری پروڈکٹ شامل کریں' : 'ADD ANOTHER PRODUCT'}</span>
                 </button>
                 
-                {activeTab !== filteredTabs[filteredTabs.length - 1].id ? (
-                  <button
-                    onClick={() => {
-                      setShowAddMore(false);
-                      const currentIdx = filteredTabs.findIndex(t => t.id === activeTab);
-                      setActiveTab(filteredTabs[currentIdx + 1].id);
-                    }}
-                    className="w-full py-5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-indigo-900/50 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3"
-                  >
-                    <ArrowRight size={16} />
-                    <span>{useUrdu ? 'اگلے مرحلے پر جائیں' : 'PROCEED TO NEXT STEP'}</span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => {
-                      setShowAddMore(false);
-                      setShowReview(true);
-                    }}
-                    disabled={loading || isSubmitting}
-                    className="w-full py-5 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-emerald-900/50 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3 disabled:opacity-50"
-                  >
-                    <CheckCircle2 size={16} />
-                    <span>{useUrdu ? 'آرڈر جمع کرائیں' : 'CHECKOUT ORDER'}</span>
-                  </button>
-                )}
+                <button
+                  onClick={() => {
+                    setShowAddMore(false);
+                    setShowReview(true);
+                  }}
+                  className="w-full py-5 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-emerald-900/50 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3"
+                >
+                  <CheckCircle2 size={16} />
+                  <span>{useUrdu ? 'آرڈر چیک آؤٹ کریں' : 'CHECKOUT'}</span>
+                </button>
               </div>
             </motion.div>
           </div>
