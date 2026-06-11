@@ -1846,4 +1846,4 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   );
 };
 
-export default OrderCard;
+export default React.memo(OrderCard);

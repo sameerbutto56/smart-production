@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { 
   BarChart3, 
@@ -127,19 +127,12 @@ const AdminDashboard = () => {
     fetchPauseStatus();
     fetchStoreUnseenTasks();
 
-    socket.on('order-updated', (data) => {
-      fetchDashboardData();
-      fetchAnalytics();
-      fetchStoreUnseenTasks();
-      if (data?.paymentStatus) {
-        toast.success(`Payment updated: ${data.paymentStatus}`);
-      }
+    socket.on('order-updated', () => {
+      queueRefresh();
     });
 
     socket.on('new-order', (order) => {
-      fetchDashboardData();
-      fetchAnalytics();
-      fetchStoreUnseenTasks();
+      queueRefresh();
       toast.success(`New Order Received: #${order.orderNumber || order.id.substring(0, 8)}`, {
         icon: '🛍️',
         duration: 5000
@@ -147,9 +140,7 @@ const AdminDashboard = () => {
     });
 
     socket.on('stage-completion-requested', (data) => {
-      fetchDashboardData();
-      fetchAnalytics();
-      fetchStoreUnseenTasks();
+      queueRefresh();
       toast.custom((t) => (
         <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-gray-900 shadow-2xl rounded-[1.5rem] pointer-events-auto flex ring-1 ring-emerald-500/50 border border-emerald-500/20 p-4`}>
           <div className="flex-1 w-0 p-1">
@@ -172,14 +163,12 @@ const AdminDashboard = () => {
     });
 
     socket.on('payment-updated', (data) => {
-        fetchDashboardData();
-        fetchStoreUnseenTasks();
+        queueRefresh();
         toast.success(`Order #${data.orderId?.substring(0, 8)}: Payment ${data.order.paymentStatus}`, { icon: '💰' });
     });
 
     socket.on('stage-rejected', () => {
-      fetchDashboardData();
-      fetchStoreUnseenTasks();
+      queueRefresh();
     });
 
     // Polling fallback every 15 seconds
@@ -440,6 +429,8 @@ const AdminDashboard = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       fetchDashboardData();
+      fetchAnalytics();
+      fetchStoreUnseenTasks();
     } catch (error) {
       console.error(`Error performing ${action}:`, error);
       alert(error.response?.data?.message || 'Action failed');
@@ -514,7 +505,7 @@ const AdminDashboard = () => {
         if (aMatch(a) && !bMatch(b)) return -1;
         if (!aMatch(a) && bMatch(b)) return 1;
       }
-      return new Date(b.createdAt) - new Date(a.createdAt);
+      return new Date(a.createdAt) - new Date(b.createdAt);
     })
   , [allOrders, contextSearch]);
 
@@ -530,6 +521,17 @@ const AdminDashboard = () => {
       console.error('Failed to fetch store unseen tasks:', e);
     }
   }, []);
+
+  const refreshTimerRef = useRef(null);
+  const queueRefresh = () => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      refreshTimerRef.current = null;
+      fetchDashboardData();
+      fetchAnalytics();
+      fetchStoreUnseenTasks();
+    }, 400);
+  };
 
   const activeOrdersCount = useMemo(() => 
     allOrders.filter(o => o.status !== 'COMPLETED').length

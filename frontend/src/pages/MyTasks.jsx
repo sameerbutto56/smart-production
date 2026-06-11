@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import OrderCard from '../components/OrderCard';
@@ -64,15 +64,24 @@ const MyTasks = () => {
     }
   };
 
+  const taskTimerRef = useRef(null);
+  const queueTaskRefresh = () => {
+    if (taskTimerRef.current) clearTimeout(taskTimerRef.current);
+    taskTimerRef.current = setTimeout(() => {
+      taskTimerRef.current = null;
+      fetchTasks();
+    }, 400);
+  };
+
   useEffect(() => {
     fetchTasks();
 
     socket.on('order-updated', () => {
-      fetchTasks();
+      queueTaskRefresh();
     });
 
     socket.on('stage-rejected', (data) => {
-      fetchTasks();
+      queueTaskRefresh();
       toast.error(`Task Rejected: Order #${data.orderId.substring(0, 8)}`, {
         duration: 8000,
         icon: <AlertCircle className="text-red-500" />
@@ -80,15 +89,15 @@ const MyTasks = () => {
     });
 
     socket.on('new-order', () => {
-      fetchTasks();
+      queueTaskRefresh();
     });
 
     socket.on('stage-completion-requested', () => {
-      fetchTasks();
+      queueTaskRefresh();
     });
 
     socket.on('payment-updated', () => {
-      fetchTasks();
+      queueTaskRefresh();
     });
 
     // Polling fallback every 15 seconds

@@ -14,7 +14,7 @@ const sortByPriority = (orders) => {
     const pa = PRIORITY_ORDER[a.priority] ?? 2;
     const pb = PRIORITY_ORDER[b.priority] ?? 2;
     if (pa !== pb) return pa - pb;
-    return new Date(b.createdAt) - new Date(a.createdAt);
+    return new Date(a.createdAt) - new Date(b.createdAt);
   });
 };
 
@@ -2059,12 +2059,12 @@ const getUnseenOrders = async (req, res) => {
     const unseen = orders.filter(o => !seenOrderIds.has(`${o.id}-${o.currentStage}`));
     const seen = orders.filter(o => seenOrderIds.has(`${o.id}-${o.currentStage}`));
 
-    // Sort by priority then creation date
+    // Sort by priority then creation date (FIFO: oldest first)
     const sortOrders = (list) => list.sort((a, b) => {
       const pa = PRIORITY_ORDER[a.priority] ?? 2;
       const pb = PRIORITY_ORDER[b.priority] ?? 2;
       if (pa !== pb) return pa - pb;
-      return new Date(b.createdAt) - new Date(a.createdAt);
+      return new Date(a.createdAt) - new Date(b.createdAt);
     });
 
     res.json({ unseen: sortOrders(unseen), seen: sortOrders(seen) });
