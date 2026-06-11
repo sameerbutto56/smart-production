@@ -1950,9 +1950,14 @@ const manualRouteOrder = async (req, res) => {
       data: { orderId, stageName: destinationStage, status: 'PENDING', deadlineAt: deadline }
     });
 
+    const isStoreRoutingBack = ['STORE', 'STORE_EMPLOYEE'].includes(req.user.role) && destinationStage !== 'DISPATCH';
     await prisma.order.update({
       where: { id: orderId },
-      data: { currentStage: destinationStage, status: 'IN_PROGRESS' }
+      data: {
+        currentStage: destinationStage,
+        status: 'IN_PROGRESS',
+        ...(isStoreRoutingBack ? { storeRequested: true, storeRequestedAt: new Date() } : {})
+      }
     });
 
     // Record routing history
@@ -2073,6 +2078,48 @@ const getUnseenOrders = async (req, res) => {
   }
 };
 
+// ====== STORE REQUESTS ======
+const getStoreRequests = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    // Determine which source orders to return based on user role
+    const isOutlet = userRole === 'OUTLET';
+    const outletName = isOutlet ? req.user.name : undefined;
+
+    const orders = await prisma.order.findMany({
+      where: {
+        storeRequested: true,
+        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] },
+        ...(isOutlet ? { source: 'OUTLET', outletName } : { source: { in: ['INTERNAL', 'ONLINE'] } })
+      },
+      include: {
+        stages: { orderBy: { createdAt: 'desc' } },
+        createdBy: { select: { name: true } }
+      },
+      orderBy: { storeRequestedAt: 'desc' }
+    });
+
+    // Seen/unseen split
+    const seenRecords = await prisma.seenTask.findMany({
+      where: {
+        userId,
+        orderId: { in: orders.map(o => o.id) },
+        stageName: { in: orders.map(o => o.currentStage) }
+      }
+    });
+    const seenOrderIds = new Set(seenRecords.map(r => `${r.orderId}-${r.stageName}`));
+
+    const unseen = orders.filter(o => !seenOrderIds.has(`${o.id}-${o.currentStage}`));
+    const seen = orders.filter(o => seenOrderIds.has(`${o.id}-${o.currentStage}`));
+
+    res.json({ unseen, seen });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching store requests', error: error.message });
+  }
+};
+
 // ====== ROUTING HISTORY ======
 const getRoutingHistory = async (req, res) => {
   const { orderId } = req.params;
@@ -2138,5 +2185,6 @@ module.exports = {
   manualRouteOrder,
   markOrderAsSeen,
   getUnseenOrders,
-  getRoutingHistory
+  getRoutingHistory,
+  getStoreRequests
 };

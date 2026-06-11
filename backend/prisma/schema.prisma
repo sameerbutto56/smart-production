@@ -66,6 +66,8 @@ model Order {
   courierDetails  Json?
   dispatchStatus  String       @default("PENDING")
   deliveryType    String?
+  storeRequested  Boolean      @default(false)
+  storeRequestedAt DateTime?
   // Revenue / Cost tracking fields
   productCost      Float?     @default(0)
   logoCharges      Float?     @default(0)

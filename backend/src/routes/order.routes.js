@@ -24,7 +24,8 @@ const {
   manualRouteOrder,
   markOrderAsSeen,
   getUnseenOrders,
-  getRoutingHistory
+  getRoutingHistory,
+  getStoreRequests
 } = require('../controllers/order.controller');
 const { createEditRequest } = require('../controllers/editRequest.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
@@ -94,6 +95,7 @@ router.post('/:orderId/route', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 
 // Seen/Unseen
 router.post('/:orderId/mark-seen', authenticate, markOrderAsSeen);
 router.get('/unseen-tasks', authenticate, getUnseenOrders);
+router.get('/store-requests', authenticate, getStoreRequests);
 
 // Routing History
 router.get('/:orderId/routing-history', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'FAISAL']), getRoutingHistory);
