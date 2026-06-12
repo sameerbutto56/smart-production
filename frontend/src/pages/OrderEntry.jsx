@@ -20,6 +20,7 @@ import {
   ShoppingCart,
   Plus,
   ArrowRight,
+  ArrowLeft,
   Sparkles,
   AlertCircle,
   Trash2,
@@ -2589,7 +2590,7 @@ const SmartOrderForm = () => {
                 </button>
               )}
 
-              {/* Add to Cart button - only on the last tab */}
+              {/* Add to Cart / Add to Request button - only on the last tab */}
               {activeTab === filteredTabs[filteredTabs.length - 1].id && (
                 <button
                   type="button"
@@ -2599,36 +2600,24 @@ const SmartOrderForm = () => {
                 >
                   {loading || isSubmitting ? (useUrdu ? 'انتظار کریں...' : 'PROCESSING...') : (
                     <>
-                      <ShoppingCart size={16} className={useUrdu ? "order-2" : "order-1"} />
-                      <span className={useUrdu ? "order-1" : "order-2"}>{useUrdu ? 'کارٹ میں شامل کریں' : 'ADD ITEM TO CART'}</span>
+                      {isEditMode ? <Plus size={16} className={useUrdu ? "order-2" : "order-1"} /> : <ShoppingCart size={16} className={useUrdu ? "order-2" : "order-1"} />}
+                      <span className={useUrdu ? "order-1" : "order-2"}>{isEditMode ? (useUrdu ? 'درخواست میں شامل کریں' : 'ADD TO REQUEST') : (useUrdu ? 'کارٹ میں شامل کریں' : 'ADD ITEM TO CART')}</span>
                     </>
                   )}
                 </button>
               )}
 
-              {/* CHECKOUT button - only on the last tab when cart has items */}
-              {activeTab === filteredTabs[filteredTabs.length - 1].id && cartItems.length > 0 && (
-                isEditMode ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowEditReview(true)}
-                    disabled={loading || isSubmitting}
-                    className="flex-1 sm:px-16 py-6 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 group disabled:opacity-50"
-                  >
-                    <FileEdit size={16} />
-                    <span>{useUrdu ? 'تبدیلی کا جائزہ لیں' : 'REVIEW EDIT REQUEST'}</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setShowReview(true)}
-                    disabled={loading || isSubmitting}
-                    className="flex-1 sm:px-16 py-6 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 group disabled:opacity-50"
-                  >
-                    <CheckCircle2 size={16} />
-                    <span>{useUrdu ? 'آرڈر چیک آؤٹ کریں' : 'CHECKOUT'}</span>
-                  </button>
-                )
+              {/* CHECKOUT button - only on the last tab when cart has items (not in edit mode) */}
+              {activeTab === filteredTabs[filteredTabs.length - 1].id && cartItems.length > 0 && !isEditMode && (
+                <button
+                  type="button"
+                  onClick={() => setShowReview(true)}
+                  disabled={loading || isSubmitting}
+                  className="flex-1 sm:px-16 py-6 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 group disabled:opacity-50"
+                >
+                  <CheckCircle2 size={16} />
+                  <span>{useUrdu ? 'آرڈر چیک آؤٹ کریں' : 'CHECKOUT'}</span>
+                </button>
               )}
             </div>
           </div>
@@ -2649,10 +2638,10 @@ const SmartOrderForm = () => {
                 <CheckCircle2 size={48} className="text-emerald-400" />
               </div>
               <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight mb-2">
-                {useUrdu ? 'پروڈکٹ کارٹ میں شامل ہو گئی!' : 'Added to Cart!'}
+                {isEditMode ? (useUrdu ? 'پروڈکٹ شامل ہو گئی!' : 'Product Added!') : (useUrdu ? 'پروڈکٹ کارٹ میں شامل ہو گئی!' : 'Added to Cart!')}
               </h2>
               <p className="theme-text-muted text-xs font-bold uppercase tracking-widest mb-8">
-                {cartItems.length} {cartItems.length === 1 ? 'item' : 'items'} in cart
+                {isEditMode ? `${cartItems.length} ${cartItems.length === 1 ? 'product' : 'products'} in request` : `${cartItems.length} ${cartItems.length === 1 ? 'item' : 'items'} in cart`}
               </p>
               
               <div className="space-y-4">
@@ -2689,7 +2678,8 @@ const SmartOrderForm = () => {
         
       </AnimatePresence>
 
-      {/* Floating Cart Panel & FAB */}
+      {/* Floating Cart Panel & FAB (hidden in edit mode) */}
+      {!isEditMode && (<>
       <AnimatePresence>
         {cartItems.length > 0 && !isCartOpen && (
           <motion.button
@@ -2781,7 +2771,8 @@ const SmartOrderForm = () => {
           </motion.div>
         )}
       </AnimatePresence>
-
+      </>)}
+      
       {success && (
         <motion.div 
           initial={{ opacity: 0, y: 100 }}
