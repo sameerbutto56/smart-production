@@ -52,10 +52,7 @@ const AllOrders = () => {
   const [filterUrgent, setFilterUrgent] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [isGroupedView, setIsGroupedView] = useState(false);
-  const [orderSubTab, setOrderSubTab] = useState('all');
-  const [unseenData, setUnseenData] = useState(null);
-  const [storeRequestsData, setStoreRequestsData] = useState(null);
-  const [srLoading, setSrLoading] = useState(false);
+  
   const { t, LanguageToggle, isUrdu } = useLanguage();
   const location = useLocation();
 
@@ -87,21 +84,16 @@ const AllOrders = () => {
       if (location.state.searchTerm) setSearchTerm(location.state.searchTerm);
     }
     fetchOrders();
-    fetchUnseenData();
-    fetchStoreRequests();
 
     const onOrderUpdated = (data) => {
       if (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || data?.createdById === user?.id) {
         fetchOrders();
-        fetchUnseenData();
-        fetchStoreRequests();
       }
     };
 
     const onNewOrder = (order) => {
       if (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || order?.createdById === user?.id) {
         fetchOrders();
-        fetchUnseenData();
         toast(`New order created: #${order.orderNumber || order.id.substring(0,8)}`, { icon: '📦' });
       }
     };
@@ -129,32 +121,6 @@ const AllOrders = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const fetchUnseenData = async () => {
-    try {
-      const token = sessionStorage.getItem('token');
-      const res = await axios.get(`${API_URL}/api/orders/unseen-tasks`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setUnseenData(res.data);
-    } catch (e) {
-      console.error('Failed to fetch unseen tasks:', e);
-    }
-  };
-
-  const fetchStoreRequests = async () => {
-    setSrLoading(true);
-    try {
-      const token = sessionStorage.getItem('token');
-      const res = await axios.get(`${API_URL}/api/orders/store-requests`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setStoreRequestsData(res.data);
-    } catch (e) {
-      console.error('Failed to fetch store requests:', e);
-    }
-    setSrLoading(false);
   };
 
   const handleSendForDelivery = async (orderId) => {
@@ -324,155 +290,14 @@ const AllOrders = () => {
       </div>
 
       <div className="flex gap-2 mb-2">
-        <button
-          onClick={() => setOrderSubTab('all')}
-          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all ${
-            orderSubTab === 'all'
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
-              : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
-          }`}
-        >
+        <div className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest bg-blue-600 text-white shadow-lg shadow-blue-900/40">
           <Package size={13} />
           All Orders
           <span className="ml-1 px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded text-[9px] font-black">{orders.length}</span>
-        </button>
-        <button
-          onClick={() => setOrderSubTab('unseen')}
-          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all ${
-            orderSubTab === 'unseen'
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
-              : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
-          }`}
-        >
-          <Package size={13} />
-          Unseen Tasks
-          {unseenData && (
-            <span className="ml-1 px-1.5 py-0.5 bg-orange-500/20 text-orange-400 rounded text-[9px] font-black">
-              {unseenData.unseen.filter(o => o.currentStage !== 'STORE_RECEIVE').length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setOrderSubTab('seen')}
-          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all ${
-            orderSubTab === 'seen'
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
-              : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
-          }`}
-        >
-          <Package size={13} />
-          Seen Tasks
-          {unseenData && (
-            <span className="ml-1 px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded text-[9px] font-black">
-              {unseenData.seen.filter(o => o.currentStage !== 'STORE_RECEIVE').length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setOrderSubTab('store-requests')}
-          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all ${
-            orderSubTab === 'store-requests'
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
-              : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
-          }`}
-        >
-          <RefreshCcw size={13} />
-          Store Requests
-          {storeRequestsData && (
-            <span className="ml-1 px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded text-[9px] font-black">
-              {storeRequestsData.unseen.length + storeRequestsData.seen.length}
-            </span>
-          )}
-        </button>
+        </div>
       </div>
 
-      {orderSubTab === 'store-requests' ? (
-        <div className="space-y-4">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-purple-500/10 rounded-xl">
-              <RefreshCcw className="text-purple-400" size={18} />
-            </div>
-            <div>
-              <h3 className="text-lg font-black theme-text-primary uppercase tracking-tight">Store Requests</h3>
-              <p className="theme-text-muted text-xs md:text-sm font-bold uppercase tracking-widest">Orders returned by Store department</p>
-            </div>
-          </div>
-          {srLoading ? (
-            <div className="text-center py-12">
-              <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-4" />
-              <p className="theme-text-muted text-xs font-black uppercase">Loading store requests...</p>
-            </div>
-          ) : storeRequestsData && (storeRequestsData.unseen.length + storeRequestsData.seen.length) > 0 ? (
-            <div className="space-y-4">
-              {/* Unseen Store Requests */}
-              {storeRequestsData.unseen.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-black text-orange-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
-                    Unseen ({storeRequestsData.unseen.length})
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {storeRequestsData.unseen.map(order => (
-                      <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={fetchOrders} isUnseen onMarkSeen={fetchStoreRequests} />
-                    ))}
-                  </div>
-                </div>
-              )}
-              {/* Seen Store Requests */}
-              {storeRequestsData.seen.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
-                    Seen ({storeRequestsData.seen.length})
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {storeRequestsData.seen.map(order => (
-                      <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={fetchOrders} />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-center py-16 glass rounded-2xl theme-border">
-              <RefreshCcw className="mx-auto theme-text-muted mb-4" size={48} />
-              <h3 className="theme-text-muted font-black uppercase">No store requests</h3>
-              <p className="text-gray-600 text-xs font-bold mt-2">Orders returned by Store will appear here</p>
-            </div>
-          )}
-        </div>
-      ) : orderSubTab === 'unseen' || orderSubTab === 'seen' ? (
-        <div className="space-y-4">
-          {unseenData ? (
-            <div className="space-y-4">
-              {(() => {
-                const items = orderSubTab === 'unseen' ? unseenData.unseen.filter(o => o.currentStage !== 'STORE_RECEIVE') : unseenData.seen.filter(o => o.currentStage !== 'STORE_RECEIVE');
-                if (items.length === 0) {
-                  return (
-                    <div className="text-center py-16 glass rounded-2xl theme-border">
-                      <Package className="mx-auto theme-text-muted mb-4" size={48} />
-                      <h3 className="theme-text-muted font-black uppercase">{orderSubTab === 'unseen' ? 'No unseen tasks' : 'No seen tasks'}</h3>
-                    </div>
-                  );
-                }
-                return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {items.map(order => (
-                      <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={fetchOrders} isUnseen={orderSubTab === 'unseen'} onMarkSeen={fetchUnseenData} />
-                    ))}
-                  </div>
-                );
-              })()}
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-4" />
-              <p className="theme-text-muted text-xs font-black uppercase">Loading tasks...</p>
-            </div>
-          )}
-        </div>
-      ) : (
-        <>
+      
         <div className="flex flex-col md:flex-row gap-4">
         <div className="flex-1 max-w-2xl relative">
           <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 theme-text-muted" size={18} />
@@ -1134,8 +959,6 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
           </div>
         );
       })()}
-      </>
-    )}
     </div>
   );
 };

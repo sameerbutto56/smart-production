@@ -10,7 +10,8 @@ import {
   DollarSign, 
   Layers, 
   CheckCircle, 
-  AlertCircle 
+  AlertCircle,
+  Truck 
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -30,6 +31,7 @@ const DeliverySheet = () => {
   const [actionLoading, setActionLoading] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [deliveryMethodFilter, setDeliveryMethodFilter] = useState('ALL');
 
   useEffect(() => {
     fetchOrders();
@@ -86,6 +88,13 @@ const DeliverySheet = () => {
         if (dispatchDate !== selectedDate) return false;
       }
 
+      // Filter by delivery method
+      if (deliveryMethodFilter !== 'ALL') {
+        let method = (order.deliveryMethod || order.deliveryType || '').toUpperCase();
+        if (method === 'ENAMELS_DELIVERY') method = 'ENAMELS';
+        if (method !== deliveryMethodFilter) return false;
+      }
+
       // Search term
       if (searchTerm) {
         const query = searchTerm.toLowerCase();
@@ -97,7 +106,7 @@ const DeliverySheet = () => {
 
       return true;
     });
-  }, [orders, selectedDate, searchTerm]);
+  }, [orders, selectedDate, searchTerm, deliveryMethodFilter]);
 
   // Calculations for bottom summaries
   const summary = useMemo(() => {
@@ -119,6 +128,29 @@ const DeliverySheet = () => {
 
     return { totalCash, totalOnline, totalAmount };
   }, [filteredOrders]);
+
+  const deliveryMethods = useMemo(() => {
+    const methods = new Set();
+    orders.forEach(o => {
+      let m = (o.deliveryMethod || o.deliveryType || '').toUpperCase();
+      if (!m) return;
+      if (m === 'ENAMELS_DELIVERY') m = 'ENAMELS';
+      methods.add(m);
+    });
+    return Array.from(methods).sort();
+  }, [orders]);
+
+  const methodCounts = useMemo(() => {
+    const counts = {};
+    deliveryMethods.forEach(m => {
+      counts[m] = orders.filter(o => {
+        let method = (o.deliveryMethod || o.deliveryType || '').toUpperCase();
+        if (method === 'ENAMELS_DELIVERY') method = 'ENAMELS';
+        return method === m;
+      }).length;
+    });
+    return counts;
+  }, [orders, deliveryMethods]);
 
   const handlePrint = () => {
     window.print();
@@ -246,6 +278,34 @@ const DeliverySheet = () => {
             <span>Print Sheet</span>
           </button>
         </div>
+      </div>
+
+      {/* Delivery Method Filter Tabs */}
+      <div className="flex flex-wrap items-center gap-1.5 md:gap-2 px-1">
+        <button
+          onClick={() => setDeliveryMethodFilter('ALL')}
+          className={`px-3 py-1.5 rounded-lg text-[9px] md:text-xs font-black uppercase tracking-wider transition-all border ${
+            deliveryMethodFilter === 'ALL'
+              ? 'bg-yellow-500 text-black border-yellow-500 shadow-lg shadow-yellow-500/20'
+              : 'theme-bg-subtle theme-border theme-text-secondary hover:text-white hover:border-yellow-500/50'
+          }`}
+        >
+          All ({filteredOrders.length})
+        </button>
+        {deliveryMethods.map(method => (
+          <button
+            key={method}
+            onClick={() => setDeliveryMethodFilter(method)}
+            className={`px-3 py-1.5 rounded-lg text-[9px] md:text-xs font-black uppercase tracking-wider transition-all border ${
+              deliveryMethodFilter === method
+                ? 'bg-yellow-500 text-black border-yellow-500 shadow-lg shadow-yellow-500/20'
+                : 'theme-bg-subtle theme-border theme-text-secondary hover:text-white hover:border-yellow-500/50'
+            }`}
+          >
+            <Truck size={11} className="mr-0.5 inline-block" />
+            {method} ({methodCounts[method] || 0})
+          </button>
+        ))}
       </div>
 
       {/* Main Grid View */}
