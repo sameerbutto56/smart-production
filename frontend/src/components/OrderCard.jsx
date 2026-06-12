@@ -628,7 +628,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 <CheckCircle size={14} className="text-blue-300" />
                 <span>📥 ACCEPT TASK & START WORK</span>
               </button>
-            ) : isUnseen && isAdmin ? (
+            ) : isUnseen && isAdmin && currentStage?.stageName === 'STORE' ? (
               <div className="space-y-2">
                 <label className="text-[8px] font-black text-amber-400 uppercase tracking-widest flex items-center gap-1.5">
                   Move Order To
@@ -640,12 +640,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   onChange={(e) => setNextStage(e.target.value)}
                 >
                   <option value="">Select destination...</option>
-                  <option value="STORE">Store</option>
                   <option value="LOGO_DESIGN">Logo Design</option>
                   <option value="PRODUCTION">Production</option>
-                  <option value="STORE_RECEIVE">Store (Production Receive)</option>
                   <option value="DISPATCH">Dispatch</option>
-                  <option value="OUT_FOR_DELIVERY">Out for Delivery</option>
                   <option value="ORDER_ENTRY">Order Entry</option>
                   <option disabled className="text-gray-600">──────────</option>
                   <option value="HOLD">Hold / Pending</option>
@@ -685,6 +682,15 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   {nextStage ? `MOVE TO ${nextStage.replace(/_/g, ' ')}` : 'SELECT DESTINATION'}
                 </button>
               </div>
+            ) : isUnseen && isAdmin ? (
+              // Auto-mark seen for admin on non-STORE unseen orders
+              <button
+                onClick={onMarkSeen}
+                className="w-full bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600 text-white py-3 md:py-4 rounded-2xl text-[9px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 border border-gray-600/30"
+              >
+                <CheckCircle size={14} />
+                <span>VIEW ORDER</span>
+              </button>
             ) : isFaisal && order.status === 'ON_HOLD' ? (
               <button
                 onClick={() => handleHoldAction(true)}

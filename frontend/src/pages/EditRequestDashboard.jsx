@@ -160,13 +160,44 @@ const EditRequestDashboard = () => {
       if (Array.isArray(pd)) {
         pd.forEach(item => {
           const d = item.productDetails || item;
-          items.push({ name: d.productType || '', color: d.color || '', size: d.size || '', qty: item.quantity || 1 });
+          const cust = item.customization || {};
+          items.push({
+            name: d.productType || '',
+            color: d.color || '',
+            size: d.size || '',
+            fabricType: d.fabricType || '',
+            gender: d.gender || '',
+            qty: item.quantity || 1,
+            totalPrice: item.totalPrice || 0,
+            nameSpelling: cust.nameSpelling || '',
+            stitchingStyle: cust.stitchingStyle || '',
+            fitType: cust.fitType || '',
+            logoDesign: cust.logoDesign || item.logoDesign || ''
+          });
         });
       } else if (pd?.productType) {
-        items.push({ name: pd.productType, color: pd.color || '', size: pd.size || '', qty: 1 });
+        const cust = parseJSON(pd.customization) || {};
+        items.push({
+          name: pd.productType,
+          color: pd.color || '',
+          size: pd.size || '',
+          fabricType: pd.fabricType || '',
+          gender: pd.gender || '',
+          qty: data?.quantity || 1,
+          totalPrice: pd.totalPrice || 0,
+          nameSpelling: cust.nameSpelling || '',
+          stitchingStyle: cust.stitchingStyle || '',
+          fitType: cust.fitType || '',
+          logoDesign: cust.logoDesign || ''
+        });
       }
     } catch {}
     return items;
+  };
+
+  const parseJSON = (data) => {
+    try { return typeof data === 'string' ? JSON.parse(data) : data; }
+    catch { return {}; }
   };
 
   return (
@@ -407,44 +438,147 @@ const EditRequestDashboard = () => {
                         </div>
 
 
-                        {/* Old vs New */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <div className="theme-bg rounded-xl p-3 border border-red-500/20">
-                            <p className="text-[8px] font-black text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                              <span className="w-1 h-1 rounded-full bg-red-400" /> Old Item(s)
-                            </p>
-                            {oldItems.length > 0 ? oldItems.map((p, i) => (
-                              <div key={i} className="flex items-center gap-2 py-1.5 border-b border-red-500/10 last:border-0">
-                                <span className="text-[9px] font-black text-red-400 w-4">{i + 1}.</span>
-                                <div>
-                                  <p className="text-[10px] font-bold theme-text-primary">{p.name}</p>
-                                  {(p.color || p.size) && (
-                                    <p className="text-[8px] font-medium theme-text-muted">
-                                      {[p.color, p.size].filter(Boolean).join(' / ')} × {p.qty}
-                                    </p>
-                                  )}
+                        {/* Customer Info Changes */}
+                        {(() => {
+                          const rc = req.requestedChanges || {};
+                          const order = req.order || {};
+                          const customerFields = [
+                            { label: 'Customer', field: 'customerName', oldVal: order.customerName, newVal: rc.customerName },
+                            { label: 'Phone', field: 'customerPhone', oldVal: order.customerPhone, newVal: rc.customerPhone },
+                            { label: 'Address', field: 'address', oldVal: order.address, newVal: rc.address },
+                            { label: 'City', field: 'city', oldVal: order.city, newVal: rc.city },
+                            { label: 'Type', field: 'type', oldVal: order.type, newVal: rc.type },
+                            { label: 'Priority', field: 'priority', oldVal: order.priority, newVal: rc.priority },
+                            { label: 'Advance Paid', field: 'advancePaid', oldVal: order.advancePaid ? 'Yes' : 'No', newVal: rc.advancePaid ? 'Yes' : 'No' }
+                          ];
+                          const changedFields = customerFields.filter(f => f.newVal !== undefined && f.newVal !== f.oldVal);
+                          if (changedFields.length === 0) return null;
+                          return (
+                            <div className="theme-bg rounded-xl p-3 border border-blue-500/20">
+                              <p className="text-[8px] font-black text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                <Users size={10} /> Customer Info Changes
+                              </p>
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-[9px]">
+                                  <thead>
+                                    <tr className="border-b border-blue-500/20">
+                                      <th className="text-left py-1.5 pr-2 font-black text-gray-500 uppercase tracking-wider">Field</th>
+                                      <th className="text-left py-1.5 px-2 font-black text-red-400 uppercase tracking-wider">Current</th>
+                                      <th className="text-left py-1.5 pl-2 font-black text-emerald-400 uppercase tracking-wider">Requested</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {changedFields.map((f, i) => (
+                                      <tr key={i} className="border-b border-blue-500/10">
+                                        <td className="py-1.5 pr-2 font-bold theme-text-primary">{f.label}</td>
+                                        <td className="py-1.5 px-2 text-red-400 line-through">{String(f.oldVal ?? '—')}</td>
+                                        <td className="py-1.5 pl-2 text-emerald-400 font-bold">{String(f.newVal ?? '—')}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        {/* Old vs New — Full Comparison Table */}
+                        <div className="theme-bg rounded-xl p-3 border border-amber-500/20">
+                          <p className="text-[8px] font-black text-amber-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                            <RefreshCw size={10} /> Items Comparison — Old vs New
+                          </p>
+                          {(() => {
+                            // Build merged comparison list
+                            const merged = [];
+                            const maxLen = Math.max(oldItems.length, newItems.length);
+                            for (let i = 0; i < maxLen; i++) {
+                              const old = oldItems[i] || null;
+                              const nw = newItems[i] || null;
+                              merged.push({ old, nw, idx: i + 1 });
+                            }
+                            if (merged.length === 0) return <p className="text-[8px] theme-text-muted italic">No items</p>;
+                            return (
+                              <div className="overflow-x-auto custom-scrollbar">
+                                <table className="w-full text-[8px] md:text-[9px]">
+                                  <thead>
+                                    <tr className="border-b border-amber-500/20">
+                                      <th className="text-left py-1.5 pr-1 font-black text-gray-500 uppercase tracking-wider">#</th>
+                                      <th className="text-left py-1.5 px-1 font-black text-gray-500 uppercase tracking-wider">Detail</th>
+                                      <th className="text-left py-1.5 px-2 font-black text-red-400 uppercase tracking-wider">Current</th>
+                                      <th className="text-left py-1.5 pl-2 font-black text-emerald-400 uppercase tracking-wider">Requested</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {merged.map(({ old, nw, idx }) => {
+                                      // Define rows for each item
+                                      const rows = [
+                                        { label: 'Product', oldVal: old?.name || '—', newVal: nw?.name || '—' },
+                                        { label: 'Color', oldVal: old?.color || '—', newVal: nw?.color || '—' },
+                                        { label: 'Size', oldVal: old?.size || '—', newVal: nw?.size || '—' },
+                                        { label: 'Fabric', oldVal: old?.fabricType || '—', newVal: nw?.fabricType || '—' },
+                                        { label: 'Gender', oldVal: old?.gender || '—', newVal: nw?.gender || '—' },
+                                        { label: 'Quantity', oldVal: String(old?.qty ?? '—'), newVal: String(nw?.qty ?? '—') },
+                                        { label: 'Price', oldVal: old?.totalPrice ? `₨${Number(old.totalPrice).toLocaleString()}` : '—', newVal: nw?.totalPrice ? `₨${Number(nw.totalPrice).toLocaleString()}` : '—' },
+                                        { label: 'Name Spelling', oldVal: old?.nameSpelling || '—', newVal: nw?.nameSpelling || '—' },
+                                        { label: 'Stitching', oldVal: old?.stitchingStyle || '—', newVal: nw?.stitchingStyle || '—' },
+                                        { label: 'Fit', oldVal: old?.fitType || '—', newVal: nw?.fitType || '—' },
+                                        { label: 'Logo Design', oldVal: old?.logoDesign || '—', newVal: nw?.logoDesign || '—' },
+                                      ];
+                                      return rows.map((row, ri) => {
+                                        const isChanged = row.oldVal !== row.newVal;
+                                        if (!isChanged && !nw) return null;
+                                        if (!nw && row.oldVal === '—') return null;
+                                        return (
+                                          <tr key={`${idx}-${ri}`} className={`border-b border-amber-500/5 ${ri === 0 ? 'border-t border-amber-500/10' : ''}`}>
+                                            {ri === 0 && (
+                                              <td rowSpan={rows.length} className="py-1.5 pr-1 align-top pt-2">
+                                                <span className="text-[9px] font-black text-amber-400">{idx}.</span>
+                                              </td>
+                                            )}
+                                            <td className={`py-1 px-1 font-bold ${isChanged ? 'text-amber-400' : 'text-gray-500'}`}>
+                                              {row.label}
+                                            </td>
+                                            <td className={`py-1 px-2 ${!old ? 'text-gray-600 italic' : isChanged ? 'text-red-400 line-through' : 'theme-text-primary'}`}>
+                                              {old ? row.oldVal : '—'}
+                                            </td>
+                                            <td className={`py-1 pl-2 font-bold ${!nw ? 'text-gray-600 italic' : isChanged ? 'text-emerald-400' : 'theme-text-primary'}`}>
+                                              {nw ? row.newVal : '(removed)'}
+                                            </td>
+                                          </tr>
+                                        );
+                                      });
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            );
+                          })()}
+
+                          {/* Pricing Summary */}
+                          {(() => {
+                            const oldTotal = oldItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0);
+                            const newTotal = newItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0);
+                            if (oldTotal === 0 && newTotal === 0) return null;
+                            const diff = newTotal - oldTotal;
+                            return (
+                              <div className="mt-3 pt-3 border-t border-amber-500/20 grid grid-cols-3 gap-3">
+                                <div className="text-center">
+                                  <p className="text-[7px] font-black text-red-400 uppercase tracking-wider">Current Total</p>
+                                  <p className="text-sm font-black theme-text-primary">₨{oldTotal.toLocaleString()}</p>
+                                </div>
+                                <div className="text-center">
+                                  <p className="text-[7px] font-black text-emerald-400 uppercase tracking-wider">Requested Total</p>
+                                  <p className="text-sm font-black theme-text-primary">₨{newTotal.toLocaleString()}</p>
+                                </div>
+                                <div className="text-center">
+                                  <p className="text-[7px] font-black text-amber-400 uppercase tracking-wider">Difference</p>
+                                  <p className={`text-sm font-black ${diff > 0 ? 'text-red-400' : diff < 0 ? 'text-emerald-400' : 'text-gray-500'}`}>
+                                    {diff > 0 ? '+' : ''}{diff === 0 ? '₨0' : `₨${diff.toLocaleString()}`}
+                                  </p>
                                 </div>
                               </div>
-                            )) : <p className="text-[8px] theme-text-muted italic">No items</p>}
-                          </div>
-                          <div className="theme-bg rounded-xl p-3 border border-emerald-500/20">
-                            <p className="text-[8px] font-black text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                              <span className="w-1 h-1 rounded-full bg-emerald-400" /> New Item(s)
-                            </p>
-                            {newItems.length > 0 ? newItems.map((p, i) => (
-                              <div key={i} className="flex items-center gap-2 py-1.5 border-b border-emerald-500/10 last:border-0">
-                                <span className="text-[9px] font-black text-emerald-400 w-4">{i + 1}.</span>
-                                <div>
-                                  <p className="text-[10px] font-bold theme-text-primary">{p.name}</p>
-                                  {(p.color || p.size) && (
-                                    <p className="text-[8px] font-medium theme-text-muted">
-                                      {[p.color, p.size].filter(Boolean).join(' / ')} × {p.qty}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                            )) : <p className="text-[8px] theme-text-muted italic">No items</p>}
-                          </div>
+                            );
+                          })()}
                         </div>
 
                         {/* Inventory Impact Analysis Table */}
