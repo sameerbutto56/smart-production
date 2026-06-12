@@ -374,42 +374,7 @@ const EditRequestDashboard = () => {
                           </div>
                         </div>
 
-                        {/* Operational Feasibility Notice */}
-                        {(() => {
-                          const stage = order.currentStage || 'ORDER_ENTRY';
-                          const isLateStage = STAGE_ORDER.indexOf(stage) >= STAGE_ORDER.indexOf('DISPATCH');
-                          const isFinished = stage === 'COMPLETED' || stage === 'DELIVERED';
-                          const isProduction = stage === 'PRODUCTION';
-                          
-                          let noticeText = '';
-                          let noticeColorClass = '';
-                          let icon = null;
 
-                          if (isFinished) {
-                            noticeText = `⚠ Operational Notice: This order is already marked as ${STAGE_LABELS[stage] || stage}. Proceed with caution as production is complete.`;
-                            noticeColorClass = 'border-red-500/20 bg-red-500/5 text-red-400';
-                            icon = <AlertTriangle size={14} className="text-red-400 shrink-0" />;
-                          } else if (isLateStage) {
-                            noticeText = `⚠ Operational Notice: This order is in the ${STAGE_LABELS[stage] || stage} stage. Making changes now may cause dispatch delays or courier discrepancies.`;
-                            noticeColorClass = 'border-amber-500/20 bg-amber-500/5 text-amber-400';
-                            icon = <AlertTriangle size={14} className="text-amber-400 shrink-0" />;
-                          } else if (isProduction) {
-                            noticeText = `ℹ Operational Notice: This order is currently in Production. Please coordinate with the manufacturing floor before approving modifications.`;
-                            noticeColorClass = 'border-sky-500/20 bg-sky-500/5 text-sky-400';
-                            icon = <Activity size={14} className="text-sky-400 shrink-0" />;
-                          } else {
-                            noticeText = `✓ Operational Notice: This order is in the early stage (${STAGE_LABELS[stage] || stage}). Modifying this order is highly feasible.`;
-                            noticeColorClass = 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400';
-                            icon = <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />;
-                          }
-
-                          return (
-                            <div className={`border rounded-xl p-3.5 flex items-start gap-3 text-xs font-bold leading-normal ${noticeColorClass}`}>
-                              {icon}
-                              <span>{noticeText}</span>
-                            </div>
-                          );
-                        })()}
 
                         {/* Old vs New */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -636,12 +601,6 @@ const EditRequestDashboard = () => {
                     <p className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-2">⚠ Inventory will auto-adjust</p>
                     <p className="text-[9px] font-medium theme-text-muted">The system will automatically restore stock for removed products and deduct stock for new products.</p>
                   </div>
-                  {reviewData.order?.currentStage && STAGE_ORDER.indexOf(reviewData.order.currentStage) >= STAGE_ORDER.indexOf('DISPATCH') && (
-                    <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-xs font-bold text-red-400 flex items-start gap-2 leading-relaxed">
-                      <AlertTriangle size={14} className="shrink-0 mt-0.5 text-red-400" />
-                      <span>Warning: This order is currently in the late stage "{STAGE_LABELS[reviewData.order.currentStage] || reviewData.order.currentStage}". Approving this change may cause dispatch issues.</span>
-                    </div>
-                  )}
                 </div>
               )}
 
