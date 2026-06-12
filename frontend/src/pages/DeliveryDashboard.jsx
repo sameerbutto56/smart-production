@@ -67,6 +67,13 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
             <p className="text-xs text-blue-400 font-black mt-1 tracking-wider">
               ORDER #{order.orderNumber || order.id?.slice(0, 8).toUpperCase()}
             </p>
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[8px] font-black uppercase mt-1 ${
+              order.source === 'ONLINE' || order.source === 'ONLINE ORDER' || order.createdBy?.role === 'FAISAL'
+                ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                : 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
+            }`}>
+              {order.outletName || (order.source === 'ONLINE' || order.source === 'ONLINE ORDER' || order.createdBy?.role === 'FAISAL' ? 'ONLINE' : order.source || order.createdBy?.role || '—')}
+            </span>
           </div>
           <div className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[9px] md:text-[10px] font-black border ${
             isDelivered

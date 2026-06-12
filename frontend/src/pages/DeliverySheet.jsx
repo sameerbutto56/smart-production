@@ -259,6 +259,7 @@ const DeliverySheet = () => {
                   <th className="py-4 px-3">Address</th>
                   <th className="py-4 px-3">Product</th>
                   <th className="py-4 px-3 w-12 text-center">Qty</th>
+                  <th className="py-4 px-3 w-20">Source</th>
                   <th className="py-4 px-3 w-24">Payment</th>
                   <th className="py-4 px-3 w-24">Amount</th>
                   <th className="py-4 px-3 w-28 text-right">Status</th>
@@ -267,7 +268,7 @@ const DeliverySheet = () => {
               <tbody className="divide-y divide-gray-800/60">
                 {loading ? (
                   <tr>
-                    <td colSpan="10" className="py-16 text-center theme-text-muted">
+                    <td colSpan="11" className="py-16 text-center theme-text-muted">
                       <div className="flex flex-col items-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-500 mb-4"></div>
                         Generating delivery manifest...
@@ -276,7 +277,7 @@ const DeliverySheet = () => {
                   </tr>
                 ) : filteredOrders.length === 0 ? (
                   <tr>
-                    <td colSpan="10" className="py-16 text-center theme-text-muted text-sm font-bold">
+                    <td colSpan="11" className="py-16 text-center theme-text-muted text-sm font-bold">
                       No orders dispatched/delivered on this date.
                     </td>
                   </tr>
@@ -317,6 +318,15 @@ const DeliverySheet = () => {
                           {productSummary}
                         </td>
                         <td className="py-4 px-3 text-center font-black theme-text-primary text-xs">{order.quantity}</td>
+                        <td className="py-4 px-3 text-xs">
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
+                            order.source === 'ONLINE' || order.source === 'ONLINE ORDER' || order.createdBy?.role === 'FAISAL'
+                              ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                              : 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
+                          }`}>
+                            {order.outletName || (order.source === 'ONLINE' || order.source === 'ONLINE ORDER' || order.createdBy?.role === 'FAISAL' ? 'ONLINE' : order.source || order.createdBy?.role || '—')}
+                          </span>
+                        </td>
                         <td className="py-4 px-3 text-xs">
                           <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
                             payMethod === 'ONLINE_TRANSFER'
@@ -448,21 +458,22 @@ const DeliverySheet = () => {
           <thead>
             <tr>
               <th style={{ width: '3%' }}>Sr.</th>
-              <th style={{ width: '12%' }}>Order ID</th>
-              <th style={{ width: '15%' }}>Customer</th>
-              <th style={{ width: '13%' }}>Phone</th>
-              <th style={{ width: '22%' }}>Address</th>
-              <th style={{ width: '12%' }}>Product</th>
+              <th style={{ width: '10%' }}>Order ID</th>
+              <th style={{ width: '13%' }}>Customer</th>
+              <th style={{ width: '11%' }}>Phone</th>
+              <th style={{ width: '18%' }}>Address</th>
+              <th style={{ width: '10%' }}>Product</th>
               <th style={{ width: '4%', textAlign: 'center' }}>Qty</th>
-              <th style={{ width: '10%' }}>Payment</th>
-              <th style={{ width: '10%' }}>Amount</th>
+              <th style={{ width: '8%' }}>Source</th>
+              <th style={{ width: '8%' }}>Payment</th>
+              <th style={{ width: '8%' }}>Amount</th>
               <th style={{ width: '9%' }}>Remarks</th>
             </tr>
           </thead>
           <tbody>
             {filteredOrders.length === 0 ? (
               <tr>
-                <td colSpan="10" style={{ textAlign: 'center', padding: '20px', fontWeight: 'bold' }}>
+                <td colSpan="11" style={{ textAlign: 'center', padding: '20px', fontWeight: 'bold' }}>
                   No orders scheduled for delivery on this date.
                 </td>
               </tr>
@@ -495,6 +506,7 @@ const DeliverySheet = () => {
                     <td>{order.address || '—'}</td>
                     <td>{productSummary}</td>
                     <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{order.quantity}</td>
+                    <td style={{ fontWeight: 'bold', fontSize: '10px' }}>{order.outletName || (order.source === 'ONLINE' || order.source === 'ONLINE ORDER' || order.createdBy?.role === 'FAISAL' ? 'ONLINE' : order.source || order.createdBy?.role || '—')}</td>
                     <td>{payMethod === 'ONLINE_TRANSFER' ? 'Online' : 'Cash'}</td>
                     <td style={{ fontWeight: 'bold' }}>₨ {Number(order.totalPrice || 0).toLocaleString()}</td>
                     <td style={{ fontSize: '9px', color: '#555555' }}>
