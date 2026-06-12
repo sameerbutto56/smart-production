@@ -277,6 +277,7 @@ const DeliverySheet = () => {
                   <th className="py-4 px-3">Product</th>
                   <th className="py-4 px-3 w-12 text-center">Qty</th>
                   <th className="py-4 px-3 w-20">Source</th>
+                  <th className="py-4 px-3 w-24">Method</th>
                   <th className="py-4 px-3 w-24">Payment</th>
                   <th className="py-4 px-3 w-24">Amount</th>
                   <th className="py-4 px-3 w-28 text-right">Status</th>
@@ -285,7 +286,7 @@ const DeliverySheet = () => {
               <tbody className="divide-y divide-gray-800/60">
                 {loading ? (
                   <tr>
-                    <td colSpan="11" className="py-16 text-center theme-text-muted">
+                    <td colSpan="12" className="py-16 text-center theme-text-muted">
                       <div className="flex flex-col items-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-500 mb-4"></div>
                         Generating delivery manifest...
@@ -294,7 +295,7 @@ const DeliverySheet = () => {
                   </tr>
                 ) : filteredOrders.length === 0 ? (
                   <tr>
-                    <td colSpan="11" className="py-16 text-center theme-text-muted text-sm font-bold">
+                    <td colSpan="12" className="py-16 text-center theme-text-muted text-sm font-bold">
                       No orders dispatched/delivered on this date.
                     </td>
                   </tr>
@@ -342,6 +343,17 @@ const DeliverySheet = () => {
                               : 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
                           }`}>
                             {order.outletName || (order.source === 'ONLINE' || order.source === 'ONLINE ORDER' || order.createdBy?.role === 'FAISAL' ? 'ONLINE' : order.source || order.createdBy?.role || '—')}
+                          </span>
+                        </td>
+                        <td className="py-4 px-3 text-xs font-black">
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
+                            order.deliveryMethod === 'ENAMELS' || order.deliveryMethod === 'ENAMELS_DELIVERY'
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                              : order.deliveryMethod
+                              ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                              : 'bg-gray-500/10 text-gray-400 border border-gray-500/20'
+                          }`}>
+                            {order.deliveryMethod || order.deliveryType || '—'}
                           </span>
                         </td>
                         <td className="py-4 px-3 text-xs">

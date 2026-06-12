@@ -77,6 +77,15 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
             }`}>
               {order.outletName || (order.source === 'ONLINE' || order.source === 'ONLINE ORDER' || order.createdBy?.role === 'FAISAL' ? 'ONLINE' : order.source || order.createdBy?.role || '—')}
             </span>
+            {order.deliveryMethod && (
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[8px] font-black uppercase mt-1 ml-1 ${
+                order.deliveryMethod === 'ENAMELS' || order.deliveryMethod === 'ENAMELS_DELIVERY'
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                  : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+              }`}>
+                {order.deliveryMethod}
+              </span>
+            )}
           </div>
           <div className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[9px] md:text-[10px] font-black border ${
             isDelivered

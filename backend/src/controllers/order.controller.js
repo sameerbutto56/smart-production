@@ -1264,7 +1264,7 @@ const checkDeletedOrder = async (req, res) => {
 
 const updateDeliveryStatus = async (req, res) => {
   const { orderId } = req.params;
-  const { deliveryStatus, remarks, paymentMethod, cashAmount, onlineAmount } = req.body; // deliveryStatus: 'DELIVERED' | 'NOT_RESPONDED' | 'FAILED' | 'RESCHEDULED'
+  const { deliveryStatus, remarks, paymentMethod, cashAmount, onlineAmount, deliveryMethod } = req.body; // deliveryStatus: 'DELIVERED' | 'NOT_RESPONDED' | 'FAILED' | 'RESCHEDULED'
   const userId = req.user?.id;
 
   try {
@@ -1333,18 +1333,20 @@ const updateDeliveryStatus = async (req, res) => {
       const totalPaid = courierDetails.payments.reduce((sum, p) => sum + (p.amount || 0), 0);
       const paymentStatus = totalPaid >= (order.totalPrice || 0) ? 'FULL_PAID' : 'PARTIAL_PAID';
 
+      const updateData = {
+        status: 'COMPLETED',
+        currentStage: 'DELIVERED',
+        paymentStatus,
+        advancePaid: true,
+        dispatchStatus: 'DELIVERED',
+        paymentMethod: paymentMethod || 'CASH',
+        courierDetails,
+        updatedAt: new Date()
+      };
+      if (deliveryMethod) updateData.deliveryMethod = deliveryMethod;
       const updatedOrder = await prisma.order.update({
         where: { id: orderId },
-        data: {
-          status: 'COMPLETED',
-          currentStage: 'DELIVERED',
-          paymentStatus,
-          advancePaid: true,
-          dispatchStatus: 'DELIVERED',
-          paymentMethod: paymentMethod || 'CASH',
-          courierDetails,
-          updatedAt: new Date()
-        },
+        data: updateData,
         include: { stages: true }
       });
       await calculateAndRecordRevenue(updatedOrder);
