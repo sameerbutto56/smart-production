@@ -2288,7 +2288,9 @@ const calculateAndRecordRevenue = async (order) => {
 // ====== MANUAL ROUTING ======
 const manualRouteOrder = async (req, res) => {
   const { orderId } = req.params;
-  const { destinationStage, remarks } = req.body;
+  let { destinationStage, remarks } = req.body;
+  // Auto-correct common shorthand
+  if (destinationStage === 'LOGO') destinationStage = 'LOGO_DESIGN';
 
   try {
     const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: true } });

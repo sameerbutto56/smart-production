@@ -769,29 +769,31 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                   <span>Record Payment</span>
                                 </button>
                               )}
-                              <button
-                                onClick={async () => {
-                                  setShowMoreActions(false);
-                                  const dest = prompt('Route Order To:\n(STORE / LOGO_DESIGN / PRODUCTION / STORE_RECEIVE / DISPATCH / OUT_FOR_DELIVERY / ORDER_ENTRY)');
-                                  if (dest) {
-                                    const destUpper = dest.trim().toUpperCase().replace(/ /g, '_');
-                                    const valid = ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'];
-                                    if (valid.includes(destUpper)) {
-                                      try {
-                                        const token = sessionStorage.getItem('token');
-                                        await axios.post(`${API_URL}/api/orders/${order.id}/route`, {
-                                          destinationStage: destUpper,
-                                          remarks: `Manual route from OrderCard by ${userRole}`
-                                        }, { headers: { Authorization: `Bearer ${token}` } });
-                                        toast.success(`Order routed to ${destUpper.replace(/_/g, ' ')}`);
-                                      } catch (err) {
-                                        alert('Route failed: ' + (err.response?.data?.message || err.message));
+                                <button
+                                  onClick={async () => {
+                                    setShowMoreActions(false);
+                                    const dest = prompt('Route Order To:\n(STORE / LOGO_DESIGN / PRODUCTION / STORE_RECEIVE / DISPATCH / OUT_FOR_DELIVERY / ORDER_ENTRY)');
+                                    if (dest) {
+                                      let destUpper = dest.trim().toUpperCase().replace(/ /g, '_');
+                                      // Auto-correct common shorthand
+                                      if (destUpper === 'LOGO') destUpper = 'LOGO_DESIGN';
+                                      const valid = ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'];
+                                      if (valid.includes(destUpper)) {
+                                        try {
+                                          const token = sessionStorage.getItem('token');
+                                          await axios.post(`${API_URL}/api/orders/${order.id}/route`, {
+                                            destinationStage: destUpper,
+                                            remarks: `Manual route from OrderCard by ${userRole}`
+                                          }, { headers: { Authorization: `Bearer ${token}` } });
+                                          toast.success(`Order routed to ${destUpper.replace(/_/g, ' ')}`);
+                                        } catch (err) {
+                                          alert('Route failed: ' + (err.response?.data?.message || err.message));
+                                        }
+                                      } else {
+                                        alert('Invalid destination. Valid: STORE, LOGO_DESIGN, PRODUCTION, STORE_RECEIVE, DISPATCH, OUT_FOR_DELIVERY, ORDER_ENTRY');
                                       }
-                                    } else {
-                                      alert('Invalid destination. Valid: STORE, LOGO_DESIGN, PRODUCTION, STORE_RECEIVE, DISPATCH, OUT_FOR_DELIVERY, ORDER_ENTRY');
                                     }
-                                  }
-                                }}
+                                  }}
                                 className="w-full flex items-center gap-3 px-4 py-3 text-[9px] font-black uppercase tracking-wider text-blue-400 hover:bg-blue-500/10 transition-all border-b border-gray-800"
                               >
                                 <Package size={14} />
