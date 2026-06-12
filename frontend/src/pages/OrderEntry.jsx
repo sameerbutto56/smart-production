@@ -686,6 +686,7 @@ const SmartOrderForm = () => {
 
   const [cartItems, setCartItems] = useState([]);
   const [showAddMore, setShowAddMore] = useState(false);
+  const [showProductSelector, setShowProductSelector] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
   const handleAddToCart = () => {
@@ -830,6 +831,7 @@ const SmartOrderForm = () => {
       },
     }));
     setShowReview(false);
+    if (isEditMode) setShowProductSelector(true);
     setActiveTab(tab);
   };
 
@@ -1212,11 +1214,332 @@ const SmartOrderForm = () => {
               </div>
             </div>
           )}
+
+          {/* Edit Mode — Comparison Summary (hidden when comparison view is shown) */}
+          {originalOrder && cartItems.length > 0 && !(isEditMode && !showProductSelector) && (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 p-3 bg-indigo-500/5 border border-indigo-500/15 rounded-xl">
+              <div className="flex items-center gap-3 text-[9px]">
+                <span className="font-black text-indigo-400 uppercase tracking-wider">Changes Summary</span>
+                <span className="text-gray-700">|</span>
+                <span className="theme-text-muted font-bold">
+                  {cartItems.length} item{cartItems.length > 1 ? 's' : ''} ({cartItems.reduce((s, i) => s + (parseInt(i.quantity) || 1), 0)} units)
+                </span>
+                {(() => {
+                  const newTotal = cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0);
+                  const oldTotal = parseFloat(originalOrder.totalPrice) || 0;
+                  const diff = newTotal - oldTotal;
+                  if (diff === 0) return null;
+                  return (
+                    <span className={`font-black ${diff > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                      ₨{diff > 0 ? '+' : ''}{diff.toLocaleString()}
+                    </span>
+                  );
+                })()}
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEditReview(true)}
+                className="px-3 py-1.5 bg-amber-500/10 text-amber-400 hover:bg-amber-500 hover:text-black border border-amber-500/20 rounded-xl font-black text-[8px] uppercase tracking-wider transition-all active:scale-95"
+              >
+                {useUrdu ? 'تبدیلیاں دیکھیں' : 'View Changes'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
       <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
-        <AnimatePresence mode="wait">
+        {isEditMode && originalOrder && !showProductSelector ? (
+          <motion.div
+            key="comparison"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+          >
+            {/* ---- COMPARISON VIEW: Original vs Requested ---- */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              
+              {/* LEFT PANEL — Original Order (Read Only) */}
+              <div className="bg-red-500/5 border border-red-500/20 rounded-[2rem] p-6 space-y-4">
+                <div className="flex items-center gap-2 text-red-400 font-black text-xs uppercase tracking-wider mb-4">
+                  <span className="w-2 h-2 rounded-full bg-red-500" />
+                  <span>{useUrdu ? 'موجودہ آرڈر (صرف پڑھیں)' : 'Existing Order (Read Only)'}</span>
+                </div>
+
+                {/* Customer Info */}
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">{useUrdu ? 'آرڈر نمبر' : 'Order #'}</span>
+                    <span className="font-bold theme-text-primary">{originalOrder.orderNumber || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">{useUrdu ? 'گاہک' : 'Customer'}</span>
+                    <span className="font-bold theme-text-primary">{originalOrder.customerName}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">{useUrdu ? 'فون' : 'Phone'}</span>
+                    <span className="font-bold theme-text-primary">{originalOrder.customerPhone || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">{useUrdu ? 'قسم' : 'Type'}</span>
+                    <span className="font-bold uppercase theme-text-primary">{originalOrder.type || 'STANDARD'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">{useUrdu ? 'ترجیح' : 'Priority'}</span>
+                    <span className={`font-bold uppercase ${originalOrder.priority === 'SUPER_URGENT' ? 'text-red-400' : originalOrder.priority === 'URGENT' ? 'text-amber-400' : 'theme-text-primary'}`}>{originalOrder.priority || 'NORMAL'}</span>
+                  </div>
+                </div>
+
+                {/* Original Products */}
+                <div className="border-t border-red-500/10 pt-4">
+                  <p className="text-[9px] font-black text-red-400 uppercase tracking-wider mb-3">{useUrdu ? 'پروڈکٹس' : 'Products'} ({(() => { try { const pd = typeof originalOrder.productDetails === 'string' ? JSON.parse(originalOrder.productDetails) : originalOrder.productDetails; return Array.isArray(pd) ? pd.length : (pd ? 1 : 0); } catch { return 0; } })()})</p>
+                  {(() => {
+                    let items = [];
+                    try {
+                      const pd = typeof originalOrder.productDetails === 'string' ? JSON.parse(originalOrder.productDetails) : originalOrder.productDetails;
+                      items = Array.isArray(pd) ? pd : (pd ? [pd] : []);
+                    } catch { items = []; }
+                    return items.map((item, idx) => {
+                      const d = item.productDetails || item;
+                      const cust = item.customization || {};
+                      return (
+                        <div key={idx} className="bg-red-900/10 rounded-xl p-3 mb-2 border border-red-500/10 last:mb-0">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <p className="text-xs font-bold theme-text-primary">{d.productType || 'Unknown'}</p>
+                              <p className="text-[9px] theme-text-muted mt-0.5">
+                                {[d.color, d.size].filter(Boolean).join(' / ') || '—'} × {item.quantity || originalOrder.quantity || 1}
+                              </p>
+                              {d.fabricType && <p className="text-[8px] text-gray-500 mt-0.5">{d.fabricType}</p>}
+                            </div>
+                            <span className="text-xs font-black text-red-400">₨{((parseFloat(item.totalPrice) || parseFloat(originalOrder.totalPrice) || 0) / (items.length || 1)).toLocaleString()}</span>
+                          </div>
+                          {/* Branding/Customization */}
+                          {(cust.nameSpelling || cust.stitchingStyle || originalOrder.logoDesign) && (
+                            <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-red-500/10">
+                              {cust.nameSpelling && <span className="text-[7px] font-bold text-purple-400 bg-purple-900/20 px-1.5 py-0.5 rounded">Name: {cust.nameSpelling}</span>}
+                              {cust.stitchingStyle && <span className="text-[7px] font-bold text-blue-400 bg-blue-900/20 px-1.5 py-0.5 rounded">{cust.stitchingStyle === 'DBL' ? 'Double' : 'Single'} Stitch</span>}
+                              {cust.fitType && <span className="text-[7px] font-bold text-indigo-400 bg-indigo-900/20 px-1.5 py-0.5 rounded">{cust.fitType} Fit</span>}
+                              {originalOrder.logoDesign && <span className="text-[7px] font-bold text-amber-400 bg-amber-900/20 px-1.5 py-0.5 rounded">Has Logo</span>}
+                              {d.gender && <span className="text-[7px] font-bold text-pink-400 bg-pink-900/20 px-1.5 py-0.5 rounded">{d.gender}</span>}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+
+                {/* Original Total */}
+                <div className="border-t border-red-500/10 pt-3 flex justify-between items-center">
+                  <span className="text-xs font-black text-gray-400 uppercase">{useUrdu ? 'اصل کل' : 'Original Total'}</span>
+                  <span className="text-sm font-black text-red-400">₨{parseFloat(originalOrder.totalPrice || 0).toLocaleString()}</span>
+                </div>
+              </div>
+
+              {/* RIGHT PANEL — Requested Changes (Editable) */}
+              <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-[2rem] p-6 space-y-4">
+                <div className="flex items-center gap-2 text-emerald-400 font-black text-xs uppercase tracking-wider mb-4">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>{useUrdu ? 'مجوزہ تبدیلیاں (ترمیم)' : 'Requested Changes (Editable)'}</span>
+                </div>
+
+                {/* Editable Customer Info */}
+                <div className="space-y-2 text-xs">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <span className="text-gray-500 block mb-1">{useUrdu ? 'گاہک کا نام' : 'Customer Name'}</span>
+                      <input type="text" value={formData.customerName} onChange={e => setFormData({...formData, customerName: e.target.value})}
+                        className={`w-full theme-input rounded-xl py-2 px-3 text-sm font-bold ${hasChanged(originalOrder.customerName, formData.customerName) ? 'border-amber-500/50 bg-amber-500/10' : ''}`} />
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block mb-1">{useUrdu ? 'فون' : 'Phone'}</span>
+                      <input type="text" value={formData.customerPhone} onChange={e => setFormData({...formData, customerPhone: e.target.value})}
+                        className={`w-full theme-input rounded-xl py-2 px-3 text-sm font-bold ${hasChanged(originalOrder.customerPhone, formData.customerPhone) ? 'border-amber-500/50 bg-amber-500/10' : ''}`} />
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 block mb-1">{useUrdu ? 'پتہ' : 'Address'}</span>
+                    <input type="text" value={formData.address || ''} onChange={e => setFormData({...formData, address: e.target.value})}
+                      className={`w-full theme-input rounded-xl py-2 px-3 text-sm font-bold ${hasChanged(originalOrder.address, formData.address) ? 'border-amber-500/50 bg-amber-500/10' : ''}`} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <span className="text-gray-500 block mb-1">{useUrdu ? 'شہر' : 'City'}</span>
+                      <input type="text" value={formData.city || ''} onChange={e => setFormData({...formData, city: e.target.value})}
+                        className={`w-full theme-input rounded-xl py-2 px-3 text-sm font-bold ${hasChanged(originalOrder.city, formData.city) ? 'border-amber-500/50 bg-amber-500/10' : ''}`} />
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block mb-1">{useUrdu ? 'ترجیح' : 'Priority'}</span>
+                      <div className="flex gap-1">
+                        {['NORMAL', 'URGENT', 'SUPER_URGENT'].map(p => (
+                          <button key={p} type="button" onClick={() => setFormData({...formData, priority: p})}
+                            className={`flex-1 py-2 rounded-lg text-[7px] font-black transition-all uppercase ${formData.priority === p ? (p === 'SUPER_URGENT' ? 'bg-red-600 text-white' : p === 'URGENT' ? 'bg-amber-600 text-white' : 'bg-gray-700 text-white') : 'bg-gray-900 text-gray-600 hover:bg-gray-800'}`}>{p === 'SUPER_URGENT' ? 'SUPER' : p}</button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <span className="text-gray-500 block mb-1">{useUrdu ? 'آرڈر کی قسم' : 'Type'}</span>
+                      <div className="flex gap-1">
+                        {['STANDARD', 'READY_LOGO', 'FULL_CUSTOM'].map(t => (
+                          <button key={t} type="button" onClick={() => setFormData({...formData, type: t})}
+                            className={`flex-1 py-2 rounded-lg text-[7px] font-black transition-all uppercase ${formData.type === t ? 'bg-blue-600 text-white' : 'bg-gray-900 text-gray-600 hover:bg-gray-800'}`}>{t === 'READY_LOGO' ? 'LOGO' : t === 'FULL_CUSTOM' ? 'CUSTOM' : 'STD'}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block mb-1">{useUrdu ? 'ایڈوانس' : 'Advance Paid'}</span>
+                      <label className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all ${formData.advancePaid ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-gray-700 bg-gray-900'}`}>
+                        <span className="text-[9px] font-bold">{formData.advancePaid ? 'YES' : 'NO'}</span>
+                        <input type="checkbox" checked={formData.advancePaid} onChange={e => setFormData({...formData, advancePaid: e.target.checked})} className="w-4 h-4 rounded border-gray-600" />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Editable Items List */}
+                <div className="border-t border-emerald-500/10 pt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[9px] font-black text-emerald-400 uppercase tracking-wider">{useUrdu ? 'آئٹمز' : 'Items'} ({cartItems.length})</p>
+                    <button
+                      type="button"
+                      onClick={() => { setShowProductSelector(true); setActiveTab('product'); }}
+                      className="px-3 py-1.5 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white border border-emerald-500/30 rounded-xl font-black text-[7px] uppercase tracking-wider transition-all active:scale-95 flex items-center gap-1"
+                    >
+                      <Plus size={10} /> {useUrdu ? 'شامل کریں' : 'Add Product'}
+                    </button>
+                  </div>
+                  {cartItems.length === 0 ? (
+                    <div className="text-center py-6 text-gray-500 text-[9px] font-bold">
+                      <Plus size={24} className="mx-auto mb-2 opacity-30" />
+                      <p>{useUrdu ? 'کوئی آئٹم نہیں — پروڈکٹ شامل کرنے کے لیے کلک کریں' : 'No items yet — click Add Product above'}</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {cartItems.map((item, idx) => {
+                        const d = item.productDetails || {};
+                        const cust = item.customization || {};
+                        return (
+                          <div key={idx} className="bg-gray-900/50 rounded-xl p-3 border border-emerald-500/10">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[10px] font-bold theme-text-primary truncate">{d.productType || 'Unknown'}</p>
+                                <p className="text-[8px] theme-text-muted truncate mt-0.5">
+                                  {[d.color, d.size].filter(Boolean).join(' / ') || '—'} {d.fabricType ? `• ${d.fabricType}` : ''}
+                                </p>
+                                {/* Branding tags */}
+                                {(cust.nameSpelling || cust.stitchingStyle || item.logoDesign) && (
+                                  <div className="flex flex-wrap gap-1 mt-1.5">
+                                    {cust.nameSpelling && <span className="text-[6px] font-bold text-purple-400 bg-purple-900/20 px-1 rounded">Name: {cust.nameSpelling}</span>}
+                                    {cust.stitchingStyle && <span className="text-[6px] font-bold text-blue-400 bg-blue-900/20 px-1 rounded">{cust.stitchingStyle === 'DBL' ? 'Double' : 'Single'}</span>}
+                                    {item.logoDesign && <span className="text-[6px] font-bold text-amber-400 bg-amber-900/20 px-1 rounded">Logo</span>}
+                                  </div>
+                                )}
+                                {/* Inline Qty + Price */}
+                                <div className="flex items-center gap-3 mt-2">
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[7px] text-gray-500 font-bold">{useUrdu ? 'تعداد' : 'Qty'}:</span>
+                                    <input type="number" min="1" value={item.quantity || 1}
+                                      onChange={e => {
+                                        const newCart = [...cartItems];
+                                        newCart[idx] = {...newCart[idx], quantity: parseInt(e.target.value) || 1};
+                                        setCartItems(newCart);
+                                      }}
+                                      className="w-14 theme-input rounded-lg py-1 px-2 text-[9px] font-bold text-center" />
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[7px] text-gray-500 font-bold">₨:</span>
+                                    <input type="number" min="0" value={item.totalPrice || 0}
+                                      onChange={e => {
+                                        const newCart = [...cartItems];
+                                        newCart[idx] = {...newCart[idx], totalPrice: parseFloat(e.target.value) || 0};
+                                        setCartItems(newCart);
+                                      }}
+                                      className="w-20 theme-input rounded-lg py-1 px-2 text-[9px] font-bold text-center" />
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex flex-col gap-1 shrink-0">
+                                <button type="button" onClick={() => editCartItem(idx, 'product')}
+                                  className="p-1.5 bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white rounded-lg transition-all">
+                                  <FileEdit size={10} />
+                                </button>
+                                <button type="button" onClick={() => {
+                                  const newCart = cartItems.filter((_, i) => i !== idx);
+                                  setCartItems(newCart);
+                                }}
+                                  className="p-1.5 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-lg transition-all">
+                                  <Trash2 size={10} />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* ---- PRICE CALCULATION BAR ---- */}
+            <div className="glass rounded-[2rem] p-5 border-2 border-amber-500/20 bg-amber-500/5">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                <div>
+                  <p className="text-[8px] font-black text-gray-500 uppercase tracking-wider mb-1">{useUrdu ? 'اصل کل' : 'Original Total'}</p>
+                  <p className="text-lg font-black text-red-400">₨{parseFloat(originalOrder.totalPrice || 0).toLocaleString()}</p>
+                </div>
+                <div className="hidden md:block border-l border-amber-500/20" />
+                <div>
+                  <p className="text-[8px] font-black text-gray-500 uppercase tracking-wider mb-1">{useUrdu ? 'مجوزہ کل' : 'Updated Total'}</p>
+                  <p className="text-lg font-black text-emerald-400">₨{cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0).toLocaleString()}</p>
+                </div>
+                <div className="hidden md:block border-l border-amber-500/20" />
+                <div>
+                  <p className="text-[8px] font-black text-gray-500 uppercase tracking-wider mb-1">{useUrdu ? 'فرق' : 'Difference'}</p>
+                  {(() => {
+                    const oldT = parseFloat(originalOrder.totalPrice) || 0;
+                    const newT = cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0);
+                    const diff = newT - oldT;
+                    return (
+                      <p className={`text-lg font-black ${diff > 0 ? 'text-red-400' : diff < 0 ? 'text-emerald-400' : 'text-gray-500'}`}>
+                        {diff > 0 ? '+' : ''}{diff === 0 ? '₨0' : `₨${diff.toLocaleString()}`}
+                      </p>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+
+            {/* ---- REASON + SUBMIT ---- */}
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-2">
+                  {useUrdu ? 'ترمیم کی وجہ (لازمی)' : 'Reason for Edit Request (Required)'}
+                </label>
+                <textarea required value={editReason} onChange={e => setEditReason(e.target.value)}
+                  className="w-full theme-input rounded-[1.5rem] py-4 px-6 text-sm font-semibold resize-none h-20 border border-amber-500/20 focus:border-amber-400"
+                  placeholder={useUrdu ? 'تبدیلی کی وجہ بتائیں' : 'Provide justification for these changes...'} />
+              </div>
+              <div className="flex gap-4">
+                <button type="button" onClick={toggleEditMode}
+                  disabled={loading || isSubmitting}
+                  className="flex-1 py-5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest transition-all active:scale-95 border border-gray-700 disabled:opacity-50">
+                  {useUrdu ? 'منسوخ کریں' : 'CANCEL'}
+                </button>
+                <button type="button" onClick={submitOrderEditRequest}
+                  disabled={loading || isSubmitting || !editReason.trim() || cartItems.length === 0}
+                  className="flex-1 py-5 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50">
+                  {loading || isSubmitting ? (<Loader2 size={16} className="animate-spin" />) : (<FileEdit size={16} />)}
+                  <span>{loading || isSubmitting ? (useUrdu ? 'بھیج رہا ہے...' : 'SUBMITTING...') : (useUrdu ? 'درخواست جمع کروائیں' : 'SUBMIT EDIT REQUEST')}</span>
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        ) : (
+          <AnimatePresence mode="wait">
           {activeTab === 'basic' && (
             <motion.div
               key="basic"
@@ -1605,12 +1928,14 @@ const SmartOrderForm = () => {
                         </div>
                         <div className="text-center w-full mt-2 space-y-2">
                           <span className="block text-sm font-black uppercase tracking-wider leading-snug">{item.name}</span>
-                          <span className="block text-lg font-black tracking-tight">
-                            <span className={`${totalStock > 50 ? 'text-emerald-400' : totalStock > 0 ? 'text-yellow-400' : 'text-red-400'}`}>
-                              {totalStock}
+                          {!isEditMode && (
+                            <span className="block text-lg font-black tracking-tight">
+                              <span className={`${totalStock > 50 ? 'text-emerald-400' : totalStock > 0 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                {totalStock}
+                              </span>
+                              <span className="text-[9px] theme-text-muted ml-1">in stock</span>
                             </span>
-                            <span className="text-[9px] theme-text-muted ml-1">in stock</span>
-                          </span>
+                          )}
                           {(item.price > 0 || (item.variants && Array.isArray(item.variants) && item.variants.some(v => v.price))) && (
                             <span className="block text-xs font-black text-emerald-400">
                               ₨{Number(
@@ -1681,7 +2006,7 @@ const SmartOrderForm = () => {
                           current={formData.fabricType}
                           onClick={(val) => setFormData({...formData, fabricType: val})}
                           icon={Layers}
-                          sublabel={fStock > 0 ? `${fStock} units` : 'Out of stock'}
+                           sublabel={isEditMode ? '' : (fStock > 0 ? `${fStock} units` : 'Out of stock')}
                         />
                       )})}
                     </div>
@@ -1763,7 +2088,7 @@ const SmartOrderForm = () => {
                           </div>
                           <div className="w-full py-1.5 px-1 theme-bg text-center">
                             <p className="text-[9px] font-black truncate theme-text-primary">{c}</p>
-                            <p className="text-[7px] font-bold theme-text-muted">{stockForColor} in stock</p>
+                            {!isEditMode && <p className="text-[7px] font-bold theme-text-muted">{stockForColor} in stock</p>}
                           </div>
                         </button>
                       )})}
@@ -2203,99 +2528,111 @@ const SmartOrderForm = () => {
               </div>
             </motion.div>
           )}
-        </AnimatePresence>
+          </AnimatePresence>
+        )}
 
-        <div className={`flex flex-col sm:flex-row items-center justify-between pt-6 md:pt-12 gap-4 md:gap-8 border-t-2 theme-border ${useUrdu ? 'flex-row-reverse' : ''}`}>
-          <div className="flex flex-col space-y-4">
-            <div className={`flex items-center space-x-3 text-gray-600 theme-bg-subtle px-6 py-3 rounded-2xl border theme-border ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
-              <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.5)] animate-pulse" />
-              <span className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em]">{useUrdu ? 'تصدیق شدہ نظام' : 'Validated System Protocol'}</span>
-            </div>
-            {error && (
-              <div className={`flex items-center space-x-3 text-red-500 bg-red-500/10 px-6 py-3 rounded-2xl border border-red-500/20 ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                <AlertCircle size={16} />
-                <span className="text-xs font-bold">{error}</span>
+        {!(isEditMode && originalOrder && !showProductSelector) && (
+          <div className={`flex flex-col sm:flex-row items-center justify-between pt-6 md:pt-12 gap-4 md:gap-8 border-t-2 theme-border ${useUrdu ? 'flex-row-reverse' : ''}`}>
+            <div className="flex flex-col space-y-4">
+              <div className={`flex items-center space-x-3 text-gray-600 theme-bg-subtle px-6 py-3 rounded-2xl border theme-border ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.5)] animate-pulse" />
+                <span className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em]">{useUrdu ? 'تصدیق شدہ نظام' : 'Validated System Protocol'}</span>
               </div>
-            )}
-          </div>
-          
-          <div className={`flex space-x-6 w-full sm:w-auto ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
-            {activeTab !== 'basic' && (
-              <button
-                type="button"
-                onClick={() => {
-                  const currentIdx = filteredTabs.findIndex(t => t.id === activeTab);
-                  setActiveTab(filteredTabs[currentIdx - 1].id);
-                }}
-                className="flex-1 sm:px-12 py-6 theme-bg theme-text-primary rounded-[1.5rem] font-black text-sm border-2 theme-border hover:bg-gray-800 hover:border-gray-700 transition-all active:scale-95 shadow-xl"
-              >
-                {t('back').toUpperCase()}
-              </button>
-            )}
-
-            {/* NEXT button - for intermediate tabs */}
-            {activeTab !== filteredTabs[filteredTabs.length - 1].id && (
-              <button
-                type="button"
-                onClick={() => {
-                  const errMsg = validateCurrentTab();
-                  if (errMsg) {
-                    setError(errMsg);
-                    return;
-                  }
-                  const currentIdx = filteredTabs.findIndex(t => t.id === activeTab);
-                  setActiveTab(filteredTabs[currentIdx + 1].id);
-                }}
-                className="flex-1 sm:px-16 py-6 bg-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl shadow-blue-900/50 hover:bg-blue-500 hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 group"
-              >
-                <span className={useUrdu ? "order-2" : "order-1"}>{t('next').toUpperCase()}</span>
-                <ArrowRight size={22} className={`transition-transform ${useUrdu ? 'order-1 rotate-180 group-hover:-translate-x-2' : 'order-2 group-hover:translate-x-2'}`} />
-              </button>
-            )}
-
-            {/* Add to Cart button - only on the last tab */}
-            {activeTab === filteredTabs[filteredTabs.length - 1].id && (
-              <button
-                type="button"
-                onClick={handleAddToCart}
-                disabled={loading || isSubmitting}
-                className="flex-1 sm:px-16 py-6 theme-bg text-blue-400 border-2 border-blue-500/50 rounded-[1.5rem] font-black text-sm shadow-2xl hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all active:scale-95 flex items-center justify-center space-x-4 disabled:opacity-50"
-              >
-                {loading || isSubmitting ? (useUrdu ? 'انتظار کریں...' : 'PROCESSING...') : (
-                  <>
-                    <ShoppingCart size={16} className={useUrdu ? "order-2" : "order-1"} />
-                    <span className={useUrdu ? "order-1" : "order-2"}>{useUrdu ? 'کارٹ میں شامل کریں' : 'ADD ITEM TO CART'}</span>
-                  </>
-                )}
-              </button>
-            )}
-
-            {/* CHECKOUT button - only on the last tab when cart has items */}
-            {activeTab === filteredTabs[filteredTabs.length - 1].id && cartItems.length > 0 && (
-              isEditMode ? (
+              {error && (
+                <div className={`flex items-center space-x-3 text-red-500 bg-red-500/10 px-6 py-3 rounded-2xl border border-red-500/20 ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                  <AlertCircle size={16} />
+                  <span className="text-xs font-bold">{error}</span>
+                </div>
+              )}
+            </div>
+            
+            <div className={`flex space-x-6 w-full sm:w-auto ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
+              {showProductSelector && (
                 <button
                   type="button"
-                  onClick={() => setShowEditReview(true)}
-                  disabled={loading || isSubmitting}
-                  className="flex-1 sm:px-16 py-6 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 group disabled:opacity-50"
+                  onClick={() => setShowProductSelector(false)}
+                  className="flex-1 sm:px-12 py-6 theme-bg theme-text-primary rounded-[1.5rem] font-black text-sm border-2 theme-border hover:bg-gray-800 hover:border-gray-700 transition-all active:scale-95 shadow-xl"
                 >
-                  <FileEdit size={16} />
-                  <span>{useUrdu ? 'تبدیلی کا جائزہ لیں' : 'REVIEW EDIT REQUEST'}</span>
+                  {useUrdu ? 'ترمیم پر واپس جائیں' : 'BACK TO EDIT'}
                 </button>
-              ) : (
+              )}
+              {activeTab !== 'basic' && (
                 <button
                   type="button"
-                  onClick={() => setShowReview(true)}
-                  disabled={loading || isSubmitting}
-                  className="flex-1 sm:px-16 py-6 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 group disabled:opacity-50"
+                  onClick={() => {
+                    const currentIdx = filteredTabs.findIndex(t => t.id === activeTab);
+                    setActiveTab(filteredTabs[currentIdx - 1].id);
+                  }}
+                  className="flex-1 sm:px-12 py-6 theme-bg theme-text-primary rounded-[1.5rem] font-black text-sm border-2 theme-border hover:bg-gray-800 hover:border-gray-700 transition-all active:scale-95 shadow-xl"
                 >
-                  <CheckCircle2 size={16} />
-                  <span>{useUrdu ? 'آرڈر چیک آؤٹ کریں' : 'CHECKOUT'}</span>
+                  {t('back').toUpperCase()}
                 </button>
-              )
-            )}
+              )}
+
+              {/* NEXT button - for intermediate tabs */}
+              {activeTab !== filteredTabs[filteredTabs.length - 1].id && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const errMsg = validateCurrentTab();
+                    if (errMsg) {
+                      setError(errMsg);
+                      return;
+                    }
+                    const currentIdx = filteredTabs.findIndex(t => t.id === activeTab);
+                    setActiveTab(filteredTabs[currentIdx + 1].id);
+                  }}
+                  className="flex-1 sm:px-16 py-6 bg-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl shadow-blue-900/50 hover:bg-blue-500 hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 group"
+                >
+                  <span className={useUrdu ? "order-2" : "order-1"}>{t('next').toUpperCase()}</span>
+                  <ArrowRight size={22} className={`transition-transform ${useUrdu ? 'order-1 rotate-180 group-hover:-translate-x-2' : 'order-2 group-hover:translate-x-2'}`} />
+                </button>
+              )}
+
+              {/* Add to Cart button - only on the last tab */}
+              {activeTab === filteredTabs[filteredTabs.length - 1].id && (
+                <button
+                  type="button"
+                  onClick={handleAddToCart}
+                  disabled={loading || isSubmitting}
+                  className="flex-1 sm:px-16 py-6 theme-bg text-blue-400 border-2 border-blue-500/50 rounded-[1.5rem] font-black text-sm shadow-2xl hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all active:scale-95 flex items-center justify-center space-x-4 disabled:opacity-50"
+                >
+                  {loading || isSubmitting ? (useUrdu ? 'انتظار کریں...' : 'PROCESSING...') : (
+                    <>
+                      <ShoppingCart size={16} className={useUrdu ? "order-2" : "order-1"} />
+                      <span className={useUrdu ? "order-1" : "order-2"}>{useUrdu ? 'کارٹ میں شامل کریں' : 'ADD ITEM TO CART'}</span>
+                    </>
+                  )}
+                </button>
+              )}
+
+              {/* CHECKOUT button - only on the last tab when cart has items */}
+              {activeTab === filteredTabs[filteredTabs.length - 1].id && cartItems.length > 0 && (
+                isEditMode ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowEditReview(true)}
+                    disabled={loading || isSubmitting}
+                    className="flex-1 sm:px-16 py-6 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 group disabled:opacity-50"
+                  >
+                    <FileEdit size={16} />
+                    <span>{useUrdu ? 'تبدیلی کا جائزہ لیں' : 'REVIEW EDIT REQUEST'}</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowReview(true)}
+                    disabled={loading || isSubmitting}
+                    className="flex-1 sm:px-16 py-6 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 group disabled:opacity-50"
+                  >
+                    <CheckCircle2 size={16} />
+                    <span>{useUrdu ? 'آرڈر چیک آؤٹ کریں' : 'CHECKOUT'}</span>
+                  </button>
+                )
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </form>
 
       {/* "Add More Products?" Modal */}
@@ -2331,15 +2668,15 @@ const SmartOrderForm = () => {
                   onClick={() => {
                     setShowAddMore(false);
                     if (isEditMode) {
-                      setShowEditReview(true);
+                      setShowProductSelector(false);
                     } else {
                       setShowReview(true);
                     }
                   }}
                   className={`w-full py-5 bg-gradient-to-r ${isEditMode ? 'from-amber-600 to-orange-600' : 'from-emerald-600 to-blue-600'} text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3`}
                 >
-                  {isEditMode ? <FileEdit size={16} /> : <CheckCircle2 size={16} />}
-                  <span>{isEditMode ? (useUrdu ? 'تبدیلی کا جائزہ لیں' : 'REVIEW EDIT REQUEST') : (useUrdu ? 'آرڈر چیک آؤٹ کریں' : 'CHECKOUT')}</span>
+                  {isEditMode ? <ArrowLeft size={16} /> : <CheckCircle2 size={16} />}
+                  <span>{isEditMode ? (useUrdu ? 'ترمیم پر واپس جائیں' : 'BACK TO EDIT') : (useUrdu ? 'آرڈر چیک آؤٹ کریں' : 'CHECKOUT')}</span>
                 </button>
               </div>
             </motion.div>
@@ -2805,94 +3142,144 @@ const SmartOrderForm = () => {
                   </div>
                 </div>
 
-                {/* Requested Changes Panel */}
+                {/* Requested Changes Panel — Editable */}
                 <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-5 md:p-6 space-y-4">
                   <div className="flex items-center gap-2 text-emerald-400 font-black text-xs uppercase tracking-wider mb-2">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    {useUrdu ? 'تبدل شدہ آرڈر' : 'Requested Changes'}
+                    <span>{useUrdu ? 'تبدل شدہ آرڈر — ترمیم کریں' : 'Requested Changes — Edit'}</span>
+                    <span className="text-[7px] font-bold text-gray-500 ml-auto">Click to edit fields directly</span>
                   </div>
 
                   <div className="space-y-3 text-xs">
                     <div>
-                      <span className="text-gray-400 block">{useUrdu ? 'گاہک کا نام' : 'Customer Name'}</span>
-                      <span className={`font-bold ${hasChanged(originalOrder.customerName, formData.customerName) ? 'text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded' : 'theme-text-primary'}`}>
-                        {formData.customerName}
-                      </span>
+                      <span className="text-gray-400 block mb-1">{useUrdu ? 'گاہک کا نام' : 'Customer Name'}</span>
+                      <input type="text" value={formData.customerName} onChange={e => setFormData({...formData, customerName: e.target.value})}
+                        className={`w-full theme-input rounded-xl py-2.5 px-3 text-sm font-bold ${hasChanged(originalOrder.customerName, formData.customerName) ? 'border-amber-500/50 bg-amber-500/5' : ''}`} />
                     </div>
                     <div>
-                      <span className="text-gray-400 block">{useUrdu ? 'فون نمبر' : 'Phone'}</span>
-                      <span className={`font-bold ${hasChanged(originalOrder.customerPhone, formData.customerPhone) ? 'text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded' : 'theme-text-primary'}`}>
-                        {formData.customerPhone}
-                      </span>
+                      <span className="text-gray-400 block mb-1">{useUrdu ? 'فون نمبر' : 'Phone'}</span>
+                      <input type="text" value={formData.customerPhone} onChange={e => setFormData({...formData, customerPhone: e.target.value})}
+                        className={`w-full theme-input rounded-xl py-2.5 px-3 text-sm font-bold ${hasChanged(originalOrder.customerPhone, formData.customerPhone) ? 'border-amber-500/50 bg-amber-500/5' : ''}`} />
                     </div>
                     <div>
-                      <span className="text-gray-400 block">{useUrdu ? 'پتہ' : 'Address'}</span>
-                      <span className={`font-medium ${hasChanged(originalOrder.address, formData.address) ? 'text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded' : 'theme-text-primary'}`}>
-                        {formData.address || 'N/A'}
-                      </span>
+                      <span className="text-gray-400 block mb-1">{useUrdu ? 'پتہ' : 'Address'}</span>
+                      <input type="text" value={formData.address || ''} onChange={e => setFormData({...formData, address: e.target.value})}
+                        className={`w-full theme-input rounded-xl py-2.5 px-3 text-sm font-bold ${hasChanged(originalOrder.address, formData.address) ? 'border-amber-500/50 bg-amber-500/5' : ''}`} />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <span className="text-gray-400 block">{useUrdu ? 'شہر' : 'City'}</span>
-                        <span className={`font-bold ${hasChanged(originalOrder.city, formData.city) ? 'text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded' : 'theme-text-primary'}`}>
-                          {formData.city || 'N/A'}
-                        </span>
+                        <span className="text-gray-400 block mb-1">{useUrdu ? 'شہر' : 'City'}</span>
+                        <input type="text" value={formData.city || ''} onChange={e => setFormData({...formData, city: e.target.value})}
+                          className={`w-full theme-input rounded-xl py-2.5 px-3 text-sm font-bold ${hasChanged(originalOrder.city, formData.city) ? 'border-amber-500/50 bg-amber-500/5' : ''}`} />
                       </div>
                       <div>
-                        <span className="text-gray-400 block">{useUrdu ? 'ترجیح' : 'Priority'}</span>
-                        <span className={`font-bold uppercase ${hasChanged(originalOrder.priority, formData.priority) ? 'text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded' : 'theme-text-primary'}`}>
-                          {formData.priority}
-                        </span>
+                        <span className="text-gray-400 block mb-1">{useUrdu ? 'ترجیح' : 'Priority'}</span>
+                        <div className="flex gap-1">
+                          {['NORMAL', 'URGENT', 'SUPER_URGENT'].map(p => (
+                            <button key={p} type="button" onClick={() => setFormData({...formData, priority: p})}
+                              className={`flex-1 py-2 rounded-lg text-[8px] font-black transition-all ${formData.priority === p
+                                ? p === 'SUPER_URGENT' ? 'bg-red-600 text-white' : p === 'URGENT' ? 'bg-amber-600 text-white' : 'bg-gray-700 text-white'
+                                : 'bg-gray-900 text-gray-600 hover:bg-gray-800'}`}>
+                              {p === 'SUPER_URGENT' ? 'SUPER' : p === 'URGENT' ? 'URGENT' : 'NORMAL'}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <span className="text-gray-400 block">{useUrdu ? 'آرڈر کی قسم' : 'Order Type'}</span>
-                        <span className={`font-bold uppercase ${hasChanged(originalOrder.type, formData.type) ? 'text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded' : 'theme-text-primary'}`}>
-                          {formData.type}
-                        </span>
+                        <span className="text-gray-400 block mb-1">{useUrdu ? 'آرڈر کی قسم' : 'Order Type'}</span>
+                        <div className="flex gap-1">
+                          {['STANDARD', 'READY_LOGO', 'FULL_CUSTOM'].map(t => (
+                            <button key={t} type="button" onClick={() => setFormData({...formData, type: t})}
+                              className={`flex-1 py-2 rounded-lg text-[7px] font-black transition-all uppercase ${formData.type === t
+                                ? 'bg-blue-600 text-white' : 'bg-gray-900 text-gray-600 hover:bg-gray-800'}`}>
+                              {t === 'READY_LOGO' ? 'LOGO' : t === 'FULL_CUSTOM' ? 'CUSTOM' : 'STD'}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                       <div>
-                        <span className="text-gray-400 block">{useUrdu ? 'ایڈوانس ادائیگی' : 'Advance Paid'}</span>
-                        <span className={`font-bold ${hasChangedBool(originalOrder.advancePaid, formData.advancePaid) ? 'text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded' : 'theme-text-primary'}`}>
-                          {formData.advancePaid ? (useUrdu ? 'ہاں' : 'Yes') : (useUrdu ? 'نہیں' : 'No')}
-                        </span>
+                        <span className="text-gray-400 block mb-1">{useUrdu ? 'ایڈوانس' : 'Advance Paid'}</span>
+                        <label className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all ${formData.advancePaid ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-gray-700 bg-gray-900'}`}>
+                          <span className="text-[9px] font-bold">{formData.advancePaid ? 'YES' : 'NO'}</span>
+                          <input type="checkbox" checked={formData.advancePaid} onChange={e => setFormData({...formData, advancePaid: e.target.checked})} className="w-4 h-4 rounded border-gray-600" />
+                        </label>
                       </div>
                     </div>
                   </div>
 
-                  {/* Items List */}
-                  <div className="border-t border-emerald-500/10 pt-4 space-y-3">
-                    <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest block">
-                      {useUrdu ? 'نئے آئٹمز' : 'New Items'}
-                    </span>
+                  {/* Items List with inline editing */}
+                  <div className="border-t border-emerald-500/10 pt-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">
+                        {useUrdu ? 'نئے آئٹمز' : 'New Items'} ({cartItems.length})
+                      </span>
+                    </div>
                     {cartItems.map((item, idx) => {
-                      const d = item.productDetails;
+                      const d = item.productDetails || {};
                       return (
-                        <div key={idx} className="flex justify-between items-start py-2 border-b border-emerald-500/10 last:border-0">
-                          <div>
-                            <span className="text-xs font-bold text-white">{d.productType || 'Unknown'}</span>
-                            <span className="text-[10px] theme-text-muted block mt-0.5">
-                              {d.color ? `${d.color}` : ''}{d.color && d.size ? ' / ' : ''}{d.size ? `${d.size}` : ''} × {item.quantity || 1}
-                            </span>
+                        <div key={idx} className="flex items-start justify-between gap-2 p-2.5 bg-gray-900/50 rounded-xl border border-emerald-500/10">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[10px] font-bold text-white truncate">{d.productType || 'Unknown'}</p>
+                            <p className="text-[8px] theme-text-muted truncate">
+                              {[d.color, d.size].filter(Boolean).join(' / ') || '—'}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1.5">
+                              <div className="flex items-center gap-1">
+                                <span className="text-[7px] text-gray-500">Qty:</span>
+                                <input type="number" min="1" value={item.quantity || 1}
+                                  onChange={e => {
+                                    const newCart = [...cartItems];
+                                    newCart[idx] = {...newCart[idx], quantity: parseInt(e.target.value) || 1};
+                                    setCartItems(newCart);
+                                  }}
+                                  className="w-14 theme-input rounded-lg py-1 px-2 text-[9px] font-bold text-center" />
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className="text-[7px] text-gray-500">₨:</span>
+                                <input type="number" min="0" value={item.totalPrice || 0}
+                                  onChange={e => {
+                                    const newCart = [...cartItems];
+                                    newCart[idx] = {...newCart[idx], totalPrice: parseFloat(e.target.value) || 0};
+                                    setCartItems(newCart);
+                                  }}
+                                  className="w-20 theme-input rounded-lg py-1 px-2 text-[9px] font-bold text-center" />
+                              </div>
+                            </div>
                           </div>
-                          <span className="text-xs font-black text-white">
-                            ₨{parseFloat(item.totalPrice || 0).toLocaleString()}
-                          </span>
+                          <button type="button" onClick={() => {
+                            const newCart = cartItems.filter((_, i) => i !== idx);
+                            setCartItems(newCart);
+                          }}
+                            className="shrink-0 p-1.5 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-lg transition-all">
+                            <Trash2 size={12} />
+                          </button>
                         </div>
                       );
                     })}
+                    {cartItems.length === 0 && (
+                      <p className="text-[9px] theme-text-muted italic text-center py-3">No items — add products through the form tabs below</p>
+                    )}
                   </div>
 
                   {/* Pricing Subtotal */}
                   {(() => {
                     const totalNewPrice = cartItems.reduce((sum, item) => sum + (parseFloat(item.totalPrice) || 0), 0);
+                    const diff = totalNewPrice - (parseFloat(originalOrder.totalPrice) || 0);
                     return (
-                      <div className="border-t border-emerald-500/10 pt-4 flex justify-between items-center text-xs font-black">
+                      <div className="border-t border-emerald-500/10 pt-3 flex justify-between items-center text-xs font-black">
                         <span className="text-gray-400 uppercase">{useUrdu ? 'کل نئی رقم' : 'New Total'}</span>
-                        <span className={`text-sm ${totalNewPrice !== parseFloat(originalOrder.totalPrice) ? 'text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded' : 'text-emerald-400'}`}>
-                          ₨{totalNewPrice.toLocaleString()}
-                        </span>
+                        <div className="text-right">
+                          <span className={`text-sm ${diff !== 0 ? 'text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded' : 'text-emerald-400'}`}>
+                            ₨{totalNewPrice.toLocaleString()}
+                          </span>
+                          {diff !== 0 && (
+                            <span className="text-[8px] text-gray-500 block mt-0.5">
+                              ({diff > 0 ? '+' : ''}₨{diff.toLocaleString()} vs original)
+                            </span>
+                          )}
+                        </div>
                       </div>
                     );
                   })()}

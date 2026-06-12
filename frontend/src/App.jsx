@@ -82,6 +82,7 @@ function App() {
                   <Route path="inventory" element={<InventoryManagement />} />
                   <Route path="tasks" element={<MyTasks />} />
                   <Route path="order-entry" element={<OrderEntry />} />
+                  <Route path="order-edit" element={<Navigate to="/order-entry?edit=1" replace />} />
                   <Route path="orders" element={<AllOrders />} />
                   <Route path="history" element={<History />} />
                   <Route path="delivery" element={<DeliveryDashboard />} />

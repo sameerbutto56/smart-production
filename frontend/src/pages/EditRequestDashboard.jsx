@@ -375,6 +375,37 @@ const EditRequestDashboard = () => {
                         </div>
 
 
+                        {/* Current Department / Holder */}
+                        <div className="theme-bg rounded-xl p-3 border theme-border">
+                          <p className="text-[8px] font-black theme-text-muted uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                            <Activity size={10} /> Current Department / Holder
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className={`px-2.5 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-wider border ${
+                              order.currentStage && currentStageIdx >= STAGE_ORDER.indexOf('PRODUCTION')
+                                ? 'bg-sky-500/15 text-sky-400 border-sky-500/30'
+                                : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                            }`}>
+                              {STAGE_LABELS[order.currentStage] || order.currentStage || '—'}
+                            </div>
+                            {(() => {
+                              const prodIdx = STAGE_ORDER.indexOf('PRODUCTION');
+                              const prodCompleted = order.stages?.some(s => s.stageName === 'PRODUCTION' && s.status === 'COMPLETED');
+                              const prodCurrent = order.currentStage === 'PRODUCTION';
+                              if (prodCurrent) return <span className="text-[8px] font-bold px-2 py-1 bg-amber-500/15 text-amber-400 rounded-lg border border-amber-500/30">&#9881; In Production</span>;
+                              if (prodCompleted) return <span className="text-[8px] font-bold px-2 py-1 bg-emerald-500/15 text-emerald-400 rounded-lg border border-emerald-500/30">&#10003; Production Complete</span>;
+                              if (currentStageIdx >= 0 && currentStageIdx < prodIdx) return <span className="text-[8px] font-bold px-2 py-1 bg-gray-800 text-gray-500 rounded-lg border border-gray-700">&#9203; Pre-Production</span>;
+                              if (currentStageIdx > prodIdx) return <span className="text-[8px] font-bold px-2 py-1 bg-emerald-500/15 text-emerald-400 rounded-lg border border-emerald-500/30">&#10003; Past Production</span>;
+                              return null;
+                            })()}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-3 mt-2 text-[8px] font-bold theme-text-muted">
+                            <span>Order Source: <span className="theme-text-primary uppercase">{order.source || order.outletName || 'N/A'}</span></span>
+                            <span className="text-gray-700">|</span>
+                            <span>Created: <span className="theme-text-primary">{new Date(order.createdAt).toLocaleDateString()}</span></span>
+                          </div>
+                        </div>
+
 
                         {/* Old vs New */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -416,23 +447,77 @@ const EditRequestDashboard = () => {
                           </div>
                         </div>
 
-                        {/* Inventory Impact */}
+                        {/* Inventory Impact Analysis Table */}
                         <div className="bg-amber-500/5 border border-amber-500/15 rounded-xl p-3">
-                          <p className="text-[8px] font-black text-amber-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                            <RefreshCw size={10} /> Inventory Impact
+                          <p className="text-[8px] font-black text-amber-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                            <RefreshCw size={10} /> Inventory Impact Analysis
                           </p>
-                          <div className="space-y-1">
-                            {oldItems.map((p, i) => (
-                              <p key={i} className="text-[8px] font-bold text-green-400">
-                                +{p.qty} {p.name} {p.color ? `(${p.color}` : ''}{p.color && p.size ? ' / ' : ''}{p.size ? `${p.size})` : ''} returned to stock
-                              </p>
-                            ))}
-                            {newItems.map((p, i) => (
-                              <p key={i} className="text-[8px] font-bold text-red-400">
-                                -{p.qty} {p.name} {p.color ? `(${p.color}` : ''}{p.color && p.size ? ' / ' : ''}{p.size ? `${p.size})` : ''} deducted from stock
-                              </p>
-                            ))}
-                          </div>
+                          {(() => {
+                            // Merge old and new items by product+color+size key
+                            const itemMap = {};
+                            oldItems.forEach(p => {
+                              const key = `${p.name}|${p.color}|${p.size}`;
+                              if (!itemMap[key]) itemMap[key] = { ...p, oldQty: p.qty, newQty: 0 };
+                              else itemMap[key].oldQty = (itemMap[key].oldQty || 0) + p.qty;
+                            });
+                            newItems.forEach(p => {
+                              const key = `${p.name}|${p.color}|${p.size}`;
+                              if (!itemMap[key]) itemMap[key] = { ...p, oldQty: 0, newQty: p.qty };
+                              else itemMap[key].newQty = (itemMap[key].newQty || 0) + p.qty;
+                            });
+                            const merged = Object.values(itemMap);
+                            return merged.length === 0 ? (
+                              <p className="text-[8px] theme-text-muted italic">No items to compare</p>
+                            ) : (
+                              <div className="overflow-x-auto custom-scrollbar">
+                                <table className="w-full text-[9px]">
+                                  <thead>
+                                    <tr className="border-b border-amber-500/20">
+                                      <th className="text-left py-1.5 pr-2 font-black theme-text-muted uppercase tracking-wider">Product</th>
+                                      <th className="text-center py-1.5 px-2 font-black theme-text-muted uppercase tracking-wider">Current</th>
+                                      <th className="text-center py-1.5 px-2 font-black theme-text-muted uppercase tracking-wider">Requested</th>
+                                      <th className="text-center py-1.5 px-2 font-black theme-text-muted uppercase tracking-wider">&#916;</th>
+                                      <th className="text-right py-1.5 pl-2 font-black theme-text-muted uppercase tracking-wider">Impact</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {merged.map((item, i) => {
+                                      const diff = item.newQty - item.oldQty;
+                                      const stockChange = diff > 0
+                                        ? { text: `-${diff} from stock`, cls: 'text-red-400' }
+                                        : diff < 0
+                                        ? { text: `+${Math.abs(diff)} to stock`, cls: 'text-emerald-400' }
+                                        : { text: 'No change', cls: 'text-gray-500' };
+                                      return (
+                                        <tr key={i} className="border-b border-amber-500/10">
+                                          <td className="py-1.5 pr-2">
+                                            <span className="font-bold theme-text-primary">{item.name}</span>
+                                            {(item.color || item.size) && (
+                                              <span className="text-theme-muted ml-1 text-[8px]">
+                                                ({[item.color, item.size].filter(Boolean).join('/')})
+                                              </span>
+                                            )}
+                                          </td>
+                                          <td className="text-center py-1.5 px-2 font-bold">{item.oldQty}</td>
+                                          <td className="text-center py-1.5 px-2 font-bold">{item.newQty}</td>
+                                          <td className="text-center py-1.5 px-2">
+                                            <span className={`font-black ${diff > 0 ? 'text-red-400' : diff < 0 ? 'text-emerald-400' : 'text-gray-500'}`}>
+                                              {diff > 0 ? `+${diff}` : diff}
+                                            </span>
+                                          </td>
+                                          <td className="text-right py-1.5 pl-2">
+                                            <span className={`font-bold text-[8px] ${stockChange.cls}`}>
+                                              {stockChange.text}
+                                            </span>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            );
+                          })()}
                         </div>
 
                         {/* Inventory Availability */}
@@ -475,23 +560,23 @@ const EditRequestDashboard = () => {
                                   }
                                 }
 
-                                // Stock checks
+                                // Stock checks with Sufficient / Low / Insufficient badges
                                 let badgeText = '';
                                 let badgeClass = '';
                                 if (!hasProduct) {
-                                  badgeText = '❌ Out of Stock (No record found)';
+                                  badgeText = `❌ INSUFFICIENT (No record found — Need: ${p.qty})`;
                                   badgeClass = 'bg-red-500/15 text-red-400 border border-red-500/30';
                                 } else if (!hasVariant) {
-                                  badgeText = `❌ Out of Stock (Variant ${[p.color, p.size].filter(Boolean).join('/')} not found)`;
+                                  badgeText = `❌ INSUFFICIENT (Variant ${[p.color, p.size].filter(Boolean).join('/')} not found — Need: ${p.qty})`;
                                   badgeClass = 'bg-red-500/15 text-red-400 border border-red-500/30';
                                 } else if (totalStock >= p.qty) {
-                                  badgeText = `✅ Stock Available (Stock: ${totalStock} / Need: ${p.qty})`;
+                                  badgeText = `✅ SUFFICIENT (Stock: ${totalStock} / Need: ${p.qty})`;
                                   badgeClass = 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30';
                                 } else if (totalStock > 0) {
-                                  badgeText = `⚠️ Insufficient Stock (Stock: ${totalStock} / Need: ${p.qty})`;
+                                  badgeText = `⚠️ LOW (Stock: ${totalStock} / Need: ${p.qty})`;
                                   badgeClass = 'bg-amber-500/15 text-amber-400 border border-amber-500/30';
                                 } else {
-                                  badgeText = `❌ Out of Stock (Stock: 0 / Need: ${p.qty})`;
+                                  badgeText = `❌ INSUFFICIENT (Stock: 0 / Need: ${p.qty})`;
                                   badgeClass = 'bg-red-500/15 text-red-400 border border-red-500/30';
                                 }
 
