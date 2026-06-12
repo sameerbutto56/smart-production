@@ -1,9 +1,11 @@
 node_modules/
 .env
+.env.*
 dev.db
 dev.db-journal
 dist/
 build/
 .DS_Store
+backend/.env
 
 .vercel
