@@ -374,6 +374,43 @@ const EditRequestDashboard = () => {
                           </div>
                         </div>
 
+                        {/* Operational Feasibility Notice */}
+                        {(() => {
+                          const stage = order.currentStage || 'ORDER_ENTRY';
+                          const isLateStage = STAGE_ORDER.indexOf(stage) >= STAGE_ORDER.indexOf('DISPATCH');
+                          const isFinished = stage === 'COMPLETED' || stage === 'DELIVERED';
+                          const isProduction = stage === 'PRODUCTION';
+                          
+                          let noticeText = '';
+                          let noticeColorClass = '';
+                          let icon = null;
+
+                          if (isFinished) {
+                            noticeText = `⚠ Operational Notice: This order is already marked as ${STAGE_LABELS[stage] || stage}. Proceed with caution as production is complete.`;
+                            noticeColorClass = 'border-red-500/20 bg-red-500/5 text-red-400';
+                            icon = <AlertTriangle size={14} className="text-red-400 shrink-0" />;
+                          } else if (isLateStage) {
+                            noticeText = `⚠ Operational Notice: This order is in the ${STAGE_LABELS[stage] || stage} stage. Making changes now may cause dispatch delays or courier discrepancies.`;
+                            noticeColorClass = 'border-amber-500/20 bg-amber-500/5 text-amber-400';
+                            icon = <AlertTriangle size={14} className="text-amber-400 shrink-0" />;
+                          } else if (isProduction) {
+                            noticeText = `ℹ Operational Notice: This order is currently in Production. Please coordinate with the manufacturing floor before approving modifications.`;
+                            noticeColorClass = 'border-sky-500/20 bg-sky-500/5 text-sky-400';
+                            icon = <Activity size={14} className="text-sky-400 shrink-0" />;
+                          } else {
+                            noticeText = `✓ Operational Notice: This order is in the early stage (${STAGE_LABELS[stage] || stage}). Modifying this order is highly feasible.`;
+                            noticeColorClass = 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400';
+                            icon = <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />;
+                          }
+
+                          return (
+                            <div className={`border rounded-xl p-3.5 flex items-start gap-3 text-xs font-bold leading-normal ${noticeColorClass}`}>
+                              {icon}
+                              <span>{noticeText}</span>
+                            </div>
+                          );
+                        })()}
+
                         {/* Old vs New */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           <div className="theme-bg rounded-xl p-3 border border-red-500/20">
@@ -446,52 +483,69 @@ const EditRequestDashboard = () => {
                           ) : (
                             <div className="space-y-2">
                               {newItems.map((p, i) => {
-                                const items = inventoryResults[p.name] || [];
+                                const products = inventoryResults[p.name] || [];
+                                
+                                // Variant lookup
+                                let foundVariant = null;
+                                let totalStock = 0;
+                                let hasProduct = products.length > 0;
+                                let hasVariant = false;
+
+                                if (hasProduct) {
+                                  for (const prod of products) {
+                                    const variants = prod.variants && Array.isArray(prod.variants)
+                                      ? prod.variants
+                                      : [{ color: prod.color, size: prod.size, stock: prod.stock }];
+                                    
+                                    const match = variants.find(v => 
+                                      (!p.color || v.color?.toLowerCase() === p.color.toLowerCase()) &&
+                                      (!p.size || v.size?.toLowerCase() === p.size.toLowerCase())
+                                    );
+                                    if (match) {
+                                      foundVariant = match;
+                                      totalStock = match.stock || 0;
+                                      hasVariant = true;
+                                      break;
+                                    }
+                                  }
+                                }
+
+                                // Stock checks
+                                let badgeText = '';
+                                let badgeClass = '';
+                                if (!hasProduct) {
+                                  badgeText = '❌ Out of Stock (No record found)';
+                                  badgeClass = 'bg-red-500/15 text-red-400 border border-red-500/30';
+                                } else if (!hasVariant) {
+                                  badgeText = `❌ Out of Stock (Variant ${[p.color, p.size].filter(Boolean).join('/')} not found)`;
+                                  badgeClass = 'bg-red-500/15 text-red-400 border border-red-500/30';
+                                } else if (totalStock >= p.qty) {
+                                  badgeText = `✅ Stock Available (Stock: ${totalStock} / Need: ${p.qty})`;
+                                  badgeClass = 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30';
+                                } else if (totalStock > 0) {
+                                  badgeText = `⚠️ Insufficient Stock (Stock: ${totalStock} / Need: ${p.qty})`;
+                                  badgeClass = 'bg-amber-500/15 text-amber-400 border border-amber-500/30';
+                                } else {
+                                  badgeText = `❌ Out of Stock (Stock: 0 / Need: ${p.qty})`;
+                                  badgeClass = 'bg-red-500/15 text-red-400 border border-red-500/30';
+                                }
+
                                 return (
-                                  <div key={i} className="theme-bg rounded-lg p-2 border theme-border">
-                                    <p className="text-[8px] font-black theme-text-primary mb-1.5 uppercase tracking-wider">{p.name}</p>
-                                    {items.length === 0 ? (
-                                      <p className="text-[8px] font-bold text-red-400 italic">No inventory records found</p>
-                                    ) : (
-                                      items.map((item, idx) => {
-                                        const v = item.variants && Array.isArray(item.variants) ? item.variants : [{ color: item.color || 'Default', size: item.size || 'Default', stock: item.stock || 0 }];
-                                        return (
-                                          <div key={idx} className="mb-1 last:mb-0">
-                                            {v.length === 1 && !item.variants ? (
-                                              <div className="flex items-center justify-between py-1">
-                                                <span className="text-[8px] font-medium theme-text-secondary">
-                                                  {[v[0].color, v[0].size].filter(Boolean).join(' / ')}
-                                                </span>
-                                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded ${
-                                                  v[0].stock === 0 ? 'bg-red-500/15 text-red-400' :
-                                                  v[0].stock <= 5 ? 'bg-amber-500/15 text-amber-400' :
-                                                  'bg-emerald-500/15 text-emerald-400'
-                                                }`}>
-                                                  {v[0].stock} in stock
-                                                </span>
-                                              </div>
-                                            ) : (
-                                              <div className="space-y-0.5">
-                                                {v.map((variant, vi) => (
-                                                  <div key={vi} className="flex items-center justify-between py-0.5">
-                                                    <span className="text-[7px] font-medium theme-text-secondary">
-                                                      {[variant.color, variant.size].filter(Boolean).join(' / ')}
-                                                    </span>
-                                                    <span className={`text-[7px] font-bold px-1.5 py-0.5 rounded ${
-                                                      (variant.stock || 0) === 0 ? 'bg-red-500/15 text-red-400' :
-                                                      (variant.stock || 0) <= 5 ? 'bg-amber-500/15 text-amber-400' :
-                                                      'bg-emerald-500/15 text-emerald-400'
-                                                    }`}>
-                                                      {variant.stock || 0} in stock
-                                                    </span>
-                                                  </div>
-                                                ))}
-                                              </div>
-                                            )}
-                                          </div>
-                                        );
-                                      })
-                                    )}
+                                  <div key={i} className="theme-bg rounded-xl p-3 border theme-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm hover:border-indigo-500/20 transition-all duration-300">
+                                    <div>
+                                      <p className="text-[10px] font-black theme-text-primary uppercase tracking-wider">{p.name}</p>
+                                      {(p.color || p.size) && (
+                                        <p className="text-[8px] font-bold theme-text-muted mt-0.5">
+                                          Variant: <span className="theme-text-secondary">{[p.color, p.size].filter(Boolean).join(' / ')}</span>
+                                        </p>
+                                      )}
+                                      <p className="text-[8px] font-bold theme-text-muted">Requested Qty: <span className="theme-text-secondary">{p.qty}</span></p>
+                                    </div>
+                                    <div className="flex items-center shrink-0">
+                                      <span className={`px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-wider ${badgeClass}`}>
+                                        {badgeText}
+                                      </span>
+                                    </div>
                                   </div>
                                 );
                               })}
@@ -577,9 +631,17 @@ const EditRequestDashboard = () => {
               </div>
 
               {reviewAction === 'approve' && (
-                <div className="theme-bg rounded-xl p-4 border theme-border mb-4">
-                  <p className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-2">⚠ Inventory will auto-adjust</p>
-                  <p className="text-[9px] font-medium theme-text-muted">The system will automatically restore stock for removed products and deduct stock for new products.</p>
+                <div className="space-y-3 mb-4">
+                  <div className="theme-bg rounded-xl p-4 border theme-border">
+                    <p className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-2">⚠ Inventory will auto-adjust</p>
+                    <p className="text-[9px] font-medium theme-text-muted">The system will automatically restore stock for removed products and deduct stock for new products.</p>
+                  </div>
+                  {reviewData.order?.currentStage && STAGE_ORDER.indexOf(reviewData.order.currentStage) >= STAGE_ORDER.indexOf('DISPATCH') && (
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-xs font-bold text-red-400 flex items-start gap-2 leading-relaxed">
+                      <AlertTriangle size={14} className="shrink-0 mt-0.5 text-red-400" />
+                      <span>Warning: This order is currently in the late stage "{STAGE_LABELS[reviewData.order.currentStage] || reviewData.order.currentStage}". Approving this change may cause dispatch issues.</span>
+                    </div>
+                  )}
                 </div>
               )}
 

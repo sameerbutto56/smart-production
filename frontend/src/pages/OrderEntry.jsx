@@ -53,23 +53,15 @@ const SmartOrderForm = () => {
   const [productSearchTerm, setProductSearchTerm] = useState('');
   const [expandedProducts, setExpandedProducts] = useState({});
   const [showReview, setShowReview] = useState(false);
-  const [showEditRequest, setShowEditRequest] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editOrderId, setEditOrderId] = useState(null);
+  const [originalOrder, setOriginalOrder] = useState(null);
+  const [showEditReview, setShowEditReview] = useState(false);
+  const [editReason, setEditReason] = useState('');
   const [editOrderNumber, setEditOrderNumber] = useState('');
   const [editOrderData, setEditOrderData] = useState(null);
   const [editOrderLoading, setEditOrderLoading] = useState(false);
   const [editOrderError, setEditOrderError] = useState('');
-  const [editRequestChanges, setEditRequestChanges] = useState({
-    productType: '',
-    color: '',
-    size: '',
-    quantity: 1,
-    totalPrice: ''
-  });
-  const [editRequestReason, setEditRequestReason] = useState('');
-  const [editRequestSubmitting, setEditRequestSubmitting] = useState(false);
-  const [editInvSearch, setEditInvSearch] = useState('');
-  const [editShowInvDropdown, setEditShowInvDropdown] = useState(false);
-  const [editSelectedInvItem, setEditSelectedInvItem] = useState(null);
 
   const [formData, setFormData] = useState({
     orderNumber: '',
@@ -197,7 +189,7 @@ const SmartOrderForm = () => {
 
   useEffect(() => {
     if (searchParams.get('edit') === '1') {
-      setShowEditRequest(true);
+      setIsEditMode(true);
     }
   }, [searchParams]);
 
@@ -230,6 +222,65 @@ const SmartOrderForm = () => {
   };
 
   usePolling(fetchInventory, 5000);
+
+  const hasChanged = (val1, val2) => {
+    const normalize = (v) => (v === null || v === undefined ? '' : String(v).trim().toLowerCase());
+    return normalize(val1) !== normalize(val2);
+  };
+
+  const hasChangedBool = (b1, b2) => {
+    return !!b1 !== !!b2;
+  };
+
+  const toggleEditMode = () => {
+    if (isEditMode) {
+      setIsEditMode(false);
+      setEditOrderId(null);
+      setOriginalOrder(null);
+      setEditOrderNumber('');
+      setEditOrderData(null);
+      setEditOrderError('');
+      setCartItems([]);
+      setFormData({
+        orderNumber: '',
+        customerName: '',
+        customerPhone: '',
+        address: '',
+        city: '',
+        type: 'STANDARD',
+        priority: 'NORMAL',
+        advancePaid: false,
+        totalPrice: '',
+        quantity: 1,
+        productType: '',
+        fabricType: '',
+        color: '',
+        size: '',
+        logoDesign: '',
+        logoName: '',
+        nameSpelling: '',
+        nameColor: '',
+        logoColor: '',
+        logoPlacement: '',
+        logoCharges: '',
+        namePrintingCharges: '',
+        customizationPrice: '',
+        stitchingStyle: '',
+        fitType: 'Regular',
+        designNotes: '',
+        designReference: '',
+        additionalFeatures: [],
+        measurements: {
+          chest: '', shoulder: '', length: '', sleeve: '', waist: '', hips: '',
+          shirtLength: '', trouserLength: '', bottom: '', thigh: '', mori: '', ganda: ''
+        },
+        gender: 'Male',
+        femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: false }
+      });
+    } else {
+      setIsEditMode(true);
+    }
+  };
 
   const fetchOrderByNumber = async () => {
     if (!editOrderNumber.trim()) {
@@ -273,24 +324,149 @@ const SmartOrderForm = () => {
         }
 
         setEditOrderData(found);
-        const pd = typeof found.productDetails === 'string' ? JSON.parse(found.productDetails) : found.productDetails;
+        setEditOrderId(found.id);
+        setOriginalOrder(found);
+
+        // Populate form basics
+        setFormData({
+          orderNumber: found.orderNumber || '',
+          customerName: found.customerName || '',
+          customerPhone: found.customerPhone || '',
+          address: found.address || '',
+          city: found.city || '',
+          type: found.type || 'STANDARD',
+          priority: found.priority || 'NORMAL',
+          advancePaid: !!found.advancePaid,
+          totalPrice: found.totalPrice || '',
+          quantity: found.quantity || 1,
+          productType: '',
+          fabricType: '',
+          color: '',
+          size: '',
+          logoDesign: found.logoDesign || '',
+          logoName: found.logoName || '',
+          nameSpelling: '',
+          nameColor: '',
+          logoColor: '',
+          logoPlacement: '',
+          logoCharges: found.logoCharges?.toString() || '',
+          namePrintingCharges: found.namePrintingCharges?.toString() || '',
+          customizationPrice: found.customizationPrice?.toString() || '',
+          stitchingStyle: '',
+          fitType: 'Regular',
+          designNotes: '',
+          designReference: '',
+          additionalFeatures: [],
+          measurements: {
+            chest: '', shoulder: '', length: '', sleeve: '', waist: '', hips: '',
+            shirtLength: '', trouserLength: '', bottom: '', thigh: '', mori: '', ganda: ''
+          },
+          gender: 'Male',
+          femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: false }
+        });
+
+        // Parse and populate product items into cart
+        let pd = [];
+        try {
+          pd = typeof found.productDetails === 'string' ? JSON.parse(found.productDetails) : found.productDetails;
+        } catch {
+          pd = found.productDetails || [];
+        }
+
         if (Array.isArray(pd)) {
-          const first = pd[0]?.productDetails || pd[0];
-          setEditRequestChanges({
-            productType: first?.productType || '',
-            color: first?.color || '',
-            size: first?.size || '',
-            quantity: pd[0]?.quantity || found.quantity || 1,
-            totalPrice: found.totalPrice?.toString() || ''
+          const parsedItems = pd.map(item => {
+            const pdItem = item.productDetails || item;
+            const custItem = item.customization || {};
+            return {
+              orderNumber: found.orderNumber,
+              customerName: found.customerName,
+              customerPhone: found.customerPhone,
+              address: found.address,
+              city: found.city,
+              type: found.type,
+              priority: found.priority,
+              quantity: item.quantity || 1,
+              advancePaid: found.advancePaid,
+              logoDesign: found.logoDesign,
+              logoName: found.logoName,
+              logoCharges: parseFloat(item.logoCharges) || 0,
+              namePrintingCharges: parseFloat(item.namePrintingCharges) || 0,
+              customizationPrice: parseFloat(item.customizationPrice) || 0,
+              productDetails: {
+                productType: pdItem.productType || '',
+                fabricType: pdItem.fabricType || '',
+                color: pdItem.color || '',
+                size: pdItem.size || '',
+                gender: pdItem.gender || 'Male',
+                femaleOptions: pdItem.femaleOptions || null
+              },
+              customization: {
+                nameSpelling: custItem.nameSpelling || '',
+                nameColor: custItem.nameColor || '',
+                logoColor: custItem.logoColor || '',
+                logoPlacement: custItem.logoPlacement || '',
+                stitchingStyle: custItem.stitchingStyle || '',
+                fitType: custItem.fitType || 'Regular',
+                designNotes: custItem.designNotes || '',
+                designReference: custItem.designReference || '',
+                additionalFeatures: custItem.additionalFeatures || []
+              },
+              sizeData: item.sizeData || {},
+              totalPrice: parseFloat(item.totalPrice) || 0
+            };
           });
-        } else if (pd?.productType) {
-          setEditRequestChanges({
-            productType: pd.productType || '',
-            color: pd.color || '',
-            size: pd.size || '',
+          setCartItems(parsedItems);
+        } else if (pd && pd.productType) {
+          let custData = {};
+          try {
+            custData = found.customization ? (typeof found.customization === 'string' ? JSON.parse(found.customization) : found.customization) : {};
+          } catch {
+            custData = {};
+          }
+          let sizeDataObj = {};
+          try {
+            sizeDataObj = found.sizeData ? (typeof found.sizeData === 'string' ? JSON.parse(found.sizeData) : found.sizeData) : {};
+          } catch {
+            sizeDataObj = {};
+          }
+          const legacyItem = {
+            orderNumber: found.orderNumber,
+            customerName: found.customerName,
+            customerPhone: found.customerPhone,
+            address: found.address,
+            city: found.city,
+            type: found.type,
+            priority: found.priority,
             quantity: found.quantity || 1,
-            totalPrice: found.totalPrice?.toString() || ''
-          });
+            advancePaid: found.advancePaid,
+            logoDesign: found.logoDesign,
+            logoName: found.logoName,
+            logoCharges: parseFloat(found.logoCharges) || 0,
+            namePrintingCharges: parseFloat(found.namePrintingCharges) || 0,
+            customizationPrice: parseFloat(found.customizationPrice) || 0,
+            productDetails: {
+              productType: pd.productType || '',
+              fabricType: pd.fabricType || '',
+              color: pd.color || '',
+              size: pd.size || '',
+              gender: pd.gender || 'Male',
+              femaleOptions: pd.femaleOptions || null
+            },
+            customization: {
+              nameSpelling: custData.nameSpelling || '',
+              nameColor: custData.nameColor || '',
+              logoColor: custData.logoColor || '',
+              logoPlacement: custData.logoPlacement || '',
+              stitchingStyle: custData.stitchingStyle || '',
+              fitType: custData.fitType || 'Regular',
+              designNotes: custData.designNotes || '',
+              designReference: custData.designReference || '',
+              additionalFeatures: custData.additionalFeatures || []
+            },
+            sizeData: sizeDataObj || {},
+            totalPrice: parseFloat(found.totalPrice) || 0
+          };
+          setCartItems([legacyItem]);
         }
       } else {
         setEditOrderError('No order found with that number/ID');
@@ -304,7 +480,6 @@ const SmartOrderForm = () => {
       try {
         const token = sessionStorage.getItem('token');
         const userRole = user?.role;
-        // Derive source for data isolation: only users can see delete status for their own source
         let mySource = '';
         if (userRole === 'FAISAL') {
           mySource = 'ONLINE ORDER';
@@ -325,45 +500,111 @@ const SmartOrderForm = () => {
           return;
         }
       } catch (delErr) {
-        // Order not in deleted records either — keep original "not found" error
+        // keep error
       }
     }
 
     setEditOrderLoading(false);
   };
 
-  const submitEditRequest = async () => {
-    if (!editOrderData || !editRequestChanges.productType) {
-      setEditOrderError('Please fetch an order and specify changes');
+  const submitOrderEditRequest = async () => {
+    if (!editOrderId || cartItems.length === 0) {
+      setError('No items in the edit request or no order selected.');
       return;
     }
-    setEditRequestSubmitting(true);
-    setEditOrderError('');
+    setIsSubmitting(true);
+    setLoading(true);
+    setError('');
     try {
       const token = sessionStorage.getItem('token');
+      const finalItems = cartItems.map(item => ({
+        productDetails: item.productDetails,
+        customization: item.customization || {},
+        sizeData: item.sizeData || {},
+        quantity: parseInt(item.quantity) || 1,
+        totalPrice: parseFloat(item.totalPrice) || 0
+      }));
+
+      const totalLogoCharges = cartItems.reduce((s, i) => s + (parseFloat(i.logoCharges) || 0), 0);
+      const totalNamePrintingCharges = cartItems.reduce((s, i) => s + (parseFloat(i.namePrintingCharges) || 0), 0);
+      const totalCustomizationPrice = cartItems.reduce((s, i) => s + (parseFloat(i.customizationPrice) || 0), 0);
+
       const requestedChanges = {
-        productDetails: {
-          productType: editRequestChanges.productType,
-          color: editRequestChanges.color,
-          size: editRequestChanges.size
-        },
-        quantity: parseInt(editRequestChanges.quantity) || 1,
-        totalPrice: parseFloat(editRequestChanges.totalPrice) || 0
+        customerName: formData.customerName,
+        customerPhone: formData.customerPhone,
+        address: formData.address,
+        city: formData.city,
+        type: formData.type,
+        priority: formData.priority,
+        advancePaid: formData.advancePaid,
+        items: finalItems,
+        quantity: finalItems.reduce((sum, item) => sum + (item.quantity || 1), 0),
+        totalPrice: cartItems.reduce((sum, item) => sum + (parseFloat(item.totalPrice) || 0), 0),
+        logoDesign: formData.logoDesign,
+        logoName: formData.logoName,
+        logoCharges: totalLogoCharges,
+        namePrintingCharges: totalNamePrintingCharges,
+        customizationPrice: totalCustomizationPrice
       };
-      await axios.post(`${API_URL}/api/orders/${editOrderData.id}/edit-request`,
-        { requestedChanges, reason: editRequestReason },
+
+      await axios.post(`${API_URL}/api/orders/${editOrderId}/edit-request`,
+        { requestedChanges, reason: editReason },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setShowEditRequest(false);
-      setEditOrderData(null);
+
+      // Reset everything out of edit request mode
+      setIsEditMode(false);
+      setEditOrderId(null);
+      setOriginalOrder(null);
+      setShowEditReview(false);
+      setEditReason('');
       setEditOrderNumber('');
-      setEditRequestReason('');
-      setEditRequestChanges({ productType: '', color: '', size: '', quantity: 1, totalPrice: '' });
+      setEditOrderData(null);
+      setCartItems([]);
+
+      setFormData({
+        orderNumber: '',
+        customerName: '',
+        customerPhone: '',
+        address: '',
+        city: '',
+        type: 'STANDARD',
+        priority: 'NORMAL',
+        advancePaid: false,
+        totalPrice: '',
+        quantity: 1,
+        productType: '',
+        fabricType: '',
+        color: '',
+        size: '',
+        logoDesign: '',
+        logoName: '',
+        nameSpelling: '',
+        nameColor: '',
+        logoColor: '',
+        logoPlacement: '',
+        logoCharges: '',
+        namePrintingCharges: '',
+        customizationPrice: '',
+        stitchingStyle: '',
+        fitType: 'Regular',
+        designNotes: '',
+        designReference: '',
+        additionalFeatures: [],
+        measurements: {
+          chest: '', shoulder: '', length: '', sleeve: '', waist: '', hips: '',
+          shirtLength: '', trouserLength: '', bottom: '', thigh: '', mori: '', ganda: ''
+        },
+        gender: 'Male',
+        femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: false }
+      });
+      setActiveTab('basic');
       alert('Edit request submitted successfully!');
     } catch (err) {
-      setEditOrderError(err.response?.data?.message || 'Error submitting edit request');
+      setError(err.response?.data?.message || 'Error submitting edit request');
     }
-    setEditRequestSubmitting(false);
+    setLoading(false);
+    setIsSubmitting(false);
   };
 
   // Standard Measurements Mapping
@@ -813,11 +1054,19 @@ const SmartOrderForm = () => {
           {user?.role !== 'SUPER_ADMIN' && user?.role !== 'ADMIN' && (
             <button
               type="button"
-              onClick={() => setShowEditRequest(true)}
-              className="flex items-center gap-2 px-5 py-3 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-[1.2rem] font-black text-[9px] md:text-[10px] uppercase tracking-widest hover:bg-amber-500 hover:text-white transition-all active:scale-95 shadow-lg whitespace-nowrap"
+              onClick={toggleEditMode}
+              className={`flex items-center gap-2 px-5 py-3 ${
+                isEditMode
+                  ? 'bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-600 hover:text-white'
+                  : 'bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500 hover:text-white'
+              } rounded-[1.2rem] font-black text-[9px] md:text-[10px] uppercase tracking-widest transition-all active:scale-95 shadow-lg whitespace-nowrap`}
             >
               <FileEdit size={14} />
-              <span className="hidden sm:inline">{useUrdu ? 'آرڈر میں تبدیلی' : 'EDIT ORDER'}</span>
+              <span className="hidden sm:inline">
+                {isEditMode
+                  ? (useUrdu ? 'ترمیم منسوخ کریں' : 'CANCEL EDIT')
+                  : (useUrdu ? 'آرڈر میں تبدیلی' : 'EDIT ORDER')}
+              </span>
             </button>
           )}
 
@@ -862,6 +1111,106 @@ const SmartOrderForm = () => {
             <span className="ml-auto bg-blue-600 text-white px-5 py-2 rounded-full font-black text-xs">
               Cart: {cartItems.length} item{cartItems.length > 1 ? 's' : ''}
             </span>
+          )}
+        </div>
+      )}
+
+      {isEditMode && (
+        <div className="mb-6 glass border-2 border-amber-500/30 rounded-[2rem] p-6 md:p-8 bg-amber-500/5 relative overflow-hidden backdrop-blur-md shadow-2xl">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl" />
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-amber-500/20 text-amber-400 rounded-2xl animate-pulse">
+                <FileEdit size={24} />
+              </div>
+              <div>
+                <h3 className="text-lg md:text-xl font-black text-amber-400 uppercase tracking-wider">
+                  {isUrdu ? 'ترمیم کا طریقہ کار فعال ہے' : 'Edit Request Mode Active'}
+                </h3>
+                <p className="theme-text-muted text-xs font-bold mt-1">
+                  {isUrdu 
+                    ? 'کسی بھی فعال آرڈر میں تبدیلی کی درخواست پیش کرنے کے لیے نیچے آرڈر نمبر درج کریں۔' 
+                    : 'Modify any active order details below, then submit for Admin approval.'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={toggleEditMode}
+              className="px-5 py-2.5 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white border border-red-500/20 rounded-[1.2rem] font-black text-[10px] uppercase tracking-wider transition-all active:scale-95 whitespace-nowrap"
+            >
+              {isUrdu ? 'منسوخ کریں' : 'Cancel Edit Mode'}
+            </button>
+          </div>
+
+          {!originalOrder ? (
+            <div className="mt-6 border-t border-amber-500/20 pt-6">
+              <div className="flex flex-col sm:flex-row items-end gap-4">
+                <div className="flex-1 space-y-2">
+                  <label className="text-[10px] font-black text-amber-400 uppercase tracking-widest ml-2">
+                    {isUrdu ? 'آرڈر نمبر درج کریں' : 'Enter Order Number / ID'}
+                  </label>
+                  <div className="relative group">
+                    <Hash className="absolute left-6 top-1/2 -translate-y-1/2 text-amber-500/50 group-focus-within:text-amber-400 transition-colors" size={16} />
+                    <input
+                      type="text"
+                      value={editOrderNumber}
+                      onChange={(e) => setEditOrderNumber(e.target.value)}
+                      placeholder="e.g. ORD-1002"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          fetchOrderByNumber();
+                        }
+                      }}
+                      className="w-full theme-input rounded-[1.5rem] py-5 pl-16 pr-6 border-amber-500/20 focus:border-amber-400 text-lg font-black tracking-wider shadow-inner text-amber-400 placeholder-amber-500/30"
+                    />
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={editOrderLoading}
+                  onClick={fetchOrderByNumber}
+                  className="px-8 py-5 bg-amber-500 text-black font-black text-xs uppercase tracking-widest rounded-[1.5rem] hover:bg-amber-400 disabled:opacity-50 transition-all shadow-[0_0_20px_rgba(245,158,11,0.3)] flex items-center justify-center gap-2 min-w-[150px] active:scale-95"
+                >
+                  {editOrderLoading ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Search size={16} />
+                  )}
+                  {isUrdu ? 'آرڈر تلاش کریں' : 'Fetch Order'}
+                </button>
+              </div>
+
+              {editOrderError && (
+                <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-2xl flex items-center gap-3 text-xs font-bold animate-fadeIn">
+                  <AlertCircle size={16} className="shrink-0" />
+                  <span>{editOrderError}</span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="mt-6 border-t border-amber-500/20 pt-6 flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3 text-sm">
+                <span className="text-amber-500 font-black">Loaded Order:</span>
+                <span className="theme-text-primary font-black bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-lg">
+                  #{originalOrder.orderNumber}
+                </span>
+                <span className="theme-text-secondary">•</span>
+                <span className="theme-text-primary font-bold">{originalOrder.customerName}</span>
+                <span className="theme-text-secondary">•</span>
+                <span className="theme-text-muted text-xs capitalize">{originalOrder.type}</span>
+                {originalOrder.outletName && (
+                  <>
+                    <span className="theme-text-secondary">•</span>
+                    <span className="text-amber-400/80 text-xs font-semibold">{originalOrder.outletName}</span>
+                  </>
+                )}
+              </div>
+              <div className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-4 py-2 rounded-xl font-black uppercase tracking-wider">
+                {isUrdu ? 'آرڈر ڈیٹا لوڈ ہو گیا ہے' : 'Data loaded successfully'}
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -1923,15 +2272,27 @@ const SmartOrderForm = () => {
 
             {/* CHECKOUT button - only on the last tab when cart has items */}
             {activeTab === filteredTabs[filteredTabs.length - 1].id && cartItems.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setShowReview(true)}
-                disabled={loading || isSubmitting}
-                className="flex-1 sm:px-16 py-6 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 group disabled:opacity-50"
-              >
-                <CheckCircle2 size={16} />
-                <span>{useUrdu ? 'آرڈر چیک آؤٹ کریں' : 'CHECKOUT'}</span>
-              </button>
+              isEditMode ? (
+                <button
+                  type="button"
+                  onClick={() => setShowEditReview(true)}
+                  disabled={loading || isSubmitting}
+                  className="flex-1 sm:px-16 py-6 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 group disabled:opacity-50"
+                >
+                  <FileEdit size={16} />
+                  <span>{useUrdu ? 'تبدیلی کا جائزہ لیں' : 'REVIEW EDIT REQUEST'}</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowReview(true)}
+                  disabled={loading || isSubmitting}
+                  className="flex-1 sm:px-16 py-6 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 group disabled:opacity-50"
+                >
+                  <CheckCircle2 size={16} />
+                  <span>{useUrdu ? 'آرڈر چیک آؤٹ کریں' : 'CHECKOUT'}</span>
+                </button>
+              )
             )}
           </div>
         </div>
@@ -1969,12 +2330,16 @@ const SmartOrderForm = () => {
                 <button
                   onClick={() => {
                     setShowAddMore(false);
-                    setShowReview(true);
+                    if (isEditMode) {
+                      setShowEditReview(true);
+                    } else {
+                      setShowReview(true);
+                    }
                   }}
-                  className="w-full py-5 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-emerald-900/50 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3"
+                  className={`w-full py-5 bg-gradient-to-r ${isEditMode ? 'from-amber-600 to-orange-600' : 'from-emerald-600 to-blue-600'} text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3`}
                 >
-                  <CheckCircle2 size={16} />
-                  <span>{useUrdu ? 'آرڈر چیک آؤٹ کریں' : 'CHECKOUT'}</span>
+                  {isEditMode ? <FileEdit size={16} /> : <CheckCircle2 size={16} />}
+                  <span>{isEditMode ? (useUrdu ? 'تبدیلی کا جائزہ لیں' : 'REVIEW EDIT REQUEST') : (useUrdu ? 'آرڈر چیک آؤٹ کریں' : 'CHECKOUT')}</span>
                 </button>
               </div>
             </motion.div>
@@ -2322,308 +2687,262 @@ const SmartOrderForm = () => {
         )}
       </AnimatePresence>
 
-      {/* Order Edit Request Modal */}
+      {/* Side-by-side Order Edit Review Modal */}
       <AnimatePresence>
-        {showEditRequest && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+        {showEditReview && originalOrder && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
             <motion.div
               initial={{ opacity: 0, scale: 0.85, y: 30 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.85, y: 30 }}
-              className="glass max-w-lg w-full p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] border-2 theme-border shadow-[0_50px_100px_rgba(0,0,0,0.5)] max-h-[90vh] overflow-y-auto"
+              className="glass max-w-4xl w-full p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] border-2 theme-border shadow-[0_50px_100px_rgba(0,0,0,0.5)] max-h-[90vh] overflow-y-auto"
             >
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-6 border-b theme-border pb-4">
                 <div className="flex items-center gap-4">
                   <div className="p-3 bg-amber-500/10 rounded-xl">
                     <FileEdit className="text-amber-400" size={20} />
                   </div>
                   <div>
-                    <h2 className="text-xl font-black theme-text-primary uppercase tracking-tight">{useUrdu ? 'آرڈر میں تبدیلی' : 'Order Edit Request'}</h2>
-                    <p className="theme-text-muted text-[9px] font-black uppercase tracking-widest mt-0.5">{useUrdu ? 'تبدیلی کی درخواست جمع کروائیں' : 'Submit change request for review'}</p>
+                    <h2 className="text-xl font-black theme-text-primary uppercase tracking-tight">
+                      {useUrdu ? 'ترمیم کی درخواست کا جائزہ' : 'Review Edit Request'}
+                    </h2>
+                    <p className="theme-text-muted text-[9px] font-black uppercase tracking-widest mt-0.5">
+                      {useUrdu ? 'آرڈر میں تبدیلیوں کا جائزہ لیں' : 'Verify original details vs requested changes'}
+                    </p>
                   </div>
                 </div>
-                <button onClick={() => { setShowEditRequest(false); setEditOrderData(null); setEditOrderError(''); }}
-                  className="theme-text-muted hover:text-white hover:bg-gray-800 p-2 rounded-full transition-all active:scale-95">
+                <button 
+                  onClick={() => setShowEditReview(false)}
+                  className="theme-text-muted hover:text-white hover:bg-gray-800 p-2 rounded-full transition-all active:scale-95"
+                >
                   <X size={16} />
                 </button>
               </div>
 
-              {/* Lock Notice */}
-              <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3 mb-4 flex items-center gap-3">
-                <Lock size={12} className="text-amber-400 shrink-0" />
-                <p className="text-[9px] text-amber-300 font-bold leading-tight">
-                  {useUrdu ? 'آرڈر جمع ہونے کے بعد براہ راست ترمیم ممکن نہیں۔ تبدیلیوں کا جائزہ لے کر منظور کیا جائے گا۔' : 'Orders are locked after submission. Changes require admin review & approval.'}
-                </p>
-              </div>
-
-              {/* Step 1: Enter Order Number */}
-              <div className="space-y-4 mb-6">
-                <label className="text-[9px] font-black theme-text-muted uppercase tracking-widest ml-2">{useUrdu ? 'آرڈر نمبر درج کریں' : 'Enter Order Number'}</label>
-                <div className="flex gap-3">
-                  <input
-                    type="text"
-                    value={editOrderNumber}
-                    onChange={(e) => setEditOrderNumber(e.target.value)}
-                    className="flex-1 theme-input rounded-xl py-3 px-5 font-bold text-sm"
-                    placeholder="ORD-772 or Order ID"
-                    disabled={editOrderLoading}
-                  />
-                  <button
-                    type="button"
-                    onClick={fetchOrderByNumber}
-                    disabled={editOrderLoading}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-blue-500 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
-                  >
-                    {editOrderLoading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
-                    <span>{useUrdu ? 'تلاش کریں' : 'FETCH'}</span>
-                  </button>
-                </div>
-                {editOrderError && (
-                  <p className="text-red-400 text-xs font-bold flex items-center gap-2 mt-2">
-                    <AlertCircle size={12} /> {editOrderError}
-                  </p>
-                )}
-              </div>
-
-              {/* Step 2: Show Old Items vs New Items */}
-              {editOrderData && (
-                <>
-                  {/* Order Header */}
-                  <div className="flex items-center justify-between mb-4">
+              {/* Side by Side Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                
+                {/* Original Order Panel */}
+                <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-5 md:p-6 space-y-4">
+                  <div className="flex items-center gap-2 text-red-400 font-black text-xs uppercase tracking-wider mb-2">
+                    <span className="w-2 h-2 rounded-full bg-red-500" />
+                    {useUrdu ? 'اصل آرڈر' : 'Original Order'}
+                  </div>
+                  
+                  <div className="space-y-3 text-xs">
                     <div>
-                      <p className="text-sm font-black theme-text-primary">#{editOrderData.orderNumber || editOrderData.id.substring(0, 8)}</p>
-                      <p className="text-[9px] theme-text-secondary font-bold">{editOrderData.customerName} • {editOrderData.customerPhone}</p>
+                      <span className="text-gray-400 block">{useUrdu ? 'گاہک کا نام' : 'Customer Name'}</span>
+                      <span className="theme-text-primary font-bold">{originalOrder.customerName}</span>
                     </div>
-                    <span className={`text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider ${
-                      editOrderData.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' :
-                      editOrderData.status === 'IN_PROGRESS' ? 'bg-blue-500/20 text-blue-400' :
-                      'bg-yellow-500/20 text-yellow-400'
-                    }`}>{editOrderData.status}</span>
-                  </div>
-
-                  {/* Old Item(s) */}
-                  <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-4 mb-4">
-                    <p className="text-[9px] font-black text-red-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                      {useUrdu ? 'پرانی آئٹم' : 'Old Item(s)'}
-                    </p>
-                    {(() => {
-                      try {
-                        const pd = typeof editOrderData.productDetails === 'string' ? JSON.parse(editOrderData.productDetails) : editOrderData.productDetails;
-                        if (Array.isArray(pd)) {
-                          return pd.map((item, idx) => {
-                            const d = item.productDetails || item;
-                            return (
-                              <div key={idx} className="flex items-center gap-3 py-2 border-b border-red-500/10 last:border-0">
-                                <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center text-red-400 font-black text-[9px]">{idx + 1}</div>
-                                <div>
-                                  <p className="text-xs font-bold theme-text-primary">{d.productType || 'Unknown'}</p>
-                                  <p className="text-[9px] font-medium theme-text-muted">
-                                    {d.color ? `${d.color}` : ''}{d.color && d.size ? ' / ' : ''}{d.size ? `${d.size}` : ''} × {item.quantity || editOrderData.quantity || 1}
-                                  </p>
-                                </div>
-                              </div>
-                            );
-                          });
-                        } else if (pd?.productType) {
-                          return (
-                            <div className="flex items-center gap-3 py-2">
-                              <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center text-red-400 font-black text-[9px]">1</div>
-                              <div>
-                                <p className="text-xs font-bold theme-text-primary">{pd.productType}</p>
-                                <p className="text-[9px] font-medium theme-text-muted">
-                                  {pd.color ? `${pd.color}` : ''}{pd.color && pd.size ? ' / ' : ''}{pd.size ? `${pd.size}` : ''} × {editOrderData.quantity || 1}
-                                </p>
-                              </div>
-                            </div>
-                          );
-                        }
-                        return <p className="text-[9px] theme-text-muted">No product details found</p>;
-                      } catch { return <p className="text-[9px] theme-text-muted">Error parsing details</p>; }
-                    })()}
-                  </div>
-
-                  {/* New Item(s) */}
-                  <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 mb-6">
-                    <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                      {useUrdu ? 'نئی آئٹم' : 'New Item(s)'}
-                    </p>
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 font-black text-[9px] shrink-0">1</div>
-                        <div className="flex-1 space-y-2 relative">
-                          {/* Product Type Search */}
-                          <input
-                            type="text"
-                            value={editInvSearch}
-                            onChange={(e) => {
-                              setEditInvSearch(e.target.value);
-                              setEditShowInvDropdown(true);
-                              setEditRequestChanges({...editRequestChanges, productType: e.target.value, color: '', size: ''});
-                              setEditSelectedInvItem(null);
-                            }}
-                            onFocus={() => editInvSearch && setEditShowInvDropdown(true)}
-                            onBlur={() => setTimeout(() => setEditShowInvDropdown(false), 200)}
-                            className="w-full theme-input rounded-xl py-2.5 px-4 font-bold text-sm"
-                            placeholder={useUrdu ? 'پروڈکٹ تلاش کریں...' : 'Search product from inventory...'}
-                          />
-                          {/* Inventory Dropdown */}
-                          {editShowInvDropdown && editInvSearch.trim() && (
-                            <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-gray-900 border border-gray-800 rounded-xl max-h-48 overflow-y-auto shadow-2xl">
-                              {inventory
-                                .filter(i => i.name?.toLowerCase().includes(editInvSearch.toLowerCase()) && i.category !== 'FABRIC')
-                                .slice(0, 10)
-                                .map((item, idx) => (
-                                  <button
-                                    key={idx}
-                                    type="button"
-                                    onClick={() => {
-                                      setEditInvSearch(item.name);
-                                      setEditRequestChanges({...editRequestChanges, productType: item.name, color: '', size: ''});
-                                      setEditSelectedInvItem(item);
-                                      setEditShowInvDropdown(false);
-                                    }}
-                                    className="w-full text-left px-4 py-2.5 hover:bg-gray-800 transition-all border-b border-gray-800 last:border-0 flex items-center justify-between"
-                                  >
-                                    <span className="text-xs font-bold text-white">{item.name}</span>
-                                    <span className={`text-[8px] font-black px-2 py-0.5 rounded ${
-                                      item.stock === 0 ? 'bg-red-500/15 text-red-400' :
-                                      item.stock <= 5 ? 'bg-amber-500/15 text-amber-400' :
-                                      'bg-emerald-500/15 text-emerald-400'
-                                    }`}>{item.stock} in stock</span>
-                                  </button>
-                                ))}
-                              {inventory.filter(i => i.name?.toLowerCase().includes(editInvSearch.toLowerCase()) && i.category !== 'FABRIC').length === 0 && (
-                                <p className="text-center text-gray-500 text-[9px] font-bold py-3">No matching products</p>
-                              )}
-                            </div>
-                          )}
-                          {/* Color / Size / Qty */}
-                          <div className="grid grid-cols-3 gap-2">
-                            {editSelectedInvItem ? (() => {
-                              const variants = editSelectedInvItem.variants && Array.isArray(editSelectedInvItem.variants)
-                                ? editSelectedInvItem.variants
-                                : [{ color: editSelectedInvItem.color, size: editSelectedInvItem.size, stock: editSelectedInvItem.stock }];
-                              const colors = [...new Set(variants.filter(v => v.color).map(v => v.color))];
-                              const sizes = [...new Set(variants.filter(v => v.size).map(v => v.size))];
-                              return (
-                                <>
-                                  <div className="relative">
-                                    <select
-                                      value={editRequestChanges.color}
-                                      onChange={(e) => setEditRequestChanges({...editRequestChanges, color: e.target.value})}
-                                      className="w-full theme-input rounded-xl py-2.5 px-3 font-bold text-sm appearance-none cursor-pointer"
-                                    >
-                                      <option value="">{useUrdu ? 'رنگ' : 'Color'}</option>
-                                      {colors.map(c => <option key={c} value={c}>{c}</option>)}
-                                    </select>
-                                  </div>
-                                  <div className="relative">
-                                    <select
-                                      value={editRequestChanges.size}
-                                      onChange={(e) => setEditRequestChanges({...editRequestChanges, size: e.target.value})}
-                                      className="w-full theme-input rounded-xl py-2.5 px-3 font-bold text-sm appearance-none cursor-pointer"
-                                    >
-                                      <option value="">{useUrdu ? 'سائز' : 'Size'}</option>
-                                      {sizes.map(s => <option key={s} value={s}>{s}</option>)}
-                                    </select>
-                                  </div>
-                                </>
-                              );
-                            })() : (
-                              <>
-                                <input
-                                  type="text"
-                                  value={editRequestChanges.color}
-                                  onChange={(e) => setEditRequestChanges({...editRequestChanges, color: e.target.value})}
-                                  className="w-full theme-input rounded-xl py-2.5 px-4 font-bold text-sm"
-                                  placeholder={useUrdu ? 'رنگ' : 'Color'}
-                                />
-                                <input
-                                  type="text"
-                                  value={editRequestChanges.size}
-                                  onChange={(e) => setEditRequestChanges({...editRequestChanges, size: e.target.value})}
-                                  className="w-full theme-input rounded-xl py-2.5 px-4 font-bold text-sm"
-                                  placeholder={useUrdu ? 'سائز' : 'Size'}
-                                />
-                              </>
-                            )}
-                            <input
-                              type="number"
-                              min="1"
-                              value={editRequestChanges.quantity}
-                              onChange={(e) => setEditRequestChanges({...editRequestChanges, quantity: e.target.value})}
-                              className="w-full theme-input rounded-xl py-2.5 px-4 font-bold text-sm"
-                              placeholder="Qty"
-                            />
-                          </div>
-                          {/* Stock Status */}
-                          {editSelectedInvItem && (() => {
-                            const variants = editSelectedInvItem.variants && Array.isArray(editSelectedInvItem.variants)
-                              ? editSelectedInvItem.variants
-                              : [{ color: editSelectedInvItem.color, size: editSelectedInvItem.size, stock: editSelectedInvItem.stock }];
-                            const selected = variants.find(v =>
-                              (!editRequestChanges.color || v.color === editRequestChanges.color) &&
-                              (!editRequestChanges.size || v.size === editRequestChanges.size)
-                            );
-                            const stock = selected?.stock ?? editSelectedInvItem.stock ?? 0;
-                            if (!editRequestChanges.color && !editRequestChanges.size) {
-                              const totalStock = variants.reduce((s, v) => s + (v.stock || 0), 0);
-                              return (
-                                <p className={`text-[9px] font-bold mt-1.5 text-center ${
-                                  totalStock === 0 ? 'text-red-400' : totalStock <= 5 ? 'text-amber-400' : 'text-emerald-400'
-                                }`}>
-                                  {totalStock} unit{totalStock !== 1 ? 's' : ''} available across all variants
-                                </p>
-                              );
-                            }
-                            return (
-                              <p className={`text-[9px] font-bold mt-1.5 text-center ${
-                                stock === 0 ? 'text-red-400' : stock <= 5 ? 'text-amber-400' : 'text-emerald-400'
-                              }`}>
-                                {stock === 0 ? 'Out of stock' : `${stock} in stock`}
-                              </p>
-                            );
-                          })()}
-                        </div>
+                    <div>
+                      <span className="text-gray-400 block">{useUrdu ? 'فون نمبر' : 'Phone'}</span>
+                      <span className="theme-text-primary font-bold">{originalOrder.customerPhone}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 block">{useUrdu ? 'پتہ' : 'Address'}</span>
+                      <span className="theme-text-primary font-medium">{originalOrder.address || 'N/A'}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <span className="text-gray-400 block">{useUrdu ? 'شہر' : 'City'}</span>
+                        <span className="theme-text-primary font-bold">{originalOrder.city || 'N/A'}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-400 block">{useUrdu ? 'ترجیح' : 'Priority'}</span>
+                        <span className="theme-text-primary font-bold uppercase">{originalOrder.priority || 'NORMAL'}</span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <span className="text-gray-400 block">{useUrdu ? 'آرڈر کی قسم' : 'Order Type'}</span>
+                        <span className="theme-text-primary font-bold uppercase">{originalOrder.type || 'STANDARD'}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-400 block">{useUrdu ? 'ایڈوانس ادائیگی' : 'Advance Paid'}</span>
+                        <span className="theme-text-primary font-bold">
+                          {originalOrder.advancePaid ? (useUrdu ? 'ہاں' : 'Yes') : (useUrdu ? 'نہیں' : 'No')}
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Reason */}
-                  <div className="mb-6">
-                    <label className="text-[9px] font-black theme-text-muted uppercase tracking-widest ml-2">{useUrdu ? 'وجہ (اختیاری)' : 'Reason (Optional)'}</label>
-                    <textarea
-                      value={editRequestReason}
-                      onChange={(e) => setEditRequestReason(e.target.value)}
-                      className="w-full theme-input rounded-xl py-3 px-5 font-medium text-sm resize-none h-16 mt-2"
-                      placeholder={useUrdu ? 'تبدیلی کی وجہ بتائیں...' : 'Why are you requesting this change?'}
-                    />
+                  {/* Items List */}
+                  <div className="border-t border-red-500/10 pt-4 space-y-3">
+                    <span className="text-[10px] font-black text-red-400 uppercase tracking-widest block">
+                      {useUrdu ? 'اصل آئٹمز' : 'Original Items'}
+                    </span>
+                    {(() => {
+                      let items = [];
+                      try {
+                        const pd = typeof originalOrder.productDetails === 'string' ? JSON.parse(originalOrder.productDetails) : originalOrder.productDetails;
+                        items = Array.isArray(pd) ? pd : (pd ? [pd] : []);
+                      } catch {
+                        items = [];
+                      }
+                      return items.map((item, idx) => {
+                        const d = item.productDetails || item;
+                        return (
+                          <div key={idx} className="flex justify-between items-start py-2 border-b border-red-500/10 last:border-0">
+                            <div>
+                              <span className="text-xs font-bold theme-text-primary">{d.productType || 'Unknown'}</span>
+                              <span className="text-[10px] theme-text-muted block mt-0.5">
+                                {d.color ? `${d.color}` : ''}{d.color && d.size ? ' / ' : ''}{d.size ? `${d.size}` : ''} × {item.quantity || originalOrder.quantity || 1}
+                              </span>
+                            </div>
+                            <span className="text-xs font-black theme-text-primary">
+                              ₨{((parseFloat(item.totalPrice) || parseFloat(originalOrder.totalPrice) || 0) / (items.length || 1)).toLocaleString()}
+                            </span>
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
 
-                  {/* Submit / Cancel */}
-                  <div className="flex gap-4">
-                    <button
-                      type="button"
-                      onClick={() => { setShowEditRequest(false); setEditOrderData(null); setEditOrderError(''); }}
-                      disabled={editRequestSubmitting}
-                      className="flex-1 py-4 theme-bg theme-text-secondary rounded-xl font-black text-[9px] uppercase tracking-widest border-2 theme-border hover:border-gray-600 transition-all active:scale-95 disabled:opacity-50"
-                    >
-                      {useUrdu ? 'منسوخ کریں' : 'CANCEL'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={submitEditRequest}
-                      disabled={editRequestSubmitting || !editRequestChanges.productType}
-                      className="flex-1 py-4 bg-amber-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-amber-500 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                      {editRequestSubmitting ? <Loader2 size={14} className="animate-spin" /> : <FileEdit size={14} />}
-                      <span>{editRequestSubmitting ? (useUrdu ? 'بھیج رہا ہے...' : 'SUBMITTING...') : (useUrdu ? 'درخواست جمع کروائیں' : 'SUBMIT REQUEST')}</span>
-                    </button>
+                  {/* Pricing Subtotal */}
+                  <div className="border-t border-red-500/10 pt-4 flex justify-between items-center text-xs font-black">
+                    <span className="text-gray-400 uppercase">{useUrdu ? 'کل رقم' : 'Original Total'}</span>
+                    <span className="text-red-400 text-sm">₨{parseFloat(originalOrder.totalPrice || 0).toLocaleString()}</span>
                   </div>
-                </>
-              )}
+                </div>
+
+                {/* Requested Changes Panel */}
+                <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-5 md:p-6 space-y-4">
+                  <div className="flex items-center gap-2 text-emerald-400 font-black text-xs uppercase tracking-wider mb-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    {useUrdu ? 'تبدل شدہ آرڈر' : 'Requested Changes'}
+                  </div>
+
+                  <div className="space-y-3 text-xs">
+                    <div>
+                      <span className="text-gray-400 block">{useUrdu ? 'گاہک کا نام' : 'Customer Name'}</span>
+                      <span className={`font-bold ${hasChanged(originalOrder.customerName, formData.customerName) ? 'text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded' : 'theme-text-primary'}`}>
+                        {formData.customerName}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 block">{useUrdu ? 'فون نمبر' : 'Phone'}</span>
+                      <span className={`font-bold ${hasChanged(originalOrder.customerPhone, formData.customerPhone) ? 'text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded' : 'theme-text-primary'}`}>
+                        {formData.customerPhone}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 block">{useUrdu ? 'پتہ' : 'Address'}</span>
+                      <span className={`font-medium ${hasChanged(originalOrder.address, formData.address) ? 'text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded' : 'theme-text-primary'}`}>
+                        {formData.address || 'N/A'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <span className="text-gray-400 block">{useUrdu ? 'شہر' : 'City'}</span>
+                        <span className={`font-bold ${hasChanged(originalOrder.city, formData.city) ? 'text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded' : 'theme-text-primary'}`}>
+                          {formData.city || 'N/A'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-400 block">{useUrdu ? 'ترجیح' : 'Priority'}</span>
+                        <span className={`font-bold uppercase ${hasChanged(originalOrder.priority, formData.priority) ? 'text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded' : 'theme-text-primary'}`}>
+                          {formData.priority}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <span className="text-gray-400 block">{useUrdu ? 'آرڈر کی قسم' : 'Order Type'}</span>
+                        <span className={`font-bold uppercase ${hasChanged(originalOrder.type, formData.type) ? 'text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded' : 'theme-text-primary'}`}>
+                          {formData.type}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-400 block">{useUrdu ? 'ایڈوانس ادائیگی' : 'Advance Paid'}</span>
+                        <span className={`font-bold ${hasChangedBool(originalOrder.advancePaid, formData.advancePaid) ? 'text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded' : 'theme-text-primary'}`}>
+                          {formData.advancePaid ? (useUrdu ? 'ہاں' : 'Yes') : (useUrdu ? 'نہیں' : 'No')}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Items List */}
+                  <div className="border-t border-emerald-500/10 pt-4 space-y-3">
+                    <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest block">
+                      {useUrdu ? 'نئے آئٹمز' : 'New Items'}
+                    </span>
+                    {cartItems.map((item, idx) => {
+                      const d = item.productDetails;
+                      return (
+                        <div key={idx} className="flex justify-between items-start py-2 border-b border-emerald-500/10 last:border-0">
+                          <div>
+                            <span className="text-xs font-bold text-white">{d.productType || 'Unknown'}</span>
+                            <span className="text-[10px] theme-text-muted block mt-0.5">
+                              {d.color ? `${d.color}` : ''}{d.color && d.size ? ' / ' : ''}{d.size ? `${d.size}` : ''} × {item.quantity || 1}
+                            </span>
+                          </div>
+                          <span className="text-xs font-black text-white">
+                            ₨{parseFloat(item.totalPrice || 0).toLocaleString()}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Pricing Subtotal */}
+                  {(() => {
+                    const totalNewPrice = cartItems.reduce((sum, item) => sum + (parseFloat(item.totalPrice) || 0), 0);
+                    return (
+                      <div className="border-t border-emerald-500/10 pt-4 flex justify-between items-center text-xs font-black">
+                        <span className="text-gray-400 uppercase">{useUrdu ? 'کل نئی رقم' : 'New Total'}</span>
+                        <span className={`text-sm ${totalNewPrice !== parseFloat(originalOrder.totalPrice) ? 'text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded' : 'text-emerald-400'}`}>
+                          ₨{totalNewPrice.toLocaleString()}
+                        </span>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+              </div>
+
+              {/* Reason For Request */}
+              <div className="space-y-2 mb-6">
+                <label className="text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-2">
+                  {useUrdu ? 'ترمیم کی وجہ (لازمی)' : 'Reason for Edit Request (Required)'}
+                </label>
+                <textarea
+                  required
+                  value={editReason}
+                  onChange={(e) => setEditReason(e.target.value)}
+                  className="w-full theme-input rounded-[1.5rem] py-4 px-6 text-sm font-semibold resize-none h-24 border border-amber-500/20 focus:border-amber-400"
+                  placeholder={useUrdu ? 'براہ کرم تبدیلی کی تفصیلی وجہ بتائیں (مثلاً: کسٹمر نے سائز تبدیل کروایا ہے۔)' : 'Provide a justification for these changes (e.g., Customer requested a size change)...'}
+                />
+              </div>
+
+              {/* Submit/Cancel Buttons */}
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => setShowEditReview(false)}
+                  disabled={loading || isSubmitting}
+                  className="flex-1 py-5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest transition-all active:scale-95 border border-gray-700 disabled:opacity-50"
+                >
+                  {useUrdu ? 'پیچھے جائیں' : 'BACK TO EDIT'}
+                </button>
+                <button
+                  type="button"
+                  onClick={submitOrderEditRequest}
+                  disabled={loading || isSubmitting || !editReason.trim()}
+                  className="flex-1 py-5 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50"
+                >
+                  {loading || isSubmitting ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <FileEdit size={16} />
+                  )}
+                  <span>
+                    {loading || isSubmitting
+                      ? (useUrdu ? 'درخواست بھیجی جا رہی ہے...' : 'SUBMITTING...')
+                      : (useUrdu ? 'درخواست جمع کروائیں' : 'SUBMIT EDIT REQUEST')}
+                  </span>
+                </button>
+              </div>
+
             </motion.div>
           </div>
         )}

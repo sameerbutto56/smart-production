@@ -302,7 +302,30 @@ const approveEditRequest = async (req, res) => {
       }));
       updateData.productDetails = JSON.stringify(items);
       updateData.quantity = items.reduce((sum, item) => sum + (item.quantity || 1), 0);
+      
+      // Sync customization and sizeData to order for compatibility
+      updateData.customization = items[0]?.customization ? JSON.stringify(items[0].customization) : null;
+      updateData.sizeData = items[0]?.sizeData ? JSON.stringify(items[0].sizeData) : null;
     }
+
+    // Map other order-level properties if present
+    const fieldsToMap = [
+      'customerName', 'customerPhone', 'address', 'city', 'type',
+      'priority', 'advancePaid', 'logoDesign', 'logoName',
+      'logoCharges', 'namePrintingCharges', 'customizationPrice'
+    ];
+
+    fieldsToMap.forEach(field => {
+      if (requestedChanges[field] !== undefined) {
+        if (field === 'advancePaid') {
+          updateData[field] = !!requestedChanges[field];
+        } else if (['logoCharges', 'namePrintingCharges', 'customizationPrice'].includes(field)) {
+          updateData[field] = parseFloat(requestedChanges[field]) || 0;
+        } else {
+          updateData[field] = requestedChanges[field];
+        }
+      }
+    });
 
     const updatedOrder = await prisma.order.update({
       where: { id: order.id },
