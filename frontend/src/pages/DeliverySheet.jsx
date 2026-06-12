@@ -45,6 +45,7 @@ const DeliverySheet = () => {
           timeout: 15000
         });
         setOrders(Array.isArray(response.data) ? response.data : []);
+        setLoading(false);
         return;
       } catch (error) {
         console.error('Error fetching orders:', error.response?.data || error);
@@ -54,8 +55,7 @@ const DeliverySheet = () => {
         }
         const errorMsg = error.response?.data?.error || error.message;
         toast.error(`Failed to load orders: ${errorMsg}`);
-      } finally {
-        if (attempt === retries) setLoading(false);
+        setLoading(false);
       }
     }
   };

@@ -294,9 +294,9 @@ const DeliveryDashboard = () => {
   const [halfPayments, setHalfPayments] = useState({});
 
   const fetchOrders = useCallback(async (retries = 2) => {
+    setLoading(true);
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        setLoading(true);
         const res = await axios.get(`${API_URL}/api/orders?status=delivery`, {
           headers: { Authorization: `Bearer ${token}` },
           timeout: 15000
@@ -307,6 +307,7 @@ const DeliveryDashboard = () => {
           o.status === 'COMPLETED'
         );
         setOrders(relevant);
+        setLoading(false);
         return;
       } catch {
         if (attempt < retries) {
@@ -314,8 +315,7 @@ const DeliveryDashboard = () => {
           continue;
         }
         toast.error('Failed to load orders');
-      } finally {
-        if (attempt === retries) setLoading(false);
+        setLoading(false);
       }
     }
   }, [token]);
@@ -415,15 +415,15 @@ const DeliveryDashboard = () => {
 
       {/* Stats — big and colorful */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-        <button onClick={() => setFilter('PENDING')} className={`rounded-2xl p-4 text-center transition-all border-2 ${filter === 'PENDING' ? 'bg-blue-600 border-blue-500' : 'theme-bg theme-border'}`}>
+        <button onClick={() => { setFilter('PENDING'); setSelectedDate(''); }} className={`rounded-2xl p-4 text-center transition-all border-2 ${filter === 'PENDING' ? 'bg-blue-600 border-blue-500' : 'theme-bg theme-border'}`}>
           <p className={`text-xl md:text-3xl font-black ${filter === 'PENDING' ? 'text-white' : 'text-blue-400'}`}>{pending.length}</p>
           <p className={`text-[9px] font-black uppercase tracking-wider mt-1 ${filter === 'PENDING' ? 'text-blue-100' : 'theme-text-muted'}`}>{t('Pending')}</p>
         </button>
-        <button onClick={() => setFilter('DELIVERED')} className={`rounded-2xl p-4 text-center transition-all border-2 ${filter === 'DELIVERED' ? 'bg-emerald-600 border-emerald-500' : 'theme-bg theme-border'}`}>
+        <button onClick={() => { setFilter('DELIVERED'); setSelectedDate(''); }} className={`rounded-2xl p-4 text-center transition-all border-2 ${filter === 'DELIVERED' ? 'bg-emerald-600 border-emerald-500' : 'theme-bg theme-border'}`}>
           <p className={`text-xl md:text-3xl font-black ${filter === 'DELIVERED' ? 'text-white' : 'text-emerald-400'}`}>{delivered.length}</p>
           <p className={`text-[9px] font-black uppercase tracking-wider mt-1 ${filter === 'DELIVERED' ? 'text-emerald-100' : 'theme-text-muted'}`}>{t('Delivered')}</p>
         </button>
-        <button onClick={() => setFilter('NOT_RESPONDED')} className={`rounded-2xl p-4 text-center transition-all border-2 ${filter === 'NOT_RESPONDED' ? 'bg-amber-600 border-amber-500' : 'theme-bg theme-border'}`}>
+        <button onClick={() => { setFilter('NOT_RESPONDED'); setSelectedDate(''); }} className={`rounded-2xl p-4 text-center transition-all border-2 ${filter === 'NOT_RESPONDED' ? 'bg-amber-600 border-amber-500' : 'theme-bg theme-border'}`}>
           <p className={`text-xl md:text-3xl font-black ${filter === 'NOT_RESPONDED' ? 'text-white' : 'text-amber-400'}`}>{noResponse.length}</p>
           <p className={`text-[9px] font-black uppercase tracking-wider mt-1 ${filter === 'NOT_RESPONDED' ? 'text-amber-100' : 'theme-text-muted'}`}>{t('No Reply')}</p>
         </button>
@@ -431,7 +431,7 @@ const DeliveryDashboard = () => {
 
       {/* Show All button */}
       <button
-        onClick={() => setFilter('ALL')}
+        onClick={() => { setFilter('ALL'); setSelectedDate(''); }}
         className={`w-full py-3 rounded-2xl text-sm font-black uppercase tracking-widest border-2 transition-all ${filter === 'ALL' ? 'bg-gray-700 border-gray-600 text-white' : 'theme-bg theme-border theme-text-muted'}`}
       >
         {t('Show All')} ({orders.length})
