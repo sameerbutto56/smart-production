@@ -665,19 +665,19 @@ const AdminDashboard = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl md:text-3xl font-black theme-text-primary tracking-tight">Control Center</h1>
-          <p className="theme-text-secondary font-bold uppercase tracking-widest text-[9px] md:text-[10px] mt-1">Production Approval Hub</p>
+          <p className="theme-text-secondary font-bold uppercase tracking-widest text-xs md:text-sm mt-1">Production Approval Hub</p>
         </div>
         <div className="flex items-center gap-4">
           {systemPaused && (
             <div className="flex items-center gap-2 bg-red-500/20 border border-red-500/30 px-4 py-2.5 rounded-xl">
               <PauseCircle className="text-red-400" size={18} />
-              <span className="text-red-400 font-black text-[9px] md:text-[10px] uppercase tracking-widest">System Paused</span>
+              <span className="text-red-400 font-black text-xs md:text-sm uppercase tracking-widest">System Paused</span>
             </div>
           )}
           {user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' ? (<>
           <button
             onClick={() => setShowPauseModal(true)}
-            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] transition-all shadow-lg active:scale-95 ${
+            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-xs md:text-sm transition-all shadow-lg active:scale-95 ${
               systemPaused
                 ? 'bg-emerald-500/10 hover:bg-emerald-500 hover:text-white text-emerald-400 border border-emerald-500/20'
                 : 'bg-red-500/10 hover:bg-red-500 hover:text-white text-red-400 border border-red-500/20'
@@ -690,7 +690,7 @@ const AdminDashboard = () => {
             onClick={() => {
               alert('Notification Alert Broadcasted!');
             }}
-            className="flex items-center gap-2 bg-yellow-500/10 hover:bg-yellow-500 hover:text-white text-yellow-500 border border-yellow-500/20 px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] transition-all shadow-lg active:scale-95"
+            className="flex items-center gap-2 bg-yellow-500/10 hover:bg-yellow-500 hover:text-white text-yellow-500 border border-yellow-500/20 px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-xs md:text-sm transition-all shadow-lg active:scale-95"
           >
             <BellRing size={16} />
             <span>Send Alert</span>
@@ -714,12 +714,12 @@ const AdminDashboard = () => {
               <div className={`p-3 rounded-xl ${stat.bg} group-hover:scale-110 transition-transform`}>
                 <stat.icon className={stat.color} size={22} />
               </div>
-              <span className="flex items-center text-emerald-400 text-[9px] font-black bg-emerald-400/10 px-2 py-1 rounded-full uppercase tracking-widest">
+              <span className="flex items-center text-emerald-400 text-xs md:text-sm font-black bg-emerald-400/10 px-2 py-1 rounded-full uppercase tracking-widest">
                 <ArrowUpRight size={10} className="mr-1" />
                 Live
               </span>
             </div>
-            <h3 className="theme-text-muted text-[9px] font-black uppercase tracking-[0.2em]">{stat.title}</h3>
+            <h3 className="theme-text-muted text-xs md:text-sm font-black uppercase tracking-[0.2em]">{stat.title}</h3>
             <p className="text-xl md:text-3xl font-black theme-text-primary mt-1 tracking-tighter">{stat.value}</p>
           </motion.div>
         ))}
@@ -771,12 +771,12 @@ const AdminDashboard = () => {
               setTrackingError('No order found with that ID or Name.');
             }
           }}
-          className="btn-solid-primary px-5 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest"
+          className="btn-solid-primary px-5 py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest"
         >
           Track
         </button>
         {trackedOrder && (
-          <button onClick={() => { setTrackedOrder(null); setTrackingError(''); }} className="text-gray-500 hover:text-white text-[9px] font-black uppercase tracking-widest">
+          <button onClick={() => { setTrackedOrder(null); setTrackingError(''); }} className="text-gray-500 hover:text-white text-xs md:text-sm font-black uppercase tracking-widest">
             Clear
           </button>
         )}
@@ -789,7 +789,7 @@ const AdminDashboard = () => {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="text-center py-4 bg-red-500/5 rounded-2xl border border-red-500/10 text-red-400 font-bold text-[9px]"
+            className="text-center py-4 bg-red-500/5 rounded-2xl border border-red-500/10 text-red-400 font-bold text-xs md:text-sm"
           >
             {trackingError}
           </motion.div>
@@ -809,20 +809,20 @@ const AdminDashboard = () => {
                 </div>
                 <div>
                   <h4 className="text-lg font-black theme-text-primary">{trackedOrder.customerName}</h4>
-                  <p className="theme-text-muted font-bold uppercase tracking-widest text-[9px]">Order #{trackedOrder.orderNumber || trackedOrder.id.substring(0, 8)}</p>
+                  <p className="theme-text-muted font-bold uppercase tracking-widest text-xs md:text-sm">Order #{trackedOrder.orderNumber || trackedOrder.id.substring(0, 8)}</p>
                 </div>
               </div>
               <div className="text-right">
-                <span className="bg-blue-500/10 text-blue-400 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border border-blue-500/20">
+                <span className="bg-blue-500/10 text-blue-400 px-3 py-1.5 rounded-full text-xs md:text-sm font-black uppercase tracking-widest border border-blue-500/20">
                   {trackedOrder.status.replace(/_/g, ' ')}
                 </span>
-                <p className="text-[9px] theme-text-muted font-black mt-1 uppercase tracking-widest">{trackedOrder.currentStage.replace(/_/g, ' ')} Phase</p>
+                <p className="text-xs md:text-sm theme-text-muted font-black mt-1 uppercase tracking-widest">{trackedOrder.currentStage.replace(/_/g, ' ')} Phase</p>
               </div>
             </div>
 
             <button
               onClick={() => navigate('/orders', { state: { searchTerm: trackedOrder.orderNumber } })}
-              className="w-full mt-3 btn-ghost py-3 text-[9px]"
+              className="w-full mt-3 btn-ghost py-3 text-xs md:text-sm"
             >
               View Full Detailed Job Sheet
             </button>
@@ -844,7 +844,7 @@ const AdminDashboard = () => {
                   if (tab.id === 'all_phases') setFilterStage('ALL');
                   if (tab.id === 'edit_requests') fetchEditRequests();
                 }}
-                className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
                     : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
@@ -853,7 +853,7 @@ const AdminDashboard = () => {
                 <tab.icon size={13} />
                 {tab.label}
                 {tab.id === 'edit_requests' && editRequests.length > 0 && (
-                  <span className="ml-1 px-1.5 py-0.5 bg-amber-500 text-white rounded text-[7px] font-black">{editRequests.length}</span>
+                  <span className="ml-1 px-1.5 py-0.5 bg-amber-500 text-white rounded text-[9px] font-black">{editRequests.length}</span>
                 )}
               </button>
             );
@@ -879,7 +879,7 @@ const AdminDashboard = () => {
                   <div className="flex items-center gap-1.5 min-w-max">
                     <button
                       onClick={() => setFilterStage('ALL')}
-                      className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                      className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all ${
                         filterStage === 'ALL'
                           ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
                           : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
@@ -894,7 +894,7 @@ const AdminDashboard = () => {
                         <button
                           key={stage.id}
                           onClick={() => setFilterStage(stage.id)}
-                          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all whitespace-nowrap ${
                             filterStage === stage.id
                               ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
                               : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
@@ -902,7 +902,7 @@ const AdminDashboard = () => {
                         >
                           <stage.icon size={13} />
                           {stage.label}
-                          <span className="ml-0.5 px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded text-[7px] font-black">{count}</span>
+                          <span className="ml-0.5 px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded text-[9px] font-black">{count}</span>
                         </button>
                       );
                     })}
@@ -918,158 +918,61 @@ const AdminDashboard = () => {
                           <Package className="text-blue-400" size={20} />
                         </div>
                         <div>
-                          <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">Store Module</h2>
-                          <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">Manage store tasks and production returns</p>
+                          <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">Store</h2>
+                          <p className="theme-text-muted text-xs md:text-sm font-bold uppercase tracking-widest">Orders currently in Store phase</p>
                         </div>
                       </div>
-                      <button onClick={() => setFilterStage('ALL')} className="theme-text-muted hover:text-white transition-colors text-xs font-black uppercase tracking-widest flex items-center gap-2">
+                      <button onClick={() => setFilterStage('ALL')} className="theme-text-muted hover:text-white transition-colors text-xs md:text-sm font-black uppercase tracking-widest flex items-center gap-2">
                         <X size={14} /> Close
                       </button>
                     </div>
 
-                    {/* Store Subtabs: Unseen | Seen | Active Tasks | Production Tasks */}
-                    <div className="flex gap-2 mb-6 overflow-x-auto">
-                      <button
-                        onClick={() => setStoreSubTab('unseen')}
-                        className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
-                          storeSubTab === 'unseen'
-                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
-                            : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
-                        }`}
-                      >
-                        <Package size={13} />
-                        Unseen Tasks
-                        <span className={`ml-1 px-1.5 py-0.5 rounded text-[7px] font-black ${storeUnseenData ? 'bg-orange-500/20 text-orange-400' : 'bg-gray-800 text-gray-400'}`}>
-                          {storeUnseenData ? storeUnseenData.unseen.filter(o => o.currentStage === 'STORE').length : allOrders.filter(o => o.currentStage === 'STORE' && o.status !== 'COMPLETED').length}
-                        </span>
-                      </button>
-                      <button
-                        onClick={() => setStoreSubTab('seen')}
-                        className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
-                          storeSubTab === 'seen'
-                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
-                            : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
-                        }`}
-                      >
-                        <Package size={13} />
-                        Seen Tasks
-                        <span className="ml-1 px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded text-[7px] font-black">
-                          {storeUnseenData ? storeUnseenData.seen.filter(o => o.currentStage === 'STORE').length : 0}
-                        </span>
-                      </button>
-                      <button
-                        onClick={() => setStoreSubTab('active')}
-                        className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
-                          storeSubTab === 'active'
-                            ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40'
-                            : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
-                        }`}
-                      >
-                        <AlertCircle size={13} />
-                        Active Tasks
-                        <span className="ml-1 px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded text-[7px] font-black">
-                          {allOrders.filter(o => o.currentStage === 'STORE' && o.status !== 'COMPLETED').length}
-                        </span>
-                      </button>
-                      <button
-                        onClick={() => setStoreSubTab('production')}
-                        className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
-                          storeSubTab === 'production'
-                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
-                            : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
-                        }`}
-                      >
-                        <RotateCcw size={13} />
-                        Production Tasks
-                        <span className="ml-1 px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded text-[7px] font-black">
-                          {storeProductionData ? (storeProductionData.unseen.length + storeProductionData.seen.length) : allOrders.filter(o => o.currentStage === 'STORE_RECEIVE' && o.status !== 'COMPLETED').length}
-                        </span>
-                      </button>
+                    {/* Order counts */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {(() => {
+                        const storeOrders = allOrders.filter(o => o.currentStage === 'STORE');
+                        const total = storeOrders.length;
+                        const pending = storeOrders.filter(o => o.status === 'PENDING').length;
+                        const inProgress = storeOrders.filter(o => o.status === 'IN_PROGRESS').length;
+                        const completed = storeOrders.filter(o => o.status === 'COMPLETED').length;
+                        return (
+                          <>
+                            <div className="theme-bg border theme-border rounded-2xl p-4 text-center">
+                              <p className="text-2xl font-black text-blue-400">{total}</p>
+                              <p className="text-xs md:text-sm font-bold theme-text-muted uppercase tracking-wider">Total</p>
+                            </div>
+                            <div className="theme-bg border theme-border rounded-2xl p-4 text-center">
+                              <p className="text-2xl font-black text-amber-400">{pending}</p>
+                              <p className="text-xs md:text-sm font-bold theme-text-muted uppercase tracking-wider">Pending</p>
+                            </div>
+                            <div className="theme-bg border theme-border rounded-2xl p-4 text-center">
+                              <p className="text-2xl font-black text-emerald-400">{inProgress}</p>
+                              <p className="text-xs md:text-sm font-bold theme-text-muted uppercase tracking-wider">In Progress</p>
+                            </div>
+                            <div className="theme-bg border theme-border rounded-2xl p-4 text-center">
+                              <p className="text-2xl font-black text-gray-400">{completed}</p>
+                              <p className="text-xs md:text-sm font-bold theme-text-muted uppercase tracking-wider">Completed</p>
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
 
-                    {/* Subtab Content */}
-                    {storeSubTab === 'production' ? (
-                      <>
-                        <div className="flex items-center justify-between mb-6">
-                          <div className="flex items-center space-x-4">
-                            <div className="p-3 bg-blue-500/10 rounded-2xl">
-                              <RotateCcw className="text-blue-400" size={20} />
-                            </div>
-                            <div>
-                              <h3 className="text-xl font-black theme-text-primary uppercase tracking-tight">Production Tasks</h3>
-                              <p className="theme-text-muted text-[9px] font-bold uppercase tracking-widest">Items returned from production — review before dispatch</p>
-                            </div>
+                    {/* Orders list */}
+                    <div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
+                        {allOrders.filter(o => o.currentStage === 'STORE').length > 0 ? (
+                          allOrders.filter(o => o.currentStage === 'STORE').map(order => (
+                            <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} selected={selectedOrderIds.has(order.id)} onToggleSelect={toggleOrderSelection} />
+                          ))
+                        ) : (
+                          <div className="col-span-full py-6 md:py-20 text-center glass rounded-2xl md:rounded-[3rem] theme-border">
+                            <Package className="mx-auto theme-text-muted mb-4" size={48} />
+                            <h3 className="theme-text-muted font-black uppercase">No orders in Store</h3>
                           </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
-                          {storeProductionData ? (() => {
-                            const productionOrders = [...storeProductionData.unseen, ...storeProductionData.seen];
-                            return productionOrders.length > 0 ? (
-                              productionOrders.map(order => (
-                                <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} selected={selectedOrderIds.has(order.id)} onToggleSelect={toggleOrderSelection} isUnseen={storeProductionData.unseen.some(o => o.id === order.id)} onMarkSeen={() => markAsSeen(order.id)} />
-                              ))
-                            ) : (
-                              <div className="col-span-full py-6 md:py-20 text-center glass rounded-2xl md:rounded-[3rem] theme-border">
-                                <RotateCcw className="mx-auto theme-text-muted mb-4" size={48} />
-                                <h3 className="theme-text-muted font-black uppercase">No items coming from production</h3>
-                              </div>
-                            );
-                          })() : (
-                            <div className="col-span-full py-6 md:py-20 text-center glass rounded-2xl md:rounded-[3rem] theme-border">
-                              <RotateCcw className="mx-auto theme-text-muted mb-4" size={48} />
-                              <h3 className="theme-text-muted font-black uppercase">No items coming from production</h3>
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    ) : storeSubTab === 'active' ? (
-                      <>
-                        <div className="flex items-center justify-between mb-6">
-                          <div className="flex items-center space-x-4">
-                            <div className="p-3 bg-emerald-500/10 rounded-2xl">
-                              <AlertCircle className="text-emerald-400" size={20} />
-                            </div>
-                            <div>
-                              <h3 className="text-xl font-black theme-text-primary uppercase tracking-tight">Active Tasks</h3>
-                              <p className="theme-text-muted text-[9px] font-bold uppercase tracking-widest">All active store tasks and production returns</p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
-                          {allOrders.filter(o => o.currentStage === 'STORE' && o.status !== 'COMPLETED').length > 0 ? (
-                            allOrders.filter(o => o.currentStage === 'STORE' && o.status !== 'COMPLETED').map(order => (
-                              <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} selected={selectedOrderIds.has(order.id)} onToggleSelect={toggleOrderSelection} />
-                            ))
-                          ) : (
-                            <div className="col-span-full py-6 md:py-20 text-center glass rounded-2xl md:rounded-[3rem] theme-border">
-                              <AlertCircle className="mx-auto theme-text-muted mb-4" size={48} />
-                              <h3 className="theme-text-muted font-black uppercase">No active tasks</h3>
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
-                          {(storeUnseenData
-                            ? (storeSubTab === 'unseen' ? storeUnseenData.unseen.filter(o => o.currentStage === 'STORE') : storeUnseenData.seen.filter(o => o.currentStage === 'STORE'))
-                            : allOrders.filter(o => o.currentStage === 'STORE' && o.status !== 'COMPLETED')
-                          ).length > 0 ? (
-                            (storeUnseenData
-                              ? (storeSubTab === 'unseen' ? storeUnseenData.unseen.filter(o => o.currentStage === 'STORE') : storeUnseenData.seen.filter(o => o.currentStage === 'STORE'))
-                              : allOrders.filter(o => o.currentStage === 'STORE' && o.status !== 'COMPLETED')
-                            ).map(order => (
-                               <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} isUnseen={storeSubTab === 'unseen' && !!storeUnseenData} onMarkSeen={() => markAsSeen(order.id)} selected={selectedOrderIds.has(order.id)} onToggleSelect={toggleOrderSelection} />
-                            ))
-                          ) : (
-                            <div className="col-span-full py-6 md:py-20 text-center glass rounded-2xl md:rounded-[3rem] theme-border">
-                              <Package className="mx-auto theme-text-muted mb-4" size={48} />
-                              <h3 className="theme-text-muted font-black uppercase">{storeSubTab === 'unseen' ? 'No unseen tasks' : 'No seen tasks'}</h3>
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    )}
+                        )}
+                      </div>
+                    </div>
                   </section>
                 ) : filterStage === 'DISPATCH' ? (
                   <section>
@@ -1173,13 +1076,13 @@ const AdminDashboard = () => {
                     </div>
                     <div>
                       <h2 className="text-xl md:text-2xl font-black theme-text-primary uppercase tracking-tight">Order Change Requests</h2>
-                      <p className="theme-text-muted text-[9px] md:text-[10px] font-black uppercase tracking-widest mt-0.5">
+                      <p className="theme-text-muted text-xs md:text-sm font-black uppercase tracking-widest mt-0.5">
                         {editRequests.length} pending request{editRequests.length !== 1 ? 's' : ''} — Auto-refreshing
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="hidden sm:inline-flex items-center gap-2 text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20">
+                    <span className="hidden sm:inline-flex items-center gap-2 text-xs md:text-sm font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                       Live
                     </span>
@@ -1258,11 +1161,11 @@ const AdminDashboard = () => {
                                 </div>
                                 <div>
                                   <p className="text-sm font-black theme-text-primary">#{order.orderNumber || order.id?.substring(0, 8) || 'N/A'}</p>
-                                  <p className="text-[9px] theme-text-muted font-bold">{order.customerName || 'Unknown'}</p>
+                                  <p className="text-xs md:text-sm theme-text-muted font-bold">{order.customerName || 'Unknown'}</p>
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                <span className="px-2.5 py-1 bg-amber-500/15 text-amber-400 rounded-lg text-[8px] font-black uppercase tracking-wider">
+                                <span className="px-2.5 py-1 bg-amber-500/15 text-amber-400 rounded-lg text-xs font-black uppercase tracking-wider">
                                   {req.status}
                                 </span>
                                 <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} className="text-gray-600">
@@ -1271,7 +1174,7 @@ const AdminDashboard = () => {
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-4 text-[9px] font-bold theme-text-muted">
+                            <div className="flex items-center gap-4 text-xs md:text-sm font-bold theme-text-muted">
                               <span className="flex items-center gap-1.5">
                                 <span className={`w-1.5 h-1.5 rounded-full ${source === 'ONLINE ORDER' ? 'bg-blue-400' : 'bg-purple-400'}`} />
                                 {source}
@@ -1292,56 +1195,56 @@ const AdminDashboard = () => {
                                 <div className="px-5 pb-5 border-t theme-border pt-4 space-y-4">
                                   <div className="grid grid-cols-2 gap-3">
                                     <div className="theme-bg rounded-xl p-3 border border-red-500/20">
-                                      <p className="text-[8px] font-black text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                      <p className="text-xs font-black text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                                         <span className="w-1 h-1 rounded-full bg-red-400" /> Old Item(s)
                                       </p>
                                       {currentProducts.length > 0 ? currentProducts.map((p, i) => (
                                         <div key={i} className="flex items-center gap-2 py-1.5 border-b border-red-500/10 last:border-0">
-                                          <span className="text-[9px] font-black text-red-400 w-4">{i + 1}.</span>
+                                          <span className="text-xs md:text-sm font-black text-red-400 w-4">{i + 1}.</span>
                                           <div>
-                                            <p className="text-[10px] font-bold theme-text-primary">{p.name}</p>
+                                            <p className="text-xs font-bold theme-text-primary">{p.name}</p>
                                             {(p.color || p.size) && (
-                                              <p className="text-[8px] font-medium theme-text-muted">
+                                              <p className="text-xs font-medium theme-text-muted">
                                                 {[p.color, p.size].filter(Boolean).join(' / ')} × {p.qty}
                                               </p>
                                             )}
                                           </div>
                                         </div>
-                                      )) : <p className="text-[8px] theme-text-muted italic">No items</p>}
+                                      )) : <p className="text-xs theme-text-muted italic">No items</p>}
                                     </div>
 
                                     <div className="theme-bg rounded-xl p-3 border border-emerald-500/20">
-                                      <p className="text-[8px] font-black text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                      <p className="text-xs font-black text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                                         <span className="w-1 h-1 rounded-full bg-emerald-400" /> New Item(s)
                                       </p>
                                       {requestedProducts.length > 0 ? requestedProducts.map((p, i) => (
                                         <div key={i} className="flex items-center gap-2 py-1.5 border-b border-emerald-500/10 last:border-0">
-                                          <span className="text-[9px] font-black text-emerald-400 w-4">{i + 1}.</span>
+                                          <span className="text-xs md:text-sm font-black text-emerald-400 w-4">{i + 1}.</span>
                                           <div>
-                                            <p className="text-[10px] font-bold theme-text-primary">{p.name}</p>
+                                            <p className="text-xs font-bold theme-text-primary">{p.name}</p>
                                             {(p.color || p.size) && (
-                                              <p className="text-[8px] font-medium theme-text-muted">
+                                              <p className="text-xs font-medium theme-text-muted">
                                                 {[p.color, p.size].filter(Boolean).join(' / ')} × {p.qty}
                                               </p>
                                             )}
                                           </div>
                                         </div>
-                                      )) : <p className="text-[8px] theme-text-muted italic">No items</p>}
+                                      )) : <p className="text-xs theme-text-muted italic">No items</p>}
                                     </div>
                                   </div>
 
                                   <div className="bg-amber-500/5 border border-amber-500/15 rounded-xl p-3">
-                                    <p className="text-[8px] font-black text-amber-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                    <p className="text-xs font-black text-amber-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                                       <RotateCcw size={10} /> Inventory Impact
                                     </p>
                                     <div className="space-y-1">
                                       {currentProducts.map((p, i) => (
-                                        <p key={i} className="text-[8px] font-bold text-green-400">
+                                        <p key={i} className="text-xs font-bold text-green-400">
                                           +{p.qty} {p.name} {p.color ? `(${p.color}` : ''}{p.color && p.size ? ' / ' : ''}{p.size ? `${p.size})` : ''} returned to stock
                                         </p>
                                       ))}
                                       {requestedProducts.map((p, i) => (
-                                        <p key={i} className="text-[8px] font-bold text-red-400">
+                                        <p key={i} className="text-xs font-bold text-red-400">
                                           -{p.qty} {p.name} {p.color ? `(${p.color}` : ''}{p.color && p.size ? ' / ' : ''}{p.size ? `${p.size})` : ''} deducted from stock
                                         </p>
                                       ))}
@@ -1349,13 +1252,13 @@ const AdminDashboard = () => {
                                   </div>
 
                                   <div className="bg-indigo-500/5 border border-indigo-500/15 rounded-xl p-3">
-                                    <p className="text-[8px] font-black text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                    <p className="text-xs font-black text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                                       <Package size={10} /> Inventory Availability
                                     </p>
                                     {inventorySearchLoading ? (
                                       <div className="flex items-center gap-2 py-2">
                                         <Loader2 className="animate-spin text-indigo-400" size={12} />
-                                        <span className="text-[8px] font-bold theme-text-muted">Checking inventory...</span>
+                                        <span className="text-xs font-bold theme-text-muted">Checking inventory...</span>
                                       </div>
                                     ) : (
                                       <div className="space-y-2">
@@ -1363,9 +1266,9 @@ const AdminDashboard = () => {
                                           const items = inventorySearchResults[p.name] || [];
                                           return (
                                             <div key={i} className="theme-bg rounded-lg p-2 border theme-border">
-                                              <p className="text-[8px] font-black theme-text-primary mb-1.5 uppercase tracking-wider">{p.name}</p>
+                                              <p className="text-xs font-black theme-text-primary mb-1.5 uppercase tracking-wider">{p.name}</p>
                                               {items.length === 0 ? (
-                                                <p className="text-[8px] font-bold text-red-400 italic">No inventory records found</p>
+                                                <p className="text-xs font-bold text-red-400 italic">No inventory records found</p>
                                               ) : (
                                                 items.map((item, idx) => {
                                                   const v = item.variants && Array.isArray(item.variants) ? item.variants : [{ color: item.color || 'Default', size: item.size || 'Default', stock: item.stock || 0 }];
@@ -1373,10 +1276,10 @@ const AdminDashboard = () => {
                                                     <div key={idx} className="mb-1 last:mb-0">
                                                       {v.length === 1 && !item.variants ? (
                                                         <div className="flex items-center justify-between py-1">
-                                                          <span className="text-[8px] font-medium theme-text-secondary">
+                                                          <span className="text-xs font-medium theme-text-secondary">
                                                             {[v[0].color, v[0].size].filter(Boolean).join(' / ')}
                                                           </span>
-                                                          <span className={`text-[8px] font-black px-1.5 py-0.5 rounded ${
+                                                          <span className={`text-xs font-black px-1.5 py-0.5 rounded ${
                                                             v[0].stock === 0 ? 'bg-red-500/15 text-red-400' :
                                                             v[0].stock <= 5 ? 'bg-amber-500/15 text-amber-400' :
                                                             'bg-emerald-500/15 text-emerald-400'
@@ -1388,10 +1291,10 @@ const AdminDashboard = () => {
                                                         <div className="space-y-0.5">
                                                           {v.map((variant, vi) => (
                                                             <div key={vi} className="flex items-center justify-between py-0.5">
-                                                              <span className="text-[7px] font-medium theme-text-secondary">
+                                                              <span className="text-[9px] font-medium theme-text-secondary">
                                                                 {[variant.color, variant.size].filter(Boolean).join(' / ')}
                                                               </span>
-                                                              <span className={`text-[7px] font-bold px-1.5 py-0.5 rounded ${
+                                                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
                                                                 (variant.stock || 0) === 0 ? 'bg-red-500/15 text-red-400' :
                                                                 (variant.stock || 0) <= 5 ? 'bg-amber-500/15 text-amber-400' :
                                                                 'bg-emerald-500/15 text-emerald-400'
@@ -1415,12 +1318,12 @@ const AdminDashboard = () => {
 
                                   {req.reason && (
                                     <div className="theme-bg rounded-xl p-3 border theme-border">
-                                      <p className="text-[8px] font-black theme-text-muted uppercase tracking-wider mb-1">Reason</p>
-                                      <p className="text-[9px] font-medium italic theme-text-secondary">"{req.reason}"</p>
+                                      <p className="text-xs font-black theme-text-muted uppercase tracking-wider mb-1">Reason</p>
+                                      <p className="text-xs md:text-sm font-medium italic theme-text-secondary">"{req.reason}"</p>
                                     </div>
                                   )}
 
-                                  <div className="flex items-center justify-between text-[8px] font-bold theme-text-muted">
+                                  <div className="flex items-center justify-between text-xs font-bold theme-text-muted">
                                     <span>Requested by: {req.requestedBy?.name || 'Unknown'} ({req.requestedBy?.role || '?'})</span>
                                     <span>{new Date(req.requestedAt).toLocaleString()}</span>
                                   </div>
@@ -1428,13 +1331,13 @@ const AdminDashboard = () => {
                                   <div className="flex gap-3 pt-2">
                                     <button
                                       onClick={() => { setReviewRequestData(req); setReviewAction('approve'); setReviewRemarks(''); setShowReviewModal(true); }}
-                                      className="flex-1 py-3.5 bg-emerald-600 text-white rounded-xl font-black text-[9px] uppercase tracking-wider hover:bg-emerald-500 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30"
+                                      className="flex-1 py-3.5 bg-emerald-600 text-white rounded-xl font-black text-xs md:text-sm uppercase tracking-wider hover:bg-emerald-500 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30"
                                     >
                                       <ThumbsUp size={13} /> Approve
                                     </button>
                                     <button
                                       onClick={() => { setReviewRequestData(req); setReviewAction('reject'); setReviewRemarks(''); setShowReviewModal(true); }}
-                                      className="flex-1 py-3.5 bg-red-600 text-white rounded-xl font-black text-[9px] uppercase tracking-wider hover:bg-red-500 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-red-900/30"
+                                      className="flex-1 py-3.5 bg-red-600 text-white rounded-xl font-black text-xs md:text-sm uppercase tracking-wider hover:bg-red-500 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-red-900/30"
                                     >
                                       <ThumbsDown size={13} /> Reject
                                     </button>
@@ -1467,7 +1370,7 @@ const AdminDashboard = () => {
                   <div className="overflow-x-auto">
                     <table className="w-full text-left">
                       <thead>
-                        <tr className="text-[9px] font-black text-gray-500 uppercase tracking-widest border-b border-gray-800">
+                        <tr className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest border-b border-gray-800">
                           <th className="py-3 pr-4">Order</th>
                           <th className="py-3 pr-4">Customer</th>
                           <th className="py-3 pr-4">Source</th>
@@ -1485,10 +1388,10 @@ const AdminDashboard = () => {
                           }}>
                             <td className="py-3 pr-4 font-bold text-white">#{o.orderNumber || o.id.substring(0, 6)}</td>
                             <td className="py-3 pr-4 text-gray-300">{o.customerName}</td>
-                            <td className="py-3 pr-4 text-gray-400 text-[9px]">{o.outletName || o.source || '—'}</td>
-                            <td className="py-3 pr-4 text-gray-400 text-[9px] font-bold uppercase">{o.currentStage?.replace(/_/g, ' ')}</td>
+                            <td className="py-3 pr-4 text-gray-400 text-xs md:text-sm">{o.outletName || o.source || '—'}</td>
+                            <td className="py-3 pr-4 text-gray-400 text-xs md:text-sm font-bold uppercase">{o.currentStage?.replace(/_/g, ' ')}</td>
                             <td className="py-3 pr-4">
-                              <span className={`text-[9px] font-black px-2 py-1 rounded ${
+                              <span className={`text-xs md:text-sm font-black px-2 py-1 rounded ${
                                 o.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' :
                                 o.status === 'IN_PROGRESS' ? 'bg-blue-500/20 text-blue-400' :
                                 o.status === 'PENDING' ? 'bg-yellow-500/20 text-yellow-400' :
@@ -1496,7 +1399,7 @@ const AdminDashboard = () => {
                               }`}>{o.status}</span>
                             </td>
                             <td className="py-3 pr-4 text-right font-bold text-white">₨{o.totalPrice || 0}</td>
-                            <td className="py-3 pr-4 text-right font-bold text-gray-400 text-[9px]">{new Date(o.createdAt).toLocaleDateString()}</td>
+                            <td className="py-3 pr-4 text-right font-bold text-gray-400 text-xs md:text-sm">{new Date(o.createdAt).toLocaleDateString()}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1525,7 +1428,7 @@ const AdminDashboard = () => {
                     <button
                       key={b.value}
                       onClick={() => setOutletFilter(b.value)}
-                      className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                      className={`px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all ${
                         outletFilter === b.value
                           ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/40'
                           : 'bg-gray-900 text-gray-500 hover:text-gray-300 border border-gray-800'
@@ -1545,7 +1448,7 @@ const AdminDashboard = () => {
                     <button
                       key={r.key}
                       onClick={() => setOutletDateRange(r.key)}
-                      className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                      className={`px-3 py-2 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all ${
                         outletDateRange === r.key ? 'bg-purple-600 text-white' : 'bg-gray-900 text-gray-500 hover:text-gray-300'
                       }`}
                     >
@@ -1554,7 +1457,7 @@ const AdminDashboard = () => {
                   ))}
                   <button
                     onClick={() => setOutletDateRange('custom')}
-                    className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1 ${
+                    className={`px-3 py-2 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all flex items-center gap-1 ${
                       outletDateRange === 'custom' ? 'bg-purple-600 text-white' : 'bg-gray-900 text-gray-500 hover:text-gray-300'
                     }`}
                   >
@@ -1569,7 +1472,7 @@ const AdminDashboard = () => {
                         className="bg-gray-950 border-2 border-gray-800 rounded-xl py-2 px-3 text-xs font-bold text-white outline-none focus:border-purple-500" />
                       <button
                         onClick={() => fetchOutletAnalytics(outletFilter, 'custom')}
-                        className="px-4 py-2 bg-purple-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-purple-500 transition-all"
+                        className="px-4 py-2 bg-purple-600 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-widest hover:bg-purple-500 transition-all"
                       >
                         Apply
                       </button>
@@ -1586,55 +1489,55 @@ const AdminDashboard = () => {
                   <div className="space-y-6">
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                       <div className="glass rounded-xl p-4 border border-gray-800">
-                        <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Total Orders</p>
+                        <p className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">Total Orders</p>
                         <p className="text-2xl font-black text-white mt-1">{outletAnalytics.summary.totalOrders}</p>
                       </div>
                       <div className="glass rounded-xl p-4 border border-gray-800">
-                        <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Completed</p>
+                        <p className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">Completed</p>
                         <p className="text-2xl font-black text-emerald-400 mt-1">{outletAnalytics.summary.completedOrders}</p>
                       </div>
                       <div className="glass rounded-xl p-4 border border-gray-800">
-                        <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest">In Progress</p>
+                        <p className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">In Progress</p>
                         <p className="text-2xl font-black text-blue-400 mt-1">{outletAnalytics.summary.inProgressOrders}</p>
                       </div>
                       <div className="glass rounded-xl p-4 border border-gray-800">
-                        <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Pending</p>
+                        <p className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">Pending</p>
                         <p className="text-2xl font-black text-yellow-400 mt-1">{outletAnalytics.summary.pendingOrders}</p>
                       </div>
                       <div className="glass rounded-xl p-4 border border-gray-800">
-                        <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Cancelled</p>
+                        <p className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">Cancelled</p>
                         <p className="text-2xl font-black text-red-400 mt-1">{outletAnalytics.summary.cancelledOrders}</p>
                       </div>
                       <div className="glass rounded-xl p-4 border border-gray-800">
-                        <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Total Revenue</p>
+                        <p className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">Total Revenue</p>
                         <p className="text-2xl font-black text-emerald-400 mt-1">₨{Number(outletAnalytics.summary.totalRevenue).toLocaleString()}</p>
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="glass rounded-xl p-5 border border-gray-800">
-                        <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                        <p className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
                           <DollarSign size={12} className="text-emerald-400" /> Total Revenue
                         </p>
                         <p className="text-xl md:text-3xl font-black text-emerald-400 mt-2">₨{Number(outletAnalytics.summary.totalRevenue).toLocaleString()}</p>
-                        <p className="text-[8px] text-gray-600 font-bold uppercase tracking-widest mt-1">Completed &amp; Delivered Orders Only</p>
+                        <p className="text-xs text-gray-600 font-bold uppercase tracking-widest mt-1">Completed &amp; Delivered Orders Only</p>
                       </div>
                       <div className="glass rounded-xl p-5 border border-gray-800">
-                        <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                        <p className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
                           <ShoppingCart size={12} className="text-blue-400" /> Avg Order Value
                         </p>
                         <p className="text-xl md:text-3xl font-black text-blue-400 mt-2">₨{Number(outletAnalytics.summary.avgOrderValue).toFixed(2)}</p>
-                        <p className="text-[8px] text-gray-600 font-bold uppercase tracking-widest mt-1">Completed &amp; Delivered Orders Only</p>
+                        <p className="text-xs text-gray-600 font-bold uppercase tracking-widest mt-1">Completed &amp; Delivered Orders Only</p>
                       </div>
                     </div>
 
                     {/* Recent Orders */}
                     {outletAnalytics.recentOrders?.length > 0 && (
                       <div className="glass rounded-xl p-5 border border-gray-800">
-                        <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-3">Recent Orders</p>
+                        <p className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest mb-3">Recent Orders</p>
                         <div className="overflow-x-auto">
                           <table className="w-full text-left">
                             <thead>
-                              <tr className="text-[9px] font-black text-gray-500 uppercase tracking-widest border-b border-gray-800">
+                              <tr className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest border-b border-gray-800">
                                 <th className="py-2 pr-4">Order</th>
                                 <th className="py-2 pr-4">Customer</th>
                                 <th className="py-2 pr-4">Outlet</th>
@@ -1647,9 +1550,9 @@ const AdminDashboard = () => {
                                 <tr key={o.id} className="border-b border-gray-800/50 text-sm">
                                   <td className="py-2 pr-4 font-bold text-white">#{o.orderNumber || o.id.substring(0, 6)}</td>
                                   <td className="py-2 pr-4 text-gray-300">{o.customerName}</td>
-                                  <td className="py-2 pr-4 text-gray-400 text-[9px]">{o.outletName || '—'}</td>
+                                  <td className="py-2 pr-4 text-gray-400 text-xs md:text-sm">{o.outletName || '—'}</td>
                                   <td className="py-2 pr-4">
-                                    <span className={`text-[9px] font-black px-2 py-1 rounded ${
+                                    <span className={`text-xs md:text-sm font-black px-2 py-1 rounded ${
                                       o.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' :
                                       o.status === 'IN_PROGRESS' ? 'bg-blue-500/20 text-blue-400' :
                                       o.status === 'PENDING' ? 'bg-yellow-500/20 text-yellow-400' :
@@ -1692,7 +1595,7 @@ const AdminDashboard = () => {
               </div>
               <form onSubmit={handleTogglePause} className="space-y-4">
                 <div>
-                  <label className="text-[9px] md:text-[10px] font-black text-gray-500 uppercase tracking-widest">Confirm Password</label>
+                  <label className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">Confirm Password</label>
                   <input type="password" value={pausePassword} onChange={(e) => setPausePassword(e.target.value)}
                     className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-xl py-3 px-4 focus:border-red-500 outline-none font-black text-lg text-white mt-2"
                     placeholder="Enter your password" required />
@@ -1738,13 +1641,13 @@ const AdminDashboard = () => {
               {reviewAction === 'approve' && (
                 <div className="theme-bg rounded-xl p-4 border theme-border mb-4">
                   <p className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-2">⚠ Inventory will auto-adjust</p>
-                  <p className="text-[9px] font-medium theme-text-muted">The system will automatically restore stock for removed products and deduct stock for new products.</p>
+                  <p className="text-xs md:text-sm font-medium theme-text-muted">The system will automatically restore stock for removed products and deduct stock for new products.</p>
                 </div>
               )}
 
               <div className="space-y-4">
                 <div>
-                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Admin Remarks (Optional)</label>
+                  <label className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">Admin Remarks (Optional)</label>
                   <textarea
                     value={reviewRemarks}
                     onChange={(e) => setReviewRemarks(e.target.value)}

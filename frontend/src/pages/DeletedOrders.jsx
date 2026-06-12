@@ -49,7 +49,7 @@ const DeletedOrders = () => {
           </div>
           <div>
             <h1 className="text-2xl md:text-3xl font-black theme-text-primary uppercase tracking-tight">Deleted Orders</h1>
-            <p className="theme-text-muted text-[9px] md:text-[10px] font-black uppercase tracking-widest mt-1">
+            <p className="theme-text-muted text-xs md:text-sm font-black uppercase tracking-widest mt-1">
               {records.length} record{records.length !== 1 ? 's' : ''} — Audit trail
             </p>
           </div>
@@ -96,7 +96,7 @@ const DeletedOrders = () => {
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="text-lg font-black text-white">#{record.orderNumber || record.id.substring(0, 8)}</h3>
-                      <span className="px-2 py-0.5 bg-red-500/10 text-red-400 text-[8px] font-black uppercase tracking-widest rounded-md border border-red-500/20">
+                      <span className="px-2 py-0.5 bg-red-500/10 text-red-400 text-xs font-black uppercase tracking-widest rounded-md border border-red-500/20">
                         Deleted
                       </span>
                     </div>
@@ -104,7 +104,7 @@ const DeletedOrders = () => {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-4 text-[11px] font-bold text-gray-500">
+                <div className="flex flex-wrap items-center gap-4 text-xs md:text-sm font-bold text-gray-500">
                   <div className="flex items-center gap-1.5">
                     <Store size={14} className="text-gray-600" />
                     <span>{record.source}</span>

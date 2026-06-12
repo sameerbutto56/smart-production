@@ -194,7 +194,7 @@ const ProductionDashboard = () => {
                   className="glass p-4 md:p-6 rounded-2xl border-2 theme-border hover:border-emerald-500/30 transition-all">
                   <div className="flex items-center justify-between mb-4">
                     <div className="p-3 bg-emerald-500/10 rounded-xl"><DollarSign className="text-emerald-400" size={20} /></div>
-                    <span className="text-[9px] font-black theme-text-muted uppercase tracking-wider">Total</span>
+                    <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Total</span>
                   </div>
                   <p className="text-xl md:text-3xl font-black theme-text-primary">₨{dashboard.totalEarnings.toLocaleString()}</p>
                   <p className="text-xs font-bold theme-text-muted uppercase tracking-wider mt-1">Total Earnings</p>
@@ -203,7 +203,7 @@ const ProductionDashboard = () => {
                   className="glass p-4 md:p-6 rounded-2xl border-2 theme-border hover:border-emerald-500/30 transition-all">
                   <div className="flex items-center justify-between mb-4">
                     <div className="p-3 bg-blue-500/10 rounded-xl"><TrendingUp className="text-blue-400" size={20} /></div>
-                    <span className="text-[9px] font-black theme-text-muted uppercase tracking-wider">Total</span>
+                    <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Total</span>
                   </div>
                   <p className="text-xl md:text-3xl font-black text-emerald-400">₨{dashboard.totalProfit.toLocaleString()}</p>
                   <p className="text-xs font-bold theme-text-muted uppercase tracking-wider mt-1">Total Profit</p>
@@ -212,7 +212,7 @@ const ProductionDashboard = () => {
                   className="glass p-4 md:p-6 rounded-2xl border-2 theme-border hover:border-emerald-500/30 transition-all">
                   <div className="flex items-center justify-between mb-4">
                     <div className="p-3 bg-purple-500/10 rounded-xl"><Package className="text-purple-400" size={20} /></div>
-                    <span className="text-[9px] font-black theme-text-muted uppercase tracking-wider">Units</span>
+                    <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Units</span>
                   </div>
                   <p className="text-xl md:text-3xl font-black theme-text-primary">{dashboard.totalQuantity}</p>
                   <p className="text-xs font-bold theme-text-muted uppercase tracking-wider mt-1">Total Produced</p>
@@ -221,7 +221,7 @@ const ProductionDashboard = () => {
                   className="glass p-4 md:p-6 rounded-2xl border-2 theme-border hover:border-emerald-500/30 transition-all">
                   <div className="flex items-center justify-between mb-4">
                     <div className="p-3 bg-orange-500/10 rounded-xl"><BarChart3 className="text-orange-400" size={20} /></div>
-                    <span className="text-[9px] font-black theme-text-muted uppercase tracking-wider">Records</span>
+                    <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Records</span>
                   </div>
                   <p className="text-xl md:text-3xl font-black theme-text-primary">{dashboard.recordCount}</p>
                   <p className="text-xs font-bold theme-text-muted uppercase tracking-wider mt-1">Production Batches</p>
@@ -243,7 +243,7 @@ const ProductionDashboard = () => {
                       </div>
                       <div className="text-right">
                         <p className="font-black text-blue-400">₨{dashboard.onlineEarnings.toLocaleString()}</p>
-                        <p className="text-[9px] font-bold text-emerald-400">Profit: ₨{dashboard.onlineProfit.toLocaleString()}</p>
+                        <p className="text-xs md:text-sm font-bold text-emerald-400">Profit: ₨{dashboard.onlineProfit.toLocaleString()}</p>
                       </div>
                     </div>
                     <div className="flex items-center justify-between p-4 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
@@ -253,7 +253,7 @@ const ProductionDashboard = () => {
                       </div>
                       <div className="text-right">
                         <p className="font-black text-emerald-400">₨{dashboard.outletEarnings.toLocaleString()}</p>
-                        <p className="text-[9px] font-bold text-blue-400">Profit: ₨{dashboard.outletProfit.toLocaleString()}</p>
+                        <p className="text-xs md:text-sm font-bold text-blue-400">Profit: ₨{dashboard.outletProfit.toLocaleString()}</p>
                       </div>
                     </div>
                     <div className="flex items-center justify-between p-4 bg-gray-800/50 rounded-xl border border-gray-700">
@@ -279,7 +279,7 @@ const ProductionDashboard = () => {
                         <div className="space-y-4">
                           {dashboard.monthlyData.map(month => (
                             <div key={month.name}>
-                              <div className="flex justify-between text-[9px] md:text-[10px] font-bold mb-1">
+                              <div className="flex justify-between text-xs md:text-sm font-bold mb-1">
                                 <span className="theme-text-secondary">{month.name}</span>
                                 <div className="flex space-x-4">
                                   <span className="text-emerald-400">{month.quantity} units</span>
@@ -308,7 +308,7 @@ const ProductionDashboard = () => {
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="text-[9px] font-black theme-text-muted uppercase tracking-wider border-b theme-border">
+                        <tr className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider border-b theme-border">
                           <th className="text-left py-3 px-2">Product</th>
                           <th className="text-right py-3 px-2">Qty</th>
                           <th className="text-right py-3 px-2">Batches</th>
@@ -368,13 +368,13 @@ const ProductionDashboard = () => {
                           <div>
                             <h3 className="font-black theme-text-primary text-base">{record.productName}</h3>
                             <div className="flex flex-wrap items-center gap-2 mt-1">
-                              <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase border border-emerald-500/20 bg-emerald-500/5 text-emerald-400">
+                              <span className="px-2.5 py-0.5 rounded-full text-xs md:text-sm font-black uppercase border border-emerald-500/20 bg-emerald-500/5 text-emerald-400">
                                 Qty: {record.quantity}
                               </span>
-                              <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase border border-blue-500/20 bg-blue-500/5 text-blue-400">
+                              <span className="px-2.5 py-0.5 rounded-full text-xs md:text-sm font-black uppercase border border-blue-500/20 bg-blue-500/5 text-blue-400">
                                 {record.source}
                               </span>
-                              <span className="text-[9px] font-bold theme-text-muted">
+                              <span className="text-xs md:text-sm font-bold theme-text-muted">
                                 {new Date(record.productionDate).toLocaleDateString()}
                               </span>
                             </div>
@@ -391,19 +391,19 @@ const ProductionDashboard = () => {
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t theme-border">
                         <div>
-                          <p className="text-[8px] font-black theme-text-muted uppercase tracking-wider">Raw Material</p>
+                          <p className="text-xs font-black theme-text-muted uppercase tracking-wider">Raw Material</p>
                           <p className="font-bold text-sm theme-text-primary">₨{record.rawMaterialCost?.toLocaleString()}</p>
                         </div>
                         <div>
-                          <p className="text-[8px] font-black theme-text-muted uppercase tracking-wider">Production</p>
+                          <p className="text-xs font-black theme-text-muted uppercase tracking-wider">Production</p>
                           <p className="font-bold text-sm theme-text-primary">₨{record.productionCost?.toLocaleString()}</p>
                         </div>
                         <div>
-                          <p className="text-[8px] font-black theme-text-muted uppercase tracking-wider">Total Cost</p>
+                          <p className="text-xs font-black theme-text-muted uppercase tracking-wider">Total Cost</p>
                           <p className="font-bold text-sm text-gray-400">₨{record.totalCost?.toLocaleString()}</p>
                         </div>
                         <div>
-                          <p className="text-[8px] font-black theme-text-muted uppercase tracking-wider">Profit</p>
+                          <p className="text-xs font-black theme-text-muted uppercase tracking-wider">Profit</p>
                           <p className={`font-bold text-sm ${record.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                             ₨{record.profit?.toLocaleString()}
                           </p>
@@ -411,7 +411,7 @@ const ProductionDashboard = () => {
                       </div>
                       {record.notes && (
                         <div className="mt-3 p-3 bg-gray-800/30 rounded-xl">
-                          <p className="text-[9px] font-black theme-text-muted uppercase tracking-wider mb-1">Notes</p>
+                          <p className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider mb-1">Notes</p>
                           <p className="text-xs theme-text-secondary">{record.notes}</p>
                         </div>
                       )}
@@ -460,32 +460,32 @@ const ProductionDashboard = () => {
                           </div>
                           <div>
                             <h3 className="font-black theme-text-primary text-sm">{item.productName}</h3>
-                            <span className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase border border-blue-500/20 bg-blue-500/5 text-blue-400">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-black uppercase border border-blue-500/20 bg-blue-500/5 text-blue-400">
                               {item.source}
                             </span>
                           </div>
                         </div>
-                        <div className="px-3 py-1 rounded-full text-[9px] font-black uppercase border border-emerald-500/20 bg-emerald-500/5 text-emerald-400">
+                        <div className="px-3 py-1 rounded-full text-xs md:text-sm font-black uppercase border border-emerald-500/20 bg-emerald-500/5 text-emerald-400">
                           {item.quantity} units
                         </div>
                       </div>
                       <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t theme-border text-center">
                         <div>
-                          <p className="text-[8px] font-black theme-text-muted uppercase">Cost</p>
+                          <p className="text-xs font-black theme-text-muted uppercase">Cost</p>
                           <p className="font-bold text-xs theme-text-primary">₨{item.productionCost?.toLocaleString()}</p>
                         </div>
                         <div>
-                          <p className="text-[8px] font-black theme-text-muted uppercase">Value</p>
+                          <p className="text-xs font-black theme-text-muted uppercase">Value</p>
                           <p className="font-bold text-xs text-emerald-400">₨{item.sellingValue?.toLocaleString()}</p>
                         </div>
                         <div>
-                          <p className="text-[8px] font-black theme-text-muted uppercase">Margin</p>
+                          <p className="text-xs font-black theme-text-muted uppercase">Margin</p>
                           <p className={`font-bold text-xs ${item.profitMargin >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                             {item.profitMargin?.toFixed(1)}%
                           </p>
                         </div>
                       </div>
-                      <p className="text-[8px] font-bold theme-text-muted mt-3">
+                      <p className="text-xs font-bold theme-text-muted mt-3">
                         {new Date(item.productionDate).toLocaleDateString()}
                       </p>
                     </motion.div>
@@ -517,18 +517,18 @@ const ProductionDashboard = () => {
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="md:col-span-2">
-                    <label className="text-[9px] font-black theme-text-muted uppercase tracking-widest">Product Name *</label>
+                    <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Product Name *</label>
                     <input type="text" value={formData.productName} onChange={(e) => setFormData({...formData, productName: e.target.value})}
                       placeholder="e.g. Premium Scrub Set"
                       className="w-full theme-input rounded-xl py-3 px-4 focus:border-emerald-500 outline-none font-medium mt-1" required />
                   </div>
                   <div>
-                    <label className="text-[9px] font-black theme-text-muted uppercase tracking-widest">Quantity *</label>
+                    <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Quantity *</label>
                     <input type="number" min="1" value={formData.quantity} onChange={(e) => setFormData({...formData, quantity: e.target.value})}
                       className="w-full theme-input rounded-xl py-3 px-4 focus:border-emerald-500 outline-none font-medium mt-1" required />
                   </div>
                   <div>
-                    <label className="text-[9px] font-black theme-text-muted uppercase tracking-widest">Source</label>
+                    <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Source</label>
                     <select value={formData.source} onChange={(e) => setFormData({...formData, source: e.target.value})}
                       className="w-full theme-input rounded-xl py-3 px-4 focus:border-emerald-500 outline-none font-medium mt-1 appearance-none cursor-pointer">
                       <option value="OUTLET">Outlet</option>
@@ -536,30 +536,30 @@ const ProductionDashboard = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="text-[9px] font-black theme-text-muted uppercase tracking-widest">Raw Material Cost (₨)</label>
+                    <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Raw Material Cost (₨)</label>
                     <input type="number" min="0" step="0.01" value={formData.rawMaterialCost} onChange={(e) => setFormData({...formData, rawMaterialCost: e.target.value})}
                       placeholder="0"
                       className="w-full theme-input rounded-xl py-3 px-4 focus:border-emerald-500 outline-none font-medium mt-1" />
                   </div>
                   <div>
-                    <label className="text-[9px] font-black theme-text-muted uppercase tracking-widest">Production Cost (₨)</label>
+                    <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Production Cost (₨)</label>
                     <input type="number" min="0" step="0.01" value={formData.productionCost} onChange={(e) => setFormData({...formData, productionCost: e.target.value})}
                       placeholder="0"
                       className="w-full theme-input rounded-xl py-3 px-4 focus:border-emerald-500 outline-none font-medium mt-1" />
                   </div>
                   <div className="md:col-span-2">
-                    <label className="text-[9px] font-black theme-text-muted uppercase tracking-widest">Selling Value (₨)</label>
+                    <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Selling Value (₨)</label>
                     <input type="number" min="0" step="0.01" value={formData.sellingValue} onChange={(e) => setFormData({...formData, sellingValue: e.target.value})}
                       placeholder="0"
                       className="w-full theme-input rounded-xl py-3 px-4 focus:border-emerald-500 outline-none font-medium mt-1" />
                   </div>
                   <div className="md:col-span-2">
-                    <label className="text-[9px] font-black theme-text-muted uppercase tracking-widest">Production Date</label>
+                    <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Production Date</label>
                     <input type="date" value={formData.productionDate} onChange={(e) => setFormData({...formData, productionDate: e.target.value})}
                       className="w-full theme-input rounded-xl py-3 px-4 focus:border-emerald-500 outline-none font-medium mt-1" />
                   </div>
                   <div className="md:col-span-2">
-                    <label className="text-[9px] font-black theme-text-muted uppercase tracking-widest">Notes</label>
+                    <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Notes</label>
                     <textarea value={formData.notes} onChange={(e) => setFormData({...formData, notes: e.target.value})}
                       rows={3} placeholder="Optional notes..."
                       className="w-full theme-input rounded-xl py-3 px-4 focus:border-emerald-500 outline-none font-medium mt-1 resize-none" />

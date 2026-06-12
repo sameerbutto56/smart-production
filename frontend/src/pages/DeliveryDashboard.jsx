@@ -57,12 +57,12 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
             <div className="flex items-center gap-2 flex-wrap">
               <p className="font-black theme-text-primary text-xl leading-tight">{order.customerName}</p>
               {order.priority === 'SUPER_URGENT' && (
-                <span className="text-[9px] font-black text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20 animate-pulse">
+                <span className="text-xs md:text-sm font-black text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20 animate-pulse">
                   ⚡ SUPER URGENT
                 </span>
               )}
               {order.priority === 'URGENT' && (
-                <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                <span className="text-xs md:text-sm font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
                   ⚡ URGENT
                 </span>
               )}
@@ -70,7 +70,7 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
             <p className="text-xs text-blue-400 font-black mt-1 tracking-wider">
               ORDER #{order.orderNumber || order.id?.slice(0, 8).toUpperCase()}
             </p>
-            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[8px] font-black uppercase mt-1 ${
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black uppercase mt-1 ${
               order.source === 'ONLINE' || order.source === 'ONLINE ORDER' || order.createdBy?.role === 'FAISAL'
                 ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
                 : 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
@@ -78,7 +78,7 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
               {order.outletName || (order.source === 'ONLINE' || order.source === 'ONLINE ORDER' || order.createdBy?.role === 'FAISAL' ? 'ONLINE' : order.source || order.createdBy?.role || '—')}
             </span>
             {order.deliveryMethod && (
-              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[8px] font-black uppercase mt-1 ml-1 ${
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black uppercase mt-1 ml-1 ${
                 order.deliveryMethod === 'ENAMELS' || order.deliveryMethod === 'ENAMELS_DELIVERY'
                   ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                   : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
@@ -87,7 +87,7 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
               </span>
             )}
           </div>
-          <div className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[9px] md:text-[10px] font-black border ${
+          <div className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs md:text-sm font-black border ${
             isDelivered
               ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
               : isNoResponse
@@ -110,7 +110,7 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
                 <Phone size={18} className="text-white" />
               </div>
               <div>
-                <p className="text-[9px] theme-text-muted font-black uppercase tracking-widest">📞 Tap to Call</p>
+                <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest">📞 Tap to Call</p>
                 <p className="font-black theme-text-primary text-lg leading-tight">{order.customerPhone}</p>
               </div>
             </a>
@@ -123,23 +123,23 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
           {/* Delivery Address */}
           {order.address && (
             <div className="bg-gray-800/50 rounded-2xl px-4 py-3 border theme-border">
-              <p className="text-[9px] theme-text-muted font-black uppercase tracking-widest">📍 Delivery Address</p>
+              <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest">📍 Delivery Address</p>
               <p className="font-black theme-text-primary text-base mt-0.5 whitespace-pre-wrap">{order.address}</p>
             </div>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             <div className="bg-gray-800/60 rounded-2xl px-4 py-3">
-              <p className="text-[9px] theme-text-muted font-black uppercase tracking-widest">Product</p>
+              <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest">Product</p>
               <p className="font-black theme-text-primary text-base mt-0.5 truncate">{pd.productType || order.type || '—'}</p>
             </div>
 
             <div className="bg-gray-800/60 rounded-2xl px-4 py-3">
-              <p className="text-[9px] theme-text-muted font-black uppercase tracking-widest">Amount</p>
+              <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest">Amount</p>
               <p className="font-black text-emerald-400 text-base mt-0.5">
                 ₨{Number(order.totalPrice || 0).toLocaleString()}
               </p>
-              <p className="text-[9px] theme-text-muted font-bold mt-0.5">
+              <p className="text-xs md:text-sm theme-text-muted font-bold mt-0.5">
                 {order.paymentMethod === 'ONLINE_TRANSFER' ? '💳 Online' : order.advancePaid ? '✅ Paid' : '💵 COD'}
               </p>
             </div>
@@ -151,7 +151,7 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
           <>
             {/* Payment Method Selector */}
             <div className="bg-gray-800/40 rounded-2xl p-3 border border-gray-700/50">
-              <p className="text-[9px] theme-text-muted font-black uppercase tracking-widest mb-2">Payment Method</p>
+              <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest mb-2">Payment Method</p>
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => { setPaymentMethods(prev => ({ ...prev, [order.id]: 'CASH' })); setHalfPayments(prev => ({ ...prev, [order.id]: undefined })); }}
@@ -193,7 +193,7 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
               {paymentMethods[order.id] === 'HALF_CASH_HALF_ONLINE' && (
                 <div className="grid grid-cols-2 gap-3 mt-3">
                   <div>
-                    <p className="text-[8px] theme-text-muted font-black uppercase tracking-widest mb-1">Cash Amount</p>
+                    <p className="text-xs theme-text-muted font-black uppercase tracking-widest mb-1">Cash Amount</p>
                     <input
                       type="number"
                       value={halfPayments?.[order.id]?.cash || 0}
@@ -204,7 +204,7 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
                     />
                   </div>
                   <div>
-                    <p className="text-[8px] theme-text-muted font-black uppercase tracking-widest mb-1">Online Amount</p>
+                    <p className="text-xs theme-text-muted font-black uppercase tracking-widest mb-1">Online Amount</p>
                     <input
                       type="number"
                       value={halfPayments?.[order.id]?.online || 0}
@@ -234,7 +234,7 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
                 {loading === order.id ? (
                   <LoadingSpinner size={16} text="Processing..." />
                 ) : (
-                  <><CheckCircle2 size={28} /><span className="text-sm">Delivered</span><span className="text-[9px] opacity-70 font-bold">مل گیا</span></>
+                  <><CheckCircle2 size={28} /><span className="text-sm">Delivered</span><span className="text-xs md:text-sm opacity-70 font-bold">مل گیا</span></>
                 )}
               </button>
               <button
@@ -245,7 +245,7 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
                 {loading === order.id ? (
                   <LoadingSpinner size={16} text="Processing..." />
                 ) : (
-                  <><PhoneOff size={28} /><span className="text-sm">No Response</span><span className="text-[9px] opacity-70 font-bold">جواب نہیں</span></>
+                  <><PhoneOff size={28} /><span className="text-sm">No Response</span><span className="text-xs md:text-sm opacity-70 font-bold">جواب نہیں</span></>
                 )}
               </button>
             </div>
@@ -275,7 +275,7 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
               <p className="text-emerald-400 font-black text-sm">Order Delivered Successfully</p>
             </div>
             {deliveredAt && (
-              <p className="text-[9px] text-emerald-600/80 font-bold ml-9">
+              <p className="text-xs md:text-sm text-emerald-600/80 font-bold ml-9">
                 {new Date(deliveredAt).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })} at {new Date(deliveredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </p>
             )}
@@ -409,7 +409,7 @@ const DeliveryDashboard = () => {
           </div>
           <div>
             <h1 className="text-2xl font-black theme-text-primary leading-none">Deliveries</h1>
-            <p className="text-[9px] md:text-[10px] theme-text-muted font-bold mt-0.5">{user?.name}</p>
+            <p className="text-xs md:text-sm theme-text-muted font-bold mt-0.5">{user?.name}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -426,15 +426,15 @@ const DeliveryDashboard = () => {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
         <button onClick={() => { setFilter('PENDING'); setSelectedDate(''); }} className={`rounded-2xl p-4 text-center transition-all border-2 ${filter === 'PENDING' ? 'bg-blue-600 border-blue-500' : 'theme-bg theme-border'}`}>
           <p className={`text-xl md:text-3xl font-black ${filter === 'PENDING' ? 'text-white' : 'text-blue-400'}`}>{pending.length}</p>
-          <p className={`text-[9px] font-black uppercase tracking-wider mt-1 ${filter === 'PENDING' ? 'text-blue-100' : 'theme-text-muted'}`}>{t('Pending')}</p>
+          <p className={`text-xs md:text-sm font-black uppercase tracking-wider mt-1 ${filter === 'PENDING' ? 'text-blue-100' : 'theme-text-muted'}`}>{t('Pending')}</p>
         </button>
         <button onClick={() => { setFilter('DELIVERED'); setSelectedDate(''); }} className={`rounded-2xl p-4 text-center transition-all border-2 ${filter === 'DELIVERED' ? 'bg-emerald-600 border-emerald-500' : 'theme-bg theme-border'}`}>
           <p className={`text-xl md:text-3xl font-black ${filter === 'DELIVERED' ? 'text-white' : 'text-emerald-400'}`}>{delivered.length}</p>
-          <p className={`text-[9px] font-black uppercase tracking-wider mt-1 ${filter === 'DELIVERED' ? 'text-emerald-100' : 'theme-text-muted'}`}>{t('Delivered')}</p>
+          <p className={`text-xs md:text-sm font-black uppercase tracking-wider mt-1 ${filter === 'DELIVERED' ? 'text-emerald-100' : 'theme-text-muted'}`}>{t('Delivered')}</p>
         </button>
         <button onClick={() => { setFilter('NOT_RESPONDED'); setSelectedDate(''); }} className={`rounded-2xl p-4 text-center transition-all border-2 ${filter === 'NOT_RESPONDED' ? 'bg-amber-600 border-amber-500' : 'theme-bg theme-border'}`}>
           <p className={`text-xl md:text-3xl font-black ${filter === 'NOT_RESPONDED' ? 'text-white' : 'text-amber-400'}`}>{noResponse.length}</p>
-          <p className={`text-[9px] font-black uppercase tracking-wider mt-1 ${filter === 'NOT_RESPONDED' ? 'text-amber-100' : 'theme-text-muted'}`}>{t('No Reply')}</p>
+          <p className={`text-xs md:text-sm font-black uppercase tracking-wider mt-1 ${filter === 'NOT_RESPONDED' ? 'text-amber-100' : 'theme-text-muted'}`}>{t('No Reply')}</p>
         </button>
       </div>
 
@@ -460,7 +460,7 @@ const DeliveryDashboard = () => {
         {selectedDate && (
           <button
             onClick={() => setSelectedDate('')}
-            className="text-[8px] font-black text-red-400 uppercase tracking-wider px-2 py-1 hover:text-red-300 transition-all"
+            className="text-xs font-black text-red-400 uppercase tracking-wider px-2 py-1 hover:text-red-300 transition-all"
           >
             Clear
           </button>
@@ -524,7 +524,7 @@ const DeliveryDashboard = () => {
       <div className="fixed bottom-0 left-0 right-0 z-40 theme-bg/95 backdrop-blur-xl border-t-2 theme-border px-5 py-4">
         <div className="max-w-xl mx-auto flex items-center justify-between">
           <div>
-            <p className="text-[9px] theme-text-muted font-black uppercase tracking-widest">COD to Collect</p>
+            <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest">COD to Collect</p>
             <p className="text-xl font-black text-amber-400">
               ₨{pending
                 .filter(o => !o.advancePaid)
@@ -534,7 +534,7 @@ const DeliveryDashboard = () => {
           </div>
           <div className="h-10 w-px bg-gray-800" />
           <div className="text-center">
-            <p className="text-[9px] theme-text-muted font-black uppercase tracking-widest">Collected</p>
+            <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest">Collected</p>
             <p className="text-xl font-black text-emerald-400">
               ₨{delivered
                 .reduce((s, o) => s + (Number(o.totalPrice) || 0), 0)
@@ -543,7 +543,7 @@ const DeliveryDashboard = () => {
           </div>
           <div className="h-10 w-px bg-gray-800" />
           <div className="text-right">
-            <p className="text-[9px] theme-text-muted font-black uppercase tracking-widest">Remaining</p>
+            <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest">Remaining</p>
             <p className="text-xl font-black theme-text-primary">{pending.length} left</p>
           </div>
         </div>

@@ -95,7 +95,7 @@ const ProgressChart = () => {
           </div>
           <div>
             <h1 className="text-xl md:text-3xl font-black tracking-tighter uppercase italic leading-none">{t('Production Chart')}</h1>
-            <div className="flex items-center gap-2 text-blue-500 font-bold tracking-widest text-[8px] mt-1">
+            <div className="flex items-center gap-2 text-blue-500 font-bold tracking-widest text-xs mt-1">
               <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping" />
               {t('LIVE FEED')}
             </div>
@@ -108,7 +108,7 @@ const ProgressChart = () => {
             <div className="text-2xl md:text-4xl font-black tracking-tighter font-mono leading-none">
               {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
             </div>
-            <div className="text-gray-500 font-bold uppercase tracking-widest text-[9px] mt-1">
+            <div className="text-gray-500 font-bold uppercase tracking-widest text-xs md:text-sm mt-1">
               {currentTime.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })}
             </div>
           </div>
@@ -141,7 +141,7 @@ const ProgressChart = () => {
             {pipeline.map((stage) => (
               <div key={stage}>
                 <div className="flex justify-between items-end mb-1">
-                  <span className="text-[8px] font-black text-gray-500 uppercase tracking-tighter">{stage.replace('_', ' ')}</span>
+                  <span className="text-xs font-black text-gray-500 uppercase tracking-tighter">{stage.replace('_', ' ')}</span>
                   <span className="text-lg font-black">{stats[stage] || 0}</span>
                 </div>
                 <div className="h-1.5 bg-gray-900 rounded-full overflow-hidden">
@@ -156,7 +156,7 @@ const ProgressChart = () => {
           </div>
 
           <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl">
-            <p className="text-[8px] text-yellow-500 font-black uppercase mb-1">Avg Lead Time</p>
+            <p className="text-xs text-yellow-500 font-black uppercase mb-1">Avg Lead Time</p>
             <p className="text-2xl font-black italic tracking-tighter text-white">
               {analytics?.stagePerformance ? (Object.values(analytics.stagePerformance).reduce((acc, curr) => acc + parseFloat(curr.avgHours), 0) / Object.keys(analytics.stagePerformance).length).toFixed(1) : '0.0'}h
             </p>
@@ -175,7 +175,7 @@ const ProgressChart = () => {
                 <div key={order.id} className="bg-white/5 p-4 rounded-2xl border border-white/5 flex flex-col justify-between h-32">
                   <div>
                     <div className="flex justify-between items-start mb-2">
-                      <span className="text-[7px] font-black text-blue-400 border border-blue-400/30 px-2 py-0.5 rounded-full uppercase">
+                      <span className="text-[9px] font-black text-blue-400 border border-blue-400/30 px-2 py-0.5 rounded-full uppercase">
                         {order.currentStage.replace('_', ' ')}
                       </span>
                       {order.priority === 'SUPER_URGENT' && <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_#ef4444]" />}
@@ -196,15 +196,15 @@ const ProgressChart = () => {
 
           <div className="h-32 grid grid-cols-2 md:grid-cols-3 gap-4">
             <div className="glass-dark p-4 rounded-[2rem] border border-white/5 flex flex-col justify-center items-center">
-              <p className="text-[8px] text-gray-500 font-black uppercase mb-1">Ready to Ship</p>
+              <p className="text-xs text-gray-500 font-black uppercase mb-1">Ready to Ship</p>
               <p className="text-xl md:text-3xl font-black text-emerald-500">{orders.filter(o => o.status === 'OUT_FOR_DELIVERY').length}</p>
             </div>
             <div className="glass-dark p-4 rounded-[2rem] border border-white/5 flex flex-col justify-center items-center">
-              <p className="text-[8px] text-gray-500 font-black uppercase mb-1">In Production</p>
+              <p className="text-xs text-gray-500 font-black uppercase mb-1">In Production</p>
               <p className="text-xl md:text-3xl font-black text-blue-500">{orders.filter(o => o.status !== 'COMPLETED').length}</p>
             </div>
             <div className="glass-dark p-4 rounded-[2rem] border border-white/5 flex flex-col justify-center items-center">
-              <p className="text-[8px] text-gray-500 font-black uppercase mb-1">Active Staff</p>
+              <p className="text-xs text-gray-500 font-black uppercase mb-1">Active Staff</p>
               <p className="text-xl md:text-3xl font-black text-indigo-500">12</p>
             </div>
           </div>
@@ -221,8 +221,8 @@ const ProgressChart = () => {
               {urgentOrders.slice(0, 5).map(order => (
                 <div key={order.id} className="p-3 bg-red-500/10 rounded-xl border border-red-500/20 flex justify-between items-center">
                   <div className="overflow-hidden">
-                    <div className="text-[9px] font-black text-white truncate">{order.customerName}</div>
-                    <div className="text-[7px] text-red-400 font-bold">{order.currentStage.replace('_', ' ')}</div>
+                    <div className="text-xs md:text-sm font-black text-white truncate">{order.customerName}</div>
+                    <div className="text-[9px] text-red-400 font-bold">{order.currentStage.replace('_', ' ')}</div>
                   </div>
                   <div className="text-xs font-black font-mono text-red-500 flex items-center gap-1">
                     <Clock size={10} />
@@ -231,7 +231,7 @@ const ProgressChart = () => {
                 </div>
               ))}
               {urgentOrders.length === 0 && (
-                <div className="h-full flex items-center justify-center text-[10px] text-gray-700 font-black uppercase italic">
+                <div className="h-full flex items-center justify-center text-xs text-gray-700 font-black uppercase italic">
                   All Systems nominal
                 </div>
               )}
@@ -241,7 +241,7 @@ const ProgressChart = () => {
           <div className="h-32 glass-dark p-4 md:p-6 rounded-xl md:rounded-[2rem] border border-white/5 flex items-center justify-center">
              <div className="flex -space-x-3">
               {[1, 2, 3, 4, 5].map(i => (
-                <div key={i} className="w-10 h-10 rounded-full border-4 border-black bg-blue-600 flex items-center justify-center text-[8px] font-black">
+                <div key={i} className="w-10 h-10 rounded-full border-4 border-black bg-blue-600 flex items-center justify-center text-xs font-black">
                   EMP
                 </div>
               ))}

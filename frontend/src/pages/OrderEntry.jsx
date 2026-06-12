@@ -54,6 +54,7 @@ const SmartOrderForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedProductCategory, setSelectedProductCategory] = useState('SCRUBS');
   const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [colorSearchTerm, setColorSearchTerm] = useState('');
   const [expandedProducts, setExpandedProducts] = useState({});
   const [showReview, setShowReview] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -965,8 +966,8 @@ const SmartOrderForm = () => {
         {Icon ? <Icon size={16} /> : <Package size={16} />}
       </div>
       <div className="text-left w-full mt-2">
-        <span className="block text-[9px] md:text-[11px] font-black uppercase tracking-wider whitespace-normal break-words leading-snug">{label}</span>
-        {sublabel &&           <span className={`block text-[9px] md:text-[10px] mt-1 font-medium whitespace-normal break-words ${disabled ? 'text-red-400' : 'theme-text-muted'}`}>{sublabel}</span>}
+        <span className="block text-xs md:text-sm font-black uppercase tracking-wider whitespace-normal break-words leading-snug">{label}</span>
+        {sublabel &&           <span className={`block text-xs md:text-sm mt-1 font-medium whitespace-normal break-words ${disabled ? 'text-red-400' : 'theme-text-muted'}`}>{sublabel}</span>}
       </div>
       {current === value && (
         <motion.div layoutId="activeMark" className="absolute top-4 right-4 bg-blue-500 rounded-full p-1 shadow-lg">
@@ -1053,7 +1054,7 @@ const SmartOrderForm = () => {
           </div>
           <div className={isUrdu ? 'text-right' : ''}>
             <h1 className="text-xl md:text-3xl font-black theme-text-primary tracking-tight leading-none">{isUrdu ? 'سمارٹ آرڈر انٹری' : 'Smart Order Flow'}</h1>
-            <p className="theme-text-muted text-[9px] font-black uppercase tracking-[0.3em] mt-1.5">{isUrdu ? 'پیداواری بہاؤ کی ذہانت' : 'Conveyor Belt Intelligence'}</p>
+            <p className="theme-text-muted text-xs md:text-sm font-black uppercase tracking-[0.3em] mt-1.5">{isUrdu ? 'پیداواری بہاؤ کی ذہانت' : 'Conveyor Belt Intelligence'}</p>
           </div>
         </div>
         
@@ -1068,7 +1069,7 @@ const SmartOrderForm = () => {
                 isEditMode
                   ? 'bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-600 hover:text-white'
                   : 'bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500 hover:text-white'
-              } rounded-[1.2rem] font-black text-[9px] md:text-[10px] uppercase tracking-widest transition-all active:scale-95 shadow-lg whitespace-nowrap`}
+              } rounded-[1.2rem] font-black text-xs md:text-sm uppercase tracking-widest transition-all active:scale-95 shadow-lg whitespace-nowrap`}
             >
               <FileEdit size={14} />
               <span className="hidden sm:inline">
@@ -1085,7 +1086,7 @@ const SmartOrderForm = () => {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-3 px-6 py-3.5 rounded-[1.2rem] text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all duration-500 ${
+                className={`flex items-center gap-3 px-6 py-3.5 rounded-[1.2rem] text-xs md:text-sm font-black uppercase tracking-widest transition-all duration-500 ${
                   activeTab === tab.id 
                     ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)] scale-105' 
                     : 'text-gray-600 hover:text-white hover:bg-gray-800/50'
@@ -1146,7 +1147,7 @@ const SmartOrderForm = () => {
             <button
               type="button"
               onClick={toggleEditMode}
-              className="px-5 py-2.5 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white border border-red-500/20 rounded-[1.2rem] font-black text-[10px] uppercase tracking-wider transition-all active:scale-95 whitespace-nowrap"
+              className="px-5 py-2.5 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white border border-red-500/20 rounded-[1.2rem] font-black text-xs uppercase tracking-wider transition-all active:scale-95 whitespace-nowrap"
             >
               {isUrdu ? 'منسوخ کریں' : 'Cancel Edit Mode'}
             </button>
@@ -1156,7 +1157,7 @@ const SmartOrderForm = () => {
             <div className="mt-6 border-t border-amber-500/20 pt-6">
               <div className="flex flex-col sm:flex-row items-end gap-4">
                 <div className="flex-1 space-y-2">
-                  <label className="text-[10px] font-black text-amber-400 uppercase tracking-widest ml-2">
+                  <label className="text-xs font-black text-amber-400 uppercase tracking-widest ml-2">
                     {isUrdu ? 'آرڈر نمبر درج کریں' : 'Enter Order Number / ID'}
                   </label>
                   <div className="relative group">
@@ -1216,7 +1217,7 @@ const SmartOrderForm = () => {
                   </>
                 )}
               </div>
-              <div className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-4 py-2 rounded-xl font-black uppercase tracking-wider">
+              <div className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-4 py-2 rounded-xl font-black uppercase tracking-wider">
                 {isUrdu ? 'آرڈر ڈیٹا لوڈ ہو گیا ہے' : 'Data loaded successfully'}
               </div>
             </div>
@@ -1225,7 +1226,7 @@ const SmartOrderForm = () => {
           {/* Edit Mode — Comparison Summary (hidden when comparison view is shown) */}
           {originalOrder && cartItems.length > 0 && !(isEditMode && !showProductSelector) && (
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3 p-3 bg-indigo-500/5 border border-indigo-500/15 rounded-xl">
-              <div className="flex items-center gap-3 text-[9px]">
+              <div className="flex items-center gap-3 text-xs md:text-sm">
                 <span className="font-black text-indigo-400 uppercase tracking-wider">Changes Summary</span>
                 <span className="text-gray-700">|</span>
                 <span className="theme-text-muted font-bold">
@@ -1246,7 +1247,7 @@ const SmartOrderForm = () => {
               <button
                 type="button"
                 onClick={() => setShowEditReview(true)}
-                className="px-3 py-1.5 bg-amber-500/10 text-amber-400 hover:bg-amber-500 hover:text-black border border-amber-500/20 rounded-xl font-black text-[8px] uppercase tracking-wider transition-all active:scale-95"
+                className="px-3 py-1.5 bg-amber-500/10 text-amber-400 hover:bg-amber-500 hover:text-black border border-amber-500/20 rounded-xl font-black text-xs uppercase tracking-wider transition-all active:scale-95"
               >
                 {useUrdu ? 'تبدیلیاں دیکھیں' : 'View Changes'}
               </button>
@@ -1299,7 +1300,7 @@ const SmartOrderForm = () => {
 
                 {/* Original Products */}
                 <div className="border-t border-red-500/10 pt-4">
-                  <p className="text-[9px] font-black text-red-400 uppercase tracking-wider mb-3">{useUrdu ? 'پروڈکٹس' : 'Products'} ({(() => { try { const pd = typeof originalOrder.productDetails === 'string' ? JSON.parse(originalOrder.productDetails) : originalOrder.productDetails; return Array.isArray(pd) ? pd.length : (pd ? 1 : 0); } catch { return 0; } })()})</p>
+                  <p className="text-xs md:text-sm font-black text-red-400 uppercase tracking-wider mb-3">{useUrdu ? 'پروڈکٹس' : 'Products'} ({(() => { try { const pd = typeof originalOrder.productDetails === 'string' ? JSON.parse(originalOrder.productDetails) : originalOrder.productDetails; return Array.isArray(pd) ? pd.length : (pd ? 1 : 0); } catch { return 0; } })()})</p>
                   {(() => {
                     let items = [];
                     try {
@@ -1314,21 +1315,21 @@ const SmartOrderForm = () => {
                           <div className="flex justify-between items-start">
                             <div>
                               <p className="text-xs font-bold theme-text-primary">{d.productType || 'Unknown'}</p>
-                              <p className="text-[9px] theme-text-muted mt-0.5">
+                              <p className="text-xs md:text-sm theme-text-muted mt-0.5">
                                 {[d.color, d.size].filter(Boolean).join(' / ') || '—'} × {item.quantity || originalOrder.quantity || 1}
                               </p>
-                              {d.fabricType && <p className="text-[8px] text-gray-500 mt-0.5">{d.fabricType}</p>}
+                              {d.fabricType && <p className="text-xs text-gray-500 mt-0.5">{d.fabricType}</p>}
                             </div>
                             <span className="text-xs font-black text-red-400">₨{((parseFloat(item.totalPrice) || parseFloat(originalOrder.totalPrice) || 0) / (items.length || 1)).toLocaleString()}</span>
                           </div>
                           {/* Branding/Customization */}
                           {(cust.nameSpelling || cust.stitchingStyle || originalOrder.logoDesign) && (
                             <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-red-500/10">
-                              {cust.nameSpelling && <span className="text-[7px] font-bold text-purple-400 bg-purple-900/20 px-1.5 py-0.5 rounded">Name: {cust.nameSpelling}</span>}
-                              {cust.stitchingStyle && <span className="text-[7px] font-bold text-blue-400 bg-blue-900/20 px-1.5 py-0.5 rounded">{cust.stitchingStyle === 'DBL' ? 'Double' : 'Single'} Stitch</span>}
-                              {cust.fitType && <span className="text-[7px] font-bold text-indigo-400 bg-indigo-900/20 px-1.5 py-0.5 rounded">{cust.fitType} Fit</span>}
-                              {originalOrder.logoDesign && <span className="text-[7px] font-bold text-amber-400 bg-amber-900/20 px-1.5 py-0.5 rounded">Has Logo</span>}
-                              {d.gender && <span className="text-[7px] font-bold text-pink-400 bg-pink-900/20 px-1.5 py-0.5 rounded">{d.gender}</span>}
+                              {cust.nameSpelling && <span className="text-[9px] font-bold text-purple-400 bg-purple-900/20 px-1.5 py-0.5 rounded">Name: {cust.nameSpelling}</span>}
+                              {cust.stitchingStyle && <span className="text-[9px] font-bold text-blue-400 bg-blue-900/20 px-1.5 py-0.5 rounded">{cust.stitchingStyle === 'DBL' ? 'Double' : 'Single'} Stitch</span>}
+                              {cust.fitType && <span className="text-[9px] font-bold text-indigo-400 bg-indigo-900/20 px-1.5 py-0.5 rounded">{cust.fitType} Fit</span>}
+                              {originalOrder.logoDesign && <span className="text-[9px] font-bold text-amber-400 bg-amber-900/20 px-1.5 py-0.5 rounded">Has Logo</span>}
+                              {d.gender && <span className="text-[9px] font-bold text-pink-400 bg-pink-900/20 px-1.5 py-0.5 rounded">{d.gender}</span>}
                             </div>
                           )}
                         </div>
@@ -1381,7 +1382,7 @@ const SmartOrderForm = () => {
                       <div className="flex gap-1">
                         {['NORMAL', 'URGENT', 'SUPER_URGENT'].map(p => (
                           <button key={p} type="button" onClick={() => setFormData({...formData, priority: p})}
-                            className={`flex-1 py-2 rounded-lg text-[7px] font-black transition-all uppercase ${formData.priority === p ? (p === 'SUPER_URGENT' ? 'bg-red-600 text-white' : p === 'URGENT' ? 'bg-amber-600 text-white' : 'bg-gray-700 text-white') : 'bg-gray-900 text-gray-600 hover:bg-gray-800'}`}>{p === 'SUPER_URGENT' ? 'SUPER' : p}</button>
+                            className={`flex-1 py-2 rounded-lg text-[9px] font-black transition-all uppercase ${formData.priority === p ? (p === 'SUPER_URGENT' ? 'bg-red-600 text-white' : p === 'URGENT' ? 'bg-amber-600 text-white' : 'bg-gray-700 text-white') : 'bg-gray-900 text-gray-600 hover:bg-gray-800'}`}>{p === 'SUPER_URGENT' ? 'SUPER' : p}</button>
                         ))}
                       </div>
                     </div>
@@ -1392,14 +1393,14 @@ const SmartOrderForm = () => {
                       <div className="flex gap-1">
                         {['STANDARD', 'READY_LOGO', 'FULL_CUSTOM'].map(t => (
                           <button key={t} type="button" onClick={() => setFormData({...formData, type: t})}
-                            className={`flex-1 py-2 rounded-lg text-[7px] font-black transition-all uppercase ${formData.type === t ? 'bg-blue-600 text-white' : 'bg-gray-900 text-gray-600 hover:bg-gray-800'}`}>{t === 'READY_LOGO' ? 'LOGO' : t === 'FULL_CUSTOM' ? 'CUSTOM' : 'STD'}</button>
+                            className={`flex-1 py-2 rounded-lg text-[9px] font-black transition-all uppercase ${formData.type === t ? 'bg-blue-600 text-white' : 'bg-gray-900 text-gray-600 hover:bg-gray-800'}`}>{t === 'READY_LOGO' ? 'LOGO' : t === 'FULL_CUSTOM' ? 'CUSTOM' : 'STD'}</button>
                         ))}
                       </div>
                     </div>
                     <div>
                       <span className="text-gray-500 block mb-1">{useUrdu ? 'ایڈوانس' : 'Advance Paid'}</span>
                       <label className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all ${formData.advancePaid ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-gray-700 bg-gray-900'}`}>
-                        <span className="text-[9px] font-bold">{formData.advancePaid ? 'YES' : 'NO'}</span>
+                        <span className="text-xs md:text-sm font-bold">{formData.advancePaid ? 'YES' : 'NO'}</span>
                         <input type="checkbox" checked={formData.advancePaid} onChange={e => setFormData({...formData, advancePaid: e.target.checked})} className="w-4 h-4 rounded border-gray-600" />
                       </label>
                     </div>
@@ -1409,17 +1410,17 @@ const SmartOrderForm = () => {
                 {/* Editable Items List */}
                 <div className="border-t border-emerald-500/10 pt-4">
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-[9px] font-black text-emerald-400 uppercase tracking-wider">{useUrdu ? 'آئٹمز' : 'Items'} ({cartItems.length})</p>
+                    <p className="text-xs md:text-sm font-black text-emerald-400 uppercase tracking-wider">{useUrdu ? 'آئٹمز' : 'Items'} ({cartItems.length})</p>
                     <button
                       type="button"
                       onClick={() => { setShowProductSelector(true); setActiveTab('product'); }}
-                      className="px-3 py-1.5 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white border border-emerald-500/30 rounded-xl font-black text-[7px] uppercase tracking-wider transition-all active:scale-95 flex items-center gap-1"
+                      className="px-3 py-1.5 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white border border-emerald-500/30 rounded-xl font-black text-[9px] uppercase tracking-wider transition-all active:scale-95 flex items-center gap-1"
                     >
                       <Plus size={10} /> {useUrdu ? 'شامل کریں' : 'Add Product'}
                     </button>
                   </div>
                   {cartItems.length === 0 ? (
-                    <div className="text-center py-6 text-gray-500 text-[9px] font-bold">
+                    <div className="text-center py-6 text-gray-500 text-xs md:text-sm font-bold">
                       <Plus size={24} className="mx-auto mb-2 opacity-30" />
                       <p>{useUrdu ? 'کوئی آئٹم نہیں — پروڈکٹ شامل کرنے کے لیے کلک کریں' : 'No items yet — click Add Product above'}</p>
                     </div>
@@ -1432,8 +1433,8 @@ const SmartOrderForm = () => {
                           <div key={idx} className="bg-gray-900/50 rounded-xl p-3 border border-emerald-500/10">
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex-1 min-w-0">
-                                <p className="text-[10px] font-bold theme-text-primary truncate">{d.productType || 'Unknown'}</p>
-                                <p className="text-[8px] theme-text-muted truncate mt-0.5">
+                                <p className="text-xs font-bold theme-text-primary truncate">{d.productType || 'Unknown'}</p>
+                                <p className="text-xs theme-text-muted truncate mt-0.5">
                                   {[d.color, d.size].filter(Boolean).join(' / ') || '—'} {d.fabricType ? `• ${d.fabricType}` : ''}
                                 </p>
                                 {/* Branding tags */}
@@ -1447,24 +1448,24 @@ const SmartOrderForm = () => {
                                 {/* Inline Qty + Price */}
                                 <div className="flex items-center gap-3 mt-2">
                                   <div className="flex items-center gap-1">
-                                    <span className="text-[7px] text-gray-500 font-bold">{useUrdu ? 'تعداد' : 'Qty'}:</span>
+                                    <span className="text-[9px] text-gray-500 font-bold">{useUrdu ? 'تعداد' : 'Qty'}:</span>
                                     <input type="number" min="1" value={item.quantity || 1}
                                       onChange={e => {
                                         const newCart = [...cartItems];
                                         newCart[idx] = {...newCart[idx], quantity: parseInt(e.target.value) || 1};
                                         setCartItems(newCart);
                                       }}
-                                      className="w-14 theme-input rounded-lg py-1 px-2 text-[9px] font-bold text-center" />
+                                      className="w-14 theme-input rounded-lg py-1 px-2 text-xs md:text-sm font-bold text-center" />
                                   </div>
                                   <div className="flex items-center gap-1">
-                                    <span className="text-[7px] text-gray-500 font-bold">₨:</span>
+                                    <span className="text-[9px] text-gray-500 font-bold">₨:</span>
                                     <input type="number" min="0" value={item.totalPrice || 0}
                                       onChange={e => {
                                         const newCart = [...cartItems];
                                         newCart[idx] = {...newCart[idx], totalPrice: parseFloat(e.target.value) || 0};
                                         setCartItems(newCart);
                                       }}
-                                      className="w-20 theme-input rounded-lg py-1 px-2 text-[9px] font-bold text-center" />
+                                      className="w-20 theme-input rounded-lg py-1 px-2 text-xs md:text-sm font-bold text-center" />
                                   </div>
                                 </div>
                               </div>
@@ -1495,17 +1496,17 @@ const SmartOrderForm = () => {
             <div className="glass rounded-[2rem] p-5 border-2 border-amber-500/20 bg-amber-500/5">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
                 <div>
-                  <p className="text-[8px] font-black text-gray-500 uppercase tracking-wider mb-1">{useUrdu ? 'اصل کل' : 'Original Total'}</p>
+                  <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-1">{useUrdu ? 'اصل کل' : 'Original Total'}</p>
                   <p className="text-lg font-black text-red-400">₨{parseFloat(originalOrder.totalPrice || 0).toLocaleString()}</p>
                 </div>
                 <div className="hidden md:block border-l border-amber-500/20" />
                 <div>
-                  <p className="text-[8px] font-black text-gray-500 uppercase tracking-wider mb-1">{useUrdu ? 'مجوزہ کل' : 'Updated Total'}</p>
+                  <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-1">{useUrdu ? 'مجوزہ کل' : 'Updated Total'}</p>
                   <p className="text-lg font-black text-emerald-400">₨{cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0).toLocaleString()}</p>
                 </div>
                 <div className="hidden md:block border-l border-amber-500/20" />
                 <div>
-                  <p className="text-[8px] font-black text-gray-500 uppercase tracking-wider mb-1">{useUrdu ? 'فرق' : 'Difference'}</p>
+                  <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-1">{useUrdu ? 'فرق' : 'Difference'}</p>
                   {(() => {
                     const oldT = parseFloat(originalOrder.totalPrice) || 0;
                     const newT = cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0);
@@ -1523,7 +1524,7 @@ const SmartOrderForm = () => {
             {/* ---- REASON + SUBMIT ---- */}
             <div className="space-y-4">
               <div>
-                <label className="text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-2">
+                <label className="text-xs font-black theme-text-muted uppercase tracking-[0.2em] ml-2">
                   {useUrdu ? 'ترمیم کی وجہ (لازمی)' : 'Reason for Edit Request (Required)'}
                 </label>
                 <textarea required value={editReason} onChange={e => setEditReason(e.target.value)}
@@ -1565,7 +1566,7 @@ const SmartOrderForm = () => {
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                   <div className="space-y-4">
-                    <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-4">Order No.</label>
+                    <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ml-4">Order No.</label>
                     <div className="relative group">
                       <Hash className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-500 transition-all duration-300`} size={16} />
                       <input
@@ -1581,7 +1582,7 @@ const SmartOrderForm = () => {
                     </div>
                   </div>
                   <div className="space-y-4">
-                    <label className={`text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{t('customerName')}</label>
+                    <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{t('customerName')}</label>
                     <div className="relative group">
                       <User className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-500 transition-all duration-300`} size={16} />
                       <input
@@ -1599,7 +1600,7 @@ const SmartOrderForm = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                   <div className="space-y-4">
-                    <label className={`text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{t('customerPhone')}</label>
+                    <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{t('customerPhone')}</label>
                     <div className="relative group">
                       <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-pink-500/10 text-pink-500`}>
                         <Phone size={18} />
@@ -1617,7 +1618,7 @@ const SmartOrderForm = () => {
                   </div>
 
                   <div className="space-y-4">
-                    <label className={`text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'پتہ (Address) - اختیاری' : 'Customer Address (Optional)'}</label>
+                    <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'پتہ (Address) - اختیاری' : 'Customer Address (Optional)'}</label>
                     <div className="relative group">
                       <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-blue-500/10 text-blue-500`}>
                         <span className="font-black text-xs">📍</span>
@@ -1633,7 +1634,7 @@ const SmartOrderForm = () => {
                     </div>
                   </div>
                   <div className="space-y-4">
-                    <label className={`text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'شہر (City) - اختیاری' : 'City (Optional)'}</label>
+                    <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'شہر (City) - اختیاری' : 'City (Optional)'}</label>
                     <div className="relative group">
                       <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-blue-500/10 text-blue-500`}>
                         <span className="font-black text-xs">🏙️</span>
@@ -1652,7 +1653,7 @@ const SmartOrderForm = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                   <div className="space-y-4">
-                    <label className={`text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'کل رقم (Inventory Auto-Calculated)' : 'Order Amount (Auto-Calculated)'}</label>
+                    <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'کل رقم (Inventory Auto-Calculated)' : 'Order Amount (Auto-Calculated)'}</label>
                     <div className="relative group">
                       <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-500`}>
                         <span className="font-black text-xs">₨</span>
@@ -1667,7 +1668,7 @@ const SmartOrderForm = () => {
                       />
                     </div>
                     {computedUnitPrice > 0 && (
-                      <p className={`text-[9px] font-bold text-emerald-400/80 ${useUrdu ? 'text-right' : ''}`}>
+                      <p className={`text-xs md:text-sm font-bold text-emerald-400/80 ${useUrdu ? 'text-right' : ''}`}>
                         {useUrdu ? `فہرست قیمت: ₨${computedUnitPrice} × ${formData.quantity || 1} = ₨${computedTotalPrice.toLocaleString()}` : `₨${Number(computedUnitPrice).toLocaleString()} per unit × ${formData.quantity || 1} = ₨${Number(computedTotalPrice).toLocaleString()}`}
                       </p>
                     )}
@@ -1703,7 +1704,7 @@ const SmartOrderForm = () => {
                             <Layers size={16} />
                           </div>
                           <div className="min-w-0 truncate">
-                            <p className="font-black text-[9px] md:text-[10px] uppercase truncate">{t('dupatta')}</p>
+                            <p className="font-black text-xs md:text-sm uppercase truncate">{t('dupatta')}</p>
                           </div>
                         </div>
                         <input type="checkbox" checked={formData.femaleOptions.dupatta} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, dupatta: e.target.checked}})} className="w-5 h-5 shrink-0 ml-2 rounded border-2 border-gray-700 bg-gray-900 checked:bg-pink-600 transition-all cursor-pointer" />
@@ -1711,10 +1712,10 @@ const SmartOrderForm = () => {
                       <label className="flex items-center justify-between p-3 theme-bg rounded-[1.5rem] border-2 theme-border cursor-pointer hover:border-pink-500/30 transition-all group h-full overflow-hidden">
                         <div className="flex items-center gap-2 min-w-0">
                           <div className={`p-2.5 rounded-xl transition-all shrink-0 flex items-center justify-center ${formData.femaleOptions.zip ? 'bg-pink-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
-                            <span className="font-black text-[9px]">ZIP</span>
+                            <span className="font-black text-xs md:text-sm">ZIP</span>
                           </div>
                           <div className="min-w-0 truncate">
-                            <p className="font-black text-[9px] md:text-[10px] uppercase truncate">{t('zip')}</p>
+                            <p className="font-black text-xs md:text-sm uppercase truncate">{t('zip')}</p>
                           </div>
                         </div>
                         <input type="checkbox" checked={formData.femaleOptions.zip} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, zip: e.target.checked}})} className="w-5 h-5 shrink-0 ml-2 rounded border-2 border-gray-700 bg-gray-900 checked:bg-pink-600 transition-all cursor-pointer" />
@@ -1722,10 +1723,10 @@ const SmartOrderForm = () => {
                       <label className="flex items-center justify-between p-3 theme-bg rounded-[1.5rem] border-2 theme-border cursor-pointer hover:border-pink-500/30 transition-all group h-full overflow-hidden">
                         <div className="flex items-center gap-2 min-w-0">
                           <div className={`p-2.5 rounded-xl transition-all shrink-0 flex items-center justify-center ${formData.femaleOptions.cap ? 'bg-pink-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
-                            <span className="font-black text-[9px]">CAP</span>
+                            <span className="font-black text-xs md:text-sm">CAP</span>
                           </div>
                           <div className="min-w-0 truncate">
-                            <p className="font-black text-[9px] md:text-[10px] uppercase truncate">{t('cap') || 'Cap'}</p>
+                            <p className="font-black text-xs md:text-sm uppercase truncate">{t('cap') || 'Cap'}</p>
                           </div>
                         </div>
                         <input type="checkbox" checked={formData.femaleOptions.cap} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, cap: e.target.checked}})} className="w-5 h-5 shrink-0 ml-2 rounded border-2 border-gray-700 bg-gray-900 checked:bg-pink-600 transition-all cursor-pointer" />
@@ -1737,10 +1738,10 @@ const SmartOrderForm = () => {
                       <label className="flex items-center justify-between p-3 theme-bg rounded-[1.5rem] border-2 theme-border cursor-pointer hover:border-blue-500/30 transition-all group h-full overflow-hidden">
                         <div className="flex items-center gap-2 min-w-0">
                           <div className={`p-2.5 rounded-xl transition-all shrink-0 flex items-center justify-center ${formData.femaleOptions.cap ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
-                            <span className="font-black text-[9px]">CAP</span>
+                            <span className="font-black text-xs md:text-sm">CAP</span>
                           </div>
                           <div className="min-w-0 truncate">
-                            <p className="font-black text-[9px] md:text-[10px] uppercase truncate">{t('cap') || 'Cap'}</p>
+                            <p className="font-black text-xs md:text-sm uppercase truncate">{t('cap') || 'Cap'}</p>
                           </div>
                         </div>
                         <input type="checkbox" checked={formData.femaleOptions.cap} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, cap: e.target.checked}})} className="w-5 h-5 shrink-0 ml-2 rounded border-2 border-gray-700 bg-gray-900 checked:bg-blue-600 transition-all cursor-pointer" />
@@ -1762,7 +1763,7 @@ const SmartOrderForm = () => {
                       <button
                         type="button"
                         onClick={() => setFormData({...formData, type: 'STANDARD', advancePaid: false})}
-                        className={`flex-1 py-3 md:py-4 px-1 rounded-lg md:rounded-xl text-[9px] md:text-[10px] font-black transition-all leading-tight text-center ${
+                        className={`flex-1 py-3 md:py-4 px-1 rounded-lg md:rounded-xl text-xs md:text-sm font-black transition-all leading-tight text-center ${
                           formData.type === 'STANDARD' ? 'bg-blue-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'
                         }`}
                       >
@@ -1772,7 +1773,7 @@ const SmartOrderForm = () => {
                     <button
                       type="button"
                       onClick={() => setFormData({...formData, type: 'READY_LOGO', advancePaid: false})}
-                      className={`flex-1 py-3 md:py-4 px-1 rounded-lg md:rounded-xl text-[9px] md:text-[10px] font-black transition-all leading-tight text-center ${
+                      className={`flex-1 py-3 md:py-4 px-1 rounded-lg md:rounded-xl text-xs md:text-sm font-black transition-all leading-tight text-center ${
                         formData.type === 'READY_LOGO' ? 'bg-purple-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'
                       }`}
                     >
@@ -1781,7 +1782,7 @@ const SmartOrderForm = () => {
                     <button
                       type="button"
                       onClick={() => setFormData({...formData, type: 'FULL_CUSTOM', advancePaid: true})}
-                      className={`flex-1 py-3 md:py-4 px-1 rounded-lg md:rounded-xl text-[9px] md:text-[10px] font-black transition-all leading-tight text-center ${
+                      className={`flex-1 py-3 md:py-4 px-1 rounded-lg md:rounded-xl text-xs md:text-sm font-black transition-all leading-tight text-center ${
                         formData.type === 'FULL_CUSTOM' ? 'bg-indigo-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'
                       }`}
                     >
@@ -1791,14 +1792,14 @@ const SmartOrderForm = () => {
 
                   {/* Priority Level */}
                   <div className="space-y-2 md:space-y-3">
-                    <label className="font-black text-[9px] md:text-xs uppercase tracking-widest theme-text-muted">{t('priority')}</label>
+                    <label className="font-black text-xs md:text-sm uppercase tracking-widest theme-text-muted">{t('priority')}</label>
                     <div className="grid grid-cols-3 gap-1.5 md:gap-2">
                       {['NORMAL', 'URGENT', 'SUPER_URGENT'].map((p) => (
                         <button
                           key={p}
                           type="button"
                           onClick={() => setFormData({...formData, priority: p})}
-                          className={`py-2.5 md:py-3 px-1 rounded-lg md:rounded-xl text-[8px] md:text-[10px] font-black transition-all border-2 leading-tight text-center ${
+                          className={`py-2.5 md:py-3 px-1 rounded-lg md:rounded-xl text-xs md:text-sm font-black transition-all border-2 leading-tight text-center ${
                             formData.priority === p
                               ? p === 'SUPER_URGENT'
                                 ? 'bg-red-600 text-white border-red-500 shadow-lg'
@@ -1822,7 +1823,7 @@ const SmartOrderForm = () => {
                         </div>
                         <div className={useUrdu ? 'text-right' : ''}>
                           <p className="font-black text-xs md:text-sm uppercase">{t('advance')}</p>
-                          <p className="text-[8px] md:text-[10px] text-gray-600 font-bold">CONFIRMATION</p>
+                          <p className="text-xs md:text-sm text-gray-600 font-bold">CONFIRMATION</p>
                         </div>
                       </div>
                       <input type="checkbox" checked={formData.advancePaid} onChange={(e) => setFormData({...formData, advancePaid: e.target.checked})} className="w-5 h-5 md:w-6 md:h-6 rounded-lg border-2 border-gray-700 bg-gray-900 checked:bg-emerald-600 transition-all cursor-pointer shrink-0" />
@@ -1940,7 +1941,7 @@ const SmartOrderForm = () => {
                               <span className={`${totalStock > 50 ? 'text-emerald-400' : totalStock > 0 ? 'text-yellow-400' : 'text-red-400'}`}>
                                 {totalStock}
                               </span>
-                              <span className="text-[9px] theme-text-muted ml-1">in stock</span>
+                              <span className="text-xs md:text-sm theme-text-muted ml-1">in stock</span>
                             </span>
                           )}
                           {(item.price > 0 || (item.variants && Array.isArray(item.variants) && item.variants.some(v => v.price))) && (
@@ -1950,30 +1951,30 @@ const SmartOrderForm = () => {
                                   ? (item.variants.find(v => v.price)?.price || item.price)
                                   : item.price)
                               ).toLocaleString()}
-                              <span className="text-[8px] theme-text-muted ml-0.5">/unit</span>
+                              <span className="text-xs theme-text-muted ml-0.5">/unit</span>
                             </span>
                           )}
                           {expandedProducts[item.id] && item.variants && Array.isArray(item.variants) && item.variants.length > 0 ? (
                             <div className="space-y-1">
                               <div className="flex flex-wrap justify-center gap-1">
                                 {[...new Set(item.variants.filter(v => v.color).map(v => v.color))].map(c => (
-                                  <span key={c} className="text-[8px] font-bold theme-text-secondary bg-gray-800/60 px-2 py-0.5 rounded-full truncate max-w-[70px]">{c}</span>
+                                  <span key={c} className="text-xs font-bold theme-text-secondary bg-gray-800/60 px-2 py-0.5 rounded-full truncate max-w-[70px]">{c}</span>
                                 ))}
                               </div>
                               <div className="flex flex-wrap justify-center gap-1">
                                 {[...new Set(item.variants.filter(v => v.size).map(v => v.size))].map(s => (
-                                  <span key={s} className="text-[8px] font-bold text-blue-400 bg-blue-900/20 px-2 py-0.5 rounded-full">{s}</span>
+                                  <span key={s} className="text-xs font-bold text-blue-400 bg-blue-900/20 px-2 py-0.5 rounded-full">{s}</span>
                                 ))}
                               </div>
                             </div>
                           ) : expandedProducts[item.id] && item.color ? (
-                            <span className="block text-[9px] theme-text-muted font-bold truncate">{item.color}</span>
+                            <span className="block text-xs md:text-sm theme-text-muted font-bold truncate">{item.color}</span>
                           ) : null}
                           {item.variants && Array.isArray(item.variants) && item.variants.length > 0 && (
                             <button
                               type="button"
                               onClick={(e) => { e.stopPropagation(); setExpandedProducts(prev => ({...prev, [item.id]: !prev[item.id]})); }}
-                              className="text-[8px] font-bold text-blue-400 hover:text-blue-300 transition-colors mt-1"
+                              className="text-xs font-bold text-blue-400 hover:text-blue-300 transition-colors mt-1"
                             >
                               {expandedProducts[item.id] ? 'Show Less' : 'View Details'}
                             </button>
@@ -1996,7 +1997,7 @@ const SmartOrderForm = () => {
                       <Layers size={28} />
                       <span>{t('fabric')}</span>
                     </h3>
-                    <p className={`theme-text-muted text-[9px] md:text-[10px] font-bold uppercase tracking-widest ${useUrdu ? 'mr-11' : 'ml-11'}`}>Step 2: Define fabric feel</p>
+                    <p className={`theme-text-muted text-xs md:text-sm font-bold uppercase tracking-widest ${useUrdu ? 'mr-11' : 'ml-11'}`}>Step 2: Define fabric feel</p>
                   </div>
                   {fabrics.length > 0 ? (
                     <div className="grid grid-cols-2 gap-5">
@@ -2031,7 +2032,7 @@ const SmartOrderForm = () => {
                         <Palette size={28} />
                         <span>{t('color')} & {t('size')}</span>
                       </h3>
-                      <p className={`theme-text-muted text-[9px] md:text-[10px] font-bold uppercase tracking-widest ${useUrdu ? 'mr-11' : 'ml-11'}`}>Step 3: Visual scaling</p>
+                      <p className={`theme-text-muted text-xs md:text-sm font-bold uppercase tracking-widest ${useUrdu ? 'mr-11' : 'ml-11'}`}>Step 3: Visual scaling</p>
                     </div>
                     {!isAccessory(selectedProductCategory) && (
                       <div className={`flex p-1.5 theme-bg rounded-xl border-2 theme-border ${useUrdu ? 'flex-row-reverse' : ''}`}>
@@ -2054,8 +2055,26 @@ const SmartOrderForm = () => {
                   </div>
                   
                   {colors.length > 0 && (
-                    <div className="grid grid-cols-4 sm:grid-cols-6 xl:grid-cols-8 gap-4 mt-6">
-                      {colors.map(c => {
+                    <>
+                    <div className="relative mb-3 mt-2">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 theme-text-muted" size={16} />
+                      <input
+                        type="text"
+                        placeholder={useUrdu ? 'رنگ تلاش کریں...' : 'Search colors...'}
+                        value={colorSearchTerm}
+                        onChange={e => setColorSearchTerm(e.target.value)}
+                        className={`w-full pl-10 pr-10 py-2.5 theme-input rounded-xl text-sm font-bold transition-colors ${useUrdu ? 'text-right pr-10 pl-10' : ''}`}
+                      />
+                      {colorSearchTerm && (
+                        <button type="button" onClick={() => setColorSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 theme-text-muted hover:text-white transition-colors">
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-4 sm:grid-cols-6 xl:grid-cols-8 gap-4 mt-2">
+                      {colors
+                        .filter(c => !colorSearchTerm || c.toLowerCase().includes(colorSearchTerm.toLowerCase()))
+                        .map(c => {
                         const stockForColor = selectedProductVariants
                           .filter(v => v.color === c)
                           .reduce((s, v) => s + (v.stock || 0), 0);
@@ -2094,12 +2113,13 @@ const SmartOrderForm = () => {
                             )}
                           </div>
                           <div className="w-full py-1.5 px-1 theme-bg text-center">
-                            <p className="text-[9px] font-black truncate theme-text-primary">{c}</p>
-                            {!isEditMode && <p className="text-[7px] font-bold theme-text-muted">{stockForColor} in stock</p>}
+                            <p className={`text-xs md:text-sm font-black theme-text-primary ${formData.color === c ? 'whitespace-normal break-words' : 'truncate'}`}>{c}</p>
+                            {!isEditMode && <p className="text-[9px] font-bold theme-text-muted">{stockForColor} in stock</p>}
                           </div>
                         </button>
                       )})}
                     </div>
+                  </>
                   )}
                   {/* Show message if product has no color variants */}
                   {formData.productType && colors.length === 0 && (
@@ -2114,7 +2134,7 @@ const SmartOrderForm = () => {
                         <Hash size={16} />
                         <span>{useUrdu ? 'آرڈر کی تعداد' : 'Order Quantity'}</span>
                       </h3>
-                      <p className="theme-text-muted text-[9px] md:text-[10px] font-bold uppercase tracking-widest">How many sets are needed?</p>
+                      <p className="theme-text-muted text-xs md:text-sm font-bold uppercase tracking-widest">How many sets are needed?</p>
                     </div>
                     
                     <div className="relative group w-full sm:w-64">
@@ -2151,7 +2171,7 @@ const SmartOrderForm = () => {
                   </div>
                   <div>
                     <h3 className="text-2xl font-black theme-text-primary">{t('branding')}</h3>
-                    <p className="theme-text-muted text-[9px] md:text-[10px] font-black uppercase tracking-widest mt-1">Logo & embroidery details</p>
+                    <p className="theme-text-muted text-xs md:text-sm font-black uppercase tracking-widest mt-1">Logo & embroidery details</p>
                   </div>
                 </div>
 
@@ -2223,7 +2243,7 @@ const SmartOrderForm = () => {
                   </div>
                   <div>
                     <h3 className="text-2xl font-black theme-text-primary">{t('stitching')}</h3>
-                    <p className="theme-text-muted text-[9px] md:text-[10px] font-black uppercase tracking-widest mt-1">Conveyor belt tailoring specs</p>
+                    <p className="theme-text-muted text-xs md:text-sm font-black uppercase tracking-widest mt-1">Conveyor belt tailoring specs</p>
                   </div>
                 </div>
 
@@ -2251,7 +2271,7 @@ const SmartOrderForm = () => {
                             key={s}
                             type="button"
                             onClick={() => setFormData({...formData, stitchingStyle: s})}
-                            className={`flex-1 rounded-xl text-[9px] md:text-[11px] font-black transition-all ${formData.stitchingStyle === s ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-600 hover:text-white'}`}
+                            className={`flex-1 rounded-xl text-xs md:text-sm font-black transition-all ${formData.stitchingStyle === s ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-600 hover:text-white'}`}
                           >
                             {s === 'STD' ? (useUrdu ? 'سنگل' : 'SINGLE') : (useUrdu ? 'ڈبل' : 'DOUBLE')}
                           </button>
@@ -2266,7 +2286,7 @@ const SmartOrderForm = () => {
                             key={f}
                             type="button"
                             onClick={() => setFormData({...formData, fitType: f})}
-                            className={`flex-1 rounded-xl text-[9px] md:text-[11px] font-black transition-all ${formData.fitType === f ? 'bg-indigo-600 text-white shadow-xl' : 'text-gray-600 hover:text-white'}`}
+                            className={`flex-1 rounded-xl text-xs md:text-sm font-black transition-all ${formData.fitType === f ? 'bg-indigo-600 text-white shadow-xl' : 'text-gray-600 hover:text-white'}`}
                           >
                             {f.toUpperCase()}
                           </button>
@@ -2288,11 +2308,11 @@ const SmartOrderForm = () => {
 
               {/* Optional Branding Charges Input */}
               <div className="lg:col-span-2 glass p-4 md:p-6 rounded-[2rem] border border-amber-500/20 bg-amber-500/5">
-                <h4 className="text-[9px] md:text-[10px] font-black text-amber-400 uppercase tracking-[0.2em] mb-4">{useUrdu ? 'اختیاری برانڈنگ چارجز' : 'Optional Branding Charges'}</h4>
-                <p className="text-[8px] md:text-[9px] text-gray-500 font-bold uppercase tracking-wider mb-4">{useUrdu ? 'اگر لاگو ہو تو چارجز درج کریں، ورنہ خالی چھوڑ دیں' : 'Enter charges if applicable, leave blank if none'}</p>
+                <h4 className="text-xs md:text-sm font-black text-amber-400 uppercase tracking-[0.2em] mb-4">{useUrdu ? 'اختیاری برانڈنگ چارجز' : 'Optional Branding Charges'}</h4>
+                <p className="text-xs md:text-sm text-gray-500 font-bold uppercase tracking-wider mb-4">{useUrdu ? 'اگر لاگو ہو تو چارجز درج کریں، ورنہ خالی چھوڑ دیں' : 'Enter charges if applicable, leave blank if none'}</p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <label className="text-[8px] font-black theme-text-muted uppercase tracking-widest">{useUrdu ? 'لوگو چارج' : 'Logo Charge (₨)'}</label>
+                    <label className="text-xs font-black theme-text-muted uppercase tracking-widest">{useUrdu ? 'لوگو چارج' : 'Logo Charge (₨)'}</label>
                     <input
                       type="number"
                       min="0"
@@ -2304,7 +2324,7 @@ const SmartOrderForm = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[8px] font-black theme-text-muted uppercase tracking-widest">{useUrdu ? 'نام پرنٹنگ چارج' : 'Name Printing Charge (₨)'}</label>
+                    <label className="text-xs font-black theme-text-muted uppercase tracking-widest">{useUrdu ? 'نام پرنٹنگ چارج' : 'Name Printing Charge (₨)'}</label>
                     <input
                       type="number"
                       min="0"
@@ -2316,7 +2336,7 @@ const SmartOrderForm = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[8px] font-black theme-text-muted uppercase tracking-widest">{useUrdu ? 'کسٹمائزیشن چارج' : 'Customization Charge (₨)'}</label>
+                    <label className="text-xs font-black theme-text-muted uppercase tracking-widest">{useUrdu ? 'کسٹمائزیشن چارج' : 'Customization Charge (₨)'}</label>
                     <input
                       type="number"
                       min="0"
@@ -2329,7 +2349,7 @@ const SmartOrderForm = () => {
                   </div>
                 </div>
                 <div className="border-t border-amber-500/10 pt-3 mt-4 flex justify-between items-center">
-                  <span className="text-[9px] font-bold text-gray-400">{useUrdu ? 'برانڈنگ چارجز کل' : 'Total Branding Charges'}</span>
+                  <span className="text-xs md:text-sm font-bold text-gray-400">{useUrdu ? 'برانڈنگ چارجز کل' : 'Total Branding Charges'}</span>
                   <span className="font-black text-white">₨{(
                     (parseFloat(formData.logoCharges) || 0) +
                     (parseFloat(formData.namePrintingCharges) || 0) +
@@ -2366,24 +2386,24 @@ const SmartOrderForm = () => {
                   {/* Left Measurements */}
                   <div className="flex flex-col space-y-8 md:space-y-16 w-full md:w-1/3 z-20 items-center md:items-end">
                     <div className="group relative flex flex-col items-center md:items-end">
-                      <label className="block text-[9px] md:text-[11px] font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Shoulder</label>
+                      <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Shoulder</label>
                       <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
                         <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.shoulder} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, shoulder: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-right" placeholder="00" />
-                        <span className="absolute right-4 bottom-5 text-[9px] md:text-[10px] font-black text-emerald-500/50">IN</span>
+                        <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
                       </div>
                     </div>
                     <div className="group relative flex flex-col items-center md:items-end">
-                      <label className="block text-[9px] md:text-[11px] font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Chest</label>
+                      <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Chest</label>
                       <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
                         <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.chest} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, chest: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-right" placeholder="00" />
-                        <span className="absolute right-4 bottom-5 text-[9px] md:text-[10px] font-black text-emerald-500/50">IN</span>
+                        <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
                       </div>
                     </div>
                     <div className="group relative flex flex-col items-center md:items-end">
-                      <label className="block text-[9px] md:text-[11px] font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Sleeve</label>
+                      <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Sleeve</label>
                       <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
                         <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.sleeve} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, sleeve: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-right" placeholder="00" />
-                        <span className="absolute right-4 bottom-5 text-[9px] md:text-[10px] font-black text-emerald-500/50">IN</span>
+                        <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
                       </div>
                     </div>
                   </div>
@@ -2410,24 +2430,24 @@ const SmartOrderForm = () => {
                   {/* Right Measurements */}
                   <div className="flex flex-col space-y-8 md:space-y-16 w-full md:w-1/3 z-20 items-center md:items-start">
                     <div className="group relative flex flex-col items-center md:items-start">
-                      <label className="block text-[9px] md:text-[11px] font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Waist</label>
+                      <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Waist</label>
                       <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
                         <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.waist} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, waist: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder="00" />
-                        <span className="absolute right-4 bottom-5 text-[9px] md:text-[10px] font-black text-emerald-500/50">IN</span>
+                        <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
                       </div>
                     </div>
                     <div className="group relative flex flex-col items-center md:items-start">
-                      <label className="block text-[9px] md:text-[11px] font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Hips</label>
+                      <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Hips</label>
                       <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
                         <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.hips} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, hips: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder="00" />
-                        <span className="absolute right-4 bottom-5 text-[9px] md:text-[10px] font-black text-emerald-500/50">IN</span>
+                        <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
                       </div>
                     </div>
                     <div className="group relative flex flex-col items-center md:items-start">
-                      <label className="block text-[9px] md:text-[11px] font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Length</label>
+                      <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Length</label>
                       <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
                         <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.length} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, length: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder="00" />
-                        <span className="absolute right-4 bottom-5 text-[9px] md:text-[10px] font-black text-emerald-500/50">IN</span>
+                        <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
                       </div>
                     </div>
                   </div>
@@ -2543,7 +2563,7 @@ const SmartOrderForm = () => {
             <div className="flex flex-col space-y-4">
               <div className={`flex items-center space-x-3 text-gray-600 theme-bg-subtle px-6 py-3 rounded-2xl border theme-border ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
                 <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.5)] animate-pulse" />
-                <span className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em]">{useUrdu ? 'تصدیق شدہ نظام' : 'Validated System Protocol'}</span>
+                <span className="text-xs md:text-sm font-black uppercase tracking-[0.2em]">{useUrdu ? 'تصدیق شدہ نظام' : 'Validated System Protocol'}</span>
               </div>
               {error && (
                 <div className={`flex items-center space-x-3 text-red-500 bg-red-500/10 px-6 py-3 rounded-2xl border border-red-500/20 ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
@@ -2699,7 +2719,7 @@ const SmartOrderForm = () => {
           >
             <div className="relative">
               <ShoppingCart size={28} />
-              <span className="absolute -top-3 -right-3 bg-pink-500 text-white text-[9px] md:text-[10px] font-black w-6 h-6 flex items-center justify-center rounded-full border-2 border-gray-900 shadow-lg">
+              <span className="absolute -top-3 -right-3 bg-pink-500 text-white text-xs md:text-sm font-black w-6 h-6 flex items-center justify-center rounded-full border-2 border-gray-900 shadow-lg">
                 {cartItems.length}
               </span>
             </div>
@@ -2721,7 +2741,7 @@ const SmartOrderForm = () => {
                   <ShoppingCart className="text-blue-500" size={16} />
                 </div>
                 <h3 className="text-xl font-black theme-text-primary tracking-tight">Your Cart</h3>
-                <span className="bg-gray-800 text-gray-300 text-[9px] md:text-[10px] font-black px-3 py-1.5 rounded-full ml-2">
+                <span className="bg-gray-800 text-gray-300 text-xs md:text-sm font-black px-3 py-1.5 rounded-full ml-2">
                   {cartItems.length} Items
                 </span>
               </div>
@@ -2738,20 +2758,20 @@ const SmartOrderForm = () => {
                 <div key={idx} className="theme-bg-subtle p-4 rounded-2xl flex justify-between items-center border theme-border hover:border-gray-700 transition-colors">
                   <div className="flex-1 min-w-0 pr-4">
                     <p className="text-sm font-black theme-text-primary truncate">{item.productDetails?.productType || 'Custom Item'}</p>
-                    <p className="text-[9px] md:text-[10px] theme-text-muted font-bold uppercase mt-1 truncate">
+                    <p className="text-xs md:text-sm theme-text-muted font-bold uppercase mt-1 truncate">
                       {item.quantity}x • {item.productDetails?.size || 'Custom'} • {item.productDetails?.color}
                     </p>
                     {(item.logoCharges || item.namePrintingCharges || item.customizationPrice) && (
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {item.logoCharges > 0 && <span className="text-[7px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">Logo: ₨{item.logoCharges}</span>}
-                        {item.namePrintingCharges > 0 && <span className="text-[7px] font-black text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">Name: ₨{item.namePrintingCharges}</span>}
-                        {item.customizationPrice > 0 && <span className="text-[7px] font-black text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded">Custom: ₨{item.customizationPrice}</span>}
+                        {item.logoCharges > 0 && <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">Logo: ₨{item.logoCharges}</span>}
+                        {item.namePrintingCharges > 0 && <span className="text-[9px] font-black text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">Name: ₨{item.namePrintingCharges}</span>}
+                        {item.customizationPrice > 0 && <span className="text-[9px] font-black text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded">Custom: ₨{item.customizationPrice}</span>}
                       </div>
                     )}
                   </div>
                   <div className="text-right shrink-0">
                     {item.quantity > 1 && item.totalPrice > 0 && (
-                      <p className="text-[8px] theme-text-muted font-bold">
+                      <p className="text-xs theme-text-muted font-bold">
                         ₨{Number(item.totalPrice / item.quantity).toLocaleString()} × {item.quantity}
                       </p>
                     )}
@@ -2790,7 +2810,7 @@ const SmartOrderForm = () => {
           </div>
           <div>
             <p className="font-black text-2xl tracking-tighter leading-none uppercase">{useUrdu ? 'آرڈر درج ہوگیا!' : 'Order Placed!'}</p>
-            <p className="text-[9px] md:text-[10px] font-black text-white/80 mt-2 uppercase tracking-[0.2em]">{useUrdu ? 'پیداواری لائن میں شامل کر دیا گیا' : 'Synced with Production Floor'}</p>
+            <p className="text-xs md:text-sm font-black text-white/80 mt-2 uppercase tracking-[0.2em]">{useUrdu ? 'پیداواری لائن میں شامل کر دیا گیا' : 'Synced with Production Floor'}</p>
           </div>
         </motion.div>
       )}
@@ -2813,7 +2833,7 @@ const SmartOrderForm = () => {
                   <h2 className="text-xl md:text-2xl font-black theme-text-primary uppercase tracking-tight">
                     {useUrdu ? 'آرڈر کا جائزہ' : 'Order Review & Summary'}
                   </h2>
-                  <p className="theme-text-muted text-[9px] md:text-[10px] font-black uppercase tracking-widest mt-1">
+                  <p className="theme-text-muted text-xs md:text-sm font-black uppercase tracking-widest mt-1">
                     {useUrdu ? 'جمع کرانے سے پہلے تصدیق کریں' : 'Please verify before submitting'}
                   </p>
                 </div>
@@ -2821,24 +2841,24 @@ const SmartOrderForm = () => {
 
               {/* Customer Info */}
               <div className="bg-gray-950/50 p-4 md:p-6 rounded-[2rem] border border-gray-800/50 mb-4">
-                <h3 className="text-[9px] md:text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                <h3 className="text-xs md:text-sm font-black text-blue-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
                   <User size={12} /> {useUrdu ? 'گاہک کی معلومات' : 'Customer Information'}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                   <div>
-                    <span className="text-[8px] font-black text-gray-500 uppercase tracking-wider">{useUrdu ? 'نام' : 'Name'}</span>
+                    <span className="text-xs font-black text-gray-500 uppercase tracking-wider">{useUrdu ? 'نام' : 'Name'}</span>
                     <p className="font-bold text-white">{cartItems[0]?.customerName || 'N/A'}</p>
                   </div>
                   <div>
-                    <span className="text-[8px] font-black text-gray-500 uppercase tracking-wider">{useUrdu ? 'فون' : 'Phone'}</span>
+                    <span className="text-xs font-black text-gray-500 uppercase tracking-wider">{useUrdu ? 'فون' : 'Phone'}</span>
                     <p className="font-bold text-white">{cartItems[0]?.customerPhone || 'N/A'}</p>
                   </div>
                   <div>
-                    <span className="text-[8px] font-black text-gray-500 uppercase tracking-wider">{useUrdu ? 'پتہ' : 'Address'}</span>
+                    <span className="text-xs font-black text-gray-500 uppercase tracking-wider">{useUrdu ? 'پتہ' : 'Address'}</span>
                     <p className="font-bold text-white">{cartItems[0]?.address || 'N/A'}</p>
                   </div>
                   <div>
-                    <span className="text-[8px] font-black text-gray-500 uppercase tracking-wider">{useUrdu ? 'شہر' : 'City'}</span>
+                    <span className="text-xs font-black text-gray-500 uppercase tracking-wider">{useUrdu ? 'شہر' : 'City'}</span>
                     <p className="font-bold text-white">{cartItems[0]?.city || 'N/A'}</p>
                   </div>
                 </div>
@@ -2846,19 +2866,19 @@ const SmartOrderForm = () => {
 
               {/* Order Info */}
               <div className="bg-gray-950/50 p-4 md:p-6 rounded-[2rem] border border-gray-800/50 mb-4">
-                <h3 className="text-[9px] md:text-[10px] font-black text-emerald-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                <h3 className="text-xs md:text-sm font-black text-emerald-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
                   <Package size={12} /> {useUrdu ? 'آرڈر کی تفصیلات' : 'Order Details'}
                 </h3>
                 <div className="flex flex-wrap gap-2 mb-3">
-                  <span className="text-[8px] font-black px-2 py-1 bg-gray-900 rounded-md text-gray-300 uppercase">{cartItems[0]?.type}</span>
-                  <span className="text-[8px] font-black px-2 py-1 bg-gray-900 rounded-md text-gray-300 uppercase">{cartItems[0]?.priority}</span>
-                  {cartItems[0]?.advancePaid && <span className="text-[8px] font-black px-2 py-1 bg-amber-900/30 rounded-md text-amber-400 uppercase">ADVANCE PAID</span>}
+                  <span className="text-xs font-black px-2 py-1 bg-gray-900 rounded-md text-gray-300 uppercase">{cartItems[0]?.type}</span>
+                  <span className="text-xs font-black px-2 py-1 bg-gray-900 rounded-md text-gray-300 uppercase">{cartItems[0]?.priority}</span>
+                  {cartItems[0]?.advancePaid && <span className="text-xs font-black px-2 py-1 bg-amber-900/30 rounded-md text-amber-400 uppercase">ADVANCE PAID</span>}
                 </div>
               </div>
 
               {/* Products Table with Per-Item Customization & Inline Edit */}
               <div className="bg-gray-950/50 p-4 md:p-6 rounded-[2rem] border border-gray-800/50 mb-4">
-                <h3 className="text-[9px] md:text-[10px] font-black text-purple-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                <h3 className="text-xs md:text-sm font-black text-purple-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
                   <ShoppingCart size={12} /> {useUrdu ? 'پروڈکٹس' : 'Products'} ({cartItems.length})
                 </h3>
                 <div className="space-y-3">
@@ -2873,28 +2893,28 @@ const SmartOrderForm = () => {
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-[8px] font-black text-gray-500">#{idx + 1}</span>
+                              <span className="text-xs font-black text-gray-500">#{idx + 1}</span>
                               <span className="text-sm font-black text-white uppercase truncate">{pd.productType || '—'}</span>
-                              {pd.gender && <span className="text-[7px] font-black text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">{pd.gender}</span>}
+                              {pd.gender && <span className="text-[9px] font-black text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">{pd.gender}</span>}
                             </div>
                             <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                              <span className="text-[10px] text-gray-300 uppercase font-bold">{pd.color || '—'} / {pd.size || '—'}</span>
-                              {pd.fabricType && <span className="text-[8px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">{pd.fabricType}</span>}
-                              <span className="text-[9px] font-black text-blue-400">×{item.quantity || 1}</span>
+                              <span className="text-xs text-gray-300 uppercase font-bold">{pd.color || '—'} / {pd.size || '—'}</span>
+                              {pd.fabricType && <span className="text-xs text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">{pd.fabricType}</span>}
+                              <span className="text-xs md:text-sm font-black text-blue-400">×{item.quantity || 1}</span>
                             </div>
                             {hasCust && (
                               <div className="flex flex-wrap gap-1 mt-1.5">
-                                {cust.nameSpelling && <span className="text-[7px] font-black text-purple-400 bg-purple-900/30 px-1.5 py-0.5 rounded">Name: {cust.nameSpelling}</span>}
-                                {cust.stitchingStyle && <span className="text-[7px] font-black text-blue-400 bg-blue-900/30 px-1.5 py-0.5 rounded">{cust.stitchingStyle === 'DBL' ? 'Double' : 'Single'} Stitch</span>}
-                                {cust.fitType && <span className="text-[7px] font-black text-indigo-400 bg-indigo-900/30 px-1.5 py-0.5 rounded">{cust.fitType} Fit</span>}
-                                {item.logoDesign && <span className="text-[7px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded">Has Logo</span>}
-                                {cust.designNotes && <span className="text-[7px] font-black text-yellow-400 bg-yellow-900/30 px-1.5 py-0.5 rounded truncate max-w-[120px]">{cust.designNotes}</span>}
+                                {cust.nameSpelling && <span className="text-[9px] font-black text-purple-400 bg-purple-900/30 px-1.5 py-0.5 rounded">Name: {cust.nameSpelling}</span>}
+                                {cust.stitchingStyle && <span className="text-[9px] font-black text-blue-400 bg-blue-900/30 px-1.5 py-0.5 rounded">{cust.stitchingStyle === 'DBL' ? 'Double' : 'Single'} Stitch</span>}
+                                {cust.fitType && <span className="text-[9px] font-black text-indigo-400 bg-indigo-900/30 px-1.5 py-0.5 rounded">{cust.fitType} Fit</span>}
+                                {item.logoDesign && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded">Has Logo</span>}
+                                {cust.designNotes && <span className="text-[9px] font-black text-yellow-400 bg-yellow-900/30 px-1.5 py-0.5 rounded truncate max-w-[120px]">{cust.designNotes}</span>}
                               </div>
                             )}
                             {hasMeas && (
                               <div className="flex flex-wrap gap-1 mt-1.5">
                                 {Object.entries(item.sizeData || {}).filter(([_, v]) => v).map(([key, val]) => (
-                                  <span key={key} className="text-[7px] font-black text-cyan-400 bg-cyan-900/30 px-1.5 py-0.5 rounded">{key}: {val}"</span>
+                                  <span key={key} className="text-[9px] font-black text-cyan-400 bg-cyan-900/30 px-1.5 py-0.5 rounded">{key}: {val}"</span>
                                 ))}
                               </div>
                             )}
@@ -2905,14 +2925,14 @@ const SmartOrderForm = () => {
                               <button
                                 type="button"
                                 onClick={() => editCartItem(idx, 'product')}
-                                className="text-[7px] font-black text-blue-400 bg-blue-900/40 px-2 py-0.5 rounded-md hover:bg-blue-700 transition-colors"
+                                className="text-[9px] font-black text-blue-400 bg-blue-900/40 px-2 py-0.5 rounded-md hover:bg-blue-700 transition-colors"
                               >
                                 {useUrdu ? 'پروڈکٹ' : 'Product'}
                               </button>
                               <button
                                 type="button"
                                 onClick={() => editCartItem(idx, 'custom')}
-                                className="text-[7px] font-black text-purple-400 bg-purple-900/40 px-2 py-0.5 rounded-md hover:bg-purple-700 transition-colors"
+                                className="text-[9px] font-black text-purple-400 bg-purple-900/40 px-2 py-0.5 rounded-md hover:bg-purple-700 transition-colors"
                               >
                                 {useUrdu ? 'کسٹم' : 'Custom'}
                               </button>
@@ -2920,7 +2940,7 @@ const SmartOrderForm = () => {
                                 <button
                                   type="button"
                                   onClick={() => editCartItem(idx, 'sizes')}
-                                  className="text-[7px] font-black text-cyan-400 bg-cyan-900/40 px-2 py-0.5 rounded-md hover:bg-cyan-700 transition-colors"
+                                  className="text-[9px] font-black text-cyan-400 bg-cyan-900/40 px-2 py-0.5 rounded-md hover:bg-cyan-700 transition-colors"
                                 >
                                   {useUrdu ? 'سائز' : 'Size'}
                                 </button>
@@ -2928,7 +2948,7 @@ const SmartOrderForm = () => {
                               <button
                                 type="button"
                                 onClick={() => removeCartItem(idx)}
-                                className="text-[7px] font-black text-red-400 bg-red-900/40 px-2 py-0.5 rounded-md hover:bg-red-700 transition-colors"
+                                className="text-[9px] font-black text-red-400 bg-red-900/40 px-2 py-0.5 rounded-md hover:bg-red-700 transition-colors"
                               >
                                 ✕
                               </button>
@@ -2941,7 +2961,7 @@ const SmartOrderForm = () => {
                 </div>
                 {cartItems.length > 0 && (
                   <div className="flex justify-end items-center gap-4 mt-3 pt-3 border-t border-gray-800/50">
-                    <span className="text-[9px] text-gray-400 font-black uppercase tracking-wider">{useUrdu ? 'کل آئٹمز' : 'Total Items'}: <span className="text-white">{cartItems.reduce((s, i) => s + (parseInt(i.quantity) || 1), 0)}</span></span>
+                    <span className="text-xs md:text-sm text-gray-400 font-black uppercase tracking-wider">{useUrdu ? 'کل آئٹمز' : 'Total Items'}: <span className="text-white">{cartItems.reduce((s, i) => s + (parseInt(i.quantity) || 1), 0)}</span></span>
                     <span className="text-sm font-black text-emerald-400">{useUrdu ? 'کل قیمت' : 'Total'}: ₨{cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0).toLocaleString()}</span>
                   </div>
                 )}
@@ -2951,7 +2971,7 @@ const SmartOrderForm = () => {
 
               {/* Financial Summary */}
               <div className="bg-gray-950/50 p-4 md:p-6 rounded-[2rem] border border-gray-800/50 mb-6">
-                <h3 className="text-[9px] md:text-[10px] font-black text-emerald-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                <h3 className="text-xs md:text-sm font-black text-emerald-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
                   ₨ {useUrdu ? 'مالیاتی خلاصہ' : 'Financial Summary'}
                 </h3>
                 <div className="space-y-2">
@@ -3040,7 +3060,7 @@ const SmartOrderForm = () => {
                     <h2 className="text-xl font-black theme-text-primary uppercase tracking-tight">
                       {useUrdu ? 'ترمیم کی درخواست کا جائزہ' : 'Review Edit Request'}
                     </h2>
-                    <p className="theme-text-muted text-[9px] font-black uppercase tracking-widest mt-0.5">
+                    <p className="theme-text-muted text-xs md:text-sm font-black uppercase tracking-widest mt-0.5">
                       {useUrdu ? 'آرڈر میں تبدیلیوں کا جائزہ لیں' : 'Verify original details vs requested changes'}
                     </p>
                   </div>
@@ -3102,7 +3122,7 @@ const SmartOrderForm = () => {
 
                   {/* Items List */}
                   <div className="border-t border-red-500/10 pt-4 space-y-3">
-                    <span className="text-[10px] font-black text-red-400 uppercase tracking-widest block">
+                    <span className="text-xs font-black text-red-400 uppercase tracking-widest block">
                       {useUrdu ? 'اصل آئٹمز' : 'Original Items'}
                     </span>
                     {(() => {
@@ -3119,7 +3139,7 @@ const SmartOrderForm = () => {
                           <div key={idx} className="flex justify-between items-start py-2 border-b border-red-500/10 last:border-0">
                             <div>
                               <span className="text-xs font-bold theme-text-primary">{d.productType || 'Unknown'}</span>
-                              <span className="text-[10px] theme-text-muted block mt-0.5">
+                              <span className="text-xs theme-text-muted block mt-0.5">
                                 {d.color ? `${d.color}` : ''}{d.color && d.size ? ' / ' : ''}{d.size ? `${d.size}` : ''} × {item.quantity || originalOrder.quantity || 1}
                               </span>
                             </div>
@@ -3144,7 +3164,7 @@ const SmartOrderForm = () => {
                   <div className="flex items-center gap-2 text-emerald-400 font-black text-xs uppercase tracking-wider mb-2">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                     <span>{useUrdu ? 'تبدل شدہ آرڈر — ترمیم کریں' : 'Requested Changes — Edit'}</span>
-                    <span className="text-[7px] font-bold text-gray-500 ml-auto">Click to edit fields directly</span>
+                    <span className="text-[9px] font-bold text-gray-500 ml-auto">Click to edit fields directly</span>
                   </div>
 
                   <div className="space-y-3 text-xs">
@@ -3174,7 +3194,7 @@ const SmartOrderForm = () => {
                         <div className="flex gap-1">
                           {['NORMAL', 'URGENT', 'SUPER_URGENT'].map(p => (
                             <button key={p} type="button" onClick={() => setFormData({...formData, priority: p})}
-                              className={`flex-1 py-2 rounded-lg text-[8px] font-black transition-all ${formData.priority === p
+                              className={`flex-1 py-2 rounded-lg text-xs font-black transition-all ${formData.priority === p
                                 ? p === 'SUPER_URGENT' ? 'bg-red-600 text-white' : p === 'URGENT' ? 'bg-amber-600 text-white' : 'bg-gray-700 text-white'
                                 : 'bg-gray-900 text-gray-600 hover:bg-gray-800'}`}>
                               {p === 'SUPER_URGENT' ? 'SUPER' : p === 'URGENT' ? 'URGENT' : 'NORMAL'}
@@ -3189,7 +3209,7 @@ const SmartOrderForm = () => {
                         <div className="flex gap-1">
                           {['STANDARD', 'READY_LOGO', 'FULL_CUSTOM'].map(t => (
                             <button key={t} type="button" onClick={() => setFormData({...formData, type: t})}
-                              className={`flex-1 py-2 rounded-lg text-[7px] font-black transition-all uppercase ${formData.type === t
+                              className={`flex-1 py-2 rounded-lg text-[9px] font-black transition-all uppercase ${formData.type === t
                                 ? 'bg-blue-600 text-white' : 'bg-gray-900 text-gray-600 hover:bg-gray-800'}`}>
                               {t === 'READY_LOGO' ? 'LOGO' : t === 'FULL_CUSTOM' ? 'CUSTOM' : 'STD'}
                             </button>
@@ -3199,7 +3219,7 @@ const SmartOrderForm = () => {
                       <div>
                         <span className="text-gray-400 block mb-1">{useUrdu ? 'ایڈوانس' : 'Advance Paid'}</span>
                         <label className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all ${formData.advancePaid ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-gray-700 bg-gray-900'}`}>
-                          <span className="text-[9px] font-bold">{formData.advancePaid ? 'YES' : 'NO'}</span>
+                          <span className="text-xs md:text-sm font-bold">{formData.advancePaid ? 'YES' : 'NO'}</span>
                           <input type="checkbox" checked={formData.advancePaid} onChange={e => setFormData({...formData, advancePaid: e.target.checked})} className="w-4 h-4 rounded border-gray-600" />
                         </label>
                       </div>
@@ -3209,7 +3229,7 @@ const SmartOrderForm = () => {
                   {/* Items List with inline editing */}
                   <div className="border-t border-emerald-500/10 pt-4 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">
+                      <span className="text-xs font-black text-emerald-400 uppercase tracking-widest">
                         {useUrdu ? 'نئے آئٹمز' : 'New Items'} ({cartItems.length})
                       </span>
                     </div>
@@ -3218,30 +3238,30 @@ const SmartOrderForm = () => {
                       return (
                         <div key={idx} className="flex items-start justify-between gap-2 p-2.5 bg-gray-900/50 rounded-xl border border-emerald-500/10">
                           <div className="flex-1 min-w-0">
-                            <p className="text-[10px] font-bold text-white truncate">{d.productType || 'Unknown'}</p>
-                            <p className="text-[8px] theme-text-muted truncate">
+                            <p className="text-xs font-bold text-white truncate">{d.productType || 'Unknown'}</p>
+                            <p className="text-xs theme-text-muted truncate">
                               {[d.color, d.size].filter(Boolean).join(' / ') || '—'}
                             </p>
                             <div className="flex items-center gap-2 mt-1.5">
                               <div className="flex items-center gap-1">
-                                <span className="text-[7px] text-gray-500">Qty:</span>
+                                <span className="text-[9px] text-gray-500">Qty:</span>
                                 <input type="number" min="1" value={item.quantity || 1}
                                   onChange={e => {
                                     const newCart = [...cartItems];
                                     newCart[idx] = {...newCart[idx], quantity: parseInt(e.target.value) || 1};
                                     setCartItems(newCart);
                                   }}
-                                  className="w-14 theme-input rounded-lg py-1 px-2 text-[9px] font-bold text-center" />
+                                  className="w-14 theme-input rounded-lg py-1 px-2 text-xs md:text-sm font-bold text-center" />
                               </div>
                               <div className="flex items-center gap-1">
-                                <span className="text-[7px] text-gray-500">₨:</span>
+                                <span className="text-[9px] text-gray-500">₨:</span>
                                 <input type="number" min="0" value={item.totalPrice || 0}
                                   onChange={e => {
                                     const newCart = [...cartItems];
                                     newCart[idx] = {...newCart[idx], totalPrice: parseFloat(e.target.value) || 0};
                                     setCartItems(newCart);
                                   }}
-                                  className="w-20 theme-input rounded-lg py-1 px-2 text-[9px] font-bold text-center" />
+                                  className="w-20 theme-input rounded-lg py-1 px-2 text-xs md:text-sm font-bold text-center" />
                               </div>
                             </div>
                           </div>
@@ -3256,7 +3276,7 @@ const SmartOrderForm = () => {
                       );
                     })}
                     {cartItems.length === 0 && (
-                      <p className="text-[9px] theme-text-muted italic text-center py-3">No items — add products through the form tabs below</p>
+                      <p className="text-xs md:text-sm theme-text-muted italic text-center py-3">No items — add products through the form tabs below</p>
                     )}
                   </div>
 
@@ -3272,7 +3292,7 @@ const SmartOrderForm = () => {
                             ₨{totalNewPrice.toLocaleString()}
                           </span>
                           {diff !== 0 && (
-                            <span className="text-[8px] text-gray-500 block mt-0.5">
+                            <span className="text-xs text-gray-500 block mt-0.5">
                               ({diff > 0 ? '+' : ''}₨{diff.toLocaleString()} vs original)
                             </span>
                           )}
@@ -3286,7 +3306,7 @@ const SmartOrderForm = () => {
 
               {/* Reason For Request */}
               <div className="space-y-2 mb-6">
-                <label className="text-[10px] font-black theme-text-muted uppercase tracking-[0.2em] ml-2">
+                <label className="text-xs font-black theme-text-muted uppercase tracking-[0.2em] ml-2">
                   {useUrdu ? 'ترمیم کی وجہ (لازمی)' : 'Reason for Edit Request (Required)'}
                 </label>
                 <textarea

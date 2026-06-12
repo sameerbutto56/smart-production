@@ -361,7 +361,7 @@ const InventoryManagement = () => {
             <button 
               key={cat} 
               onClick={() => setSearchTerm(cat === 'ALL' ? '' : cat)}
-              className={`px-5 py-2.5 text-[9px] md:text-[10px] font-black rounded-xl transition-all whitespace-nowrap ${
+              className={`px-5 py-2.5 text-xs md:text-sm font-black rounded-xl transition-all whitespace-nowrap ${
                 (searchTerm === cat || (cat === 'ALL' && searchTerm === '')) 
                   ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/30' 
                   : 'text-gray-400 hover:text-white hover:bg-gray-700'
@@ -375,10 +375,10 @@ const InventoryManagement = () => {
 
       {/* Search Status Bar */}
       {searchTerm && (
-        <div className="flex items-center gap-2 text-[10px] font-bold text-emerald-400">
+        <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
           <Search size={12} />
           <span>{filteredItems.length} result{filteredItems.length !== 1 ? 's' : ''} for "<span className="text-white">{searchTerm}</span>"</span>
-          <button onClick={() => setSearchTerm('')} className="ml-2 text-[9px] text-gray-500 hover:text-white underline">clear</button>
+          <button onClick={() => setSearchTerm('')} className="ml-2 text-xs md:text-sm text-gray-500 hover:text-white underline">clear</button>
         </div>
       )}
 
@@ -394,7 +394,7 @@ const InventoryManagement = () => {
               <Search size={32} className="text-gray-600" />
             </div>
             <p className="text-gray-400 font-black text-sm">No items found matching "<span className="text-white">{searchTerm}</span>"</p>
-            <button onClick={() => setSearchTerm('')} className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 underline">Clear search</button>
+            <button onClick={() => setSearchTerm('')} className="text-xs font-bold text-emerald-400 hover:text-emerald-300 underline">Clear search</button>
           </div>
         ) : groupedItems.map(group => [
           <div key={`header-${group.letter}`} className="col-span-full">
@@ -403,7 +403,7 @@ const InventoryManagement = () => {
                 <span className="font-black text-white text-lg">{group.letter}</span>
               </div>
               <div className="h-px flex-1 bg-gradient-to-r from-emerald-500/20 to-transparent" />
-              <span className="text-[9px] font-bold text-gray-600 uppercase tracking-widest">{group.items.length} items</span>
+              <span className="text-xs md:text-sm font-bold text-gray-600 uppercase tracking-widest">{group.items.length} items</span>
             </div>
           </div>,
           ...group.items.map((item, i) => (
@@ -443,8 +443,8 @@ const InventoryManagement = () => {
               <div className="space-y-1">
                 <h3 className="font-black text-xl theme-text-primary group-hover:text-emerald-400 transition-colors leading-tight">{item.name}</h3>
                 <div className="flex items-center space-x-2">
-                  <span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest theme-text-muted">{item.category}</span>
-                  {(item.fabric) && <><div className="w-1 h-1 rounded-full bg-gray-800" /><span className="text-[9px] md:text-[10px] font-bold theme-text-secondary uppercase italic">{item.fabric}</span></>}
+                  <span className="text-xs md:text-sm font-black uppercase tracking-widest theme-text-muted">{item.category}</span>
+                  {(item.fabric) && <><div className="w-1 h-1 rounded-full bg-gray-800" /><span className="text-xs md:text-sm font-bold theme-text-secondary uppercase italic">{item.fabric}</span></>}
                 </div>
               </div>
 
@@ -461,14 +461,14 @@ const InventoryManagement = () => {
                       </div>
                       <div className="flex items-center space-x-4">
                         <span className="text-sm font-black theme-text-primary">{v.stock}</span>
-                        {v.price > 0 && <span className="text-[9px] md:text-[10px] font-bold text-emerald-500">₨{v.price}</span>}
+                        {v.price > 0 && <span className="text-xs md:text-sm font-bold text-emerald-500">₨{v.price}</span>}
                       </div>
                     </div>
                   ))}
                   {item.variants.length > VARIANTS_PREVIEW && (
                     <button
                       onClick={() => setExpandedItems(prev => ({ ...prev, [item.id]: !prev[item.id] }))}
-                      className="w-full py-2 text-[9px] md:text-[10px] font-black uppercase tracking-widest theme-text-muted hover:text-emerald-400 transition-all"
+                      className="w-full py-2 text-xs md:text-sm font-black uppercase tracking-widest theme-text-muted hover:text-emerald-400 transition-all"
                     >
                       {expandedItems[item.id] ? '▲ Show Less' : `▼ Show More (${item.variants.length - VARIANTS_PREVIEW} more)`}
                     </button>
@@ -481,7 +481,7 @@ const InventoryManagement = () => {
                   </span>
                   <div className="flex items-center space-x-4">
                     <span className="text-sm font-black theme-text-primary">{item.stock}</span>
-                    {item.price > 0 && <span className="text-[9px] md:text-[10px] font-bold text-emerald-500">₨{item.price}</span>}
+                    {item.price > 0 && <span className="text-xs md:text-sm font-bold text-emerald-500">₨{item.price}</span>}
                   </div>
                 </div>
               )}
@@ -493,9 +493,9 @@ const InventoryManagement = () => {
                       ? item.variants.reduce((s, v) => s + (v.stock || 0), 0)
                       : item.stock}
                   </span>
-                  <span className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest">Total Units</span>
+                  <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Total Units</span>
                 </div>
-                <div className={`px-4 py-1.5 rounded-full text-[9px] md:text-[10px] font-black uppercase border-2 ${
+                <div className={`px-4 py-1.5 rounded-full text-xs md:text-sm font-black uppercase border-2 ${
                   (item.stock || 0) > 50 ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-500' : 
                   (item.stock || 0) > 0 ? 'border-yellow-500/20 bg-yellow-500/5 text-yellow-500' : 
                   'border-red-500/20 bg-red-500/5 text-red-500'
@@ -541,7 +541,7 @@ const InventoryManagement = () => {
                       <div className="p-2 bg-blue-500/10 rounded-lg">
                         <ClipboardList size={16} className="text-blue-400" />
                       </div>
-                      <label className="text-[9px] md:text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Product Specification</label>
+                      <label className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-[0.2em]">Product Specification</label>
                     </div>
                     <input
                       type="text"
@@ -559,7 +559,7 @@ const InventoryManagement = () => {
                         <div className="p-2 bg-purple-500/10 rounded-lg">
                           <Layers size={16} className="text-purple-400" />
                         </div>
-                        <label className="text-[9px] md:text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Category</label>
+                        <label className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-[0.2em]">Category</label>
                       </div>
                       <input
                         list="category-options"
@@ -579,7 +579,7 @@ const InventoryManagement = () => {
                         <div className="p-2 bg-indigo-500/10 rounded-lg">
                           <Layers size={16} className="text-indigo-400" />
                         </div>
-                        <label className="text-[9px] md:text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Material/Fabric</label>
+                        <label className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-[0.2em]">Material/Fabric</label>
                       </div>
                       <input
                         type="text"
@@ -598,7 +598,7 @@ const InventoryManagement = () => {
                         <div className="p-2 bg-pink-500/10 rounded-lg">
                           <Hash size={16} className="text-pink-400" />
                         </div>
-                        <label className="text-[9px] md:text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Variants (Color × Size × Stock × Price)</label>
+                        <label className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-[0.2em]">Variants (Color × Size × Stock × Price)</label>
                       </div>
                       <div className="flex items-center space-x-4">
                         <span className="text-sm font-black text-emerald-400">Total: {totalStock}</span>
@@ -648,7 +648,7 @@ const InventoryManagement = () => {
                     </div>
 
                     <button type="button" onClick={addVariant}
-                      className="w-full py-3 border-2 border-dashed border-gray-800 rounded-xl text-[9px] md:text-[10px] font-black text-gray-600 uppercase tracking-widest hover:border-emerald-500/40 hover:text-emerald-500 transition-all flex items-center justify-center space-x-2">
+                      className="w-full py-3 border-2 border-dashed border-gray-800 rounded-xl text-xs md:text-sm font-black text-gray-600 uppercase tracking-widest hover:border-emerald-500/40 hover:text-emerald-500 transition-all flex items-center justify-center space-x-2">
                       <Plus size={14} />
                       <span>Add Variant</span>
                     </button>
@@ -660,7 +660,7 @@ const InventoryManagement = () => {
                       <div className="p-2 bg-yellow-500/10 rounded-lg">
                         <ImageIcon size={16} className="text-yellow-400" />
                       </div>
-                      <label className="text-[9px] md:text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Product Image</label>
+                      <label className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-[0.2em]">Product Image</label>
                     </div>
                     
                     <div 
@@ -677,7 +677,7 @@ const InventoryManagement = () => {
                           <img src={formData.imageUrl} alt="Preview" className="absolute inset-0 w-full h-full object-cover" />
                           <div className="absolute inset-0 bg-black/60 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center flex-col gap-2 backdrop-blur-sm">
                             <Upload size={32} className="text-white" />
-                            <span className="text-[9px] md:text-[10px] font-black text-white uppercase">Replace</span>
+                            <span className="text-xs md:text-sm font-black text-white uppercase">Replace</span>
                           </div>
                         </>
                       ) : (
@@ -688,8 +688,8 @@ const InventoryManagement = () => {
                             <Upload size={32} className="text-gray-700" />
                           )}
                           <div className="text-center">
-                            <p className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-widest">{uploading ? 'Processing...' : 'Drop image'}</p>
-                            <p className="text-[8px] text-gray-600 font-bold mt-1 uppercase">or click</p>
+                            <p className="text-xs md:text-sm font-black text-gray-400 uppercase tracking-widest">{uploading ? 'Processing...' : 'Drop image'}</p>
+                            <p className="text-xs text-gray-600 font-bold mt-1 uppercase">or click</p>
                           </div>
                         </>
                       )}

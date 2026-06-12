@@ -295,7 +295,7 @@ const AllOrders = () => {
           </div>
           <div>
             <h1 className="text-2xl md:text-4xl font-black theme-text-primary tracking-tight leading-none">Production Queue</h1>
-            <p className="theme-text-muted text-[9px] md:text-[10px] font-black uppercase tracking-[0.4em] mt-2">Live Monitoring</p>
+            <p className="theme-text-muted text-xs md:text-sm font-black uppercase tracking-[0.4em] mt-2">Live Monitoring</p>
           </div>
         </div>
 
@@ -313,7 +313,7 @@ const AllOrders = () => {
             
             <button
               onClick={() => setIsGroupedView(!isGroupedView)}
-              className={`px-8 py-4 theme-bg-subtle border-2 theme-border rounded-2xl theme-text-primary font-black text-[9px] md:text-[10px] uppercase tracking-[0.2em] hover:bg-gray-800 transition-all flex items-center gap-3 ${isUrdu ? 'flex-row-reverse' : ''}`}
+              className={`px-8 py-4 theme-bg-subtle border-2 theme-border rounded-2xl theme-text-primary font-black text-xs md:text-sm uppercase tracking-[0.2em] hover:bg-gray-800 transition-all flex items-center gap-3 ${isUrdu ? 'flex-row-reverse' : ''}`}
             >
               {isGroupedView ? <List size={16} /> : <Users size={16} />}
               <span>{isGroupedView ? (isUrdu ? 'انفرادی منظر' : 'INDIVIDUAL VIEW') : (isUrdu ? 'بڑی تعداد کا منظر' : 'BULK VIEW')}</span>
@@ -326,7 +326,7 @@ const AllOrders = () => {
       <div className="flex gap-2 mb-2">
         <button
           onClick={() => setOrderSubTab('all')}
-          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all ${
             orderSubTab === 'all'
               ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
               : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
@@ -334,11 +334,11 @@ const AllOrders = () => {
         >
           <Package size={13} />
           All Orders
-          <span className="ml-1 px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded text-[7px] font-black">{orders.length}</span>
+          <span className="ml-1 px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded text-[9px] font-black">{orders.length}</span>
         </button>
         <button
           onClick={() => setOrderSubTab('unseen')}
-          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all ${
             orderSubTab === 'unseen'
               ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
               : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
@@ -347,14 +347,14 @@ const AllOrders = () => {
           <Package size={13} />
           Unseen Tasks
           {unseenData && (
-            <span className="ml-1 px-1.5 py-0.5 bg-orange-500/20 text-orange-400 rounded text-[7px] font-black">
+            <span className="ml-1 px-1.5 py-0.5 bg-orange-500/20 text-orange-400 rounded text-[9px] font-black">
               {unseenData.unseen.filter(o => o.currentStage !== 'STORE_RECEIVE').length}
             </span>
           )}
         </button>
         <button
           onClick={() => setOrderSubTab('seen')}
-          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all ${
             orderSubTab === 'seen'
               ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
               : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
@@ -363,14 +363,14 @@ const AllOrders = () => {
           <Package size={13} />
           Seen Tasks
           {unseenData && (
-            <span className="ml-1 px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded text-[7px] font-black">
+            <span className="ml-1 px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded text-[9px] font-black">
               {unseenData.seen.filter(o => o.currentStage !== 'STORE_RECEIVE').length}
             </span>
           )}
         </button>
         <button
           onClick={() => setOrderSubTab('store-requests')}
-          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all ${
             orderSubTab === 'store-requests'
               ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
               : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
@@ -379,7 +379,7 @@ const AllOrders = () => {
           <RefreshCcw size={13} />
           Store Requests
           {storeRequestsData && (
-            <span className="ml-1 px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded text-[7px] font-black">
+            <span className="ml-1 px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded text-[9px] font-black">
               {storeRequestsData.unseen.length + storeRequestsData.seen.length}
             </span>
           )}
@@ -394,7 +394,7 @@ const AllOrders = () => {
             </div>
             <div>
               <h3 className="text-lg font-black theme-text-primary uppercase tracking-tight">Store Requests</h3>
-              <p className="theme-text-muted text-[9px] font-bold uppercase tracking-widest">Orders returned by Store department</p>
+              <p className="theme-text-muted text-xs md:text-sm font-bold uppercase tracking-widest">Orders returned by Store department</p>
             </div>
           </div>
           {srLoading ? (
@@ -407,7 +407,7 @@ const AllOrders = () => {
               {/* Unseen Store Requests */}
               {storeRequestsData.unseen.length > 0 && (
                 <div>
-                  <h4 className="text-[10px] font-black text-orange-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                  <h4 className="text-xs font-black text-orange-400 uppercase tracking-widest mb-3 flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
                     Unseen ({storeRequestsData.unseen.length})
                   </h4>
@@ -421,7 +421,7 @@ const AllOrders = () => {
               {/* Seen Store Requests */}
               {storeRequestsData.seen.length > 0 && (
                 <div>
-                  <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                  <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
                     Seen ({storeRequestsData.seen.length})
                   </h4>
@@ -529,7 +529,7 @@ const AllOrders = () => {
           {showFilters && (
             <div className="absolute right-0 mt-3 w-72 theme-bg border theme-border rounded-2xl shadow-2xl p-4 md:p-6 z-50 space-y-6">
               <div className="space-y-3">
-                <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest">Order Status</label>
+                <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Order Status</label>
                 <select 
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
@@ -545,7 +545,7 @@ const AllOrders = () => {
               </div>
 
               <div className="space-y-3">
-                <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest">Order Type</label>
+                <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Order Type</label>
                 <select 
                   value={filterType}
                   onChange={(e) => setFilterType(e.target.value)}
@@ -559,7 +559,7 @@ const AllOrders = () => {
               </div>
 
               <div className="flex items-center justify-between p-4 theme-bg border theme-border rounded-xl">
-                <span className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest">Urgent Only</span>
+                <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Urgent Only</span>
                 <button 
                   onClick={() => setFilterUrgent(!filterUrgent)}
                   className={`w-10 h-5 rounded-full transition-all relative ${filterUrgent ? 'bg-blue-600' : 'bg-gray-800'}`}
@@ -575,7 +575,7 @@ const AllOrders = () => {
                   setFilterUrgent(false);
                   setShowFilters(false);
                 }}
-                className="w-full py-2 text-[9px] md:text-[10px] font-black uppercase theme-text-muted hover:text-white transition-colors"
+                className="w-full py-2 text-xs md:text-sm font-black uppercase theme-text-muted hover:text-white transition-colors"
               >
                 Reset Filters
               </button>
@@ -660,7 +660,7 @@ const AllOrders = () => {
                     <td className="px-6 py-4">
                       <div className="flex flex-wrap gap-2">
                         {Object.entries(group.statusSummary).map(([status, count]) => (
-                          <span key={status} className={`text-[9px] font-black px-2 py-1 rounded-lg border ${getStatusStyle(status)}`}>
+                          <span key={status} className={`text-xs md:text-sm font-black px-2 py-1 rounded-lg border ${getStatusStyle(status)}`}>
                             {count} {status.replace(/_/g, ' ')}
                           </span>
                         ))}
@@ -670,7 +670,7 @@ const AllOrders = () => {
                       <div className="text-xs theme-text-secondary font-bold">
                         {new Date(group.latestOrderDate).toLocaleDateString()}
                       </div>
-                      <div className="text-[9px] md:text-[10px] theme-text-muted mt-1 uppercase font-black tracking-widest">
+                      <div className="text-xs md:text-sm theme-text-muted mt-1 uppercase font-black tracking-widest">
                         {new Date(group.latestOrderDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     </td>
@@ -704,13 +704,13 @@ const AllOrders = () => {
                       </div>
                       {order.createdBy?.name && (
                         <div className="flex items-center gap-1 mt-1">
-                          <span className="text-[9px] font-black bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded uppercase tracking-tighter">
+                          <span className="text-xs md:text-sm font-black bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded uppercase tracking-tighter">
                             By: {order.createdBy.name}
                           </span>
                         </div>
                       )}
                       {order.customerPhone && (
-                        <div className="text-[9px] md:text-[10px] theme-text-muted font-bold mt-0.5">
+                        <div className="text-xs md:text-sm theme-text-muted font-bold mt-0.5">
                           {order.customerPhone}
                         </div>
                       )}
@@ -718,33 +718,33 @@ const AllOrders = () => {
                     <td className="px-6 py-4">
                       <div className="text-sm font-bold theme-text-primary">
                         {product?.productType || 'Standard Item'}
-                        {isMultiItem && <span className="ml-2 text-purple-400 text-[9px] md:text-[10px] font-black bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">+{rawPd.length - 1} more</span>}
+                        {isMultiItem && <span className="ml-2 text-purple-400 text-xs md:text-sm font-black bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">+{rawPd.length - 1} more</span>}
                         {order.quantity > 1 && <span className="ml-2 text-blue-400">x{order.quantity}</span>}
                       </div>
                       <div className="flex flex-wrap items-center gap-2 mt-1">
-                        <span className="text-[9px] md:text-[10px] theme-text-muted font-medium bg-gray-800/50 px-2 py-0.5 rounded border border-gray-700/50">
+                        <span className="text-xs md:text-sm theme-text-muted font-medium bg-gray-800/50 px-2 py-0.5 rounded border border-gray-700/50">
                           {product?.fabricType || 'STD FABRIC'}
                         </span>
                         {product?.color && (
                           <div className="flex items-center space-x-1 bg-gray-800/50 px-2 py-0.5 rounded border border-gray-700/50">
                             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: product.color.toLowerCase().replace(' ', '') }}></div>
-                            <span className="text-[9px] md:text-[10px] theme-text-muted font-medium uppercase">{product.color}</span>
+                            <span className="text-xs md:text-sm theme-text-muted font-medium uppercase">{product.color}</span>
                           </div>
                         )}
-                        <span className={`text-[9px] md:text-[10px] font-black px-2 py-0.5 rounded uppercase ${product?.gender === 'Female' ? 'bg-pink-500/10 text-pink-500' : 'bg-blue-500/10 text-blue-400'}`}>
+                        <span className={`text-xs md:text-sm font-black px-2 py-0.5 rounded uppercase ${product?.gender === 'Female' ? 'bg-pink-500/10 text-pink-500' : 'bg-blue-500/10 text-blue-400'}`}>
                           {product?.gender || 'MALE'}
                         </span>
                         {product?.femaleOptions?.dupatta && (
-                          <span className="text-[9px] font-black bg-pink-600 text-white px-1.5 py-0.5 rounded uppercase">Dupatta</span>
+                          <span className="text-xs md:text-sm font-black bg-pink-600 text-white px-1.5 py-0.5 rounded uppercase">Dupatta</span>
                         )}
                       </div>
-                      <div className="text-[9px] md:text-[10px] theme-text-muted mt-1">
+                      <div className="text-xs md:text-sm theme-text-muted mt-1">
                         {order.advancePaid ? 'Payment: Advance' : 'Payment: Pending'}
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-2">
-                        <span className={`bg-gray-800 px-2 py-1 rounded-md text-[9px] md:text-[10px] font-black border border-gray-700 uppercase tracking-wider ${isWaitingApproval ? 'text-yellow-400 border-yellow-400/30' : 'text-gray-300'}`}>
+                        <span className={`bg-gray-800 px-2 py-1 rounded-md text-xs md:text-sm font-black border border-gray-700 uppercase tracking-wider ${isWaitingApproval ? 'text-yellow-400 border-yellow-400/30' : 'text-gray-300'}`}>
                           {isWaitingApproval ? `WAITING: ${order.currentStage.replace(/_/g, ' ')}` : order.currentStage.replace(/_/g, ' ')}
                         </span>
                         
@@ -770,21 +770,21 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                     </td>
                     <td className="px-6 py-4">
                       {order.priority === 'SUPER_URGENT' ? (
-                        <div className="flex items-center space-x-2 text-red-400 text-[9px] md:text-[10px] font-black uppercase tracking-widest">
+                        <div className="flex items-center space-x-2 text-red-400 text-xs md:text-sm font-black uppercase tracking-widest">
                           <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
                           <span>SUPER URGENT</span>
                         </div>
                       ) : order.priority === 'URGENT' ? (
-                        <div className="flex items-center space-x-2 text-amber-400 text-[9px] md:text-[10px] font-black uppercase tracking-widest">
+                        <div className="flex items-center space-x-2 text-amber-400 text-xs md:text-sm font-black uppercase tracking-widest">
                           <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
                           <span>URGENT</span>
                         </div>
                       ) : (
-                        <span className="theme-text-muted text-[9px] md:text-[10px] font-black uppercase tracking-widest">Normal</span>
+                        <span className="theme-text-muted text-xs md:text-sm font-black uppercase tracking-widest">Normal</span>
                       )}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`text-[9px] md:text-[10px] font-black px-2 py-1 rounded-full uppercase border ${getStatusStyle(order.status)}`}>
+                      <span className={`text-xs md:text-sm font-black px-2 py-1 rounded-full uppercase border ${getStatusStyle(order.status)}`}>
                         {order.status.replace(/_/g, ' ')}
                       </span>
                     </td>
@@ -865,10 +865,10 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                   <div className="flex items-center space-x-4 mb-2">
                     <h2 className="text-2xl md:text-4xl font-black tracking-tighter theme-text-primary">#{selectedOrder.orderNumber || selectedOrder.id.substring(0, 8)}</h2>
                     <div className="flex items-center gap-2">
-                      <span className={`px-3 py-1 border text-[9px] md:text-[10px] font-black uppercase tracking-widest rounded-lg ${selectedOrder.source === 'OUTLET' ? 'bg-purple-500/10 border-purple-500/20 text-purple-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'}`}>
+                      <span className={`px-3 py-1 border text-xs md:text-sm font-black uppercase tracking-widest rounded-lg ${selectedOrder.source === 'OUTLET' ? 'bg-purple-500/10 border-purple-500/20 text-purple-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'}`}>
                         {selectedOrder.source || 'OUTLET'}: {selectedOrder.outletName || 'MAIN'}
                       </span>
-                      <span className="px-3 py-1 bg-gray-800 border border-gray-700 theme-text-secondary text-[9px] md:text-[10px] font-black uppercase tracking-widest rounded-lg">
+                      <span className="px-3 py-1 bg-gray-800 border border-gray-700 theme-text-secondary text-xs md:text-sm font-black uppercase tracking-widest rounded-lg">
                         Full Job Sheet
                       </span>
                     </div>
@@ -887,13 +887,13 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
               <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 md:space-y-10 custom-scrollbar theme-text-primary">
                 
                 <section>
-                  <h4 className="text-[9px] md:text-[11px] font-black text-blue-500 uppercase tracking-[0.3em] mb-6">01. Material & Product Specs</h4>
+                  <h4 className="text-xs md:text-sm font-black text-blue-500 uppercase tracking-[0.3em] mb-6">01. Material & Product Specs</h4>
                   {isMultiItem ? (
                     <div className="space-y-6">
                       <div className="overflow-x-auto theme-bg border theme-border rounded-3xl p-4">
                         <table className="w-full text-left text-xs border-collapse">
                           <thead>
-                            <tr className="border-b theme-border theme-text-muted uppercase tracking-widest font-black text-[9px] md:text-[10px]">
+                            <tr className="border-b theme-border theme-text-muted uppercase tracking-widest font-black text-xs md:text-sm">
                               <th className="pb-3 pl-4">#</th>
                               <th className="pb-3">Product Base</th>
                               <th className="pb-3">Fabric & Color</th>
@@ -917,18 +917,18 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                                   <td className="py-4 text-white">
                                     <span className="text-sm font-black">{p.productType}</span>
                                     {p.femaleOptions?.dupatta && (
-                                      <span className="ml-2 bg-pink-500/20 text-pink-400 border border-pink-500/30 text-[9px] px-1.5 py-0.5 rounded font-black uppercase">Dupatta</span>
+                                      <span className="ml-2 bg-pink-500/20 text-pink-400 border border-pink-500/30 text-xs md:text-sm px-1.5 py-0.5 rounded font-black uppercase">Dupatta</span>
                                     )}
                                     {(c.nameSpelling || hasMeasurements) && (
-                                      <div className="mt-1.5 space-y-1 text-[9px] md:text-[10px] theme-text-secondary font-normal normal-case">
+                                      <div className="mt-1.5 space-y-1 text-xs md:text-sm theme-text-secondary font-normal normal-case">
                                         {c.nameSpelling && (
                                           <div>
-                                            <span className="font-bold theme-text-muted uppercase tracking-wider text-[9px]">Branding:</span> {c.nameSpelling} ({c.nameColor || 'Standard'}, {c.logoPlacement || 'Standard'})
+                                            <span className="font-bold theme-text-muted uppercase tracking-wider text-xs md:text-sm">Branding:</span> {c.nameSpelling} ({c.nameColor || 'Standard'}, {c.logoPlacement || 'Standard'})
                                           </div>
                                         )}
                                         {hasMeasurements && (
                                           <div>
-                                            <span className="font-bold theme-text-muted uppercase tracking-wider text-[9px]">Sizes:</span> {Object.entries(s).filter(([_, v]) => v).map(([k, v]) => `${k.toUpperCase()}:${v}"`).join(', ')}
+                                            <span className="font-bold theme-text-muted uppercase tracking-wider text-xs md:text-sm">Sizes:</span> {Object.entries(s).filter(([_, v]) => v).map(([k, v]) => `${k.toUpperCase()}:${v}"`).join(', ')}
                                           </div>
                                         )}
                                       </div>
@@ -936,7 +936,7 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                                   </td>
                                   <td className="py-4 theme-text-secondary">
                                     <div>{p.fabricType || 'STD FABRIC'}</div>
-                                    <div className="text-[9px] md:text-[10px] theme-text-muted font-medium uppercase mt-0.5 flex items-center gap-1.5">
+                                    <div className="text-xs md:text-sm theme-text-muted font-medium uppercase mt-0.5 flex items-center gap-1.5">
                                       {p.color && (
                                         <>
                                           <div className="w-2 h-2 rounded-full border border-gray-800" style={{ backgroundColor: p.color.toLowerCase().replace(' ', '') }}></div>
@@ -948,7 +948,7 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                                   <td className="py-4 theme-text-secondary uppercase">
                                     <div>{p.size || 'Custom'} • {p.gender || 'MALE'}</div>
                                     {(hasSleeves || hasShirtLength) && (
-                                      <div className="text-[9px] text-pink-400 font-black mt-0.5">
+                                      <div className="text-xs md:text-sm text-pink-400 font-black mt-0.5">
                                         {hasSleeves && `Sleeves: ${p.femaleOptions.sleeves}`} {hasShirtLength && `| Length: ${p.femaleOptions.shirtLength}`}
                                       </div>
                                     )}
@@ -974,7 +974,7 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                         { label: 'Payment', val: selectedOrder.paymentStatus || (selectedOrder.advancePaid ? 'ADVANCE' : 'PENDING') }
                       ].filter(i => i.val).map((item, i) => (
                         <div key={i} className="theme-bg p-4 md:p-6 rounded-3xl border theme-border">
-                          <p className="text-[9px] md:text-[10px] theme-text-muted font-black uppercase tracking-widest mb-2">{item.label}</p>
+                          <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest mb-2">{item.label}</p>
                           <p className="text-lg font-bold text-gray-200">{item.val || 'STANDARD'}</p>
                         </div>
                       ))}
@@ -984,23 +984,23 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
 
                 {!isMultiItem && selectedOrder.type === 'FULL_CUSTOM' && (
                   <section className="bg-blue-600/5 p-4 md:p-8 rounded-[2rem] border border-blue-500/10">
-                    <h4 className="text-[9px] md:text-[11px] font-black text-blue-400 uppercase tracking-[0.3em] mb-6">02. Precise Measurements (Inches)</h4>
+                    <h4 className="text-xs md:text-sm font-black text-blue-400 uppercase tracking-[0.3em] mb-6">02. Precise Measurements (Inches)</h4>
                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                       {Object.entries(sizes || {}).map(([key, val], i) => (
                         <div key={i} className="text-center p-4 theme-bg-subtle rounded-2xl border theme-border shadow-sm">
-                          <p className="text-[9px] theme-text-muted font-black uppercase tracking-tighter mb-1">{key.replace(/([A-Z])/g, ' $1')}</p>
+                          <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-tighter mb-1">{key.replace(/([A-Z])/g, ' $1')}</p>
                           <p className="text-xl font-black text-blue-400">{val}"</p>
                         </div>
                       ))}
                       {product?.gender === 'Female' && product?.femaleOptions?.sleeves && (
                         <div className="text-center p-4 theme-bg-subtle rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
-                          <p className="text-[9px] text-pink-500 font-black uppercase tracking-tighter mb-1">SLEEVES</p>
+                          <p className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter mb-1">SLEEVES</p>
                           <p className="text-sm font-black text-white uppercase">{product.femaleOptions.sleeves}</p>
                         </div>
                       )}
                       {product?.gender === 'Female' && product?.femaleOptions?.shirtLength && (
                         <div className="text-center p-4 theme-bg-subtle rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
-                          <p className="text-[9px] text-pink-500 font-black uppercase tracking-tighter mb-1">SHIRT LENGTH</p>
+                          <p className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter mb-1">SHIRT LENGTH</p>
                           <p className="text-sm font-black text-white uppercase">{product.femaleOptions.shirtLength}</p>
                         </div>
                       )}
@@ -1010,7 +1010,7 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
 
                 <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8">
                   <div>
-                    <h4 className="text-[9px] md:text-[11px] font-black text-emerald-500 uppercase tracking-[0.3em] mb-6">03. Branding & Tailoring</h4>
+                    <h4 className="text-xs md:text-sm font-black text-emerald-500 uppercase tracking-[0.3em] mb-6">03. Branding & Tailoring</h4>
                     <div className="space-y-4">
                       {[
                         { l: 'Branding Name', v: custom?.nameSpelling },
@@ -1020,22 +1020,22 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                         { l: 'Stitching Style', v: custom?.stitchingStyle }
                       ].map((item, i) => (
                         <div key={i} className="flex justify-between items-center p-4 theme-bg rounded-2xl border theme-border">
-                          <span className="text-[9px] md:text-[11px] theme-text-muted font-bold uppercase tracking-widest">{item.l}</span>
+                          <span className="text-xs md:text-sm theme-text-muted font-bold uppercase tracking-widest">{item.l}</span>
                           <span className="text-sm font-black text-emerald-400">{item.v || 'N/A'}</span>
                         </div>
                       ))}
                     </div>
                   </div>
                   <div>
-                    <h4 className="text-[9px] md:text-[11px] font-black text-yellow-500 uppercase tracking-[0.3em] mb-6">04. Design Notes & Reference</h4>
+                    <h4 className="text-xs md:text-sm font-black text-yellow-500 uppercase tracking-[0.3em] mb-6">04. Design Notes & Reference</h4>
                     <div className="space-y-4">
                       <div className="bg-yellow-500/5 p-4 md:p-6 rounded-3xl border border-yellow-500/10 italic theme-text-secondary text-sm shadow-inner">
-                        <p className="text-[9px] text-yellow-600 font-black uppercase mb-2">Instructions:</p>
+                        <p className="text-xs md:text-sm text-yellow-600 font-black uppercase mb-2">Instructions:</p>
                         {custom?.designNotes || 'No special design notes.'}
                       </div>
                       {custom?.designReference && (
                         <div className="bg-blue-500/5 p-4 md:p-6 rounded-3xl border border-blue-500/10 italic theme-text-secondary text-sm shadow-inner">
-                          <p className="text-[9px] text-blue-600 font-black uppercase mb-2">Design Cross-Reference:</p>
+                          <p className="text-xs md:text-sm text-blue-600 font-black uppercase mb-2">Design Cross-Reference:</p>
                           {custom.designReference}
                         </div>
                       )}
@@ -1045,8 +1045,8 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
 
                 <section>
                    <div className="flex justify-between items-center mb-6">
-                      <h4 className="text-[9px] md:text-[11px] font-black text-blue-500 uppercase tracking-[0.3em]">05. Production Timeline</h4>
-                      <span className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest bg-gray-950 px-3 py-1 rounded-full border border-gray-800">
+                      <h4 className="text-xs md:text-sm font-black text-blue-500 uppercase tracking-[0.3em]">05. Production Timeline</h4>
+                      <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest bg-gray-950 px-3 py-1 rounded-full border border-gray-800">
                         Total Workflow: {
                           (() => {
                             const pipelines = {
@@ -1093,18 +1093,18 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                               'theme-bg theme-border'
                             }`}>
                               <div className="flex items-center gap-3">
-                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] md:text-[10px] font-black ${
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs md:text-sm font-black ${
                                   isCompleted ? 'bg-emerald-500 text-white' : 
                                   isCurrent ? 'bg-blue-500 text-white' : 
                                   'bg-gray-800 theme-text-muted'
                                 }`}>
                                   {i + 1}
                                 </div>
-                                <span className={`text-[9px] md:text-[10px] font-black uppercase tracking-widest ${isCompleted ? 'text-emerald-400' : isCurrent ? 'text-blue-400' : 'theme-text-muted'}`}>
+                                <span className={`text-xs md:text-sm font-black uppercase tracking-widest ${isCompleted ? 'text-emerald-400' : isCurrent ? 'text-blue-400' : 'theme-text-muted'}`}>
                                   {stageName.replace(/_/g, ' ')}
                                 </span>
                               </div>
-                              <span className={`text-[9px] font-bold font-mono whitespace-nowrap ${isCompleted ? 'text-emerald-600' : isOrderEntry ? 'theme-text-secondary' : 'theme-text-muted'}`}>
+                              <span className={`text-xs md:text-sm font-bold font-mono whitespace-nowrap ${isCompleted ? 'text-emerald-600' : isOrderEntry ? 'theme-text-secondary' : 'theme-text-muted'}`}>
                                 {displayTime}
                               </span>
                             </div>
@@ -1118,7 +1118,7 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
               </div>
 
               <div className="p-4 md:p-8 theme-bg border-t theme-border flex justify-between items-center">
-                <div className="flex items-center space-x-4 text-[9px] md:text-[10px] theme-text-muted font-black uppercase tracking-widest">
+                <div className="flex items-center space-x-4 text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest">
                   <span>Created: {new Date(selectedOrder.createdAt).toLocaleDateString()}</span>
                   <span className="w-1.5 h-1.5 bg-gray-700 rounded-full"></span>
                   <span>Stage: {selectedOrder.currentStage}</span>

@@ -191,7 +191,7 @@ const DispatchDashboard = () => {
           const Icon = tab.icon;
           return (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 flex flex-col items-center gap-1 py-3 px-4 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+              className={`flex-1 flex flex-col items-center gap-1 py-3 px-4 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all ${
                 activeTab === tab.id
                   ? 'bg-purple-600 text-white shadow-lg'
                   : 'theme-text-muted hover:text-gray-300'
@@ -214,7 +214,7 @@ const DispatchDashboard = () => {
             <div className="flex flex-wrap gap-1">
               {(isOutlet ? ['ALL', 'PENDING', 'COURIER_REQUIRED', 'BOOKED', 'DISPATCHED'] : ['ALL', 'COURIER_REQUIRED', 'READY_FOR_DISPATCH', 'BOOKED', 'DISPATCHED', 'IN_TRANSIT']).map(f => (
                 <button key={f} onClick={() => setFilter(f)}
-                  className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${filter === f ? (isOutlet ? 'bg-blue-600 text-white' : 'bg-purple-600 text-white') : 'theme-bg theme-text-muted hover:text-gray-300 border theme-border'}`}>
+                  className={`px-3 py-1.5 rounded-lg text-xs md:text-sm font-black uppercase tracking-widest transition-all ${filter === f ? (isOutlet ? 'bg-blue-600 text-white' : 'bg-purple-600 text-white') : 'theme-bg theme-text-muted hover:text-gray-300 border theme-border'}`}>
                   {f.replace(/_/g, ' ')}
                 </button>
               ))}
@@ -237,13 +237,13 @@ const DispatchDashboard = () => {
                     <div className="flex flex-col md:flex-row md:items-center gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${badge.bg} ${badge.text}`}>{badge.label}</span>
-                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${order.source === 'ONLINE ORDER' || order.source === 'INTERNAL' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'}`}>
+                          <span className={`text-xs md:text-sm font-black px-2 py-0.5 rounded-full ${badge.bg} ${badge.text}`}>{badge.label}</span>
+                          <span className={`text-xs md:text-sm font-black px-2 py-0.5 rounded-full ${order.source === 'ONLINE ORDER' || order.source === 'INTERNAL' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'}`}>
                             {order.source === 'ONLINE ORDER' || order.source === 'INTERNAL' ? 'ONLINE' : order.source}
                           </span>
-                          {order.outletName && <span className="text-[9px] font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{order.outletName}</span>}
+                          {order.outletName && <span className="text-xs md:text-sm font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{order.outletName}</span>}
                           {order.deliveryType && (
-                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
+                            <span className={`text-xs md:text-sm font-black px-2 py-0.5 rounded-full ${
                               order.deliveryType === 'COURIER' ? 'bg-purple-500/10 text-purple-400' :
                               order.deliveryType === 'PICKUP' ? 'bg-amber-500/10 text-amber-400' :
                               'bg-emerald-500/10 text-emerald-400'
@@ -251,7 +251,7 @@ const DispatchDashboard = () => {
                           )}
                         </div>
                         <h3 className="font-black text-xl theme-text-primary truncate">#{order.orderNumber || order.id.substring(0, 8)} — {order.customerName}</h3>
-                        <div className="flex flex-wrap items-center gap-3 mt-2 text-[9px] md:text-[11px] theme-text-secondary font-bold">
+                        <div className="flex flex-wrap items-center gap-3 mt-2 text-xs md:text-sm theme-text-secondary font-bold">
                           <span className="flex items-center gap-1"><Phone size={12} />{order.customerPhone || 'N/A'}</span>
                           {order.address && <span className="flex items-center gap-1 text-blue-400 font-black max-w-[300px] truncate" title={order.address}><MapPin size={12} />{order.address}</span>}
                           <span className="flex items-center gap-1"><Package size={12} />{order.deliveryMethod || 'Not set'}</span>
@@ -260,7 +260,7 @@ const DispatchDashboard = () => {
                         {order.trackingNumber && (
                           <div className="mt-2 inline-flex items-center gap-2 bg-blue-500/10 px-3 py-1.5 rounded-xl border border-blue-500/20">
                             <ExternalLink size={12} className="text-blue-400" />
-                            <span className="text-[9px] md:text-[11px] font-black text-blue-400">Tracking: {order.trackingNumber}</span>
+                            <span className="text-xs md:text-sm font-black text-blue-400">Tracking: {order.trackingNumber}</span>
                           </div>
                         )}
                       </div>
@@ -270,11 +270,11 @@ const DispatchDashboard = () => {
                           {isOutlet ? (
                             !order.dispatchStatus || order.dispatchStatus === 'PENDING' ? (
                               <button onClick={() => setRequestModal(order)}
-                                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5">
+                                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex items-center gap-1.5">
                                 <Send size={14} /> Request Courier
                               </button>
                             ) : (
-                              <span className={`px-4 py-2.5 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-wider ${
+                              <span className={`px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider ${
                                 order.dispatchStatus === 'COURIER_REQUIRED' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
                                 order.dispatchStatus === 'BOOKED' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
                                 order.dispatchStatus === 'DISPATCHED' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' :
@@ -287,25 +287,25 @@ const DispatchDashboard = () => {
                               {(!order.dispatchStatus || order.dispatchStatus === 'PENDING' || order.dispatchStatus === 'COURIER_REQUIRED') ? (
                                 <button onClick={() => setBookModal(order)}
                                   disabled={statusLoading === order.id}
-                                  className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50">
+                                  className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50">
                                   {statusLoading === order.id ? <LoadingSpinner size={12} /> : <><Truck size={14} /> Book Courier</>}
                                 </button>
                               ) : order.dispatchStatus === 'BOOKED' ? (
                                 <button onClick={() => handleUpdateStatus(order.id, 'DISPATCHED')}
                                   disabled={statusLoading === order.id}
-                                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all disabled:opacity-50">
+                                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all disabled:opacity-50">
                                   {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Mark Dispatched'}
                                 </button>
                               ) : order.dispatchStatus === 'DISPATCHED' ? (
                                 <button onClick={() => handleUpdateStatus(order.id, 'IN_TRANSIT')}
                                   disabled={statusLoading === order.id}
-                                  className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all disabled:opacity-50">
+                                  className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all disabled:opacity-50">
                                   {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Mark In Transit'}
                                 </button>
                               ) : order.dispatchStatus === 'IN_TRANSIT' ? (
                                 <button onClick={() => handleUpdateStatus(order.id, 'DELIVERED')}
                                   disabled={statusLoading === order.id}
-                                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all disabled:opacity-50">
+                                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all disabled:opacity-50">
                                   {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Mark Delivered'}
                                 </button>
                               ) : null}
@@ -313,7 +313,7 @@ const DispatchDashboard = () => {
                           )}
                         </div>
                         {order.courierDetails?.courierName && (
-                          <div className="flex gap-3 text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-wider">
+                          <div className="flex gap-3 text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">
                             <span>{order.courierDetails.courierName}</span>
                             <span className={`px-2 py-0.5 rounded-full ${
                               order.dispatchStatus === 'DELIVERED' ? 'bg-emerald-500/10 text-emerald-400' :
@@ -352,13 +352,13 @@ const DispatchDashboard = () => {
                     <div className="flex flex-col md:flex-row md:items-center gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${badge.bg} ${badge.text}`}>{badge.label}</span>
-                          <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">PICKUP</span>
-                          {order.outletName && <span className="text-[9px] font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{order.outletName}</span>}
-                          {isPickedUp && <span className="text-[9px] font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">PICKED UP</span>}
+                          <span className={`text-xs md:text-sm font-black px-2 py-0.5 rounded-full ${badge.bg} ${badge.text}`}>{badge.label}</span>
+                          <span className="text-xs md:text-sm font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">PICKUP</span>
+                          {order.outletName && <span className="text-xs md:text-sm font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{order.outletName}</span>}
+                          {isPickedUp && <span className="text-xs md:text-sm font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">PICKED UP</span>}
                         </div>
                         <h3 className="font-black text-xl theme-text-primary truncate">#{order.orderNumber || order.id.substring(0, 8)} — {order.customerName}</h3>
-                        <div className="flex flex-wrap items-center gap-3 mt-2 text-[9px] md:text-[11px] theme-text-secondary font-bold">
+                        <div className="flex flex-wrap items-center gap-3 mt-2 text-xs md:text-sm theme-text-secondary font-bold">
                           <span className="flex items-center gap-1"><Phone size={12} />{order.customerPhone || 'N/A'}</span>
                           {order.address && <span className="flex items-center gap-1 text-blue-400 font-black max-w-[350px]" title={order.address}><MapPin size={14} />{order.address}</span>}
                           {order.city && <span className="flex items-center gap-1"><Clock size={12} />{order.city}</span>}
@@ -372,12 +372,12 @@ const DispatchDashboard = () => {
                             }
                           }}
                             disabled={statusLoading === order.id}
-                            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50">
+                            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50">
                             {statusLoading === order.id ? <LoadingSpinner size={12} /> : <><CheckCircle2 size={14} /> Mark Picked Up</>}
                           </button>
                         )}
                         {isPickedUp && (
-                          <span className="px-4 py-2.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-wider">
+                          <span className="px-4 py-2.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider">
                             ✓ Picked Up
                           </span>
                         )}
@@ -406,22 +406,22 @@ const DispatchDashboard = () => {
               className="glass max-w-md w-full p-4 md:p-8 rounded-[2rem] border-2 theme-border shadow-2xl">
               <h2 className="text-2xl font-black theme-text-primary mb-2">Request Courier</h2>
               <p className="theme-text-secondary text-xs font-bold mb-2">Order #{requestModal?.orderNumber || requestModal?.id?.substring(0, 8)} — {requestModal?.customerName}</p>
-              <p className="theme-text-muted text-[9px] md:text-[10px] font-bold mb-6">This request will be sent to the Central Dispatch Department for processing.</p>
+              <p className="theme-text-muted text-xs md:text-sm font-bold mb-6">This request will be sent to the Central Dispatch Department for processing.</p>
               <div className="space-y-4">
                 <div>
-                  <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest mb-2 block">Delivery Method *</label>
+                  <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest mb-2 block">Delivery Method *</label>
                   <input type="text" value={deliveryMethod} onChange={(e) => setDeliveryMethod(e.target.value)}
                     className="w-full theme-input rounded-xl py-3 px-4 focus:border-blue-500 outline-none font-black"
                     placeholder="e.g. TCS, Leopards, Own Delivery..." />
                 </div>
                 <div>
-                  <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest mb-2 block">Destination City</label>
+                  <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest mb-2 block">Destination City</label>
                   <input type="text" value={destinationCity} onChange={(e) => setDestinationCity(e.target.value)}
                     className="w-full theme-input rounded-xl py-3 px-4 focus:border-blue-500 outline-none font-black"
                     placeholder="City name..." />
                 </div>
                 <div>
-                  <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest mb-2 block">Notes (optional)</label>
+                  <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest mb-2 block">Notes (optional)</label>
                   <textarea value={notes} onChange={(e) => setNotes(e.target.value)}
                     className="w-full theme-input rounded-xl py-3 px-4 focus:border-blue-500 outline-none font-black resize-none"
                     rows={3} placeholder="Any special instructions..." />
@@ -448,24 +448,24 @@ const DispatchDashboard = () => {
               <p className="theme-text-secondary text-xs font-bold mb-6">Order #{bookModal?.orderNumber || bookModal?.id?.substring(0, 8)} — {bookModal?.customerName}</p>
               <div className="space-y-4">
                 <div>
-                  <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest mb-2 block">Courier Service</label>
+                  <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest mb-2 block">Courier Service</label>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                     {COURIER_OPTIONS.map(c => (
                       <button key={c} onClick={() => setCourierName(c)}
-                        className={`py-3 px-2 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all border-2 ${
+                        className={`py-3 px-2 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all border-2 ${
                           courierName === c ? 'border-purple-500 bg-purple-600 text-white' : 'theme-border theme-bg theme-text-muted'
                         }`}>{c}</button>
                     ))}
                   </div>
                 </div>
                 <div>
-                  <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest mb-2 block">Tracking Number</label>
+                  <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest mb-2 block">Tracking Number</label>
                   <input type="text" value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)}
                     className="w-full theme-input rounded-xl py-3 px-4 focus:border-purple-500 outline-none font-black"
                     placeholder="Enter tracking number..." />
                 </div>
                 <div>
-                  <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest mb-2 block">Estimated Delivery Date (optional)</label>
+                  <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest mb-2 block">Estimated Delivery Date (optional)</label>
                   <input type="date" value={estimatedDelivery} onChange={(e) => setEstimatedDelivery(e.target.value)}
                     className="w-full theme-input rounded-xl py-3 px-4 focus:border-purple-500 outline-none font-black" />
                 </div>

@@ -212,7 +212,7 @@ const EditRequestDashboard = () => {
           </div>
           <div>
             <h1 className="text-xl md:text-2xl font-black theme-text-primary uppercase tracking-tight">Edit Requests</h1>
-            <p className="theme-text-muted text-[9px] md:text-[10px] font-black uppercase tracking-widest mt-0.5">
+            <p className="theme-text-muted text-xs md:text-sm font-black uppercase tracking-widest mt-0.5">
               {stats.total} total request{stats.total !== 1 ? 's' : ''} — {stats.byStatus?.PENDING || 0} pending
             </p>
           </div>
@@ -240,7 +240,7 @@ const EditRequestDashboard = () => {
               <div className={`p-1.5 rounded-lg ${stat.bg}`}>
                 <stat.icon size={14} className={stat.color} />
               </div>
-              <p className="text-[8px] font-bold theme-text-muted uppercase tracking-wider">{stat.label}</p>
+              <p className="text-xs font-bold theme-text-muted uppercase tracking-wider">{stat.label}</p>
             </div>
             <p className={`text-xl font-black ${stat.color}`}>{stat.value}</p>
           </div>
@@ -253,7 +253,7 @@ const EditRequestDashboard = () => {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-xl font-black text-[9px] uppercase tracking-wider transition-all whitespace-nowrap ${
+            className={`px-4 py-2 rounded-xl font-black text-xs md:text-sm uppercase tracking-wider transition-all whitespace-nowrap ${
               activeTab === tab
                 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-lg shadow-amber-900/20'
                 : 'bg-gray-900/50 text-gray-500 border border-gray-800 hover:border-gray-600'
@@ -261,7 +261,7 @@ const EditRequestDashboard = () => {
           >
             {tab === 'ALL' ? 'All' : tab.charAt(0) + tab.slice(1).toLowerCase()}
             {tab !== 'ALL' && (
-              <span className="ml-1.5 text-[8px] opacity-60">
+              <span className="ml-1.5 text-xs opacity-60">
                 ({tab === 'PENDING' ? (stats.byStatus?.PENDING || 0) : tab === 'APPROVED' ? (stats.byStatus?.APPROVED || 0) : (stats.byStatus?.REJECTED || 0)})
               </span>
             )}
@@ -319,14 +319,14 @@ const EditRequestDashboard = () => {
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-black theme-text-primary truncate">#{order.orderNumber || order.id?.substring(0, 8) || 'N/A'}</p>
-                        <p className="text-[8px] theme-text-muted font-bold truncate">{order.customerName || 'Unknown'}</p>
+                        <p className="text-xs theme-text-muted font-bold truncate">{order.customerName || 'Unknown'}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider ${statusBadge.cls}`}>
+                      <span className={`px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider ${statusBadge.cls}`}>
                         {statusBadge.label}
                       </span>
-                      <span className={`text-[8px] font-bold px-2 py-1 rounded-lg ${
+                      <span className={`text-xs font-bold px-2 py-1 rounded-lg ${
                         order.currentStage && currentStageIdx >= STAGE_ORDER.indexOf('PRODUCTION')
                           ? 'bg-sky-500/15 text-sky-400' : 'bg-gray-800 text-gray-500'
                       }`}>
@@ -337,7 +337,7 @@ const EditRequestDashboard = () => {
                       </motion.div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 text-[8px] font-bold theme-text-muted">
+                  <div className="flex items-center gap-3 text-xs font-bold theme-text-muted">
                     <span className="flex items-center gap-1">
                       <Clock size={10} />
                       {new Date(req.requestedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -365,7 +365,7 @@ const EditRequestDashboard = () => {
                       <div className="px-4 md:px-5 pb-5 border-t theme-border pt-4 space-y-4">
                         {/* Order Lifecycle Timeline */}
                         <div className="theme-bg rounded-xl p-3 border theme-border">
-                          <p className="text-[8px] font-black theme-text-muted uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                          <p className="text-xs font-black theme-text-muted uppercase tracking-wider mb-3 flex items-center gap-1.5">
                             <Activity size={10} /> Order Lifecycle
                           </p>
                           <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar pb-1">
@@ -410,11 +410,11 @@ const EditRequestDashboard = () => {
 
                         {/* Current Department / Holder */}
                         <div className="theme-bg rounded-xl p-3 border theme-border">
-                          <p className="text-[8px] font-black theme-text-muted uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                          <p className="text-xs font-black theme-text-muted uppercase tracking-wider mb-2 flex items-center gap-1.5">
                             <Activity size={10} /> Current Department / Holder
                           </p>
                           <div className="flex flex-wrap items-center gap-2">
-                            <div className={`px-2.5 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-wider border ${
+                            <div className={`px-2.5 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider border ${
                               order.currentStage && currentStageIdx >= STAGE_ORDER.indexOf('PRODUCTION')
                                 ? 'bg-sky-500/15 text-sky-400 border-sky-500/30'
                                 : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
@@ -425,14 +425,14 @@ const EditRequestDashboard = () => {
                               const prodIdx = STAGE_ORDER.indexOf('PRODUCTION');
                               const prodCompleted = order.stages?.some(s => s.stageName === 'PRODUCTION' && s.status === 'COMPLETED');
                               const prodCurrent = order.currentStage === 'PRODUCTION';
-                              if (prodCurrent) return <span className="text-[8px] font-bold px-2 py-1 bg-amber-500/15 text-amber-400 rounded-lg border border-amber-500/30">&#9881; In Production</span>;
-                              if (prodCompleted) return <span className="text-[8px] font-bold px-2 py-1 bg-emerald-500/15 text-emerald-400 rounded-lg border border-emerald-500/30">&#10003; Production Complete</span>;
-                              if (currentStageIdx >= 0 && currentStageIdx < prodIdx) return <span className="text-[8px] font-bold px-2 py-1 bg-gray-800 text-gray-500 rounded-lg border border-gray-700">&#9203; Pre-Production</span>;
-                              if (currentStageIdx > prodIdx) return <span className="text-[8px] font-bold px-2 py-1 bg-emerald-500/15 text-emerald-400 rounded-lg border border-emerald-500/30">&#10003; Past Production</span>;
+                              if (prodCurrent) return <span className="text-xs font-bold px-2 py-1 bg-amber-500/15 text-amber-400 rounded-lg border border-amber-500/30">&#9881; In Production</span>;
+                              if (prodCompleted) return <span className="text-xs font-bold px-2 py-1 bg-emerald-500/15 text-emerald-400 rounded-lg border border-emerald-500/30">&#10003; Production Complete</span>;
+                              if (currentStageIdx >= 0 && currentStageIdx < prodIdx) return <span className="text-xs font-bold px-2 py-1 bg-gray-800 text-gray-500 rounded-lg border border-gray-700">&#9203; Pre-Production</span>;
+                              if (currentStageIdx > prodIdx) return <span className="text-xs font-bold px-2 py-1 bg-emerald-500/15 text-emerald-400 rounded-lg border border-emerald-500/30">&#10003; Past Production</span>;
                               return null;
                             })()}
                           </div>
-                          <div className="flex flex-wrap items-center gap-3 mt-2 text-[8px] font-bold theme-text-muted">
+                          <div className="flex flex-wrap items-center gap-3 mt-2 text-xs font-bold theme-text-muted">
                             <span>Order Source: <span className="theme-text-primary uppercase">{order.source || order.outletName || 'N/A'}</span></span>
                             <span className="text-gray-700">|</span>
                             <span>Created: <span className="theme-text-primary">{new Date(order.createdAt).toLocaleDateString()}</span></span>
@@ -457,11 +457,11 @@ const EditRequestDashboard = () => {
                           if (changedFields.length === 0) return null;
                           return (
                             <div className="theme-bg rounded-xl p-3 border border-blue-500/20">
-                              <p className="text-[8px] font-black text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                              <p className="text-xs font-black text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                                 <Users size={10} /> Customer Info Changes
                               </p>
                               <div className="overflow-x-auto">
-                                <table className="w-full text-[9px]">
+                                <table className="w-full text-xs md:text-sm">
                                   <thead>
                                     <tr className="border-b border-blue-500/20">
                                       <th className="text-left py-1.5 pr-2 font-black text-gray-500 uppercase tracking-wider">Field</th>
@@ -486,7 +486,7 @@ const EditRequestDashboard = () => {
 
                         {/* Old vs New — Full Comparison Table */}
                         <div className="theme-bg rounded-xl p-3 border border-amber-500/20">
-                          <p className="text-[8px] font-black text-amber-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                          <p className="text-xs font-black text-amber-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                             <RefreshCw size={10} /> Items Comparison — Old vs New
                           </p>
                           {(() => {
@@ -498,10 +498,10 @@ const EditRequestDashboard = () => {
                               const nw = newItems[i] || null;
                               merged.push({ old, nw, idx: i + 1 });
                             }
-                            if (merged.length === 0) return <p className="text-[8px] theme-text-muted italic">No items</p>;
+                            if (merged.length === 0) return <p className="text-xs theme-text-muted italic">No items</p>;
                             return (
                               <div className="overflow-x-auto custom-scrollbar">
-                                <table className="w-full text-[8px] md:text-[9px]">
+                                <table className="w-full text-xs md:text-sm">
                                   <thead>
                                     <tr className="border-b border-amber-500/20">
                                       <th className="text-left py-1.5 pr-1 font-black text-gray-500 uppercase tracking-wider">#</th>
@@ -534,7 +534,7 @@ const EditRequestDashboard = () => {
                                           <tr key={`${idx}-${ri}`} className={`border-b border-amber-500/5 ${ri === 0 ? 'border-t border-amber-500/10' : ''}`}>
                                             {ri === 0 && (
                                               <td rowSpan={rows.length} className="py-1.5 pr-1 align-top pt-2">
-                                                <span className="text-[9px] font-black text-amber-400">{idx}.</span>
+                                                <span className="text-xs md:text-sm font-black text-amber-400">{idx}.</span>
                                               </td>
                                             )}
                                             <td className={`py-1 px-1 font-bold ${isChanged ? 'text-amber-400' : 'text-gray-500'}`}>
@@ -565,15 +565,15 @@ const EditRequestDashboard = () => {
                             return (
                               <div className="mt-3 pt-3 border-t border-amber-500/20 grid grid-cols-3 gap-3">
                                 <div className="text-center">
-                                  <p className="text-[7px] font-black text-red-400 uppercase tracking-wider">Current Total</p>
+                                  <p className="text-[9px] font-black text-red-400 uppercase tracking-wider">Current Total</p>
                                   <p className="text-sm font-black theme-text-primary">₨{oldTotal.toLocaleString()}</p>
                                 </div>
                                 <div className="text-center">
-                                  <p className="text-[7px] font-black text-emerald-400 uppercase tracking-wider">Requested Total</p>
+                                  <p className="text-[9px] font-black text-emerald-400 uppercase tracking-wider">Requested Total</p>
                                   <p className="text-sm font-black theme-text-primary">₨{newTotal.toLocaleString()}</p>
                                 </div>
                                 <div className="text-center">
-                                  <p className="text-[7px] font-black text-amber-400 uppercase tracking-wider">Difference</p>
+                                  <p className="text-[9px] font-black text-amber-400 uppercase tracking-wider">Difference</p>
                                   <p className={`text-sm font-black ${diff > 0 ? 'text-red-400' : diff < 0 ? 'text-emerald-400' : 'text-gray-500'}`}>
                                     {diff > 0 ? '+' : ''}{diff === 0 ? '₨0' : `₨${diff.toLocaleString()}`}
                                   </p>
@@ -585,7 +585,7 @@ const EditRequestDashboard = () => {
 
                         {/* Inventory Impact Analysis Table */}
                         <div className="bg-amber-500/5 border border-amber-500/15 rounded-xl p-3">
-                          <p className="text-[8px] font-black text-amber-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                          <p className="text-xs font-black text-amber-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                             <RefreshCw size={10} /> Inventory Impact Analysis
                           </p>
                           {(() => {
@@ -603,10 +603,10 @@ const EditRequestDashboard = () => {
                             });
                             const merged = Object.values(itemMap);
                             return merged.length === 0 ? (
-                              <p className="text-[8px] theme-text-muted italic">No items to compare</p>
+                              <p className="text-xs theme-text-muted italic">No items to compare</p>
                             ) : (
                               <div className="overflow-x-auto custom-scrollbar">
-                                <table className="w-full text-[9px]">
+                                <table className="w-full text-xs md:text-sm">
                                   <thead>
                                     <tr className="border-b border-amber-500/20">
                                       <th className="text-left py-1.5 pr-2 font-black theme-text-muted uppercase tracking-wider">Product</th>
@@ -629,7 +629,7 @@ const EditRequestDashboard = () => {
                                           <td className="py-1.5 pr-2">
                                             <span className="font-bold theme-text-primary">{item.name}</span>
                                             {(item.color || item.size) && (
-                                              <span className="text-theme-muted ml-1 text-[8px]">
+                                              <span className="text-theme-muted ml-1 text-xs">
                                                 ({[item.color, item.size].filter(Boolean).join('/')})
                                               </span>
                                             )}
@@ -642,7 +642,7 @@ const EditRequestDashboard = () => {
                                             </span>
                                           </td>
                                           <td className="text-right py-1.5 pl-2">
-                                            <span className={`font-bold text-[8px] ${stockChange.cls}`}>
+                                            <span className={`font-bold text-xs ${stockChange.cls}`}>
                                               {stockChange.text}
                                             </span>
                                           </td>
@@ -658,13 +658,13 @@ const EditRequestDashboard = () => {
 
                         {/* Inventory Availability */}
                         <div className="bg-indigo-500/5 border border-indigo-500/15 rounded-xl p-3">
-                          <p className="text-[8px] font-black text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                          <p className="text-xs font-black text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                             <Package size={10} /> Inventory Availability
                           </p>
                           {inventoryLoading ? (
                             <div className="flex items-center gap-2 py-2">
                               <Loader2 className="animate-spin text-indigo-400" size={12} />
-                              <span className="text-[8px] font-bold theme-text-muted">Checking inventory...</span>
+                              <span className="text-xs font-bold theme-text-muted">Checking inventory...</span>
                             </div>
                           ) : (
                             <div className="space-y-2">
@@ -719,16 +719,16 @@ const EditRequestDashboard = () => {
                                 return (
                                   <div key={i} className="theme-bg rounded-xl p-3 border theme-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm hover:border-indigo-500/20 transition-all duration-300">
                                     <div>
-                                      <p className="text-[10px] font-black theme-text-primary uppercase tracking-wider">{p.name}</p>
+                                      <p className="text-xs font-black theme-text-primary uppercase tracking-wider">{p.name}</p>
                                       {(p.color || p.size) && (
-                                        <p className="text-[8px] font-bold theme-text-muted mt-0.5">
+                                        <p className="text-xs font-bold theme-text-muted mt-0.5">
                                           Variant: <span className="theme-text-secondary">{[p.color, p.size].filter(Boolean).join(' / ')}</span>
                                         </p>
                                       )}
-                                      <p className="text-[8px] font-bold theme-text-muted">Requested Qty: <span className="theme-text-secondary">{p.qty}</span></p>
+                                      <p className="text-xs font-bold theme-text-muted">Requested Qty: <span className="theme-text-secondary">{p.qty}</span></p>
                                     </div>
                                     <div className="flex items-center shrink-0">
-                                      <span className={`px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-wider ${badgeClass}`}>
+                                      <span className={`px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-wider ${badgeClass}`}>
                                         {badgeText}
                                       </span>
                                     </div>
@@ -742,13 +742,13 @@ const EditRequestDashboard = () => {
                         {/* Reason */}
                         {req.reason && (
                           <div className="theme-bg rounded-xl p-3 border theme-border">
-                            <p className="text-[8px] font-black theme-text-muted uppercase tracking-wider mb-1">Reason</p>
-                            <p className="text-[9px] font-medium italic theme-text-secondary">"{req.reason}"</p>
+                            <p className="text-xs font-black theme-text-muted uppercase tracking-wider mb-1">Reason</p>
+                            <p className="text-xs md:text-sm font-medium italic theme-text-secondary">"{req.reason}"</p>
                           </div>
                         )}
 
                         {/* Request Info */}
-                        <div className="flex flex-wrap items-center justify-between gap-2 text-[8px] font-bold theme-text-muted">
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-bold theme-text-muted">
                           <div className="flex items-center gap-3">
                             <span>Requested by: {req.requestedBy?.name || 'Unknown'} ({req.requestedBy?.role || '?'})</span>
                             {req.reviewedBy && (
@@ -761,10 +761,10 @@ const EditRequestDashboard = () => {
                         {/* Review Details for non-pending */}
                         {req.status !== 'PENDING' && req.adminRemarks && (
                           <div className="theme-bg rounded-xl p-3 border theme-border">
-                            <p className="text-[8px] font-black theme-text-muted uppercase tracking-wider mb-1">Admin Remarks</p>
-                            <p className="text-[9px] font-medium italic theme-text-secondary">"{req.adminRemarks}"</p>
+                            <p className="text-xs font-black theme-text-muted uppercase tracking-wider mb-1">Admin Remarks</p>
+                            <p className="text-xs md:text-sm font-medium italic theme-text-secondary">"{req.adminRemarks}"</p>
                             {req.reviewedAt && (
-                              <p className="text-[7px] font-bold theme-text-muted mt-1">Reviewed {new Date(req.reviewedAt).toLocaleString()}</p>
+                              <p className="text-[9px] font-bold theme-text-muted mt-1">Reviewed {new Date(req.reviewedAt).toLocaleString()}</p>
                             )}
                           </div>
                         )}
@@ -774,13 +774,13 @@ const EditRequestDashboard = () => {
                           <div className="flex gap-3 pt-2">
                             <button
                               onClick={() => { setReviewData(req); setReviewAction('approve'); setReviewRemarks(''); setShowReviewModal(true); }}
-                              className="flex-1 py-3.5 bg-emerald-600 text-white rounded-xl font-black text-[9px] uppercase tracking-wider hover:bg-emerald-500 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30"
+                              className="flex-1 py-3.5 bg-emerald-600 text-white rounded-xl font-black text-xs md:text-sm uppercase tracking-wider hover:bg-emerald-500 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30"
                             >
                               <ThumbsUp size={13} /> Approve
                             </button>
                             <button
                               onClick={() => { setReviewData(req); setReviewAction('reject'); setReviewRemarks(''); setShowReviewModal(true); }}
-                              className="flex-1 py-3.5 bg-red-600 text-white rounded-xl font-black text-[9px] uppercase tracking-wider hover:bg-red-500 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-red-900/30"
+                              className="flex-1 py-3.5 bg-red-600 text-white rounded-xl font-black text-xs md:text-sm uppercase tracking-wider hover:bg-red-500 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-red-900/30"
                             >
                               <ThumbsDown size={13} /> Reject
                             </button>
@@ -820,14 +820,14 @@ const EditRequestDashboard = () => {
                 <div className="space-y-3 mb-4">
                   <div className="theme-bg rounded-xl p-4 border theme-border">
                     <p className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-2">⚠ Inventory will auto-adjust</p>
-                    <p className="text-[9px] font-medium theme-text-muted">The system will automatically restore stock for removed products and deduct stock for new products.</p>
+                    <p className="text-xs md:text-sm font-medium theme-text-muted">The system will automatically restore stock for removed products and deduct stock for new products.</p>
                   </div>
                 </div>
               )}
 
               <div className="space-y-4">
                 <div>
-                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Admin Remarks (Optional)</label>
+                  <label className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">Admin Remarks (Optional)</label>
                   <textarea
                     value={reviewRemarks}
                     onChange={(e) => setReviewRemarks(e.target.value)}

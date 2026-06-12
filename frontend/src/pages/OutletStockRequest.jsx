@@ -168,14 +168,14 @@ const OutletStockRequest = () => {
             activeTab === 'request' ? 'bg-blue-600 text-white shadow-lg' : 'theme-text-muted hover:text-white hover:bg-gray-800'
           }`}>
           <ShoppingCart size={14} />
-          <span>Request Stock {cartTotal > 0 && <span className="ml-1 bg-blue-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{cartTotal}</span>}</span>
+          <span>Request Stock {cartTotal > 0 && <span className="ml-1 bg-blue-500 text-white text-xs md:text-sm px-1.5 py-0.5 rounded-full">{cartTotal}</span>}</span>
         </button>
         <button onClick={() => setActiveTab('status')}
           className={`px-6 py-3 text-xs font-black rounded-xl transition-all whitespace-nowrap uppercase tracking-wider flex items-center space-x-2 ${
             activeTab === 'status' ? 'bg-blue-600 text-white shadow-lg' : 'theme-text-muted hover:text-white hover:bg-gray-800'
           }`}>
           <ClipboardList size={14} />
-          <span>Request Status {statusCounts.pending > 0 && <span className="ml-1 bg-yellow-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{statusCounts.pending}</span>}</span>
+          <span>Request Status {statusCounts.pending > 0 && <span className="ml-1 bg-yellow-500 text-white text-xs md:text-sm px-1.5 py-0.5 rounded-full">{statusCounts.pending}</span>}</span>
         </button>
       </div>
 
@@ -199,12 +199,12 @@ const OutletStockRequest = () => {
                 {/* Category Filter */}
                 <div className="flex flex-wrap gap-2">
                   <button onClick={() => setSearchTerm('')}
-                    className={`px-3 py-1.5 text-[9px] font-black uppercase tracking-wider rounded-xl border transition-all ${
+                    className={`px-3 py-1.5 text-xs md:text-sm font-black uppercase tracking-wider rounded-xl border transition-all ${
                       !searchTerm ? 'bg-blue-600 text-white border-blue-500' : 'theme-bg theme-text-muted theme-border hover:text-white'
                     }`}>All</button>
                   {categories.map(cat => (
                     <button key={cat} onClick={() => setSearchTerm(cat)}
-                      className={`px-3 py-1.5 text-[9px] font-black uppercase tracking-wider rounded-xl border transition-all ${
+                      className={`px-3 py-1.5 text-xs md:text-sm font-black uppercase tracking-wider rounded-xl border transition-all ${
                         searchTerm === cat ? 'bg-blue-600 text-white border-blue-500' : 'theme-bg theme-text-muted theme-border hover:text-white'
                       }`}>{cat}</button>
                   ))}
@@ -219,10 +219,10 @@ const OutletStockRequest = () => {
                         <div className="flex justify-between items-start mb-3">
                           <div>
                             <h3 className="font-black theme-text-primary text-sm">{item.name}</h3>
-                            <p className="text-[9px] md:text-[10px] font-bold theme-text-muted uppercase tracking-wider">{item.category}</p>
+                            <p className="text-xs md:text-sm font-bold theme-text-muted uppercase tracking-wider">{item.category}</p>
                           </div>
                           {item.stock !== undefined && (
-                            <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${
+                            <div className={`px-3 py-1 rounded-full text-xs md:text-sm font-black uppercase border ${
                               item.stock <= 10 ? 'border-red-500/20 bg-red-500/5 text-red-500' : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-500'
                             }`}>
                               {item.stock} left
@@ -265,7 +265,7 @@ const OutletStockRequest = () => {
                     <span>Cart</span>
                   </h2>
                   {cartItems.length > 0 && (
-                    <button onClick={clearCart} className="text-[9px] font-black text-red-400 hover:text-red-300 uppercase tracking-wider">Clear</button>
+                    <button onClick={clearCart} className="text-xs md:text-sm font-black text-red-400 hover:text-red-300 uppercase tracking-wider">Clear</button>
                   )}
                 </div>
 
@@ -273,7 +273,7 @@ const OutletStockRequest = () => {
                   <div className="text-center py-10">
                     <Package size={40} className="mx-auto text-gray-700 mb-3" />
                     <p className="theme-text-muted font-black text-xs uppercase tracking-widest">Cart is empty</p>
-                    <p className="text-[9px] md:text-[10px] theme-text-muted font-bold mt-1">Add items to request stock</p>
+                    <p className="text-xs md:text-sm theme-text-muted font-bold mt-1">Add items to request stock</p>
                   </div>
                 ) : (
                   <div className="space-y-3 mb-6">
@@ -281,7 +281,7 @@ const OutletStockRequest = () => {
                       <div key={item.id} className="flex items-center justify-between p-3 theme-bg-subtle rounded-xl border theme-border">
                         <div className="flex-1">
                           <p className="font-bold theme-text-primary text-xs">{item.name}</p>
-                          <p className="text-[9px] theme-text-muted font-bold uppercase">{item.category}</p>
+                          <p className="text-xs md:text-sm theme-text-muted font-bold uppercase">{item.category}</p>
                         </div>
                         <div className="flex items-center space-x-2">
                           <button onClick={() => removeFromCart(item.id)} className="p-1.5 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition-all">
@@ -325,19 +325,19 @@ const OutletStockRequest = () => {
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="glass p-4 rounded-2xl border-2 theme-border">
                   <p className="text-2xl font-black text-yellow-400">{statusCounts.pending}</p>
-                  <p className="text-[9px] font-black theme-text-muted uppercase tracking-widest">Pending</p>
+                  <p className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Pending</p>
                 </div>
                 <div className="glass p-4 rounded-2xl border-2 theme-border">
                   <p className="text-2xl font-black text-emerald-400">{statusCounts.approved}</p>
-                  <p className="text-[9px] font-black theme-text-muted uppercase tracking-widest">Approved</p>
+                  <p className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Approved</p>
                 </div>
                 <div className="glass p-4 rounded-2xl border-2 theme-border">
                   <p className="text-2xl font-black text-red-400">{statusCounts.rejected}</p>
-                  <p className="text-[9px] font-black theme-text-muted uppercase tracking-widest">Rejected</p>
+                  <p className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Rejected</p>
                 </div>
                 <div className="glass p-4 rounded-2xl border-2 theme-border">
                   <p className="text-2xl font-black text-purple-400">{statusCounts.completed}</p>
-                  <p className="text-[9px] font-black theme-text-muted uppercase tracking-widest">Completed</p>
+                  <p className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Completed</p>
                 </div>
               </div>
 
@@ -347,7 +347,7 @@ const OutletStockRequest = () => {
                   <div className="text-center py-16">
                     <ClipboardList size={48} className="mx-auto text-gray-700 mb-4" />
                     <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No requests yet</p>
-                    <p className="text-[9px] md:text-[10px] theme-text-muted font-bold mt-1">Go to Request Stock tab to place an order</p>
+                    <p className="text-xs md:text-sm theme-text-muted font-bold mt-1">Go to Request Stock tab to place an order</p>
                   </div>
                 ) : (
                   requests.map((req, i) => {
@@ -370,25 +370,25 @@ const OutletStockRequest = () => {
                             <div>
                               <div className="flex items-center space-x-2">
                                 <p className="font-black theme-text-primary">{req.itemName}</p>
-                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase border ${sc}`}>{req.status.replace('_', ' ')}</span>
+                                <span className={`px-2 py-0.5 rounded-full text-xs md:text-sm font-black uppercase border ${sc}`}>{req.status.replace('_', ' ')}</span>
                               </div>
                               <div className="flex items-center space-x-4 mt-1">
-                                <p className="text-[9px] md:text-[10px] font-bold theme-text-muted">Requested: {req.quantity}</p>
-                                <p className="text-[9px] md:text-[10px] font-bold text-emerald-500">Approved: {req.approvedQty}</p>
-                                <p className="text-[9px] md:text-[10px] font-bold theme-text-muted">{new Date(req.createdAt).toLocaleDateString()}</p>
+                                <p className="text-xs md:text-sm font-bold theme-text-muted">Requested: {req.quantity}</p>
+                                <p className="text-xs md:text-sm font-bold text-emerald-500">Approved: {req.approvedQty}</p>
+                                <p className="text-xs md:text-sm font-bold theme-text-muted">{new Date(req.createdAt).toLocaleDateString()}</p>
                               </div>
                             </div>
                           </div>
                           <div className="flex items-center space-x-4">
                             <div className="text-right">
                               <p className="text-lg font-black theme-text-primary">{req.quantity - req.approvedQty}</p>
-                              <p className="text-[9px] theme-text-muted font-bold uppercase">Pending</p>
+                              <p className="text-xs md:text-sm theme-text-muted font-bold uppercase">Pending</p>
                             </div>
                           </div>
                         </div>
                         {req.notes && (
                           <div className="mt-3 p-3 theme-bg-subtle rounded-xl border theme-border">
-                            <p className="text-[9px] font-black theme-text-muted uppercase tracking-wider">Store Notes</p>
+                            <p className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Store Notes</p>
                             <p className="text-sm theme-text-primary font-medium mt-1">{req.notes}</p>
                           </div>
                         )}

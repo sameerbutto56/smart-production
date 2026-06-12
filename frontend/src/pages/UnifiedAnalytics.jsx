@@ -54,17 +54,17 @@ const UnifiedAnalytics = () => {
     <button onClick={onClick} className={`relative overflow-hidden bg-gradient-to-br ${color} p-[1px] rounded-2xl transition-all hover:scale-[1.02] active:scale-95 shadow-lg`}>
       <div className="bg-gray-950/90 backdrop-blur-sm rounded-2xl p-4 h-full flex flex-col items-start text-left">
         <div className="flex items-center justify-between w-full mb-2">
-          <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">{label}</span>
+          <span className="text-xs md:text-sm font-black uppercase tracking-widest text-gray-400">{label}</span>
           <Icon size={16} className="text-gray-500" />
         </div>
         <span className="text-xl md:text-2xl font-black text-white">{value}</span>
-        {sub && <span className="text-[9px] text-gray-500 mt-1">{sub}</span>}
+        {sub && <span className="text-xs md:text-sm text-gray-500 mt-1">{sub}</span>}
       </div>
     </button>
   );
 
   const StageBar = ({ name, count, max }) => (
-    <div className="flex items-center gap-2 text-[9px]">
+    <div className="flex items-center gap-2 text-xs md:text-sm">
       <span className="w-28 font-bold text-gray-300 truncate">{name.replace(/_/g, ' ')}</span>
       <div className="flex-1 bg-gray-800 rounded-full h-2">
         <div className="bg-blue-500 h-2 rounded-full transition-all" style={{ width: max > 0 ? `${(count / max) * 100}%` : '0%' }} />
@@ -87,7 +87,7 @@ const UnifiedAnalytics = () => {
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-gray-900/50 rounded-2xl border border-gray-800 p-4">
-          <h3 className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-3">Orders by Stage</h3>
+          <h3 className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest mb-3">Orders by Stage</h3>
           <div className="space-y-1.5">
             {Object.entries(data?.stageCounts || {}).map(([name, count]) => (
               <StageBar key={name} name={name} count={count} max={Math.max(...Object.values(data?.stageCounts || {}), 1)} />
@@ -95,7 +95,7 @@ const UnifiedAnalytics = () => {
           </div>
         </div>
         <div className="bg-gray-900/50 rounded-2xl border border-gray-800 p-4">
-          <h3 className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-3">Production Monthly Trend</h3>
+          <h3 className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest mb-3">Production Monthly Trend</h3>
           {prod.monthlyTrend?.length > 0 ? (
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={prod.monthlyTrend}>
@@ -108,7 +108,7 @@ const UnifiedAnalytics = () => {
               </LineChart>
             </ResponsiveContainer>
           ) : (
-            <p className="text-[10px] text-gray-600 text-center py-8">No production data yet</p>
+            <p className="text-xs text-gray-600 text-center py-8">No production data yet</p>
           )}
         </div>
       </div>
@@ -127,7 +127,7 @@ const UnifiedAnalytics = () => {
           <KpiCard label="Pending" value={s.pendingOrders || 0} sub="" color="from-gray-600 to-slate-600" icon={TrendingUp} />
         </div>
         <div className="bg-gray-900/50 rounded-2xl border border-gray-800 p-4">
-          <h3 className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-3">Orders by Stage</h3>
+          <h3 className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest mb-3">Orders by Stage</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={stageData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
@@ -152,7 +152,7 @@ const UnifiedAnalytics = () => {
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-gray-900/50 rounded-2xl border border-gray-800 p-4">
-          <h3 className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-3">Monthly Trend</h3>
+          <h3 className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest mb-3">Monthly Trend</h3>
           {prod.monthlyTrend?.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
               <LineChart data={prod.monthlyTrend}>
@@ -166,15 +166,15 @@ const UnifiedAnalytics = () => {
               </LineChart>
             </ResponsiveContainer>
           ) : (
-            <p className="text-[10px] text-gray-600 text-center py-12">No production data yet</p>
+            <p className="text-xs text-gray-600 text-center py-12">No production data yet</p>
           )}
         </div>
         <div className="bg-gray-900/50 rounded-2xl border border-gray-800 p-4">
-          <h3 className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-3">Product Breakdown</h3>
+          <h3 className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest mb-3">Product Breakdown</h3>
           {prod.byProduct?.length > 0 ? (
             <div className="space-y-1.5 max-h-[250px] overflow-y-auto">
               {prod.byProduct.map((p, i) => (
-                <div key={i} className="flex items-center justify-between text-[9px] p-2 bg-gray-800/30 rounded-lg">
+                <div key={i} className="flex items-center justify-between text-xs md:text-sm p-2 bg-gray-800/30 rounded-lg">
                   <span className="font-bold text-white truncate flex-1">{p.productName}</span>
                   <div className="flex items-center gap-3 text-right">
                     <span className="text-gray-400">{p.quantity} units</span>
@@ -184,7 +184,7 @@ const UnifiedAnalytics = () => {
               ))}
             </div>
           ) : (
-            <p className="text-[10px] text-gray-600 text-center py-12">No products yet</p>
+            <p className="text-xs text-gray-600 text-center py-12">No products yet</p>
           )}
         </div>
       </div>
@@ -200,7 +200,7 @@ const UnifiedAnalytics = () => {
         <KpiCard label="Out of Stock" value={s.outOfStockItems || 0} sub="" color="from-red-600 to-rose-600" icon={AlertTriangle} />
       </div>
       <div className="bg-gray-900/50 rounded-2xl border border-gray-800 p-4">
-        <h3 className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-3">Stock Health</h3>
+        <h3 className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest mb-3">Stock Health</h3>
         <ResponsiveContainer width="100%" height={250}>
           <PieChart>
             <Pie data={[
@@ -237,7 +237,7 @@ const UnifiedAnalytics = () => {
         <KpiCard label="Production Cost" value={formatCurrency(s.totalProductionCost)} sub="" color="from-red-600 to-rose-600" icon={DollarSign} />
       </div>
       <div className="bg-gray-900/50 rounded-2xl border border-gray-800 p-4">
-        <h3 className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-3">Online vs Outlet</h3>
+        <h3 className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest mb-3">Online vs Outlet</h3>
         <ResponsiveContainer width="100%" height={250}>
           <BarChart data={[
             { name: 'Online', Revenue: s.onlineRevenue || 0, Profit: s.onlineProfit || 0 },
@@ -273,13 +273,13 @@ const UnifiedAnalytics = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
           <h1 className="text-lg md:text-xl font-black text-white tracking-tight">Analytics</h1>
-          <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">Unified Business Intelligence</p>
+          <p className="text-xs md:text-sm text-gray-500 font-bold uppercase tracking-widest">Unified Business Intelligence</p>
         </div>
         <div className="flex items-center gap-2">
           <select
             value={branch}
             onChange={(e) => { setBranch(e.target.value); setActiveView('overview'); }}
-            className="bg-gray-900 border border-gray-700 text-white text-[10px] font-bold rounded-xl px-3 py-2 outline-none focus:border-blue-500"
+            className="bg-gray-900 border border-gray-700 text-white text-xs font-bold rounded-xl px-3 py-2 outline-none focus:border-blue-500"
           >
             {BRANCHES.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
           </select>
@@ -295,7 +295,7 @@ const UnifiedAnalytics = () => {
           <button
             key={v.key}
             onClick={() => setActiveView(v.key)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all whitespace-nowrap ${
               activeView === v.key
                 ? `bg-gradient-to-r ${v.color} text-white shadow-lg`
                 : 'bg-gray-900 text-gray-500 border border-gray-800 hover:border-gray-600'

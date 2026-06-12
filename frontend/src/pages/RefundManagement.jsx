@@ -76,7 +76,7 @@ const RefundManagement = () => {
           </button>
           <div>
             <h1 className="text-2xl md:text-3xl font-black theme-text-primary leading-none">Refund Management</h1>
-            <p className="text-[9px] md:text-[10px] theme-text-muted font-bold mt-0.5">{orders.length} refund requests</p>
+            <p className="text-xs md:text-sm theme-text-muted font-bold mt-0.5">{orders.length} refund requests</p>
           </div>
         </div>
         <button onClick={fetchRefundQueue} className="w-11 h-11 flex items-center justify-center theme-bg border theme-border rounded-2xl theme-text-secondary hover:text-white active:scale-90 transition-all">
@@ -115,11 +115,11 @@ const RefundManagement = () => {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="font-black theme-text-primary text-lg leading-tight">{order.customerName}</p>
-                    <p className="text-[9px] text-blue-400 font-black mt-0.5">
+                    <p className="text-xs md:text-sm text-blue-400 font-black mt-0.5">
                       ORDER #{order.orderNumber || order.id?.slice(0, 8).toUpperCase()}
                     </p>
                   </div>
-                  <span className={`flex-shrink-0 px-2.5 py-1 rounded-full text-[9px] font-black border uppercase ${statusColor(order.refundStatus)}`}>
+                  <span className={`flex-shrink-0 px-2.5 py-1 rounded-full text-xs md:text-sm font-black border uppercase ${statusColor(order.refundStatus)}`}>
                     {order.refundStatus}
                   </span>
                 </div>
@@ -130,21 +130,21 @@ const RefundManagement = () => {
 
                 {order.refundReason && (
                   <div className="bg-red-500/5 border border-red-500/10 rounded-xl px-3 py-2">
-                    <p className="text-[9px] theme-text-muted font-black uppercase tracking-widest">Reason</p>
+                    <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest">Reason</p>
                     <p className="text-sm font-bold theme-text-primary">{order.refundReason}</p>
                   </div>
                 )}
 
                 {order.refundNote && (
                   <div className="bg-gray-800/50 rounded-xl px-3 py-2">
-                    <p className="text-[9px] theme-text-muted font-black uppercase tracking-widest">Note</p>
+                    <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest">Note</p>
                     <p className="text-sm font-bold theme-text-primary">{order.refundNote}</p>
                   </div>
                 )}
 
                 <div className="flex items-center justify-between pt-1">
                   <p className="text-lg font-black text-emerald-400">₨{Number(order.totalPrice || 0).toLocaleString()}</p>
-                  <p className="text-[9px] theme-text-muted font-bold">
+                  <p className="text-xs md:text-sm theme-text-muted font-bold">
                     {order.refundedAt ? new Date(order.refundedAt).toLocaleDateString() : '—'}
                   </p>
                 </div>
@@ -154,7 +154,7 @@ const RefundManagement = () => {
                     {order.refundStatus === 'REQUESTED' && (
                       <button
                         onClick={() => processRefund(order.id, 'PROCESSING')}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95"
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all active:scale-95"
                       >
                         <RotateCcw size={14} />
                         Start Processing
@@ -165,7 +165,7 @@ const RefundManagement = () => {
                         onClick={() => {
                           if (window.confirm('Confirm refund completed for this order?')) processRefund(order.id, 'REFUNDED');
                         }}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95"
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all active:scale-95"
                       >
                         <CheckCircle size={14} />
                         Mark Refunded

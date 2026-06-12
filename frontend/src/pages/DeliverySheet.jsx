@@ -149,13 +149,13 @@ const DeliverySheet = () => {
           }
           th, td {
             border: 1px solid #000000 !important;
-            padding: 8px 6px !important;
-            font-size: 11px !important;
+            padding: 10px 8px !important;
+            font-size: 13px !important;
             color: #000000 !important;
             text-align: left !important;
           }
           th {
-            background-color: #fef08a !important; /* Yellow-200 background */
+            background-color: #fef08a !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
             font-weight: bold !important;
@@ -167,17 +167,17 @@ const DeliverySheet = () => {
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
             margin-top: 20px !important;
-            padding: 12px !important;
-            width: 300px !important;
+            padding: 16px !important;
+            width: 320px !important;
             margin-left: auto !important;
           }
           .summary-row {
             display: flex !important;
             justify-content: space-between !important;
-            font-size: 12px !important;
+            font-size: 14px !important;
             font-weight: bold !important;
             border-bottom: 1px dashed #000000 !important;
-            padding: 4px 0 !important;
+            padding: 6px 0 !important;
           }
           .summary-row:last-child {
             border-bottom: none !important;
@@ -220,7 +220,7 @@ const DeliverySheet = () => {
             />
           </div>
           {selectedDate && (
-            <button onClick={() => setSelectedDate('')} className="text-[9px] font-black text-red-400 hover:text-red-300 uppercase tracking-wider transition-all px-2">
+            <button onClick={() => setSelectedDate('')} className="text-xs md:text-sm font-black text-red-400 hover:text-red-300 uppercase tracking-wider transition-all px-2">
               Clear
             </button>
           )}
@@ -260,7 +260,7 @@ const DeliverySheet = () => {
               <FileText className="text-yellow-500" size={24} />
               <h3 className="text-xl font-black theme-text-primary tracking-tight">Rider Dispatch Manifest</h3>
             </div>
-            <span className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest theme-bg px-4 py-2 rounded-full border theme-border">
+            <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest theme-bg px-4 py-2 rounded-full border theme-border">
               {selectedDate ? new Date(selectedDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'All Dates'}
             </span>
           </div>
@@ -268,7 +268,7 @@ const DeliverySheet = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="theme-text-secondary text-[10px] uppercase font-black tracking-wider border-b theme-border theme-bg-subtle">
+                <tr className="theme-text-secondary text-xs uppercase font-black tracking-wider border-b theme-border theme-bg-subtle">
                   <th className="py-4 px-3 w-10">Sr.</th>
                   <th className="py-4 px-3 w-28">Order ID</th>
                   <th className="py-4 px-3">Customer</th>
@@ -337,7 +337,7 @@ const DeliverySheet = () => {
                         </td>
                         <td className="py-4 px-3 text-center font-black theme-text-primary text-xs">{order.quantity}</td>
                         <td className="py-4 px-3 text-xs">
-                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black uppercase ${
                             order.source === 'ONLINE' || order.source === 'ONLINE ORDER' || order.createdBy?.role === 'FAISAL'
                               ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
                               : 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
@@ -346,7 +346,7 @@ const DeliverySheet = () => {
                           </span>
                         </td>
                         <td className="py-4 px-3 text-xs font-black">
-                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black uppercase ${
                             order.deliveryMethod === 'ENAMELS' || order.deliveryMethod === 'ENAMELS_DELIVERY'
                               ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                               : order.deliveryMethod
@@ -357,7 +357,7 @@ const DeliverySheet = () => {
                           </span>
                         </td>
                         <td className="py-4 px-3 text-xs">
-                          <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
+                          <span className={`px-2 py-0.5 rounded text-xs md:text-sm font-black uppercase ${
                             payMethod === 'ONLINE_TRANSFER'
                               ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20'
                               : payMethod === 'CASH'
@@ -372,13 +372,13 @@ const DeliverySheet = () => {
                         </td>
                         <td className="py-4 px-3 text-right">
                           {order.currentStage === 'DELIVERED' || order.status === 'COMPLETED' ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black border uppercase bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs md:text-sm font-black border uppercase bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                               Delivered
                             </span>
                           ) : (
                             <div className="flex flex-col gap-1.5">
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black border uppercase bg-yellow-500/10 text-yellow-500 border-yellow-500/20 animate-pulse">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs md:text-sm font-black border uppercase bg-yellow-500/10 text-yellow-500 border-yellow-500/20 animate-pulse">
                                 <span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
                                 Pending
                               </span>
@@ -395,7 +395,7 @@ const DeliverySheet = () => {
                                     } catch (err) { toast.error(err.response?.data?.message || err.message); }
                                     finally { setActionLoading(null); }
                                   }}
-                                  className="text-[7px] font-black uppercase bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded-lg transition-all disabled:opacity-50"
+                                  className="text-[9px] font-black uppercase bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded-lg transition-all disabled:opacity-50"
                                 >
                                   {actionLoading === order.id ? <LoadingSpinner size={10} /> : 'Delivered'}
                                 </button>
@@ -412,7 +412,7 @@ const DeliverySheet = () => {
                                     } catch (err) { toast.error(err.response?.data?.message || err.message); }
                                     finally { setActionLoading(null); }
                                   }}
-                                  className="text-[7px] font-black uppercase bg-orange-600 hover:bg-orange-500 text-white px-2 py-1 rounded-lg transition-all disabled:opacity-50"
+                                  className="text-[9px] font-black uppercase bg-orange-600 hover:bg-orange-500 text-white px-2 py-1 rounded-lg transition-all disabled:opacity-50"
                                 >
                                   {actionLoading === order.id ? <LoadingSpinner size={10} /> : 'Refund'}
                                 </button>
@@ -442,7 +442,7 @@ const DeliverySheet = () => {
             <div className="space-y-6">
               <div className="theme-bg p-4 md:p-6 rounded-3xl border theme-border flex justify-between items-center shadow-inner">
                 <div>
-                  <p className="text-[9px] md:text-[10px] theme-text-muted font-black uppercase tracking-wider">COD Collected</p>
+                  <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-wider">COD Collected</p>
                   <p className="text-2xl font-black theme-text-primary mt-1">₨{summary.totalCash.toLocaleString()}</p>
                 </div>
                 <div className="w-10 h-10 bg-amber-500/10 text-amber-500 rounded-xl flex items-center justify-center font-black">
@@ -452,7 +452,7 @@ const DeliverySheet = () => {
 
               <div className="theme-bg p-4 md:p-6 rounded-3xl border theme-border flex justify-between items-center shadow-inner">
                 <div>
-                  <p className="text-[9px] md:text-[10px] theme-text-muted font-black uppercase tracking-wider">Online / Prepaid</p>
+                  <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-wider">Online / Prepaid</p>
                   <p className="text-2xl font-black theme-text-primary mt-1">₨{summary.totalOnline.toLocaleString()}</p>
                 </div>
                 <div className="w-10 h-10 bg-emerald-500/10 text-emerald-500 rounded-xl flex items-center justify-center font-black">
@@ -462,7 +462,7 @@ const DeliverySheet = () => {
 
               <div className="bg-yellow-500/10 p-4 md:p-6 rounded-3xl border-2 border-yellow-500/20 flex justify-between items-center shadow-lg">
                 <div>
-                  <p className="text-[9px] md:text-[10px] text-yellow-500 font-black uppercase tracking-wider">Total Value</p>
+                  <p className="text-xs md:text-sm text-yellow-500 font-black uppercase tracking-wider">Total Value</p>
                   <p className="text-xl md:text-3xl font-black theme-text-primary mt-1">₨{summary.totalAmount.toLocaleString()}</p>
                 </div>
                 <div className="w-12 h-12 bg-yellow-500 text-black rounded-xl flex items-center justify-center font-black text-xl shadow-lg">

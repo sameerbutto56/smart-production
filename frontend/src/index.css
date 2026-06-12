@@ -41,7 +41,8 @@
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    font-size: 13px;
+    font-size: clamp(14px, 1.4vw, 17px);
+    line-height: 1.6;
     background-attachment: fixed;
     min-height: 100vh;
     overflow-x: hidden;
@@ -206,7 +207,7 @@
 }
 
 .btn-primary {
-  @apply text-white font-black uppercase tracking-widest transition-all active:scale-95 text-[10px] inline-flex items-center justify-center gap-2;
+  @apply text-white font-black uppercase tracking-widest transition-all active:scale-95 text-xs inline-flex items-center justify-center gap-2;
   background: linear-gradient(135deg, var(--primary), var(--secondary));
   box-shadow: 0 4px 15px var(--primary-glow);
 }
@@ -248,10 +249,10 @@
 .theme-bg-subtle { background: var(--card-bg); }
 
 /* Standardized Button Sizes */
-.btn-sm { @apply px-4 py-2 text-[10px] rounded-xl; }
-.btn-md { @apply px-6 py-3 text-xs rounded-2xl; }
-.btn-lg { @apply px-8 py-4 text-sm rounded-2xl; }
-.btn-xl { @apply px-10 py-5 text-sm rounded-2xl; }
+.btn-sm { @apply px-4 py-2 text-xs rounded-xl font-bold; }
+.btn-md { @apply px-6 py-3 text-sm rounded-2xl font-bold; }
+.btn-lg { @apply px-8 py-4 text-base rounded-2xl font-bold; }
+.btn-xl { @apply px-10 py-5 text-base rounded-2xl font-bold; }
 
 /* Button Variants */
 .btn-solid-primary {
@@ -353,4 +354,39 @@
 
 .animate-glow {
   animation: pulse-glow 3s infinite;
+}
+
+/* ======= Improved Spacing & Layout ======= */
+.theme-card-panel {
+  @apply p-5 md:p-7 rounded-2xl;
+  background: var(--card-bg-solid);
+  border: 1px solid var(--card-border);
+}
+.theme-table-row {
+  @apply py-3 md:py-4;
+}
+.theme-input-lg {
+  @apply py-3.5 px-5 text-sm rounded-2xl;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--text-primary);
+}
+.theme-input-lg:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-glow);
+  outline: none;
+}
+.theme-gap-sm { @apply gap-3; }
+.theme-gap-md { @apply gap-5; }
+.theme-gap-lg { @apply gap-7; }
+.theme-p-section { @apply py-4 md:py-6; }
+.theme-p-card { @apply p-4 md:p-6; }
+
+/* Better table readability */
+.theme-table th,
+.theme-table td {
+  @apply py-3 px-4 text-xs md:text-sm leading-relaxed;
+}
+.theme-table th {
+  @apply font-black uppercase tracking-wider theme-text-muted;
 }

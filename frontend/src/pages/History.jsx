@@ -174,7 +174,7 @@ const History = () => {
           </div>
           <div className={isUrdu ? 'text-right' : ''}>
             <h1 className="text-2xl md:text-4xl font-black theme-text-primary tracking-tight leading-none">{t('archive')}</h1>
-            <p className="theme-text-muted text-[9px] md:text-[10px] font-black uppercase tracking-[0.4em] mt-2">{t('performance')}</p>
+            <p className="theme-text-muted text-xs md:text-sm font-black uppercase tracking-[0.4em] mt-2">{t('performance')}</p>
           </div>
         </div>
 
@@ -192,7 +192,7 @@ const History = () => {
             
             <button
               onClick={() => setIsGroupedView(!isGroupedView)}
-              className={`px-8 py-4 theme-bg-subtle border-2 theme-border rounded-2xl theme-text-primary font-black text-[9px] md:text-[10px] uppercase tracking-[0.2em] hover:bg-gray-800 transition-all flex items-center gap-3 ${useUrdu ? 'flex-row-reverse' : ''}`}
+              className={`px-8 py-4 theme-bg-subtle border-2 theme-border rounded-2xl theme-text-primary font-black text-xs md:text-sm uppercase tracking-[0.2em] hover:bg-gray-800 transition-all flex items-center gap-3 ${useUrdu ? 'flex-row-reverse' : ''}`}
             >
               {isGroupedView ? <List size={16} /> : <Users size={16} />}
               <span>{isGroupedView ? t('individualView') : t('bulkView')}</span>
@@ -201,7 +201,7 @@ const History = () => {
             {isAdmin && orders.length > 0 && (
               <button
                 onClick={exportToExcel}
-                className="flex items-center gap-3 px-8 py-4 bg-emerald-700 hover:bg-emerald-600 border-2 border-emerald-600 rounded-2xl text-white font-black text-[9px] md:text-[10px] uppercase tracking-[0.2em] transition-all shadow-xl shadow-emerald-900/30 active:scale-95"
+                className="flex items-center gap-3 px-8 py-4 bg-emerald-700 hover:bg-emerald-600 border-2 border-emerald-600 rounded-2xl text-white font-black text-xs md:text-sm uppercase tracking-[0.2em] transition-all shadow-xl shadow-emerald-900/30 active:scale-95"
                 title="Export complete history to Excel — Admin Only"
               >
                 <Download size={16} />
@@ -253,7 +253,7 @@ const History = () => {
 
                 <div className={`flex items-center gap-4 md:gap-8 ${useUrdu ? 'flex-row-reverse' : ''}`}>
                   <div className="text-center">
-                    <p className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest mb-1">{useUrdu ? 'تعداد' : 'QUANTITY'}</p>
+                    <p className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest mb-1">{useUrdu ? 'تعداد' : 'QUANTITY'}</p>
                     <p className="text-xl md:text-3xl font-black theme-text-primary">{group.totalQuantity}</p>
                   </div>
                   <button 
@@ -293,7 +293,7 @@ const History = () => {
                     <div className={`flex items-center mt-1 ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-4'}`}>
                        <span className="theme-text-secondary text-sm font-bold">{order.customerName}</span>
                        <div className="w-1 h-1 bg-gray-700 rounded-full" />
-                       <span className="theme-text-muted text-[9px] md:text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                       <span className="theme-text-muted text-xs md:text-sm font-black uppercase tracking-widest flex items-center gap-1.5">
                          <Users size={10} className="text-indigo-500/50" />
                          {order.outletName === 'FAISAL CONTROL' ? 'ONLINE ORDER' : 
                           order.outletName || (
@@ -307,7 +307,7 @@ const History = () => {
                           )}
                        </span>
                        <div className="w-1 h-1 bg-gray-700 rounded-full" />
-                       <span className="theme-text-muted text-[9px] md:text-[10px] font-black uppercase tracking-widest flex items-center">
+                       <span className="theme-text-muted text-xs md:text-sm font-black uppercase tracking-widest flex items-center">
                          <Calendar size={10} className={useUrdu ? "ml-1.5" : "mr-1.5"} />
                          {new Date(order.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
                        </span>
@@ -317,10 +317,10 @@ const History = () => {
 
                 <div className={`flex items-center gap-4 ${useUrdu ? 'flex-row-reverse' : ''}`}>
                   <div className={`hidden lg:flex items-center space-x-2 ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                    <span className="px-3 py-1 theme-bg rounded-lg text-[9px] font-black theme-text-muted uppercase tracking-widest border theme-border">
+                    <span className="px-3 py-1 theme-bg rounded-lg text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest border theme-border">
                       {order.type}
                     </span>
-                    <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border ${
+                    <span className={`px-3 py-1 rounded-lg text-xs md:text-sm font-black uppercase tracking-widest border ${
                       order.status === 'DELIVERED' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
                     }`}>
                       {order.status}
@@ -329,7 +329,7 @@ const History = () => {
                   
                   <button 
                     onClick={() => setSelectedAuditLog(order)}
-                    className="flex items-center space-x-2 theme-bg hover:bg-indigo-600 text-indigo-400 hover:text-white px-5 py-3 rounded-xl font-black text-[9px] md:text-[10px] uppercase tracking-widest transition-all border theme-border active:scale-95 group/btn"
+                    className="flex items-center space-x-2 theme-bg hover:bg-indigo-600 text-indigo-400 hover:text-white px-5 py-3 rounded-xl font-black text-xs md:text-sm uppercase tracking-widest transition-all border theme-border active:scale-95 group/btn"
                   >
                     <span className={useUrdu ? 'order-2' : 'order-1'}>{t('viewAudit')}</span>
                     <ChevronRight size={14} className={`transition-transform ${useUrdu ? 'order-1 rotate-180 group-hover:-translate-x-1' : 'order-2 group-hover/btn:translate-x-1'}`} />
@@ -389,7 +389,7 @@ const History = () => {
                       <div className="glass p-4 md:p-6 rounded-2xl border theme-border space-y-3">
                         <div className="flex items-center justify-between">
                           <h4 className="text-sm font-black theme-text-primary uppercase tracking-tight">{log.action}</h4>
-                          <span className="text-[9px] md:text-[10px] font-mono theme-text-muted">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                          <span className="text-xs md:text-sm font-mono theme-text-muted">{new Date(log.timestamp).toLocaleTimeString()}</span>
                         </div>
                         <div className="flex items-center space-x-3">
                           <div className="w-6 h-6 bg-gray-800 rounded-full flex items-center justify-center">
@@ -398,11 +398,11 @@ const History = () => {
                           <span className="text-xs theme-text-secondary font-bold uppercase tracking-widest">{log.user?.name || log.performedBy}</span>
                         </div>
                         {log.details && (
-                          <p className="text-[9px] md:text-[11px] theme-text-muted italic theme-bg-subtle p-3 rounded-xl border theme-border">
+                          <p className="text-xs md:text-sm theme-text-muted italic theme-bg-subtle p-3 rounded-xl border theme-border">
                              "{log.details}"
                           </p>
                         )}
-                        <p className="text-[9px] theme-text-muted font-medium">
+                        <p className="text-xs md:text-sm theme-text-muted font-medium">
                           {new Date(log.timestamp).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
                         </p>
                       </div>
@@ -417,7 +417,7 @@ const History = () => {
               </div>
               
               <div className="p-4 md:p-8 theme-bg-subtle border-t theme-border text-center">
-                 <p className="text-[9px] text-gray-700 font-black uppercase tracking-[0.3em]">Verified Secure Production Audit Trail</p>
+                 <p className="text-xs md:text-sm text-gray-700 font-black uppercase tracking-[0.3em]">Verified Secure Production Audit Trail</p>
               </div>
             </motion.div>
           </div>

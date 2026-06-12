@@ -304,7 +304,7 @@ const WarehouseDashboard = () => {
             }`}
           >
                 {tab === 'dashboard' && <><BarChart3 size={14} className="inline mr-2" />Dashboard</>}
-                {tab === 'requests' && <><ShoppingCart size={14} className="inline mr-2" />Requests {pendingRequests.length > 0 && <span className="ml-1 bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{pendingRequests.length}</span>}</>}
+                {tab === 'requests' && <><ShoppingCart size={14} className="inline mr-2" />Requests {pendingRequests.length > 0 && <span className="ml-1 bg-red-500 text-white text-xs md:text-sm px-1.5 py-0.5 rounded-full">{pendingRequests.length}</span>}</>}
                 {tab === 'inventory' && <><Package size={14} className="inline mr-2" />Inventory</>}
                 {tab === 'production' && <><Factory size={14} className="inline mr-2" />Production Inventory</>}
                 {tab === 'analytics' && <><TrendingUp size={14} className="inline mr-2" />Analytics</>}
@@ -327,7 +327,7 @@ const WarehouseDashboard = () => {
                     className="glass p-4 md:p-6 rounded-2xl border-2 theme-border hover:border-amber-500/30 transition-all">
                     <div className="flex items-center justify-between mb-4">
                       <div className="p-3 bg-blue-500/10 rounded-xl"><Package className="text-blue-400" size={20} /></div>
-                      <span className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-wider">Total</span>
+                      <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Total</span>
                     </div>
                     <p className="text-xl md:text-3xl font-black theme-text-primary">{totalStock}</p>
                     <p className="text-xs font-bold theme-text-muted uppercase tracking-wider mt-1">Units in Stock</p>
@@ -336,7 +336,7 @@ const WarehouseDashboard = () => {
                     className="glass p-4 md:p-6 rounded-2xl border-2 theme-border hover:border-amber-500/30 transition-all">
                     <div className="flex items-center justify-between mb-4">
                       <div className="p-3 bg-yellow-500/10 rounded-xl"><ShoppingCart className="text-yellow-400" size={20} /></div>
-                      <span className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-wider">Pending</span>
+                      <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Pending</span>
                     </div>
                     <p className="text-xl md:text-3xl font-black theme-text-primary">{pendingRequests.length}</p>
                     <p className="text-xs font-bold theme-text-muted uppercase tracking-wider mt-1">Outlet Requests</p>
@@ -345,7 +345,7 @@ const WarehouseDashboard = () => {
                     className="glass p-4 md:p-6 rounded-2xl border-2 theme-border hover:border-amber-500/30 transition-all">
                     <div className="flex items-center justify-between mb-4">
                       <div className="p-3 bg-red-500/10 rounded-xl"><AlertTriangle className="text-red-400" size={20} /></div>
-                      <span className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-wider">Low</span>
+                      <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Low</span>
                     </div>
                     <p className="text-xl md:text-3xl font-black theme-text-primary">{lowStockItems.length}</p>
                     <p className="text-xs font-bold theme-text-muted uppercase tracking-wider mt-1">Low Stock Items</p>
@@ -354,7 +354,7 @@ const WarehouseDashboard = () => {
                     className="glass p-4 md:p-6 rounded-2xl border-2 theme-border hover:border-amber-500/30 transition-all">
                     <div className="flex items-center justify-between mb-4">
                       <div className="p-3 bg-emerald-500/10 rounded-xl"><CheckCircle2 className="text-emerald-400" size={20} /></div>
-                      <span className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-wider">Month</span>
+                      <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Month</span>
                     </div>
                     <p className="text-xl md:text-3xl font-black theme-text-primary">{completedThisMonth}</p>
                     <p className="text-xs font-bold theme-text-muted uppercase tracking-wider mt-1">Completed Requests</p>
@@ -373,11 +373,11 @@ const WarehouseDashboard = () => {
                       <div key={item.id} className="flex items-center justify-between p-3 bg-red-500/5 rounded-xl border border-red-500/10">
                         <div>
                           <p className="font-bold theme-text-primary text-sm">{item.name}</p>
-                          <p className="text-[9px] md:text-[10px] theme-text-muted font-bold uppercase">{item.category}</p>
+                          <p className="text-xs md:text-sm theme-text-muted font-bold uppercase">{item.category}</p>
                         </div>
                         <div className="text-right">
                           <p className="font-black text-red-400">{item.stock}</p>
-                          <p className="text-[9px] theme-text-muted font-bold uppercase">Remaining</p>
+                          <p className="text-xs md:text-sm theme-text-muted font-bold uppercase">Remaining</p>
                         </div>
                       </div>
                     ))}
@@ -396,7 +396,7 @@ const WarehouseDashboard = () => {
                       <ShoppingCart className="text-yellow-400" size={20} />
                       <h2 className="font-black theme-text-primary uppercase tracking-wider text-sm">Pending Requests</h2>
                     </div>
-                    <button onClick={() => setActiveTab('requests')} className="text-[9px] md:text-[10px] font-black text-amber-500 hover:text-amber-400 uppercase tracking-wider">View All</button>
+                    <button onClick={() => setActiveTab('requests')} className="text-xs md:text-sm font-black text-amber-500 hover:text-amber-400 uppercase tracking-wider">View All</button>
                   </div>
                   <div className="space-y-3">
                     {pendingRequests.slice(0, 5).map(req => {
@@ -409,7 +409,7 @@ const WarehouseDashboard = () => {
                             </div>
                             <div>
                               <p className="font-bold theme-text-primary text-sm">{req.itemName}</p>
-                              <p className="text-[9px] md:text-[10px] theme-text-muted font-bold">{req.outletName} • Qty: {req.quantity}</p>
+                              <p className="text-xs md:text-sm theme-text-muted font-bold">{req.outletName} • Qty: {req.quantity}</p>
                             </div>
                           </div>
                           <button onClick={() => { setSelectedRequest(req); setActiveTab('requests'); }}
@@ -471,7 +471,7 @@ const WarehouseDashboard = () => {
                                   <div>
                                     <div className="flex items-center space-x-2">
                                       <p className="font-black theme-text-primary">{req.itemName}</p>
-                                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase border ${sc}`}>{req.status.replace('_', ' ')}</span>
+                                      <span className={`px-2 py-0.5 rounded-full text-xs md:text-sm font-black uppercase border ${sc}`}>{req.status.replace('_', ' ')}</span>
                                     </div>
                                     <p className="text-xs font-bold theme-text-muted mt-0.5">
                                       {req.outletName} • Requested: {req.quantity} • Approved: {req.approvedQty}
@@ -509,25 +509,25 @@ const WarehouseDashboard = () => {
                                   className="mt-4 pt-4 border-t theme-border">
                                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                     <div>
-                                      <p className="text-[9px] font-black theme-text-muted uppercase tracking-wider">Requested</p>
+                                      <p className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Requested</p>
                                       <p className="font-black theme-text-primary text-lg">{req.quantity}</p>
                                     </div>
                                     <div>
-                                      <p className="text-[9px] font-black theme-text-muted uppercase tracking-wider">Approved</p>
+                                      <p className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Approved</p>
                                       <p className="font-black text-emerald-400 text-lg">{req.approvedQty}</p>
                                     </div>
                                     <div>
-                                      <p className="text-[9px] font-black theme-text-muted uppercase tracking-wider">Pending</p>
+                                      <p className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Pending</p>
                                       <p className="font-black text-yellow-400 text-lg">{req.quantity - req.approvedQty}</p>
                                     </div>
                                     <div>
-                                      <p className="text-[9px] font-black theme-text-muted uppercase tracking-wider">Date</p>
+                                      <p className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Date</p>
                                       <p className="font-bold theme-text-secondary text-xs">{new Date(req.createdAt).toLocaleDateString()}</p>
                                     </div>
                                   </div>
                                   {req.notes && (
                                     <div className="mt-3 p-3 bg-gray-800/30 rounded-xl">
-                                      <p className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-wider mb-1">Notes</p>
+                                      <p className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider mb-1">Notes</p>
                                       <p className="text-sm theme-text-secondary">{req.notes}</p>
                                     </div>
                                   )}
@@ -569,9 +569,9 @@ const WarehouseDashboard = () => {
                     <div className="flex justify-between items-start mb-3">
                       <div>
                         <h3 className="font-black theme-text-primary text-sm">{item.name}</h3>
-                        <p className="text-[9px] md:text-[10px] font-bold theme-text-muted uppercase tracking-wider">{item.category}</p>
+                        <p className="text-xs md:text-sm font-bold theme-text-muted uppercase tracking-wider">{item.category}</p>
                       </div>
-                      <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${
+                      <div className={`px-3 py-1 rounded-full text-xs md:text-sm font-black uppercase border ${
                         item.stock <= 10 ? 'border-red-500/20 bg-red-500/5 text-red-500' :
                         item.stock <= 50 ? 'border-yellow-500/20 bg-yellow-500/5 text-yellow-500' :
                         'border-emerald-500/20 bg-emerald-500/5 text-emerald-500'
@@ -581,23 +581,23 @@ const WarehouseDashboard = () => {
                     </div>
                     <div className="flex items-end justify-between">
                       <p className="text-2xl font-black theme-text-primary">{item.stock}</p>
-                      <span className="text-[9px] font-bold theme-text-muted uppercase">units</span>
+                      <span className="text-xs md:text-sm font-bold theme-text-muted uppercase">units</span>
                     </div>
                     {item.variants && Array.isArray(item.variants) && item.variants.length > 0 ? (
                       <div className="mt-3 pt-3 border-t theme-border space-y-1.5">
-                        <div className="flex items-center justify-between text-[8px] theme-text-muted font-black uppercase tracking-wider pb-1">
+                        <div className="flex items-center justify-between text-xs theme-text-muted font-black uppercase tracking-wider pb-1">
                           <span>Variant</span>
                           <span>Stock</span>
                         </div>
                         {item.variants.filter(v => (v.stock || 0) > 0).map((v, vi) => (
-                          <div key={vi} className="flex items-center justify-between text-[9px] md:text-[10px]">
+                          <div key={vi} className="flex items-center justify-between text-xs md:text-sm">
                             <span className="theme-text-secondary font-bold">{v.color || ''} {v.size || ''}</span>
                             <span className="theme-text-primary font-black">{v.stock || 0} <span className="theme-text-muted font-bold">units</span></span>
                           </div>
                         ))}
                       </div>
                     ) : (item.color || item.size || item.fabric ? (
-                      <p className="text-[9px] md:text-[10px] theme-text-muted font-bold mt-2">
+                      <p className="text-xs md:text-sm theme-text-muted font-bold mt-2">
                         {[item.color, item.size, item.fabric].filter(Boolean).join(' • ')}
                       </p>
                     ) : null)}
@@ -631,32 +631,32 @@ const WarehouseDashboard = () => {
                           </div>
                           <div>
                             <h3 className="font-black theme-text-primary text-sm">{item.productName}</h3>
-                            <span className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase border border-blue-500/20 bg-blue-500/5 text-blue-400">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-black uppercase border border-blue-500/20 bg-blue-500/5 text-blue-400">
                               {item.source}
                             </span>
                           </div>
                         </div>
-                        <div className="px-3 py-1 rounded-full text-[9px] font-black uppercase border border-emerald-500/20 bg-emerald-500/5 text-emerald-400">
+                        <div className="px-3 py-1 rounded-full text-xs md:text-sm font-black uppercase border border-emerald-500/20 bg-emerald-500/5 text-emerald-400">
                           {item.quantity} units
                         </div>
                       </div>
                       <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t theme-border text-center">
                         <div>
-                          <p className="text-[8px] font-black theme-text-muted uppercase">Cost</p>
+                          <p className="text-xs font-black theme-text-muted uppercase">Cost</p>
                           <p className="font-bold text-xs theme-text-primary">₨{item.productionCost?.toLocaleString()}</p>
                         </div>
                         <div>
-                          <p className="text-[8px] font-black theme-text-muted uppercase">Value</p>
+                          <p className="text-xs font-black theme-text-muted uppercase">Value</p>
                           <p className="font-bold text-xs text-emerald-400">₨{item.sellingValue?.toLocaleString()}</p>
                         </div>
                         <div>
-                          <p className="text-[8px] font-black theme-text-muted uppercase">Margin</p>
+                          <p className="text-xs font-black theme-text-muted uppercase">Margin</p>
                           <p className={`font-bold text-xs ${item.profitMargin >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                             {item.profitMargin?.toFixed(1)}%
                           </p>
                         </div>
                       </div>
-                      <p className="text-[8px] font-bold theme-text-muted mt-3">
+                      <p className="text-xs font-bold theme-text-muted mt-3">
                         {new Date(item.productionDate).toLocaleDateString()}
                       </p>
                     </motion.div>
@@ -697,24 +697,24 @@ const WarehouseDashboard = () => {
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                              <p className="text-[9px] font-black theme-text-muted uppercase tracking-wider">Requests</p>
+                              <p className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Requests</p>
                               <p className="text-xl font-black theme-text-primary">{outlet.count}</p>
                             </div>
                             <div>
-                              <p className="text-[9px] font-black theme-text-muted uppercase tracking-wider">Approval Rate</p>
+                              <p className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Approval Rate</p>
                               <p className="text-xl font-black text-emerald-400">{perf}%</p>
                             </div>
                             <div>
-                              <p className="text-[9px] font-black theme-text-muted uppercase tracking-wider">Requested</p>
+                              <p className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Requested</p>
                               <p className="text-xl font-black text-yellow-400">{outlet.requested}</p>
                             </div>
                             <div>
-                              <p className="text-[9px] font-black theme-text-muted uppercase tracking-wider">Approved</p>
+                              <p className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Approved</p>
                               <p className="text-xl font-black text-emerald-400">{outlet.approved}</p>
                             </div>
                           </div>
                           {outlet.completed > 0 && (
-                            <div className="mt-3 pt-3 border-t theme-border flex justify-between text-[9px] md:text-[10px] font-bold">
+                            <div className="mt-3 pt-3 border-t theme-border flex justify-between text-xs md:text-sm font-bold">
                               <span className="text-purple-400">{outlet.completed} Requests Completed</span>
                               <span className="text-emerald-400">{outlet.received} Products Received</span>
                               {outlet.rejected > 0 && <span className="text-red-400">{outlet.rejected} Rejected</span>}
@@ -739,7 +739,7 @@ const WarehouseDashboard = () => {
                             <div key={outlet.name}>
                               <div className="flex justify-between items-center mb-2">
                                 <span className="text-xs font-bold theme-text-secondary uppercase tracking-wider">{outlet.name}</span>
-                                <div className="flex space-x-4 text-[9px] md:text-[10px] font-bold">
+                                <div className="flex space-x-4 text-xs md:text-sm font-bold">
                                   <span className="text-blue-400">Req: {outlet.requested}</span>
                                   <span className="text-emerald-400">App: {outlet.approved}</span>
                                 </div>
@@ -752,7 +752,7 @@ const WarehouseDashboard = () => {
                               </div>
                             </div>
                           ))}
-                          <div className="flex justify-center space-x-3 md:space-x-6 text-[9px] md:text-[10px] font-bold">
+                          <div className="flex justify-center space-x-3 md:space-x-6 text-xs md:text-sm font-bold">
                             <span className="flex items-center space-x-2"><span className="w-3 h-3 rounded bg-blue-500/40" /><span>Requested</span></span>
                             <span className="flex items-center space-x-2"><span className="w-3 h-3 rounded bg-emerald-500/60" /><span>Approved</span></span>
                           </div>
@@ -805,7 +805,7 @@ const WarehouseDashboard = () => {
                           </svg>
                           <div className="flex flex-wrap justify-center gap-4 mt-4">
                             {statusData.map((d, i) => (
-                              <span key={d.name} className="flex items-center space-x-2 text-[9px] md:text-[10px] font-bold">
+                              <span key={d.name} className="flex items-center space-x-2 text-xs md:text-sm font-bold">
                                 <span className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
                                 <span className="theme-text-secondary">{d.name}</span>
                                 <span className="theme-text-primary">{d.value}</span>
@@ -831,19 +831,19 @@ const WarehouseDashboard = () => {
                             <div className="space-y-4">
                               {monthlyData.map(month => (
                                 <div key={month.name}>
-                                  <div className="flex justify-between text-[9px] md:text-[10px] font-bold mb-1">
+                                  <div className="flex justify-between text-xs md:text-sm font-bold mb-1">
                                     <span className="theme-text-secondary">{month.name}</span>
                                     <span className="text-blue-400">{month.requested}</span>
                                   </div>
                                   <div className="relative h-6 bg-gray-900 rounded-lg overflow-hidden">
                                     <div className="h-full bg-blue-500/40 transition-all" style={{ width: `${(month.requested / maxVal) * 100}%` }} />
                                     <div className="absolute inset-0 flex items-center justify-end pr-2">
-                                      <span className="text-[8px] font-black text-emerald-300">{month.approved}</span>
+                                      <span className="text-xs font-black text-emerald-300">{month.approved}</span>
                                     </div>
                                   </div>
                                 </div>
                               ))}
-                              <div className="flex justify-center space-x-3 md:space-x-6 text-[9px] md:text-[10px] font-bold pt-2">
+                              <div className="flex justify-center space-x-3 md:space-x-6 text-xs md:text-sm font-bold pt-2">
                                 <span className="flex items-center space-x-2"><span className="w-3 h-3 rounded bg-blue-500/40" /><span>Requested</span></span>
                                 <span className="flex items-center space-x-2"><span className="w-3 h-3 rounded bg-emerald-500/60" /><span>Approved</span></span>
                               </div>
@@ -879,7 +879,7 @@ const WarehouseDashboard = () => {
                         <div className={`p-2.5 rounded-xl ${oc.bg} ${oc.text}`}><Building2 size={18} /></div>
                         <div>
                           <p className="font-bold theme-text-primary text-sm">{req.itemName}</p>
-                          <p className="text-[9px] md:text-[10px] theme-text-muted font-bold">{req.outletName}</p>
+                          <p className="text-xs md:text-sm theme-text-muted font-bold">{req.outletName}</p>
                         </div>
                       </div>
                       <div className="flex items-center space-x-3 md:space-x-6">
@@ -887,10 +887,10 @@ const WarehouseDashboard = () => {
                           <p className="text-xs font-bold theme-text-secondary">Requested: {req.quantity}</p>
                           <p className="text-xs font-bold text-emerald-400">Approved: {req.approvedQty}</p>
                         </div>
-                        <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase border ${sc}`}>
+                        <span className={`px-2.5 py-1 rounded-full text-xs md:text-sm font-black uppercase border ${sc}`}>
                           {req.status.replace('_', ' ')}
                         </span>
-                        <p className="text-[9px] theme-text-muted font-bold w-16 text-right">{new Date(req.createdAt).toLocaleDateString()}</p>
+                        <p className="text-xs md:text-sm theme-text-muted font-bold w-16 text-right">{new Date(req.createdAt).toLocaleDateString()}</p>
                       </div>
                     </motion.div>
                   );
@@ -917,13 +917,13 @@ const WarehouseDashboard = () => {
               <div className="glass p-4 md:p-8 rounded-xl md:rounded-[2.5rem] border-2 border-gray-900">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-6">
                   <div>
-                      <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest">Person Name *</label>
+                      <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Person Name *</label>
                     <input type="text" value={personName} onChange={(e) => setPersonName(e.target.value)}
                       placeholder="Enter person's name"
                       className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 focus:border-amber-500 outline-none font-medium text-white mt-2" />
                   </div>
                   <div>
-                      <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest">Product *</label>
+                      <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Product *</label>
                     <select value={selectedProduct?.id || ''} onChange={(e) => {
                       const prod = inventory.find(i => i.id === e.target.value);
                       setSelectedProduct(prod || null);
@@ -942,12 +942,12 @@ const WarehouseDashboard = () => {
                     if (!variants.length) {
                       return (<>
                         <div>
-                          <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest">Color</label>
+                          <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Color</label>
                           <input type="text" value={selectedProduct.color || ''} disabled
                             className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 font-medium theme-text-muted mt-2" />
                         </div>
                         <div>
-                          <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest">Size</label>
+                          <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Size</label>
                           <input type="text" value={selectedProduct.size || ''} disabled
                             className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 font-medium theme-text-muted mt-2" />
                         </div>
@@ -960,7 +960,7 @@ const WarehouseDashboard = () => {
                       : uniqueSizes;
                     return (<>
                       <div>
-                        <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest">Color *</label>
+                        <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Color *</label>
                         <select value={selectedColor} onChange={(e) => { setSelectedColor(e.target.value); setSelectedSize(''); }}
                           className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 focus:border-amber-500 outline-none font-medium text-white mt-2">
                           <option value="">Select Color</option>
@@ -968,7 +968,7 @@ const WarehouseDashboard = () => {
                         </select>
                       </div>
                       <div>
-                        <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest">Size *</label>
+                        <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Size *</label>
                         <select value={selectedSize} onChange={(e) => setSelectedSize(e.target.value)}
                           className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 focus:border-amber-500 outline-none font-medium text-white mt-2">
                           <option value="">Select Size</option>
@@ -978,7 +978,7 @@ const WarehouseDashboard = () => {
                     </>);
                   })()}
                   <div>
-                    <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest">Quantity *</label>
+                    <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Quantity *</label>
                     <input type="number" min="1" value={allocationQty}
                       onChange={(e) => {
                         const max = (() => {
@@ -998,14 +998,14 @@ const WarehouseDashboard = () => {
                       const vs = selectedProduct.variants || [];
                       if (vs.length && selectedColor && selectedSize) {
                         const v = vs.find(x => x.color === selectedColor && x.size === selectedSize);
-                        if (v) return <p className="text-[9px] md:text-[10px] theme-text-muted font-bold mt-1">Available: {v.stock}</p>;
+                        if (v) return <p className="text-xs md:text-sm theme-text-muted font-bold mt-1">Available: {v.stock}</p>;
                       }
-                      if (!vs.length) return <p className="text-[9px] md:text-[10px] theme-text-muted font-bold mt-1">Available: {selectedProduct.stock}</p>;
+                      if (!vs.length) return <p className="text-xs md:text-sm theme-text-muted font-bold mt-1">Available: {selectedProduct.stock}</p>;
                       return null;
                     })()}
                   </div>
                   <div>
-                    <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest">Notes</label>
+                    <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Notes</label>
                     <textarea value={allocationNotes} onChange={(e) => setAllocationNotes(e.target.value)}
                       className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 focus:border-amber-500 outline-none font-medium text-white mt-2 min-h-[80px]"
                       placeholder="Optional notes about this allocation..." />
@@ -1031,7 +1031,7 @@ const WarehouseDashboard = () => {
                   <div className="overflow-x-auto">
                     <table className="w-full text-left">
                       <thead>
-                          <tr className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest border-b theme-border">
+                          <tr className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest border-b theme-border">
                           <th className="pb-3 pr-4">Person</th>
                           <th className="pb-3 pr-4">Times Taken</th>
                           <th className="pb-3 pr-4">Total Items</th>
@@ -1083,7 +1083,7 @@ const WarehouseDashboard = () => {
                     <div className="overflow-x-auto">
                       <table className="w-full text-left">
                         <thead>
-                        <tr className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest border-b theme-border">
+                        <tr className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest border-b theme-border">
                             <th className="pb-3 pr-4">Person</th>
                             <th className="pb-3 pr-4">Item</th>
                             <th className="pb-3 pr-4">Variant</th>
@@ -1139,7 +1139,7 @@ const WarehouseDashboard = () => {
               </p>
               <div className="space-y-4">
                 <div>
-                  <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest">Quantity to Approve</label>
+                  <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Quantity to Approve</label>
                   <input type="number" min="0" max={approveModal.quantity} value={approveQty}
                     onChange={(e) => setApproveQty(Math.min(parseInt(e.target.value) || 0, approveModal.quantity))}
                     className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 focus:border-emerald-500 outline-none font-black text-lg text-white mt-2"
@@ -1177,7 +1177,7 @@ const WarehouseDashboard = () => {
               </p>
               <div className="space-y-4">
                 <div>
-                  <label className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest">Reason / Notes (optional)</label>
+                  <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Reason / Notes (optional)</label>
                   <textarea value={rejectNotes} onChange={(e) => setRejectNotes(e.target.value)}
                     className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 focus:border-red-500 outline-none font-medium text-white mt-2 min-h-[80px]"
                     placeholder="Why is this request being rejected?"

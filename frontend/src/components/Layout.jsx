@@ -112,7 +112,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
               <h1 className="text-xl font-black bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent italic">
                 Enamels
               </h1>
-              <span className="text-[8px] font-black text-blue-500/50 tracking-[0.3em] uppercase">Build v1.0.5-OUTLET</span>
+              <span className="text-xs font-black text-blue-500/50 tracking-[0.3em] uppercase">Build v1.0.5-OUTLET</span>
             </div>
           )}
           <button onClick={isCollapsed ? toggleCollapse : toggle} className={`${isCollapsed ? 'hidden lg:block' : 'lg:hidden'} text-gray-400 hover:text-white`}>
@@ -161,7 +161,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
                        user?.name
                      ) : user?.name}
                   </p>
-                  <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">{user?.role?.replace('_', ' ')}</p>
+                  <p className="text-xs md:text-sm text-gray-500 font-black uppercase tracking-widest">{user?.role?.replace('_', ' ')}</p>
                 </div>
               </div>
               {/* Personal Theme Picker */}
@@ -172,7 +172,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
                 >
                   <Palette size={18} style={{ color: currentTheme.colors.primary }} />
                   <span className="flex-1 text-left">{currentTheme.name}</span>
-                  <span className="text-[8px] opacity-50">▼</span>
+                  <span className="text-xs opacity-50">▼</span>
                 </button>
                 {showThemePicker && (
                   <div className="absolute bottom-full left-0 right-0 mb-2 bg-gray-900 border border-gray-800 rounded-xl overflow-hidden shadow-2xl z-50 max-h-48 overflow-y-auto">
@@ -186,7 +186,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
                       >
                         <span>{theme.icon}</span>
                         <span className="font-bold">{theme.name}</span>
-                        {themeId === id && <span className="ml-auto text-[8px] text-blue-400">✓</span>}
+                        {themeId === id && <span className="ml-auto text-xs text-blue-400">✓</span>}
                       </button>
                     ))}
                   </div>
@@ -355,7 +355,7 @@ const Layout = () => {
                     setLocalSearch(e.target.value);
                     setContextSearch(e.target.value);
                   }}
-                  className="w-full bg-gray-900/50 border border-gray-800 rounded-xl py-2.5 pl-12 pr-4 focus:outline-none focus:border-blue-500/50 transition-all text-[9px] md:text-[11px] font-black uppercase tracking-widest text-white shadow-inner"
+                  className="w-full bg-gray-900/50 border border-gray-800 rounded-xl py-2.5 pl-12 pr-4 focus:outline-none focus:border-blue-500/50 transition-all text-xs md:text-sm font-black uppercase tracking-widest text-white shadow-inner"
                 />
               </form>
             )}
@@ -364,8 +364,8 @@ const Layout = () => {
           <div className="flex items-center gap-3">
             <LanguageToggle />
             <div className="hidden md:flex flex-col items-end text-right">
-              <span className="text-[9px] md:text-[10px] font-black text-white uppercase tracking-widest">{user?.role?.replace('_', ' ')}</span>
-              <span className="text-[8px] font-bold text-gray-500 uppercase tracking-tighter">Active Session</span>
+              <span className="text-xs md:text-sm font-black text-white uppercase tracking-widest">{user?.role?.replace('_', ' ')}</span>
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-tighter">Active Session</span>
             </div>
           </div>
         </header>

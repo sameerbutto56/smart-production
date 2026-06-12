@@ -158,11 +158,11 @@ const AdminSettings = () => {
             <h3 className="text-sm font-black text-white uppercase tracking-wider mb-2 flex items-center gap-2">
               <Clock size={16} className="text-blue-400" /> Stage Durations (hours)
             </h3>
-            <p className="text-[9px] md:text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4">Default completion time per pipeline stage. SLA multipliers shrink these for priority orders.</p>
+            <p className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest mb-4">Default completion time per pipeline stage. SLA multipliers shrink these for priority orders.</p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {STAGES.map(stage => (
                 <div key={stage} className="bg-gray-900/50 rounded-xl p-4 border border-gray-800">
-                  <label className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">
+                  <label className="text-xs md:text-sm font-black text-gray-400 uppercase tracking-widest mb-2 block">
                     {stage.replace(/_/g, ' ')}
                   </label>
                   <div className="flex items-center gap-2">
@@ -189,7 +189,7 @@ const AdminSettings = () => {
             <h3 className="text-sm font-black text-white uppercase tracking-wider mb-2 flex items-center gap-2">
               <Target size={16} className="text-amber-400" /> SLA Priority Multipliers
             </h3>
-            <p className="text-[9px] md:text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4">How much of the stage duration is allocated per priority level (1 = full time, 0.5 = half time)</p>
+            <p className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest mb-4">How much of the stage duration is allocated per priority level (1 = full time, 0.5 = half time)</p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {[
                 { key: 'NORMAL', label: 'Normal', color: 'bg-blue-500' },
@@ -238,7 +238,7 @@ const AdminSettings = () => {
       {/* Themes */}
       {activeSection === 'themes' && (
         <div className="glass rounded-xl md:rounded-[2rem] border border-gray-800 p-4 md:p-6 space-y-4">
-          <p className="text-[9px] md:text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Choose a global theme for the entire system — applies to all users by default. Individual users can override in their personal settings.</p>
+          <p className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest mb-2">Choose a global theme for the entire system — applies to all users by default. Individual users can override in their personal settings.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {Object.entries(THEMES).map(([id, theme]) => {
               const isActive = themeId === id && !isUsingPersonal;
@@ -264,7 +264,7 @@ const AdminSettings = () => {
                   )}
                   <span className="text-2xl mb-2 block">{theme.icon}</span>
                   <p className="text-xs font-black uppercase tracking-wider mb-1" style={{ color: previewText }}>{theme.name}</p>
-                  <p className="text-[9px] md:text-[10px]" style={{ color: lightThemes.includes(id) ? theme.colors['text-secondary'] : '#a1a1aa' }}>{theme.description}</p>
+                  <p className="text-xs md:text-sm" style={{ color: lightThemes.includes(id) ? theme.colors['text-secondary'] : '#a1a1aa' }}>{theme.description}</p>
                   <div className="flex gap-1 mt-3">
                     <div className="w-4 h-4 rounded-full" style={{ background: theme.colors.primary }} />
                     <div className="w-4 h-4 rounded-full" style={{ background: theme.colors.secondary }} />
@@ -278,7 +278,7 @@ const AdminSettings = () => {
             <Palette size={16} style={{ color: 'var(--primary)' }} />
             <div>
               <p className="text-xs font-black uppercase tracking-wider" style={{ color: 'var(--section-title)' }}>Active Theme: {currentTheme.name}</p>
-              <p className="text-[9px] md:text-[10px]" style={{ color: 'var(--text-secondary)' }}>{currentTheme.description} {currentTheme.nameUrdu && `· ${currentTheme.nameUrdu}`}</p>
+              <p className="text-xs md:text-sm" style={{ color: 'var(--text-secondary)' }}>{currentTheme.description} {currentTheme.nameUrdu && `· ${currentTheme.nameUrdu}`}</p>
             </div>
           </div>
         </div>
@@ -291,19 +291,19 @@ const AdminSettings = () => {
             <>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="glass rounded-[1.5rem] border border-gray-800 p-5">
-                  <p className="text-[9px] md:text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Total Orders</p>
+                  <p className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest mb-1">Total Orders</p>
                   <p className="text-2xl md:text-4xl font-black text-white">{performance.totalOrders}</p>
                 </div>
                 <div className="glass rounded-[1.5rem] border border-gray-800 p-5">
-                  <p className="text-[9px] md:text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Urgent</p>
+                  <p className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest mb-1">Urgent</p>
                   <p className="text-2xl md:text-4xl font-black text-amber-400">{performance.urgentOrders || 0}</p>
                 </div>
                 <div className="glass rounded-[1.5rem] border border-gray-800 p-5">
-                  <p className="text-[9px] md:text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Super Urgent</p>
+                  <p className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest mb-1">Super Urgent</p>
                   <p className="text-2xl md:text-4xl font-black text-red-400">{performance.superUrgentOrders || 0}</p>
                 </div>
                 <div className="glass rounded-[1.5rem] border border-gray-800 p-5">
-                  <p className="text-[9px] md:text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">SLA On-Time</p>
+                  <p className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest mb-1">SLA On-Time</p>
                   <p className="text-2xl md:text-4xl font-black text-emerald-400">{performance.slaOnTime || 100}%</p>
                 </div>
               </div>
@@ -369,9 +369,9 @@ const AdminSettings = () => {
                           {o.priority === 'SUPER_URGENT' && <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />}
                           {o.priority === 'URGENT' && <span className="w-2 h-2 bg-amber-500 rounded-full" />}
                           <span className="text-xs font-black text-gray-300">#{o.orderNumber}</span>
-                          <span className="text-[9px] md:text-[10px] text-gray-500">{o.customerName}</span>
+                          <span className="text-xs md:text-sm text-gray-500">{o.customerName}</span>
                         </div>
-                        <span className="text-[9px] md:text-[10px] font-black text-red-400">{o.stageName.replace(/_/g, ' ')}</span>
+                        <span className="text-xs md:text-sm font-black text-red-400">{o.stageName.replace(/_/g, ' ')}</span>
                       </div>
                     ))}
                   </div>
@@ -400,11 +400,11 @@ const AdminSettings = () => {
           <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
             <KeyRound size={16} className="text-purple-400" /> Change Account Password
           </h3>
-          <p className="text-[9px] md:text-[10px] font-black text-gray-500 uppercase tracking-widest">Select a user and set a new password</p>
+          <p className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">Select a user and set a new password</p>
 
           <div className="space-y-4">
             <div>
-              <label className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Select User</label>
+              <label className="text-xs md:text-sm font-black text-gray-400 uppercase tracking-widest mb-2 block">Select User</label>
               <select
                 value={selectedUserId}
                 onChange={(e) => setSelectedUserId(e.target.value)}
@@ -420,7 +420,7 @@ const AdminSettings = () => {
             </div>
 
             <div>
-              <label className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">New Password</label>
+              <label className="text-xs md:text-sm font-black text-gray-400 uppercase tracking-widest mb-2 block">New Password</label>
               <input
                 type="text"
                 value={newPassword}
@@ -431,7 +431,7 @@ const AdminSettings = () => {
             </div>
 
             <div>
-              <label className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Your Admin Password</label>
+              <label className="text-xs md:text-sm font-black text-gray-400 uppercase tracking-widest mb-2 block">Your Admin Password</label>
               <input
                 type="password"
                 value={adminPassword}

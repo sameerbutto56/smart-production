@@ -264,11 +264,11 @@ const MyTasks = () => {
         >
           <span>Unseen Tasks</span>
           {unseenOrders.length > 0 ? (
-            <span className="w-5 h-5 bg-red-500 text-[9px] md:text-[10px] text-white flex items-center justify-center rounded-full font-black animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]">
+            <span className="w-5 h-5 bg-red-500 text-xs md:text-sm text-white flex items-center justify-center rounded-full font-black animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]">
               {unseenOrders.length}
             </span>
           ) : (
-            <span className="text-[9px] md:text-[10px] bg-gray-800 theme-text-muted px-2 py-0.5 rounded-full font-black">0</span>
+            <span className="text-xs md:text-sm bg-gray-800 theme-text-muted px-2 py-0.5 rounded-full font-black">0</span>
           )}
           {activeTab === 'unseen' && (
             <motion.div layoutId="activeTabUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
@@ -282,7 +282,7 @@ const MyTasks = () => {
           }`}
         >
           <span>Active / Seen Tasks</span>
-          <span className="text-[9px] md:text-[10px] bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded-full font-black">
+          <span className="text-xs md:text-sm bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded-full font-black">
             {seenOrders.length}
           </span>
           {activeTab === 'seen' && (
@@ -298,7 +298,7 @@ const MyTasks = () => {
             }`}
           >
             <span>Production Orders</span>
-            <span className="text-[9px] md:text-[10px] bg-emerald-600/20 text-emerald-400 px-2 py-0.5 rounded-full font-black">
+            <span className="text-xs md:text-sm bg-emerald-600/20 text-emerald-400 px-2 py-0.5 rounded-full font-black">
               {productionOrders.length}
             </span>
             {activeTab === 'production' && (
@@ -312,7 +312,7 @@ const MyTasks = () => {
       <div className="flex items-center gap-2 mb-4">
         <button
           onClick={() => { fetchRoutingHistory(); setShowRoutingHistory(true); }}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-[9px] font-black uppercase tracking-widest text-gray-400 transition-all"
+          className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest text-gray-400 transition-all"
         >
           <History size={14} />
           Routing History
@@ -341,7 +341,7 @@ const MyTasks = () => {
                     <span className="text-xs font-black text-red-400 uppercase tracking-wider">Overdue</span>
                   </div>
                   <p className="text-2xl md:text-4xl font-black text-white">{overdue.length}</p>
-                  <p className="text-[9px] md:text-[10px] theme-text-secondary font-bold mt-1">Orders past production deadline</p>
+                  <p className="text-xs md:text-sm theme-text-secondary font-bold mt-1">Orders past production deadline</p>
                 </div>
                 <div className="glass rounded-2xl p-5 border border-amber-500/20">
                   <div className="flex items-center gap-3 mb-2">
@@ -349,7 +349,7 @@ const MyTasks = () => {
                     <span className="text-xs font-black text-amber-400 uppercase tracking-wider">Approaching</span>
                   </div>
                   <p className="text-2xl md:text-4xl font-black text-white">{approaching.length}</p>
-                  <p className="text-[9px] md:text-[10px] theme-text-secondary font-bold mt-1">Deadline within 4 hours</p>
+                  <p className="text-xs md:text-sm theme-text-secondary font-bold mt-1">Deadline within 4 hours</p>
                 </div>
                 <div className="glass rounded-2xl p-5 border border-emerald-500/20">
                   <div className="flex items-center gap-3 mb-2">
@@ -359,7 +359,7 @@ const MyTasks = () => {
                   <p className="text-xl md:text-3xl font-black text-white">
                     {earliestDeadline ? earliestDeadline.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
                   </p>
-                  <p className="text-[9px] md:text-[10px] theme-text-secondary font-bold mt-1">
+                  <p className="text-xs md:text-sm theme-text-secondary font-bold mt-1">
                     {earliestDeadline ? earliestDeadline.toLocaleDateString() : 'No deadlines set'}
                   </p>
                 </div>
@@ -432,7 +432,7 @@ const MyTasks = () => {
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h3 className="text-xl font-black text-white uppercase tracking-tight">Routing History</h3>
-                  <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">Complete audit trail</p>
+                  <p className="text-xs md:text-sm text-gray-500 font-bold uppercase tracking-widest">Complete audit trail</p>
                 </div>
                 <button onClick={() => setShowRoutingHistory(false)} className="p-2 hover:bg-gray-800 rounded-full text-gray-400 transition-colors">
                   <X size={18} />
@@ -440,7 +440,7 @@ const MyTasks = () => {
               </div>
 
               {routingHistory.length === 0 ? (
-                <div className="text-center py-12 text-gray-500 font-black uppercase tracking-widest text-[9px]">
+                <div className="text-center py-12 text-gray-500 font-black uppercase tracking-widest text-xs md:text-sm">
                   No routing history found
                 </div>
               ) : (
@@ -452,17 +452,17 @@ const MyTasks = () => {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[10px] font-black text-white">{entry.sentBy || 'System'}</span>
-                          <span className="text-gray-600 text-[8px]">→</span>
-                          <span className="text-[9px] font-black text-blue-400 uppercase tracking-wider">{entry.sentToStage?.replace(/_/g, ' ')}</span>
+                          <span className="text-xs font-black text-white">{entry.sentBy || 'System'}</span>
+                          <span className="text-gray-600 text-xs">→</span>
+                          <span className="text-xs md:text-sm font-black text-blue-400 uppercase tracking-wider">{entry.sentToStage?.replace(/_/g, ' ')}</span>
                         </div>
-                        <p className="text-[8px] text-gray-500 font-bold">
+                        <p className="text-xs text-gray-500 font-bold">
                           <span className="text-gray-600">{entry.previousStage?.replace(/_/g, ' ')}</span> → <span className="text-blue-400">{entry.newStage?.replace(/_/g, ' ')}</span>
                         </p>
                         {entry.remarks && (
-                          <p className="text-[8px] text-gray-600 italic mt-1">{entry.remarks}</p>
+                          <p className="text-xs text-gray-600 italic mt-1">{entry.remarks}</p>
                         )}
-                        <p className="text-[7px] text-gray-700 font-bold mt-1">
+                        <p className="text-[9px] text-gray-700 font-bold mt-1">
                           {new Date(entry.createdAt).toLocaleString()}
                         </p>
                       </div>

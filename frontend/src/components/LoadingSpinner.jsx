@@ -17,7 +17,7 @@ export function LoadingSpinner({ size = 16, className = '', text = '', inline = 
   return (
     <span className="inline-flex items-center gap-2">
       {spinner}
-      <span className="text-[9px] font-bold uppercase tracking-wider">{text}</span>
+      <span className="text-xs md:text-sm font-bold uppercase tracking-wider">{text}</span>
     </span>
   );
 }
@@ -27,7 +27,7 @@ export function PageLoader({ text = 'Loading...' }) {
     <div className="flex items-center justify-center min-h-[200px]">
       <div className="flex flex-col items-center gap-3">
         <LoadingSpinner size={32} />
-        <p className="text-[10px] font-bold theme-text-muted uppercase tracking-widest">{text}</p>
+        <p className="text-xs font-bold theme-text-muted uppercase tracking-widest">{text}</p>
       </div>
     </div>
   );

@@ -77,7 +77,7 @@ const Login = () => {
             <span className="bg-gradient-to-r from-blue-400 via-indigo-400 to-emerald-400 bg-clip-text text-transparent">PRODUCTION</span>
           </h1>
           <div className="h-0.5 w-12 bg-gradient-to-r from-blue-600 to-emerald-600 mx-auto rounded-full mb-2"></div>
-          <p className="theme-text-muted text-[9px] font-black uppercase tracking-[0.4em]">Enterprise Workflow Intelligence</p>
+          <p className="theme-text-muted text-xs md:text-sm font-black uppercase tracking-[0.4em]">Enterprise Workflow Intelligence</p>
         </div>
 
         <div className="glass p-6 md:p-8 rounded-[1.5rem] border theme-border shadow-2xl backdrop-blur-3xl relative overflow-hidden group">
@@ -99,7 +99,7 @@ const Login = () => {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-[8px] font-black theme-text-muted uppercase tracking-widest ml-3">Authorized Identity</label>
+              <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-3">Authorized Identity</label>
               <div className="relative group/input">
                 <Mail className="absolute left-5 top-1/2 -translate-y-1/2 theme-text-muted group-focus-within/input:text-blue-500 transition-colors" size={16} />
                 <input
@@ -114,7 +114,7 @@ const Login = () => {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[8px] font-black theme-text-muted uppercase tracking-widest ml-3">Access Encryption</label>
+              <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-3">Access Encryption</label>
               <div className="relative group/input">
                 <Lock className="absolute left-5 top-1/2 -translate-y-1/2 theme-text-muted group-focus-within/input:text-blue-500 transition-colors" size={16} />
                 <input
@@ -145,7 +145,7 @@ const Login = () => {
                 <Loader2 className="animate-spin" size={18} />
               ) : (
                 <>
-                  <span className="uppercase tracking-[0.2em] text-[9px] md:text-[10px]">{t('Login')}</span>
+                  <span className="uppercase tracking-[0.2em] text-xs md:text-sm">{t('Login')}</span>
                   <ShieldCheck size={16} className="group-hover/btn:rotate-12 transition-transform" />
                 </>
               )}
@@ -154,10 +154,10 @@ const Login = () => {
         </div>
 
         <div className="mt-4 text-center space-y-2">
-          <p className="text-[8px] theme-text-muted font-black uppercase tracking-[0.4em]">
+          <p className="text-xs theme-text-muted font-black uppercase tracking-[0.4em]">
             Build v1.0.5-OUTLET (READY)
           </p>
-          <p className="text-[7px] theme-text-muted font-bold uppercase tracking-widest">
+          <p className="text-[9px] theme-text-muted font-bold uppercase tracking-widest">
             Ctrl + F5 to refresh if updates don't show
           </p>
         </div>

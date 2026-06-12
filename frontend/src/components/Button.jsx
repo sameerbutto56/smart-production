@@ -72,7 +72,7 @@ const Button = ({
       {loading ? (
         <span className="inline-flex items-center justify-center gap-2">
           <LoadingSpinner size={size === 'sm' ? 12 : 14} />
-          <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider">{processingMsg}</span>
+          <span className="text-xs md:text-sm font-bold uppercase tracking-wider">{processingMsg}</span>
         </span>
       ) : (
         <>
