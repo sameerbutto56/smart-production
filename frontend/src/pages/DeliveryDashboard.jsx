@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
-import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
+import { PageLoader, LoadingSpinner, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -210,7 +210,7 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
               <button
-                disabled={loading}
+                disabled={loading === order.id}
                 onClick={() => {
                   const method = paymentMethods[order.id] || 'CASH';
                   if (method === 'HALF_CASH_HALF_ONLINE') {
@@ -222,22 +222,26 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
                 }}
                 className="flex flex-col items-center justify-center gap-1.5 py-5 bg-emerald-600 text-white rounded-2xl font-black active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-emerald-900/40"
               >
-                <CheckCircle2 size={28} />
-                <span className="text-sm">Delivered</span>
-                <span className="text-[9px] opacity-70 font-bold">مل گیا</span>
+                {loading === order.id ? (
+                  <LoadingSpinner size={16} text="Processing..." />
+                ) : (
+                  <><CheckCircle2 size={28} /><span className="text-sm">Delivered</span><span className="text-[9px] opacity-70 font-bold">مل گیا</span></>
+                )}
               </button>
               <button
-                disabled={loading}
+                disabled={loading === order.id}
                 onClick={() => onAction(order.id, 'NOT_RESPONDED', 'Customer did not respond')}
                 className="flex flex-col items-center justify-center gap-1.5 py-5 bg-gray-800 border-2 border-amber-500/40 text-amber-400 rounded-2xl font-black active:scale-95 transition-all disabled:opacity-50"
               >
-                <PhoneOff size={28} />
-                <span className="text-sm">No Response</span>
-                <span className="text-[9px] opacity-70 font-bold">جواب نہیں</span>
+                {loading === order.id ? (
+                  <LoadingSpinner size={16} text="Processing..." />
+                ) : (
+                  <><PhoneOff size={28} /><span className="text-sm">No Response</span><span className="text-[9px] opacity-70 font-bold">جواب نہیں</span></>
+                )}
               </button>
             </div>
             <button
-              disabled={loading}
+              disabled={loading === order.id}
               onClick={() => {
                 const reason = prompt('Reason for return:');
                 if (!reason) return;
@@ -245,8 +249,11 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
               }}
               className="w-full flex items-center justify-center gap-2 py-3 bg-orange-600/10 hover:bg-orange-600/20 rounded-2xl border border-orange-500/20 text-sm font-black uppercase tracking-wider text-orange-400 active:scale-95 transition-all"
             >
-              <AlertCircle size={18} />
-              Return Order
+              {loading === order.id ? (
+                <LoadingSpinner size={16} text="Processing..." />
+              ) : (
+                <><AlertCircle size={18} />Return Order</>
+              )}
             </button>
           </>
         )}
@@ -278,9 +285,9 @@ const DeliveryDashboard = () => {
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(null);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState('PENDING');
+  const [filter, setFilter] = useState('ALL');
   const [selectedDate, setSelectedDate] = useState('');
   const [orderNoSearch, setOrderNoSearch] = useState('');
   const [paymentMethods, setPaymentMethods] = useState({});
@@ -325,7 +332,7 @@ const DeliveryDashboard = () => {
 
   const handleAction = async (orderId, deliveryStatus, remarks, paymentMethod, cashAmount, onlineAmount) => {
     try {
-      setActionLoading(true);
+      setActionLoading(orderId);
       if (deliveryStatus === 'RETURN') {
         await axios.post(`${API_URL}/api/orders/${orderId}/refund`, { reason: remarks || 'Returned by delivery boy' }, {
           headers: { Authorization: `Bearer ${token}` }
@@ -340,7 +347,8 @@ const DeliveryDashboard = () => {
         body.onlineAmount = onlineAmount || 0;
       }
       await axios.put(`${API_URL}/api/orders/${orderId}/delivery`, body, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 10000
       });
       if (deliveryStatus === 'DELIVERED') {
         toast.success('✅ Delivered!', { duration: 3000 });
@@ -351,7 +359,7 @@ const DeliveryDashboard = () => {
     } catch {
       toast.error('Update failed. Try again.');
     } finally {
-      setActionLoading(false);
+      setActionLoading(null);
     }
   };
 

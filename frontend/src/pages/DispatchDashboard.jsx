@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Truck, Package, MapPin, Clock, Search, Loader2, Phone, CheckCircle2, X, ExternalLink, User, Hash, AlertTriangle, Globe, Send, Store, ShoppingBag } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
+import { PageLoader, LoadingSpinner, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -34,6 +34,7 @@ const DispatchDashboard = () => {
   const [trackingNumber, setTrackingNumber] = useState('');
   const [estimatedDelivery, setEstimatedDelivery] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [statusLoading, setStatusLoading] = useState(null);
   const [filter, setFilter] = useState('ALL');
 
   useEffect(() => {
@@ -118,6 +119,7 @@ const DispatchDashboard = () => {
   };
 
   const handleUpdateStatus = async (orderId, dispatchStatus) => {
+    setStatusLoading(orderId);
     try {
       const token = sessionStorage.getItem('token');
       await axios.put(`${API_URL}/api/dispatch/${orderId}/status`,
@@ -128,10 +130,13 @@ const DispatchDashboard = () => {
       fetchQueue();
     } catch (err) {
       alert('Failed to update: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setStatusLoading(null);
     }
   };
 
   const handleMarkPickedUp = async (orderId) => {
+    setStatusLoading(orderId);
     try {
       const token = sessionStorage.getItem('token');
       await axios.put(`${API_URL}/api/dispatch/${orderId}/pickup`, {}, {
@@ -141,6 +146,8 @@ const DispatchDashboard = () => {
       fetchPickupOrders();
     } catch (err) {
       alert('Failed to mark as picked up: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setStatusLoading(null);
     }
   };
 
@@ -279,23 +286,27 @@ const DispatchDashboard = () => {
                             <>
                               {(!order.dispatchStatus || order.dispatchStatus === 'PENDING' || order.dispatchStatus === 'COURIER_REQUIRED') ? (
                                 <button onClick={() => setBookModal(order)}
-                                  className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5">
-                                  <Truck size={14} /> Book Courier
+                                  disabled={statusLoading === order.id}
+                                  className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50">
+                                  {statusLoading === order.id ? <LoadingSpinner size={12} /> : <><Truck size={14} /> Book Courier</>}
                                 </button>
                               ) : order.dispatchStatus === 'BOOKED' ? (
                                 <button onClick={() => handleUpdateStatus(order.id, 'DISPATCHED')}
-                                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all">
-                                  Mark Dispatched
+                                  disabled={statusLoading === order.id}
+                                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all disabled:opacity-50">
+                                  {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Mark Dispatched'}
                                 </button>
                               ) : order.dispatchStatus === 'DISPATCHED' ? (
                                 <button onClick={() => handleUpdateStatus(order.id, 'IN_TRANSIT')}
-                                  className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all">
-                                  Mark In Transit
+                                  disabled={statusLoading === order.id}
+                                  className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all disabled:opacity-50">
+                                  {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Mark In Transit'}
                                 </button>
                               ) : order.dispatchStatus === 'IN_TRANSIT' ? (
                                 <button onClick={() => handleUpdateStatus(order.id, 'DELIVERED')}
-                                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all">
-                                  Mark Delivered
+                                  disabled={statusLoading === order.id}
+                                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all disabled:opacity-50">
+                                  {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Mark Delivered'}
                                 </button>
                               ) : null}
                             </>
@@ -360,8 +371,9 @@ const DispatchDashboard = () => {
                               handleMarkPickedUp(order.id);
                             }
                           }}
-                            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5">
-                            <CheckCircle2 size={14} /> Mark Picked Up
+                            disabled={statusLoading === order.id}
+                            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50">
+                            {statusLoading === order.id ? <LoadingSpinner size={12} /> : <><CheckCircle2 size={14} /> Mark Picked Up</>}
                           </button>
                         )}
                         {isPickedUp && (

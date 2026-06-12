@@ -15,7 +15,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
-import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
+import { PageLoader, LoadingSpinner, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 import toast from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
@@ -27,6 +27,7 @@ const DeliverySheet = () => {
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -371,31 +372,37 @@ const DeliverySheet = () => {
                               </span>
                               <div className="flex gap-1">
                                 <button
+                                  disabled={actionLoading === order.id}
                                   onClick={async () => {
                                     if (!window.confirm('Mark this order as DELIVERED?')) return;
+                                    setActionLoading(order.id);
                                     try {
                                       await axios.put(`${API_URL}/api/orders/${order.id}/delivery`, { deliveryStatus: 'DELIVERED', remarks: 'Delivered via TCS/Courier' }, { headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` } });
                                       toast.success('Marked as DELIVERED');
                                       fetchOrders();
                                     } catch (err) { toast.error(err.response?.data?.message || err.message); }
+                                    finally { setActionLoading(null); }
                                   }}
-                                  className="text-[7px] font-black uppercase bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded-lg transition-all"
+                                  className="text-[7px] font-black uppercase bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded-lg transition-all disabled:opacity-50"
                                 >
-                                  Delivered
+                                  {actionLoading === order.id ? <LoadingSpinner size={10} /> : 'Delivered'}
                                 </button>
                                 <button
+                                  disabled={actionLoading === order.id}
                                   onClick={async () => {
                                     const reason = prompt('Reason for refund:');
                                     if (!reason) return;
+                                    setActionLoading(order.id);
                                     try {
                                       await axios.post(`${API_URL}/api/orders/${order.id}/refund`, { reason }, { headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` } });
                                       toast.success('Refund requested');
                                       fetchOrders();
                                     } catch (err) { toast.error(err.response?.data?.message || err.message); }
+                                    finally { setActionLoading(null); }
                                   }}
-                                  className="text-[7px] font-black uppercase bg-orange-600 hover:bg-orange-500 text-white px-2 py-1 rounded-lg transition-all"
+                                  className="text-[7px] font-black uppercase bg-orange-600 hover:bg-orange-500 text-white px-2 py-1 rounded-lg transition-all disabled:opacity-50"
                                 >
-                                  Refund
+                                  {actionLoading === order.id ? <LoadingSpinner size={10} /> : 'Refund'}
                                 </button>
                               </div>
                             </div>
