@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import socket from '../socket';
 import {
   Truck, CheckCircle2, PhoneOff, Phone,
-  RefreshCw, ClipboardList, Search, AlertCircle
+  RefreshCw, ClipboardList, Search, AlertCircle, Calendar
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
@@ -24,6 +24,9 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
   const status = getStatus();
   const isDelivered = status === 'DELIVERED';
   const isNoResponse = status === 'NOT_RESPONDED';
+
+  const deliveryStage = order.stages?.find(s => s.stageName === 'DELIVERED' || s.stageName === 'OUT_FOR_DELIVERY');
+  const deliveredAt = deliveryStage?.completedAt || deliveryStage?.updatedAt || order.updatedAt;
 
   let pd = {};
   try { let raw = JSON.parse(order.productDetails || '{}'); pd = Array.isArray(raw) ? (raw[0]?.productDetails || raw[0] || {}) : (raw || {}); } catch {}
@@ -250,9 +253,16 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
 
         {/* Already delivered message */}
         {isDelivered && (
-          <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-3">
-            <CheckCircle2 size={22} className="text-emerald-400 flex-shrink-0" />
-            <p className="text-emerald-400 font-black text-sm">Order Delivered Successfully</p>
+          <div className="space-y-2 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-3">
+            <div className="flex items-center gap-3">
+              <CheckCircle2 size={22} className="text-emerald-400 flex-shrink-0" />
+              <p className="text-emerald-400 font-black text-sm">Order Delivered Successfully</p>
+            </div>
+            {deliveredAt && (
+              <p className="text-[9px] text-emerald-600/80 font-bold ml-9">
+                {new Date(deliveredAt).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })} at {new Date(deliveredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -271,6 +281,8 @@ const DeliveryDashboard = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('PENDING');
+  const [selectedDate, setSelectedDate] = useState('');
+  const [orderNoSearch, setOrderNoSearch] = useState('');
   const [paymentMethods, setPaymentMethods] = useState({});
   const [halfPayments, setHalfPayments] = useState({});
 
@@ -281,10 +293,9 @@ const DeliveryDashboard = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       const relevant = res.data.filter(o =>
-        (o.currentStage === 'OUT_FOR_DELIVERY' ||
+        o.currentStage === 'OUT_FOR_DELIVERY' ||
         o.currentStage === 'DELIVERED' ||
-        o.status === 'COMPLETED') &&
-        (!o.deliveryMethod || o.deliveryMethod === 'ENAMELS_DELIVERY')
+        o.status === 'COMPLETED'
       );
       setOrders(relevant);
     } catch {
@@ -350,10 +361,16 @@ const DeliveryDashboard = () => {
     const status = getStatus(o);
     const matchSearch = !search ||
       o.customerName?.toLowerCase().includes(search.toLowerCase()) ||
-      o.orderNumber?.toLowerCase().includes(search.toLowerCase()) ||
       o.customerPhone?.includes(search);
+    const matchOrderNo = !orderNoSearch ||
+      (o.orderNumber || '').toLowerCase().includes(orderNoSearch.toLowerCase()) ||
+      o.id?.toLowerCase().includes(orderNoSearch.toLowerCase());
     const matchFilter = filter === 'ALL' || status === filter;
-    return matchSearch && matchFilter;
+    const delStage = o.stages?.find(s => s.stageName === 'DELIVERED' || s.stageName === 'OUT_FOR_DELIVERY');
+    const stageDate = delStage?.completedAt || delStage?.updatedAt || o.updatedAt || o.createdAt;
+    const matchDate = !selectedDate ||
+      new Date(stageDate).toISOString().split('T')[0] === selectedDate;
+    return matchSearch && matchOrderNo && matchFilter && matchDate;
   });
 
   return (
@@ -404,7 +421,40 @@ const DeliveryDashboard = () => {
         {t('Show All')} ({orders.length})
       </button>
 
-      {/* Search */}
+      {/* Filters row: Date + Search */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 theme-text-muted" size={15} />
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={e => setSelectedDate(e.target.value)}
+            className="w-full theme-input rounded-2xl py-3 pl-10 pr-3 text-xs font-bold text-white outline-none focus:border-blue-500 transition-all"
+          />
+        </div>
+        {selectedDate && (
+          <button
+            onClick={() => setSelectedDate('')}
+            className="text-[8px] font-black text-red-400 uppercase tracking-wider px-2 py-1 hover:text-red-300 transition-all"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {/* Order Number filter */}
+      <div className="relative">
+        <ClipboardList className="absolute left-4 top-1/2 -translate-y-1/2 theme-text-muted" size={15} />
+        <input
+          type="text"
+          value={orderNoSearch}
+          onChange={e => setOrderNoSearch(e.target.value)}
+          placeholder="Filter by order number..."
+          className="w-full theme-input rounded-2xl py-3 pl-12 pr-4 text-sm font-bold text-white outline-none focus:border-blue-500 transition-all"
+        />
+      </div>
+
+      {/* Search by name/phone */}
       <div className="relative">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 theme-text-muted" size={16} />
         <input

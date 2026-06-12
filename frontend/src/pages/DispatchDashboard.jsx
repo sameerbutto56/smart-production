@@ -246,7 +246,7 @@ const DispatchDashboard = () => {
                         <h3 className="font-black text-xl theme-text-primary truncate">#{order.orderNumber || order.id.substring(0, 8)} — {order.customerName}</h3>
                         <div className="flex flex-wrap items-center gap-3 mt-2 text-[9px] md:text-[11px] theme-text-secondary font-bold">
                           <span className="flex items-center gap-1"><Phone size={12} />{order.customerPhone || 'N/A'}</span>
-                          {order.city && <span className="flex items-center gap-1"><MapPin size={12} />{order.city}</span>}
+                          {order.address && <span className="flex items-center gap-1 text-blue-400 font-black max-w-[300px] truncate" title={order.address}><MapPin size={12} />{order.address}</span>}
                           <span className="flex items-center gap-1"><Package size={12} />{order.deliveryMethod || 'Not set'}</span>
                           <span className="flex items-center gap-1"><Clock size={12} />{new Date(order.createdAt).toLocaleDateString()}</span>
                         </div>
@@ -349,7 +349,7 @@ const DispatchDashboard = () => {
                         <h3 className="font-black text-xl theme-text-primary truncate">#{order.orderNumber || order.id.substring(0, 8)} — {order.customerName}</h3>
                         <div className="flex flex-wrap items-center gap-3 mt-2 text-[9px] md:text-[11px] theme-text-secondary font-bold">
                           <span className="flex items-center gap-1"><Phone size={12} />{order.customerPhone || 'N/A'}</span>
-                          {order.address && <span className="flex items-center gap-1"><MapPin size={12} />{order.address}</span>}
+                          {order.address && <span className="flex items-center gap-1 text-blue-400 font-black max-w-[350px]" title={order.address}><MapPin size={14} />{order.address}</span>}
                           {order.city && <span className="flex items-center gap-1"><Clock size={12} />{order.city}</span>}
                         </div>
                       </div>
