@@ -15,6 +15,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 import toast from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
@@ -45,8 +46,9 @@ const DeliverySheet = () => {
       console.error('Error fetching orders:', error.response?.data || error);
       const errorMsg = error.response?.data?.error || error.message;
       toast.error(`Failed to load orders: ${errorMsg}`);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const getStageDate = (order) => {

@@ -1,4 +1,5 @@
 import React from 'react';
+import { LoadingSpinner } from './LoadingSpinner';
 
 const variants = {
   primary: 'btn-solid-primary',
@@ -16,6 +17,33 @@ const sizes = {
   xl: 'btn-xl',
 };
 
+const processingTexts = {
+  'Send to': 'Sending Order...',
+  'Dispatch': 'Processing Dispatch...',
+  'Production': 'Sending to Production...',
+  'Store': 'Sending to Store...',
+  'Design': 'Sending to Design...',
+  'Delete': 'Deleting...',
+  'Save': 'Saving...',
+  'Submit': 'Submitting...',
+  'Approve': 'Approving...',
+  'Reject': 'Rejecting...',
+  'Confirm': 'Confirming...',
+  'Mark': 'Updating...',
+  'Route': 'Routing Order...',
+  'Record': 'Recording...',
+  'Upload': 'Uploading...',
+};
+
+function getProcessingText(children) {
+  if (typeof children === 'string') {
+    for (const [key, val] of Object.entries(processingTexts)) {
+      if (children.includes(key)) return val;
+    }
+  }
+  return 'Processing...';
+}
+
 const Button = ({
   children,
   variant = 'primary',
@@ -23,6 +51,7 @@ const Button = ({
   className = '',
   disabled = false,
   loading = false,
+  loadingText,
   icon: Icon,
   iconPosition = 'left',
   type = 'button',
@@ -31,23 +60,27 @@ const Button = ({
 }) => {
   const base = variants[variant] || variants.primary;
   const sz = sizes[size] || sizes.md;
+  const processingMsg = loadingText || (loading ? getProcessingText(children) : '');
   return (
     <button
       type={type}
       disabled={disabled || loading}
-      onClick={onClick}
-      className={`${base} ${sz} ${className}`}
+      onClick={loading ? undefined : onClick}
+      className={`${base} ${sz} ${className} ${loading ? 'opacity-70 cursor-not-allowed pointer-events-none' : ''}`}
       {...props}
     >
-      {loading && (
-        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-        </svg>
+      {loading ? (
+        <span className="inline-flex items-center justify-center gap-2">
+          <LoadingSpinner size={size === 'sm' ? 12 : 14} />
+          <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider">{processingMsg}</span>
+        </span>
+      ) : (
+        <>
+          {Icon && iconPosition === 'left' && <Icon size={size === 'sm' ? 14 : size === 'md' ? 16 : 18} />}
+          {children}
+          {Icon && iconPosition === 'right' && <Icon size={size === 'sm' ? 14 : size === 'md' ? 16 : 18} />}
+        </>
       )}
-      {!loading && Icon && iconPosition === 'left' && <Icon size={size === 'sm' ? 14 : size === 'md' ? 16 : 18} />}
-      {children}
-      {!loading && Icon && iconPosition === 'right' && <Icon size={size === 'sm' ? 14 : size === 'md' ? 16 : 18} />}
     </button>
   );
 };

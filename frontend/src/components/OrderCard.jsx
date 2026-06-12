@@ -4,6 +4,7 @@ import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X,
 import axios from 'axios';
 import { useLanguage } from '../context/LanguageContext';
 import Button from './Button';
+import { LoadingSpinner } from './LoadingSpinner';
 import toast from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
@@ -55,6 +56,38 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const [showJobSheet, setShowJobSheet] = useState(false);
   const [showProdHistory, setShowProdHistory] = useState(false);
   const [trackingUrl, setTrackingUrl] = useState('');
+  const [actionLoading, setActionLoading] = useState(null);
+
+  const withActionLoading = useCallback(async (actionName, asyncFn) => {
+    if (actionLoading) return;
+    setActionLoading(actionName);
+    try {
+      const result = await asyncFn();
+      return result;
+    } finally {
+      setActionLoading(null);
+    }
+  }, [actionLoading]);
+
+  const ActionBtn = ({ name, children, onClick, className = '', disabled: btnDisabled = false, variant = 'default' }) => {
+    const isLoading = actionLoading === name;
+    const variantStyles = {
+      default: 'text-white',
+      success: 'btn-ghost-success',
+      danger: 'btn-ghost-danger',
+      warning: 'btn-ghost-warning',
+      primary: 'btn-ghost-primary',
+    };
+    return (
+      <button
+        onClick={() => withActionLoading(name, onClick)}
+        disabled={!!actionLoading || btnDisabled}
+        className={`${variantStyles[variant] || variantStyles.default} ${className} ${isLoading || actionLoading ? 'opacity-60 cursor-not-allowed pointer-events-none' : ''}`}
+      >
+        {isLoading ? <LoadingSpinner size={12} text="Processing..." /> : children}
+      </button>
+    );
+  };
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -622,11 +655,15 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
           <div className="flex flex-col gap-2 w-full">
             {isUnseen && !isAdmin ? (
               <button
-                onClick={onMarkSeen}
-                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-3 md:py-4 rounded-2xl text-[10px] md:text-xs font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-xl shadow-blue-900/40 border border-blue-400/20"
+                onClick={() => withActionLoading('accept', async () => { if (onMarkSeen) await onMarkSeen(); })}
+                disabled={!!actionLoading}
+                className={`w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-3 md:py-4 rounded-2xl text-[10px] md:text-xs font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-xl shadow-blue-900/40 border border-blue-400/20 ${actionLoading ? 'opacity-60 cursor-not-allowed' : ''}`}
               >
-                <CheckCircle size={14} className="text-blue-300" />
-                <span>📥 ACCEPT TASK & START WORK</span>
+                {actionLoading === 'accept' ? (
+                  <LoadingSpinner size={16} text="Accepting..." />
+                ) : (
+                  <><CheckCircle size={14} className="text-blue-300" /><span>📥 ACCEPT TASK & START WORK</span></>
+                )}
               </button>
             ) : isUnseen && isAdmin && currentStage?.stageName === 'STORE' ? (
               <div className="space-y-2">
@@ -649,7 +686,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   <option value="REJECT">Reject Order</option>
                 </select>
                 <button
-                  onClick={async () => {
+                  onClick={() => withActionLoading('move', async () => {
                     if (!nextStage) return;
                     if (['HOLD', 'REJECT'].includes(nextStage)) {
                       if (nextStage === 'REJECT') {
@@ -675,87 +712,82 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     } catch (err) {
                       alert('Route failed: ' + (err.response?.data?.message || err.message));
                     }
-                  }}
-                  className="w-full py-2.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95"
+                  })}
+                  disabled={!!actionLoading}
+                  className={`w-full py-2.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 ${actionLoading ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
-                  <Package size={12} className="inline mr-1.5" />
-                  {nextStage ? `MOVE TO ${nextStage.replace(/_/g, ' ')}` : 'SELECT DESTINATION'}
+                  {actionLoading === 'move' ? (
+                    <LoadingSpinner size={14} text="Routing..." />
+                  ) : (
+                    <><Package size={12} className="inline mr-1.5" />{nextStage ? `MOVE TO ${nextStage.replace(/_/g, ' ')}` : 'SELECT DESTINATION'}</>
+                  )}
                 </button>
               </div>
             ) : isUnseen && isAdmin ? (
-              // Auto-mark seen for admin on non-STORE unseen orders
               <button
-                onClick={onMarkSeen}
-                className="w-full bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600 text-white py-3 md:py-4 rounded-2xl text-[9px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 border border-gray-600/30"
+                onClick={() => withActionLoading('view', async () => { if (onMarkSeen) await onMarkSeen(); })}
+                disabled={!!actionLoading}
+                className={`w-full bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600 text-white py-3 md:py-4 rounded-2xl text-[9px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 border border-gray-600/30 ${actionLoading ? 'opacity-60 cursor-not-allowed' : ''}`}
               >
-                <CheckCircle size={14} />
-                <span>VIEW ORDER</span>
+                {actionLoading === 'view' ? <LoadingSpinner size={14} text="Loading..." /> : <><CheckCircle size={14} /><span>VIEW ORDER</span></>}
               </button>
             ) : isFaisal && order.status === 'ON_HOLD' ? (
-              <button
-                onClick={() => handleHoldAction(true)}
+              <ActionBtn name="resume" onClick={() => handleHoldAction(true)}
                 className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-3 md:py-4 rounded-2xl text-[9px] md:text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-xl shadow-emerald-900/20"
               >
                 <RefreshCcw size={14} />
                 <span>RESUME ORDER</span>
-              </button>
+              </ActionBtn>
             ) : isFaisal && (order.status === 'WAITING_APPROVAL' || order.status === 'PENDING') && currentStage?.status === 'COMPLETED' ? (
-              <button
-                onClick={() => setShowApprovalDialog(true)}
+              <ActionBtn name="initiate" onClick={() => setShowApprovalDialog(true)}
                 className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-3 md:py-4 rounded-2xl text-[9px] md:text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-xl shadow-blue-900/20"
               >
                 <ChevronRight size={14} />
                 <span>{t('Initiate Next Phase')}</span>
-              </button>
+              </ActionBtn>
             ) : isWaitingApproval ? (
               isFaisal ? (
                 <>
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5 w-full">
-                    <button
-                      onClick={() => setShowApprovalDialog(true)}
+                    <ActionBtn name="approve" onClick={() => setShowApprovalDialog(true)}
                       className="btn-ghost-success rounded-xl py-2.5 md:py-3 text-[8px] md:text-[10px] flex-col gap-0.5"
                     >
                       <Check size={14} />
                       <span>{t('Approve')}</span>
-                    </button>
+                    </ActionBtn>
                     {(currentStage?.rejectionReason?.includes('Out of Stock') || currentStage?.rejectionReason?.includes('PROBLEM')) ? (
-                      <button
-                        onClick={() => onUpdateStage(order.id, currentStage.id, 'reject', { reason: 'Problem Resolved - Please Proceed' })}
+                      <ActionBtn name="sendAgain" onClick={() => onUpdateStage(order.id, currentStage.id, 'reject', { reason: 'Problem Resolved - Please Proceed' })}
                         className="btn-ghost-warning rounded-xl py-2.5 md:py-3 text-[8px] md:text-[10px] flex-col gap-0.5"
                       >
                         <RefreshCcw size={14} />
                         <span>{t('Send Again')}</span>
-                      </button>
+                      </ActionBtn>
                     ) : (
-                      <button
-                        onClick={() => setShowRejectionDialog(true)}
+                      <ActionBtn name="reject" onClick={() => setShowRejectionDialog(true)}
                         className="btn-ghost-danger rounded-xl py-2.5 md:py-3 text-[8px] md:text-[10px] flex-col gap-0.5"
                       >
                         <X size={14} />
                         <span>{t('Reject')}</span>
-                      </button>
+                      </ActionBtn>
                     )}
-                    <button
-                      onClick={() => order.status === 'ON_HOLD' ? handleHoldAction(true) : setShowHoldDialog(true)}
+                    <ActionBtn name="hold" onClick={() => order.status === 'ON_HOLD' ? handleHoldAction(true) : setShowHoldDialog(true)}
                       className={`py-2.5 md:py-3 px-2 rounded-xl text-[8px] md:text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-0.5 active:scale-95 border ${
                         order.status === 'ON_HOLD' 
                           ? 'bg-emerald-600/20 text-emerald-500 border-emerald-500/30' 
                           : 'bg-orange-600/10 hover:bg-orange-600 text-orange-500 hover:text-white border-orange-500/20'
                       }`}
-                      title={order.status === 'ON_HOLD' ? 'Resume Order' : 'Put on Hold'}
                     >
                       <Clock size={14} />
                       <span>{order.status === 'ON_HOLD' ? 'RESUME' : t('Hold')}</span>
-                    </button>
+                    </ActionBtn>
                     {(order.paymentStatus !== 'FULL_PAID' || ['SUPER_ADMIN', 'ADMIN'].includes(userRole)) && (
                       <div className="relative">
-                        <button
-                          onClick={() => setShowMoreActions(!showMoreActions)}
+                        <ActionBtn name="more" onClick={() => setShowMoreActions(!showMoreActions)}
                           className="w-full py-2.5 md:py-3 px-1 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-wider transition-all border border-gray-600/30 bg-gray-800/50 hover:bg-gray-700 text-gray-400 hover:text-white flex flex-col items-center justify-center gap-0.5 active:scale-95"
                         >
                           <span className="text-base leading-none">⋮</span>
                           <span>MORE</span>
-                        </button>
+                        </ActionBtn>
                         {showMoreActions && (
                           <>
                             <div className="fixed inset-0 z-30" onClick={() => setShowMoreActions(false)} />

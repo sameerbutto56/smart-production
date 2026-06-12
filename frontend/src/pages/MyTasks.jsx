@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Search, Filter, Loader2, Sparkles, AlertCircle, Activity, Clock, Target, History, X } from 'lucide-react';
+import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 import socket from '../socket';
 import toast from 'react-hot-toast';
 
@@ -369,10 +370,7 @@ const MyTasks = () => {
       )}
 
       {loading ? (
-        <div className="h-64 flex flex-col items-center justify-center space-y-4">
-          <Loader2 className="animate-spin text-blue-500" size={48} />
-          <p className="theme-text-secondary font-bold uppercase tracking-widest text-xs">Syncing floor data...</p>
-        </div>
+        <PageLoader text="Syncing floor data..." />
       ) : filteredOrders.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-6">
           <AnimatePresence mode="popLayout">

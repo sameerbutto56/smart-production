@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
-import { Trash2, Search, CalendarDays, User, Store, Package, Loader2, ArrowUpRight } from 'lucide-react';
+import { Trash2, Search, CalendarDays, User, Store, Package, ArrowUpRight } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import toast from 'react-hot-toast';
+import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -25,8 +26,9 @@ const DeletedOrders = () => {
     } catch (err) {
       console.error('Error fetching deleted orders:', err);
       toast.error('Failed to load deleted orders');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => { fetchRecords(); }, []);
@@ -65,9 +67,7 @@ const DeletedOrders = () => {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="animate-spin text-gray-500" size={32} />
-        </div>
+        <PageLoader text="Loading Deleted Orders..." />
       ) : filtered.length === 0 ? (
         <div className="glass p-16 rounded-[3rem] border border-gray-800 text-center space-y-4">
           <div className="w-20 h-20 bg-gray-900 rounded-full flex items-center justify-center mx-auto border-2 border-gray-800">

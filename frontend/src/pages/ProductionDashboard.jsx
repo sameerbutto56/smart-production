@@ -8,6 +8,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
+import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 const COLORS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899'];
@@ -58,8 +59,9 @@ const ProductionDashboard = () => {
       setInventory(invRes.data);
     } catch (error) {
       if (!silent) toast.error('Error fetching production data');
+    } finally {
+      if (!silent) setLoading(false);
     }
-    if (!silent) setLoading(false);
   }, [page, dateFilter]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -180,10 +182,7 @@ const ProductionDashboard = () => {
       </div>
 
       {loading && !dashboard ? (
-        <div className="col-span-full py-32 flex flex-col items-center justify-center space-y-4">
-          <RefreshCcw className="animate-spin text-emerald-500" size={48} />
-          <p className="theme-text-muted font-black text-xs uppercase tracking-widest">Loading Production Data...</p>
-        </div>
+        <PageLoader text="Loading Production Data..." />
       ) : (
         <>
           {/* ============ DASHBOARD TAB ============ */}

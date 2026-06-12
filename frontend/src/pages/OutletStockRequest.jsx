@@ -7,6 +7,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
+import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 import { usePolling } from '../hooks/usePolling';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
@@ -179,10 +180,7 @@ const OutletStockRequest = () => {
       </div>
 
       {loading ? (
-        <div className="py-32 flex flex-col items-center justify-center space-y-4">
-          <RefreshCcw className="animate-spin text-blue-500" size={48} />
-          <p className="theme-text-muted font-black text-xs uppercase tracking-widest">Loading...</p>
-        </div>
+        <PageLoader text="Loading Stock Request..." />
       ) : (
         <>
           {/* Stock Request Tab */}

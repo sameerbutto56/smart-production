@@ -26,6 +26,7 @@ import { useSearch } from '../context/SearchContext';
 import { useLanguage } from '../context/LanguageContext';
 import toast from 'react-hot-toast';
 import OrderCard from '../components/OrderCard';
+import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -125,8 +126,9 @@ const AllOrders = () => {
     } catch (error) {
       console.error('Error fetching orders:', error);
       toast.error('Failed to connect to production server');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const fetchUnseenData = async () => {

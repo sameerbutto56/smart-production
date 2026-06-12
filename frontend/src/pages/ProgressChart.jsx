@@ -17,6 +17,7 @@ import {
 import { io } from 'socket.io-client';
 import socket from '../socket';
 import { useLanguage } from '../context/LanguageContext';
+import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -26,6 +27,7 @@ const ProgressChart = () => {
   const [analytics, setAnalytics] = useState(null);
   const { t, LanguageToggle, isUrdu } = useLanguage();
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [dataLoading, setDataLoading] = useState(true);
 
   const navigate = useNavigate();
   const { logout } = useAuth();
@@ -70,6 +72,8 @@ const ProgressChart = () => {
       setStats(stageStats);
     } catch (error) {
       console.error('Error fetching analytics:', error);
+    } finally {
+      setDataLoading(false);
     }
   };
 
@@ -80,9 +84,10 @@ const ProgressChart = () => {
     return diff < 7200000; // Increased to 2 hours for big screen visibility
   }).sort((a, b) => new Date(a.stages?.[0]?.deadlineAt) - new Date(b.stages?.[0]?.deadlineAt));
 
+  if (dataLoading) return <PageLoader text="Loading Production Chart..." />;
+
   return (
     <div className="min-h-screen lg:h-screen bg-black text-white p-4 lg:p-6 font-sans overflow-y-auto lg:overflow-hidden flex flex-col">
-      {/* Header section */}
       <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4 mb-6">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-[0_0_30px_rgba(37,99,235,0.3)]">
@@ -124,10 +129,8 @@ const ProgressChart = () => {
         </div>
       </div>
 
-      {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 md:gap-6 flex-1 min-h-0">
         
-        {/* Floor Status - Left Sidebar */}
         <div className="lg:col-span-2 glass-dark p-4 md:p-6 rounded-xl md:rounded-[2rem] border border-white/5 flex flex-col overflow-hidden min-h-[300px] lg:min-h-0">
           <div className="flex items-center gap-3 mb-6">
             <Layers className="text-blue-500" size={16} />
@@ -160,8 +163,7 @@ const ProgressChart = () => {
           </div>
         </div>
 
-        {/* Live Stream - Center */}
-        <div className="lg:col-span-7 flex flex-col gap-3 md:gap-6 overflow-hidden min-h-[400px] lg:min-h-0">
+          <div className="lg:col-span-7 flex flex-col gap-3 md:gap-6 overflow-hidden min-h-[400px] lg:min-h-0">
           <div className="glass-dark p-4 md:p-6 rounded-xl md:rounded-[2rem] border border-white/5 flex-1 flex flex-col overflow-hidden">
             <div className="flex items-center gap-3 mb-4">
               <Activity className="text-indigo-500" size={16} />
@@ -192,7 +194,6 @@ const ProgressChart = () => {
             </div>
           </div>
 
-          {/* Quick Metrics - Bottom Center */}
           <div className="h-32 grid grid-cols-2 md:grid-cols-3 gap-4">
             <div className="glass-dark p-4 rounded-[2rem] border border-white/5 flex flex-col justify-center items-center">
               <p className="text-[8px] text-gray-500 font-black uppercase mb-1">Ready to Ship</p>
@@ -209,7 +210,6 @@ const ProgressChart = () => {
           </div>
         </div>
 
-        {/* Alerts & Personnel - Right Sidebar */}
         <div className="lg:col-span-3 flex flex-col gap-3 md:gap-6 overflow-hidden min-h-[400px] lg:min-h-0">
           <div className="glass-dark p-4 md:p-6 rounded-xl md:rounded-[2rem] border border-red-500/20 bg-red-500/5 flex-1 flex flex-col overflow-hidden">
             <div className="flex items-center gap-3 mb-4 text-red-500">

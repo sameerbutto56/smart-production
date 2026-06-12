@@ -25,6 +25,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
+import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 import { usePolling } from '../hooks/usePolling';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
@@ -385,8 +386,7 @@ const InventoryManagement = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-8">
         {loading ? (
           <div className="col-span-full py-32 flex flex-col items-center justify-center space-y-4">
-            <RefreshCcw className="animate-spin text-blue-500" size={48} />
-            <p className="text-gray-500 font-black text-xs uppercase tracking-widest">Accessing Secure Database...</p>
+            <PageLoader text="Accessing Secure Database..." />
           </div>
         ) : filteredItems.length === 0 ? (
           <div className="col-span-full py-20 flex flex-col items-center justify-center space-y-3 text-center">

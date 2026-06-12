@@ -5,6 +5,7 @@ import socket from '../socket';
 import { useAuth } from '../context/AuthContext';
 import { ArrowLeft, RefreshCw, Search, RotateCcw, CheckCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -95,10 +96,7 @@ const RefundManagement = () => {
       </div>
 
       {loading ? (
-        <div className="flex flex-col items-center py-24 gap-4">
-          <div className="w-12 h-12 border-4 border-orange-600 border-t-transparent rounded-full animate-spin" />
-          <p className="theme-text-muted text-sm font-bold">Loading refund queue...</p>
-        </div>
+        <PageLoader text="Loading refund queue..." />
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center py-24 gap-4 text-center">
           <RotateCcw size={40} className="theme-text-muted" />

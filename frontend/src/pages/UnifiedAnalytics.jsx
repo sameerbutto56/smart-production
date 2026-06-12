@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { BarChart3, TrendingUp, Package, Factory, Truck, DollarSign, RefreshCcw, AlertTriangle, ChevronRight } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
+import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -308,9 +309,7 @@ const UnifiedAnalytics = () => {
 
       {/* Content */}
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <RefreshCcw className="animate-spin text-blue-400" size={24} />
-        </div>
+        <PageLoader text="Loading Analytics..." />
       ) : (
         renderActiveView()
       )}

@@ -11,6 +11,7 @@ import socket from '../socket';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -51,8 +52,9 @@ const EditRequestDashboard = () => {
       setAllRequests(Array.isArray(res.data.requests) ? res.data.requests : []);
     } catch (err) {
       console.error('Error fetching edit requests:', err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {

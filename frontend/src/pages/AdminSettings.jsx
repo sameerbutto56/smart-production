@@ -3,6 +3,7 @@ import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Clock, AlertTriangle, CheckCircle2, BarChart3, TrendingUp, Loader2, Save, Gauge, Target, Users, Palette, Check, KeyRound } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -121,11 +122,7 @@ const AdminSettings = () => {
   );
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="animate-spin text-blue-400" size={32} />
-      </div>
-    );
+    return <PageLoader text="Loading Settings..." />;
   }
 
   return (

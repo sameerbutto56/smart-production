@@ -37,6 +37,7 @@ import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { usePolling } from '../hooks/usePolling';
+import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 import silhouetteMale from '../assets/silhouette.png';
 import silhouetteFemale from '../assets/silhouette-female.png';
 
@@ -46,6 +47,7 @@ const socket = io(API_URL);
 const SmartOrderForm = () => {
   const [activeTab, setActiveTab] = useState('basic');
   const [inventory, setInventory] = useState([]);
+  const [dataLoading, setDataLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
@@ -219,6 +221,8 @@ const SmartOrderForm = () => {
       setInventory(response.data);
     } catch (error) {
       console.error('Error fetching inventory:', error);
+    } finally {
+      setDataLoading(false);
     }
   };
 
@@ -1037,6 +1041,8 @@ const SmartOrderForm = () => {
     if (tab.id === 'sizes' && (isAccessory(selectedProductCategory) || formData.type !== 'FULL_CUSTOM')) return false;
     return true;
   });
+
+  if (dataLoading) return <PageLoader text="Loading Order Entry..." />;
 
   return (
     <div className="max-w-7xl mx-auto pb-12 px-4">

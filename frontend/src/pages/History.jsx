@@ -18,6 +18,7 @@ import {
   Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -81,8 +82,9 @@ const History = () => {
       setOrders(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Error fetching history:', error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const filteredOrders = orders.filter(o => {
@@ -214,10 +216,7 @@ const History = () => {
       {/* History Grid */}
       <div className="grid grid-cols-1 gap-4">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-32 space-y-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
-            <p className="theme-text-muted font-bold text-xs uppercase tracking-widest">Loading archive data...</p>
-          </div>
+          <PageLoader text="Loading archive data..." />
         ) : filteredOrders.length === 0 ? (
           <div className="glass p-32 text-center rounded-2xl md:rounded-[3rem] border-2 border-dashed theme-border">
             <div className="w-20 h-20 theme-bg rounded-full flex items-center justify-center mx-auto mb-6">

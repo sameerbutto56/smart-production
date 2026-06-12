@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
+import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -410,10 +411,7 @@ const DeliveryDashboard = () => {
 
       {/* Order list */}
       {loading ? (
-        <div className="flex flex-col items-center py-24 gap-4">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-          <p className="theme-text-muted text-sm font-bold">Loading...</p>
-        </div>
+        <PageLoader text="Loading Delivery Dashboard..." />
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center py-24 gap-4 text-center">
           <ClipboardList size={40} className="theme-text-muted" />

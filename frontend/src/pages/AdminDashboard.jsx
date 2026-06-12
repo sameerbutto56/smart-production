@@ -40,6 +40,7 @@ import { useNavigate } from 'react-router-dom';
 import socket from '../socket';
 import OrderCard from '../components/OrderCard';
 import AdminSettings from './AdminSettings';
+import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
@@ -210,10 +211,6 @@ const AdminDashboard = () => {
       setAnalytics(response.data);
     } catch (error) {
       console.error('Error fetching analytics:', error);
-      if (error.response?.status === 401) {
-        toast.error('Session expired. Please login again.');
-        navigate('/login');
-      }
     }
   };
 
@@ -257,8 +254,9 @@ const AdminDashboard = () => {
       setOutletAnalytics(res.data);
     } catch (error) {
       console.error('Error fetching outlet analytics:', error);
+    } finally {
+      setAnalyticsLoading(false);
     }
-    setAnalyticsLoading(false);
   };
 
   useEffect(() => {
@@ -279,8 +277,9 @@ const AdminDashboard = () => {
       setEditRequests(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error('Error fetching edit requests:', err);
+    } finally {
+      setEditRequestsLoading(false);
     }
-    setEditRequestsLoading(false);
   };
 
   useEffect(() => {
@@ -639,12 +638,7 @@ const AdminDashboard = () => {
   }, [allOrders]);
 
   if (loading && allOrders.length === 0) {
-    return (
-      <div className="h-[80vh] flex flex-col items-center justify-center space-y-4">
-        <Loader2 className="animate-spin text-blue-500" size={48} />
-        <p className="theme-text-muted font-black uppercase tracking-[0.3em] text-xs">Syncing Production Hub...</p>
-      </div>
-    );
+    return <PageLoader text="Syncing Production Hub..." />;
   }
 
   if (fetchingError && allOrders.length === 0) {

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Truck, Package, MapPin, Clock, Search, Loader2, Phone, CheckCircle2, X, ExternalLink, User, Hash, AlertTriangle, Globe, Send, Store, ShoppingBag } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
+import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -46,6 +47,7 @@ const DispatchDashboard = () => {
   }, [activeTab]);
 
   const fetchQueue = async () => {
+    setLoading(true);
     try {
       const token = sessionStorage.getItem('token');
       const res = await axios.get(`${API_URL}/api/dispatch/queue`, {
@@ -54,11 +56,13 @@ const DispatchDashboard = () => {
       setOrders(res.data);
     } catch (err) {
       console.error('Failed to fetch dispatch queue:', err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const fetchPickupOrders = async () => {
+    setLoading(true);
     try {
       const token = sessionStorage.getItem('token');
       const res = await axios.get(`${API_URL}/api/dispatch/pickup`, {
@@ -67,8 +71,9 @@ const DispatchDashboard = () => {
       setPickupOrders(res.data);
     } catch (err) {
       console.error('Failed to fetch pickup orders:', err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleBookCourier = async (orderId) => {
@@ -155,7 +160,7 @@ const DispatchDashboard = () => {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center py-20"><Loader2 className="animate-spin text-blue-400" size={32} /></div>;
+    return <PageLoader text="Loading Dispatch Dashboard..." />;
   }
 
   return (
