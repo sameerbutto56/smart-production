@@ -286,22 +286,30 @@ const DeliveryDashboard = () => {
   const [paymentMethods, setPaymentMethods] = useState({});
   const [halfPayments, setHalfPayments] = useState({});
 
-  const fetchOrders = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await axios.get(`${API_URL}/api/orders?status=delivery`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const relevant = res.data.filter(o =>
-        o.currentStage === 'OUT_FOR_DELIVERY' ||
-        o.currentStage === 'DELIVERED' ||
-        o.status === 'COMPLETED'
-      );
-      setOrders(relevant);
-    } catch {
-      toast.error('Failed to load orders');
-    } finally {
-      setLoading(false);
+  const fetchOrders = useCallback(async (retries = 2) => {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        setLoading(true);
+        const res = await axios.get(`${API_URL}/api/orders?status=delivery`, {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 15000
+        });
+        const relevant = res.data.filter(o =>
+          o.currentStage === 'OUT_FOR_DELIVERY' ||
+          o.currentStage === 'DELIVERED' ||
+          o.status === 'COMPLETED'
+        );
+        setOrders(relevant);
+        return;
+      } catch {
+        if (attempt < retries) {
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          continue;
+        }
+        toast.error('Failed to load orders');
+      } finally {
+        if (attempt === retries) setLoading(false);
+      }
     }
   }, [token]);
 

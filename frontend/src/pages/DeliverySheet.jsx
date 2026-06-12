@@ -34,20 +34,28 @@ const DeliverySheet = () => {
     fetchOrders();
   }, []);
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (retries = 2) => {
     setLoading(true);
-    try {
-      const token = sessionStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/api/orders?status=delivery`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setOrders(Array.isArray(response.data) ? response.data : []);
-    } catch (error) {
-      console.error('Error fetching orders:', error.response?.data || error);
-      const errorMsg = error.response?.data?.error || error.message;
-      toast.error(`Failed to load orders: ${errorMsg}`);
-    } finally {
-      setLoading(false);
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const token = sessionStorage.getItem('token');
+        const response = await axios.get(`${API_URL}/api/orders?status=delivery`, {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 15000
+        });
+        setOrders(Array.isArray(response.data) ? response.data : []);
+        return;
+      } catch (error) {
+        console.error('Error fetching orders:', error.response?.data || error);
+        if (attempt < retries) {
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          continue;
+        }
+        const errorMsg = error.response?.data?.error || error.message;
+        toast.error(`Failed to load orders: ${errorMsg}`);
+      } finally {
+        if (attempt === retries) setLoading(false);
+      }
     }
   };
 
@@ -71,9 +79,11 @@ const DeliverySheet = () => {
 
       if (!isInDelivery) return false;
 
-      // Filter by dispatch date
-      const dispatchDate = getStageDate(order);
-      if (dispatchDate !== selectedDate) return false;
+      // Filter by dispatch date (optional — only filter if selectedDate is set)
+      if (selectedDate) {
+        const dispatchDate = getStageDate(order);
+        if (dispatchDate !== selectedDate) return false;
+      }
 
       // Search term
       if (searchTerm) {
@@ -204,9 +214,15 @@ const DeliverySheet = () => {
               type="date" 
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="theme-input rounded-[1.2rem] py-3 pl-12 pr-4 outline-none focus:border-yellow-500 text-sm font-bold transition-all"
+              className={`theme-input rounded-[1.2rem] py-3 pl-12 pr-4 outline-none focus:border-yellow-500 text-sm font-bold transition-all ${!selectedDate ? 'text-gray-500' : ''}`}
+              placeholder="All Dates"
             />
           </div>
+          {selectedDate && (
+            <button onClick={() => setSelectedDate('')} className="text-[9px] font-black text-red-400 hover:text-red-300 uppercase tracking-wider transition-all px-2">
+              Clear
+            </button>
+          )}
 
           {/* Search bar */}
           <div className="relative group w-full sm:w-60">
@@ -244,7 +260,7 @@ const DeliverySheet = () => {
               <h3 className="text-xl font-black theme-text-primary tracking-tight">Rider Dispatch Manifest</h3>
             </div>
             <span className="text-[9px] md:text-[10px] font-black theme-text-muted uppercase tracking-widest theme-bg px-4 py-2 rounded-full border theme-border">
-              Date: {new Date(selectedDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
+              {selectedDate ? new Date(selectedDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'All Dates'}
             </span>
           </div>
 
