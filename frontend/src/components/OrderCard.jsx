@@ -620,7 +620,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
           )}
 
           <div className="flex flex-col gap-2 w-full">
-            {isUnseen ? (
+            {isUnseen && !isAdmin ? (
               <button
                 onClick={onMarkSeen}
                 className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-3 md:py-4 rounded-2xl text-[10px] md:text-xs font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-xl shadow-blue-900/40 border border-blue-400/20"
@@ -628,6 +628,63 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 <CheckCircle size={14} className="text-blue-300" />
                 <span>📥 ACCEPT TASK & START WORK</span>
               </button>
+            ) : isUnseen && isAdmin ? (
+              <div className="space-y-2">
+                <label className="text-[8px] font-black text-amber-400 uppercase tracking-widest flex items-center gap-1.5">
+                  Move Order To
+                  <span className="px-1 py-0.5 bg-amber-500/10 text-amber-400 rounded text-[7px] tracking-wider">MANUAL</span>
+                </label>
+                <select
+                  className="w-full bg-gray-950 border border-gray-800 rounded-xl py-3 px-3 outline-none focus:border-amber-500 transition-all text-white text-[10px] font-bold appearance-none"
+                  value={nextStage}
+                  onChange={(e) => setNextStage(e.target.value)}
+                >
+                  <option value="">Select destination...</option>
+                  <option value="STORE">Store</option>
+                  <option value="LOGO_DESIGN">Logo Design</option>
+                  <option value="PRODUCTION">Production</option>
+                  <option value="STORE_RECEIVE">Store (Production Receive)</option>
+                  <option value="DISPATCH">Dispatch</option>
+                  <option value="OUT_FOR_DELIVERY">Out for Delivery</option>
+                  <option value="ORDER_ENTRY">Order Entry</option>
+                  <option disabled className="text-gray-600">──────────</option>
+                  <option value="HOLD">Hold / Pending</option>
+                  <option value="REJECT">Reject Order</option>
+                </select>
+                <button
+                  onClick={async () => {
+                    if (!nextStage) return;
+                    if (['HOLD', 'REJECT'].includes(nextStage)) {
+                      if (nextStage === 'REJECT') {
+                        const reason = prompt('Reason for rejection:');
+                        if (reason !== null) {
+                          onUpdateStage(order.id, currentStage.id, 'reject', { reason: `Rejected by ${userRole}: ${reason}` });
+                        }
+                      } else {
+                        if (window.confirm('Place order on HOLD?')) {
+                          onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Hold', remarks: 'Hold by Admin' });
+                        }
+                      }
+                      return;
+                    }
+                    try {
+                      const token = sessionStorage.getItem('token');
+                      await axios.post(`${API_URL}/api/orders/${order.id}/route`, {
+                        destinationStage: nextStage,
+                        remarks: `Routed by ${userRole} via Move To dropdown`
+                      }, { headers: { Authorization: `Bearer ${token}` } });
+                      toast.success(`Order moved to ${nextStage.replace(/_/g, ' ')}`);
+                      if (onMarkSeen) onMarkSeen();
+                    } catch (err) {
+                      alert('Route failed: ' + (err.response?.data?.message || err.message));
+                    }
+                  }}
+                  className="w-full py-2.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95"
+                >
+                  <Package size={12} className="inline mr-1.5" />
+                  {nextStage ? `MOVE TO ${nextStage.replace(/_/g, ' ')}` : 'SELECT DESTINATION'}
+                </button>
+              </div>
             ) : isFaisal && order.status === 'ON_HOLD' ? (
               <button
                 onClick={() => handleHoldAction(true)}
