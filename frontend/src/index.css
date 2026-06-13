@@ -176,6 +176,14 @@
   overflow: hidden !important;
 }
 
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 .auto-resize {
   display: flex;
   flex-direction: column;
