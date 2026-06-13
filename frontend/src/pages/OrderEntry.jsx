@@ -67,6 +67,7 @@ const SmartOrderForm = () => {
   const [editOrderLoading, setEditOrderLoading] = useState(false);
   const [editOrderError, setEditOrderError] = useState('');
   const [logoEntries, setLogoEntries] = useState([{ name: '', design: '' }]);
+  const [articleNameEntries, setArticleNameEntries] = useState(['']);
 
   const [formData, setFormData] = useState({
     orderNumber: '',
@@ -286,6 +287,7 @@ const SmartOrderForm = () => {
         femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: 0 }
       });
       setLogoEntries([{ name: '', design: '' }]);
+      setArticleNameEntries(['']);
     } else {
       setIsEditMode(true);
     }
@@ -608,6 +610,7 @@ const SmartOrderForm = () => {
         femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: 0 }
       });
       setLogoEntries([{ name: '', design: '' }]);
+      setArticleNameEntries(['']);
       setActiveTab('basic');
       alert('Edit request submitted successfully!');
     } catch (err) {
@@ -761,7 +764,8 @@ const SmartOrderForm = () => {
         femaleOptions: formData.femaleOptions
       },
       customization: {
-        nameSpelling: formData.nameSpelling,
+        nameSpelling: articleNameEntries.filter(Boolean).join(', '),
+        articleNames: articleNameEntries,
         nameColor: formData.nameColor,
         logoColor: formData.logoColor,
         logoPlacement: formData.logoPlacement,
@@ -819,6 +823,7 @@ const SmartOrderForm = () => {
       femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: 0 }
     }));
     setLogoEntries([{ name: '', design: '' }]);
+    setArticleNameEntries(['']);
 
     setShowAddMore(true);
   };
@@ -874,6 +879,7 @@ const SmartOrderForm = () => {
       },
     }));
     setLogoEntries(cust.logos && cust.logos.length > 0 ? cust.logos : [{ name: item.logoName || '', design: item.logoDesign || '' }]);
+    setArticleNameEntries(cust.articleNames && cust.articleNames.length > 0 ? cust.articleNames : (cust.nameSpelling ? [cust.nameSpelling] : ['']));
     setShowReview(false);
     if (isEditMode) setShowProductSelector(true);
     setActiveTab(tab);
@@ -979,6 +985,7 @@ const SmartOrderForm = () => {
         femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: 0 }
       });
       setLogoEntries([{ name: '', design: '' }]);
+      setArticleNameEntries(['']);
       setActiveTab('basic');
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
@@ -1365,7 +1372,10 @@ const SmartOrderForm = () => {
                           {/* Branding/Customization */}
                           {(cust.nameSpelling || cust.stitchingStyle || originalOrder.logoDesign || cust.logos) && (
                             <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-red-500/10">
-                              {cust.nameSpelling && <span className="text-[9px] font-bold text-purple-400 bg-purple-900/20 px-1.5 py-0.5 rounded">Name: {cust.nameSpelling}</span>}
+                              {cust.articleNames && cust.articleNames.map((an, ai) => (
+                                <span key={ai} className="text-[9px] font-bold text-purple-400 bg-purple-900/20 px-1.5 py-0.5 rounded">Name: {an}</span>
+                              ))}
+                              {!cust.articleNames && cust.nameSpelling && <span className="text-[9px] font-bold text-purple-400 bg-purple-900/20 px-1.5 py-0.5 rounded">Name: {cust.nameSpelling}</span>}
                               {cust.stitchingStyle && <span className="text-[9px] font-bold text-blue-400 bg-blue-900/20 px-1.5 py-0.5 rounded">{cust.stitchingStyle === 'DBL' ? 'Double' : 'Single'} Stitch</span>}
                               {cust.fitType && <span className="text-[9px] font-bold text-indigo-400 bg-indigo-900/20 px-1.5 py-0.5 rounded">{cust.fitType} Fit</span>}
                               {originalOrder.logoDesign && <span className="text-[9px] font-bold text-amber-400 bg-amber-900/20 px-1.5 py-0.5 rounded">Has Logo</span>}
@@ -1483,7 +1493,10 @@ const SmartOrderForm = () => {
                                 {/* Branding tags */}
                                 {(cust.nameSpelling || cust.stitchingStyle || item.logoDesign || cust.logos) && (
                                   <div className="flex flex-wrap gap-1 mt-1.5">
-                                    {cust.nameSpelling && <span className="text-[6px] font-bold text-purple-400 bg-purple-900/20 px-1 rounded">Name: {cust.nameSpelling}</span>}
+                                    {cust.articleNames && cust.articleNames.map((an, ai) => (
+                                      <span key={ai} className="text-[6px] font-bold text-purple-400 bg-purple-900/20 px-1 rounded">Name: {an}</span>
+                                    ))}
+                                    {!cust.articleNames && cust.nameSpelling && <span className="text-[6px] font-bold text-purple-400 bg-purple-900/20 px-1 rounded">Name: {cust.nameSpelling}</span>}
                                     {cust.stitchingStyle && <span className="text-[6px] font-bold text-blue-400 bg-blue-900/20 px-1 rounded">{cust.stitchingStyle === 'DBL' ? 'Double' : 'Single'}</span>}
                                     {item.logoDesign && <span className="text-[6px] font-bold text-amber-400 bg-amber-900/20 px-1 rounded">Logo</span>}
                                     {cust.logos && cust.logos.length > 0 && cust.logos.map((l, li) => (
@@ -2223,18 +2236,44 @@ const SmartOrderForm = () => {
 
                 <div className="space-y-4 md:space-y-8">
                   <div className="space-y-3">
-                    <label className="text-xs font-black theme-text-muted uppercase tracking-[0.3em] ml-2">{t('articleName')}</label>
-                    <div className="relative group">
-                      <Type className={`absolute ${useUrdu ? 'right-5' : 'left-5'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-purple-500 transition-colors`} size={16} />
-                      <input
-                        type="text"
-                        onKeyDown={preventEnterSubmit}
-                        value={formData.nameSpelling}
-                        onChange={(e) => setFormData({...formData, nameSpelling: e.target.value})}
-                        className={`w-full theme-input rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all font-black text-xl`}
-                        placeholder={useUrdu ? 'آرٹیکل کا نام درج کریں' : "DR. VALERIE KING"}
-                      />
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-black theme-text-muted uppercase tracking-[0.3em] ml-2">{t('articleName')}</label>
+                      <button
+                        type="button"
+                        onClick={() => setArticleNameEntries([...articleNameEntries, ''])}
+                        className="text-xs font-black text-purple-400 bg-purple-500/10 px-3 py-1.5 rounded-full hover:bg-purple-500/20 transition-all"
+                      >
+                        + Add
+                      </button>
                     </div>
+                    {articleNameEntries.map((entry, ei) => (
+                      <div key={ei} className="relative group">
+                        <div className="flex gap-2 items-center">
+                          <Type className={`absolute ${useUrdu ? 'right-5' : 'left-5'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-purple-500 transition-colors`} size={16} />
+                          <input
+                            type="text"
+                            onKeyDown={preventEnterSubmit}
+                            value={entry}
+                            onChange={(e) => {
+                              const next = [...articleNameEntries];
+                              next[ei] = e.target.value;
+                              setArticleNameEntries(next);
+                            }}
+                            className={`w-full theme-input rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all font-black text-xl`}
+                            placeholder={useUrdu ? 'آرٹیکل کا نام درج کریں' : "DR. VALERIE KING"}
+                          />
+                          {articleNameEntries.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setArticleNameEntries(articleNameEntries.filter((_, i) => i !== ei))}
+                              className="p-2 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-xl transition-all shrink-0"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
@@ -3138,7 +3177,10 @@ const SmartOrderForm = () => {
                             </div>
                             {hasCust && (
                               <div className="flex flex-wrap gap-1 mt-1.5">
-                                {cust.nameSpelling && <span className="text-[9px] font-black text-purple-400 bg-purple-900/30 px-1.5 py-0.5 rounded">Name: {cust.nameSpelling}</span>}
+                                {cust.articleNames && cust.articleNames.map((an, ai) => (
+                                  <span key={ai} className="text-[9px] font-black text-purple-400 bg-purple-900/30 px-1.5 py-0.5 rounded">Name: {an}</span>
+                                ))}
+                                {!cust.articleNames && cust.nameSpelling && <span className="text-[9px] font-black text-purple-400 bg-purple-900/30 px-1.5 py-0.5 rounded">Name: {cust.nameSpelling}</span>}
                                 {cust.stitchingStyle && <span className="text-[9px] font-black text-blue-400 bg-blue-900/30 px-1.5 py-0.5 rounded">{cust.stitchingStyle === 'DBL' ? 'Double' : 'Single'} Stitch</span>}
                                 {cust.fitType && <span className="text-[9px] font-black text-indigo-400 bg-indigo-900/30 px-1.5 py-0.5 rounded">{cust.fitType} Fit</span>}
                                 {item.logoDesign && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded">Has Logo</span>}
