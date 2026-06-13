@@ -17,6 +17,7 @@ const RefundManagement = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [refundTab, setRefundTab] = useState('ACTIVE');
 
   const fetchRefundQueue = useCallback(async () => {
     try {
@@ -52,10 +53,11 @@ const RefundManagement = () => {
   };
 
   const filtered = orders.filter(o =>
-    !search ||
+    (refundTab === 'ACTIVE' ? o.refundStatus !== 'REFUNDED' : o.refundStatus === 'REFUNDED') &&
+    (!search ||
     o.customerName?.toLowerCase().includes(search.toLowerCase()) ||
     o.orderNumber?.toLowerCase().includes(search.toLowerCase()) ||
-    o.customerPhone?.includes(search)
+    o.customerPhone?.includes(search))
   );
 
   const statusColor = (status) => {
@@ -84,6 +86,29 @@ const RefundManagement = () => {
         </button>
       </div>
 
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setRefundTab('ACTIVE')}
+          className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
+            refundTab === 'ACTIVE'
+              ? 'bg-orange-500 text-black border-orange-500 shadow-lg shadow-orange-500/20'
+              : 'theme-bg-subtle theme-border theme-text-secondary hover:text-white'
+          }`}
+        >
+          Active ({orders.filter(o => o.refundStatus !== 'REFUNDED').length})
+        </button>
+        <button
+          onClick={() => setRefundTab('HISTORY')}
+          className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
+            refundTab === 'HISTORY'
+              ? 'bg-emerald-500 text-black border-emerald-500 shadow-lg shadow-emerald-500/20'
+              : 'theme-bg-subtle theme-border theme-text-secondary hover:text-white'
+          }`}
+        >
+          History ({orders.filter(o => o.refundStatus === 'REFUNDED').length})
+        </button>
+      </div>
+
       <div className="relative">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 theme-text-muted" size={16} />
         <input
@@ -100,8 +125,8 @@ const RefundManagement = () => {
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center py-24 gap-4 text-center">
           <RotateCcw size={40} className="theme-text-muted" />
-          <p className="theme-text-muted font-black text-lg">No refund requests</p>
-          <p className="text-gray-700 text-sm max-w-[220px]">All refunds processed.</p>
+          <p className="theme-text-muted font-black text-lg">{refundTab === 'ACTIVE' ? 'No active refunds' : 'No refund history'}</p>
+          <p className="text-gray-700 text-sm max-w-[220px]">{refundTab === 'ACTIVE' ? 'All refunds processed.' : 'No completed refunds yet.'}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

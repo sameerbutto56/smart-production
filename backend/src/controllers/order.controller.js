@@ -1413,15 +1413,24 @@ const refundOrder = async (req, res) => {
 
 const getRefundQueue = async (req, res) => {
   try {
+    const role = String(req.user.role || '').toUpperCase().trim();
+    let where = {
+      refundStatus: { not: 'NONE' },
+      OR: [
+        { dispatchStatus: { in: ['FAILED', 'RETURNED'] } },
+        { refundStatus: 'REQUESTED' },
+        { currentStage: { in: ['OUT_FOR_DELIVERY', 'DISPATCH', 'RETURNED'] } }
+      ]
+    };
+
+    // FAISAL: only see their own online orders
+    if (role === 'FAISAL') {
+      where.createdById = req.user.id;
+      where.source = { in: ['ONLINE', 'INTERNAL'] };
+    }
+
     const orders = await prisma.order.findMany({
-      where: {
-        refundStatus: { not: 'NONE' },
-        OR: [
-          { dispatchStatus: { in: ['FAILED', 'RETURNED'] } },
-          { refundStatus: 'REQUESTED' },
-          { currentStage: { in: ['OUT_FOR_DELIVERY', 'DISPATCH', 'RETURNED'] } }
-        ]
-      },
+      where,
       include: {
         stages: { orderBy: { createdAt: 'desc' }, take: 5 },
         createdBy: { select: { name: true } }
