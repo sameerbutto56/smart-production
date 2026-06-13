@@ -356,7 +356,7 @@ const InventoryManagement = () => {
             </button>
           )}
         </div>
-        <div className="flex flex-wrap bg-gray-900 border-2 border-gray-700 rounded-2xl p-1">
+        <div className="flex overflow-x-auto bg-gray-900 border-2 border-gray-700 rounded-2xl p-1">
           {['ALL', ...allCategories].map(cat => (
             <button 
               key={cat} 
