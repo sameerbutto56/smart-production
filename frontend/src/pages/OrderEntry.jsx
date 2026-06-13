@@ -125,7 +125,7 @@ const SmartOrderForm = () => {
       sleeves: 'full',
       shirtLength: 'long',
       zip: false,
-      cap: false
+      cap: 0
     }
   });
 
@@ -281,7 +281,7 @@ const SmartOrderForm = () => {
           shirtLength: '', trouserLength: '', bottom: '', thigh: '', mori: '', ganda: ''
         },
         gender: 'Male',
-        femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: false }
+        femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: 0 }
       });
     } else {
       setIsEditMode(true);
@@ -368,7 +368,7 @@ const SmartOrderForm = () => {
             shirtLength: '', trouserLength: '', bottom: '', thigh: '', mori: '', ganda: ''
           },
           gender: 'Male',
-          femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: false }
+          femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: 0 }
         });
 
         // Parse and populate product items into cart
@@ -602,7 +602,7 @@ const SmartOrderForm = () => {
           shirtLength: '', trouserLength: '', bottom: '', thigh: '', mori: '', ganda: ''
         },
         gender: 'Male',
-        femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: false }
+        femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: 0 }
       });
       setActiveTab('basic');
       alert('Edit request submitted successfully!');
@@ -724,7 +724,7 @@ const SmartOrderForm = () => {
         color: formData.color,
         size: formData.size,
         gender: formData.gender,
-        femaleOptions: formData.gender === 'Female' ? formData.femaleOptions : null
+        femaleOptions: formData.femaleOptions
       },
       customization: {
         nameSpelling: formData.nameSpelling,
@@ -781,7 +781,7 @@ const SmartOrderForm = () => {
         ganda: ''
       },
       gender: 'Male',
-      femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: false }
+      femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: 0 }
     }));
 
     setShowAddMore(true);
@@ -804,7 +804,7 @@ const SmartOrderForm = () => {
       color: pd.color || '',
       size: pd.size || '',
       gender: pd.gender || 'Male',
-      femaleOptions: pd.femaleOptions || { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: false },
+      femaleOptions: pd.femaleOptions || { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: 0 },
       quantity: item.quantity || 1,
       totalPrice: '',
       logoCharges: item.logoCharges?.toString() || '',
@@ -937,7 +937,7 @@ const SmartOrderForm = () => {
           ganda: ''
         },
         gender: 'Male',
-        femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: false }
+        femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: 0 }
       });
       setActiveTab('basic');
       setTimeout(() => setSuccess(false), 3000);
@@ -1720,31 +1720,31 @@ const SmartOrderForm = () => {
                         </div>
                         <input type="checkbox" checked={formData.femaleOptions.zip} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, zip: e.target.checked}})} className="w-5 h-5 shrink-0 ml-2 rounded border-2 border-gray-700 bg-gray-900 checked:bg-pink-600 transition-all cursor-pointer" />
                       </label>
-                      <label className="flex items-center justify-between p-3 theme-bg rounded-[1.5rem] border-2 theme-border cursor-pointer hover:border-pink-500/30 transition-all group h-full overflow-hidden">
+                      <label className="flex items-center justify-between p-3 theme-bg rounded-[1.5rem] border-2 theme-border transition-all group h-full overflow-hidden">
                         <div className="flex items-center gap-2 min-w-0">
-                          <div className={`p-2.5 rounded-xl transition-all shrink-0 flex items-center justify-center ${formData.femaleOptions.cap ? 'bg-pink-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
+                          <div className={`p-2.5 rounded-xl transition-all shrink-0 flex items-center justify-center ${formData.femaleOptions.cap > 0 ? 'bg-pink-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
                             <span className="font-black text-xs md:text-sm">CAP</span>
                           </div>
                           <div className="min-w-0 truncate">
                             <p className="font-black text-xs md:text-sm uppercase truncate">{t('cap') || 'Cap'}</p>
                           </div>
                         </div>
-                        <input type="checkbox" checked={formData.femaleOptions.cap} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, cap: e.target.checked}})} className="w-5 h-5 shrink-0 ml-2 rounded border-2 border-gray-700 bg-gray-900 checked:bg-pink-600 transition-all cursor-pointer" />
+                        <input type="number" min="0" value={formData.femaleOptions.cap} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, cap: Math.max(0, parseInt(e.target.value) || 0)}})} className="w-16 shrink-0 ml-2 rounded-xl border-2 border-gray-700 bg-gray-900 text-white font-bold text-center px-2 py-1 focus:border-pink-500 outline-none transition-all" />
                       </label>
                     </div>
                   )}
                   {formData.gender === 'Male' && (
                     <div className="grid grid-cols-1 sm:grid-cols-1 gap-4">
-                      <label className="flex items-center justify-between p-3 theme-bg rounded-[1.5rem] border-2 theme-border cursor-pointer hover:border-blue-500/30 transition-all group h-full overflow-hidden">
+                      <label className="flex items-center justify-between p-3 theme-bg rounded-[1.5rem] border-2 theme-border transition-all group h-full overflow-hidden">
                         <div className="flex items-center gap-2 min-w-0">
-                          <div className={`p-2.5 rounded-xl transition-all shrink-0 flex items-center justify-center ${formData.femaleOptions.cap ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
+                          <div className={`p-2.5 rounded-xl transition-all shrink-0 flex items-center justify-center ${formData.femaleOptions.cap > 0 ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
                             <span className="font-black text-xs md:text-sm">CAP</span>
                           </div>
                           <div className="min-w-0 truncate">
                             <p className="font-black text-xs md:text-sm uppercase truncate">{t('cap') || 'Cap'}</p>
                           </div>
                         </div>
-                        <input type="checkbox" checked={formData.femaleOptions.cap} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, cap: e.target.checked}})} className="w-5 h-5 shrink-0 ml-2 rounded border-2 border-gray-700 bg-gray-900 checked:bg-blue-600 transition-all cursor-pointer" />
+                        <input type="number" min="0" value={formData.femaleOptions.cap} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, cap: Math.max(0, parseInt(e.target.value) || 0)}})} className="w-16 shrink-0 ml-2 rounded-xl border-2 border-gray-700 bg-gray-900 text-white font-bold text-center px-2 py-1 focus:border-blue-500 outline-none transition-all" />
                       </label>
                     </div>
                   )}
@@ -2484,17 +2484,17 @@ const SmartOrderForm = () => {
                       </label>
                     </div>
                     <div className="space-y-4">
-                      <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-2">Include Cap</label>
-                      <label className="flex items-center justify-between p-4 theme-bg rounded-[1.5rem] border-2 theme-border cursor-pointer hover:border-pink-500/30 transition-all group h-full">
+                      <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-2">Cap Quantity</label>
+                      <label className="flex items-center justify-between p-4 theme-bg rounded-[1.5rem] border-2 theme-border transition-all group h-full">
                         <div className="flex items-center space-x-4">
-                          <div className={`p-3 rounded-xl transition-all flex items-center justify-center ${formData.femaleOptions.cap ? 'bg-pink-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
+                          <div className={`p-3 rounded-xl transition-all flex items-center justify-center ${formData.femaleOptions.cap > 0 ? 'bg-pink-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
                             <span className="font-black text-sm">CAP</span>
                           </div>
                           <div>
                             <p className="font-black text-sm uppercase">Cap</p>
                           </div>
                         </div>
-                        <input type="checkbox" checked={formData.femaleOptions.cap} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, cap: e.target.checked}})} className="w-5 h-5 rounded border-2 border-gray-700 bg-gray-900 checked:bg-pink-600 transition-all cursor-pointer" />
+                        <input type="number" min="0" value={formData.femaleOptions.cap} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, cap: Math.max(0, parseInt(e.target.value) || 0)}})} className="w-16 rounded-xl border-2 border-gray-700 bg-gray-900 text-white font-bold text-center px-2 py-1 focus:border-pink-500 outline-none transition-all" />
                       </label>
                     </div>
                     <div className="space-y-4">
@@ -2525,17 +2525,17 @@ const SmartOrderForm = () => {
                 {formData.gender === 'Male' && (
                   <div className="grid grid-cols-1 md:grid-cols-1 gap-4 md:gap-8 mt-6 md:mt-12 theme-bg-subtle p-4 md:p-8 rounded-2xl md:rounded-[3rem] border theme-border">
                     <div className="space-y-4">
-                      <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-2">Include Cap</label>
-                      <label className="flex items-center justify-between p-4 theme-bg rounded-[1.5rem] border-2 theme-border cursor-pointer hover:border-blue-500/30 transition-all group h-full">
+                      <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-2">Cap Quantity</label>
+                      <label className="flex items-center justify-between p-4 theme-bg rounded-[1.5rem] border-2 theme-border transition-all group h-full">
                         <div className="flex items-center space-x-4">
-                          <div className={`p-3 rounded-xl transition-all flex items-center justify-center ${formData.femaleOptions.cap ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
+                          <div className={`p-3 rounded-xl transition-all flex items-center justify-center ${formData.femaleOptions.cap > 0 ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
                             <span className="font-black text-sm">CAP</span>
                           </div>
                           <div>
                             <p className="font-black text-sm uppercase">Cap</p>
                           </div>
                         </div>
-                        <input type="checkbox" checked={formData.femaleOptions.cap} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, cap: e.target.checked}})} className="w-5 h-5 rounded border-2 border-gray-700 bg-gray-900 checked:bg-blue-600 transition-all cursor-pointer" />
+                        <input type="number" min="0" value={formData.femaleOptions.cap} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, cap: Math.max(0, parseInt(e.target.value) || 0)}})} className="w-16 rounded-xl border-2 border-gray-700 bg-gray-900 text-white font-bold text-center px-2 py-1 focus:border-blue-500 outline-none transition-all" />
                       </label>
                     </div>
                   </div>
