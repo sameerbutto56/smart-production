@@ -11,7 +11,10 @@ import {
   Layers, 
   CheckCircle, 
   AlertCircle,
-  Truck 
+  Truck,
+  PackageCheck,
+  RotateCcw,
+  RefreshCcw
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -73,20 +76,13 @@ const DeliverySheet = () => {
 
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
-      // Must be in delivery loop
-      const isInDelivery = 
-        order.currentStage === 'OUT_FOR_DELIVERY' || 
+      // Must be delivered or completed
+      const isDelivered = 
         order.currentStage === 'DELIVERED' || 
         order.status === 'COMPLETED' ||
-        order.status === 'OUT_FOR_DELIVERY';
+        order.status === 'DELIVERED';
 
-      if (!isInDelivery) return false;
-
-      // Filter by dispatch date (optional — only filter if selectedDate is set)
-      if (selectedDate) {
-        const dispatchDate = getStageDate(order);
-        if (dispatchDate !== selectedDate) return false;
-      }
+      if (!isDelivered) return false;
 
       // Filter by delivery method
       if (deliveryMethodFilter !== 'ALL') {
@@ -106,7 +102,7 @@ const DeliverySheet = () => {
 
       return true;
     });
-  }, [orders, selectedDate, searchTerm, deliveryMethodFilter]);
+  }, [orders, searchTerm, deliveryMethodFilter]);
 
   // Calculations for bottom summaries
   const summary = useMemo(() => {
@@ -275,7 +271,7 @@ const DeliverySheet = () => {
             className="flex items-center gap-2.5 bg-yellow-500 hover:bg-yellow-400 active:scale-95 text-black px-6 py-3.5 rounded-[1.2rem] font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-yellow-500/10"
           >
             <Printer size={16} />
-            <span>Print Sheet</span>
+            <span>Print</span>
           </button>
         </div>
       </div>
@@ -284,28 +280,30 @@ const DeliverySheet = () => {
       <div className="flex flex-wrap items-center gap-1.5 md:gap-2 px-1">
         <button
           onClick={() => setDeliveryMethodFilter('ALL')}
-          className={`px-3 py-1.5 rounded-lg text-[9px] md:text-xs font-black uppercase tracking-wider transition-all border ${
+          className={`px-3 py-2 rounded-xl text-[9px] md:text-xs font-black uppercase tracking-wider transition-all border ${
             deliveryMethodFilter === 'ALL'
               ? 'bg-yellow-500 text-black border-yellow-500 shadow-lg shadow-yellow-500/20'
               : 'theme-bg-subtle theme-border theme-text-secondary hover:text-white hover:border-yellow-500/50'
           }`}
         >
-          All ({filteredOrders.length})
+          All Deliveries ({filteredOrders.length})
         </button>
-        {deliveryMethods.map(method => (
-          <button
-            key={method}
-            onClick={() => setDeliveryMethodFilter(method)}
-            className={`px-3 py-1.5 rounded-lg text-[9px] md:text-xs font-black uppercase tracking-wider transition-all border ${
-              deliveryMethodFilter === method
-                ? 'bg-yellow-500 text-black border-yellow-500 shadow-lg shadow-yellow-500/20'
-                : 'theme-bg-subtle theme-border theme-text-secondary hover:text-white hover:border-yellow-500/50'
-            }`}
-          >
-            <Truck size={11} className="mr-0.5 inline-block" />
-            {method} ({methodCounts[method] || 0})
-          </button>
-        ))}
+        {deliveryMethods.map(method => {
+          const label = method === 'ENAMELS' ? 'In-House / Animals' : method === 'TCS' ? 'TCS Courier' : method === 'POST_EX' ? 'PostEx' : method === 'DCS' ? 'DCS' : method;
+          return (
+            <button
+              key={method}
+              onClick={() => setDeliveryMethodFilter(method)}
+              className={`px-3 py-2 rounded-xl text-[9px] md:text-xs font-black uppercase tracking-wider transition-all border ${
+                deliveryMethodFilter === method
+                  ? 'bg-yellow-500 text-black border-yellow-500 shadow-lg shadow-yellow-500/20'
+                  : 'theme-bg-subtle theme-border theme-text-secondary hover:text-white hover:border-yellow-500/50'
+              }`}
+            >
+              {label} ({methodCounts[method] || 0})
+            </button>
+          );
+        })}
       </div>
 
       {/* Main Grid View */}
@@ -317,11 +315,11 @@ const DeliverySheet = () => {
           
           <div className="flex items-center justify-between border-b theme-border pb-5">
             <div className="flex items-center gap-3">
-              <FileText className="text-yellow-500" size={24} />
-              <h3 className="text-xl font-black theme-text-primary tracking-tight">Rider Dispatch Manifest</h3>
+              <PackageCheck className="text-yellow-500" size={24} />
+              <h3 className="text-xl font-black theme-text-primary tracking-tight">Delivery Records</h3>
             </div>
             <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest theme-bg px-4 py-2 rounded-full border theme-border">
-              {selectedDate ? new Date(selectedDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'All Dates'}
+              {filteredOrders.length} Delivered Orders
             </span>
           </div>
 
@@ -332,54 +330,36 @@ const DeliverySheet = () => {
                   <th className="py-4 px-3 w-10">Sr.</th>
                   <th className="py-4 px-3 w-28">Order ID</th>
                   <th className="py-4 px-3">Customer</th>
-                  <th className="py-4 px-3 w-32">Phone</th>
-                  <th className="py-4 px-3">Address</th>
-                  <th className="py-4 px-3">Product</th>
-                  <th className="py-4 px-3 w-12 text-center">Qty</th>
-                  <th className="py-4 px-3 w-20">Source</th>
                   <th className="py-4 px-3 w-24">Method</th>
-                  <th className="py-4 px-3 w-24">Payment</th>
-                  <th className="py-4 px-3 w-24">Amount</th>
-                  <th className="py-4 px-3 w-28 text-right">Status</th>
+                  <th className="py-4 px-3 w-20">Source</th>
+                  <th className="py-4 px-3 w-24">Dispatch Status</th>
+                  <th className="py-4 px-3 w-24">Delivery Date</th>
+                  <th className="py-4 px-3 w-24">Completion Status</th>
+                  <th className="py-4 px-3 w-24 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800/60">
                 {loading ? (
                   <tr>
-                    <td colSpan="12" className="py-16 text-center theme-text-muted">
+                    <td colSpan="9" className="py-16 text-center theme-text-muted">
                       <div className="flex flex-col items-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-500 mb-4"></div>
-                        Generating delivery manifest...
+                        Loading delivery records...
                       </div>
                     </td>
                   </tr>
                 ) : filteredOrders.length === 0 ? (
                   <tr>
-                    <td colSpan="12" className="py-16 text-center theme-text-muted text-sm font-bold">
-                      No orders dispatched/delivered on this date.
+                    <td colSpan="9" className="py-16 text-center theme-text-muted text-sm font-bold">
+                      No delivered orders found.
                     </td>
                   </tr>
                 ) : (
                   filteredOrders.map((order, idx) => {
-                    let productSummary = 'Standard';
-                    try {
-                      let raw = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
-                      if (Array.isArray(raw) && raw.length > 1) {
-                        productSummary = raw.map(item => {
-                          const p = item.productDetails || item;
-                          return `${p.productType || 'Item'} (${item.quantity || 1})`;
-                        }).join(', ');
-                      } else if (Array.isArray(raw)) {
-                        const pd = raw[0]?.productDetails || raw[0] || {};
-                        productSummary = pd?.productType || 'Standard';
-                      } else {
-                        const pd = raw || {};
-                        productSummary = pd?.productType || 'Standard';
-                      }
-                    } catch {}
-                    
-                    const isCOD = !order.advancePaid;
-                    const payMethod = order.paymentMethod || (isCOD ? 'CASH' : 'ONLINE_TRANSFER');
+                    const deliveryDate = order.stages?.find(s => s.stageName === 'DELIVERED' || s.stageName === 'OUT_FOR_DELIVERY');
+                    const dispatchStage = order.stages?.find(s => s.stageName === 'OUT_FOR_DELIVERY' || s.stageName === 'DISPATCH');
+                    const method = order.deliveryMethod || order.deliveryType || '—';
+                    const source = order.outletName || (order.source === 'ONLINE' || order.source === 'ONLINE ORDER' || order.createdBy?.role === 'FAISAL' ? 'ONLINE' : order.source || order.createdBy?.role || '—');
 
                     return (
                       <tr key={order.id} className="hover:bg-white/5 transition-colors">
@@ -388,97 +368,88 @@ const DeliverySheet = () => {
                           {order.orderNumber || order.id?.slice(0, 8).toUpperCase()}
                         </td>
                         <td className="py-4 px-3 font-bold theme-text-primary text-xs">{order.customerName}</td>
-                        <td className="py-4 px-3 theme-text-secondary font-bold text-xs">{order.customerPhone || '—'}</td>
-                        <td className="py-4 px-3 theme-text-secondary text-xs max-w-xs truncate" title={order.address}>
-                          {order.address || '—'}
-                        </td>
-                        <td className="py-4 px-3 theme-text-primary font-bold text-xs">
-                          {productSummary}
-                        </td>
-                        <td className="py-4 px-3 text-center font-black theme-text-primary text-xs">{order.quantity}</td>
-                        <td className="py-4 px-3 text-xs">
-                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black uppercase ${
-                            order.source === 'ONLINE' || order.source === 'ONLINE ORDER' || order.createdBy?.role === 'FAISAL'
-                              ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                              : 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
-                          }`}>
-                            {order.outletName || (order.source === 'ONLINE' || order.source === 'ONLINE ORDER' || order.createdBy?.role === 'FAISAL' ? 'ONLINE' : order.source || order.createdBy?.role || '—')}
-                          </span>
-                        </td>
                         <td className="py-4 px-3 text-xs font-black">
                           <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black uppercase ${
-                            order.deliveryMethod === 'ENAMELS' || order.deliveryMethod === 'ENAMELS_DELIVERY'
+                            method === 'ENAMELS' || method === 'ENAMELS_DELIVERY'
                               ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                              : order.deliveryMethod
+                              : method !== '—'
                               ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
                               : 'bg-gray-500/10 text-gray-400 border border-gray-500/20'
                           }`}>
-                            {order.deliveryMethod || order.deliveryType || '—'}
+                            {method === 'ENAMELS' || method === 'ENAMELS_DELIVERY' ? 'In-House' : method}
                           </span>
                         </td>
                         <td className="py-4 px-3 text-xs">
-                          <span className={`px-2 py-0.5 rounded text-xs md:text-sm font-black uppercase ${
-                            payMethod === 'ONLINE_TRANSFER'
-                              ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20'
-                              : payMethod === 'CASH'
-                              ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
-                              : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black uppercase ${
+                            source === 'ONLINE' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
                           }`}>
-                            {payMethod === 'ONLINE_TRANSFER' ? 'Online' : payMethod === 'CASH' ? 'Cash' : 'Paid'}
+                            {source}
                           </span>
                         </td>
-                        <td className="py-4 px-3 font-black text-emerald-400 text-xs">
-                          ₨{Number(order.totalPrice || 0).toLocaleString()}
+                        <td className="py-4 px-3 text-xs">
+                          <span className="text-gray-400 font-bold">
+                            {dispatchStage ? (
+                              dispatchStage.status === 'COMPLETED' ? 'Dispatched' : 'Pending'
+                            ) : '—'}
+                          </span>
                         </td>
-                        <td className="py-4 px-3 text-right">
-                          {order.currentStage === 'DELIVERED' || order.status === 'COMPLETED' ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs md:text-sm font-black border uppercase bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
+                        <td className="py-4 px-3 text-xs font-bold theme-text-secondary">
+                          {deliveryDate?.completedAt
+                            ? new Date(deliveryDate.completedAt).toLocaleDateString()
+                            : order.completedAt
+                            ? new Date(order.completedAt).toLocaleDateString()
+                            : '—'}
+                        </td>
+                        <td className="py-4 px-3 text-xs">
+                          {order.status === 'COMPLETED' || order.currentStage === 'DELIVERED' ? (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-black border uppercase bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                              Delivered
+                              Completed
                             </span>
                           ) : (
-                            <div className="flex flex-col gap-1.5">
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs md:text-sm font-black border uppercase bg-yellow-500/10 text-yellow-500 border-yellow-500/20 animate-pulse">
-                                <span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
-                                Pending
-                              </span>
-                              <div className="flex gap-1">
-                                <button
-                                  disabled={actionLoading === order.id}
-                                  onClick={async () => {
-                                    if (!window.confirm('Mark this order as DELIVERED?')) return;
-                                    setActionLoading(order.id);
-                                    try {
-                                      await axios.put(`${API_URL}/api/orders/${order.id}/delivery`, { deliveryStatus: 'DELIVERED', remarks: 'Delivered via TCS/Courier' }, { headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` } });
-                                      toast.success('Marked as DELIVERED');
-                                      fetchOrders();
-                                    } catch (err) { toast.error(err.response?.data?.message || err.message); }
-                                    finally { setActionLoading(null); }
-                                  }}
-                                  className="text-[9px] font-black uppercase bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded-lg transition-all disabled:opacity-50"
-                                >
-                                  {actionLoading === order.id ? <LoadingSpinner size={10} /> : 'Delivered'}
-                                </button>
-                                <button
-                                  disabled={actionLoading === order.id}
-                                  onClick={async () => {
-                                    const reason = prompt('Reason for refund:');
-                                    if (!reason) return;
-                                    setActionLoading(order.id);
-                                    try {
-                                      await axios.post(`${API_URL}/api/orders/${order.id}/refund`, { reason }, { headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` } });
-                                      toast.success('Refund requested');
-                                      fetchOrders();
-                                    } catch (err) { toast.error(err.response?.data?.message || err.message); }
-                                    finally { setActionLoading(null); }
-                                  }}
-                                  className="text-[9px] font-black uppercase bg-orange-600 hover:bg-orange-500 text-white px-2 py-1 rounded-lg transition-all disabled:opacity-50"
-                                >
-                                  {actionLoading === order.id ? <LoadingSpinner size={10} /> : 'Refund'}
-                                </button>
-                              </div>
-                            </div>
+                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-black border uppercase bg-gray-500/10 text-gray-400 border-gray-500/20">
+                              Pending
+                            </span>
                           )}
+                        </td>
+                        <td className="py-4 px-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              disabled={actionLoading === order.id}
+                              onClick={async () => {
+                                if (order.status === 'COMPLETED') { toast('Already completed'); return; }
+                                if (!window.confirm('Mark this order as Complete?')) return;
+                                setActionLoading(order.id);
+                                try {
+                                  await axios.put(`${API_URL}/api/orders/${order.id}/delivery`, { deliveryStatus: 'DELIVERED', remarks: 'Order completed' }, { headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` } });
+                                  toast.success('Order completed');
+                                  fetchOrders();
+                                } catch (err) { toast.error(err.response?.data?.message || err.message); }
+                                finally { setActionLoading(null); }
+                              }}
+                              className="text-[9px] font-black uppercase bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded-lg transition-all disabled:opacity-50"
+                            >
+                              {actionLoading === order.id ? <LoadingSpinner size={10} /> : 'Complete'}
+                            </button>
+                            <button
+                              disabled={actionLoading === order.id}
+                              onClick={async () => {
+                                if (order.status === 'COMPLETED') { toast('Cannot return a completed order'); return; }
+                                const reason = prompt('Reason for return:');
+                                if (!reason) return;
+                                setActionLoading(order.id);
+                                try {
+                                  await axios.post(`${API_URL}/api/orders/${order.id}/refund`, { reason }, { headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` } });
+                                  toast.success('Order returned');
+                                  fetchOrders();
+                                } catch (err) { toast.error(err.response?.data?.message || err.message); }
+                                finally { setActionLoading(null); }
+                              }}
+                              className="text-[9px] font-black uppercase bg-orange-600 hover:bg-orange-500 text-white px-2 py-1 rounded-lg transition-all disabled:opacity-50"
+                            >
+                              {actionLoading === order.id ? <LoadingSpinner size={10} /> : 'Return'}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -541,11 +512,11 @@ const DeliverySheet = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #000000', paddingBottom: '10px' }}>
           <div>
             <h1 style={{ fontSize: '24px', fontWeight: 'bold', margin: '0', textTransform: 'uppercase', letterSpacing: '1px' }}>Enamels Delivery Sheet</h1>
-            <p style={{ fontSize: '11px', margin: '3px 0 0 0', fontWeight: 'bold', color: '#666666' }}>Smart Production Conveyor Belt Manifest</p>
+            <p style={{ fontSize: '11px', margin: '3px 0 0 0', fontWeight: 'bold', color: '#666666' }}>Unified Delivery Records</p>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <p style={{ fontSize: '12px', fontWeight: 'bold', margin: '0' }}>Date: {new Date(selectedDate).toLocaleDateString()}</p>
-            <p style={{ fontSize: '10px', color: '#666666', margin: '2px 0 0 0' }}>Printed: {new Date().toLocaleString()}</p>
+            <p style={{ fontSize: '12px', fontWeight: 'bold', margin: '0' }}>Printed: {new Date().toLocaleString()}</p>
+            <p style={{ fontSize: '10px', color: '#666666', margin: '2px 0 0 0' }}>{filteredOrders.length} orders</p>
           </div>
         </div>
 
@@ -555,58 +526,38 @@ const DeliverySheet = () => {
               <th style={{ width: '3%' }}>Sr.</th>
               <th style={{ width: '10%' }}>Order ID</th>
               <th style={{ width: '13%' }}>Customer</th>
-              <th style={{ width: '11%' }}>Phone</th>
-              <th style={{ width: '18%' }}>Address</th>
-              <th style={{ width: '10%' }}>Product</th>
-              <th style={{ width: '4%', textAlign: 'center' }}>Qty</th>
+              <th style={{ width: '8%' }}>Method</th>
               <th style={{ width: '8%' }}>Source</th>
-              <th style={{ width: '8%' }}>Payment</th>
+              <th style={{ width: '12%' }}>Dispatch Status</th>
+              <th style={{ width: '10%' }}>Delivery Date</th>
+              <th style={{ width: '10%' }}>Status</th>
               <th style={{ width: '8%' }}>Amount</th>
-              <th style={{ width: '9%' }}>Remarks</th>
             </tr>
           </thead>
           <tbody>
             {filteredOrders.length === 0 ? (
               <tr>
-                <td colSpan="11" style={{ textAlign: 'center', padding: '20px', fontWeight: 'bold' }}>
-                  No orders scheduled for delivery on this date.
+                <td colSpan="9" style={{ textAlign: 'center', padding: '20px', fontWeight: 'bold' }}>
+                  No delivered orders found.
                 </td>
               </tr>
             ) : (
               filteredOrders.map((order, idx) => {
-                let productSummary = 'Standard';
-                try {
-                  let raw = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
-                  if (Array.isArray(raw) && raw.length > 1) {
-                    productSummary = raw.map(item => {
-                      const p = item.productDetails || item;
-                      return `${p.productType || 'Item'} (${item.quantity || 1})`;
-                    }).join(', ');
-                  } else if (Array.isArray(raw)) {
-                    const pd = raw[0]?.productDetails || raw[0] || {};
-                    productSummary = pd?.productType || 'Standard';
-                  } else {
-                    const pd = raw || {};
-                    productSummary = pd?.productType || 'Standard';
-                  }
-                } catch {}
-                const isCOD = !order.advancePaid;
-                const payMethod = order.paymentMethod || (isCOD ? 'CASH' : 'ONLINE_TRANSFER');
+                const deliveryDate = order.stages?.find(s => s.stageName === 'DELIVERED' || s.stageName === 'OUT_FOR_DELIVERY');
+                const dispatchStage = order.stages?.find(s => s.stageName === 'OUT_FOR_DELIVERY' || s.stageName === 'DISPATCH');
+                const method = order.deliveryMethod || order.deliveryType || '—';
+                const source = order.outletName || (order.source === 'ONLINE' || order.source === 'ONLINE ORDER' || order.createdBy?.role === 'FAISAL' ? 'ONLINE' : order.source || order.createdBy?.role || '—');
                 return (
                   <tr key={order.id}>
                     <td>{idx + 1}</td>
                     <td style={{ fontWeight: 'bold' }}>{order.orderNumber || order.id?.slice(0, 8).toUpperCase()}</td>
                     <td style={{ fontWeight: 'bold' }}>{order.customerName}</td>
-                    <td>{order.customerPhone || '—'}</td>
-                    <td>{order.address || '—'}</td>
-                    <td>{productSummary}</td>
-                    <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{order.quantity}</td>
-                    <td style={{ fontWeight: 'bold', fontSize: '10px' }}>{order.outletName || (order.source === 'ONLINE' || order.source === 'ONLINE ORDER' || order.createdBy?.role === 'FAISAL' ? 'ONLINE' : order.source || order.createdBy?.role || '—')}</td>
-                    <td>{payMethod === 'ONLINE_TRANSFER' ? 'Online' : 'Cash'}</td>
+                    <td>{method === 'ENAMELS' || method === 'ENAMELS_DELIVERY' ? 'In-House' : method}</td>
+                    <td>{source}</td>
+                    <td>{dispatchStage?.status === 'COMPLETED' ? 'Dispatched' : '—'}</td>
+                    <td>{deliveryDate?.completedAt ? new Date(deliveryDate.completedAt).toLocaleDateString() : '—'}</td>
+                    <td>{order.status === 'COMPLETED' || order.currentStage === 'DELIVERED' ? 'Completed' : 'Pending'}</td>
                     <td style={{ fontWeight: 'bold' }}>₨ {Number(order.totalPrice || 0).toLocaleString()}</td>
-                    <td style={{ fontSize: '9px', color: '#555555' }}>
-                      {order.stages?.find(s => s.stageName === 'DELIVERED' || s.stageName === 'OUT_FOR_DELIVERY')?.rejectionReason || ''}
-                    </td>
                   </tr>
                 );
               })

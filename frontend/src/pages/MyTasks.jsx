@@ -15,9 +15,7 @@ const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'l
 const MyTasks = () => {
   const { user } = useAuth();
   const { t, LanguageToggle, isUrdu } = useLanguage();
-  const [unseenOrders, setUnseenOrders] = useState([]);
-  const [seenOrders, setSeenOrders] = useState([]);
-  const [productionOrders, setProductionOrders] = useState([]);
+  const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const { searchTerm: contextSearch, setSearchTerm: setContextSearch } = useSearch();
   const [searchTerm, setSearchTerm] = useState(contextSearch);
@@ -63,25 +61,6 @@ const MyTasks = () => {
   const handleLocalSearch = (val) => {
     setSearchTerm(val);
     setContextSearch(val);
-  };
-
-  const [activeTab, setActiveTab] = useState('unseen');
-
-  const markAsSeen = async (orderId) => {
-    try {
-      const token = sessionStorage.getItem('token');
-      await axios.post(`${API_URL}/api/orders/${orderId}/mark-seen`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      // Move from unseen to seen locally
-      const moved = unseenOrders.filter(o => o.id === orderId);
-      setUnseenOrders(prev => prev.filter(o => o.id !== orderId));
-      setSeenOrders(prev => [...moved, ...prev]);
-      toast.success('Task accepted! Moved to active list.');
-    } catch (error) {
-      console.error('Error marking as seen:', error);
-      toast.error(error.response?.data?.error || 'Failed to mark as seen');
-    }
   };
 
   const [urgencyFilter, setUrgencyFilter] = useState('ALL');
@@ -147,31 +126,13 @@ const MyTasks = () => {
   const fetchTasks = async () => {
     try {
       const token = sessionStorage.getItem('token');
-      const [tasksRes, prodRes] = await Promise.all([
-        axios.get(`${API_URL}/api/orders/unseen-tasks`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }),
-        axios.get(`${API_URL}/api/orders/production-returned`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }).catch(() => null)
-      ]);
-      setUnseenOrders(tasksRes.data.unseen || []);
-      setSeenOrders(tasksRes.data.seen || []);
-      if (prodRes) {
-        setProductionOrders(prodRes.data.seen ? [...(prodRes.data.unseen || []), ...(prodRes.data.seen || [])] : (prodRes.data || []));
-      }
+      const res = await axios.get(`${API_URL}/api/orders?status=active`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setOrders(Array.isArray(res.data) ? res.data : (res.data?.orders || []));
     } catch (error) {
       console.error('Error fetching tasks:', error);
-      try {
-        const token = sessionStorage.getItem('token');
-        const response = await axios.get(`${API_URL}/api/orders?status=active`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setUnseenOrders(response.data || []);
-        setSeenOrders([]);
-      } catch (e2) {
-        console.error('Fallback error:', e2);
-      }
+      toast.error('Failed to load tasks');
     } finally {
       setLoading(false);
     }
@@ -192,17 +153,15 @@ const MyTasks = () => {
   };
 
   const displayedOrders = useMemo(() => {
-    const source = activeTab === 'unseen' ? unseenOrders : activeTab === 'seen' ? seenOrders : productionOrders;
-    if (!searchTerm || searchTerm.trim() === "") return source;
-
+    if (!searchTerm || searchTerm.trim() === "") return orders;
     const searchLower = searchTerm.toLowerCase().trim();
-    return source.filter(order => {
+    return orders.filter(order => {
       const nameMatch = (order.customerName || "").toLowerCase().includes(searchLower);
       const idMatch = (order.id || "").toLowerCase().includes(searchLower);
       const orderNumMatch = (order.orderNumber || "").toLowerCase().includes(searchLower);
       return nameMatch || idMatch || orderNumMatch;
     });
-  }, [activeTab, unseenOrders, seenOrders, productionOrders, searchTerm]);
+  }, [orders, searchTerm]);
 
   // Apply urgency filter
   const filteredOrders = useMemo(() => {
@@ -254,59 +213,7 @@ const MyTasks = () => {
         </div>
       </div>
 
-      {/* Unseen / Seen / Production Tabs */}
-      <div className="flex border-b theme-border mb-6 gap-3 md:gap-6 relative">
-        <button
-          onClick={() => setActiveTab('unseen')}
-          className={`pb-4 px-2 text-sm font-black uppercase tracking-widest transition-all relative flex items-center gap-2 ${
-            activeTab === 'unseen' ? 'text-blue-500' : 'theme-text-muted hover:theme-text-primary'
-          }`}
-        >
-          <span>Unseen Tasks</span>
-          {unseenOrders.length > 0 ? (
-            <span className="w-5 h-5 bg-red-500 text-xs md:text-sm text-white flex items-center justify-center rounded-full font-black animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]">
-              {unseenOrders.length}
-            </span>
-          ) : (
-            <span className="text-xs md:text-sm bg-gray-800 theme-text-muted px-2 py-0.5 rounded-full font-black">0</span>
-          )}
-          {activeTab === 'unseen' && (
-            <motion.div layoutId="activeTabUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
-          )}
-        </button>
-        
-        <button
-          onClick={() => setActiveTab('seen')}
-          className={`pb-4 px-2 text-sm font-black uppercase tracking-widest transition-all relative flex items-center gap-2 ${
-            activeTab === 'seen' ? 'text-blue-500' : 'theme-text-muted hover:theme-text-primary'
-          }`}
-        >
-          <span>Active / Seen Tasks</span>
-          <span className="text-xs md:text-sm bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded-full font-black">
-            {seenOrders.length}
-          </span>
-          {activeTab === 'seen' && (
-            <motion.div layoutId="activeTabUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
-          )}
-        </button>
 
-        {user?.role === 'STORE' && (
-          <button
-            onClick={() => setActiveTab('production')}
-            className={`pb-4 px-2 text-sm font-black uppercase tracking-widest transition-all relative flex items-center gap-2 ${
-              activeTab === 'production' ? 'text-blue-500' : 'theme-text-muted hover:theme-text-primary'
-            }`}
-          >
-            <span>Production Orders</span>
-            <span className="text-xs md:text-sm bg-emerald-600/20 text-emerald-400 px-2 py-0.5 rounded-full font-black">
-              {productionOrders.length}
-            </span>
-            {activeTab === 'production' && (
-              <motion.div layoutId="activeTabUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
-            )}
-          </button>
-        )}
-      </div>
 
       {/* Routing History Button */}
       <div className="flex items-center gap-2 mb-4">
@@ -380,8 +287,6 @@ const MyTasks = () => {
                   order={order} 
                   userRole={user?.role}
                   onUpdateStage={handleAction}
-                  isUnseen={activeTab === 'unseen'}
-                  onMarkSeen={() => markAsSeen(order.id)}
                   selected={selectedOrderIds.has(order.id)}
                   onToggleSelect={toggleOrderSelection}
                 />
@@ -398,16 +303,8 @@ const MyTasks = () => {
             <Filter size={48} className="theme-text-muted" />
           </div>
           <div className="text-center">
-            <h3 className="text-xl font-bold theme-text-secondary">
-              {activeTab === 'unseen' ? 'No Unseen Tasks' : activeTab === 'seen' ? 'No Active Tasks' : 'No Production Orders'}
-            </h3>
-            <p className="text-sm theme-text-muted mt-2">
-              {activeTab === 'unseen' 
-                ? 'All newly assigned tasks have been acknowledged.' 
-                : activeTab === 'seen'
-                ? 'No active production tasks are currently in progress.'
-                : 'No orders have been received from production yet.'}
-            </p>
+            <h3 className="text-xl font-bold theme-text-secondary">No Tasks</h3>
+            <p className="text-sm theme-text-muted mt-2">No orders assigned to you at this time.</p>
           </div>
         </motion.div>
       )}

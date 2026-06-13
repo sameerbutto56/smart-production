@@ -1043,25 +1043,67 @@ const AdminDashboard = () => {
                     </div>
                   </section>
                 ) : (
-                  /* Initiation Queue — shown when no pipeline sub-tab selected */
-                  initiationQueue.length > 0 && (
-                    <section className="mb-6 md:mb-12">
-                      <div className="flex items-center space-x-4 mb-8">
-                        <div className="p-3 bg-blue-500/10 rounded-2xl">
-                          <Sparkles className="text-blue-400" size={20} />
+                  /* All — Show Initiation Queue + all pipeline stages grouped */
+                  <div className="space-y-10">
+                    {/* Initiation Queue */}
+                    {initiationQueue.length > 0 && (
+                      <section className="mb-6 md:mb-12">
+                        <div className="flex items-center space-x-4 mb-8">
+                          <div className="p-3 bg-blue-500/10 rounded-2xl">
+                            <Sparkles className="text-blue-400" size={20} />
+                          </div>
+                          <div>
+                            <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">Initiation Queue</h2>
+                            <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">New orders waiting to start production</p>
+                          </div>
                         </div>
-                        <div>
-                          <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">Initiation Queue</h2>
-                          <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">New orders waiting to start production</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
+                          {initiationQueue.map(order => (
+                            <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} selected={selectedOrderIds.has(order.id)} onToggleSelect={toggleOrderSelection} />
+                          ))}
                         </div>
+                      </section>
+                    )}
+                    {/* Each Pipeline Stage */}
+                    {PIPELINE_STAGES.map(stage => {
+                      const stageOrders = allOrders.filter(o => o.currentStage === stage.id && o.status !== 'COMPLETED');
+                      if (stageOrders.length === 0) return null;
+                      return (
+                        <section key={stage.id}>
+                          <div className="flex items-center space-x-4 mb-6">
+                            <div className="p-3 bg-blue-500/10 rounded-2xl">
+                              <stage.icon className="text-blue-400" size={20} />
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">{stage.label}</h2>
+                                <button
+                                  onClick={() => setFilterStage(stage.id)}
+                                  className="text-xs font-black text-blue-400 hover:text-blue-300 uppercase tracking-widest transition-all px-3 py-1 rounded-lg hover:bg-blue-500/10"
+                                >
+                                  View All ({stageOrders.length})
+                                </button>
+                              </div>
+                              <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">Active orders in {stage.label}</p>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
+                            {stageOrders.map(order => (
+                              <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} selected={selectedOrderIds.has(order.id)} onToggleSelect={toggleOrderSelection} />
+                            ))}
+                          </div>
+                        </section>
+                      );
+                    })}
+                    {/* Empty state when no orders at all */}
+                    {initiationQueue.length === 0 && allOrders.filter(o => o.status !== 'COMPLETED').length === 0 && (
+                      <div className="py-16 text-center glass rounded-2xl md:rounded-[3rem] theme-border">
+                        <Package className="mx-auto theme-text-muted mb-4" size={48} />
+                        <h3 className="theme-text-muted font-black uppercase">No active orders</h3>
+                        <p className="text-gray-600 text-xs font-bold mt-2">All orders have been completed</p>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
-                        {initiationQueue.map(order => (
-                          <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} selected={selectedOrderIds.has(order.id)} onToggleSelect={toggleOrderSelection} />
-                        ))}
-                      </div>
-                    </section>
-                  )
+                    )}
+                  </div>
                 )}
               </>
             )}
