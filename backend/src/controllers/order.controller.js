@@ -1435,6 +1435,87 @@ const getRefundQueue = async (req, res) => {
   }
 };
 
+const reverseInventoryForRefund = async (order, userId) => {
+  let parsedDetails;
+  try {
+    parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+  } catch { return; }
+  if (!parsedDetails) return;
+
+  const { inventoryItems, productionItems } = await classifyOrderItems(order);
+
+  // Reverse production items — remove from inventory (they were added via addOrderToInventory)
+  for (const prod of productionItems) {
+    const qty = prod.quantity || 1;
+    const inventoryItem = prod.inventoryItem || await prisma.inventoryItem.findFirst({
+      where: { name: { contains: prod.productType, mode: 'insensitive' } }
+    });
+    if (!inventoryItem) continue;
+
+    if (inventoryItem.variants && Array.isArray(inventoryItem.variants)) {
+      let updatedVariants = [...inventoryItem.variants];
+      const matchIdx = updatedVariants.findIndex(v =>
+        (!prod.color || (v.color && v.color.toLowerCase() === prod.color.toLowerCase())) &&
+        (!prod.size || (v.size && v.size.toLowerCase() === prod.size.toLowerCase()))
+      );
+      if (matchIdx >= 0) {
+        updatedVariants[matchIdx] = { ...updatedVariants[matchIdx], stock: Math.max(0, (updatedVariants[matchIdx].stock || 0) - qty) };
+      }
+      const newTotalStock = updatedVariants.reduce((s, v) => s + (v.stock || 0), 0);
+      await prisma.inventoryItem.update({
+        where: { id: inventoryItem.id },
+        data: { variants: updatedVariants, stock: newTotalStock }
+      });
+    } else {
+      await prisma.inventoryItem.update({
+        where: { id: inventoryItem.id },
+        data: { stock: { decrement: Math.min(qty, inventoryItem.stock) } }
+      });
+    }
+  }
+
+  // Reverse inventory items — add back to stock (they were deducted via deductInventoryItems)
+  for (const prod of inventoryItems) {
+    const qty = prod.quantity || 1;
+    const inventoryItem = prod.inventoryItem;
+    if (!inventoryItem) continue;
+
+    if (inventoryItem.variants && Array.isArray(inventoryItem.variants)) {
+      let updatedVariants = [...inventoryItem.variants];
+      const matchIdx = updatedVariants.findIndex(v =>
+        (!prod.color || (v.color && v.color.toLowerCase() === prod.color.toLowerCase())) &&
+        (!prod.size || (v.size && v.size.toLowerCase() === prod.size.toLowerCase()))
+      );
+      if (matchIdx >= 0) {
+        updatedVariants[matchIdx] = { ...updatedVariants[matchIdx], stock: (updatedVariants[matchIdx].stock || 0) + qty };
+      } else {
+        updatedVariants.push({ color: prod.color || '', size: prod.size || '', stock: qty, price: 0 });
+      }
+      const newTotalStock = updatedVariants.reduce((s, v) => s + (v.stock || 0), 0);
+      await prisma.inventoryItem.update({
+        where: { id: inventoryItem.id },
+        data: { variants: updatedVariants, stock: newTotalStock }
+      });
+    } else {
+      await prisma.inventoryItem.update({
+        where: { id: inventoryItem.id },
+        data: { stock: { increment: qty } }
+      });
+    }
+  }
+
+  // Clean up production records
+  await prisma.productionRecord.deleteMany({ where: { orderId: order.id } }).catch(() => {});
+
+  const reversed = [
+    ...productionItems.map(p => `${p.productType} x${p.quantity} (removed)`),
+    ...inventoryItems.map(p => `${p.productType} x${p.quantity} (restored)`)
+  ];
+  if (reversed.length > 0) {
+    await createAuditLog(order.id, 'INVENTORY_REVERSED', `Inventory reversed for refund: ${reversed.join(', ')}`, userId);
+  }
+};
+
 const processRefund = async (req, res) => {
   const { orderId } = req.params;
   const { action, note } = req.body; // action: 'PROCESSING' | 'REFUNDED'
@@ -1457,6 +1538,31 @@ const processRefund = async (req, res) => {
       updateData.dispatchStatus = 'REFUNDED';
       updateData.currentStage = 'REFUNDED';
       updateData.status = 'REFUNDED';
+
+      // Reverse inventory if it was previously added
+      const inventoryAdded = await prisma.auditLog.findFirst({
+        where: { orderId, action: 'INVENTORY_ADDED' }
+      });
+      if (inventoryAdded) {
+        try {
+          await reverseInventoryForRefund(order, req.user.id);
+          auditMessage += '; Inventory reversed.';
+        } catch (invErr) {
+          console.error('Failed to reverse inventory:', invErr);
+        }
+      }
+
+      // Delete revenue record to reverse the amount
+      try {
+        await prisma.revenueRecord.deleteMany({ where: { orderId } });
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { grossProfit: 0, netProfit: 0 }
+        });
+        auditMessage += '; Revenue reversed.';
+      } catch (revErr) {
+        console.error('Failed to delete revenue record:', revErr);
+      }
     }
 
     await prisma.order.update({ where: { id: orderId }, data: updateData });
