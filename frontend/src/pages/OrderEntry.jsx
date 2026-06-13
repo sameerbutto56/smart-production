@@ -111,6 +111,7 @@ const SmartOrderForm = () => {
       length: '',
       sleeve: '',
       waist: '',
+      hip: '',
       hips: '',
       shirtLength: '',
       trouserLength: '',
@@ -613,17 +614,41 @@ const SmartOrderForm = () => {
     setIsSubmitting(false);
   };
 
-  // Standard Measurements Mapping
-  const standardMeasurements = {
-    'S': { chest: '36', shoulder: '14.5', length: '26', sleeve: '22', waist: '30', hips: '38' },
-    'M': { chest: '38', shoulder: '15', length: '27', sleeve: '23', waist: '32', hips: '40' },
-    'L': { chest: '40', shoulder: '16', length: '28', sleeve: '24', waist: '34', hips: '42' },
-    'XL': { chest: '44', shoulder: '17', length: '29', sleeve: '25', waist: '38', hips: '46' },
-    '2XL': { chest: '48', shoulder: '18', length: '30', sleeve: '26', waist: '42', hips: '50' }
+  // Official Men's Scrubs Size Chart (inches)
+  const MEN_SCRUBS_SIZE_CHART = {
+    'XS': { shoulder: '16.5', chest: '19', bottom: '19', shirtLength: '28', sleeve: '8.5', trouserLength: '38', hips: '7' },
+    'S':  { shoulder: '17',   chest: '20', bottom: '20', shirtLength: '29', sleeve: '8.75', trouserLength: '39', hips: '7.25' },
+    'M':  { shoulder: '17.5', chest: '21', bottom: '21', shirtLength: '30', sleeve: '9',    trouserLength: '40', hips: '7.5' },
+    'L':  { shoulder: '18.5', chest: '22', bottom: '22', shirtLength: '31', sleeve: '9.5',  trouserLength: '41', hips: '8' },
+    'XL': { shoulder: '19.5', chest: '24', bottom: '24', shirtLength: '32', sleeve: '10',   trouserLength: '42', hips: '8.5' },
+    'XXL':{ shoulder: '20.5', chest: '26', bottom: '26', shirtLength: '33', sleeve: '10.5', trouserLength: '43', hips: '9' }
+  };
+
+  // Official Women's Scrubs Size Chart (inches)
+  const WOMEN_SCRUBS_SIZE_CHART = {
+    'XS': { shoulder: '14.5', chest: '19', waist: '16', bottom: '20', shirtLength: '30', hip: '19.5', sleeve: '8.25', trouserLength: '37', hips: '6.5' },
+    'S':  { shoulder: '15',   chest: '20', waist: '16.75', bottom: '21', shirtLength: '31', hip: '20.5', sleeve: '8.5',  trouserLength: '38', hips: '6.75' },
+    'M':  { shoulder: '15.5', chest: '21', waist: '17.5',  bottom: '22', shirtLength: '32', hip: '21.5', sleeve: '9',    trouserLength: '39', hips: '7' },
+    'L':  { shoulder: '16.5', chest: '22', waist: '18.5',  bottom: '23', shirtLength: '33', hip: '22.5', sleeve: '9.5',  trouserLength: '40', hips: '7.5' },
+    'XL': { shoulder: '17.5', chest: '24', waist: '19.5',  bottom: '25', shirtLength: '34', hip: '24.5', sleeve: '10',   trouserLength: '41', hips: '8' },
+    'XXL':{ shoulder: '18.5', chest: '26', waist: '20.5',  bottom: '27', shirtLength: '35', hip: '26.5', sleeve: '10.5', trouserLength: '42', hips: '8.5' }
+  };
+
+  // Female short shirt lengths: XS=28, S=28, M=28, L=30, XL=30, XXL=31
+  const WOMEN_SHORT_SHIRT_LENGTHS = { XS: '28', S: '28', M: '28', L: '30', XL: '30', XXL: '31' };
+
+  const isScrubsProduct = (productType) => {
+    const pt = (productType || formData.productType || '').toLowerCase();
+    return pt.includes('scrub') || pt.includes('uniform') || pt === '';
+  };
+
+  const getSizeChart = () => {
+    return formData.gender === 'Female' ? WOMEN_SCRUBS_SIZE_CHART : MEN_SCRUBS_SIZE_CHART;
   };
 
   const handleSizeSelect = (s) => {
-    const autoMeasurements = standardMeasurements[s] || formData.measurements;
+    const chart = getSizeChart();
+    const autoMeasurements = chart[s] || formData.measurements;
     setFormData({
       ...formData,
       size: s,
@@ -651,7 +676,10 @@ const SmartOrderForm = () => {
       // 4. Tailoring measurements validation
       if (formData.type === 'FULL_CUSTOM' && !accessory) {
         const m = formData.measurements;
-        if (!m.shoulder || !m.chest || !m.bottom || !m.shirtLength || !m.sleeve || !m.trouserLength) {
+        const required = formData.gender === 'Female'
+          ? ['shoulder', 'chest', 'waist', 'bottom', 'shirtLength', 'hip', 'sleeve', 'trouserLength', 'hips']
+          : ['shoulder', 'chest', 'bottom', 'shirtLength', 'sleeve', 'trouserLength', 'hips'];
+        if (required.some(f => !m[f])) {
           return 'All precise measurements are required for custom tailoring.';
         }
       }
@@ -679,7 +707,10 @@ const SmartOrderForm = () => {
     }
     if (activeTab === 'sizes' && formData.type === 'FULL_CUSTOM' && !accessory) {
       const m = formData.measurements;
-      if (!m.shoulder || !m.chest || !m.bottom || !m.shirtLength || !m.sleeve || !m.trouserLength) {
+      const required = formData.gender === 'Female'
+        ? ['shoulder', 'chest', 'waist', 'bottom', 'shirtLength', 'hip', 'sleeve', 'trouserLength', 'hips']
+        : ['shoulder', 'chest', 'bottom', 'shirtLength', 'sleeve', 'trouserLength', 'hips'];
+      if (required.some(f => !m[f])) {
         return 'All precise measurements are required for custom tailoring.';
       }
     }
@@ -827,6 +858,7 @@ const SmartOrderForm = () => {
         length: item.sizeData?.length || '',
         sleeve: item.sizeData?.sleeve || '',
         waist: item.sizeData?.waist || '',
+        hip: item.sizeData?.hip || '',
         hips: item.sizeData?.hips || '',
         shirtLength: item.sizeData?.shirtLength || '',
         trouserLength: item.sizeData?.trouserLength || '',
@@ -928,6 +960,7 @@ const SmartOrderForm = () => {
           length: '',
           sleeve: '',
           waist: '',
+          hip: '',
           hips: '',
           shirtLength: '',
           trouserLength: '',
@@ -2382,8 +2415,19 @@ const SmartOrderForm = () => {
                 </div>
 
                 {/* Size Selection Buttons - Always Visible */}
-                <div className="flex flex-col items-center space-y-4">
-                  <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em]">Select Size</label>
+                <div className="flex flex-col items-center space-y-6">
+                  <div className="flex items-center gap-6">
+                    <div className="text-center">
+                      <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em]">Gender</label>
+                      <p className="text-lg font-black text-emerald-400">{formData.gender}</p>
+                    </div>
+                    {formData.size && (
+                      <div className="text-center">
+                        <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em]">Size</label>
+                        <p className="text-lg font-black text-emerald-400">{formData.size}</p>
+                      </div>
+                    )}
+                  </div>
                   <div className={`flex p-1.5 theme-bg rounded-xl border-2 theme-border ${useUrdu ? 'flex-row-reverse' : ''}`}>
                     {(availableSizes.length > 0 ? availableSizes : ['XS', 'S', 'M', 'L', 'XL', 'XXL']).map(s => (
                       <button
@@ -2412,24 +2456,34 @@ const SmartOrderForm = () => {
                     <div className="group relative flex flex-col items-center md:items-end">
                       <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Shoulder</label>
                       <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
-                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.shoulder || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, shoulder: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-right" placeholder={formData.size && SCRUBS_SIZE_CHART[formData.size] ? SCRUBS_SIZE_CHART[formData.size].shoulder : '00'} />
+                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.shoulder || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, shoulder: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-right" placeholder={formData.size && getSizeChart()[formData.size] ? getSizeChart()[formData.size].shoulder : '00'} />
                         <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
                       </div>
                     </div>
                     <div className="group relative flex flex-col items-center md:items-end">
                       <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Chest / Bust</label>
                       <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
-                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.chest || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, chest: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-right" placeholder={formData.size && SCRUBS_SIZE_CHART[formData.size] ? SCRUBS_SIZE_CHART[formData.size].chest : '00'} />
+                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.chest || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, chest: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-right" placeholder={formData.size && getSizeChart()[formData.size] ? getSizeChart()[formData.size].chest : '00'} />
                         <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
                       </div>
                     </div>
-                    <div className="group relative flex flex-col items-center md:items-end">
-                      <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Bottom Width</label>
-                      <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
-                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.bottom || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, bottom: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-right" placeholder={formData.size && SCRUBS_SIZE_CHART[formData.size] ? SCRUBS_SIZE_CHART[formData.size].bottom : '00'} />
-                        <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
+                    {formData.gender === 'Female' ? (
+                      <div className="group relative flex flex-col items-center md:items-end">
+                        <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Waist</label>
+                        <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
+                          <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.waist || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, waist: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-right" placeholder={formData.size && getSizeChart()[formData.size] ? getSizeChart()[formData.size].waist : '00'} />
+                          <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="group relative flex flex-col items-center md:items-end">
+                        <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Bottom Width</label>
+                        <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
+                          <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.bottom || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, bottom: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-right" placeholder={formData.size && getSizeChart()[formData.size] ? getSizeChart()[formData.size].bottom : '00'} />
+                          <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Center Silhouette */}
@@ -2452,39 +2506,91 @@ const SmartOrderForm = () => {
 
                   {/* Right Measurements */}
                   <div className="flex flex-col space-y-8 md:space-y-16 w-full md:w-1/3 z-20 items-center md:items-start">
+                    {formData.gender === 'Female' ? (
+                      <div className="group relative flex flex-col items-center md:items-start">
+                        <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Bottom</label>
+                        <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
+                          <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.bottom || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, bottom: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder={formData.size && getSizeChart()[formData.size] ? getSizeChart()[formData.size].bottom : '00'} />
+                          <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
+                        </div>
+                      </div>
+                    ) : null}
                     <div className="group relative flex flex-col items-center md:items-start">
                       <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Shirt Length</label>
                       <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
-                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.shirtLength || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, shirtLength: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder={formData.size && SCRUBS_SIZE_CHART[formData.size] ? SCRUBS_SIZE_CHART[formData.size].shirtLength : '00'} />
+                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.shirtLength || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, shirtLength: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder={formData.size && getSizeChart()[formData.size] ? getSizeChart()[formData.size].shirtLength : '00'} />
                         <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
                       </div>
                     </div>
-                    <div className="group relative flex flex-col items-center md:items-start">
-                      <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Sleeves Length</label>
-                      <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
-                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.sleeve || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, sleeve: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder={formData.size && SCRUBS_SIZE_CHART[formData.size] ? SCRUBS_SIZE_CHART[formData.size].sleeve : '00'} />
-                        <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
+                    {formData.gender === 'Female' ? (
+                      <div className="group relative flex flex-col items-center md:items-start">
+                        <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Hip</label>
+                        <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
+                          <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.hip || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, hip: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder={formData.size && getSizeChart()[formData.size] ? getSizeChart()[formData.size].hip : '00'} />
+                          <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="group relative flex flex-col items-center md:items-start">
+                        <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Sleeves Length</label>
+                        <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
+                          <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.sleeve || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, sleeve: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder={formData.size && getSizeChart()[formData.size] ? getSizeChart()[formData.size].sleeve : '00'} />
+                          <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
+                        </div>
+                      </div>
+                    )}
                     <div className="group relative flex flex-col items-center md:items-start">
                       <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Trouser Length</label>
                       <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
-                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.trouserLength || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, trouserLength: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder={formData.size && SCRUBS_SIZE_CHART[formData.size] ? SCRUBS_SIZE_CHART[formData.size].trouserLength : '00'} />
+                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.trouserLength || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, trouserLength: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder={formData.size && getSizeChart()[formData.size] ? getSizeChart()[formData.size].trouserLength : '00'} />
                         <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex flex-col items-center space-y-4 pt-4">
-                  <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em]">Trouser Bottom</label>
-                  <div className="group relative flex flex-col items-center">
-                    <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
-                      <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.hips || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, hips: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center" placeholder={formData.size && SCRUBS_SIZE_CHART[formData.size] ? SCRUBS_SIZE_CHART[formData.size].hips : '00'} />
-                      <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
+                {/* Bottom Row: Sleeves (female), Trouser Bottom */}
+                {formData.gender === 'Female' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8 max-w-3xl mx-auto mt-4">
+                    <div className="flex flex-col items-center space-y-4">
+                      <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em]">Sleeves Length</label>
+                      <div className="group relative flex flex-col items-center">
+                        <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
+                          <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.sleeve || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, sleeve: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center" placeholder={formData.size && getSizeChart()[formData.size] ? getSizeChart()[formData.size].sleeve : '00'} />
+                          <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-center space-y-4">
+                      <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em]">Trouser Length</label>
+                      <div className="group relative flex flex-col items-center">
+                        <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
+                          <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.trouserLength || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, trouserLength: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center" placeholder={formData.size && getSizeChart()[formData.size] ? getSizeChart()[formData.size].trouserLength : '00'} />
+                          <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-center space-y-4">
+                      <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em]">Trouser Bottom</label>
+                      <div className="group relative flex flex-col items-center">
+                        <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
+                          <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.hips || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, hips: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center" placeholder={formData.size && getSizeChart()[formData.size] ? getSizeChart()[formData.size].hips : '00'} />
+                          <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="flex flex-col items-center space-y-4 pt-4">
+                    <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em]">Trouser Bottom</label>
+                    <div className="group relative flex flex-col items-center">
+                      <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
+                        <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.hips || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, hips: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center" placeholder={formData.size && getSizeChart()[formData.size] ? getSizeChart()[formData.size].hips : '00'} />
+                        <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {formData.gender === 'Female' && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-6 mt-6 md:mt-12 theme-bg-subtle p-4 md:p-8 rounded-2xl md:rounded-[3rem] border theme-border">
@@ -2583,21 +2689,25 @@ const SmartOrderForm = () => {
                         <th className="py-2 px-3 font-black text-gray-400">Size</th>
                         <th className="py-2 px-3 font-black text-gray-400">Shoulder</th>
                         <th className="py-2 px-3 font-black text-gray-400">Chest</th>
+                        {formData.gender === 'Female' && <th className="py-2 px-3 font-black text-gray-400">Waist</th>}
                         <th className="py-2 px-3 font-black text-gray-400">Bottom</th>
                         <th className="py-2 px-3 font-black text-gray-400">Shirt L.</th>
+                        {formData.gender === 'Female' && <th className="py-2 px-3 font-black text-gray-400">Hip</th>}
                         <th className="py-2 px-3 font-black text-gray-400">Sleeve</th>
                         <th className="py-2 px-3 font-black text-gray-400">Trouser L.</th>
                         <th className="py-2 px-3 font-black text-gray-400">Trouser Bot.</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {Object.entries(SCRUBS_SIZE_CHART).map(([size, m]) => (
+                      {Object.entries(getSizeChart()).map(([size, m]) => (
                         <tr key={size} className={`border-b border-gray-800 ${formData.size === size ? 'bg-emerald-500/10 text-emerald-400' : 'text-gray-300'}`}>
                           <td className="py-2 px-3 font-black">{size}</td>
                           <td className="py-2 px-3">{m.shoulder}</td>
                           <td className="py-2 px-3">{m.chest}</td>
+                          {formData.gender === 'Female' && <td className="py-2 px-3">{m.waist}</td>}
                           <td className="py-2 px-3">{m.bottom}</td>
                           <td className="py-2 px-3">{m.shirtLength}</td>
+                          {formData.gender === 'Female' && <td className="py-2 px-3">{m.hip}</td>}
                           <td className="py-2 px-3">{m.sleeve}</td>
                           <td className="py-2 px-3">{m.trouserLength}</td>
                           <td className="py-2 px-3">{m.hips}</td>
@@ -2605,6 +2715,12 @@ const SmartOrderForm = () => {
                       ))}
                     </tbody>
                   </table>
+                  {formData.gender === 'Female' && (
+                    <div className="mt-4 space-y-2 text-xs text-gray-500 font-bold text-center">
+                      <p>3 Quarter Sleeves = 18 Inches</p>
+                      <p>Short Shirt Lengths: XS=28, S=28, M=28, L=30, XL=30, XXL=31</p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-8 md:mt-16 bg-emerald-500/5 border-2 border-emerald-500/10 rounded-2xl md:rounded-[3rem] p-6 md:p-10 flex flex-col md:flex-row items-center md:items-start gap-4 md:gap-8 shadow-inner">
