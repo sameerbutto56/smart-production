@@ -45,7 +45,7 @@ const DeliverySheet = () => {
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
         const token = sessionStorage.getItem('token');
-        const response = await axios.get(`${API_URL}/api/orders?status=delivery`, {
+        const response = await axios.get(`${API_URL}/api/orders?limit=all`, {
           headers: { Authorization: `Bearer ${token}` },
           timeout: 15000
         });
@@ -76,13 +76,18 @@ const DeliverySheet = () => {
 
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
-      // Must be delivered or completed
-      const isDelivered = 
-        order.currentStage === 'DELIVERED' || 
-        order.status === 'COMPLETED' ||
-        order.status === 'DELIVERED';
+      // Must be an online order
+      const isOnline = 
+        order.source === 'ONLINE' || 
+        order.source === 'INTERNAL' ||
+        order.source === 'ONLINE ORDER' ||
+        order.createdBy?.role === 'FAISAL';
+      if (!isOnline) return false;
 
-      if (!isDelivered) return false;
+      // Must be in delivery-related stage
+      const deliveryStages = ['OUT_FOR_DELIVERY', 'DISPATCH', 'STORE_RECEIVE', 'DELIVERED'];
+      const isDeliveryStage = deliveryStages.includes(order.currentStage) || order.status === 'COMPLETED';
+      if (!isDeliveryStage) return false;
 
       // Filter by delivery method
       if (deliveryMethodFilter !== 'ALL') {
@@ -139,14 +144,14 @@ const DeliverySheet = () => {
   const methodCounts = useMemo(() => {
     const counts = {};
     deliveryMethods.forEach(m => {
-      counts[m] = orders.filter(o => {
+      counts[m] = filteredOrders.filter(o => {
         let method = (o.deliveryMethod || o.deliveryType || '').toUpperCase();
         if (method === 'ENAMELS_DELIVERY') method = 'ENAMELS';
         return method === m;
       }).length;
     });
     return counts;
-  }, [orders, deliveryMethods]);
+  }, [filteredOrders, deliveryMethods]);
 
   const handlePrint = () => {
     window.print();
@@ -286,7 +291,7 @@ const DeliverySheet = () => {
               : 'theme-bg-subtle theme-border theme-text-secondary hover:text-white hover:border-yellow-500/50'
           }`}
         >
-          All Deliveries ({filteredOrders.length})
+          All ({filteredOrders.length})
         </button>
         {deliveryMethods.map(method => {
           const label = method === 'ENAMELS' ? 'In-House / Animals' : method === 'TCS' ? 'TCS Courier' : method === 'POST_EX' ? 'PostEx' : method === 'DCS' ? 'DCS' : method;
@@ -319,7 +324,7 @@ const DeliverySheet = () => {
               <h3 className="text-xl font-black theme-text-primary tracking-tight">Delivery Records</h3>
             </div>
             <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest theme-bg px-4 py-2 rounded-full border theme-border">
-              {filteredOrders.length} Delivered Orders
+              {filteredOrders.length} Online Orders
             </span>
           </div>
 
@@ -351,7 +356,7 @@ const DeliverySheet = () => {
                 ) : filteredOrders.length === 0 ? (
                   <tr>
                     <td colSpan="9" className="py-16 text-center theme-text-muted text-sm font-bold">
-                      No delivered orders found.
+                      No online delivery orders found.
                     </td>
                   </tr>
                 ) : (
@@ -538,7 +543,7 @@ const DeliverySheet = () => {
             {filteredOrders.length === 0 ? (
               <tr>
                 <td colSpan="9" style={{ textAlign: 'center', padding: '20px', fontWeight: 'bold' }}>
-                  No delivered orders found.
+                  No online delivery orders found.
                 </td>
               </tr>
             ) : (
