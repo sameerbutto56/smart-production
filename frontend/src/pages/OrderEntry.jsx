@@ -66,6 +66,7 @@ const SmartOrderForm = () => {
   const [editOrderData, setEditOrderData] = useState(null);
   const [editOrderLoading, setEditOrderLoading] = useState(false);
   const [editOrderError, setEditOrderError] = useState('');
+  const [logoEntries, setLogoEntries] = useState([{ name: '', design: '' }]);
 
   const [formData, setFormData] = useState({
     orderNumber: '',
@@ -284,6 +285,7 @@ const SmartOrderForm = () => {
         gender: 'Male',
         femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: 0 }
       });
+      setLogoEntries([{ name: '', design: '' }]);
     } else {
       setIsEditMode(true);
     }
@@ -605,6 +607,7 @@ const SmartOrderForm = () => {
         gender: 'Male',
         femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: 0 }
       });
+      setLogoEntries([{ name: '', design: '' }]);
       setActiveTab('basic');
       alert('Edit request submitted successfully!');
     } catch (err) {
@@ -766,7 +769,8 @@ const SmartOrderForm = () => {
         fitType: formData.fitType,
         designNotes: formData.designNotes,
         designReference: formData.designReference,
-        additionalFeatures: formData.additionalFeatures
+        additionalFeatures: formData.additionalFeatures,
+        logos: logoEntries
       },
       sizeData: formData.measurements,
       totalPrice: (computedTotalPrice > 0 ? computedTotalPrice : (parseFloat(formData.totalPrice) || 0)) + brandingTotal
@@ -814,6 +818,7 @@ const SmartOrderForm = () => {
       gender: 'Male',
       femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: 0 }
     }));
+    setLogoEntries([{ name: '', design: '' }]);
 
     setShowAddMore(true);
   };
@@ -868,6 +873,7 @@ const SmartOrderForm = () => {
         ganda: item.sizeData?.ganda || ''
       },
     }));
+    setLogoEntries(cust.logos && cust.logos.length > 0 ? cust.logos : [{ name: item.logoName || '', design: item.logoDesign || '' }]);
     setShowReview(false);
     if (isEditMode) setShowProductSelector(true);
     setActiveTab(tab);
@@ -972,6 +978,7 @@ const SmartOrderForm = () => {
         gender: 'Male',
         femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: 0 }
       });
+      setLogoEntries([{ name: '', design: '' }]);
       setActiveTab('basic');
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
@@ -1356,12 +1363,15 @@ const SmartOrderForm = () => {
                             <span className="text-xs font-black text-red-400">₨{((parseFloat(item.totalPrice) || parseFloat(originalOrder.totalPrice) || 0) / (items.length || 1)).toLocaleString()}</span>
                           </div>
                           {/* Branding/Customization */}
-                          {(cust.nameSpelling || cust.stitchingStyle || originalOrder.logoDesign) && (
+                          {(cust.nameSpelling || cust.stitchingStyle || originalOrder.logoDesign || cust.logos) && (
                             <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-red-500/10">
                               {cust.nameSpelling && <span className="text-[9px] font-bold text-purple-400 bg-purple-900/20 px-1.5 py-0.5 rounded">Name: {cust.nameSpelling}</span>}
                               {cust.stitchingStyle && <span className="text-[9px] font-bold text-blue-400 bg-blue-900/20 px-1.5 py-0.5 rounded">{cust.stitchingStyle === 'DBL' ? 'Double' : 'Single'} Stitch</span>}
                               {cust.fitType && <span className="text-[9px] font-bold text-indigo-400 bg-indigo-900/20 px-1.5 py-0.5 rounded">{cust.fitType} Fit</span>}
                               {originalOrder.logoDesign && <span className="text-[9px] font-bold text-amber-400 bg-amber-900/20 px-1.5 py-0.5 rounded">Has Logo</span>}
+                              {cust.logos && cust.logos.length > 0 && cust.logos.map((l, li) => (
+                                <span key={li} className="text-[9px] font-bold text-amber-400 bg-amber-900/20 px-1.5 py-0.5 rounded">{l.name || `Logo ${li + 1}`}</span>
+                              ))}
                               {d.gender && <span className="text-[9px] font-bold text-pink-400 bg-pink-900/20 px-1.5 py-0.5 rounded">{d.gender}</span>}
                             </div>
                           )}
@@ -1471,11 +1481,14 @@ const SmartOrderForm = () => {
                                   {[d.color, d.size].filter(Boolean).join(' / ') || '—'} {d.fabricType ? `• ${d.fabricType}` : ''}
                                 </p>
                                 {/* Branding tags */}
-                                {(cust.nameSpelling || cust.stitchingStyle || item.logoDesign) && (
+                                {(cust.nameSpelling || cust.stitchingStyle || item.logoDesign || cust.logos) && (
                                   <div className="flex flex-wrap gap-1 mt-1.5">
                                     {cust.nameSpelling && <span className="text-[6px] font-bold text-purple-400 bg-purple-900/20 px-1 rounded">Name: {cust.nameSpelling}</span>}
                                     {cust.stitchingStyle && <span className="text-[6px] font-bold text-blue-400 bg-blue-900/20 px-1 rounded">{cust.stitchingStyle === 'DBL' ? 'Double' : 'Single'}</span>}
                                     {item.logoDesign && <span className="text-[6px] font-bold text-amber-400 bg-amber-900/20 px-1 rounded">Logo</span>}
+                                    {cust.logos && cust.logos.length > 0 && cust.logos.map((l, li) => (
+                                      <span key={li} className="text-[6px] font-bold text-amber-400 bg-amber-900/20 px-1 rounded">{l.name || `Logo ${li + 1}`}</span>
+                                    ))}
                                   </div>
                                 )}
                                 {/* Inline Qty + Price */}
@@ -2254,17 +2267,54 @@ const SmartOrderForm = () => {
                     </div>
                   </div>
                   <div className="space-y-3">
-                    <label className="text-xs font-black theme-text-muted uppercase tracking-[0.3em] ml-2">{useUrdu ? 'لوگو ڈیزائن' : 'Logo Design'}</label>
-                    <div className="relative group">
-                      <ImageIcon className={`absolute ${useUrdu ? 'right-5' : 'left-5'} top-5 text-gray-600 group-focus-within:text-purple-500 transition-colors`} size={16} />
-                      <textarea
-                        rows="3"
-                        value={formData.logoDesign}
-                        onChange={(e) => setFormData({...formData, logoDesign: e.target.value})}
-                        className={`w-full theme-input rounded-[1.5rem] py-5 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all font-medium text-sm resize-none`}
-                        placeholder={useUrdu ? 'لوگو کی تفصیلات، فائل ریفرنس، یا اپ لوڈ ہدایات...' : "Describe logo, file reference, or upload instructions..."}
-                      />
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-black theme-text-muted uppercase tracking-[0.3em] ml-2">{useUrdu ? 'لوگو ڈیزائن' : 'Logo Design'}</label>
+                      <button
+                        type="button"
+                        onClick={() => setLogoEntries([...logoEntries, { name: '', design: '' }])}
+                        className="text-xs font-black text-purple-400 bg-purple-500/10 px-3 py-1.5 rounded-full hover:bg-purple-500/20 transition-all"
+                      >
+                        + Add
+                      </button>
                     </div>
+                    {logoEntries.map((entry, ei) => (
+                      <div key={ei} className="relative group">
+                        <div className="flex gap-2 items-start mb-2">
+                          <input
+                            type="text"
+                            value={entry.name}
+                            onChange={(e) => {
+                              const next = [...logoEntries];
+                              next[ei] = { ...next[ei], name: e.target.value };
+                              setLogoEntries(next);
+                            }}
+                            placeholder={useUrdu ? 'لوگو کا نام/لیبل' : 'Logo name/label'}
+                            className={`flex-1 theme-input rounded-2xl py-3 px-4 text-sm font-bold ${useUrdu ? 'text-right' : ''}`}
+                          />
+                          {logoEntries.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setLogoEntries(logoEntries.filter((_, i) => i !== ei))}
+                              className="p-2 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-xl transition-all shrink-0"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
+                        <ImageIcon className={`absolute ${useUrdu ? 'right-5' : 'left-5'} top-[3.25rem] text-gray-600 group-focus-within:text-purple-500 transition-colors`} size={16} />
+                        <textarea
+                          rows="3"
+                          value={entry.design}
+                          onChange={(e) => {
+                            const next = [...logoEntries];
+                            next[ei] = { ...next[ei], design: e.target.value };
+                            setLogoEntries(next);
+                          }}
+                          className={`w-full theme-input rounded-[1.5rem] py-5 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all font-medium text-sm resize-none`}
+                          placeholder={useUrdu ? 'لوگو کی تفصیلات، فائل ریفرنس، یا اپ لوڈ ہدایات...' : "Describe logo, file reference, or upload instructions..."}
+                        />
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -3069,7 +3119,7 @@ const SmartOrderForm = () => {
                   {cartItems.map((item, idx) => {
                     const pd = item.productDetails || {};
                     const cust = item.customization || {};
-                    const hasCust = cust.nameSpelling || cust.stitchingStyle || cust.fitType || cust.designNotes || item.logoDesign;
+                    const hasCust = cust.nameSpelling || cust.stitchingStyle || cust.fitType || cust.designNotes || item.logoDesign || cust.logos;
                     const hasMeas = Object.values(item.sizeData || {}).some(v => v);
                     const isCustom = item.type === 'FULL_CUSTOM';
                     return (
@@ -3092,6 +3142,9 @@ const SmartOrderForm = () => {
                                 {cust.stitchingStyle && <span className="text-[9px] font-black text-blue-400 bg-blue-900/30 px-1.5 py-0.5 rounded">{cust.stitchingStyle === 'DBL' ? 'Double' : 'Single'} Stitch</span>}
                                 {cust.fitType && <span className="text-[9px] font-black text-indigo-400 bg-indigo-900/30 px-1.5 py-0.5 rounded">{cust.fitType} Fit</span>}
                                 {item.logoDesign && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded">Has Logo</span>}
+                                {cust.logos && cust.logos.length > 0 && cust.logos.map((l, li) => (
+                                  <span key={li} className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded">{l.name || `Logo ${li + 1}`}</span>
+                                ))}
                                 {cust.designNotes && <span className="text-[9px] font-black text-yellow-400 bg-yellow-900/30 px-1.5 py-0.5 rounded truncate max-w-[120px]">{cust.designNotes}</span>}
                               </div>
                             )}
