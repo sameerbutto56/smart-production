@@ -187,6 +187,22 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const renderTasks = () => {
     const stage = currentStage?.stageName;
     if (stage === 'STORE') {
+      if (isMultiItem && orderItems?.length > 1) {
+        return orderItems.map((item, idx) => {
+          const p = item.productDetails || {};
+          return (
+            <motion.li
+              key={idx}
+              initial={{ opacity: 0, x: -5 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: idx * 0.1 }}
+              className="text-xs md:text-sm flex items-center justify-between p-2 bg-gray-900/30 rounded-lg border border-gray-800/20"
+            >
+              <span className="text-gray-400 font-bold uppercase tracking-tighter">#{idx + 1} {p.productType || 'Item'}: {p.fabricType || 'STD'} / {p.color || '—'} / Size {p.size || '—'}</span>
+            </motion.li>
+          );
+        });
+      }
       const items = [
         { label: 'Fabric', val: product?.fabricType },
         { label: 'Color', val: product?.color },
@@ -208,122 +224,153 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
     }
 
     if (stage === 'PRODUCTION') {
-      const custom = parseJSON(order.customization);
-      const { primary: product } = normalizeProduct(order.productDetails);
-      const female = product?.femaleOptions || {};
+      const { primary: _, allItems: prodItems, isMultiItem: isMultiProd } = normalizeProduct(order.productDetails);
+      const items = isMultiProd && prodItems ? prodItems : [{ productDetails: normalizeProduct(order.productDetails).primary, customization: parseJSON(order.customization), sizeData: parseJSON(order.sizeData) }];
 
       return (
         <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { l: t('Fabric'), v: product?.fabricType },
-              { l: t('Color'), v: product?.color },
-              { l: 'Size', v: product?.size }
-            ].filter(m => m.v).map((m, i) => (
-              <div key={i} className="bg-blue-500/5 p-2 rounded-lg border border-blue-500/10 text-center">
-                <p className="text-[9px] text-blue-400 font-black uppercase">{m.l}</p>
-                <p className="text-xs md:text-sm font-black text-white truncate">{m.v}</p>
-              </div>
-            ))}
-          </div>
+          {items.map((item, idx) => {
+            const p = item.productDetails || {};
+            const c = item.customization || {};
+            const s = item.sizeData || {};
+            const female = p?.femaleOptions || {};
+            const hasSizes = s && Object.keys(s).some(k => s[k]);
+            const isFirst = idx === 0;
 
-          <div className="bg-indigo-600/10 p-3 rounded-xl border border-indigo-600/20">
-            <p className="text-xs text-indigo-400 font-black uppercase tracking-widest mb-2">Production Specs</p>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="bg-gray-950/50 p-2 rounded-lg">
-                <p className="text-[9px] text-gray-500 font-black uppercase">Fit</p>
-                <p className="text-xs md:text-sm font-black text-white">{custom?.fitType || 'REGULAR'}</p>
-              </div>
-              <div className="bg-gray-950/50 p-2 rounded-lg">
-                <p className="text-[9px] text-gray-500 font-black uppercase">Style</p>
-                <p className="text-xs md:text-sm font-black text-white">{custom?.stitchingStyle || 'STANDARD'}</p>
-              </div>
-              {product?.gender === 'Female' && (
-                <>
-                  <div className="bg-gray-950/50 p-2 rounded-lg">
-                    <p className="text-[9px] text-gray-500 font-black uppercase">Sleeves</p>
-                    <p className="text-xs md:text-sm font-black text-white">{female.sleeves || 'N/A'}</p>
+            return (
+              <div key={idx} className={`${isMultiProd || items.length > 1 ? 'bg-gray-900/40 p-3 rounded-xl border border-gray-800/70' : ''}`}>
+                {/* Per-product header for multi-item */}
+                {(isMultiProd || items.length > 1) && (
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-800/50">
+                    <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[9px] font-black">#{idx + 1}</span>
+                    <span className="text-xs font-black text-white uppercase">{p.productType || `Item ${idx + 1}`}</span>
+                    {p.color && <span className="text-[9px] text-gray-500">({p.color})</span>}
                   </div>
-                  <div className="bg-gray-950/50 p-2 rounded-lg">
-                    <p className="text-[9px] text-gray-500 font-black uppercase">Shirt L.</p>
-                    <p className="text-xs md:text-sm font-black text-white">{female.shirtLength || 'N/A'}</p>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-gray-950/50 p-3 rounded-xl border border-gray-800/50">
-            <p className="text-xs md:text-sm text-gray-500 font-black uppercase tracking-widest mb-2 px-1">Measurements</p>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { l: 'Chst', v: sizes?.chest },
-                { l: 'Shld', v: sizes?.shoulder },
-                { l: 'Lnth', v: sizes?.length },
-                { l: 'Slve', v: sizes?.sleeve },
-                { l: 'Wst', v: sizes?.waist },
-                { l: 'Hps', v: sizes?.hips }
-              ].filter(s => s.v).map((s, i) => (
-                <div key={i} className="text-center p-1 bg-gray-900 rounded border border-gray-800">
-                  <p className="text-[9px] text-gray-500 font-bold uppercase">{s.l}</p>
-                  <p className="text-xs md:text-sm font-black text-white">{s.v}"</p>
+                )}
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { l: t('Fabric'), v: p?.fabricType },
+                    { l: t('Color'), v: p?.color },
+                    { l: 'Size', v: p?.size }
+                  ].filter(m => m.v).map((m, mi) => (
+                    <div key={mi} className="bg-blue-500/5 p-2 rounded-lg border border-blue-500/10 text-center">
+                      <p className="text-[9px] text-blue-400 font-black uppercase">{m.l}</p>
+                      <p className="text-xs md:text-sm font-black text-white truncate">{m.v}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
+
+                <div className="bg-indigo-600/10 p-3 rounded-xl border border-indigo-600/20 mt-3">
+                  <p className="text-xs text-indigo-400 font-black uppercase tracking-widest mb-2">Production Specs</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-gray-950/50 p-2 rounded-lg">
+                      <p className="text-[9px] text-gray-500 font-black uppercase">Fit</p>
+                      <p className="text-xs md:text-sm font-black text-white">{c?.fitType || 'REGULAR'}</p>
+                    </div>
+                    <div className="bg-gray-950/50 p-2 rounded-lg">
+                      <p className="text-[9px] text-gray-500 font-black uppercase">Style</p>
+                      <p className="text-xs md:text-sm font-black text-white">{c?.stitchingStyle || 'STANDARD'}</p>
+                    </div>
+                    {p?.gender === 'Female' && (
+                      <>
+                        <div className="bg-gray-950/50 p-2 rounded-lg">
+                          <p className="text-[9px] text-gray-500 font-black uppercase">Sleeves</p>
+                          <p className="text-xs md:text-sm font-black text-white">{female.sleeves || 'N/A'}</p>
+                        </div>
+                        <div className="bg-gray-950/50 p-2 rounded-lg">
+                          <p className="text-[9px] text-gray-500 font-black uppercase">Shirt L.</p>
+                          <p className="text-xs md:text-sm font-black text-white">{female.shirtLength || 'N/A'}</p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {hasSizes && (
+                  <div className="bg-gray-950/50 p-3 rounded-xl border border-gray-800/50 mt-3">
+                    <p className="text-xs md:text-sm text-gray-500 font-black uppercase tracking-widest mb-2 px-1">Measurements</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { l: 'Chst', v: s?.chest },
+                        { l: 'Shld', v: s?.shoulder },
+                        { l: 'Lnth', v: s?.length },
+                        { l: 'Slve', v: s?.sleeve },
+                        { l: 'Wst', v: s?.waist },
+                        { l: 'Hps', v: s?.hips }
+                      ].filter(sm => sm.v).map((sm, si) => (
+                        <div key={si} className="text-center p-1 bg-gray-900 rounded border border-gray-800">
+                          <p className="text-[9px] text-gray-500 font-bold uppercase">{sm.l}</p>
+                          <p className="text-xs md:text-sm font-black text-white">{sm.v}"</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Name Lines per product */}
+                {(c?.articleNames?.length > 0 || c?.nameSpelling) && (
+                  <div className="bg-purple-600/10 p-3 rounded-xl border border-purple-500/20 mt-3">
+                    <p className="text-xs text-purple-400 font-black uppercase tracking-widest mb-2">Name Lines</p>
+                    <div className="flex flex-wrap gap-2">
+                      {c.articleNames?.length > 0 ? (
+                        c.articleNames.map((an, ai) => (
+                          <span key={ai} className="px-2 py-1 bg-purple-900/30 rounded text-xs font-black text-purple-300 border border-purple-500/20">
+                            L{ai + 1}: {an}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="px-2 py-1 bg-purple-900/30 rounded text-xs font-black text-purple-300 border border-purple-500/20">L1: {c.nameSpelling}</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Logos per product */}
+                {c?.logos?.length > 0 && (
+                  <div className="bg-amber-600/10 p-3 rounded-xl border border-amber-500/20 mt-3">
+                    <p className="text-xs text-amber-400 font-black uppercase tracking-widest mb-2">Logos</p>
+                    <div className="space-y-2">
+                      {c.logos.map((logo, li) => (
+                        <div key={li} className="bg-amber-900/20 p-2 rounded-lg border border-amber-500/10">
+                          <p className="text-xs md:text-sm font-black text-amber-300">{logo.name || `Logo ${li + 1}`}</p>
+                          {logo.design && <p className="text-xs text-gray-400 mt-0.5">{logo.design}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Special Notes per product */}
+                {c?.designNotes && (
+                  <div className="bg-yellow-500/5 p-3 rounded-xl border border-yellow-500/10 mt-3">
+                    <p className="text-xs text-yellow-500 font-black uppercase tracking-widest mb-1 flex items-center space-x-1">
+                      <MessageSquare size={10} />
+                      <span>Special Note:</span>
+                    </p>
+                    <p className="text-xs md:text-sm text-gray-300 italic font-medium leading-tight">"{c.designNotes}"</p>
+                  </div>
+                )}
+
+                {isFirst && (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <div className="px-2 py-1 bg-gray-800 rounded text-xs md:text-sm font-black uppercase tracking-tighter text-gray-400 border border-gray-700">
+                      GENDER: {p?.gender || 'N/A'}
+                    </div>
+                    {female.dupatta && (
+                      <div className="px-2 py-1 bg-pink-900/20 rounded text-xs md:text-sm font-black uppercase tracking-tighter text-pink-400 border border-pink-500/20">
+                        + DUPATTA
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
 
           <div className="bg-blue-600/10 p-4 rounded-2xl border border-blue-500/20 text-center">
              <p className="text-xs text-blue-400 font-black uppercase tracking-[0.2em] mb-1">Order ID</p>
              <h4 className="text-xl font-black text-white">#{order.orderNumber}</h4>
              <p className="text-xs md:text-sm text-gray-400 font-bold uppercase mt-1">{order.customerName}</p>
-          </div>
-
-          {custom?.designNotes && (
-            <div className="bg-yellow-500/5 p-3 rounded-xl border border-yellow-500/10">
-              <p className="text-xs text-yellow-500 font-black uppercase tracking-widest mb-1 flex items-center space-x-1">
-                <MessageSquare size={10} />
-                <span>Design Notes:</span>
-              </p>
-              <p className="text-xs md:text-sm text-gray-300 italic font-medium leading-tight">"{custom.designNotes}"</p>
-            </div>
-          )}
-
-          {custom?.articleNames && custom.articleNames.length > 0 && (
-            <div className="bg-purple-600/10 p-3 rounded-xl border border-purple-500/20">
-              <p className="text-xs text-purple-400 font-black uppercase tracking-widest mb-2">Article Names</p>
-              <div className="flex flex-wrap gap-2">
-                {custom.articleNames.map((an, ai) => (
-                  <span key={ai} className="px-2 py-1 bg-purple-900/30 rounded text-xs font-black text-purple-300 border border-purple-500/20">
-                    {an}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {custom?.logos && custom.logos.length > 0 && (
-            <div className="bg-amber-600/10 p-3 rounded-xl border border-amber-500/20">
-              <p className="text-xs text-amber-400 font-black uppercase tracking-widest mb-2">Logos</p>
-              <div className="space-y-2">
-                {custom.logos.map((logo, li) => (
-                  <div key={li} className="bg-amber-900/20 p-2 rounded-lg border border-amber-500/10">
-                    <p className="text-xs md:text-sm font-black text-amber-300">{logo.name || `Logo ${li + 1}`}</p>
-                    {logo.design && <p className="text-xs text-gray-400 mt-0.5">{logo.design}</p>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="flex flex-wrap gap-2">
-            <div className="px-2 py-1 bg-gray-800 rounded text-xs md:text-sm font-black uppercase tracking-tighter text-gray-400 border border-gray-700">
-              GENDER: {product?.gender || 'N/A'}
-            </div>
-            {female.dupatta && (
-              <div className="px-2 py-1 bg-pink-900/20 rounded text-xs md:text-sm font-black uppercase tracking-tighter text-pink-400 border border-pink-500/20">
-                + DUPATTA
-              </div>
-            )}
           </div>
         </div>
       );
@@ -1742,6 +1789,11 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                         {itemCust?.fitType && (
                                           <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded-md">
                                             {itemCust.fitType} Fit
+                                          </span>
+                                        )}
+                                        {itemCust?.designNotes && (
+                                          <span className="text-[10px] font-bold text-yellow-400 bg-yellow-500/10 px-2 py-1 rounded-md italic truncate max-w-[200px]">
+                                            📝 {itemCust.designNotes}
                                           </span>
                                         )}
                                       </div>

@@ -3216,18 +3216,52 @@ const SmartOrderForm = () => {
                               <span className="text-xs md:text-sm font-black text-blue-400">×{item.quantity || 1}</span>
                             </div>
                             {hasCust && (
-                              <div className="flex flex-wrap gap-1 mt-1.5">
-                                {cust.articleNames && cust.articleNames.map((an, ai) => (
-                                  <span key={ai} className="text-[9px] font-black text-purple-400 bg-purple-900/30 px-1.5 py-0.5 rounded">Name: {an}</span>
-                                ))}
-                                {!cust.articleNames && cust.nameSpelling && <span className="text-[9px] font-black text-purple-400 bg-purple-900/30 px-1.5 py-0.5 rounded">Name: {cust.nameSpelling}</span>}
-                                {cust.stitchingStyle && <span className="text-[9px] font-black text-blue-400 bg-blue-900/30 px-1.5 py-0.5 rounded">{cust.stitchingStyle === 'DBL' ? 'Double' : 'Single'} Stitch</span>}
-                                {cust.fitType && <span className="text-[9px] font-black text-indigo-400 bg-indigo-900/30 px-1.5 py-0.5 rounded">{cust.fitType} Fit</span>}
-                                {item.logoDesign && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded">Has Logo</span>}
-                                {cust.logos && cust.logos.length > 0 && cust.logos.map((l, li) => (
-                                  <span key={li} className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded">{l.name || `Logo ${li + 1}`}</span>
-                                ))}
-                                {cust.designNotes && <span className="text-[9px] font-black text-yellow-400 bg-yellow-900/30 px-1.5 py-0.5 rounded truncate max-w-[120px]">{cust.designNotes}</span>}
+                              <div className="mt-2 space-y-2">
+                                {/* Article Names / Name Lines */}
+                                {(cust.articleNames?.length > 0 || cust.nameSpelling) && (
+                                  <div className="bg-purple-500/5 rounded-lg p-2 border border-purple-500/10">
+                                    <p className="text-[9px] text-purple-400 font-black uppercase tracking-widest mb-1">Name Lines</p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {cust.articleNames?.length > 0 ? (
+                                        cust.articleNames.map((an, ai) => (
+                                          <span key={ai} className="text-xs font-black text-purple-300 bg-purple-900/30 px-2 py-0.5 rounded border border-purple-500/20">
+                                            {cust.nameSpelling?.includes(',') ? `Line ${ai + 1}: ${an}` : an}
+                                          </span>
+                                        ))
+                                      ) : (
+                                        <span className="text-xs font-black text-purple-300 bg-purple-900/30 px-2 py-0.5 rounded border border-purple-500/20">{cust.nameSpelling}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                                {/* Branding Specs */}
+                                {(cust.stitchingStyle || cust.fitType || cust.nameColor || cust.logoColor || cust.logoPlacement) && (
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {cust.stitchingStyle && <span className="text-[10px] font-black text-blue-400 bg-blue-900/30 px-2 py-0.5 rounded border border-blue-500/20">{cust.stitchingStyle === 'DBL' ? 'Double Stitch' : 'Single Stitch'}</span>}
+                                    {cust.fitType && <span className="text-[10px] font-black text-indigo-400 bg-indigo-900/30 px-2 py-0.5 rounded border border-indigo-500/20">{cust.fitType} Fit</span>}
+                                    {cust.nameColor && <span className="text-[10px] font-black text-rose-400 bg-rose-900/30 px-2 py-0.5 rounded border border-rose-500/20">Color: {cust.nameColor}</span>}
+                                    {cust.logoColor && <span className="text-[10px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Logo: {cust.logoColor}</span>}
+                                    {cust.logoPlacement && <span className="text-[10px] font-black text-teal-400 bg-teal-900/30 px-2 py-0.5 rounded border border-teal-500/20">Position: {cust.logoPlacement}</span>}
+                                  </div>
+                                )}
+                                {/* Logos */}
+                                {cust.logos?.length > 0 && (
+                                  <div className="bg-amber-500/5 rounded-lg p-2 border border-amber-500/10">
+                                    <p className="text-[9px] text-amber-400 font-black uppercase tracking-widest mb-1">Logos</p>
+                                    {cust.logos.map((l, li) => (
+                                      <div key={li} className="text-xs font-black text-amber-300 bg-amber-900/20 px-2 py-0.5 rounded border border-amber-500/20 mb-0.5 last:mb-0">
+                                        {l.name || `Logo ${li + 1}`}{l.design ? ` — ${l.design}` : ''}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                {/* Special Instructions */}
+                                {cust.designNotes && (
+                                  <div className="bg-yellow-500/5 rounded-lg p-2 border border-yellow-500/10">
+                                    <p className="text-[9px] text-yellow-400 font-black uppercase tracking-widest mb-0.5">Special Note</p>
+                                    <p className="text-xs font-bold text-yellow-300/90 italic leading-tight">{cust.designNotes}</p>
+                                  </div>
+                                )}
                               </div>
                             )}
                             {hasMeas && (

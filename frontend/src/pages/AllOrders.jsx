@@ -768,12 +768,44 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                                     {p.femaleOptions?.dupatta && (
                                       <span className="ml-2 bg-pink-500/20 text-pink-400 border border-pink-500/30 text-xs md:text-sm px-1.5 py-0.5 rounded font-black uppercase">Dupatta</span>
                                     )}
-                                    {(c.nameSpelling || hasMeasurements) && (
-                                      <div className="mt-1.5 space-y-1 text-xs md:text-sm theme-text-secondary font-normal normal-case">
-                                        {c.nameSpelling && (
-                                          <div>
-                                            <span className="font-bold theme-text-muted uppercase tracking-wider text-xs md:text-sm">Branding:</span> {c.nameSpelling} ({c.nameColor || 'Standard'}, {c.logoPlacement || 'Standard'})
+                                    {(c.nameSpelling || c.articleNames?.length || c.stitchingStyle || c.fitType || c.logos?.length || hasMeasurements) && (
+                                      <div className="mt-1.5 space-y-1.5 text-xs md:text-sm theme-text-secondary font-normal normal-case">
+                                        {/* Name Lines */}
+                                        {(c.articleNames?.length > 0 || c.nameSpelling) && (
+                                          <div className="bg-purple-900/15 rounded-lg p-1.5 border border-purple-500/10">
+                                            <span className="text-[9px] font-black text-purple-400 uppercase tracking-widest">Names:</span>
+                                            <div className="flex flex-wrap gap-1 mt-0.5">
+                                              {c.articleNames?.length > 0 ? (
+                                                c.articleNames.map((an, ai) => (
+                                                  <span key={ai} className="text-xs font-black text-purple-300 bg-purple-900/30 px-1.5 py-0.5 rounded">L{ai + 1}: {an}</span>
+                                                ))
+                                              ) : (
+                                                <span className="text-xs font-black text-purple-300 bg-purple-900/30 px-1.5 py-0.5 rounded">{c.nameSpelling}</span>
+                                              )}
+                                            </div>
                                           </div>
+                                        )}
+                                        {/* Branding specs */}
+                                        {(c.nameColor || c.logoPlacement || c.stitchingStyle || c.fitType || c.logoColor) && (
+                                          <div className="flex flex-wrap gap-1">
+                                            {c.stitchingStyle && <span className="text-[9px] font-black text-blue-400 bg-blue-900/30 px-1.5 py-0.5 rounded">{c.stitchingStyle === 'DBL' ? 'Double' : 'Single'} Stitch</span>}
+                                            {c.fitType && <span className="text-[9px] font-black text-indigo-400 bg-indigo-900/30 px-1.5 py-0.5 rounded">{c.fitType} Fit</span>}
+                                            {c.nameColor && <span className="text-[9px] font-black text-rose-400 bg-rose-900/30 px-1.5 py-0.5 rounded">Color: {c.nameColor}</span>}
+                                            {c.logoPlacement && <span className="text-[9px] font-black text-teal-400 bg-teal-900/30 px-1.5 py-0.5 rounded">Pos: {c.logoPlacement}</span>}
+                                            {c.logoColor && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded">Logo: {c.logoColor}</span>}
+                                          </div>
+                                        )}
+                                        {/* Logos */}
+                                        {c.logos?.length > 0 && (
+                                          <div className="flex flex-wrap gap-1">
+                                            {c.logos.map((l, li) => (
+                                              <span key={li} className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded">{l.name || `Logo ${li + 1}`}{l.design ? `: ${l.design}` : ''}</span>
+                                            ))}
+                                          </div>
+                                        )}
+                                        {/* Special Notes */}
+                                        {c.designNotes && (
+                                          <div className="text-[10px] text-yellow-400 font-black bg-yellow-900/20 px-1.5 py-0.5 rounded italic leading-tight">📝 {c.designNotes}</div>
                                         )}
                                         {hasMeasurements && (
                                           <div>
@@ -869,39 +901,117 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                   </section>
                 )}
 
-                <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8">
-                  <div>
-                    <h4 className="text-xs md:text-sm font-black text-emerald-500 uppercase tracking-[0.3em] mb-6">03. Branding & Tailoring</h4>
-                    <div className="space-y-4">
-                      {[
-                        { l: 'Branding Name', v: custom?.nameSpelling },
-                        { l: 'Embroidery Color', v: custom?.nameColor },
-                        { l: 'Logo Location', v: custom?.logoPlacement },
-                        { l: 'Fit Type', v: custom?.fitType },
-                        { l: 'Stitching Style', v: custom?.stitchingStyle }
-                      ].map((item, i) => (
-                        <div key={i} className="flex justify-between items-center p-4 theme-bg rounded-2xl border theme-border">
-                          <span className="text-xs md:text-sm theme-text-muted font-bold uppercase tracking-widest">{item.l}</span>
-                          <span className="text-sm font-black text-emerald-400">{item.v || 'N/A'}</span>
-                        </div>
-                      ))}
+                <section>
+                  <h4 className="text-xs md:text-sm font-black text-emerald-500 uppercase tracking-[0.3em] mb-6">
+                    {isMultiItem ? '03. Per-Product Branding & Customization' : '03. Branding & Tailoring'}
+                  </h4>
+                  {isMultiItem ? (
+                    <div className="space-y-6">
+                      {allItems.map((item, idx) => {
+                        const c = item.customization || {};
+                        const p = item.productDetails || {};
+                        return (
+                          <div key={idx} className="bg-gray-900/50 p-4 md:p-6 rounded-2xl border border-gray-800/70">
+                            <div className="flex items-center gap-3 mb-4">
+                              <span className="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-black">#{idx + 1}</span>
+                              <span className="text-sm font-black text-white uppercase">{p.productType || `Item ${idx + 1}`}</span>
+                              {p.color && <span className="text-xs font-black text-gray-400">({p.color})</span>}
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {/* Names / Lines */}
+                              {(c.articleNames?.length > 0 || c.nameSpelling) && (
+                                <div className="bg-purple-500/5 p-3 rounded-xl border border-purple-500/10">
+                                  <p className="text-[10px] text-purple-400 font-black uppercase tracking-widest mb-2">Name Lines</p>
+                                  <div className="space-y-1.5">
+                                    {c.articleNames?.length > 0 ? (
+                                      c.articleNames.map((an, ai) => (
+                                        <div key={ai} className="flex items-center gap-2">
+                                          <span className="text-[9px] font-black text-purple-500 bg-purple-900/30 w-10 py-0.5 rounded text-center">L{ai + 1}</span>
+                                          <span className="text-sm font-black text-purple-300">{an}</span>
+                                        </div>
+                                      ))
+                                    ) : (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[9px] font-black text-purple-500 bg-purple-900/30 w-10 py-0.5 rounded text-center">L1</span>
+                                        <span className="text-sm font-black text-purple-300">{c.nameSpelling}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                              {/* Branding Specs */}
+                              <div className="space-y-2">
+                                {(c.stitchingStyle || c.fitType || c.nameColor || c.logoPlacement) && (
+                                  <div className="bg-indigo-500/5 p-3 rounded-xl border border-indigo-500/10">
+                                    <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest mb-2">Tailoring Specs</p>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {c.stitchingStyle && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Stitch</span><p className="text-xs font-black text-white">{c.stitchingStyle === 'DBL' ? 'Double' : 'Single'}</p></div>}
+                                      {c.fitType && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Fit</span><p className="text-xs font-black text-white">{c.fitType}</p></div>}
+                                      {c.nameColor && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Color</span><p className="text-xs font-black text-rose-400">{c.nameColor}</p></div>}
+                                      {c.logoPlacement && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Position</span><p className="text-xs font-black text-teal-400">{c.logoPlacement}</p></div>}
+                                      {c.logoColor && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Logo Color</span><p className="text-xs font-black text-amber-400">{c.logoColor}</p></div>}
+                                    </div>
+                                  </div>
+                                )}
+                                {/* Logos */}
+                                {c.logos?.length > 0 && (
+                                  <div className="bg-amber-500/5 p-3 rounded-xl border border-amber-500/10">
+                                    <p className="text-[10px] text-amber-400 font-black uppercase tracking-widest mb-2">Logos</p>
+                                    {c.logos.map((l, li) => (
+                                      <div key={li} className="text-xs font-black text-amber-300 bg-amber-900/20 px-2 py-1 rounded border border-amber-500/20 mb-1 last:mb-0">
+                                        {l.name || `Logo ${li + 1}`}{l.design ? ` — ${l.design}` : ''}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            {/* Special Notes for this product */}
+                            {c.designNotes && (
+                              <div className="mt-3 bg-yellow-500/5 p-3 rounded-xl border border-yellow-500/10">
+                                <p className="text-[10px] text-yellow-400 font-black uppercase tracking-widest mb-0.5">Special Note</p>
+                                <p className="text-xs font-bold text-yellow-300/90 italic leading-tight">{c.designNotes}</p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                  </div>
-                  <div>
-                    <h4 className="text-xs md:text-sm font-black text-yellow-500 uppercase tracking-[0.3em] mb-6">04. Design Notes & Reference</h4>
-                    <div className="space-y-4">
-                      <div className="bg-yellow-500/5 p-4 md:p-6 rounded-3xl border border-yellow-500/10 italic theme-text-secondary text-sm shadow-inner">
-                        <p className="text-xs md:text-sm text-yellow-600 font-black uppercase mb-2">Instructions:</p>
-                        {custom?.designNotes || 'No special design notes.'}
+                  ) : (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8">
+                      <div>
+                        <div className="space-y-4">
+                          {[
+                            { l: 'Branding Name', v: custom?.nameSpelling },
+                            { l: 'Embroidery Color', v: custom?.nameColor },
+                            { l: 'Logo Location', v: custom?.logoPlacement },
+                            { l: 'Fit Type', v: custom?.fitType },
+                            { l: 'Stitching Style', v: custom?.stitchingStyle }
+                          ].map((item, i) => (
+                            <div key={i} className="flex justify-between items-center p-4 theme-bg rounded-2xl border theme-border">
+                              <span className="text-xs md:text-sm theme-text-muted font-bold uppercase tracking-widest">{item.l}</span>
+                              <span className="text-sm font-black text-emerald-400">{item.v || 'N/A'}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      {custom?.designReference && (
-                        <div className="bg-blue-500/5 p-4 md:p-6 rounded-3xl border border-blue-500/10 italic theme-text-secondary text-sm shadow-inner">
-                          <p className="text-xs md:text-sm text-blue-600 font-black uppercase mb-2">Design Cross-Reference:</p>
-                          {custom.designReference}
+                      <div>
+                        <h4 className="text-xs md:text-sm font-black text-yellow-500 uppercase tracking-[0.3em] mb-6">04. Design Notes & Reference</h4>
+                        <div className="space-y-4">
+                          <div className="bg-yellow-500/5 p-4 md:p-6 rounded-3xl border border-yellow-500/10 italic theme-text-secondary text-sm shadow-inner">
+                            <p className="text-xs md:text-sm text-yellow-600 font-black uppercase mb-2">Instructions:</p>
+                            {custom?.designNotes || 'No special design notes.'}
+                          </div>
+                          {custom?.designReference && (
+                            <div className="bg-blue-500/5 p-4 md:p-6 rounded-3xl border border-blue-500/10 italic theme-text-secondary text-sm shadow-inner">
+                              <p className="text-xs md:text-sm text-blue-600 font-black uppercase mb-2">Design Cross-Reference:</p>
+                              {custom.designReference}
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </section>
 
                 <section>
