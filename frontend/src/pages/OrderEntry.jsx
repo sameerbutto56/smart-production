@@ -3295,12 +3295,11 @@ const SmartOrderForm = () => {
                       <span className="font-black text-cyan-400">₨{cartItems.reduce((s, i) => s + (parseFloat(i.customizationPrice) || 0), 0).toLocaleString()}</span>
                     </div>
                   )}
-                  {parseFloat(formData.deliveryCharges) > 0 && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-amber-400">{useUrdu ? 'ڈلیوری چارجز' : 'Delivery Charges'}</span>
-                      <span className="font-black text-amber-400">₨{parseFloat(formData.deliveryCharges).toLocaleString()}</span>
-                    </div>
-                  )}
+                  <div className="flex justify-between items-center pt-2 border-t border-gray-700/30">
+                    <span className="text-xs text-amber-400 font-black">{useUrdu ? 'ڈلیوری چارجز' : 'Delivery Charges'}</span>
+                    <input type="number" min="0" value={formData.deliveryCharges} onChange={e => setFormData({...formData, deliveryCharges: e.target.value})}
+                      className="w-24 text-right bg-gray-900 border-2 border-amber-500/30 rounded-xl py-1.5 px-3 text-sm font-black text-amber-400 focus:border-amber-500 outline-none transition-all" placeholder="0" />
+                  </div>
                   <div className="border-t border-gray-700/50 pt-2 flex justify-between items-center">
                     <span className="text-xs font-bold text-gray-200">{useUrdu ? 'کل آرڈر' : 'Total Order Value'}</span>
                     <span className="font-black text-white text-base">₨{(
