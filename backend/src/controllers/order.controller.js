@@ -342,11 +342,12 @@ const createOrder = async (req, res) => {
     const finalLogoCharges = parseFloat(req.body.logoCharges) || (hasLogo ? brandingRates.logoCharge : 0);
     const finalNamePrintingCharges = parseFloat(req.body.namePrintingCharges) || (hasNamePrinting ? brandingRates.namePrintingCharge : 0);
     const finalCustomizationPrice = parseFloat(req.body.customizationPrice) || (hasCustomization ? brandingRates.customizationCharge : 0);
+    const finalDeliveryCharges = parseFloat(req.body.deliveryCharges) || 0;
 
     let baseTotal = finalProductDetails && Array.isArray(finalProductDetails)
       ? finalProductDetails.reduce((sum, item) => sum + (item.totalPrice || 0), 0)
       : (parseFloat(req.body.totalPrice) || 0);
-    const finalTotalPrice = baseTotal + finalLogoCharges + finalNamePrintingCharges + finalCustomizationPrice;
+    const finalTotalPrice = baseTotal + finalLogoCharges + finalNamePrintingCharges + finalCustomizationPrice + finalDeliveryCharges;
 
     const order = await prisma.order.create({
       data: {
@@ -377,6 +378,7 @@ const createOrder = async (req, res) => {
         logoCharges: finalLogoCharges,
         namePrintingCharges: finalNamePrintingCharges,
         customizationPrice: finalCustomizationPrice,
+        deliveryCharges: finalDeliveryCharges,
         customization: finalCustomization ? JSON.stringify(finalCustomization) : null,
         productDetails: finalProductDetails ? JSON.stringify(finalProductDetails) : null,
         sizeData: finalSizeData ? JSON.stringify(finalSizeData) : null,

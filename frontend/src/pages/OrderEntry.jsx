@@ -98,6 +98,7 @@ const SmartOrderForm = () => {
     logoCharges: '',
     namePrintingCharges: '',
     customizationPrice: '',
+    deliveryCharges: '',
 
     // Advanced Stitching
     stitchingStyle: '',
@@ -927,12 +928,13 @@ const SmartOrderForm = () => {
         logoCharges: totalLogoCharges,
         namePrintingCharges: totalNamePrintingCharges,
         customizationPrice: totalCustomizationPrice,
+        deliveryCharges: parseFloat(formData.deliveryCharges) || 0,
         items: finalItems,
         productDetails: finalItems[0].productDetails,
         customization: finalItems[0].customization,
         sizeData: finalItems[0].sizeData,
         quantity: finalItems.reduce((sum, item) => sum + (item.quantity || 1), 0),
-        totalPrice: cartItems.reduce((sum, item) => sum + (parseFloat(item.totalPrice) || 0), 0),
+        totalPrice: cartItems.reduce((sum, item) => sum + (parseFloat(item.totalPrice) || 0), 0) + (parseFloat(formData.deliveryCharges) || 0),
       };
 
       await axios.post(`${API_URL}/api/orders`, combinedOrder);
@@ -1710,9 +1712,26 @@ const SmartOrderForm = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                  <div className="space-y-4">
-                    <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'کل رقم (Inventory Auto-Calculated)' : 'Order Amount (Auto-Calculated)'}</label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                    <div className="space-y-4">
+                      <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'ڈلیوری چارجز' : 'Delivery Charges'}</label>
+                      <div className="relative group">
+                        <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-amber-500/10 text-amber-500`}>
+                          <span className="font-black text-xs">🚚</span>
+                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          onKeyDown={preventEnterSubmit}
+                          value={formData.deliveryCharges}
+                          onChange={(e) => setFormData({...formData, deliveryCharges: e.target.value})}
+                          className={`w-full theme-input rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all text-xl font-bold`}
+                          placeholder="e.g. 200"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'کل رقم (Inventory Auto-Calculated)' : 'Order Amount (Auto-Calculated)'}</label>
                     <div className="relative group">
                       <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-500`}>
                         <span className="font-black text-xs">₨</span>
@@ -3241,7 +3260,7 @@ const SmartOrderForm = () => {
                 {cartItems.length > 0 && (
                   <div className="flex justify-end items-center gap-4 mt-3 pt-3 border-t border-gray-800/50">
                     <span className="text-xs md:text-sm text-gray-400 font-black uppercase tracking-wider">{useUrdu ? 'کل آئٹمز' : 'Total Items'}: <span className="text-white">{cartItems.reduce((s, i) => s + (parseInt(i.quantity) || 1), 0)}</span></span>
-                    <span className="text-sm font-black text-emerald-400">{useUrdu ? 'کل قیمت' : 'Total'}: ₨{cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0).toLocaleString()}</span>
+                    <span className="text-sm font-black text-emerald-400">{useUrdu ? 'کل قیمت' : 'Total'}: ₨{(cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0) + (parseFloat(formData.deliveryCharges) || 0)).toLocaleString()}</span>
                   </div>
                 )}
               </div>
@@ -3276,10 +3295,16 @@ const SmartOrderForm = () => {
                       <span className="font-black text-cyan-400">₨{cartItems.reduce((s, i) => s + (parseFloat(i.customizationPrice) || 0), 0).toLocaleString()}</span>
                     </div>
                   )}
+                  {parseFloat(formData.deliveryCharges) > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-amber-400">{useUrdu ? 'ڈلیوری چارجز' : 'Delivery Charges'}</span>
+                      <span className="font-black text-amber-400">₨{parseFloat(formData.deliveryCharges).toLocaleString()}</span>
+                    </div>
+                  )}
                   <div className="border-t border-gray-700/50 pt-2 flex justify-between items-center">
                     <span className="text-xs font-bold text-gray-200">{useUrdu ? 'کل آرڈر' : 'Total Order Value'}</span>
                     <span className="font-black text-white text-base">₨{(
-                      cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0)
+                      cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0) + (parseFloat(formData.deliveryCharges) || 0)
                     ).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center">
@@ -3503,6 +3528,11 @@ const SmartOrderForm = () => {
                         </label>
                       </div>
                     </div>
+                    <div className="mt-3">
+                      <span className="text-gray-400 block mb-1">{useUrdu ? 'ڈلیوری چارجز' : 'Delivery Charges'}</span>
+                      <input type="number" min="0" value={formData.deliveryCharges} onChange={e => setFormData({...formData, deliveryCharges: e.target.value})}
+                        className={`w-full theme-input rounded-xl py-2.5 px-3 text-sm font-bold ${hasChanged(String(originalOrder.deliveryCharges || ''), formData.deliveryCharges) ? 'border-amber-500/50 bg-amber-500/5' : ''}`} />
+                    </div>
                   </div>
 
                   {/* Items List with inline editing */}
@@ -3561,8 +3591,9 @@ const SmartOrderForm = () => {
 
                   {/* Pricing Subtotal */}
                   {(() => {
-                    const totalNewPrice = cartItems.reduce((sum, item) => sum + (parseFloat(item.totalPrice) || 0), 0);
-                    const diff = totalNewPrice - (parseFloat(originalOrder.totalPrice) || 0);
+                    const totalNewPrice = cartItems.reduce((sum, item) => sum + (parseFloat(item.totalPrice) || 0), 0) + (parseFloat(formData.deliveryCharges) || 0);
+                    const origPrice = (parseFloat(originalOrder.totalPrice) || 0) + (parseFloat(originalOrder.deliveryCharges) || 0);
+                    const diff = totalNewPrice - origPrice;
                     return (
                       <div className="border-t border-emerald-500/10 pt-3 flex justify-between items-center text-xs font-black">
                         <span className="text-gray-400 uppercase">{useUrdu ? 'کل نئی رقم' : 'New Total'}</span>

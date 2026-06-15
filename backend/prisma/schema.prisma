@@ -60,6 +60,7 @@ model Order {
   paymentStatus   String       @default("PENDING")
   paymentMethod   String?      @default("CASH")
   customizationPrice Float?    @default(0)
+  deliveryCharges  Float?       @default(0)
   totalPrice      Float?       @default(0)
   productionDeadline DateTime?
   trackingNumber  String?
