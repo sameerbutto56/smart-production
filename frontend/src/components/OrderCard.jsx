@@ -1700,9 +1700,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                   <td className="py-4 px-4 text-white font-bold uppercase">{p.productType || '—'}</td>
                                   <td className="py-4 px-4">
                                     <div className="text-gray-300 uppercase">
-                                      {p.fabricType && (
-                                        <>{p.fabricType} • {p.color}</>
-                                      )}
+                                      {[p.fabricType, p.color].filter(Boolean).join(' • ') || '—'}
                                     </div>
                                   </td>
                                   <td className="py-4 px-4 text-gray-300 uppercase">
