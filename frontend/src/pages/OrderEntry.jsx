@@ -1028,12 +1028,12 @@ const SmartOrderForm = () => {
   const isAccessory = (cat) => {
     if (!cat) return false;
     const catUpper = cat.toUpperCase();
-    return !['SCRUBS', 'COAT', 'CAP'].includes(catUpper);
+    return !['SCRUBS', 'COAT', 'CAP', 'CAPS'].includes(catUpper);
   };
   const isCustomizableProduct = (cat) => {
     if (!cat) return false;
     const catUpper = cat.toUpperCase();
-    return ['SCRUBS', 'COAT', 'CAP'].includes(catUpper);
+    return ['SCRUBS', 'COAT', 'CAP', 'CAPS'].includes(catUpper);
   };
   const productsInCategory = inventory
     .filter(i => i.category === selectedProductCategory)
