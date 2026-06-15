@@ -288,6 +288,33 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
             </div>
           )}
 
+          {custom?.articleNames && custom.articleNames.length > 0 && (
+            <div className="bg-purple-600/10 p-3 rounded-xl border border-purple-500/20">
+              <p className="text-xs text-purple-400 font-black uppercase tracking-widest mb-2">Article Names</p>
+              <div className="flex flex-wrap gap-2">
+                {custom.articleNames.map((an, ai) => (
+                  <span key={ai} className="px-2 py-1 bg-purple-900/30 rounded text-xs font-black text-purple-300 border border-purple-500/20">
+                    {an}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {custom?.logos && custom.logos.length > 0 && (
+            <div className="bg-amber-600/10 p-3 rounded-xl border border-amber-500/20">
+              <p className="text-xs text-amber-400 font-black uppercase tracking-widest mb-2">Logos</p>
+              <div className="space-y-2">
+                {custom.logos.map((logo, li) => (
+                  <div key={li} className="bg-amber-900/20 p-2 rounded-lg border border-amber-500/10">
+                    <p className="text-xs md:text-sm font-black text-amber-300">{logo.name || `Logo ${li + 1}`}</p>
+                    {logo.design && <p className="text-xs text-gray-400 mt-0.5">{logo.design}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-2">
             <div className="px-2 py-1 bg-gray-800 rounded text-xs md:text-sm font-black uppercase tracking-tighter text-gray-400 border border-gray-700">
               GENDER: {product?.gender || 'N/A'}
@@ -1660,30 +1687,69 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         <tbody>
                           {orderItems.map((item, idx) => {
                             const p = item.productDetails || item;
+                            const itemCust = item.customization ? parseJSON(item.customization) : null;
                             const hasSleeves = p.femaleOptions?.sleeves && p.femaleOptions.sleeves !== 'full';
                             const hasShirtLength = p.femaleOptions?.shirtLength && p.femaleOptions.shirtLength !== 'long';
+                            const hasArticleNames = itemCust?.articleNames && itemCust.articleNames.length > 0;
+                            const hasLogos = itemCust?.logos && itemCust.logos.length > 0;
+                            const hasCust = hasArticleNames || hasLogos || itemCust?.nameSpelling || itemCust?.stitchingStyle || itemCust?.fitType;
                             return (
-                              <tr key={idx} className="border-b border-gray-800/50 hover:bg-gray-900/30 transition-colors">
-                                <td className="py-4 px-4 text-gray-500 font-black">{idx + 1}</td>
-                                <td className="py-4 px-4 text-white font-bold uppercase">{p.productType || '—'}</td>
-                                <td className="py-4 px-4">
-                                  <div className="text-gray-300 uppercase">
-                                    {p.fabricType && (
-                                      <>{p.fabricType} • {p.color}</>
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="py-4 px-4 text-gray-300 uppercase">
-                                  <div>{p.size || 'Custom'} • {p.gender || 'MALE'}</div>
-                                  {(hasSleeves || hasShirtLength) && (
-                                    <div className="text-xs md:text-sm text-pink-400 font-black mt-0.5">
-                                      {hasSleeves && `Sleeves: ${p.femaleOptions.sleeves}`} {hasShirtLength && `| Length: ${p.femaleOptions.shirtLength}`}
+                              <React.Fragment key={idx}>
+                                <tr className="border-b border-gray-800/50 hover:bg-gray-900/30 transition-colors">
+                                  <td className="py-4 px-4 text-gray-500 font-black">{idx + 1}</td>
+                                  <td className="py-4 px-4 text-white font-bold uppercase">{p.productType || '—'}</td>
+                                  <td className="py-4 px-4">
+                                    <div className="text-gray-300 uppercase">
+                                      {p.fabricType && (
+                                        <>{p.fabricType} • {p.color}</>
+                                      )}
                                     </div>
-                                  )}
-                                </td>
-                                <td className="py-4 px-4 text-center text-white font-black">{item.quantity || 1}</td>
-                                <td className="py-4 px-4 text-right pr-4 text-emerald-400 font-black">₨{Number(item.totalPrice || 0).toLocaleString()}</td>
-                              </tr>
+                                  </td>
+                                  <td className="py-4 px-4 text-gray-300 uppercase">
+                                    <div>{p.size || 'Custom'} • {p.gender || 'MALE'}</div>
+                                    {(hasSleeves || hasShirtLength) && (
+                                      <div className="text-xs md:text-sm text-pink-400 font-black mt-0.5">
+                                        {hasSleeves && `Sleeves: ${p.femaleOptions.sleeves}`} {hasShirtLength && `| Length: ${p.femaleOptions.shirtLength}`}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="py-4 px-4 text-center text-white font-black">{item.quantity || 1}</td>
+                                  <td className="py-4 px-4 text-right pr-4 text-emerald-400 font-black">₨{Number(item.totalPrice || 0).toLocaleString()}</td>
+                                </tr>
+                                {hasCust && (
+                                  <tr className="bg-purple-900/5 border-b border-gray-800/50">
+                                    <td colSpan={6} className="py-3 px-6">
+                                      <div className="flex flex-wrap gap-3">
+                                        {hasArticleNames && itemCust.articleNames.map((an, ai) => (
+                                          <span key={ai} className="text-[10px] font-bold text-purple-400 bg-purple-500/10 px-2 py-1 rounded-md">
+                                            Name: {an}
+                                          </span>
+                                        ))}
+                                        {!hasArticleNames && itemCust?.nameSpelling && (
+                                          <span className="text-[10px] font-bold text-purple-400 bg-purple-500/10 px-2 py-1 rounded-md">
+                                            Name: {itemCust.nameSpelling}
+                                          </span>
+                                        )}
+                                        {hasLogos && itemCust.logos.map((logo, li) => (
+                                          <span key={li} className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md">
+                                            Logo: {logo.name || `#${li + 1}`}{logo.design ? ` — ${logo.design.substring(0, 40)}${logo.design.length > 40 ? '...' : ''}` : ''}
+                                          </span>
+                                        ))}
+                                        {itemCust?.stitchingStyle && (
+                                          <span className="text-[10px] font-bold text-blue-400 bg-blue-500/10 px-2 py-1 rounded-md">
+                                            {itemCust.stitchingStyle === 'DBL' ? 'Double' : 'Single'} Stitch
+                                          </span>
+                                        )}
+                                        {itemCust?.fitType && (
+                                          <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded-md">
+                                            {itemCust.fitType} Fit
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
                             );
                           })}
                         </tbody>
@@ -1743,8 +1809,36 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 <div>
                   <h4 className="text-xs md:text-sm font-black text-emerald-500 uppercase tracking-[0.3em] mb-6">03. Branding & Tailoring</h4>
                   <div className="space-y-4">
+                    {custom?.articleNames && custom.articleNames.length > 0
+                      ? custom.articleNames.map((an, ai) => (
+                          <div key={`an-${ai}`} className="flex justify-between items-center p-4 bg-gray-950/30 rounded-2xl border border-gray-800/30">
+                            <span className="text-xs md:text-sm text-gray-500 font-bold uppercase tracking-widest">Article Name {custom.articleNames.length > 1 ? `#${ai + 1}` : ''}</span>
+                            <span className="text-sm font-black text-emerald-400">{an || 'N/A'}</span>
+                          </div>
+                        ))
+                      : custom?.nameSpelling && (
+                          <div className="flex justify-between items-center p-4 bg-gray-950/30 rounded-2xl border border-gray-800/30">
+                            <span className="text-xs md:text-sm text-gray-500 font-bold uppercase tracking-widest">Article Name</span>
+                            <span className="text-sm font-black text-emerald-400">{custom.nameSpelling || 'N/A'}</span>
+                          </div>
+                        )
+                    }
+                    {custom?.logos && custom.logos.length > 0 && (
+                      <>
+                        {custom.logos.map((logo, li) => (
+                          <div key={`logo-${li}`} className="p-4 bg-gray-950/30 rounded-2xl border border-amber-500/20 space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs md:text-sm text-amber-400 font-bold uppercase tracking-widest">Logo {custom.logos.length > 1 ? `#${li + 1}` : ''}</span>
+                              <span className="text-sm font-black text-amber-400">{logo.name || 'Untitled'}</span>
+                            </div>
+                            {logo.design && (
+                              <p className="text-xs text-gray-300 leading-relaxed">{logo.design}</p>
+                            )}
+                          </div>
+                        ))}
+                      </>
+                    )}
                     {[
-                      { l: 'Branding Name', v: custom?.nameSpelling },
                       { l: 'Embroidery Color', v: custom?.nameColor },
                       { l: 'Logo Location', v: custom?.logoPlacement },
                       { l: 'Fit Type', v: custom?.fitType },
@@ -1759,8 +1853,31 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 </div>
                 <div>
                   <h4 className="text-xs md:text-sm font-black text-yellow-500 uppercase tracking-[0.3em] mb-6">04. Design Notes & Special Requests</h4>
-                  <div className="h-full min-h-[200px] bg-yellow-500/5 p-4 md:p-8 rounded-3xl border border-yellow-500/10 italic text-gray-300 leading-relaxed text-sm shadow-inner">
-                    {custom?.designNotes || 'No special design notes provided for this order.'}
+                  <div className="h-full min-h-[200px] bg-yellow-500/5 p-4 md:p-8 rounded-3xl border border-yellow-500/10 text-gray-300 leading-relaxed text-sm shadow-inner">
+                    {custom?.designNotes ? (
+                      <p className="italic mb-4">{custom.designNotes}</p>
+                    ) : (
+                      <p className="italic text-gray-500">No special design notes provided for this order.</p>
+                    )}
+                    {custom?.articleNames && custom.articleNames.length > 0 && (
+                      <div className="mt-4 pt-4 border-t border-yellow-500/10 space-y-2">
+                        <p className="text-xs font-black text-yellow-400 uppercase tracking-widest not-italic">Article Names</p>
+                        {custom.articleNames.map((an, ai) => (
+                          <p key={ai} className="font-bold text-yellow-200/80 not-italic">{an}</p>
+                        ))}
+                      </div>
+                    )}
+                    {custom?.logos && custom.logos.length > 0 && (
+                      <div className="mt-4 pt-4 border-t border-yellow-500/10 space-y-3">
+                        <p className="text-xs font-black text-amber-400 uppercase tracking-widest not-italic">Logo Details</p>
+                        {custom.logos.map((logo, li) => (
+                          <div key={li} className="bg-amber-500/5 p-3 rounded-xl border border-amber-500/10">
+                            <p className="font-bold text-amber-300 not-italic text-sm">{logo.name || `Logo ${li + 1}`}</p>
+                            {logo.design && <p className="text-gray-400 text-xs mt-1 not-italic">{logo.design}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </section>
