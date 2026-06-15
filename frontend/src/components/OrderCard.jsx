@@ -538,11 +538,12 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               )}
               {order.paymentStatus && (
                 <span className={`text-[9px] md:text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-tighter ${
+                  order.paymentStatus === 'PAID' ? 'bg-emerald-500/20 text-emerald-400' :
                   order.paymentStatus === 'FULL_PAID' ? 'bg-emerald-500/20 text-emerald-400' :
                   order.paymentStatus === 'ADVANCE_PAID' ? 'bg-amber-500/20 text-amber-400' :
                   'bg-red-500/20 text-red-400'
                 }`}>
-                  {order.paymentStatus === 'FULL_PAID' ? 'Paid' : order.paymentStatus === 'ADVANCE_PAID' ? 'Advance' : 'Unpaid'}
+                  {order.paymentStatus === 'PAID' ? 'PAID' : order.paymentStatus === 'FULL_PAID' ? 'Paid' : order.paymentStatus === 'ADVANCE_PAID' ? 'Advance' : 'Unpaid'}
                 </span>
               )}
               {order.courierDetails?.payments?.length > 0 && (
@@ -807,7 +808,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       <Clock size={14} />
                       <span>{order.status === 'ON_HOLD' ? 'RESUME' : t('Hold')}</span>
                     </ActionBtn>
-                    {(order.paymentStatus !== 'FULL_PAID' || ['SUPER_ADMIN', 'ADMIN'].includes(userRole)) && (
+                    {(order.paymentStatus !== 'PAID' && order.paymentStatus !== 'FULL_PAID' || ['SUPER_ADMIN', 'ADMIN'].includes(userRole)) && (
                       <div className="relative">
                         <ActionBtn name="more" onClick={() => setShowMoreActions(!showMoreActions)}
                           className="w-full py-2.5 md:py-3 px-1 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all border border-gray-600/30 bg-gray-800/50 hover:bg-gray-700 text-gray-400 hover:text-white flex flex-col items-center justify-center gap-0.5 active:scale-95"
@@ -819,7 +820,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           <>
                             <div className="fixed inset-0 z-30" onClick={() => setShowMoreActions(false)} />
                             <div className="absolute bottom-full right-0 z-40 mb-2 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl overflow-hidden min-w-[170px]">
-                              {order.paymentStatus !== 'FULL_PAID' && (
+                              {(order.paymentStatus !== 'PAID' && order.paymentStatus !== 'FULL_PAID') && (
                                 <button
                                   onClick={() => { setShowMoreActions(false); setShowPaymentModal(true); setPaymentAmount(''); setPaymentMethod('CASH'); }}
                                   className="w-full flex items-center gap-3 px-4 py-3 text-xs md:text-sm font-black uppercase tracking-wider text-yellow-400 hover:bg-yellow-500/10 transition-all border-b border-gray-800"

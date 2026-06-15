@@ -349,6 +349,7 @@ const DeliverySheet = () => {
                   <th className="py-4 px-3 w-24">Delivery Date</th>
                   <th className="py-4 px-3 w-16">Attempts</th>
                   <th className="py-4 px-3 w-24">Next Delivery</th>
+                  <th className="py-4 px-3 w-20">Payment</th>
                   <th className="py-4 px-3 w-24">Completion Status</th>
                   <th className="py-4 px-3 w-28">Delivered At</th>
                   <th className="py-4 px-3 w-24 text-right">Actions</th>
@@ -357,7 +358,7 @@ const DeliverySheet = () => {
               <tbody className="divide-y divide-gray-800/60">
                 {loading ? (
                   <tr>
-                    <td colSpan="11" className="py-16 text-center theme-text-muted">
+                    <td colSpan="12" className="py-16 text-center theme-text-muted">
                       <div className="flex flex-col items-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-500 mb-4"></div>
                         Loading delivery records...
@@ -427,6 +428,15 @@ const DeliverySheet = () => {
                           {order.nextDeliveryDate
                             ? new Date(order.nextDeliveryDate).toLocaleDateString()
                             : '—'}
+                        </td>
+                        <td className="py-4 px-3 text-xs font-black">
+                          {order.paymentStatus === 'PAID' ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">PAID</span>
+                          ) : order.paymentStatus === 'FULL_PAID' ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Paid</span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black uppercase bg-red-500/10 text-red-400 border border-red-500/20">Unpaid</span>
+                          )}
                         </td>
                         <td className="py-4 px-3 text-xs">
                           {order.status === 'COMPLETED' || order.currentStage === 'DELIVERED' ? (
@@ -573,6 +583,7 @@ const DeliverySheet = () => {
               <th style={{ width: '9%' }}>Delivery Date</th>
               <th style={{ width: '6%' }}>Att.</th>
               <th style={{ width: '9%' }}>Next Del.</th>
+              <th style={{ width: '7%' }}>Payment</th>
               <th style={{ width: '8%' }}>Status</th>
               <th style={{ width: '8%' }}>Amount</th>
             </tr>
@@ -580,7 +591,7 @@ const DeliverySheet = () => {
           <tbody>
             {filteredOrders.length === 0 ? (
               <tr>
-                <td colSpan="11" style={{ textAlign: 'center', padding: '20px', fontWeight: 'bold' }}>
+                <td colSpan="12" style={{ textAlign: 'center', padding: '20px', fontWeight: 'bold' }}>
                   No online delivery orders found.
                 </td>
               </tr>
@@ -601,6 +612,7 @@ const DeliverySheet = () => {
                     <td>{deliveryDate?.completedAt ? new Date(deliveryDate.completedAt).toLocaleDateString() : '—'}</td>
                     <td style={{ fontWeight: 'bold', color: order.noResponseCount >= 3 ? '#dc2626' : order.noResponseCount > 0 ? '#d97706' : '#000' }}>{order.noResponseCount ? `${order.noResponseCount}/3` : '—'}</td>
                     <td>{order.nextDeliveryDate ? new Date(order.nextDeliveryDate).toLocaleDateString() : '—'}</td>
+                    <td style={{ fontWeight: 'bold', color: order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? '#059669' : '#dc2626' }}>{order.paymentStatus === 'PAID' ? 'PAID' : order.paymentStatus === 'FULL_PAID' ? 'Paid' : 'Unpaid'}</td>
                     <td>{order.status === 'COMPLETED' || order.currentStage === 'DELIVERED' ? 'Completed' : 'Pending'}</td>
                     <td style={{ fontWeight: 'bold' }}>₨ {Number(order.totalPrice || 0).toLocaleString()}</td>
                   </tr>

@@ -25,17 +25,26 @@ const safeAggregate = async (model, args) => {
 
 const getUnifiedAnalytics = async (req, res) => {
   try {
-    const { branch } = req.query;
+    const { branch, paymentStatus } = req.query;
     const filter = buildBranchFilter(branch?.toLowerCase());
 
-    // Orders analytics
-    const totalOrders = await safeCount('order', filter);
-    const completedOrders = await safeCount('order', { ...filter, status: { in: ['COMPLETED', 'DELIVERED'] } });
-    const inProgressOrders = await safeCount('order', { ...filter, status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'PENDING'] } });
-    const pendingOrders = await safeCount('order', { ...filter, status: 'PENDING' });
-    const cancelledOrders = await safeCount('order', { ...filter, status: { in: ['CANCELLED', 'REJECTED'] } });
+    let paymentFilter = {};
+    if (paymentStatus === 'paid') {
+      paymentFilter = { paymentStatus: { in: ['PAID', 'FULL_PAID'] } };
+    } else if (paymentStatus === 'unpaid') {
+      paymentFilter = { paymentStatus: { notIn: ['PAID', 'FULL_PAID'] } };
+    }
 
-    const revenueAgg = await safeAggregate('order', { where: filter, _sum: { totalPrice: true, productionCost: true, productCost: true, grossProfit: true, netProfit: true, logoCharges: true, namePrintingCharges: true } });
+    // Orders analytics
+    const totalOrders = await safeCount('order', { ...filter, ...paymentFilter });
+    const completedOrders = await safeCount('order', { ...filter, ...paymentFilter, status: { in: ['COMPLETED', 'DELIVERED'] } });
+    const inProgressOrders = await safeCount('order', { ...filter, ...paymentFilter, status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'PENDING'] } });
+    const pendingOrders = await safeCount('order', { ...filter, ...paymentFilter, status: 'PENDING' });
+    const cancelledOrders = await safeCount('order', { ...filter, ...paymentFilter, status: { in: ['CANCELLED', 'REJECTED'] } });
+    const paidOrders = await safeCount('order', { ...filter, paymentStatus: { in: ['PAID', 'FULL_PAID'] } });
+    const unpaidOrders = await safeCount('order', { ...filter, paymentStatus: { notIn: ['PAID', 'FULL_PAID'] } });
+
+    const revenueAgg = await safeAggregate('order', { where: { ...filter, ...paymentFilter }, _sum: { totalPrice: true, productionCost: true, productCost: true, grossProfit: true, netProfit: true, logoCharges: true, namePrintingCharges: true } });
     const totalRevenue = revenueAgg._sum.totalPrice || 0;
     const totalProductionCost = revenueAgg._sum.productionCost || 0;
     const totalProductCost = revenueAgg._sum.productCost || 0;
@@ -46,7 +55,7 @@ const getUnifiedAnalytics = async (req, res) => {
     const stageCounts = { ORDER_ENTRY: 0, STORE: 0, LOGO_DESIGN: 0, PRODUCTION: 0, STORE_RECEIVE: 0, DISPATCH: 0, OUT_FOR_DELIVERY: 0 };
     const stageGroups = await prisma.order.groupBy({
       by: ['currentStage'],
-      where: { ...filter, currentStage: { in: ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'] } },
+      where: { ...filter, ...paymentFilter, currentStage: { in: ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'] } },
       _count: { id: true }
     });
     for (const g of stageGroups) {
@@ -102,19 +111,19 @@ const getUnifiedAnalytics = async (req, res) => {
       const branchName = branch.replace(/_/g, ' ').toUpperCase();
       dispatchFilter.outletName = { contains: branchName, mode: 'insensitive' };
     }
-    const dispatchPending = await safeCount('order', { ...dispatchFilter, currentStage: 'DISPATCH' });
-    const outForDelivery = await safeCount('order', { ...dispatchFilter, currentStage: 'OUT_FOR_DELIVERY' });
-    const deliveredOrders = await safeCount('order', { ...dispatchFilter, currentStage: 'DELIVERED' });
+    const dispatchPending = await safeCount('order', { ...dispatchFilter, ...paymentFilter, currentStage: 'DISPATCH' });
+    const outForDelivery = await safeCount('order', { ...dispatchFilter, ...paymentFilter, currentStage: 'OUT_FOR_DELIVERY' });
+    const deliveredOrders = await safeCount('order', { ...dispatchFilter, ...paymentFilter, currentStage: 'DELIVERED' });
 
     // Revenue by source
-    const onlineOrders = await safeCount('order', { ...filter, source: 'ONLINE' });
+    const onlineOrders = await safeCount('order', { ...filter, ...paymentFilter, source: 'ONLINE' });
     const outletOrders = totalOrders - onlineOrders;
-    const onlineRevenueAgg = await safeAggregate('order', { where: { ...filter, source: 'ONLINE' }, _sum: { totalPrice: true, netProfit: true } });
-    const outletRevenueAgg = await safeAggregate('order', { where: { ...filter, source: 'OUTLET' }, _sum: { totalPrice: true, netProfit: true } });
+    const onlineRevenueAgg = await safeAggregate('order', { where: { ...filter, ...paymentFilter, source: 'ONLINE' }, _sum: { totalPrice: true, netProfit: true } });
+    const outletRevenueAgg = await safeAggregate('order', { where: { ...filter, ...paymentFilter, source: 'OUTLET' }, _sum: { totalPrice: true, netProfit: true } });
 
     res.json({
       summary: {
-        totalOrders, completedOrders, inProgressOrders, pendingOrders, cancelledOrders,
+        totalOrders, completedOrders, inProgressOrders, pendingOrders, cancelledOrders, paidOrders, unpaidOrders,
         totalRevenue, totalProductionCost, totalProductCost,
         totalGrossProfit, totalNetProfit,
         totalInventoryItems, lowStockItems, outOfStockItems,
@@ -142,7 +151,7 @@ const getUnifiedAnalytics = async (req, res) => {
     console.error('Unified analytics error:', error);
     res.json({
       summary: {
-        totalOrders: 0, completedOrders: 0, inProgressOrders: 0, pendingOrders: 0, cancelledOrders: 0,
+        totalOrders: 0, completedOrders: 0, inProgressOrders: 0, pendingOrders: 0, cancelledOrders: 0, paidOrders: 0, unpaidOrders: 0,
         totalRevenue: 0, totalProductionCost: 0, totalProductCost: 0,
         totalGrossProfit: 0, totalNetProfit: 0,
         totalInventoryItems: 0, lowStockItems: 0, outOfStockItems: 0,

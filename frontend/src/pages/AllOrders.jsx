@@ -245,6 +245,10 @@ const AllOrders = () => {
       const status = order.status;
       groups[phone].statusSummary[status] = (groups[phone].statusSummary[status] || 0) + 1;
       
+      const payStatus = order.paymentStatus || (order.advancePaid ? 'ADVANCE' : 'PENDING');
+      groups[phone].paymentSummary = groups[phone].paymentSummary || {};
+      groups[phone].paymentSummary[payStatus] = (groups[phone].paymentSummary[payStatus] || 0) + 1;
+      
       if (new Date(order.createdAt) > new Date(groups[phone].latestOrderDate)) {
         groups[phone].latestOrderDate = order.createdAt;
       }
@@ -489,6 +493,17 @@ const AllOrders = () => {
                             {count} {status.replace(/_/g, ' ')}
                           </span>
                         ))}
+                        {Object.entries(group.paymentSummary || {}).map(([payStatus, count]) => (
+                          <span key={payStatus} className={`text-xs md:text-sm font-black px-2 py-1 rounded-lg border ${
+                            payStatus === 'PAID'
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                              : payStatus === 'ADVANCE'
+                                ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                                : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                          }`}>
+                            {count} {payStatus}
+                          </span>
+                        ))}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -611,6 +626,15 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                     <td className="px-6 py-4">
                       <span className={`text-xs md:text-sm font-black px-2 py-1 rounded-full uppercase border ${getStatusStyle(order.status)}`}>
                         {order.status.replace(/_/g, ' ')}
+                      </span>
+                      <span className={`text-xs md:text-sm font-black px-2 py-1 rounded-full uppercase border ml-2 ${
+                        order.paymentStatus === 'PAID'
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                          : order.advancePaid
+                            ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                            : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                      }`}>
+                        {order.paymentStatus === 'PAID' ? 'PAID' : order.advancePaid ? 'ADVANCE' : 'PENDING'}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -800,7 +824,19 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                       ].filter(i => i.val).map((item, i) => (
                         <div key={i} className="theme-bg p-4 md:p-6 rounded-3xl border theme-border">
                           <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest mb-2">{item.label}</p>
-                          <p className="text-lg font-bold text-gray-200">{item.val || 'STANDARD'}</p>
+                          {item.label === 'Payment' ? (
+                            <span className={`text-lg font-black px-3 py-1 rounded-full ${
+                              item.val === 'PAID'
+                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                : item.val === 'ADVANCE'
+                                  ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                                  : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
+                            }`}>
+                              {item.val || 'STANDARD'}
+                            </span>
+                          ) : (
+                            <p className="text-lg font-bold text-gray-200">{item.val || 'STANDARD'}</p>
+                          )}
                         </div>
                       ))}
                     </div>

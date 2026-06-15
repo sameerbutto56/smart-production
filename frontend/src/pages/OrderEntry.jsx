@@ -77,6 +77,7 @@ const SmartOrderForm = () => {
     type: 'STANDARD', // STANDARD, READY_LOGO, FULL_CUSTOM
     priority: 'NORMAL',
     advancePaid: false,
+    paymentStatus: 'PENDING', // PENDING or PAID
     totalPrice: '',
     quantity: 1,
     
@@ -260,6 +261,7 @@ const SmartOrderForm = () => {
         type: 'STANDARD',
         priority: 'NORMAL',
         advancePaid: false,
+        paymentStatus: 'PENDING',
         totalPrice: '',
         quantity: 1,
         productType: '',
@@ -583,6 +585,7 @@ const SmartOrderForm = () => {
         type: 'STANDARD',
         priority: 'NORMAL',
         advancePaid: false,
+        paymentStatus: 'PENDING',
         totalPrice: '',
         quantity: 1,
         productType: '',
@@ -751,6 +754,7 @@ const SmartOrderForm = () => {
       priority: formData.priority,
       quantity: parseInt(formData.quantity) || 1,
       advancePaid: formData.advancePaid,
+      paymentStatus: formData.paymentStatus,
       logoDesign: formData.logoDesign,
       logoName: formData.logoName,
       logoCharges: parseFloat(formData.logoCharges) || 0,
@@ -923,6 +927,7 @@ const SmartOrderForm = () => {
         type: firstItem.type,
         priority: firstItem.priority,
         advancePaid: firstItem.advancePaid,
+        paymentStatus: firstItem.paymentStatus || 'PENDING',
         logoDesign: firstItem.logoDesign,
         logoName: firstItem.logoName,
         logoCharges: totalLogoCharges,
@@ -951,7 +956,9 @@ const SmartOrderForm = () => {
         type: 'STANDARD',
         priority: 'NORMAL',
         advancePaid: false,
+        paymentStatus: 'PENDING',
         totalPrice: '',
+        deliveryCharges: '',
         quantity: 1,
         productType: '',
         fabricType: '',
@@ -1145,9 +1152,23 @@ const SmartOrderForm = () => {
                 <span className="hidden sm:inline">{(tab.label.split('. ')[1] || tab.label).toUpperCase()}</span>
               </button>
             ))}
-          </div>
-        </div>
-      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <label className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${formData.paymentStatus === 'PAID' ? 'border-emerald-500/60 bg-emerald-500/10 shadow-lg shadow-emerald-900/20' : 'border-gray-700 bg-gray-900'}`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg transition-all ${formData.paymentStatus === 'PAID' ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </div>
+                        <div>
+                          <p className="text-sm font-black uppercase tracking-wider">{useUrdu ? 'آرڈر پہلے سے ادا شدہ' : 'Order Already Paid'}</p>
+                          <p className="text-[10px] text-gray-500 font-semibold">{useUrdu ? 'رقم موصول ہو چکی ہے - براہِ کرم دوبارہ وصول نہ کریں' : 'Payment already collected — do not collect again'}</p>
+                        </div>
+                      </div>
+                      <input type="checkbox" checked={formData.paymentStatus === 'PAID'} onChange={e => setFormData({...formData, paymentStatus: e.target.checked ? 'PAID' : 'PENDING'})} className="w-5 h-5 rounded border-2 border-gray-600 bg-gray-900 checked:bg-emerald-600 checked:border-emerald-600 transition-all cursor-pointer" />
+                    </label>
+                  </div>
+                </div>
 
       {/* Selection Summary Bar */}
       {formData.productType && (

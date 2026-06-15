@@ -30,6 +30,7 @@ const formatCurrency = (v) => `₨${(v || 0).toLocaleString()}`;
 
 const UnifiedAnalytics = () => {
   const [branch, setBranch] = useState('all');
+  const [paymentFilter, setPaymentFilter] = useState('all');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState('overview');
@@ -38,13 +39,15 @@ const UnifiedAnalytics = () => {
     setLoading(true);
     try {
       const token = sessionStorage.getItem('token');
-      const res = await axios.get(`${API_URL}/api/analytics/unified?branch=${branch}`, {
+      const params = new URLSearchParams({ branch });
+      if (paymentFilter !== 'all') params.set('paymentStatus', paymentFilter);
+      const res = await axios.get(`${API_URL}/api/analytics/unified?${params}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setData(res.data);
     } catch { setData(null); }
     setLoading(false);
-  }, [branch]);
+  }, [branch, paymentFilter]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -85,6 +88,10 @@ const UnifiedAnalytics = () => {
         <KpiCard label="Gross Profit" value={formatCurrency(s.totalGrossProfit)} sub={`Net: ${formatCurrency(s.totalNetProfit)}`} color="from-green-600 to-emerald-600" icon={DollarSign} onClick={() => setActiveView('profit')} />
         <KpiCard label="Online Orders" value={s.onlineOrders || 0} sub={`Revenue: ${formatCurrency(s.onlineRevenue)}`} color="from-violet-600 to-purple-600" icon={TrendingUp} onClick={() => { setBranch('online'); }} />
         <KpiCard label="Outlet Orders" value={s.outletOrders || 0} sub={`Revenue: ${formatCurrency(s.outletRevenue)}`} color="from-rose-600 to-pink-600" icon={TrendingUp} onClick={() => setActiveView('orders')} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <KpiCard label="Paid Orders" value={s.paidOrders || 0} sub={`${s.totalOrders ? Math.round((s.paidOrders / s.totalOrders) * 100) : 0}% of total`} color="from-emerald-600 to-teal-600" icon={DollarSign} />
+        <KpiCard label="Unpaid Orders" value={s.unpaidOrders || 0} sub={`${s.totalOrders ? Math.round((s.unpaidOrders / s.totalOrders) * 100) : 0}% of total`} color="from-rose-600 to-red-600" icon={AlertTriangle} />
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-gray-900/50 rounded-2xl border border-gray-800 p-4">
@@ -283,6 +290,15 @@ const UnifiedAnalytics = () => {
             className="bg-gray-900 border border-gray-700 text-white text-xs font-bold rounded-xl px-3 py-2 outline-none focus:border-blue-500"
           >
             {BRANCHES.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
+          </select>
+          <select
+            value={paymentFilter}
+            onChange={(e) => { setPaymentFilter(e.target.value); setActiveView('overview'); }}
+            className="bg-gray-900 border border-gray-700 text-white text-xs font-bold rounded-xl px-3 py-2 outline-none focus:border-blue-500"
+          >
+            <option value="all">All Payments</option>
+            <option value="paid">Paid</option>
+            <option value="unpaid">Unpaid</option>
           </select>
           {data && !loading && (
             <button

@@ -237,7 +237,7 @@ const createProductionRecordFromOrder = async (order, stageCompleted) => {
 
 
 const createOrder = async (req, res) => {
-  const { orderNumber: requestedOrderNumber, customerName, customerPhone, address, city, type, urgent, priority, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, shopifyOrderId, paymentDeadline, productImage, items } = req.body;
+  const { orderNumber: requestedOrderNumber, customerName, customerPhone, address, city, type, urgent, priority, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, shopifyOrderId, paymentDeadline, productImage, items, paymentStatus, deliveryCharges } = req.body;
 
   // Derive priority and urgent
   const finalPriority = priority || (urgent ? 'URGENT' : 'NORMAL');
@@ -383,6 +383,7 @@ const createOrder = async (req, res) => {
         productDetails: finalProductDetails ? JSON.stringify(finalProductDetails) : null,
         sizeData: finalSizeData ? JSON.stringify(finalSizeData) : null,
         advancePaid: advancePaid || false,
+        paymentStatus: paymentStatus || 'PENDING',
         productImage,
         totalPrice: finalTotalPrice,
         shopifyOrderId,
@@ -431,6 +432,11 @@ const createOrder = async (req, res) => {
     }
 
     await createAuditLog(order.id, 'ORDER_CREATED', `Order initiated with status: ${initialStatus}`, req.user?.id);
+
+    // If order is prepaid, record revenue immediately
+    if (paymentStatus === 'PAID') {
+      await calculateAndRecordRevenue(order);
+    }
 
     const io = req.app.get('io');
     io.emit('new-order', order);
@@ -2489,7 +2495,10 @@ const calculateAndRecordRevenue = async (order) => {
       data: { grossProfit: totalProfit, netProfit: totalProfit - (logoCharges + namePrintingCharges + customizationCharges) }
     });
 
-    await prisma.revenueRecord.create({
+    // Only create revenue record if one doesn't already exist for this order (prevents duplicates for prepaid orders)
+    const existingRecord = await prisma.revenueRecord.findFirst({ where: { orderId: order.id } });
+    if (!existingRecord) {
+      await prisma.revenueRecord.create({
       data: {
         orderId: order.id,
         orderNumber: order.orderNumber,
@@ -2506,6 +2515,7 @@ const calculateAndRecordRevenue = async (order) => {
         totalProfit
       }
     });
+    }
   } catch (err) {
     console.error('Revenue calculation error:', err);
   }
