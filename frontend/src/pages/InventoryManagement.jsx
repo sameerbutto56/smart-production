@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Button from '../components/Button';
-import { 
-  Plus, 
-  Search, 
-  Edit2, 
-  Trash2, 
-  Package, 
-  Palette, 
-  Layers, 
+import {
+  Plus,
+  Search,
+  Edit2,
+  Trash2,
+  Package,
+  Palette,
+  Layers,
   RefreshCcw,
   PlusCircle,
   X,
@@ -19,7 +19,8 @@ import {
   Upload,
   Image as ImageIcon,
   Hash,
-  Minus
+  Minus,
+  Printer
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
@@ -27,6 +28,7 @@ import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 import { usePolling } from '../hooks/usePolling';
+import { printInventoryReport } from '../utils/printReport';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -323,6 +325,14 @@ const InventoryManagement = () => {
               </button>
             </>
           )}
+          <button
+            onClick={() => printInventoryReport(items)}
+            className="bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white font-black py-4 px-4 rounded-2xl border border-gray-700 transition-all flex items-center gap-2 active:scale-95"
+            title="Print Inventory Report"
+          >
+            <Printer size={18} />
+            <span className="hidden sm:inline text-sm">Print</span>
+          </button>
           <button 
             onClick={() => handleOpenModal()}
             className="btn-solid-primary btn-xl"

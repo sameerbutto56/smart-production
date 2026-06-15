@@ -20,6 +20,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { PageLoader, LoadingSpinner, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
+import { printDeliveryReport } from '../utils/printReport';
 import toast from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
@@ -270,13 +271,20 @@ const DeliverySheet = () => {
             />
           </div>
 
-          {/* Print Button */}
+          {/* Print Buttons */}
+          <button
+            onClick={() => printDeliveryReport(filteredOrders)}
+            className="flex items-center gap-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white px-6 py-3.5 rounded-[1.2rem] font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-600/20"
+          >
+            <Printer size={16} />
+            <span>Report</span>
+          </button>
           <button
             onClick={handlePrint}
             className="flex items-center gap-2.5 bg-yellow-500 hover:bg-yellow-400 active:scale-95 text-black px-6 py-3.5 rounded-[1.2rem] font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-yellow-500/10"
           >
             <Printer size={16} />
-            <span>Print</span>
+            <span>Sheet</span>
           </button>
         </div>
       </div>
@@ -339,6 +347,8 @@ const DeliverySheet = () => {
                   <th className="py-4 px-3 w-20">Source</th>
                   <th className="py-4 px-3 w-24">Dispatch Status</th>
                   <th className="py-4 px-3 w-24">Delivery Date</th>
+                  <th className="py-4 px-3 w-16">Attempts</th>
+                  <th className="py-4 px-3 w-24">Next Delivery</th>
                   <th className="py-4 px-3 w-24">Completion Status</th>
                   <th className="py-4 px-3 w-28">Delivered At</th>
                   <th className="py-4 px-3 w-24 text-right">Actions</th>
@@ -347,7 +357,7 @@ const DeliverySheet = () => {
               <tbody className="divide-y divide-gray-800/60">
                 {loading ? (
                   <tr>
-                    <td colSpan="9" className="py-16 text-center theme-text-muted">
+                    <td colSpan="11" className="py-16 text-center theme-text-muted">
                       <div className="flex flex-col items-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-500 mb-4"></div>
                         Loading delivery records...
@@ -356,7 +366,7 @@ const DeliverySheet = () => {
                   </tr>
                 ) : filteredOrders.length === 0 ? (
                   <tr>
-                    <td colSpan="9" className="py-16 text-center theme-text-muted text-sm font-bold">
+                    <td colSpan="11" className="py-16 text-center theme-text-muted text-sm font-bold">
                       No online delivery orders found.
                     </td>
                   </tr>
@@ -404,6 +414,18 @@ const DeliverySheet = () => {
                             ? new Date(deliveryDate.completedAt).toLocaleDateString()
                             : order.completedAt
                             ? new Date(order.completedAt).toLocaleDateString()
+                            : '—'}
+                        </td>
+                        <td className="py-4 px-3 text-xs font-black">
+                          {order.noResponseCount ? (
+                            <span className={`${order.noResponseCount >= 3 ? 'text-red-400' : 'text-amber-400'}`}>
+                              {order.noResponseCount}/3
+                            </span>
+                          ) : '—'}
+                        </td>
+                        <td className="py-4 px-3 text-xs font-bold theme-text-secondary">
+                          {order.nextDeliveryDate
+                            ? new Date(order.nextDeliveryDate).toLocaleDateString()
                             : '—'}
                         </td>
                         <td className="py-4 px-3 text-xs">
@@ -547,16 +569,18 @@ const DeliverySheet = () => {
               <th style={{ width: '13%' }}>Customer</th>
               <th style={{ width: '8%' }}>Method</th>
               <th style={{ width: '8%' }}>Source</th>
-              <th style={{ width: '12%' }}>Dispatch Status</th>
-              <th style={{ width: '10%' }}>Delivery Date</th>
-              <th style={{ width: '10%' }}>Status</th>
+              <th style={{ width: '10%' }}>Dispatch Status</th>
+              <th style={{ width: '9%' }}>Delivery Date</th>
+              <th style={{ width: '6%' }}>Att.</th>
+              <th style={{ width: '9%' }}>Next Del.</th>
+              <th style={{ width: '8%' }}>Status</th>
               <th style={{ width: '8%' }}>Amount</th>
             </tr>
           </thead>
           <tbody>
             {filteredOrders.length === 0 ? (
               <tr>
-                <td colSpan="9" style={{ textAlign: 'center', padding: '20px', fontWeight: 'bold' }}>
+                <td colSpan="11" style={{ textAlign: 'center', padding: '20px', fontWeight: 'bold' }}>
                   No online delivery orders found.
                 </td>
               </tr>
@@ -575,6 +599,8 @@ const DeliverySheet = () => {
                     <td>{source}</td>
                     <td>{dispatchStage?.status === 'COMPLETED' ? 'Dispatched' : '—'}</td>
                     <td>{deliveryDate?.completedAt ? new Date(deliveryDate.completedAt).toLocaleDateString() : '—'}</td>
+                    <td style={{ fontWeight: 'bold', color: order.noResponseCount >= 3 ? '#dc2626' : order.noResponseCount > 0 ? '#d97706' : '#000' }}>{order.noResponseCount ? `${order.noResponseCount}/3` : '—'}</td>
+                    <td>{order.nextDeliveryDate ? new Date(order.nextDeliveryDate).toLocaleDateString() : '—'}</td>
                     <td>{order.status === 'COMPLETED' || order.currentStage === 'DELIVERED' ? 'Completed' : 'Pending'}</td>
                     <td style={{ fontWeight: 'bold' }}>₨ {Number(order.totalPrice || 0).toLocaleString()}</td>
                   </tr>

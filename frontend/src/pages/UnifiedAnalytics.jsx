@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { BarChart3, TrendingUp, Package, Factory, Truck, DollarSign, RefreshCcw, AlertTriangle, ChevronRight } from 'lucide-react';
+import { BarChart3, TrendingUp, Package, Factory, Truck, DollarSign, RefreshCcw, AlertTriangle, ChevronRight, Printer } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
+import { printAnalyticsReport } from '../utils/printReport';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -283,6 +284,15 @@ const UnifiedAnalytics = () => {
           >
             {BRANCHES.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
           </select>
+          {data && !loading && (
+            <button
+              onClick={() => printAnalyticsReport(data, branch)}
+              className="p-2 bg-gray-900 border border-gray-700 rounded-xl hover:bg-gray-800 transition-colors text-gray-400 hover:text-white"
+              title="Print Analytics Report"
+            >
+              <Printer size={14} />
+            </button>
+          )}
           <button onClick={fetchData} className="p-2 bg-gray-900 border border-gray-700 rounded-xl hover:bg-gray-800 transition-colors">
             <RefreshCcw size={14} className={`text-gray-400 ${loading ? 'animate-spin' : ''}`} />
           </button>

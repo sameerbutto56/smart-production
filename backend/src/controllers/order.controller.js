@@ -556,6 +556,9 @@ const getOrders = async (req, res) => {
         },
         createdBy: {
           select: { name: true }
+        },
+        deliveryAttempts: {
+          orderBy: { attemptNumber: 'asc' }
         }
       },
       orderBy: { createdAt: 'desc' }
@@ -1266,6 +1269,7 @@ const updateDeliveryStatus = async (req, res) => {
   const { orderId } = req.params;
   const { deliveryStatus, remarks, paymentMethod, cashAmount, onlineAmount, deliveryMethod } = req.body; // deliveryStatus: 'DELIVERED' | 'NOT_RESPONDED' | 'FAILED' | 'RESCHEDULED'
   const userId = req.user?.id;
+  const riderName = req.user?.name;
 
   try {
     if (await isSystemPaused()) {
@@ -1275,20 +1279,62 @@ const updateDeliveryStatus = async (req, res) => {
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
     if (deliveryStatus === 'FAILED' || deliveryStatus === 'NOT_RESPONDED') {
-      // Mark delivery as failed but keep order in OUT_FOR_DELIVERY for retry
-      await prisma.order.update({
-        where: { id: orderId },
-        data: {
-          dispatchStatus: 'FAILED',
-          updatedAt: new Date()
-        }
-      });
-      await createAuditLog(orderId, 'DELIVERY_FAILED', remarks || `Delivery failed / No response. Order queued for retry.`, userId);
-    } else if (deliveryStatus === 'RESCHEDULED') {
-      // Extend the OUT_FOR_DELIVERY deadline to tomorrow
+      const currentAttempt = (order.noResponseCount || 0) + 1;
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
-      // Update the OUT_FOR_DELIVERY stage deadline
+      tomorrow.setHours(10, 0, 0, 0);
+
+      await prisma.deliveryAttempt.create({
+        data: {
+          orderId,
+          attemptNumber: currentAttempt,
+          status: 'NO_RESPONSE',
+          riderId: userId,
+          riderName,
+          rescheduledTo: currentAttempt < 3 ? tomorrow : null,
+          notes: remarks || 'Customer did not respond'
+        }
+      });
+
+      if (currentAttempt < 3) {
+        await prisma.order.update({
+          where: { id: orderId },
+          data: {
+            dispatchStatus: 'RESCHEDULED',
+            noResponseCount: currentAttempt,
+            nextDeliveryDate: tomorrow,
+            lastDeliveryAttempt: new Date(),
+            updatedAt: new Date()
+          }
+        });
+        const outStage = await prisma.orderStage.findFirst({
+          where: { orderId, stageName: 'OUT_FOR_DELIVERY', status: 'PENDING' }
+        });
+        if (outStage) {
+          await prisma.orderStage.update({
+            where: { id: outStage.id },
+            data: { deadlineAt: tomorrow }
+          });
+        }
+        await createAuditLog(orderId, 'DELIVERY_FAILED',
+          `No Response (Attempt ${currentAttempt}/3). Auto-rescheduled to ${tomorrow.toLocaleDateString()}.`, userId);
+      } else {
+        await prisma.order.update({
+          where: { id: orderId },
+          data: {
+            dispatchStatus: 'FAILED',
+            noResponseCount: currentAttempt,
+            lastDeliveryAttempt: new Date(),
+            status: 'MAX_ATTEMPTS_REACHED',
+            updatedAt: new Date()
+          }
+        });
+        await createAuditLog(orderId, 'DELIVERY_FAILED',
+          `No Response (Attempt ${currentAttempt}/3). Maximum delivery attempts reached. Awaiting manual action.`, userId);
+      }
+    } else if (deliveryStatus === 'RESCHEDULED') {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
       const outStage = await prisma.orderStage.findFirst({
         where: { orderId, stageName: 'OUT_FOR_DELIVERY', status: 'PENDING' }
       });
@@ -1300,7 +1346,7 @@ const updateDeliveryStatus = async (req, res) => {
       }
       await prisma.order.update({
         where: { id: orderId },
-        data: { dispatchStatus: 'RESCHEDULED', updatedAt: new Date() }
+        data: { dispatchStatus: 'RESCHEDULED', nextDeliveryDate: tomorrow, updatedAt: new Date() }
       });
       await createAuditLog(orderId, 'DELIVERY_RESCHEDULED', remarks || `Delivery rescheduled to ${tomorrow.toLocaleDateString()}.`, userId);
     } else if (deliveryStatus === 'DELIVERED') {
@@ -1350,6 +1396,16 @@ const updateDeliveryStatus = async (req, res) => {
         data: updateData,
         include: { stages: true }
       });
+      await prisma.deliveryAttempt.create({
+        data: {
+          orderId,
+          attemptNumber: (order.noResponseCount || 0) + 1,
+          status: 'DELIVERED',
+          riderId: userId,
+          riderName,
+          notes: remarks || 'Order delivered successfully'
+        }
+      });
       await calculateAndRecordRevenue(updatedOrder);
       await createAuditLog(orderId, 'DELIVERED', remarks || 'Order delivered to customer', userId);
 
@@ -1376,6 +1432,56 @@ const updateDeliveryStatus = async (req, res) => {
   } catch (error) {
     console.error('Delivery status update error:', error);
     res.status(500).json({ message: 'Error updating delivery status', error: error.message });
+  }
+};
+
+const acceptDelivery = async (req, res) => {
+  const { orderId } = req.params;
+  const userId = req.user?.id;
+
+  try {
+    if (await isSystemPaused()) {
+      return res.status(503).json({ message: 'System is paused for holidays.' });
+    }
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (order.dispatchStatus === 'DELIVERED') return res.status(400).json({ message: 'Order already delivered' });
+    if (order.riderAcceptedAt) return res.status(400).json({ message: 'Order already accepted by a rider' });
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        riderAcceptedAt: new Date(),
+        dispatchStatus: 'ACCEPTED',
+        updatedAt: new Date()
+      },
+      include: { stages: { orderBy: { createdAt: 'desc' } } }
+    });
+
+    await createAuditLog(orderId, 'DELIVERY_ACCEPTED', `Rider accepted delivery order`, userId);
+
+    const io = req.app.get('io');
+    io.emit('order-updated', { order: updatedOrder, createdById: order.createdById });
+
+    res.json(updatedOrder);
+  } catch (error) {
+    console.error('Accept delivery error:', error);
+    res.status(500).json({ message: 'Error accepting delivery', error: error.message });
+  }
+};
+
+const getDeliveryHistory = async (req, res) => {
+  const { orderId } = req.params;
+
+  try {
+    const attempts = await prisma.deliveryAttempt.findMany({
+      where: { orderId },
+      orderBy: { attemptNumber: 'asc' }
+    });
+    res.json(attempts);
+  } catch (error) {
+    console.error('Delivery history error:', error);
+    res.status(500).json({ message: 'Error fetching delivery history', error: error.message });
   }
 };
 
@@ -2851,5 +2957,7 @@ module.exports = {
   processRefund,
   bulkRouteOrders,
   dispatchOrder,
-  updateDispatchStatus
+  updateDispatchStatus,
+  acceptDelivery,
+  getDeliveryHistory
 };

@@ -5,31 +5,75 @@ import toast from 'react-hot-toast';
 import socket from '../socket';
 import {
   Truck, CheckCircle2, PhoneOff, Phone,
-  RefreshCw, ClipboardList, Search, AlertCircle, Calendar
+  RefreshCw, ClipboardList, Search, AlertCircle, Calendar,
+  ChevronDown, ChevronUp, Clock, UserCheck, XCircle, RotateCcw,
+  Printer
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
 import { PageLoader, LoadingSpinner, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
+import { printDeliveryReport } from '../utils/printReport';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
+const MAX_ATTEMPTS = 3;
+
+/* ─── Attempt History Panel ─── */
+const AttemptHistory = ({ attempts }) => {
+  if (!attempts || attempts.length === 0) return null;
+  return (
+    <div className="bg-gray-800/60 rounded-2xl p-3 border border-gray-700/50 space-y-2">
+      <p className="text-xs font-black theme-text-muted uppercase tracking-widest mb-1">Delivery Attempts ({attempts.length})</p>
+      {attempts.map((a) => (
+        <div key={a.id} className="flex items-center gap-3 bg-gray-900/60 rounded-xl px-3 py-2">
+          <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
+            a.status === 'DELIVERED' ? 'bg-emerald-500/20 text-emerald-400' :
+            a.status === 'NO_RESPONSE' ? 'bg-amber-500/20 text-amber-400' :
+            'bg-red-500/20 text-red-400'
+          }`}>
+            {a.status === 'DELIVERED' ? <CheckCircle2 size={14} /> :
+             a.status === 'NO_RESPONSE' ? <PhoneOff size={14} /> : <XCircle size={14} />}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-black text-white">
+              Attempt #{a.attemptNumber} — {a.status === 'DELIVERED' ? 'Delivered' : a.status === 'NO_RESPONSE' ? 'No Response' : a.status}
+            </p>
+            <p className="text-[10px] theme-text-muted font-bold">
+              {new Date(a.attemptedAt).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })}
+              {a.attemptedAt && ` at ${new Date(a.attemptedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+              {a.riderName && ` · ${a.riderName}`}
+            </p>
+            {a.rescheduledTo && (
+              <p className="text-[10px] text-amber-400 font-bold">
+                Rescheduled to {new Date(a.rescheduledTo).toLocaleDateString([], { day: 'numeric', month: 'short' })}
+              </p>
+            )}
+            {a.notes && <p className="text-[10px] theme-text-muted italic mt-0.5">{a.notes}</p>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 /* ─── single order card ─── */
-const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMethods, halfPayments, setHalfPayments }) => {
-  const getStatus = () => {
-    if (order.currentStage === 'DELIVERED' || order.status === 'COMPLETED') return 'DELIVERED';
-    if (order.auditLogs?.find(l => l.action === 'NOT_RESPONDED')) return 'NOT_RESPONDED';
-    return 'PENDING';
-  };
+const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
+  paymentMethods, setPaymentMethods, halfPayments, setHalfPayments, tab }) => {
+  const [showHistory, setShowHistory] = useState(false);
 
-  const status = getStatus();
-  const isDelivered = status === 'DELIVERED';
-  const isNoResponse = status === 'NOT_RESPONDED';
+  const isAccepted = !!order.riderAcceptedAt;
+  const isDelivered = order.currentStage === 'DELIVERED' || order.status === 'COMPLETED';
+  const noResponseCount = order.noResponseCount || 0;
+  const maxReached = noResponseCount >= MAX_ATTEMPTS;
+  const attempts = order.deliveryAttempts || [];
 
   const deliveryStage = order.stages?.find(s => s.stageName === 'DELIVERED' || s.stageName === 'OUT_FOR_DELIVERY');
   const deliveredAt = order.deliveredAt || deliveryStage?.completedAt || deliveryStage?.updatedAt || order.updatedAt;
 
   let pd = {};
   try { let raw = JSON.parse(order.productDetails || '{}'); pd = Array.isArray(raw) ? (raw[0]?.productDetails || raw[0] || {}) : (raw || {}); } catch {}
+
+  const isPending = tab === 'pending';
+  const isNoResp = tab === 'noresponse';
 
   return (
     <motion.div
@@ -39,16 +83,21 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
       className={`rounded-[1.8rem] overflow-hidden border-2 transition-all ${
         isDelivered
           ? 'border-emerald-500/30 bg-emerald-950/20'
-          : isNoResponse
+          : maxReached
+          ? 'border-red-500/30 bg-red-950/20'
+          : isNoResp
           ? 'border-amber-500/30 bg-amber-950/20'
+          : isAccepted
+          ? 'border-blue-500/30 bg-blue-950/10'
           : 'theme-border theme-bg'
       }`}
     >
-      {/* Status strip at top */}
-      <div className={`h-1.5 w-full ${isDelivered ? 'bg-emerald-500' : isNoResponse ? 'bg-amber-500' : 'bg-blue-600'}`} />
+      <div className={`h-1.5 w-full ${
+        isDelivered ? 'bg-emerald-500' : maxReached ? 'bg-red-500' : isNoResp ? 'bg-amber-500' : isAccepted ? 'bg-blue-600' : 'bg-gray-600'
+      }`} />
 
       <div className="p-5 space-y-4">
-        {/* Row 1: Number + Name + Status */}
+        {/* Row 1: Number + Name + Status + Attempt Badge */}
         <div className="flex items-start gap-3">
           <div className="w-12 h-12 rounded-2xl bg-gray-800 flex items-center justify-center font-black text-lg text-gray-300 flex-shrink-0">
             {idx + 1}
@@ -66,41 +115,55 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
                   ⚡ URGENT
                 </span>
               )}
+              {noResponseCount > 0 && (
+                <span className={`text-xs font-black px-2 py-0.5 rounded-full border ${
+                  maxReached
+                    ? 'text-red-400 bg-red-500/10 border-red-500/20'
+                    : 'text-amber-400 bg-amber-500/10 border-amber-500/20'
+                }`}>
+                  Attempt {noResponseCount}/{MAX_ATTEMPTS}
+                </span>
+              )}
             </div>
             <p className="text-xs text-blue-400 font-black mt-1 tracking-wider">
               ORDER #{order.orderNumber || order.id?.slice(0, 8).toUpperCase()}
             </p>
-            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black uppercase mt-1 ${
-              order.source === 'ONLINE' || order.source === 'ONLINE ORDER' || order.createdBy?.role === 'FAISAL'
-                ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                : 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
-            }`}>
-              {order.outletName || (order.source === 'ONLINE' || order.source === 'ONLINE ORDER' || order.createdBy?.role === 'FAISAL' ? 'ONLINE' : order.source || order.createdBy?.role || '—')}
-            </span>
-            {order.deliveryMethod && (
-              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black uppercase mt-1 ml-1 ${
-                order.deliveryMethod === 'ENAMELS' || order.deliveryMethod === 'ENAMELS_DELIVERY'
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                  : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+            <div className="flex items-center gap-1 flex-wrap mt-1">
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black uppercase ${
+                order.source === 'ONLINE' || order.source === 'ONLINE ORDER' || order.createdBy?.role === 'FAISAL'
+                  ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                  : 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
               }`}>
-                {order.deliveryMethod}
+                {order.outletName || (order.source === 'ONLINE' || order.source === 'ONLINE ORDER' || order.createdBy?.role === 'FAISAL' ? 'ONLINE' : order.source || order.createdBy?.role || '—')}
               </span>
-            )}
+              {order.deliveryMethod && (
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black uppercase ${
+                  order.deliveryMethod === 'ENAMELS' || order.deliveryMethod === 'ENAMELS_DELIVERY'
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                    : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                }`}>
+                  {order.deliveryMethod}
+                </span>
+              )}
+            </div>
           </div>
           <div className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs md:text-sm font-black border ${
             isDelivered
               ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
-              : isNoResponse
+              : maxReached
+              ? 'text-red-400 bg-red-500/10 border-red-500/20'
+              : isNoResp
               ? 'text-amber-400 bg-amber-500/10 border-amber-500/20'
-              : 'text-blue-400 bg-blue-500/10 border-blue-500/20'
+              : isAccepted
+              ? 'text-blue-400 bg-blue-500/10 border-blue-500/20'
+              : 'text-gray-400 bg-gray-800 border-gray-700'
           }`}>
-            {isDelivered ? '✓ Done' : isNoResponse ? '✗ No Reply' : '● Pending'}
+            {isDelivered ? '✓ Done' : maxReached ? '✗ Max' : isNoResp ? '✗ No Reply' : isAccepted ? 'Active' : 'Pending'}
           </div>
         </div>
 
         {/* Row 2: Phone + Address + Product + Amount */}
         <div className="space-y-2">
-          {/* Call button */}
           {order.customerPhone ? (
             <a
               href={`tel:${order.customerPhone}`}
@@ -120,7 +183,6 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
             </div>
           )}
 
-          {/* Delivery Address */}
           {order.address && (
             <div className="bg-gray-800/50 rounded-2xl px-4 py-3 border theme-border">
               <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest">📍 Delivery Address</p>
@@ -128,12 +190,11 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <div className="bg-gray-800/60 rounded-2xl px-4 py-3">
               <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest">Product</p>
               <p className="font-black theme-text-primary text-base mt-0.5 truncate">{pd.productType || order.type || '—'}</p>
             </div>
-
             <div className="bg-gray-800/60 rounded-2xl px-4 py-3">
               <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest">Amount</p>
               <p className="font-black text-emerald-400 text-base mt-0.5">
@@ -146,10 +207,32 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
           </div>
         </div>
 
-        {/* Row 3: Payment Method + Action Buttons */}
-        {!isDelivered && (
+        {/* Pending tab: Accept button */}
+        {isPending && !isAccepted && !isDelivered && (
+          <button
+            disabled={loading === order.id || acceptLoading === order.id}
+            onClick={() => onAccept(order.id)}
+            className="w-full flex items-center justify-center gap-2 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-blue-900/40"
+          >
+            {acceptLoading === order.id ? (
+              <LoadingSpinner size={16} text="Accepting..." />
+            ) : (
+              <><UserCheck size={22} /><span className="text-sm">Accept Order</span></>
+            )}
+          </button>
+        )}
+
+        {/* Active or No Response tab: Delivery actions */}
+        {(isAccepted || isNoResp) && !isDelivered && !maxReached && (
           <>
-            {/* Payment Method Selector */}
+            {noResponseCount > 0 && order.nextDeliveryDate && (
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl px-4 py-2.5 flex items-center gap-3">
+                <RotateCcw size={18} className="text-amber-400 flex-shrink-0" />
+                <p className="text-xs font-bold text-amber-300">
+                  Rescheduled to {new Date(order.nextDeliveryDate).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })}
+                </p>
+              </div>
+            )}
             <div className="bg-gray-800/40 rounded-2xl p-3 border border-gray-700/50">
               <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest mb-2">Payment Method</p>
               <div className="flex flex-wrap gap-2">
@@ -217,7 +300,7 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
                 </div>
               )}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+            <div className="grid grid-cols-2 gap-3 pt-1">
               <button
                 disabled={loading === order.id}
                 onClick={() => {
@@ -234,7 +317,7 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
                 {loading === order.id ? (
                   <LoadingSpinner size={16} text="Processing..." />
                 ) : (
-                  <><CheckCircle2 size={28} /><span className="text-sm">Delivered</span><span className="text-xs md:text-sm opacity-70 font-bold">مل گیا</span></>
+                  <><CheckCircle2 size={28} /><span className="text-sm">Delivered</span><span className="text-xs opacity-70 font-bold">مل گیا</span></>
                 )}
               </button>
               <button
@@ -245,29 +328,51 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
                 {loading === order.id ? (
                   <LoadingSpinner size={16} text="Processing..." />
                 ) : (
-                  <><PhoneOff size={28} /><span className="text-sm">No Response</span><span className="text-xs md:text-sm opacity-70 font-bold">جواب نہیں</span></>
+                  <><PhoneOff size={28} /><span className="text-sm">No Response</span><span className="text-xs opacity-70 font-bold">جواب نہیں</span></>
                 )}
               </button>
             </div>
-            <button
-              disabled={loading === order.id}
-              onClick={() => {
-                const reason = prompt('Reason for return:');
-                if (!reason) return;
-                onAction(order.id, 'RETURN', reason);
-              }}
-              className="w-full flex items-center justify-center gap-2 py-3 bg-orange-600/10 hover:bg-orange-600/20 rounded-2xl border border-orange-500/20 text-sm font-black uppercase tracking-wider text-orange-400 active:scale-95 transition-all"
-            >
-              {loading === order.id ? (
-                <LoadingSpinner size={16} text="Processing..." />
-              ) : (
-                <><AlertCircle size={18} />Return Order</>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                disabled={loading === order.id}
+                onClick={() => {
+                  const reason = prompt('Reason for return:');
+                  if (!reason) return;
+                  onAction(order.id, 'RETURN', reason);
+                }}
+                className="flex items-center justify-center gap-2 py-3 bg-orange-600/10 hover:bg-orange-600/20 rounded-2xl border border-orange-500/20 text-sm font-black uppercase tracking-wider text-orange-400 active:scale-95 transition-all"
+              >
+                {loading === order.id ? (
+                  <LoadingSpinner size={16} text="Processing..." />
+                ) : (
+                  <><AlertCircle size={18} />Return</>
+                )}
+              </button>
+              {/* History toggle */}
+              {attempts.length > 0 && (
+                <button
+                  onClick={() => setShowHistory(!showHistory)}
+                  className="flex items-center justify-center gap-2 py-3 bg-gray-800 rounded-2xl border border-gray-700 text-sm font-black text-gray-300 active:scale-95 transition-all"
+                >
+                  {showHistory ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                  History ({attempts.length})
+                </button>
               )}
-            </button>
+            </div>
           </>
         )}
 
-        {/* Already delivered message */}
+        {/* Max attempts reached */}
+        {maxReached && (
+          <div className="bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3">
+            <div className="flex items-center gap-3">
+              <XCircle size={22} className="text-red-400 flex-shrink-0" />
+              <p className="text-red-400 font-black text-sm">Max delivery attempts reached — awaiting manual action</p>
+            </div>
+          </div>
+        )}
+
+        {/* Delivered message */}
         {isDelivered && (
           <div className="space-y-2 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-3">
             <div className="flex items-center gap-3">
@@ -275,12 +380,24 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
               <p className="text-emerald-400 font-black text-sm">Order Delivered Successfully</p>
             </div>
             {deliveredAt && (
-              <p className="text-xs md:text-sm text-emerald-600/80 font-bold ml-9">
+              <p className="text-xs text-emerald-600/80 font-bold ml-9">
                 {new Date(deliveredAt).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })} at {new Date(deliveredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </p>
             )}
+            {attempts.length > 0 && (
+              <button
+                onClick={() => setShowHistory(!showHistory)}
+                className="flex items-center gap-2 text-xs font-black text-emerald-500/80 hover:text-emerald-400 ml-9 mt-1"
+              >
+                {showHistory ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                Delivery History ({attempts.length})
+              </button>
+            )}
           </div>
         )}
+
+        {/* Expandable history */}
+        {showHistory && <AttemptHistory attempts={attempts} />}
       </div>
     </motion.div>
   );
@@ -295,8 +412,9 @@ const DeliveryDashboard = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
+  const [acceptLoading, setAcceptLoading] = useState(null);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState('ALL');
+  const [tab, setTab] = useState('pending');
   const [selectedDate, setSelectedDate] = useState('');
   const [orderNoSearch, setOrderNoSearch] = useState('');
   const [paymentMethods, setPaymentMethods] = useState({});
@@ -339,6 +457,21 @@ const DeliveryDashboard = () => {
     };
   }, [fetchOrders]);
 
+  const handleAccept = async (orderId) => {
+    try {
+      setAcceptLoading(orderId);
+      await axios.put(`${API_URL}/api/orders/${orderId}/accept-delivery`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.success('Order accepted!');
+      fetchOrders();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Accept failed');
+    } finally {
+      setAcceptLoading(null);
+    }
+  };
+
   const handleAction = async (orderId, deliveryStatus, remarks, paymentMethod, cashAmount, onlineAmount) => {
     try {
       setActionLoading(orderId);
@@ -372,47 +505,61 @@ const DeliveryDashboard = () => {
     }
   };
 
-  const getStatus = (order) => {
-    if (order.currentStage === 'DELIVERED' || order.status === 'COMPLETED') return 'DELIVERED';
-    if (order.auditLogs?.find(l => l.action === 'NOT_RESPONDED')) return 'NOT_RESPONDED';
-    return 'PENDING';
-  };
-
-  const pending = orders.filter(o => getStatus(o) === 'PENDING');
-  const delivered = orders.filter(o => getStatus(o) === 'DELIVERED');
-  const noResponse = orders.filter(o => getStatus(o) === 'NOT_RESPONDED');
+  const pending = orders.filter(o =>
+    !o.riderAcceptedAt && o.currentStage !== 'DELIVERED' && o.status !== 'COMPLETED'
+  );
+  const active = orders.filter(o =>
+    o.riderAcceptedAt && o.currentStage !== 'DELIVERED' && o.status !== 'COMPLETED'
+  );
+  const noResponse = orders.filter(o =>
+    (o.noResponseCount || 0) > 0 && o.currentStage !== 'DELIVERED' && o.status !== 'COMPLETED'
+  );
+  const completed = orders.filter(o =>
+    o.currentStage === 'DELIVERED' || o.status === 'COMPLETED'
+  );
 
   const filtered = orders.filter(o => {
-    const status = getStatus(o);
+    const inTab =
+      tab === 'pending' ? (!o.riderAcceptedAt && o.currentStage !== 'DELIVERED' && o.status !== 'COMPLETED') :
+      tab === 'active' ? (o.riderAcceptedAt && o.currentStage !== 'DELIVERED' && o.status !== 'COMPLETED') :
+      tab === 'noresponse' ? ((o.noResponseCount || 0) > 0 && o.currentStage !== 'DELIVERED' && o.status !== 'COMPLETED') :
+      tab === 'completed' ? (o.currentStage === 'DELIVERED' || o.status === 'COMPLETED') : true;
+    if (!inTab) return false;
     const matchSearch = !search ||
       o.customerName?.toLowerCase().includes(search.toLowerCase()) ||
       o.customerPhone?.includes(search);
     const matchOrderNo = !orderNoSearch ||
       (o.orderNumber || '').toLowerCase().includes(orderNoSearch.toLowerCase()) ||
       o.id?.toLowerCase().includes(orderNoSearch.toLowerCase());
-    const matchFilter = filter === 'ALL' || status === filter;
     const delStage = o.stages?.find(s => s.stageName === 'DELIVERED' || s.stageName === 'OUT_FOR_DELIVERY');
     const stageDate = delStage?.completedAt || delStage?.updatedAt || o.updatedAt || o.createdAt;
     const matchDate = !selectedDate ||
       new Date(stageDate).toISOString().split('T')[0] === selectedDate;
-    return matchSearch && matchOrderNo && matchFilter && matchDate;
+    return matchSearch && matchOrderNo && matchDate;
   });
 
   return (
-    <div className="max-w-xl mx-auto pb-32 px-3 space-y-4">
+    <div className="max-w-xl mx-auto pb-36 px-3 space-y-3">
 
       {/* Header */}
-      <div className="flex items-center justify-between pt-3 pb-1">
+      <div className="flex items-center justify-between pt-3 pb-0">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-blue-600 rounded-2xl shadow-lg">
             <Truck className="text-white" size={22} />
           </div>
           <div>
             <h1 className="text-2xl font-black theme-text-primary leading-none">Deliveries</h1>
-            <p className="text-xs md:text-sm theme-text-muted font-bold mt-0.5">{user?.name}</p>
+            <p className="text-xs theme-text-muted font-bold mt-0.5">{user?.name}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => printDeliveryReport(orders)}
+            className="w-11 h-11 flex items-center justify-center theme-bg border theme-border rounded-2xl theme-text-secondary hover:text-white active:scale-90 transition-all"
+            title="Print Delivery Report"
+          >
+            <Printer size={18} />
+          </button>
           <button
             onClick={fetchOrders}
             className="w-11 h-11 flex items-center justify-center theme-bg border theme-border rounded-2xl theme-text-secondary hover:text-white active:scale-90 transition-all"
@@ -422,31 +569,29 @@ const DeliveryDashboard = () => {
         </div>
       </div>
 
-      {/* Stats — big and colorful */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-        <button onClick={() => { setFilter('PENDING'); setSelectedDate(''); }} className={`rounded-2xl p-4 text-center transition-all border-2 ${filter === 'PENDING' ? 'bg-blue-600 border-blue-500' : 'theme-bg theme-border'}`}>
-          <p className={`text-xl md:text-3xl font-black ${filter === 'PENDING' ? 'text-white' : 'text-blue-400'}`}>{pending.length}</p>
-          <p className={`text-xs md:text-sm font-black uppercase tracking-wider mt-1 ${filter === 'PENDING' ? 'text-blue-100' : 'theme-text-muted'}`}>{t('Pending')}</p>
-        </button>
-        <button onClick={() => { setFilter('DELIVERED'); setSelectedDate(''); }} className={`rounded-2xl p-4 text-center transition-all border-2 ${filter === 'DELIVERED' ? 'bg-emerald-600 border-emerald-500' : 'theme-bg theme-border'}`}>
-          <p className={`text-xl md:text-3xl font-black ${filter === 'DELIVERED' ? 'text-white' : 'text-emerald-400'}`}>{delivered.length}</p>
-          <p className={`text-xs md:text-sm font-black uppercase tracking-wider mt-1 ${filter === 'DELIVERED' ? 'text-emerald-100' : 'theme-text-muted'}`}>{t('Delivered')}</p>
-        </button>
-        <button onClick={() => { setFilter('NOT_RESPONDED'); setSelectedDate(''); }} className={`rounded-2xl p-4 text-center transition-all border-2 ${filter === 'NOT_RESPONDED' ? 'bg-amber-600 border-amber-500' : 'theme-bg theme-border'}`}>
-          <p className={`text-xl md:text-3xl font-black ${filter === 'NOT_RESPONDED' ? 'text-white' : 'text-amber-400'}`}>{noResponse.length}</p>
-          <p className={`text-xs md:text-sm font-black uppercase tracking-wider mt-1 ${filter === 'NOT_RESPONDED' ? 'text-amber-100' : 'theme-text-muted'}`}>{t('No Reply')}</p>
-        </button>
+      {/* Tab bar */}
+      <div className="flex gap-1 bg-gray-900/60 rounded-2xl p-1 border border-gray-800 overflow-x-auto">
+        {[
+          { key: 'pending', label: 'Pending', count: pending.length, color: 'bg-blue-600 text-white' },
+          { key: 'active', label: 'Active', count: active.length, color: 'bg-blue-600 text-white' },
+          { key: 'noresponse', label: 'No Reply', count: noResponse.length, color: 'bg-amber-600 text-white' },
+          { key: 'completed', label: 'Done', count: completed.length, color: 'bg-emerald-600 text-white' },
+        ].map(t => (
+          <button
+            key={t.key}
+            onClick={() => { setTab(t.key); setSelectedDate(''); }}
+            className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+              tab === t.key
+                ? t.color + ' shadow-lg'
+                : 'theme-text-muted hover:text-white'
+            }`}
+          >
+            {t.label} ({t.count})
+          </button>
+        ))}
       </div>
 
-      {/* Show All button */}
-      <button
-        onClick={() => { setFilter('ALL'); setSelectedDate(''); }}
-        className={`w-full py-3 rounded-2xl text-sm font-black uppercase tracking-widest border-2 transition-all ${filter === 'ALL' ? 'bg-gray-700 border-gray-600 text-white' : 'theme-bg theme-border theme-text-muted'}`}
-      >
-        {t('Show All')} ({orders.length})
-      </button>
-
-      {/* Filters row: Date + Search */}
+      {/* Filters row */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
           <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 theme-text-muted" size={15} />
@@ -454,40 +599,38 @@ const DeliveryDashboard = () => {
             type="date"
             value={selectedDate}
             onChange={e => setSelectedDate(e.target.value)}
-            className="w-full theme-input rounded-2xl py-3 pl-10 pr-3 text-xs font-bold text-white outline-none focus:border-blue-500 transition-all"
+            className="w-full theme-input rounded-2xl py-2.5 pl-10 pr-3 text-xs font-bold text-white outline-none focus:border-blue-500 transition-all"
           />
         </div>
         {selectedDate && (
           <button
             onClick={() => setSelectedDate('')}
-            className="text-xs font-black text-red-400 uppercase tracking-wider px-2 py-1 hover:text-red-300 transition-all"
+            className="text-xs font-black text-red-400 uppercase tracking-wider px-2 hover:text-red-300 transition-all"
           >
             Clear
           </button>
         )}
       </div>
 
-      {/* Order Number filter */}
       <div className="relative">
         <ClipboardList className="absolute left-4 top-1/2 -translate-y-1/2 theme-text-muted" size={15} />
         <input
           type="text"
           value={orderNoSearch}
           onChange={e => setOrderNoSearch(e.target.value)}
-          placeholder="Filter by order number..."
-          className="w-full theme-input rounded-2xl py-3 pl-12 pr-4 text-sm font-bold text-white outline-none focus:border-blue-500 transition-all"
+          placeholder="Order number..."
+          className="w-full theme-input rounded-2xl py-2.5 pl-12 pr-4 text-xs font-bold text-white outline-none focus:border-blue-500 transition-all"
         />
       </div>
 
-      {/* Search by name/phone */}
       <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 theme-text-muted" size={16} />
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 theme-text-muted" size={15} />
         <input
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Search by name or phone..."
-          className="w-full theme-input rounded-2xl py-3.5 pl-12 pr-4 text-sm font-bold text-white outline-none focus:border-blue-500 transition-all"
+          placeholder="Search name or phone..."
+          className="w-full theme-input rounded-2xl py-2.5 pl-12 pr-4 text-xs font-bold text-white outline-none focus:border-blue-500 transition-all"
         />
       </div>
 
@@ -495,22 +638,28 @@ const DeliveryDashboard = () => {
       {loading ? (
         <PageLoader text="Loading Delivery Dashboard..." />
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center py-24 gap-4 text-center">
-          <ClipboardList size={40} className="theme-text-muted" />
-          <p className="theme-text-muted font-black text-lg">No orders here</p>
-          <p className="text-gray-700 text-sm max-w-[220px]">
-            Tap a filter above or ask admin to assign deliveries.
+        <div className="flex flex-col items-center py-20 gap-3 text-center">
+          <ClipboardList size={36} className="theme-text-muted" />
+          <p className="theme-text-muted font-black text-base">No orders here</p>
+          <p className="text-gray-700 text-xs max-w-[200px]">
+            {tab === 'pending' ? 'Orders will appear here when sent for delivery.' :
+             tab === 'active' ? 'Accept orders from the Pending tab.' :
+             tab === 'noresponse' ? 'No Response orders appear here.' :
+             'Delivered orders appear here.'}
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {filtered.map((order, idx) => (
             <OrderCard
               key={order.id}
               order={order}
               idx={idx}
+              tab={tab}
               onAction={handleAction}
+              onAccept={handleAccept}
               loading={actionLoading}
+              acceptLoading={acceptLoading}
               paymentMethods={paymentMethods}
               setPaymentMethods={setPaymentMethods}
               halfPayments={halfPayments}
@@ -520,31 +669,31 @@ const DeliveryDashboard = () => {
         </div>
       )}
 
-      {/* Fixed bottom bar — cash summary */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 theme-bg/95 backdrop-blur-xl border-t-2 theme-border px-5 py-4">
+      {/* Fixed bottom bar */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 theme-bg/95 backdrop-blur-xl border-t-2 theme-border px-5 py-3">
         <div className="max-w-xl mx-auto flex items-center justify-between">
           <div>
-            <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest">COD to Collect</p>
-            <p className="text-xl font-black text-amber-400">
+            <p className="text-[10px] theme-text-muted font-black uppercase tracking-widest">COD to Collect</p>
+            <p className="text-lg font-black text-amber-400">
               ₨{pending
                 .filter(o => !o.advancePaid)
                 .reduce((s, o) => s + (Number(o.totalPrice) || 0), 0)
                 .toLocaleString()}
             </p>
           </div>
-          <div className="h-10 w-px bg-gray-800" />
+          <div className="h-8 w-px bg-gray-800" />
           <div className="text-center">
-            <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest">Collected</p>
-            <p className="text-xl font-black text-emerald-400">
-              ₨{delivered
+            <p className="text-[10px] theme-text-muted font-black uppercase tracking-widest">Collected</p>
+            <p className="text-lg font-black text-emerald-400">
+              ₨{completed
                 .reduce((s, o) => s + (Number(o.totalPrice) || 0), 0)
                 .toLocaleString()}
             </p>
           </div>
-          <div className="h-10 w-px bg-gray-800" />
+          <div className="h-8 w-px bg-gray-800" />
           <div className="text-right">
-            <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest">Remaining</p>
-            <p className="text-xl font-black theme-text-primary">{pending.length} left</p>
+            <p className="text-[10px] theme-text-muted font-black uppercase tracking-widest">Remaining</p>
+            <p className="text-lg font-black theme-text-primary">{active.length} left</p>
           </div>
         </div>
       </div>

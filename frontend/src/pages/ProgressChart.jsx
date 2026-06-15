@@ -12,7 +12,8 @@ import {
   Layers,
   Zap,
   CheckCircle2,
-  LogOut
+  LogOut,
+  Printer
 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import socket from '../socket';
@@ -88,7 +89,15 @@ const ProgressChart = () => {
 
   return (
     <div className="min-h-screen lg:h-screen bg-black text-white p-4 lg:p-6 font-sans overflow-y-auto lg:overflow-hidden flex flex-col">
-      <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4 mb-6">
+      <style>{`
+        @media print {
+          body { background: white !important; color: black !important; }
+          .no-print { display: none !important; }
+          .print-only { display: block !important; }
+        }
+        @media screen { .print-only { display: none !important; } }
+      `}</style>
+      <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4 mb-6 no-print">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-[0_0_30px_rgba(37,99,235,0.3)]">
             <Zap size={20} className="text-white fill-current" />
@@ -102,7 +111,7 @@ const ProgressChart = () => {
           </div>
         </div>
         
-        <div className="flex items-center gap-8">
+        <div className="flex items-center gap-8 no-print">
           <LanguageToggle />
           <div className="text-right hidden sm:block">
             <div className="text-2xl md:text-4xl font-black tracking-tighter font-mono leading-none">
@@ -112,6 +121,13 @@ const ProgressChart = () => {
               {currentTime.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })}
             </div>
           </div>
+          <button
+            onClick={() => window.print()}
+            className="p-3 bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-600/20 rounded-xl text-emerald-500 hover:text-emerald-400 transition-colors flex items-center justify-center"
+            title="Print Chart"
+          >
+            <Printer size={20} />
+          </button>
           <button 
             onClick={() => window.history.length > 1 ? window.history.back() : window.location.href = '/'}
             className="p-3 bg-gray-500/10 hover:bg-gray-500/20 border border-gray-500/20 rounded-xl text-gray-400 hover:text-white transition-colors flex items-center justify-center font-bold text-sm space-x-2"

@@ -32,7 +32,9 @@ const {
   processRefund,
   bulkRouteOrders,
   dispatchOrder,
-  updateDispatchStatus
+  updateDispatchStatus,
+  acceptDelivery,
+  getDeliveryHistory
 } = require('../controllers/order.controller');
 const { createEditRequest } = require('../controllers/editRequest.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
@@ -74,6 +76,12 @@ router.put('/:orderId/send-for-delivery', authenticate, authorize(['FAISAL', 'SU
 
 // Delivery Boy: Update delivery status (Delivered / Not Responded / Refund Requested)
 router.put('/:orderId/delivery', authenticate, authorize(['DELIVERY_BOY', 'FAISAL', 'SUPER_ADMIN']), updateDeliveryStatus);
+
+// Rider accepts a delivery order
+router.put('/:orderId/accept-delivery', authenticate, authorize(['DELIVERY_BOY', 'FAISAL', 'SUPER_ADMIN']), acceptDelivery);
+
+// Delivery history for an order
+router.get('/:orderId/delivery-history', authenticate, authorize(['DELIVERY_BOY', 'FAISAL', 'SUPER_ADMIN', 'ADMIN']), getDeliveryHistory);
 
 // Refund Management
 router.post('/:orderId/refund', authenticate, authorize(['DELIVERY_BOY', 'FAISAL', 'SUPER_ADMIN', 'ADMIN']), refundOrder);

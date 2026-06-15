@@ -74,6 +74,11 @@ model Order {
   refundedById    String?
   storeRequested  Boolean      @default(false)
   storeRequestedAt DateTime?
+  // Delivery enhancement fields
+  riderAcceptedAt   DateTime?
+  noResponseCount   Int          @default(0)
+  nextDeliveryDate  DateTime?
+  lastDeliveryAttempt DateTime?
   // Revenue / Cost tracking fields
   productCost      Float?     @default(0)
   logoCharges      Float?     @default(0)
@@ -84,6 +89,7 @@ model Order {
   auditLogs       AuditLog[]
    stages          OrderStage[]
    editRequests    OrderEditRequest[]
+   deliveryAttempts DeliveryAttempt[]
    createdBy       User?        @relation("OrderCreatedBy", fields: [createdById], references: [id])
 
   @@index([status])
@@ -96,6 +102,26 @@ model Order {
   @@index([dispatchStatus])
   @@index([source])
   @@index([currentStage, status])
+}
+
+model DeliveryAttempt {
+  id              String    @id @default(uuid())
+  orderId         String
+  order           Order     @relation(fields: [orderId], references: [id])
+  attemptNumber   Int
+  status          String    // NO_RESPONSE, DELIVERED, RETURNED, CANCELLED
+  riderId         String?
+  riderName       String?
+  attemptedAt     DateTime  @default(now())
+  rescheduledTo   DateTime?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([orderId])
+  @@index([orderId, attemptNumber])
+  @@index([status])
+  @@index([riderId])
 }
 
 model RevenueRecord {
