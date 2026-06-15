@@ -15,7 +15,8 @@ const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'l
 const MyTasks = () => {
   const { user } = useAuth();
   const { t, LanguageToggle, isUrdu } = useLanguage();
-  const isStoreRole = ['STORE', 'STORE_EMPLOYEE'].includes(user?.role);
+  const hasTaskFilters = ['STORE', 'STORE_EMPLOYEE', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'PRODUCTION', 'DISPATCH', 'MAIN_EMPLOYEE'].includes(user?.role);
+  const showProductionTab = ['STORE', 'STORE_EMPLOYEE'].includes(user?.role);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [taskFilter, setTaskFilter] = useState('unseen');
@@ -167,9 +168,11 @@ const MyTasks = () => {
   };
 
   const fetchTasks = async () => {
-    if (isStoreRole) {
+    if (hasTaskFilters) {
       setLoading(true);
-      await Promise.all([fetchUnseenTasks(), fetchProductionTasks()]);
+      const fetches = [fetchUnseenTasks()];
+      if (showProductionTab) fetches.push(fetchProductionTasks());
+      await Promise.all(fetches);
       setLoading(false);
     } else {
       try {
@@ -269,7 +272,7 @@ const MyTasks = () => {
           </div>
           <div>
             <h1 className="text-xl md:text-3xl font-black theme-text-primary tracking-tight">
-              {isStoreRole ? 'My Tasks' : 'Production Tasks'}
+              {hasTaskFilters ? 'My Tasks' : 'Production Tasks'}
             </h1>
             <p className="theme-text-secondary text-xs font-bold uppercase tracking-widest mt-1">Managing orders for {user?.role?.replace('_', ' ')}</p>
           </div>
@@ -286,7 +289,7 @@ const MyTasks = () => {
               className="w-full theme-input rounded-2xl py-3 pl-12 pr-4 focus:border-blue-500 outline-none transition-all text-sm font-medium"
             />
           </div>
-          {!isStoreRole && (
+          {!hasTaskFilters && (
             <div className="flex theme-bg-subtle p-1 rounded-xl theme-border shrink-0">
               {['ALL', 'URGENT', 'STANDARD'].map(type => (
                 <button
@@ -306,9 +309,9 @@ const MyTasks = () => {
         </div>
       </div>
 
-      {/* Store three-filter tabs + Routing History */}
+      {/* Multi-filter tabs + Routing History */}
       <div className="flex items-center justify-between gap-4 mb-4">
-        {isStoreRole ? (
+        {hasTaskFilters ? (
           <div className="flex theme-bg-subtle p-1 rounded-xl theme-border shrink-0">
             <button onClick={() => setTaskFilter('unseen')}
               className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${
@@ -326,14 +329,16 @@ const MyTasks = () => {
               <CheckCircle size={14} />
               Assigned/Accepted ({unseenData?.seen?.length || 0})
             </button>
-            <button onClick={() => setTaskFilter('production')}
-              className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${
-                taskFilter === 'production' ? 'bg-blue-600 text-white shadow-lg' : 'theme-text-muted hover:theme-text-primary hover:bg-gray-800/50'
-              }`}
-            >
-              <RefreshCcw size={14} />
-              Production Tasks {((productionData?.unseen?.length || 0) + (productionData?.seen?.length || 0)) > 0 && <span className="ml-1 bg-purple-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{(productionData?.unseen?.length || 0) + (productionData?.seen?.length || 0)}</span>}
-            </button>
+            {showProductionTab && (
+              <button onClick={() => setTaskFilter('production')}
+                className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${
+                  taskFilter === 'production' ? 'bg-blue-600 text-white shadow-lg' : 'theme-text-muted hover:theme-text-primary hover:bg-gray-800/50'
+                }`}
+              >
+                <RefreshCcw size={14} />
+                Production Tasks {((productionData?.unseen?.length || 0) + (productionData?.seen?.length || 0)) > 0 && <span className="ml-1 bg-purple-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{(productionData?.unseen?.length || 0) + (productionData?.seen?.length || 0)}</span>}
+              </button>
+            )}
           </div>
         ) : null}
         <button
@@ -397,7 +402,7 @@ const MyTasks = () => {
 
       {loading ? (
         <PageLoader text="Syncing floor data..." />
-      ) : isStoreRole ? (
+      ) : hasTaskFilters ? (
         <>
           {/* Unseen Tasks */}
           {taskFilter === 'unseen' && (
@@ -419,8 +424,8 @@ const MyTasks = () => {
             </div>
           )}
 
-          {/* Production Tasks */}
-          {taskFilter === 'production' && (
+          {/* Production Tasks (STORE only) */}
+          {taskFilter === 'production' && showProductionTab && (
             <div className="space-y-6">
               {productionData === null ? (
                 <PageLoader text="Loading production tasks..." />
