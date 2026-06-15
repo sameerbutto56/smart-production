@@ -479,27 +479,32 @@ const WarehouseDashboard = () => {
           {/* Tasks Tab */}
           {activeTab === 'tasks' && (
             <div className="space-y-4 md:space-y-6">
-              {/* Sub-tabs */}
+              {/* Three-filter tabs */}
               <div className="flex theme-bg border-2 theme-border rounded-2xl p-1.5 overflow-x-auto no-scrollbar">
                 <button onClick={() => setTasksSubTab('unseen')}
-                  className={`px-6 py-3 text-xs font-black rounded-xl transition-all whitespace-nowrap uppercase tracking-wider ${tasksSubTab === 'unseen' ? 'bg-amber-600 text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-gray-800'}`}
+                  className={`px-6 py-3 text-xs font-black rounded-xl transition-all whitespace-nowrap uppercase tracking-wider flex items-center gap-1.5 ${tasksSubTab === 'unseen' ? 'bg-amber-600 text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-gray-800'}`}
                 >
-                  <Eye size={14} className="inline mr-2" />Unseen Tasks
+                  <Eye size={14} />Unseen Tasks {unseenTasks?.unseen?.length > 0 && <span className="ml-1 bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{unseenTasks.unseen.length}</span>}
+                </button>
+                <button onClick={() => setTasksSubTab('assigned')}
+                  className={`px-6 py-3 text-xs font-black rounded-xl transition-all whitespace-nowrap uppercase tracking-wider flex items-center gap-1.5 ${tasksSubTab === 'assigned' ? 'bg-amber-600 text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-gray-800'}`}
+                >
+                  <CheckCircle size={14} />Assigned/Accepted ({unseenTasks?.seen?.length || 0})
                 </button>
                 <button onClick={() => setTasksSubTab('production')}
-                  className={`px-6 py-3 text-xs font-black rounded-xl transition-all whitespace-nowrap uppercase tracking-wider ${tasksSubTab === 'production' ? 'bg-amber-600 text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-gray-800'}`}
+                  className={`px-6 py-3 text-xs font-black rounded-xl transition-all whitespace-nowrap uppercase tracking-wider flex items-center gap-1.5 ${tasksSubTab === 'production' ? 'bg-amber-600 text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-gray-800'}`}
                 >
-                  <RefreshCcw size={14} className="inline mr-2" />Production Returned
+                  <RefreshCcw size={14} />Production Tasks {((productionTasks?.unseen?.length || 0) + (productionTasks?.seen?.length || 0)) > 0 && <span className="ml-1 bg-purple-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{(productionTasks?.unseen?.length || 0) + (productionTasks?.seen?.length || 0)}</span>}
                 </button>
               </div>
 
+              {/* Unseen Tasks */}
               {tasksSubTab === 'unseen' && (
                 <div className="space-y-6">
                   {unseenTasks === null ? (
                     <PageLoader text="Loading tasks..." />
                   ) : (
                     <>
-                      {/* Unseen Orders */}
                       <div>
                         <h3 className="font-black text-sm theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
@@ -518,76 +523,68 @@ const WarehouseDashboard = () => {
                           )}
                         </div>
                       </div>
-
-                      {/* Seen Orders */}
-                      <div>
-                        <h3 className="font-black text-sm theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
-                          <CheckCircle size={14} className="text-emerald-400" />
-                          Seen ({unseenTasks.seen?.length || 0})
-                        </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
-                          {(unseenTasks.seen || []).length > 0 ? (
-                            unseenTasks.seen.map(order => (
-                              <OrderCard key={order.id} order={order} userRole={user?.role} />
-                            ))
-                          ) : (
-                            <div className="col-span-full text-center py-12 glass rounded-2xl theme-border">
-                              <Eye size={48} className="mx-auto text-gray-600 mb-4" />
-                              <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No seen orders yet.</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
                     </>
                   )}
                 </div>
               )}
 
+              {/* Assigned/Accepted Tasks */}
+              {tasksSubTab === 'assigned' && (
+                <div className="space-y-6">
+                  {unseenTasks?.seen?.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
+                      {unseenTasks.seen.map(order => (
+                        <OrderCard key={order.id} order={order} userRole={user?.role} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="col-span-full text-center py-12 glass rounded-2xl theme-border">
+                      <CheckCircle size={48} className="mx-auto text-gray-600 mb-4" />
+                      <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No assigned tasks yet.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Production Tasks */}
               {tasksSubTab === 'production' && (
                 <div className="space-y-6">
                   {productionTasks === null ? (
                     <PageLoader text="Loading production tasks..." />
                   ) : (
                     <>
-                      {/* Unseen Production Orders */}
-                      <div>
-                        <h3 className="font-black text-sm theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
-                          Unseen Production ({productionTasks.unseen?.length || 0})
-                        </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
-                          {(productionTasks.unseen || []).length > 0 ? (
-                            productionTasks.unseen.map(order => (
+                      {productionTasks?.unseen?.length > 0 && (
+                        <div>
+                          <h3 className="font-black text-sm theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+                            New Production Returns ({productionTasks.unseen.length})
+                          </h3>
+                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
+                            {productionTasks.unseen.map(order => (
                               <OrderCard key={order.id} order={order} userRole={user?.role} isUnseen={true} onMarkSeen={() => handleMarkSeen(order.id)} />
-                            ))
-                          ) : (
-                            <div className="col-span-full text-center py-12 glass rounded-2xl theme-border">
-                              <CheckCircle size={48} className="mx-auto text-emerald-500 mb-4" />
-                              <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No new production returns.</p>
-                            </div>
-                          )}
+                            ))}
+                          </div>
                         </div>
-                      </div>
-
-                      {/* Seen Production Orders */}
-                      <div>
-                        <h3 className="font-black text-sm theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
-                          <CheckCircle size={14} className="text-emerald-400" />
-                          Seen Production ({productionTasks.seen?.length || 0})
-                        </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
-                          {(productionTasks.seen || []).length > 0 ? (
-                            productionTasks.seen.map(order => (
+                      )}
+                      {productionTasks?.seen?.length > 0 && (
+                        <div>
+                          <h3 className="font-black text-sm theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
+                            <CheckCircle size={14} className="text-emerald-400" />
+                            Reviewed Production ({productionTasks.seen.length})
+                          </h3>
+                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
+                            {productionTasks.seen.map(order => (
                               <OrderCard key={order.id} order={order} userRole={user?.role} />
-                            ))
-                          ) : (
-                            <div className="col-span-full text-center py-12 glass rounded-2xl theme-border">
-                              <Eye size={48} className="mx-auto text-gray-600 mb-4" />
-                              <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No seen production orders.</p>
-                            </div>
-                          )}
+                            ))}
+                          </div>
                         </div>
-                      </div>
+                      )}
+                      {(!productionTasks?.unseen?.length && !productionTasks?.seen?.length) && (
+                        <div className="col-span-full text-center py-12 glass rounded-2xl theme-border">
+                          <RefreshCcw size={48} className="mx-auto text-gray-600 mb-4" />
+                          <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No production tasks yet.</p>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>

@@ -147,7 +147,7 @@ const MyTasks = () => {
       const res = await axios.get(`${API_URL}/api/orders/production-returned`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setProductionTasks(res.data);
+      setProductionData(res.data);
     } catch (e) {
       console.error('Failed to fetch production tasks:', e);
     }
