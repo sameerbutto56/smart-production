@@ -5,18 +5,19 @@ import {
   RefreshCcw, Search, Clock, Truck, Building2, PlusCircle,
   Eye, ThumbsUp, ThumbsDown, FileText, BarChart3, MinusCircle,
   CheckCircle, AlertCircle, Download, TrendingUp, User, Gift, Send,
-  Factory, Trash2
+  Factory, Trash2, ClipboardList
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { useAuth } from '../context/AuthContext';
+import OrderCard from '../components/OrderCard';
 import toast from 'react-hot-toast';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 import { usePolling } from '../hooks/usePolling';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
-const TABS = ['dashboard', 'requests', 'inventory', 'production', 'analytics', 'history', 'allocation'];
+const TABS = ['dashboard', 'tasks', 'requests', 'inventory', 'production', 'analytics', 'history', 'allocation'];
 const COLORS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899'];
 
 const WarehouseDashboard = () => {
@@ -45,6 +46,9 @@ const WarehouseDashboard = () => {
   const [allocSearch, setAllocSearch] = useState('');
   const [allocLoading, setAllocLoading] = useState(false);
   const [productionInventory, setProductionInventory] = useState([]);
+  const [unseenTasks, setUnseenTasks] = useState(null);
+  const [productionTasks, setProductionTasks] = useState(null);
+  const [tasksSubTab, setTasksSubTab] = useState('unseen');
 
   useEffect(() => {
     if (activeTab === 'allocation') {
@@ -76,6 +80,13 @@ const WarehouseDashboard = () => {
       } else if (activeTab === 'production') {
         const invRes = await axios.get(`${API_URL}/api/production/inventory`, { headers: { Authorization: `Bearer ${token}` } });
         setProductionInventory(invRes.data);
+      } else if (activeTab === 'tasks') {
+        const [unseenRes, prodRes] = await Promise.all([
+          axios.get(`${API_URL}/api/orders/unseen-tasks`, { headers: { Authorization: `Bearer ${token}` } }),
+          axios.get(`${API_URL}/api/orders/production-returned`, { headers: { Authorization: `Bearer ${token}` } })
+        ]);
+        setUnseenTasks(unseenRes.data);
+        setProductionTasks(prodRes.data);
       }
     } catch (error) {
       if (!silent) {
@@ -108,6 +119,45 @@ const WarehouseDashboard = () => {
       setAllocationStats(res.data);
     } catch (error) {
       console.error('Error fetching allocation stats:', error);
+    }
+  };
+
+  const fetchUnseenTasks = async () => {
+    try {
+      const token = sessionStorage.getItem('token');
+      if (!token) return;
+      const res = await axios.get(`${API_URL}/api/orders/unseen-tasks`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setUnseenTasks(res.data);
+    } catch (e) {
+      console.error('Failed to fetch unseen tasks:', e);
+    }
+  };
+
+  const fetchProductionTasks = async () => {
+    try {
+      const token = sessionStorage.getItem('token');
+      if (!token) return;
+      const res = await axios.get(`${API_URL}/api/orders/production-returned`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setProductionTasks(res.data);
+    } catch (e) {
+      console.error('Failed to fetch production tasks:', e);
+    }
+  };
+
+  const handleMarkSeen = async (orderId) => {
+    try {
+      const token = sessionStorage.getItem('token');
+      await axios.post(`${API_URL}/api/orders/${orderId}/mark-seen`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchUnseenTasks();
+      fetchProductionTasks();
+    } catch (e) {
+      console.error('Failed to mark order as seen:', e);
     }
   };
 
@@ -304,6 +354,7 @@ const WarehouseDashboard = () => {
             }`}
           >
                 {tab === 'dashboard' && <><BarChart3 size={14} className="inline mr-2" />Dashboard</>}
+                {tab === 'tasks' && <><ClipboardList size={14} className="inline mr-2" />Tasks</>}
                 {tab === 'requests' && <><ShoppingCart size={14} className="inline mr-2" />Requests {pendingRequests.length > 0 && <span className="ml-1 bg-red-500 text-white text-xs md:text-sm px-1.5 py-0.5 rounded-full">{pendingRequests.length}</span>}</>}
                 {tab === 'inventory' && <><Package size={14} className="inline mr-2" />Inventory</>}
                 {tab === 'production' && <><Factory size={14} className="inline mr-2" />Production Inventory</>}
@@ -420,6 +471,125 @@ const WarehouseDashboard = () => {
                       );
                     })}
                   </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tasks Tab */}
+          {activeTab === 'tasks' && (
+            <div className="space-y-4 md:space-y-6">
+              {/* Sub-tabs */}
+              <div className="flex theme-bg border-2 theme-border rounded-2xl p-1.5 overflow-x-auto no-scrollbar">
+                <button onClick={() => setTasksSubTab('unseen')}
+                  className={`px-6 py-3 text-xs font-black rounded-xl transition-all whitespace-nowrap uppercase tracking-wider ${tasksSubTab === 'unseen' ? 'bg-amber-600 text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-gray-800'}`}
+                >
+                  <Eye size={14} className="inline mr-2" />Unseen Tasks
+                </button>
+                <button onClick={() => setTasksSubTab('production')}
+                  className={`px-6 py-3 text-xs font-black rounded-xl transition-all whitespace-nowrap uppercase tracking-wider ${tasksSubTab === 'production' ? 'bg-amber-600 text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-gray-800'}`}
+                >
+                  <RefreshCcw size={14} className="inline mr-2" />Production Returned
+                </button>
+              </div>
+
+              {tasksSubTab === 'unseen' && (
+                <div className="space-y-6">
+                  {unseenTasks === null ? (
+                    <PageLoader text="Loading tasks..." />
+                  ) : (
+                    <>
+                      {/* Unseen Orders */}
+                      <div>
+                        <h3 className="font-black text-sm theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                          Unseen ({unseenTasks.unseen?.length || 0})
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
+                          {(unseenTasks.unseen || []).length > 0 ? (
+                            unseenTasks.unseen.map(order => (
+                              <OrderCard key={order.id} order={order} userRole={user?.role} isUnseen={true} onMarkSeen={() => handleMarkSeen(order.id)} />
+                            ))
+                          ) : (
+                            <div className="col-span-full text-center py-12 glass rounded-2xl theme-border">
+                              <CheckCircle size={48} className="mx-auto text-emerald-500 mb-4" />
+                              <p className="theme-text-muted font-black text-xs uppercase tracking-widest">All caught up! No unseen tasks.</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Seen Orders */}
+                      <div>
+                        <h3 className="font-black text-sm theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
+                          <CheckCircle size={14} className="text-emerald-400" />
+                          Seen ({unseenTasks.seen?.length || 0})
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
+                          {(unseenTasks.seen || []).length > 0 ? (
+                            unseenTasks.seen.map(order => (
+                              <OrderCard key={order.id} order={order} userRole={user?.role} />
+                            ))
+                          ) : (
+                            <div className="col-span-full text-center py-12 glass rounded-2xl theme-border">
+                              <Eye size={48} className="mx-auto text-gray-600 mb-4" />
+                              <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No seen orders yet.</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {tasksSubTab === 'production' && (
+                <div className="space-y-6">
+                  {productionTasks === null ? (
+                    <PageLoader text="Loading production tasks..." />
+                  ) : (
+                    <>
+                      {/* Unseen Production Orders */}
+                      <div>
+                        <h3 className="font-black text-sm theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+                          Unseen Production ({productionTasks.unseen?.length || 0})
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
+                          {(productionTasks.unseen || []).length > 0 ? (
+                            productionTasks.unseen.map(order => (
+                              <OrderCard key={order.id} order={order} userRole={user?.role} isUnseen={true} onMarkSeen={() => handleMarkSeen(order.id)} />
+                            ))
+                          ) : (
+                            <div className="col-span-full text-center py-12 glass rounded-2xl theme-border">
+                              <CheckCircle size={48} className="mx-auto text-emerald-500 mb-4" />
+                              <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No new production returns.</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Seen Production Orders */}
+                      <div>
+                        <h3 className="font-black text-sm theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
+                          <CheckCircle size={14} className="text-emerald-400" />
+                          Seen Production ({productionTasks.seen?.length || 0})
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
+                          {(productionTasks.seen || []).length > 0 ? (
+                            productionTasks.seen.map(order => (
+                              <OrderCard key={order.id} order={order} userRole={user?.role} />
+                            ))
+                          ) : (
+                            <div className="col-span-full text-center py-12 glass rounded-2xl theme-border">
+                              <Eye size={48} className="mx-auto text-gray-600 mb-4" />
+                              <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No seen production orders.</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>

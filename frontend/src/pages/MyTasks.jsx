@@ -5,7 +5,7 @@ import OrderCard from '../components/OrderCard';
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
 import { useLanguage } from '../context/LanguageContext';
-import { Search, Filter, Loader2, Sparkles, AlertCircle, Activity, Clock, Target, History, X } from 'lucide-react';
+import { Search, Filter, Loader2, Sparkles, AlertCircle, Activity, Clock, Target, History, X, Eye, CheckCircle, RefreshCcw } from 'lucide-react';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 import socket from '../socket';
 import toast from 'react-hot-toast';
@@ -15,8 +15,12 @@ const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'l
 const MyTasks = () => {
   const { user } = useAuth();
   const { t, LanguageToggle, isUrdu } = useLanguage();
+  const isStoreRole = ['STORE', 'STORE_EMPLOYEE'].includes(user?.role);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [taskFilter, setTaskFilter] = useState('unseen');
+  const [unseenData, setUnseenData] = useState(null);
+  const [productionData, setProductionData] = useState(null);
   const { searchTerm: contextSearch, setSearchTerm: setContextSearch } = useSearch();
   const [searchTerm, setSearchTerm] = useState(contextSearch);
   const [routingHistory, setRoutingHistory] = useState([]);
@@ -123,19 +127,65 @@ const MyTasks = () => {
     return () => clearInterval(pollInterval);
   }, []);
 
-  const fetchTasks = async () => {
+  const fetchUnseenTasks = async () => {
     try {
       const token = sessionStorage.getItem('token');
-      const res = await axios.get(`${API_URL}/api/orders?status=active`, {
+      if (!token) return;
+      const res = await axios.get(`${API_URL}/api/orders/unseen-tasks`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setOrders(Array.isArray(res.data) ? res.data : (res.data?.orders || []));
-    } catch (error) {
-      console.error('Error fetching tasks:', error);
-      toast.error('Failed to load tasks');
-    } finally {
-      setLoading(false);
+      setUnseenData(res.data);
+    } catch (e) {
+      console.error('Failed to fetch unseen tasks:', e);
     }
+  };
+
+  const fetchProductionTasks = async () => {
+    try {
+      const token = sessionStorage.getItem('token');
+      if (!token) return;
+      const res = await axios.get(`${API_URL}/api/orders/production-returned`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setProductionTasks(res.data);
+    } catch (e) {
+      console.error('Failed to fetch production tasks:', e);
+    }
+  };
+
+  const handleMarkSeen = async (orderId) => {
+    try {
+      const token = sessionStorage.getItem('token');
+      await axios.post(`${API_URL}/api/orders/${orderId}/mark-seen`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchUnseenTasks();
+      fetchProductionTasks();
+    } catch (e) {
+      console.error('Failed to mark order as seen:', e);
+    }
+  };
+
+  const fetchTasks = async () => {
+    if (isStoreRole) {
+      setLoading(true);
+      await Promise.all([fetchUnseenTasks(), fetchProductionTasks()]);
+      setLoading(false);
+    } else {
+      try {
+        const token = sessionStorage.getItem('token');
+        const res = await axios.get(`${API_URL}/api/orders?status=active`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setOrders(Array.isArray(res.data) ? res.data : (res.data?.orders || []));
+      } catch (error) {
+        console.error('Error fetching tasks:', error);
+        toast.error('Failed to load tasks');
+      } finally {
+        setLoading(false);
+      }
+    }
+    setSelectedOrderIds(new Set());
   };
 
   const handleAction = async (orderId, stageId, action, payload = {}) => {
@@ -171,6 +221,45 @@ const MyTasks = () => {
     );
   }, [displayedOrders, urgencyFilter]);
 
+  const renderOrderCards = (orderList, opts = {}) => {
+    const { showUnseen = false, onMarkSeen } = opts;
+    if (!orderList || orderList.length === 0) return null;
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-6">
+        <AnimatePresence mode="popLayout">
+          {orderList.map((order) => (
+            <OrderCard
+              key={order.id}
+              order={order}
+              userRole={user?.role}
+              onUpdateStage={handleAction}
+              isUnseen={showUnseen}
+              onMarkSeen={onMarkSeen ? () => onMarkSeen(order.id) : undefined}
+              selected={selectedOrderIds.has(order.id)}
+              onToggleSelect={toggleOrderSelection}
+            />
+          ))}
+        </AnimatePresence>
+      </div>
+    );
+  };
+
+  const renderEmpty = (icon, title, subtitle) => (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="h-64 flex flex-col items-center justify-center space-y-4 theme-bg-subtle rounded-2xl md:rounded-[3rem] border-2 border-dashed theme-border"
+    >
+      <div className="p-4 md:p-6 theme-bg-subtle rounded-full">
+        {icon}
+      </div>
+      <div className="text-center">
+        <h3 className="text-lg font-bold theme-text-secondary">{title}</h3>
+        <p className="text-xs theme-text-muted mt-1">{subtitle}</p>
+      </div>
+    </motion.div>
+  );
+
   return (
     <div className="space-y-4 md:space-y-8 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-6 mb-8">
@@ -179,7 +268,9 @@ const MyTasks = () => {
             <Activity className="text-white" size={32} />
           </div>
           <div>
-            <h1 className="text-xl md:text-3xl font-black theme-text-primary tracking-tight">Production Tasks</h1>
+            <h1 className="text-xl md:text-3xl font-black theme-text-primary tracking-tight">
+              {isStoreRole ? 'My Tasks' : 'Production Tasks'}
+            </h1>
             <p className="theme-text-secondary text-xs font-bold uppercase tracking-widest mt-1">Managing orders for {user?.role?.replace('_', ' ')}</p>
           </div>
         </div>
@@ -195,28 +286,56 @@ const MyTasks = () => {
               className="w-full theme-input rounded-2xl py-3 pl-12 pr-4 focus:border-blue-500 outline-none transition-all text-sm font-medium"
             />
           </div>
-          <div className="flex theme-bg-subtle p-1 rounded-xl theme-border shrink-0">
-            {['ALL', 'URGENT', 'STANDARD'].map(type => (
-              <button
-                key={type}
-                onClick={() => setUrgencyFilter(type)}
-                className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
-                  urgencyFilter === type 
-                    ? 'bg-blue-600 text-white shadow-lg' 
-                    : 'theme-text-muted hover:theme-text-primary hover:bg-gray-800/50'
-                }`}
-              >
-                {type}
-              </button>
-            ))}
-          </div>
+          {!isStoreRole && (
+            <div className="flex theme-bg-subtle p-1 rounded-xl theme-border shrink-0">
+              {['ALL', 'URGENT', 'STANDARD'].map(type => (
+                <button
+                  key={type}
+                  onClick={() => setUrgencyFilter(type)}
+                  className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
+                    urgencyFilter === type 
+                      ? 'bg-blue-600 text-white shadow-lg' 
+                      : 'theme-text-muted hover:theme-text-primary hover:bg-gray-800/50'
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-
-
-      {/* Routing History Button */}
-      <div className="flex items-center gap-2 mb-4">
+      {/* Store three-filter tabs + Routing History */}
+      <div className="flex items-center justify-between gap-4 mb-4">
+        {isStoreRole ? (
+          <div className="flex theme-bg-subtle p-1 rounded-xl theme-border shrink-0">
+            <button onClick={() => setTaskFilter('unseen')}
+              className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${
+                taskFilter === 'unseen' ? 'bg-blue-600 text-white shadow-lg' : 'theme-text-muted hover:theme-text-primary hover:bg-gray-800/50'
+              }`}
+            >
+              <Eye size={14} />
+              Unseen Tasks {unseenData?.unseen?.length > 0 && <span className="ml-1 bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{unseenData.unseen.length}</span>}
+            </button>
+            <button onClick={() => setTaskFilter('assigned')}
+              className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${
+                taskFilter === 'assigned' ? 'bg-blue-600 text-white shadow-lg' : 'theme-text-muted hover:theme-text-primary hover:bg-gray-800/50'
+              }`}
+            >
+              <CheckCircle size={14} />
+              Assigned/Accepted ({unseenData?.seen?.length || 0})
+            </button>
+            <button onClick={() => setTaskFilter('production')}
+              className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${
+                taskFilter === 'production' ? 'bg-blue-600 text-white shadow-lg' : 'theme-text-muted hover:theme-text-primary hover:bg-gray-800/50'
+              }`}
+            >
+              <RefreshCcw size={14} />
+              Production Tasks {((productionData?.unseen?.length || 0) + (productionData?.seen?.length || 0)) > 0 && <span className="ml-1 bg-purple-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{(productionData?.unseen?.length || 0) + (productionData?.seen?.length || 0)}</span>}
+            </button>
+          </div>
+        ) : null}
         <button
           onClick={() => { fetchRoutingHistory(); setShowRoutingHistory(true); }}
           className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest text-gray-400 transition-all"
@@ -278,35 +397,65 @@ const MyTasks = () => {
 
       {loading ? (
         <PageLoader text="Syncing floor data..." />
+      ) : isStoreRole ? (
+        <>
+          {/* Unseen Tasks */}
+          {taskFilter === 'unseen' && (
+            <div className="space-y-6">
+              {unseenData?.unseen?.length > 0
+                ? renderOrderCards(unseenData.unseen, { showUnseen: true, onMarkSeen: handleMarkSeen })
+                : renderEmpty(<Eye size={36} className="theme-text-muted" />, 'No Unseen Tasks', 'All new orders have been reviewed and accepted.')
+              }
+            </div>
+          )}
+
+          {/* Assigned/Accepted Tasks */}
+          {taskFilter === 'assigned' && (
+            <div className="space-y-6">
+              {unseenData?.seen?.length > 0
+                ? renderOrderCards(unseenData.seen)
+                : renderEmpty(<CheckCircle size={36} className="theme-text-muted" />, 'No Assigned Tasks', 'You have not accepted any tasks yet.')
+              }
+            </div>
+          )}
+
+          {/* Production Tasks */}
+          {taskFilter === 'production' && (
+            <div className="space-y-6">
+              {productionData === null ? (
+                <PageLoader text="Loading production tasks..." />
+              ) : (
+                <>
+                  {productionData?.unseen?.length > 0 && (
+                    <div>
+                      <h3 className="font-black text-xs theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+                        New Production Returns ({productionData.unseen.length})
+                      </h3>
+                      {renderOrderCards(productionData.unseen, { showUnseen: true, onMarkSeen: handleMarkSeen })}
+                    </div>
+                  )}
+                  {productionData?.seen?.length > 0 && (
+                    <div>
+                      <h3 className="font-black text-xs theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <CheckCircle size={14} className="text-emerald-400" />
+                        Reviewed Production ({productionData.seen.length})
+                      </h3>
+                      {renderOrderCards(productionData.seen)}
+                    </div>
+                  )}
+                  {(!productionData?.unseen?.length && !productionData?.seen?.length) &&
+                    renderEmpty(<RefreshCcw size={36} className="theme-text-muted" />, 'No Production Tasks', 'No orders returned from production yet.')
+                  }
+                </>
+              )}
+            </div>
+          )}
+        </>
       ) : filteredOrders.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-6">
-          <AnimatePresence mode="popLayout">
-              {filteredOrders.map((order) => (
-                <OrderCard 
-                  key={order.id} 
-                  order={order} 
-                  userRole={user?.role}
-                  onUpdateStage={handleAction}
-                  selected={selectedOrderIds.has(order.id)}
-                  onToggleSelect={toggleOrderSelection}
-                />
-              ))}
-          </AnimatePresence>
-        </div>
+        renderOrderCards(filteredOrders)
       ) : (
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="h-96 flex flex-col items-center justify-center space-y-6 theme-bg-subtle rounded-2xl md:rounded-[3rem] border-2 border-dashed theme-border"
-        >
-          <div className="p-4 md:p-8 theme-bg-subtle rounded-full">
-            <Filter size={48} className="theme-text-muted" />
-          </div>
-          <div className="text-center">
-            <h3 className="text-xl font-bold theme-text-secondary">No Tasks</h3>
-            <p className="text-sm theme-text-muted mt-2">No orders assigned to you at this time.</p>
-          </div>
-        </motion.div>
+        renderEmpty(<Filter size={36} className="theme-text-muted" />, 'No Tasks', 'No orders assigned to you at this time.')
       )}
 
       {/* Routing History Modal */}
