@@ -1341,6 +1341,7 @@ const updateDeliveryStatus = async (req, res) => {
         dispatchStatus: 'DELIVERED',
         paymentMethod: paymentMethod || 'CASH',
         courierDetails,
+        deliveredAt: new Date(),
         updatedAt: new Date()
       };
       if (deliveryMethod) updateData.deliveryMethod = deliveryMethod;
@@ -2799,6 +2800,7 @@ const updateDispatchStatus = async (req, res) => {
     const updateData = { dispatchStatus, updatedAt: new Date() };
 
     if (dispatchStatus === 'DELIVERED') {
+      updateData.deliveredAt = new Date();
       await createAuditLog(orderId, 'DISPATCH_DELIVERED', `Order delivered via ${order.deliveryType}. Tracking: ${order.trackingNumber || 'N/A'}`, req.user.id);
     } else if (dispatchStatus === 'RETURNED') {
       updateData.currentStage = 'RETURNED';

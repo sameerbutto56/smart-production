@@ -1884,10 +1884,16 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
             </div>
 
             <div className="p-4 md:p-8 bg-gray-950/80 border-t border-gray-800 flex justify-between items-center">
-              <div className="flex flex-wrap items-center space-x-4 text-xs md:text-sm text-gray-500 font-black uppercase tracking-widest">
+              <div className="flex flex-wrap items-center gap-x-4 text-xs md:text-sm text-gray-500 font-black uppercase tracking-widest">
                 <span>Created: {new Date(order.createdAt).toLocaleDateString()}</span>
-                <span className="w-1.5 h-1.5 bg-gray-700 rounded-full"></span>
+                <span className="w-1.5 h-1.5 bg-gray-700 rounded-full shrink-0"></span>
                 <span>Stage: {currentStage?.stageName}</span>
+                {order.deliveredAt && (
+                  <>
+                    <span className="w-1.5 h-1.5 bg-emerald-700 rounded-full shrink-0"></span>
+                    <span className="text-emerald-400">Delivered: {new Date(order.deliveredAt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })} – {new Date(order.deliveredAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+                  </>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 {isAdmin && (

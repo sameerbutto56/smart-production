@@ -210,6 +210,7 @@ const updateCourierStatus = async (req, res) => {
     }
     if (dispatchStatus === 'DELIVERED') {
       existingDetails.deliveredAt = new Date().toISOString();
+      updateData.deliveredAt = new Date();
     }
 
     updateData.courierDetails = existingDetails;

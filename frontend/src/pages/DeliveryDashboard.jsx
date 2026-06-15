@@ -26,7 +26,7 @@ const OrderCard = ({ order, idx, onAction, loading, paymentMethods, setPaymentMe
   const isNoResponse = status === 'NOT_RESPONDED';
 
   const deliveryStage = order.stages?.find(s => s.stageName === 'DELIVERED' || s.stageName === 'OUT_FOR_DELIVERY');
-  const deliveredAt = deliveryStage?.completedAt || deliveryStage?.updatedAt || order.updatedAt;
+  const deliveredAt = order.deliveredAt || deliveryStage?.completedAt || deliveryStage?.updatedAt || order.updatedAt;
 
   let pd = {};
   try { let raw = JSON.parse(order.productDetails || '{}'); pd = Array.isArray(raw) ? (raw[0]?.productDetails || raw[0] || {}) : (raw || {}); } catch {}

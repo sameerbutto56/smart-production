@@ -340,6 +340,7 @@ const DeliverySheet = () => {
                   <th className="py-4 px-3 w-24">Dispatch Status</th>
                   <th className="py-4 px-3 w-24">Delivery Date</th>
                   <th className="py-4 px-3 w-24">Completion Status</th>
+                  <th className="py-4 px-3 w-28">Delivered At</th>
                   <th className="py-4 px-3 w-24 text-right">Actions</th>
                 </tr>
               </thead>
@@ -415,6 +416,19 @@ const DeliverySheet = () => {
                             <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-black border uppercase bg-gray-500/10 text-gray-400 border-gray-500/20">
                               Pending
                             </span>
+                          )}
+                        </td>
+                        <td className="py-4 px-3 text-xs font-bold">
+                          {order.deliveredAt ? (
+                            <span className="text-emerald-400">
+                              {new Date(order.deliveredAt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })} – {new Date(order.deliveredAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          ) : deliveryDate?.completedAt ? (
+                            <span className="text-gray-500">
+                              {new Date(deliveryDate.completedAt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })} – {new Date(deliveryDate.completedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          ) : (
+                            <span className="text-gray-600">—</span>
                           )}
                         </td>
                         <td className="py-4 px-3 text-right">
