@@ -2712,6 +2712,20 @@ const SmartOrderForm = () => {
                       </label>
                     </div>
                     <div className="space-y-4">
+                      <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-2">Cap Quantity</label>
+                      <label className="flex items-center justify-between p-4 theme-bg rounded-[1.5rem] border-2 theme-border transition-all group h-full">
+                        <div className="flex items-center space-x-4">
+                          <div className={`p-3 rounded-xl transition-all flex items-center justify-center ${formData.femaleOptions.cap > 0 ? 'bg-pink-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
+                            <span className="font-black text-sm">CAP</span>
+                          </div>
+                          <div>
+                            <p className="font-black text-sm uppercase">Cap</p>
+                          </div>
+                        </div>
+                        <input type="number" min="0" value={formData.femaleOptions.cap} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, cap: Math.max(0, parseInt(e.target.value) || 0)}})} className="w-16 rounded-xl border-2 border-gray-700 bg-gray-900 text-white font-bold text-center px-2 py-1 focus:border-pink-500 outline-none transition-all" />
+                      </label>
+                    </div>
+                    <div className="space-y-4">
                       <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-2">Sleeves Length</label>
                       <select
                         value={formData.femaleOptions.sleeves}
@@ -2738,6 +2752,20 @@ const SmartOrderForm = () => {
                 )}
                 {formData.gender === 'Male' && (
                   <div className="grid grid-cols-1 md:grid-cols-1 gap-4 md:gap-8 mt-6 md:mt-12 theme-bg-subtle p-4 md:p-8 rounded-2xl md:rounded-[3rem] border theme-border">
+                    <div className="space-y-4">
+                      <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-2">Cap Quantity</label>
+                      <label className="flex items-center justify-between p-4 theme-bg rounded-[1.5rem] border-2 theme-border transition-all group h-full">
+                        <div className="flex items-center space-x-4">
+                          <div className={`p-3 rounded-xl transition-all flex items-center justify-center ${formData.femaleOptions.cap > 0 ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
+                            <span className="font-black text-sm">CAP</span>
+                          </div>
+                          <div>
+                            <p className="font-black text-sm uppercase">Cap</p>
+                          </div>
+                        </div>
+                        <input type="number" min="0" value={formData.femaleOptions.cap} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, cap: Math.max(0, parseInt(e.target.value) || 0)}})} className="w-16 rounded-xl border-2 border-gray-700 bg-gray-900 text-white font-bold text-center px-2 py-1 focus:border-blue-500 outline-none transition-all" />
+                      </label>
+                    </div>
                   </div>
                 )}
 
