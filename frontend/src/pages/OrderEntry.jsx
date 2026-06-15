@@ -2541,17 +2541,17 @@ const SmartOrderForm = () => {
                 <div className="relative flex flex-col md:flex-row items-center justify-center max-w-6xl mx-auto gap-4 lg:gap-12">
                   
                   {/* Left Measurements */}
-                  <div className="flex flex-col space-y-8 md:space-y-16 w-full md:w-1/3 z-20 items-center md:items-end">
-                    <div className="group relative flex flex-col items-center md:items-end">
+                  <div className="flex flex-row flex-wrap justify-center md:flex-col space-y-0 md:space-y-16 gap-4 md:gap-0 w-full md:w-1/3 z-20 items-center md:items-end">
+                    <div className="group relative flex flex-col items-center md:items-end w-full max-w-[220px] md:max-w-none">
                       <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Shoulder</label>
-                      <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
+                      <div className="relative flex items-end w-full max-w-[200px] theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
                         <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.shoulder || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, shoulder: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-right" placeholder={formData.size && getSizeChart()[formData.size] ? getSizeChart()[formData.size].shoulder : '00'} />
                         <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
                       </div>
                     </div>
                     <div className="group relative flex flex-col items-center md:items-end">
                       <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Chest / Bust</label>
-                      <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
+                      <div className="relative flex items-end w-full max-w-[200px] theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
                         <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.chest || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, chest: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-right" placeholder={formData.size && getSizeChart()[formData.size] ? getSizeChart()[formData.size].chest : '00'} />
                         <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
                       </div>
@@ -2559,7 +2559,7 @@ const SmartOrderForm = () => {
                     {formData.gender === 'Female' ? (
                       <div className="group relative flex flex-col items-center md:items-end">
                         <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Waist</label>
-                        <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
+                        <div className="relative flex items-end w-full max-w-[200px] theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
                           <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.waist || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, waist: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-right" placeholder={formData.size && getSizeChart()[formData.size] ? getSizeChart()[formData.size].waist : '00'} />
                           <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
                         </div>
@@ -2567,7 +2567,7 @@ const SmartOrderForm = () => {
                     ) : (
                       <div className="group relative flex flex-col items-center md:items-end">
                         <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Bottom Width</label>
-                        <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
+                        <div className="relative flex items-end w-full max-w-[200px] theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
                           <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.bottom || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, bottom: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-right" placeholder={formData.size && getSizeChart()[formData.size] ? getSizeChart()[formData.size].bottom : '00'} />
                           <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
                         </div>
@@ -2598,7 +2598,7 @@ const SmartOrderForm = () => {
                     {formData.gender === 'Female' ? (
                       <div className="group relative flex flex-col items-center md:items-start">
                         <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Bottom</label>
-                        <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
+                        <div className="relative flex items-end w-full max-w-[200px] theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
                           <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.bottom || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, bottom: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder={formData.size && getSizeChart()[formData.size] ? getSizeChart()[formData.size].bottom : '00'} />
                           <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
                         </div>
@@ -2606,7 +2606,7 @@ const SmartOrderForm = () => {
                     ) : null}
                     <div className="group relative flex flex-col items-center md:items-start">
                       <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Shirt Length</label>
-                      <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
+                      <div className="relative flex items-end w-full max-w-[200px] theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
                         <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.shirtLength || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, shirtLength: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder={formData.size && getSizeChart()[formData.size] ? getSizeChart()[formData.size].shirtLength : '00'} />
                         <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
                       </div>
@@ -2614,7 +2614,7 @@ const SmartOrderForm = () => {
                     {formData.gender === 'Female' ? (
                       <div className="group relative flex flex-col items-center md:items-start">
                         <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Hip</label>
-                        <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
+                        <div className="relative flex items-end w-full max-w-[200px] theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
                           <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.hip || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, hip: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder={formData.size && getSizeChart()[formData.size] ? getSizeChart()[formData.size].hip : '00'} />
                           <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
                         </div>
@@ -2622,7 +2622,7 @@ const SmartOrderForm = () => {
                     ) : (
                       <div className="group relative flex flex-col items-center md:items-start">
                         <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Sleeves Length</label>
-                        <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
+                        <div className="relative flex items-end w-full max-w-[200px] theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
                           <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.sleeve || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, sleeve: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder={formData.size && getSizeChart()[formData.size] ? getSizeChart()[formData.size].sleeve : '00'} />
                           <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
                         </div>
@@ -2630,7 +2630,7 @@ const SmartOrderForm = () => {
                     )}
                     <div className="group relative flex flex-col items-center md:items-start">
                       <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-2 group-hover:text-emerald-400 transition-all duration-500">Trouser Length</label>
-                      <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
+                      <div className="relative flex items-end w-full max-w-[200px] theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
                         <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.trouserLength || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, trouserLength: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center md:text-left" placeholder={formData.size && getSizeChart()[formData.size] ? getSizeChart()[formData.size].trouserLength : '00'} />
                         <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
                       </div>
@@ -2644,7 +2644,7 @@ const SmartOrderForm = () => {
                     <div className="flex flex-col items-center space-y-4">
                       <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em]">Sleeves Length</label>
                       <div className="group relative flex flex-col items-center">
-                        <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
+                        <div className="relative flex items-end w-full max-w-[200px] theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
                           <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.sleeve || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, sleeve: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center" placeholder={formData.size && getSizeChart()[formData.size] ? getSizeChart()[formData.size].sleeve : '00'} />
                           <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
                         </div>
@@ -2653,7 +2653,7 @@ const SmartOrderForm = () => {
                     <div className="flex flex-col items-center space-y-4">
                       <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em]">Trouser Length</label>
                       <div className="group relative flex flex-col items-center">
-                        <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
+                        <div className="relative flex items-end w-full max-w-[200px] theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
                           <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.trouserLength || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, trouserLength: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center" placeholder={formData.size && getSizeChart()[formData.size] ? getSizeChart()[formData.size].trouserLength : '00'} />
                           <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
                         </div>
@@ -2662,7 +2662,7 @@ const SmartOrderForm = () => {
                     <div className="flex flex-col items-center space-y-4">
                       <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em]">Trouser Bottom</label>
                       <div className="group relative flex flex-col items-center">
-                        <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
+                        <div className="relative flex items-end w-full max-w-[200px] theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
                           <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.hips || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, hips: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center" placeholder={formData.size && getSizeChart()[formData.size] ? getSizeChart()[formData.size].hips : '00'} />
                           <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
                         </div>
@@ -2673,7 +2673,7 @@ const SmartOrderForm = () => {
                   <div className="flex flex-col items-center space-y-4 pt-4">
                     <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em]">Trouser Bottom</label>
                     <div className="group relative flex flex-col items-center">
-                      <div className="relative flex items-end w-48 theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
+                      <div className="relative flex items-end w-full max-w-[200px] theme-bg p-4 rounded-2xl border theme-border shadow-xl backdrop-blur-sm group-hover:border-emerald-500/50 transition-colors">
                         <input type="number" step="0.1" onKeyDown={preventEnterSubmit} value={formData.measurements.hips || ''} onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, hips: e.target.value}})} className="w-full bg-transparent border-b-4 border-gray-800 pb-2 text-xl md:text-3xl font-black text-white focus:border-emerald-500 outline-none transition-all duration-700 placeholder-gray-900 text-center" placeholder={formData.size && getSizeChart()[formData.size] ? getSizeChart()[formData.size].hips : '00'} />
                         <span className="absolute right-4 bottom-5 text-xs md:text-sm font-black text-emerald-500/50">IN</span>
                       </div>
@@ -2712,20 +2712,6 @@ const SmartOrderForm = () => {
                       </label>
                     </div>
                     <div className="space-y-4">
-                      <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-2">Cap Quantity</label>
-                      <label className="flex items-center justify-between p-4 theme-bg rounded-[1.5rem] border-2 theme-border transition-all group h-full">
-                        <div className="flex items-center space-x-4">
-                          <div className={`p-3 rounded-xl transition-all flex items-center justify-center ${formData.femaleOptions.cap > 0 ? 'bg-pink-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
-                            <span className="font-black text-sm">CAP</span>
-                          </div>
-                          <div>
-                            <p className="font-black text-sm uppercase">Cap</p>
-                          </div>
-                        </div>
-                        <input type="number" min="0" value={formData.femaleOptions.cap} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, cap: Math.max(0, parseInt(e.target.value) || 0)}})} className="w-16 rounded-xl border-2 border-gray-700 bg-gray-900 text-white font-bold text-center px-2 py-1 focus:border-pink-500 outline-none transition-all" />
-                      </label>
-                    </div>
-                    <div className="space-y-4">
                       <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-2">Sleeves Length</label>
                       <select
                         value={formData.femaleOptions.sleeves}
@@ -2752,20 +2738,6 @@ const SmartOrderForm = () => {
                 )}
                 {formData.gender === 'Male' && (
                   <div className="grid grid-cols-1 md:grid-cols-1 gap-4 md:gap-8 mt-6 md:mt-12 theme-bg-subtle p-4 md:p-8 rounded-2xl md:rounded-[3rem] border theme-border">
-                    <div className="space-y-4">
-                      <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-2">Cap Quantity</label>
-                      <label className="flex items-center justify-between p-4 theme-bg rounded-[1.5rem] border-2 theme-border transition-all group h-full">
-                        <div className="flex items-center space-x-4">
-                          <div className={`p-3 rounded-xl transition-all flex items-center justify-center ${formData.femaleOptions.cap > 0 ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
-                            <span className="font-black text-sm">CAP</span>
-                          </div>
-                          <div>
-                            <p className="font-black text-sm uppercase">Cap</p>
-                          </div>
-                        </div>
-                        <input type="number" min="0" value={formData.femaleOptions.cap} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, cap: Math.max(0, parseInt(e.target.value) || 0)}})} className="w-16 rounded-xl border-2 border-gray-700 bg-gray-900 text-white font-bold text-center px-2 py-1 focus:border-blue-500 outline-none transition-all" />
-                      </label>
-                    </div>
                   </div>
                 )}
 
