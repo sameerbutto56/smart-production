@@ -3415,12 +3415,12 @@ const SmartOrderForm = () => {
                               <>
                                 <tr>
                                   <td className="text-emerald-400 font-bold py-1 pr-2">{useUrdu ? 'ایڈوانس وصول' : 'Advance Received'}</td>
-                                  <td className="text-right text-gray-500 font-black py-1 px-2">—</td>
+                                  <td className="text-right text-emerald-400 font-black py-1 px-2">−₨{advanceAmt.toLocaleString()}</td>
                                   <td className="text-right text-emerald-400 font-black py-1 pl-2">−₨{advanceAmt.toLocaleString()}</td>
                                 </tr>
                                 <tr>
                                   <td className="text-orange-400 font-black text-sm py-2 pr-2">{useUrdu ? 'باقی رقم' : 'Remaining Balance'}</td>
-                                  <td className="text-right text-gray-500 font-black text-sm py-2 px-2">—</td>
+                                  <td className="text-right text-orange-400 font-black text-sm py-2 px-2">₨{Math.max(0, calcTotal - advanceAmt).toLocaleString()}</td>
                                   <td className="text-right text-orange-400 font-black text-lg py-2 pl-2">₨{Math.max(0, remainingBalance).toLocaleString()}</td>
                                 </tr>
                               </>
