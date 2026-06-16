@@ -31,7 +31,10 @@
 - Reduced WarehouseDashboard polling from 10s to 60s with `document.hidden` check.
 - Created `printJobSheet` in `printReport.js` – clean A4 layout with order header, products table, per-product branding, measurements, production timeline.
 - Added "Print Job Sheet" button to AllOrders Job Sheet modal and OrderCard Full Sheet modal.
-- **Fixed CAP pricing**: added `capCharges = femaleOptions.cap × 500` calculation; included in `handleAddToCart` totalPrice; added "Cap Charges" line in Financial Summary; added cap quantity badge in per-item review card.
+- Fixed blank checkout summary crash – `cartItems.reduce` callback used wrong parameter (`(s, idx)` where `idx` was element, not index).
+- **Per-product Matching Cap**: moved cap from global `femaleOptions` to per-product toggle + quantity in Selection tab. Removed all 4 Cap Quantity sections from Tailoring tabs. Cap price fixed at `₨500` per unit.
+- **Restructured Financial Summary** as comparison table (Calculated / Adjusted columns) with rows: Product Price, Customization Charges, Matching Cap Charges, Delivery Charges, Discount, Grand Total. Added discount field.
+- **Advance Payment amount**: replaced boolean `advancePaid` checkbox with `advanceAmount` number input (+ `₨`). Added Advance Received (–) and Remaining Balance lines in Financial Summary. Propagated `advanceAmount` across all components (OrderEntry, AllOrders, DeliveryDashboard, DeliverySheet, History, EditRequestDashboard). Updated backend order creation and edit flow to store and return `advanceAmount`. Updated schema with `advanceAmount Float @default(0)`. Validation checks `advanceAmount > 0` for FULL_CUSTOM orders.
 
 ### In Progress
 - (none)
@@ -47,29 +50,33 @@
 - `isAccessory`/`isCustomizableProduct` switched from exact array matching to substring matching (`includes('COAT')`) for hyphenated categories like `LAB-COAT`.
 - Print Job Sheet uses `openPrintWindow`/`closePrintWindow` pattern (not `@media print`) to avoid modal overlay artifacts.
 - CAP pricing uses hardcoded `capUnitPrice = 500` per cap, included in per-item `totalPrice` and Financial Summary cap charges line.
+- Advance amount replaces the old boolean `advancePaid` – `advanceAmount` is stored as a `Float` number; components now check `parseFloat(order.advanceAmount) > 0` instead of `order.advancePaid`.
 
 ## Next Steps
 - Verify no remaining issues with color/size display for products missing variants.
 
 ## Critical Context
-- All changes are committed and pushed.
-- Latest pushes: prepaid order workflow, summary enhancements, LAB-COAT fix, warehouse polling fix, print job sheet, cap pricing fix.
+- Latest commit includes: Advance Payment amount feature.
 - Build passes with 0 errors.
-- `isAccessory` uses substring matching (`catUpper.includes('COAT')`) so `LAB-COAT`, `COAT`, etc. all behave as non-accessory.
-- `calculateAndRecordRevenue` at line 2482 of `order.controller.js` is now idempotent.
+- `isAccessory` uses substring matching (`catUpper.includes('COAT')`).
+- `calculateAndRecordRevenue` at line 2482 of `order.controller.js` is idempotent.
+- Cap pricing is hardcoded `capUnitPrice = 500`.
+- `advanceAmount` field added to Prisma schema, DB pushed, and backend controller updated to accept/store it.
 
 ## Relevant Files
-- `frontend/src/pages/OrderEntry.jsx`: PAID toggle (before City), expanded per-product customization in review modal, cap pricing (capCharges = cap × 500, included in totalPrice & Financial Summary), `isAccessory`/`isCustomizableProduct` substring match, variant filter fixes
-- `frontend/src/pages/AllOrders.jsx`: per-product branding sections in Job Sheet modal, richer table row badges, Print Job Sheet button
-- `frontend/src/components/OrderCard.jsx`: multi-item PRODUCTION/STORE stage rendering, per-product customization sections, Print button in Full Sheet modal
-- `frontend/src/pages/DeliveryDashboard.jsx`: PAID badge + simplified buttons for PAID orders
-- `frontend/src/pages/DeliverySheet.jsx`: Payment Status column (screen + print)
+- `frontend/src/pages/OrderEntry.jsx`: Matching Cap in Selection tab, restructured Financial Summary with discount + advance amount lines, advance amount input in Basics tabs, handleCheckout uses adjusted values
+- `frontend/src/pages/AllOrders.jsx`: per-product branding sections, Job Sheet modal, PAID badges, advance amount display
+- `frontend/src/components/OrderCard.jsx`: per-product PRODUCTION/STORE rendering, Print button
+- `frontend/src/pages/DeliveryDashboard.jsx`: PAID badges + advance amount indicator
+- `frontend/src/pages/DeliverySheet.jsx`: Payment Status column, COD check uses advanceAmount
 - `frontend/src/pages/AdminDashboard.jsx`: PAID badges
 - `frontend/src/pages/UnifiedAnalytics.jsx`: payment filter + paid/unpaid cards
-- `frontend/src/pages/WarehouseDashboard.jsx`: polling reduced to 60s + visibility check
-- `frontend/src/utils/printReport.js`: `printJobSheet` function for A4 printable production job sheet
-- `backend/src/controllers/order.controller.js`: deliveryCharges + paymentStatus in order create; idempotent revenue recording
+- `frontend/src/pages/WarehouseDashboard.jsx`: polling 60s + visibility check
+- `frontend/src/pages/History.jsx`: advance amount column
+- `frontend/src/pages/EditRequestDashboard.jsx`: advance amount in diff fields
+- `frontend/src/utils/printReport.js`: `printJobSheet` with Cap column in products table, per-product Matching Cap badge
+- `backend/src/controllers/order.controller.js`: deliveryCharges, paymentStatus, advanceAmount, idempotent revenue recording
 - `backend/src/controllers/analytics.controller.js`: paymentStatus filter
-- `backend/prisma/schema.prisma`: deliveryCharges field
+- `backend/prisma/schema.prisma`: deliveryCharges, advanceAmount fields
 - `frontend/src/hooks/usePolling.js`: polling hook (unchanged)
-- `AGENTS.md`: this file
+- `AGENTS.md`: full change log

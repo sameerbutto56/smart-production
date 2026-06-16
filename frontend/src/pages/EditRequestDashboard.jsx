@@ -451,7 +451,7 @@ const EditRequestDashboard = () => {
                             { label: 'City', field: 'city', oldVal: order.city, newVal: rc.city },
                             { label: 'Type', field: 'type', oldVal: order.type, newVal: rc.type },
                             { label: 'Priority', field: 'priority', oldVal: order.priority, newVal: rc.priority },
-                            { label: 'Advance Paid', field: 'advancePaid', oldVal: order.advancePaid ? 'Yes' : 'No', newVal: rc.advancePaid ? 'Yes' : 'No' }
+                            { label: 'Advance Amount', field: 'advanceAmount', oldVal: `₨${parseFloat(order.advanceAmount || 0).toLocaleString()}`, newVal: `₨${parseFloat(rc.advanceAmount || 0).toLocaleString()}` }
                           ];
                           const changedFields = customerFields.filter(f => f.newVal !== undefined && f.newVal !== f.oldVal);
                           if (changedFields.length === 0) return null;

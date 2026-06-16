@@ -246,7 +246,7 @@ const AllOrders = () => {
       const status = order.status;
       groups[phone].statusSummary[status] = (groups[phone].statusSummary[status] || 0) + 1;
       
-      const payStatus = order.paymentStatus || (order.advancePaid ? 'ADVANCE' : 'PENDING');
+      const payStatus = order.paymentStatus || (parseFloat(order.advanceAmount) > 0 ? 'ADVANCE' : 'PENDING');
       groups[phone].paymentSummary = groups[phone].paymentSummary || {};
       groups[phone].paymentSummary[payStatus] = (groups[phone].paymentSummary[payStatus] || 0) + 1;
       
@@ -580,7 +580,7 @@ const AllOrders = () => {
                         )}
                       </div>
                       <div className="text-xs md:text-sm theme-text-muted mt-1">
-                        {order.advancePaid ? 'Payment: Advance' : 'Payment: Pending'}
+                        {parseFloat(order.advanceAmount) > 0 ? `Advance: ₨${parseFloat(order.advanceAmount).toLocaleString()}` : 'Payment: Pending'}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -631,11 +631,11 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                       <span className={`text-xs md:text-sm font-black px-2 py-1 rounded-full uppercase border ml-2 ${
                         order.paymentStatus === 'PAID'
                           ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                          : order.advancePaid
+                          : parseFloat(order.advanceAmount) > 0
                             ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
                             : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
                       }`}>
-                        {order.paymentStatus === 'PAID' ? 'PAID' : order.advancePaid ? 'ADVANCE' : 'PENDING'}
+                        {order.paymentStatus === 'PAID' ? 'PAID' : parseFloat(order.advanceAmount) > 0 ? 'ADVANCE' : 'PENDING'}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -853,7 +853,7 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                         { label: 'Order Size', val: product?.size },
                         { label: 'Gender', val: product?.gender },
                         ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
-                        { label: 'Payment', val: selectedOrder.paymentStatus || (selectedOrder.advancePaid ? 'ADVANCE' : 'PENDING') }
+                        { label: 'Payment', val: selectedOrder.paymentStatus || (parseFloat(selectedOrder.advanceAmount) > 0 ? 'ADVANCE' : 'PENDING') }
                       ].filter(i => i.val).map((item, i) => (
                         <div key={i} className="theme-bg p-4 md:p-6 rounded-3xl border theme-border">
                           <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest mb-2">{item.label}</p>

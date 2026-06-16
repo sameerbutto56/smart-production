@@ -118,7 +118,7 @@ const DeliverySheet = () => {
 
     filteredOrders.forEach(o => {
       const amt = Number(o.totalPrice || 0);
-      const isCOD = !o.advancePaid; // If advancePaid is false initially, it's COD
+      const isCOD = !(parseFloat(o.advanceAmount) > 0); // If no advance amount, it's COD
 
       if (isCOD) {
         totalCash += amt;

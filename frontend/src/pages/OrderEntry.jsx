@@ -77,6 +77,7 @@ const SmartOrderForm = () => {
     type: 'STANDARD', // STANDARD, READY_LOGO, FULL_CUSTOM
     priority: 'NORMAL',
     advancePaid: false,
+    advanceAmount: '',
     paymentStatus: 'PENDING', // PENDING or PAID
     totalPrice: '',
     quantity: 1,
@@ -267,6 +268,7 @@ const SmartOrderForm = () => {
         type: 'STANDARD',
         priority: 'NORMAL',
         advancePaid: false,
+        advanceAmount: '',
         paymentStatus: 'PENDING',
         totalPrice: '',
         quantity: 1,
@@ -357,6 +359,7 @@ const SmartOrderForm = () => {
           type: found.type || 'STANDARD',
           priority: found.priority || 'NORMAL',
           advancePaid: !!found.advancePaid,
+          advanceAmount: found.advanceAmount || '',
           totalPrice: found.totalPrice || '',
           quantity: found.quantity || 1,
           productType: '',
@@ -408,6 +411,7 @@ const SmartOrderForm = () => {
               priority: found.priority,
               quantity: item.quantity || 1,
               advancePaid: found.advancePaid,
+              advanceAmount: found.advanceAmount || '',
               logoDesign: found.logoDesign,
               logoName: found.logoName,
               logoCharges: parseFloat(item.logoCharges) || 0,
@@ -460,6 +464,7 @@ const SmartOrderForm = () => {
             priority: found.priority,
             quantity: found.quantity || 1,
             advancePaid: found.advancePaid,
+            advanceAmount: found.advanceAmount || '',
             logoDesign: found.logoDesign,
             logoName: found.logoName,
             logoCharges: parseFloat(found.logoCharges) || 0,
@@ -558,6 +563,7 @@ const SmartOrderForm = () => {
         type: formData.type,
         priority: formData.priority,
         advancePaid: formData.advancePaid,
+        advanceAmount: parseFloat(formData.advanceAmount) || 0,
         items: finalItems,
         quantity: finalItems.reduce((sum, item) => sum + (item.quantity || 1), 0),
         totalPrice: cartItems.reduce((sum, item) => sum + (parseFloat(item.totalPrice) || 0), 0),
@@ -592,6 +598,7 @@ const SmartOrderForm = () => {
         type: 'STANDARD',
         priority: 'NORMAL',
         advancePaid: false,
+        advanceAmount: '',
         paymentStatus: 'PENDING',
         totalPrice: '',
         quantity: 1,
@@ -680,7 +687,7 @@ const SmartOrderForm = () => {
     if (!isOutlet && !formData.orderNumber.trim()) return t('orderNo') + ' ' + t('required');
     if (!formData.customerName.trim()) return t('customerName') + ' ' + t('required');
     if (!formData.customerPhone.trim()) return t('customerPhone') + ' ' + t('required');
-    if (formData.type === 'FULL_CUSTOM' && !formData.advancePaid) return 'Advance payment is compulsory for custom orders.';
+    if (formData.type === 'FULL_CUSTOM' && !(parseFloat(formData.advanceAmount) > 0)) return 'Advance payment is compulsory for custom orders.';
 
     // 2. Product validation
     if (!formData.productType) return 'Please select a Product first.';
@@ -713,7 +720,7 @@ const SmartOrderForm = () => {
       if (!isOutlet && !formData.orderNumber.trim()) return t('orderNo') + ' ' + t('required');
       if (!formData.customerName.trim()) return t('customerName') + ' ' + t('required');
       if (!formData.customerPhone.trim()) return t('customerPhone') + ' ' + t('required');
-      if (formData.type === 'FULL_CUSTOM' && !formData.advancePaid) return 'Advance payment is compulsory for custom orders.';
+    if (formData.type === 'FULL_CUSTOM' && !(parseFloat(formData.advanceAmount) > 0)) return 'Advance payment is compulsory for custom orders.';
     }
     if (activeTab === 'product') {
       if (!formData.productType) return 'Please select a Product.';
@@ -761,6 +768,7 @@ const SmartOrderForm = () => {
       priority: formData.priority,
       quantity: parseInt(formData.quantity) || 1,
       advancePaid: formData.advancePaid,
+      advanceAmount: parseFloat(formData.advanceAmount) || 0,
       paymentStatus: formData.paymentStatus,
       logoDesign: formData.logoDesign,
       logoName: formData.logoName,
@@ -947,6 +955,7 @@ const SmartOrderForm = () => {
         type: firstItem.type,
         priority: firstItem.priority,
         advancePaid: firstItem.advancePaid,
+        advanceAmount: parseFloat(formData.advanceAmount) || 0,
         paymentStatus: firstItem.paymentStatus || 'PENDING',
         logoDesign: firstItem.logoDesign,
         logoName: firstItem.logoName,
@@ -977,6 +986,7 @@ const SmartOrderForm = () => {
         type: 'STANDARD',
         priority: 'NORMAL',
         advancePaid: false,
+        advanceAmount: '',
         paymentStatus: 'PENDING',
         totalPrice: '',
         deliveryCharges: '',
@@ -1490,11 +1500,15 @@ const SmartOrderForm = () => {
                       </div>
                     </div>
                     <div>
-                      <span className="text-gray-500 block mb-1">{useUrdu ? 'ایڈوانس' : 'Advance Paid'}</span>
-                      <label className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all ${formData.advancePaid ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-gray-700 bg-gray-900'}`}>
-                        <span className="text-xs md:text-sm font-bold">{formData.advancePaid ? 'YES' : 'NO'}</span>
-                        <input type="checkbox" checked={formData.advancePaid} onChange={e => setFormData({...formData, advancePaid: e.target.checked})} className="w-4 h-4 rounded border-gray-600" />
-                      </label>
+                      <span className="text-gray-500 block mb-1">{useUrdu ? 'ایڈوانس رقم' : 'Advance Amount (₨)'}</span>
+                      <input type="number" min="0" value={formData.advanceAmount || ''} placeholder="e.g. 2000"
+                        onChange={e => setFormData({...formData, advanceAmount: e.target.value})}
+                        className="w-full bg-gray-900 border-2 border-emerald-500/30 rounded-xl py-2.5 px-4 text-sm font-bold text-emerald-400 focus:border-emerald-500 outline-none transition-all" />
+                      {parseFloat(formData.advanceAmount) > 0 && (
+                        <p className="text-xs text-emerald-400 font-bold mt-1">
+                          {useUrdu ? 'ایڈوانس وصول: ' : 'Advance Received: '}₨{parseFloat(formData.advanceAmount).toLocaleString()}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1865,17 +1879,17 @@ const SmartOrderForm = () => {
                     {!isOutlet && (
                       <button
                         type="button"
-                        onClick={() => setFormData({...formData, type: 'STANDARD', advancePaid: false})}
+                        onClick={() => setFormData({...formData, type: 'STANDARD', advancePaid: false, advanceAmount: ''})}
                         className={`flex-1 py-3 md:py-4 px-1 rounded-lg md:rounded-xl text-xs md:text-sm font-black transition-all leading-tight text-center ${
                           formData.type === 'STANDARD' ? 'bg-blue-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'
                         }`}
                       >
-                        {useUrdu ? URDU_LABELS.standard : 'STANDARD'}
+                        {useUrdu ? URDU_LABELS.standard : 'STD'}
                       </button>
                     )}
                     <button
                       type="button"
-                      onClick={() => setFormData({...formData, type: 'READY_LOGO', advancePaid: false})}
+                      onClick={() => setFormData({...formData, type: 'READY_LOGO', advancePaid: false, advanceAmount: ''})}
                       className={`flex-1 py-3 md:py-4 px-1 rounded-lg md:rounded-xl text-xs md:text-sm font-black transition-all leading-tight text-center ${
                         formData.type === 'READY_LOGO' ? 'bg-purple-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'
                       }`}
@@ -1884,7 +1898,7 @@ const SmartOrderForm = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setFormData({...formData, type: 'FULL_CUSTOM', advancePaid: true})}
+                      onClick={() => setFormData({...formData, type: 'FULL_CUSTOM', advancePaid: true, advanceAmount: ''})}
                       className={`flex-1 py-3 md:py-4 px-1 rounded-lg md:rounded-xl text-xs md:text-sm font-black transition-all leading-tight text-center ${
                         formData.type === 'FULL_CUSTOM' ? 'bg-indigo-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'
                       }`}
@@ -1918,22 +1932,18 @@ const SmartOrderForm = () => {
                     </div>
                   </div>
 
-                  <div className="space-y-4 md:space-y-5">
-                    <label className={`flex items-center justify-between p-4 md:p-6 theme-bg rounded-xl md:rounded-[1.5rem] border-2 theme-border cursor-pointer hover:border-emerald-500/30 transition-all group ${useUrdu ? 'flex-row-reverse' : ''}`}>
-                      <div className={`flex items-center space-x-3 md:space-x-4 ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                        <div className={`p-3 md:p-4 rounded-xl transition-all ${formData.advancePaid ? 'bg-emerald-600 text-white shadow-lg' : 'bg-gray-800 text-gray-600'}`}>
-                          <CheckCircle2 size={18} className="md:w-5 md:h-5" />
-                        </div>
-                        <div className={useUrdu ? 'text-right' : ''}>
-                          <p className="font-black text-xs md:text-sm uppercase">{t('advance')}</p>
-                          <p className="text-xs md:text-sm text-gray-600 font-bold">CONFIRMATION</p>
-                        </div>
-                      </div>
-                      <input type="checkbox" checked={formData.advancePaid} onChange={(e) => setFormData({...formData, advancePaid: e.target.checked})} className="w-5 h-5 md:w-6 md:h-6 rounded-lg border-2 border-gray-700 bg-gray-900 checked:bg-emerald-600 transition-all cursor-pointer shrink-0" />
-                    </label>
-
-                    {/* Total Price */}
-
+                  <div className="space-y-3">
+                    <label className="text-xs md:text-sm font-black uppercase theme-text-muted tracking-[0.2em]">{useUrdu ? 'ایڈوانس رقم' : 'Advance Amount (₨)'}</label>
+                    <div className="relative">
+                      <input type="number" min="0" value={formData.advanceAmount || ''} placeholder="e.g. 2000"
+                        onChange={e => setFormData({...formData, advanceAmount: e.target.value})}
+                        className="w-full bg-gray-900 border-2 border-emerald-500/30 rounded-xl py-3 md:py-4 px-4 text-sm md:text-base font-bold text-emerald-400 focus:border-emerald-500 outline-none transition-all" />
+                      {parseFloat(formData.advanceAmount) > 0 && (
+                        <p className="text-xs text-emerald-400 font-bold mt-1.5">
+                          {useUrdu ? 'ایڈوانس وصول: ' : 'Advance Received: '}₨{parseFloat(formData.advanceAmount).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -3188,7 +3198,7 @@ const SmartOrderForm = () => {
                 <div className="flex flex-wrap gap-2 mb-3">
                   <span className="text-xs font-black px-2 py-1 bg-gray-900 rounded-md text-gray-300 uppercase">{cartItems[0]?.type}</span>
                   <span className="text-xs font-black px-2 py-1 bg-gray-900 rounded-md text-gray-300 uppercase">{cartItems[0]?.priority}</span>
-                  {cartItems[0]?.advancePaid && <span className="text-xs font-black px-2 py-1 bg-amber-900/30 rounded-md text-amber-400 uppercase">ADVANCE PAID</span>}
+                  {parseFloat(cartItems[0]?.advanceAmount) > 0 && <span className="text-xs font-black px-2 py-1 bg-amber-900/30 rounded-md text-amber-400 uppercase">ADVANCE: ₨{parseFloat(cartItems[0]?.advanceAmount).toLocaleString()}</span>}
                 </div>
               </div>
 
@@ -3352,8 +3362,10 @@ const SmartOrderForm = () => {
                         const adjCap = parseFloat(formData.adjCapCharges) || calcCap;
                         const adjDelivery = parseFloat(formData.adjDeliveryCharges) || calcDelivery;
                         const discount = parseFloat(formData.adjDiscount) || 0;
+                        const advanceAmt = parseFloat(formData.advanceAmount) || 0;
                         const calcTotal = calcProductPrice + calcCustomization + calcCap + calcDelivery;
                         const adjTotal = adjProductPrice + adjCustomization + adjCap + adjDelivery - discount;
+                        const remainingBalance = adjTotal - advanceAmt;
                         const inp = (name, calcVal, color = 'emerald-400') => (
                           <input type="number" min="0" value={formData[name] ?? ''} placeholder={String(calcVal)}
                             onChange={e => setFormData({...formData, [name]: e.target.value})}
@@ -3399,6 +3411,20 @@ const SmartOrderForm = () => {
                               <td className="text-right text-gray-200 font-black text-sm py-2 px-2">₨{calcTotal.toLocaleString()}</td>
                               <td className="text-right font-black text-white text-lg py-2 pl-2">₨{adjTotal.toLocaleString()}</td>
                             </tr>
+                            {advanceAmt > 0 && (
+                              <>
+                                <tr>
+                                  <td className="text-emerald-400 font-bold py-1 pr-2">{useUrdu ? 'ایڈوانس وصول' : 'Advance Received'}</td>
+                                  <td className="text-right text-gray-500 font-black py-1 px-2">—</td>
+                                  <td className="text-right text-emerald-400 font-black py-1 pl-2">−₨{advanceAmt.toLocaleString()}</td>
+                                </tr>
+                                <tr>
+                                  <td className="text-orange-400 font-black text-sm py-2 pr-2">{useUrdu ? 'باقی رقم' : 'Remaining Balance'}</td>
+                                  <td className="text-right text-gray-500 font-black text-sm py-2 px-2">—</td>
+                                  <td className="text-right text-orange-400 font-black text-lg py-2 pl-2">₨{Math.max(0, remainingBalance).toLocaleString()}</td>
+                                </tr>
+                              </>
+                            )}
                           </>
                         );
                       })()}
@@ -3410,13 +3436,7 @@ const SmartOrderForm = () => {
                   <span className="text-xs text-gray-400">{useUrdu ? 'کل آئٹمز' : 'Total Items'}</span>
                   <span className="font-black text-white">{cartItems.reduce((s, i) => s + (parseInt(i.quantity) || 1), 0)}</span>
                 </div>
-                <div className="flex justify-between items-center mt-1">
-                  <span className="text-xs text-gray-400">{useUrdu ? 'ایڈوانس' : 'Advance Payment'}</span>
-                  <span className={`font-black ${cartItems[0]?.advancePaid ? 'text-amber-400' : 'text-gray-500'}`}>
-                    {cartItems[0]?.advancePaid ? (useUrdu ? 'ہاں' : 'Yes') : (useUrdu ? 'نہیں' : 'No')}
-                  </span>
                 </div>
-              </div>
 
               {/* Action Buttons */}
               <div className="flex gap-3">
@@ -3514,9 +3534,9 @@ const SmartOrderForm = () => {
                         <span className="theme-text-primary font-bold uppercase">{originalOrder.type || 'STANDARD'}</span>
                       </div>
                       <div>
-                        <span className="text-gray-400 block">{useUrdu ? 'ایڈوانس ادائیگی' : 'Advance Paid'}</span>
+                        <span className="text-gray-400 block">{useUrdu ? 'ایڈوانس رقم' : 'Advance Amount'}</span>
                         <span className="theme-text-primary font-bold">
-                          {originalOrder.advancePaid ? (useUrdu ? 'ہاں' : 'Yes') : (useUrdu ? 'نہیں' : 'No')}
+                          ₨{(parseFloat(originalOrder.advanceAmount) || 0).toLocaleString()}
                         </span>
                       </div>
                     </div>
@@ -3619,11 +3639,15 @@ const SmartOrderForm = () => {
                         </div>
                       </div>
                       <div>
-                        <span className="text-gray-400 block mb-1">{useUrdu ? 'ایڈوانس' : 'Advance Paid'}</span>
-                        <label className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all ${formData.advancePaid ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-gray-700 bg-gray-900'}`}>
-                          <span className="text-xs md:text-sm font-bold">{formData.advancePaid ? 'YES' : 'NO'}</span>
-                          <input type="checkbox" checked={formData.advancePaid} onChange={e => setFormData({...formData, advancePaid: e.target.checked})} className="w-4 h-4 rounded border-gray-600" />
-                        </label>
+                        <span className="text-gray-400 block mb-1">{useUrdu ? 'ایڈوانس رقم' : 'Advance Amount (₨)'}</span>
+                        <input type="number" min="0" value={formData.advanceAmount || ''} placeholder="e.g. 2000"
+                          onChange={e => setFormData({...formData, advanceAmount: e.target.value})}
+                          className={`w-full theme-input rounded-xl py-2.5 px-3 text-sm font-bold ${hasChanged(String(originalOrder.advanceAmount || ''), String(formData.advanceAmount || '')) ? 'border-amber-500/50 bg-amber-500/5' : ''}`} />
+                        {parseFloat(formData.advanceAmount) > 0 && (
+                          <p className="text-xs text-emerald-400 font-bold mt-1">
+                            {useUrdu ? 'ایڈوانس وصول: ' : 'Advance Received: '}₨{parseFloat(formData.advanceAmount).toLocaleString()}
+                          </p>
+                        )}
                       </div>
                     </div>
                     <div className="mt-3">

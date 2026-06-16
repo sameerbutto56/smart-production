@@ -206,7 +206,7 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
                 ₨{Number(order.totalPrice || 0).toLocaleString()}
               </p>
               <p className="text-xs md:text-sm theme-text-muted font-bold mt-0.5">
-                {order.paymentMethod === 'ONLINE_TRANSFER' ? '💳 Online' : order.advancePaid ? '✅ Paid' : '💵 COD'}
+                {order.paymentMethod === 'ONLINE_TRANSFER' ? '💳 Online' : parseFloat(order.advanceAmount) > 0 ? `✅ Adv ₨${parseFloat(order.advanceAmount).toLocaleString()}` : '💵 COD'}
               </p>
             </div>
           </div>
@@ -625,7 +625,7 @@ const DeliveryDashboard = () => {
             <p className="text-[10px] theme-text-muted font-black uppercase tracking-widest">COD to Collect</p>
             <p className="text-lg font-black text-amber-400">
               ₨{pending
-                .filter(o => !o.advancePaid)
+                .filter(o => !(parseFloat(o.advanceAmount) > 0))
                 .reduce((s, o) => s + (Number(o.totalPrice) || 0), 0)
                 .toLocaleString()}
             </p>
