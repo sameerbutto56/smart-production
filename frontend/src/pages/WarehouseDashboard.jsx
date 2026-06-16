@@ -63,7 +63,7 @@ const WarehouseDashboard = () => {
     if (!silent) setLoading(true);
     const token = sessionStorage.getItem('token');
     try {
-      if (activeTab === 'requests' || activeTab === 'dashboard') {
+      if (activeTab === 'requests' || activeTab === 'dashboard' || activeTab === 'allocation') {
         const [reqRes, invRes] = await Promise.all([
           axios.get(`${API_URL}/api/stock-requests`, { headers: { Authorization: `Bearer ${token}` } }),
           axios.get(`${API_URL}/api/inventory`, { headers: { Authorization: `Bearer ${token}` } })
