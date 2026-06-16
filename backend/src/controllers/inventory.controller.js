@@ -284,27 +284,6 @@ const allocateInventory = async (req, res) => {
     res.status(500).json({ message: 'Error allocating products', error: error.message });
   }
 };
-        action: 'INVENTORY_ALLOCATED',
-        details: JSON.stringify({
-          personName: personName.trim(),
-          itemName: item.name,
-          variant: variantLabel || `${item.color || ''} ${item.size || ''}`.trim(),
-          quantity: deductQty,
-          notes: notes || ''
-        }),
-        performedBy: req.user.id,
-        timestamp: new Date()
-      }
-    });
-
-    const io = req.app.get('io');
-    if (io) io.emit('inventory-updated', item);
-
-    res.json({ message: `Allocated ${deductQty}x ${item.name} to ${personName.trim()}`, allocation });
-  } catch (error) {
-    res.status(500).json({ message: 'Error allocating inventory', error: error.message });
-  }
-};
 
 const getAllocations = async (req, res) => {
   try {
