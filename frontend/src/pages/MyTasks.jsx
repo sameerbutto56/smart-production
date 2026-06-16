@@ -87,7 +87,7 @@ const MyTasks = () => {
     if (taskTimerRef.current) clearTimeout(taskTimerRef.current);
     taskTimerRef.current = setTimeout(() => {
       taskTimerRef.current = null;
-      fetchTasks();
+      fetchTasks(true);
     }, 100);
   };
 
@@ -122,9 +122,9 @@ const MyTasks = () => {
   // Initial data load
   useEffect(() => { fetchTasks(); }, []);
 
-  // Polling fallback every 30 seconds (reduced from 15s)
+  // Polling fallback every 120 seconds (silent)
   useEffect(() => {
-    const pollInterval = setInterval(() => { fetchTasks(); }, 30000);
+    const pollInterval = setInterval(() => { fetchTasks(true); }, 120000);
     return () => clearInterval(pollInterval);
   }, []);
 
@@ -167,13 +167,13 @@ const MyTasks = () => {
     }
   };
 
-  const fetchTasks = async () => {
+  const fetchTasks = async (silent = false) => {
     if (hasTaskFilters) {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const fetches = [fetchUnseenTasks()];
       if (showProductionTab) fetches.push(fetchProductionTasks());
       await Promise.all(fetches);
-      setLoading(false);
+      if (!silent) setLoading(false);
     } else {
       try {
         const token = sessionStorage.getItem('token');
