@@ -216,7 +216,7 @@ const SmartOrderForm = () => {
       fetchInventory();
     });
 
-    const onFocus = () => fetchInventory();
+    const onFocus = () => { if (!document.hidden) fetchInventory(); };
     window.addEventListener('focus', onFocus);
 
     return () => {
@@ -239,7 +239,7 @@ const SmartOrderForm = () => {
     }
   };
 
-  usePolling(fetchInventory, 5000);
+  usePolling(() => { if (!document.hidden) fetchInventory(); }, 30000);
 
   const hasChanged = (val1, val2) => {
     const normalize = (v) => (v === null || v === undefined ? '' : String(v).trim().toLowerCase());
