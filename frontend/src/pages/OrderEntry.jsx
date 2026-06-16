@@ -1037,12 +1037,12 @@ const SmartOrderForm = () => {
   const isAccessory = (cat) => {
     if (!cat) return false;
     const catUpper = cat.toUpperCase();
-    return !['SCRUBS', 'COAT', 'CAP', 'CAPS'].includes(catUpper);
+    return !['SCRUBS', 'CAP', 'CAPS'].includes(catUpper) && !catUpper.includes('COAT');
   };
   const isCustomizableProduct = (cat) => {
     if (!cat) return false;
     const catUpper = cat.toUpperCase();
-    return ['SCRUBS', 'COAT', 'CAP', 'CAPS'].includes(catUpper);
+    return ['SCRUBS', 'CAP', 'CAPS'].includes(catUpper) || catUpper.includes('COAT');
   };
   const productsInCategory = inventory
     .filter(i => i.category === selectedProductCategory)
