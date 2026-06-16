@@ -332,21 +332,24 @@ export function printJobSheet(order) {
   // Products table
   win.document.write('<div class="section-title">Products</div>');
   if (isMultiItem) {
-    win.document.write('<table><thead><tr><th>#</th><th>Product</th><th>Fabric & Color</th><th>Size & Gender</th><th style="text-align:center">Qty</th><th style="text-align:right">Price</th></tr></thead><tbody>');
+    win.document.write('<table><thead><tr><th>#</th><th>Product</th><th>Fabric & Color</th><th>Size & Gender</th><th style="text-align:center">Qty</th><th style="text-align:center">Cap</th><th style="text-align:right">Price</th></tr></thead><tbody>');
     allItems.forEach((item, idx) => {
       const p = item.productDetails || {};
+      const capQty = p.matchingCap ? (p.matchingCapQty || 0) : (item.capCharges > 0 ? (p.femaleOptions?.cap || 0) : 0);
       win.document.write('<tr>');
       win.document.write('<td style="font-weight:700">' + (idx + 1) + '</td>');
       win.document.write('<td style="font-weight:700">' + (p.productType || '—') + '</td>');
       win.document.write('<td>' + [p.fabricType, p.color].filter(Boolean).join(' • ') + '</td>');
       win.document.write('<td>' + (p.size || 'Custom') + ' • ' + (p.gender || 'MALE') + '</td>');
       win.document.write('<td style="text-align:center;font-weight:700">' + (item.quantity || 1) + '</td>');
+      win.document.write('<td style="text-align:center;font-weight:700;color:#e11d48">' + (capQty || '—') + '</td>');
       win.document.write('<td style="text-align:right;font-weight:700">' + currency(item.totalPrice) + '</td>');
       win.document.write('</tr>');
     });
     win.document.write('</tbody></table>');
   } else {
-    win.document.write('<table><thead><tr><th>Product</th><th>Fabric</th><th>Color</th><th>Size</th><th>Gender</th><th style="text-align:center">Qty</th><th style="text-align:right">Price</th></tr></thead><tbody>');
+    const capQty = firstProduct.matchingCap ? (firstProduct.matchingCapQty || 0) : 0;
+    win.document.write('<table><thead><tr><th>Product</th><th>Fabric</th><th>Color</th><th>Size</th><th>Gender</th><th style="text-align:center">Qty</th><th style="text-align:center">Cap</th><th style="text-align:right">Price</th></tr></thead><tbody>');
     win.document.write('<tr>');
     win.document.write('<td style="font-weight:700">' + (firstProduct.productType || '—') + '</td>');
     win.document.write('<td>' + (firstProduct.fabricType || '—') + '</td>');
@@ -354,6 +357,7 @@ export function printJobSheet(order) {
     win.document.write('<td>' + (firstProduct.size || 'Custom') + '</td>');
     win.document.write('<td>' + (firstProduct.gender || 'MALE') + '</td>');
     win.document.write('<td style="text-align:center;font-weight:700">' + (order.quantity || 1) + '</td>');
+    win.document.write('<td style="text-align:center;font-weight:700;color:#e11d48">' + (capQty || '—') + '</td>');
     win.document.write('<td style="text-align:right;font-weight:700">' + currency(order.totalPrice) + '</td>');
     win.document.write('</tr></tbody></table>');
   }
@@ -427,6 +431,12 @@ export function printJobSheet(order) {
       if (p.femaleOptions.sleeves) opts.push('Sleeves: ' + p.femaleOptions.sleeves);
       if (p.femaleOptions.shirtLength) opts.push('Length: ' + p.femaleOptions.shirtLength);
       win.document.write('<p style="font-size:7.5pt;margin-top:4px;color:#db2777;font-weight:700">' + opts.join(' | ') + '</p>');
+    }
+
+    // Matching Cap
+    const capQty = p.matchingCap ? (p.matchingCapQty || 0) : 0;
+    if (capQty > 0) {
+      win.document.write('<p style="font-size:7.5pt;margin-top:4px;color:#e11d48;font-weight:700">Matching Cap ×' + capQty + '</p>');
     }
 
     win.document.write('</div>');

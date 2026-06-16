@@ -80,7 +80,9 @@ const SmartOrderForm = () => {
     paymentStatus: 'PENDING', // PENDING or PAID
     totalPrice: '',
     quantity: 1,
-    
+    matchingCap: false,
+    matchingCapQty: 0,
+
     // Product Selection
     productType: '',
     fabricType: '',
@@ -129,9 +131,13 @@ const SmartOrderForm = () => {
       dupatta: false,
       sleeves: 'full',
       shirtLength: 'long',
-      zip: false,
-      cap: 0
-    }
+      zip: false
+    },
+    adjProductPrice: '',
+    adjCustomization: '',
+    adjCapCharges: '',
+    adjDeliveryCharges: '',
+    adjDiscount: ''
   });
 
   const [searchParams] = useSearchParams();
@@ -287,7 +293,7 @@ const SmartOrderForm = () => {
           shirtLength: '', trouserLength: '', bottom: '', thigh: '', mori: '', ganda: ''
         },
         gender: 'Male',
-        femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: 0 }
+        femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false }
       });
       setLogoEntries([{ name: '', design: '' }]);
       setArticleNameEntries(['']);
@@ -376,7 +382,7 @@ const SmartOrderForm = () => {
             shirtLength: '', trouserLength: '', bottom: '', thigh: '', mori: '', ganda: ''
           },
         gender: 'Male',
-        femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: 0 },
+        femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
         adjDeliveryCharges: ''
         });
 
@@ -612,7 +618,7 @@ const SmartOrderForm = () => {
           shirtLength: '', trouserLength: '', bottom: '', thigh: '', mori: '', ganda: ''
         },
         gender: 'Male',
-        femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: 0 }
+        femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false }
       });
       setLogoEntries([{ name: '', design: '' }]);
       setArticleNameEntries(['']);
@@ -767,7 +773,9 @@ const SmartOrderForm = () => {
         color: formData.color,
         size: formData.size,
         gender: formData.gender,
-        femaleOptions: formData.femaleOptions
+        femaleOptions: formData.femaleOptions,
+        matchingCap: formData.matchingCap,
+        matchingCapQty: formData.matchingCapQty
       },
       customization: {
         nameSpelling: articleNameEntries.filter(Boolean).join(', '),
@@ -827,7 +835,9 @@ const SmartOrderForm = () => {
         ganda: ''
       },
       gender: 'Male',
-      femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: 0 }
+      femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
+      matchingCap: false,
+      matchingCapQty: 0
     }));
     setLogoEntries([{ name: '', design: '' }]);
     setArticleNameEntries(['']);
@@ -852,7 +862,9 @@ const SmartOrderForm = () => {
       color: pd.color || '',
       size: pd.size || '',
       gender: pd.gender || 'Male',
-      femaleOptions: pd.femaleOptions || { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: 0 },
+      femaleOptions: pd.femaleOptions || { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
+      matchingCap: pd.matchingCap || false,
+      matchingCapQty: pd.matchingCapQty || 0,
       quantity: item.quantity || 1,
       totalPrice: '',
       logoCharges: item.logoCharges?.toString() || '',
@@ -906,20 +918,25 @@ const SmartOrderForm = () => {
     setError('');
 
     try {
-      const finalItems = cartItems.map((item, idx) => {
-        const adjPrice = parseFloat(formData[`adjItemPrice_${idx}`]);
-        return {
-          productDetails: item.productDetails,
-          customization: item.customization || {},
-          sizeData: item.sizeData || {},
-          quantity: parseInt(item.quantity) || 1,
-          totalPrice: adjPrice || (parseFloat(item.totalPrice) || 0)
-        };
-      });
+      const finalItems = cartItems.map(item => ({
+        productDetails: item.productDetails,
+        customization: item.customization || {},
+        sizeData: item.sizeData || {},
+        quantity: parseInt(item.quantity) || 1,
+        totalPrice: parseFloat(item.totalPrice) || 0
+      }));
 
       const firstItem = cartItems[0];
-      const adjDelivery = parseFloat(formData.adjDeliveryCharges) || parseFloat(formData.deliveryCharges) || 0;
-      const adjTotal = finalItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0) + adjDelivery;
+      const calcProductPrice = cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) - parseFloat(i.logoCharges || 0) - parseFloat(i.namePrintingCharges || 0) - parseFloat(i.customizationPrice || 0) - (parseInt(i.capCharges) || 0)), 0);
+      const calcCustomization = cartItems.reduce((s, i) => s + (parseFloat(i.logoCharges || 0) + parseFloat(i.namePrintingCharges || 0) + parseFloat(i.customizationPrice || 0)), 0);
+      const calcCap = cartItems.reduce((s, i) => s + (parseInt(i.capCharges) || 0), 0);
+      const calcDelivery = parseFloat(formData.deliveryCharges) || 0;
+      const adjProductPrice = parseFloat(formData.adjProductPrice) || calcProductPrice;
+      const adjCustomization = parseFloat(formData.adjCustomization) || calcCustomization;
+      const adjCap = parseFloat(formData.adjCapCharges) || calcCap;
+      const adjDelivery = parseFloat(formData.adjDeliveryCharges) || calcDelivery;
+      const discount = parseFloat(formData.adjDiscount) || 0;
+      const adjTotal = adjProductPrice + adjCustomization + adjCap + adjDelivery - discount;
 
       const combinedOrder = {
         orderNumber: firstItem.orderNumber,
@@ -937,6 +954,7 @@ const SmartOrderForm = () => {
         namePrintingCharges: cartItems.reduce((s, i) => s + (parseFloat(i.namePrintingCharges) || 0), 0),
         customizationPrice: cartItems.reduce((s, i) => s + (parseFloat(i.customizationPrice) || 0), 0),
         deliveryCharges: adjDelivery,
+        discount,
         items: finalItems,
         productDetails: finalItems[0].productDetails,
         customization: finalItems[0].customization,
@@ -993,13 +1011,20 @@ const SmartOrderForm = () => {
           mori: '',
           ganda: ''
         },
-        gender: 'Male',
-        femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false, cap: 0 }
-      });
-      setLogoEntries([{ name: '', design: '' }]);
-      setArticleNameEntries(['']);
-      setActiveTab('basic');
-      setTimeout(() => setSuccess(false), 3000);
+          gender: 'Male',
+          femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
+          matchingCap: false,
+          matchingCapQty: 0,
+          adjProductPrice: '',
+          adjCustomization: '',
+          adjCapCharges: '',
+          adjDeliveryCharges: '',
+          adjDiscount: ''
+        });
+        setLogoEntries([{ name: '', design: '' }]);
+        setArticleNameEntries(['']);
+        setActiveTab('basic');
+        setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
       console.error('Error during checkout:', error);
       const serverMsg = error.response?.data?.message || error.response?.data?.error;
@@ -1088,7 +1113,7 @@ const SmartOrderForm = () => {
   })();
   const computedTotalPrice = computedUnitPrice * (formData.quantity || 1);
   const capUnitPrice = 500;
-  const capCharges = (formData.femaleOptions?.cap || 0) * capUnitPrice;
+  const capCharges = (formData.matchingCap ? (formData.matchingCapQty || 0) : 0) * capUnitPrice;
 
   const allTabs = [
     { id: 'basic', label: '1. Basics', icon: Layout },
@@ -1824,32 +1849,6 @@ const SmartOrderForm = () => {
                         </div>
                         <input type="checkbox" checked={formData.femaleOptions.zip} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, zip: e.target.checked}})} className="w-5 h-5 shrink-0 ml-2 rounded border-2 border-gray-700 bg-gray-900 checked:bg-pink-600 transition-all cursor-pointer" />
                       </label>
-                      <label className="flex items-center justify-between p-3 theme-bg rounded-[1.5rem] border-2 theme-border transition-all group h-full overflow-hidden">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className={`p-2.5 rounded-xl transition-all shrink-0 flex items-center justify-center ${formData.femaleOptions.cap > 0 ? 'bg-pink-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
-                            <span className="font-black text-xs md:text-sm">CAP</span>
-                          </div>
-                          <div className="min-w-0 truncate">
-                            <p className="font-black text-xs md:text-sm uppercase truncate">{t('cap') || 'Cap'}</p>
-                          </div>
-                        </div>
-                        <input type="number" min="0" value={formData.femaleOptions.cap} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, cap: Math.max(0, parseInt(e.target.value) || 0)}})} className="w-16 shrink-0 ml-2 rounded-xl border-2 border-gray-700 bg-gray-900 text-white font-bold text-center px-2 py-1 focus:border-pink-500 outline-none transition-all" />
-                      </label>
-                    </div>
-                  )}
-                  {formData.gender === 'Male' && (
-                    <div className="grid grid-cols-1 sm:grid-cols-1 gap-4">
-                      <label className="flex items-center justify-between p-3 theme-bg rounded-[1.5rem] border-2 theme-border transition-all group h-full overflow-hidden">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className={`p-2.5 rounded-xl transition-all shrink-0 flex items-center justify-center ${formData.femaleOptions.cap > 0 ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
-                            <span className="font-black text-xs md:text-sm">CAP</span>
-                          </div>
-                          <div className="min-w-0 truncate">
-                            <p className="font-black text-xs md:text-sm uppercase truncate">{t('cap') || 'Cap'}</p>
-                          </div>
-                        </div>
-                        <input type="number" min="0" value={formData.femaleOptions.cap} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, cap: Math.max(0, parseInt(e.target.value) || 0)}})} className="w-16 shrink-0 ml-2 rounded-xl border-2 border-gray-700 bg-gray-900 text-white font-bold text-center px-2 py-1 focus:border-blue-500 outline-none transition-all" />
-                      </label>
                     </div>
                   )}
                 </div>
@@ -2229,6 +2228,37 @@ const SmartOrderForm = () => {
                   {formData.productType && colors.length === 0 && (
                     <div className="mt-6 theme-bg-subtle p-6 rounded-2xl border theme-border text-center">
                       <p className="theme-text-secondary text-sm font-bold">Colors: Available (Standard)</p>
+                    </div>
+                  )}
+
+                  {/* Matching Cap */}
+                  {formData.productType && !isAccessory(selectedProductCategory) && (
+                    <div className="mt-6 theme-bg-subtle p-4 md:p-6 rounded-2xl border theme-border">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <h3 className="text-lg font-black text-rose-400 uppercase">Matching Cap</h3>
+                          <button
+                            type="button"
+                            onClick={() => setFormData({...formData, matchingCap: !formData.matchingCap, matchingCapQty: formData.matchingCap ? 0 : 1})}
+                            className={`relative w-12 h-6 rounded-full transition-all ${formData.matchingCap ? 'bg-rose-600' : 'bg-gray-700'}`}
+                          >
+                            <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${formData.matchingCap ? 'left-6' : 'left-0.5'}`} />
+                          </button>
+                        </div>
+                        {formData.matchingCap && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-400 font-black">Qty:</span>
+                            <div className="flex items-center gap-1">
+                              <button type="button" onClick={() => setFormData({...formData, matchingCapQty: Math.max(1, (formData.matchingCapQty || 1) - 1)})}
+                                className="w-8 h-8 rounded-lg bg-gray-800 text-gray-400 font-black hover:bg-gray-700 transition-all">−</button>
+                              <span className="w-8 text-center font-black text-white">{formData.matchingCapQty || 1}</span>
+                              <button type="button" onClick={() => setFormData({...formData, matchingCapQty: (formData.matchingCapQty || 1) + 1})}
+                                className="w-8 h-8 rounded-lg bg-gray-800 text-gray-400 font-black hover:bg-gray-700 transition-all">+</button>
+                            </div>
+                            <span className="text-xs text-rose-400 font-black">₨{(((formData.matchingCapQty || 0) * capUnitPrice)).toLocaleString()}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
 
@@ -2757,20 +2787,6 @@ const SmartOrderForm = () => {
                       </label>
                     </div>
                     <div className="space-y-4">
-                      <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-2">Cap Quantity</label>
-                      <label className="flex items-center justify-between p-4 theme-bg rounded-[1.5rem] border-2 theme-border transition-all group h-full">
-                        <div className="flex items-center space-x-4">
-                          <div className={`p-3 rounded-xl transition-all flex items-center justify-center ${formData.femaleOptions.cap > 0 ? 'bg-pink-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
-                            <span className="font-black text-sm">CAP</span>
-                          </div>
-                          <div>
-                            <p className="font-black text-sm uppercase">Cap</p>
-                          </div>
-                        </div>
-                        <input type="number" min="0" value={formData.femaleOptions.cap} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, cap: Math.max(0, parseInt(e.target.value) || 0)}})} className="w-16 rounded-xl border-2 border-gray-700 bg-gray-900 text-white font-bold text-center px-2 py-1 focus:border-pink-500 outline-none transition-all" />
-                      </label>
-                    </div>
-                    <div className="space-y-4">
                       <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-2">Sleeves Length</label>
                       <select
                         value={formData.femaleOptions.sleeves}
@@ -2792,24 +2808,6 @@ const SmartOrderForm = () => {
                         <option value="short">Short Shirt</option>
                         <option value="long">Long Shirt</option>
                       </select>
-                    </div>
-                  </div>
-                )}
-                {formData.gender === 'Male' && (
-                  <div className="grid grid-cols-1 md:grid-cols-1 gap-4 md:gap-8 mt-6 md:mt-12 theme-bg-subtle p-4 md:p-8 rounded-2xl md:rounded-[3rem] border theme-border">
-                    <div className="space-y-4">
-                      <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-2">Cap Quantity</label>
-                      <label className="flex items-center justify-between p-4 theme-bg rounded-[1.5rem] border-2 theme-border transition-all group h-full">
-                        <div className="flex items-center space-x-4">
-                          <div className={`p-3 rounded-xl transition-all flex items-center justify-center ${formData.femaleOptions.cap > 0 ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
-                            <span className="font-black text-sm">CAP</span>
-                          </div>
-                          <div>
-                            <p className="font-black text-sm uppercase">Cap</p>
-                          </div>
-                        </div>
-                        <input type="number" min="0" value={formData.femaleOptions.cap} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, cap: Math.max(0, parseInt(e.target.value) || 0)}})} className="w-16 rounded-xl border-2 border-gray-700 bg-gray-900 text-white font-bold text-center px-2 py-1 focus:border-blue-500 outline-none transition-all" />
-                      </label>
                     </div>
                   </div>
                 )}
@@ -3218,7 +3216,7 @@ const SmartOrderForm = () => {
                             <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                               <span className="text-xs text-gray-300 uppercase font-bold">{pd.color || '—'} / {pd.size || '—'}</span>
                               {pd.fabricType && <span className="text-xs text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">{pd.fabricType}</span>}
-                              {item.capCharges > 0 && <span className="text-xs font-black text-rose-400">×{pd.femaleOptions?.cap || 0} Cap</span>}
+                              {item.capCharges > 0 && <span className="text-xs font-black text-rose-400">×{pd.matchingCapQty || 0} Matching Cap</span>}
                               <span className="text-xs md:text-sm font-black text-blue-400">×{item.quantity || 1}</span>
                             </div>
                             {hasCust && (
@@ -3345,52 +3343,61 @@ const SmartOrderForm = () => {
                     </thead>
                     <tbody>
                       {(() => {
+                        const calcProductPrice = cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) - parseFloat(i.logoCharges || 0) - parseFloat(i.namePrintingCharges || 0) - parseFloat(i.customizationPrice || 0) - (parseInt(i.capCharges) || 0)), 0);
+                        const calcCustomization = cartItems.reduce((s, i) => s + (parseFloat(i.logoCharges || 0) + parseFloat(i.namePrintingCharges || 0) + parseFloat(i.customizationPrice || 0)), 0);
+                        const calcCap = cartItems.reduce((s, i) => s + (parseInt(i.capCharges) || 0), 0);
                         const calcDelivery = parseFloat(formData.deliveryCharges) || 0;
+                        const adjProductPrice = parseFloat(formData.adjProductPrice) || calcProductPrice;
+                        const adjCustomization = parseFloat(formData.adjCustomization) || calcCustomization;
+                        const adjCap = parseFloat(formData.adjCapCharges) || calcCap;
                         const adjDelivery = parseFloat(formData.adjDeliveryCharges) || calcDelivery;
+                        const discount = parseFloat(formData.adjDiscount) || 0;
+                        const calcTotal = calcProductPrice + calcCustomization + calcCap + calcDelivery;
+                        const adjTotal = adjProductPrice + adjCustomization + adjCap + adjDelivery - discount;
+                        const inp = (name, calcVal, color = 'emerald-400') => (
+                          <input type="number" min="0" value={formData[name] ?? ''} placeholder={String(calcVal)}
+                            onChange={e => setFormData({...formData, [name]: e.target.value})}
+                            className={`w-full text-right bg-gray-900 border border-gray-700/50 rounded-lg py-1 px-2 text-xs font-black text-${color} focus:border-${color} outline-none transition-all`} />
+                        );
                         return (
                           <>
-                            {cartItems.map((item, idx) => {
-                              const pd = item.productDetails || {};
-                              const calcItemTotal = parseFloat(item.totalPrice) || 0;
-                              const adjKey = `adjItemPrice_${idx}`;
-                              const adjVal = parseFloat(formData[adjKey]) || calcItemTotal;
-                              return (
-                                <tr key={idx} className="border-b border-gray-800/30">
-                                  <td className="py-1.5 pr-2">
-                                    <span className="text-xs text-gray-200 font-bold">#{idx + 1} {pd.productType || 'Item'}</span>
-                                    {pd.color && <span className="text-[9px] text-gray-500 ml-1">({pd.color}{pd.size ? ` / ${pd.size}` : ''})</span>}
-                                    <span className="text-[9px] text-blue-400 ml-1">×{item.quantity || 1}</span>
-                                    {item.capCharges > 0 && <span className="text-[9px] text-rose-400 ml-1">+{pd.femaleOptions?.cap || 0} cap</span>}
-                                    {item.logoCharges > 0 && <span className="text-[9px] text-amber-400 ml-1">+logo</span>}
-                                    {item.namePrintingCharges > 0 && <span className="text-[9px] text-purple-400 ml-1">+name</span>}
-                                    {parseFloat(item.customizationPrice) > 0 && <span className="text-[9px] text-cyan-400 ml-1">+custom</span>}
-                                  </td>
-                                  <td className="text-right text-gray-300 font-black py-1.5 px-2">₨{calcItemTotal.toLocaleString()}</td>
-                                  <td className="text-right py-1.5 pl-2">
-                                    <input type="number" min="0" value={formData[adjKey] ?? ''} placeholder={String(calcItemTotal)}
-                                      onChange={e => setFormData({...formData, [adjKey]: e.target.value})}
-                                      className="w-full text-right bg-gray-900 border border-gray-700/50 rounded-lg py-1 px-2 text-xs font-black text-emerald-400 focus:border-emerald-500 outline-none transition-all" />
-                                  </td>
-                                </tr>
-                              );
-                            })}
+                            <tr className="border-b border-gray-800/30">
+                              <td className="text-gray-300 font-bold py-1.5 pr-2">{useUrdu ? 'پروڈکٹ کی قیمت' : 'Product Price'}</td>
+                              <td className="text-right text-gray-300 font-black py-1.5 px-2">₨{calcProductPrice.toLocaleString()}</td>
+                              <td className="text-right py-1.5 pl-2">{inp('adjProductPrice', calcProductPrice)}</td>
+                            </tr>
+                            {(calcCustomization > 0) && (
+                              <tr className="border-b border-gray-800/30">
+                                <td className="text-cyan-400 font-bold py-1.5 pr-2">{useUrdu ? 'کسٹمائزیشن چارجز' : 'Customization Charges'}</td>
+                                <td className="text-right text-cyan-400 font-black py-1.5 px-2">₨{calcCustomization.toLocaleString()}</td>
+                                <td className="text-right py-1.5 pl-2">{inp('adjCustomization', calcCustomization, 'cyan-400')}</td>
+                              </tr>
+                            )}
+                            {(calcCap > 0) && (
+                              <tr className="border-b border-gray-800/30">
+                                <td className="text-rose-400 font-bold py-1.5 pr-2">{useUrdu ? 'میچنگ کیپ چارجز' : 'Matching Cap Charges'}</td>
+                                <td className="text-right text-rose-400 font-black py-1.5 px-2">₨{calcCap.toLocaleString()}</td>
+                                <td className="text-right py-1.5 pl-2">{inp('adjCapCharges', calcCap, 'rose-400')}</td>
+                              </tr>
+                            )}
                             <tr className="border-b border-gray-800/30">
                               <td className="text-amber-400 font-bold py-1.5 pr-2">{useUrdu ? 'ڈلیوری چارجز' : 'Delivery Charges'}</td>
                               <td className="text-right text-amber-400 font-black py-1.5 px-2">₨{calcDelivery.toLocaleString()}</td>
+                              <td className="text-right py-1.5 pl-2">{inp('adjDeliveryCharges', calcDelivery, 'amber-400')}</td>
+                            </tr>
+                            <tr className="border-b border-gray-800/30">
+                              <td className="text-emerald-400 font-bold py-1.5 pr-2">{useUrdu ? 'ڈسکاؤنٹ' : 'Discount'}</td>
+                              <td className="text-right text-gray-500 font-black py-1.5 px-2">—</td>
                               <td className="text-right py-1.5 pl-2">
-                                <input type="number" min="0" value={formData.adjDeliveryCharges ?? ''} placeholder={String(calcDelivery)}
-                                  onChange={e => setFormData({...formData, adjDeliveryCharges: e.target.value})}
-                                  className="w-full text-right bg-gray-900 border border-gray-700/50 rounded-lg py-1 px-2 text-xs font-black text-amber-400 focus:border-emerald-500 outline-none transition-all" />
+                                <input type="number" min="0" value={formData.adjDiscount ?? ''} placeholder="0"
+                                  onChange={e => setFormData({...formData, adjDiscount: e.target.value})}
+                                  className="w-full text-right bg-gray-900 border border-red-500/50 rounded-lg py-1 px-2 text-xs font-black text-red-400 focus:border-red-500 outline-none transition-all" />
                               </td>
                             </tr>
                             <tr>
-                              <td className="text-gray-200 font-black text-sm py-2 pr-2">{useUrdu ? 'کل آرڈر' : 'Total Order Value'}</td>
-                              <td className="text-right text-gray-200 font-black text-sm py-2 px-2">₨{(
-                                cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0) + calcDelivery
-                              ).toLocaleString()}</td>
-                              <td className="text-right font-black text-white text-sm py-2 pl-2">₨{(
-                                cartItems.reduce((s, item, i) => s + (parseFloat(formData[`adjItemPrice_${i}`]) || parseFloat(item.totalPrice) || 0), 0) + adjDelivery
-                              ).toLocaleString()}</td>
+                              <td className="text-gray-200 font-black text-sm py-2 pr-2">{useUrdu ? 'گرینڈ ٹوٹل' : 'Grand Total'}</td>
+                              <td className="text-right text-gray-200 font-black text-sm py-2 px-2">₨{calcTotal.toLocaleString()}</td>
+                              <td className="text-right font-black text-white text-lg py-2 pl-2">₨{adjTotal.toLocaleString()}</td>
                             </tr>
                           </>
                         );
