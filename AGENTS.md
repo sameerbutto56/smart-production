@@ -1,5 +1,5 @@
 ## Goal
-- Add Prepaid Order workflow with Paid/Unpaid toggle, auto-revenue recording, PAID badges across all modules, and analytics filtering.
+- Add Prepaid Order workflow, per-product branding details in Summary/Job Sheet, printable Production Job Sheet, and proper CAP quantity pricing.
 
 ## Constraints & Preferences
 - Delivery riders primarily use mobile devices – UI must be fully responsive with compact cards and expandable details.
@@ -8,6 +8,7 @@
 - Print output must be clean A4 format, suppress UI chrome, and support printer-connected direct printing.
 - Prepaid orders must skip payment collection at delivery (only Deliver / No Response / Return shown).
 - Prepaid orders must record revenue immediately at creation.
+- Job Sheet must be printable for physical production use – clean A4 with per-product branding.
 
 ## Progress
 ### Done
@@ -15,20 +16,22 @@
 - Restored Cap Quantity section in both Female and Male tailoring in `OrderEntry.jsx`.
 - Fixed CAPS category not showing branding tab – added `'CAPS'` to `isAccessory` / `isCustomizableProduct` arrays (DB stores `CAPS`, not `CAP`).
 - Added `deliveryCharges Float @default(0)` to Prisma schema and pushed to DB.
-- Added delivery charges input in Basics tab of `OrderEntry.jsx` and in edit form.
-- Added delivery charges row in Financial Summary (checkout review) + included in `totalPrice` and `combinedOrder` payload.
+- Added delivery charges input in Basics tab of `OrderEntry.jsx` and in edit form; included in Financial Summary, `totalPrice`, and `combinedOrder` payload.
 - Added delivery charges to backend order creation (`finalDeliveryCharges`, included in `finalTotalPrice`).
 - Added `paymentStatus: 'PENDING'` to `formData` with "Order Already Paid" toggle (emerald checkbox with descriptive text) in Basics tab.
 - Passed `paymentStatus` through `handleAddToCart` payload and `handleCheckout` `combinedOrder`.
-- Backend: added `paymentStatus` to order creation destructuring and `order.create` data; auto-calls `calculateAndRecordRevenue` when `paymentStatus === 'PAID'`.
+- Backend: added `paymentStatus` to order creation; auto-calls `calculateAndRecordRevenue` when `paymentStatus === 'PAID'`.
 - Made `calculateAndRecordRevenue` idempotent (skips `revenueRecord.create` if one already exists for the order).
-- Updated `OrderCard.jsx`: added `'PAID'` status badge (green, "PAID" label), hides "Record Payment" button for PAID orders.
-- Updated `DeliveryDashboard.jsx`: shows PAID badge on cards; for PAID orders replaces full payment-method UI with simplified 3-button grid (Deliver / No Reply / Return). Cleaned up duplicate code that was left behind from edit.
-- Updated `DeliverySheet.jsx`: added "Payment" column to both screen and print tables with PAID/Unpaid badges.
-- Updated `AllOrders.jsx`: added PAID badge in table rows, grouped view payment summary, and modal display.
-- Updated `AdminDashboard.jsx`: added PAID badge next to status in recent orders and outlet analytics tables.
-- Updated `UnifiedAnalytics.jsx`: added Payment Status filter dropdown (All / Paid / Unpaid), paid/unpaid summary cards.
-- Updated backend `analytics.controller.js`: added `paymentStatus` query filter (supports `'paid'` and `'unpaid'`), returns `paidOrders` / `unpaidOrders` counts.
+- Added PAYMENT_STATUS badges across all modules: `OrderCard.jsx`, `DeliveryDashboard.jsx`, `DeliverySheet.jsx`, `AllOrders.jsx`, `AdminDashboard.jsx`, `UnifiedAnalytics.jsx`.
+- Backend `analytics.controller.js`: `paymentStatus` filter for paid/unpaid queries.
+- Moved PAID toggle from header area into Basics tab as a full-width card before the City field.
+- Enhanced per-product customization details in OrderEntry review modal, AllOrders Job Sheet modal, OrderCard PRODUCTION/STORE stage, and Full Sheet modal.
+- Fixed LAB-COAT category missing color/size – changed `isAccessory`/`isCustomizableProduct` to substring match on `'COAT'`.
+- Fixed empty-string color/size filtered out by truthiness checks – used strict `!= null && !== ''` filters.
+- Reduced WarehouseDashboard polling from 10s to 60s with `document.hidden` check.
+- Created `printJobSheet` in `printReport.js` – clean A4 layout with order header, products table, per-product branding, measurements, production timeline.
+- Added "Print Job Sheet" button to AllOrders Job Sheet modal and OrderCard Full Sheet modal.
+- **Fixed CAP pricing**: added `capCharges = femaleOptions.cap × 500` calculation; included in `handleAddToCart` totalPrice; added "Cap Charges" line in Financial Summary; added cap quantity badge in per-item review card.
 
 ### In Progress
 - (none)
@@ -38,28 +41,35 @@
 
 ## Key Decisions
 - `deliveryCharges` stored as `Float @default(0)` on Order model – simple, queryable per-order.
-- `paymentStatus` uses existing `String @default("PENDING")` field, reusing `'PAID'` value consistently across all modules.
-- Prepaid revenue recorded immediately via `calculateAndRecordRevenue(order)` at creation time – duplicate call at completion is safe because `calculateAndRecordRevenue` is now idempotent (checks for existing record).
-- Delivery dashboard conditionally renders two entirely different button layouts (PAID vs unpaid) to avoid complex visibility logic.
+- `paymentStatus` reuses existing `String @default("PENDING")` field consistently across all modules.
+- Prepaid revenue recorded idempotently – checks existing `RevenueRecord` before creating.
+- Delivery dashboard uses two entirely different button layouts (PAID vs unpaid) for clarity.
+- `isAccessory`/`isCustomizableProduct` switched from exact array matching to substring matching (`includes('COAT')`) for hyphenated categories like `LAB-COAT`.
+- Print Job Sheet uses `openPrintWindow`/`closePrintWindow` pattern (not `@media print`) to avoid modal overlay artifacts.
+- CAP pricing uses hardcoded `capUnitPrice = 500` per cap, included in per-item `totalPrice` and Financial Summary cap charges line.
 
 ## Next Steps
-- Confirm build passes, then commit and push all prepaid order changes.
+- Verify no remaining issues with color/size display for products missing variants.
 
 ## Critical Context
-- Latest pushed commit: `1188ace` – Add delivery charges input in checkout review summary.
-- Prepaid Order changes are UNCOMMITTED – include all files touched (OrderEntry.jsx, OrderCard.jsx, DeliveryDashboard.jsx, DeliverySheet.jsx, AllOrders.jsx, AdminDashboard.jsx, UnifiedAnalytics.jsx, order.controller.js, analytics.controller.js).
-- All 2933+ frontend modules transform and build without errors (verified per-edit).
-- `calculateAndRecordRevenue` now idempotent – won't create duplicate `RevenueRecord` entries.
+- All changes are committed and pushed.
+- Latest pushes: prepaid order workflow, summary enhancements, LAB-COAT fix, warehouse polling fix, print job sheet, cap pricing fix.
+- Build passes with 0 errors.
+- `isAccessory` uses substring matching (`catUpper.includes('COAT')`) so `LAB-COAT`, `COAT`, etc. all behave as non-accessory.
+- `calculateAndRecordRevenue` at line 2482 of `order.controller.js` is now idempotent.
 
 ## Relevant Files
-- `frontend/src/pages/OrderEntry.jsx`: delivery charges input + PAID toggle in Basics; reset logic; checkout payload includes both fields
-- `frontend/src/components/OrderCard.jsx`: PAID badge (green), hides payment button for PAID
-- `frontend/src/pages/DeliveryDashboard.jsx`: PAID badge + simplified action buttons for PAID orders; removed duplicate old code block
-- `frontend/src/pages/DeliverySheet.jsx`: Payment Status column (screen + print tables)
-- `frontend/src/pages/AllOrders.jsx`: PAID badges in table, grouped view, modal
-- `frontend/src/pages/AdminDashboard.jsx`: PAID badges in recent orders + outlet tables
-- `frontend/src/pages/UnifiedAnalytics.jsx`: payment filter dropdown + paid/unpaid summary cards
-- `backend/src/controllers/order.controller.js`: deliveryCharges + paymentStatus in order create; auto-revenue for PAID (idempotent); paymentStatus in updatePayment
-- `backend/src/controllers/analytics.controller.js`: paymentStatus filter for paid/unpaid queries
-- `backend/prisma/schema.prisma`: deliveryCharges field on Order model
+- `frontend/src/pages/OrderEntry.jsx`: PAID toggle (before City), expanded per-product customization in review modal, cap pricing (capCharges = cap × 500, included in totalPrice & Financial Summary), `isAccessory`/`isCustomizableProduct` substring match, variant filter fixes
+- `frontend/src/pages/AllOrders.jsx`: per-product branding sections in Job Sheet modal, richer table row badges, Print Job Sheet button
+- `frontend/src/components/OrderCard.jsx`: multi-item PRODUCTION/STORE stage rendering, per-product customization sections, Print button in Full Sheet modal
+- `frontend/src/pages/DeliveryDashboard.jsx`: PAID badge + simplified buttons for PAID orders
+- `frontend/src/pages/DeliverySheet.jsx`: Payment Status column (screen + print)
+- `frontend/src/pages/AdminDashboard.jsx`: PAID badges
+- `frontend/src/pages/UnifiedAnalytics.jsx`: payment filter + paid/unpaid cards
+- `frontend/src/pages/WarehouseDashboard.jsx`: polling reduced to 60s + visibility check
+- `frontend/src/utils/printReport.js`: `printJobSheet` function for A4 printable production job sheet
+- `backend/src/controllers/order.controller.js`: deliveryCharges + paymentStatus in order create; idempotent revenue recording
+- `backend/src/controllers/analytics.controller.js`: paymentStatus filter
+- `backend/prisma/schema.prisma`: deliveryCharges field
+- `frontend/src/hooks/usePolling.js`: polling hook (unchanged)
 - `AGENTS.md`: this file

@@ -782,7 +782,8 @@ const SmartOrderForm = () => {
         logos: logoEntries
       },
       sizeData: formData.measurements,
-      totalPrice: (computedTotalPrice > 0 ? computedTotalPrice : (parseFloat(formData.totalPrice) || 0)) + brandingTotal
+      capCharges,
+      totalPrice: (computedTotalPrice > 0 ? computedTotalPrice : (parseFloat(formData.totalPrice) || 0)) + brandingTotal + capCharges
     };
 
     setCartItems([...cartItems, payload]);
@@ -1084,6 +1085,8 @@ const SmartOrderForm = () => {
     return price;
   })();
   const computedTotalPrice = computedUnitPrice * (formData.quantity || 1);
+  const capUnitPrice = 500;
+  const capCharges = (formData.femaleOptions?.cap || 0) * capUnitPrice;
 
   const allTabs = [
     { id: 'basic', label: '1. Basics', icon: Layout },
@@ -3213,6 +3216,7 @@ const SmartOrderForm = () => {
                             <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                               <span className="text-xs text-gray-300 uppercase font-bold">{pd.color || '—'} / {pd.size || '—'}</span>
                               {pd.fabricType && <span className="text-xs text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">{pd.fabricType}</span>}
+                              {item.capCharges > 0 && <span className="text-xs font-black text-rose-400">×{pd.femaleOptions?.cap || 0} Cap</span>}
                               <span className="text-xs md:text-sm font-black text-blue-400">×{item.quantity || 1}</span>
                             </div>
                             {hasCust && (
@@ -3348,6 +3352,12 @@ const SmartOrderForm = () => {
                     <div className="flex justify-between items-center">
                       <span className="text-xs text-cyan-400">{useUrdu ? 'کسٹمائزیشن' : 'Customization'}</span>
                       <span className="font-black text-cyan-400">₨{cartItems.reduce((s, i) => s + (parseFloat(i.customizationPrice) || 0), 0).toLocaleString()}</span>
+                    </div>
+                  )}
+                  {cartItems.some(i => i.capCharges) && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-rose-400">{useUrdu ? 'کیپ چارجز' : 'Cap Charges'}</span>
+                      <span className="font-black text-rose-400">₨{cartItems.reduce((s, i) => s + (parseInt(i.capCharges) || 0), 0).toLocaleString()}</span>
                     </div>
                   )}
                   <div className="flex justify-between items-center pt-2 border-t border-gray-700/30">
