@@ -188,75 +188,102 @@ const bulkUploadInventory = async (req, res) => {
 };
 
 const allocateInventory = async (req, res) => {
-  const { itemId, color, size, quantity, notes, personName } = req.body;
+  const { itemId, color, size, quantity, notes, personName, items } = req.body;
   if (!personName || !personName.trim()) {
     return res.status(400).json({ message: 'personName is required' });
   }
-  if (!itemId || !quantity || quantity <= 0) {
-    return res.status(400).json({ message: 'itemId and quantity > 0 are required' });
+
+  // Support both single-item (backward compat) and multi-item (items array)
+  const allocateItems = items || [{ itemId, color, size, quantity }];
+  if (!allocateItems.length) {
+    return res.status(400).json({ message: 'At least one item is required' });
   }
+
   try {
-    const item = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
-    if (!item) return res.status(404).json({ message: 'Item not found' });
+    const allocations = [];
+    for (const alloc of allocateItems) {
+      const { itemId: id, color: c, size: s, quantity: qty } = alloc;
+      if (!id || !qty || qty <= 0) {
+        return res.status(400).json({ message: 'Each item must have itemId and quantity > 0' });
+      }
 
-    let deductQty = parseInt(quantity);
-    let variantLabel = '';
+      const item = await prisma.inventoryItem.findUnique({ where: { id } });
+      if (!item) return res.status(404).json({ message: `Item not found: ${id}` });
 
-    if (item.variants && Array.isArray(item.variants)) {
-      let updatedVariants = [...item.variants];
+      let deductQty = parseInt(qty);
+      let variantLabel = '';
+      let allocColor = c || item.color;
+      let allocSize = s || item.size;
 
-      if (color || size) {
-        const matchIdx = updatedVariants.findIndex(v =>
-          (!color || (v.color && v.color.toLowerCase() === color.toLowerCase())) &&
-          (!size || (v.size && v.size.toLowerCase() === size.toLowerCase()))
-        );
-        if (matchIdx >= 0) {
-          const available = updatedVariants[matchIdx].stock || 0;
-          if (available >= deductQty) {
-            updatedVariants[matchIdx] = { ...updatedVariants[matchIdx], stock: available - deductQty };
-            variantLabel = `${updatedVariants[matchIdx].color || ''} ${updatedVariants[matchIdx].size || ''}`.trim();
+      if (item.variants && Array.isArray(item.variants)) {
+        let updatedVariants = [...item.variants];
+
+        if (c || s) {
+          const matchIdx = updatedVariants.findIndex(v =>
+            (!c || (v.color && v.color.toLowerCase() === c.toLowerCase())) &&
+            (!s || (v.size && v.size.toLowerCase() === s.toLowerCase()))
+          );
+          if (matchIdx >= 0) {
+            const available = updatedVariants[matchIdx].stock || 0;
+            if (available >= deductQty) {
+              updatedVariants[matchIdx] = { ...updatedVariants[matchIdx], stock: available - deductQty };
+              variantLabel = `${updatedVariants[matchIdx].color || ''} ${updatedVariants[matchIdx].size || ''}`.trim();
+              allocColor = updatedVariants[matchIdx].color || item.color;
+              allocSize = updatedVariants[matchIdx].size || item.size;
+            } else {
+              return res.status(400).json({ message: `Insufficient stock for ${item.name} variant ${c || ''} ${s || ''}. Only ${available} of ${deductQty} available.` });
+            }
           } else {
-            return res.status(400).json({ message: `Insufficient stock for variant ${color || ''} ${size || ''}. Only ${available} of ${deductQty} available.` });
+            return res.status(400).json({ message: `Variant not found for ${item.name}: ${c || ''} ${s || ''}`.trim() });
           }
         } else {
-          return res.status(400).json({ message: `Variant not found: ${color || ''} ${size || ''}`.trim() });
+          return res.status(400).json({ message: `color and/or size are required for ${item.name} (has variants)` });
         }
+
+        const newTotal = updatedVariants.reduce((sum, v) => sum + (v.stock || 0), 0);
+        await prisma.inventoryItem.update({
+          where: { id: item.id },
+          data: { variants: updatedVariants, stock: newTotal }
+        });
       } else {
-        return res.status(400).json({ message: 'color and/or size are required for items with variants' });
+        if (item.stock < deductQty) {
+          return res.status(400).json({ message: `Insufficient stock for ${item.name}. Only ${item.stock} available.` });
+        }
+        await prisma.inventoryItem.update({
+          where: { id: item.id },
+          data: { stock: { decrement: deductQty } }
+        });
       }
 
-      const newTotal = updatedVariants.reduce((s, v) => s + (v.stock || 0), 0);
-      await prisma.inventoryItem.update({
-        where: { id: item.id },
-        data: { variants: updatedVariants, stock: newTotal }
+      const allocation = await prisma.allocation.create({
+        data: {
+          personName: personName.trim(),
+          itemName: item.name,
+          itemCategory: item.category,
+          color: allocColor,
+          size: allocSize,
+          quantity: deductQty,
+          notes: notes || '',
+          itemId: item.id
+        }
       });
-    } else {
-      if (item.stock < deductQty) {
-        return res.status(400).json({ message: `Insufficient stock. Only ${item.stock} available.` });
-      }
-      await prisma.inventoryItem.update({
-        where: { id: item.id },
-        data: { stock: { decrement: deductQty } }
+      allocations.push(allocation);
+
+      await prisma.auditLog.create({
+        data: {
+          orderId: null,
+          action: 'INVENTORY_ALLOCATED',
+          details: `Allocated ${deductQty}x ${item.name}${variantLabel ? ' (' + variantLabel + ')' : ''} to ${personName.trim()}`,
+          userId: req.user?.id || null
+        }
       });
     }
 
-    // Create permanent Allocation record
-    const allocation = await prisma.allocation.create({
-      data: {
-        personName: personName.trim(),
-        itemName: item.name,
-        itemCategory: item.category,
-        color: color || item.color,
-        size: size || item.size,
-        quantity: deductQty,
-        notes: notes || '',
-        itemId: item.id
-      }
-    });
-
-    // Log to audit log
-    await prisma.auditLog.create({
-      data: {
+    res.status(201).json({ message: `${allocations.length} product(s) allocated successfully`, count: allocations.length, allocations });
+  } catch (error) {
+    res.status(500).json({ message: 'Error allocating products', error: error.message });
+  }
+};
         action: 'INVENTORY_ALLOCATED',
         details: JSON.stringify({
           personName: personName.trim(),

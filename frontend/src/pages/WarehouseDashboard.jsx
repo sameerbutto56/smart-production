@@ -33,10 +33,7 @@ const WarehouseDashboard = () => {
   const [rejectNotes, setRejectNotes] = useState('');
   const [approveQty, setApproveQty] = useState(0);
   const [personName, setPersonName] = useState('');
-  const [selectedProduct, setSelectedProduct] = useState(null);
-  const [selectedColor, setSelectedColor] = useState('');
-  const [selectedSize, setSelectedSize] = useState('');
-  const [allocationQty, setAllocationQty] = useState(1);
+  const [allocationItems, setAllocationItems] = useState([{ product: null, color: '', size: '', qty: 1 }]);
   const [allocationNotes, setAllocationNotes] = useState('');
   const [allocationLoading, setAllocationLoading] = useState(false);
   const [allocationRecords, setAllocationRecords] = useState([]);
@@ -162,33 +159,35 @@ const WarehouseDashboard = () => {
   };
 
   const handleAllocate = async () => {
-    if (!personName.trim() || !selectedProduct || !selectedColor || !selectedSize || allocationQty < 1) {
-      toast.error('Please fill all required fields');
-      return;
+    if (!personName.trim()) { toast.error('Please enter person name'); return; }
+    const validItems = allocationItems.filter(i => i.product && i.qty > 0);
+    if (!validItems.length) { toast.error('Add at least one product'); return; }
+    for (const item of validItems) {
+      const vs = item.product.variants || [];
+      if (vs.length && (!item.color || !item.size)) { toast.error('Select color and size for all items'); return; }
     }
     setAllocationLoading(true);
     try {
       const token = sessionStorage.getItem('token');
       await axios.post(`${API_URL}/api/inventory/allocate`, {
         personName: personName.trim(),
-        itemId: selectedProduct.id,
-        color: selectedColor,
-        size: selectedSize,
-        quantity: allocationQty,
+        items: validItems.map(i => ({
+          itemId: i.product.id,
+          color: i.color,
+          size: i.size,
+          quantity: i.qty
+        })),
         notes: allocationNotes,
       }, { headers: { Authorization: `Bearer ${token}` } });
-      toast.success('Product allocated successfully');
+      toast.success('Products allocated successfully');
       setPersonName('');
-      setSelectedProduct(null);
-      setSelectedColor('');
-      setSelectedSize('');
-      setAllocationQty(1);
+      setAllocationItems([{ product: null, color: '', size: '', qty: 1 }]);
       setAllocationNotes('');
       fetchData(true);
       fetchAllocations();
       fetchAllocationStats();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Error allocating product');
+      toast.error(error.response?.data?.message || 'Error allocating products');
     }
     setAllocationLoading(false);
   };
@@ -1089,105 +1088,135 @@ const WarehouseDashboard = () => {
 
               {/* Allocation Form */}
               <div className="glass p-4 md:p-8 rounded-xl md:rounded-[2.5rem] border-2 border-gray-900">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-6">
-                  <div>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-6">
+                    <div>
                       <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Person Name *</label>
-                    <input type="text" value={personName} onChange={(e) => setPersonName(e.target.value)}
-                      placeholder="Enter person's name"
-                      className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 focus:border-amber-500 outline-none font-medium text-white mt-2" />
+                      <input type="text" value={personName} onChange={(e) => setPersonName(e.target.value)}
+                        placeholder="Enter person's name"
+                        className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 focus:border-amber-500 outline-none font-medium text-white mt-2" />
+                    </div>
+                    <div>
+                      <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Notes</label>
+                      <textarea value={allocationNotes} onChange={(e) => setAllocationNotes(e.target.value)}
+                        className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 focus:border-amber-500 outline-none font-medium text-white mt-2 min-h-[40px]"
+                        placeholder="Optional notes..." />
+                    </div>
                   </div>
-                  <div>
-                      <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Product *</label>
-                    <select value={selectedProduct?.id || ''} onChange={(e) => {
-                      const prod = inventory.find(i => i.id === e.target.value);
-                      setSelectedProduct(prod || null);
-                      setSelectedColor('');
-                      setSelectedSize('');
-                    }}
-                      className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 focus:border-amber-500 outline-none font-medium text-white mt-2">
-                      <option value="">Select Product</option>
-                      {inventory.filter(i => i.stock > 0).map(p => (
-                        <option key={p.id} value={p.id}>{p.name} ({p.stock} units)</option>
-                      ))}
-                    </select>
+
+                  {/* Product Items Table */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="text-xs font-black theme-text-muted uppercase tracking-widest border-b theme-border">
+                          <th className="pb-2 pr-2 w-[30%]">Product</th>
+                          <th className="pb-2 pr-2 w-[15%]">Color</th>
+                          <th className="pb-2 pr-2 w-[12%]">Size</th>
+                          <th className="pb-2 pr-2 w-[10%]">Qty</th>
+                          <th className="pb-2 w-[8%]"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {allocationItems.map((item, idx) => {
+                          const prod = item.product;
+                          const variants = prod?.variants || [];
+                          const hasVariants = variants.length > 0;
+                          const uniqueColors = hasVariants ? [...new Set(variants.map(v => v.color).filter(Boolean))] : [];
+                          const availableSizes = hasVariants && item.color
+                            ? [...new Set(variants.filter(v => v.color === item.color).map(v => v.size).filter(Boolean))]
+                            : (hasVariants ? [...new Set(variants.map(v => v.size).filter(Boolean))] : []);
+                          const maxQty = (() => {
+                            if (!prod) return 1;
+                            if (hasVariants && item.color && item.size) {
+                              const v = variants.find(x => x.color === item.color && x.size === item.size);
+                              if (v) return v.stock;
+                            }
+                            if (!hasVariants) return prod.stock || 1;
+                            return 1;
+                          })();
+                          return (
+                            <tr key={idx} className="border-b border-gray-800/30">
+                              <td className="py-2 pr-2">
+                                <select value={item.product?.id || ''} onChange={(e) => {
+                                  const p = inventory.find(i => i.id === e.target.value);
+                                  const newItems = [...allocationItems];
+                                  newItems[idx] = { product: p || null, color: '', size: '', qty: 1 };
+                                  setAllocationItems(newItems);
+                                }}
+                                  className="w-full theme-bg-subtle border-2 theme-border rounded-lg py-2 px-3 focus:border-amber-500 outline-none font-medium text-xs text-white">
+                                  <option value="">Select Product</option>
+                                  {inventory.filter(i => i.stock > 0).map(p => (
+                                    <option key={p.id} value={p.id}>{p.name} ({p.stock})</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="py-2 pr-2">
+                                {hasVariants ? (
+                                  <select value={item.color} onChange={(e) => {
+                                    const newItems = [...allocationItems];
+                                    newItems[idx] = { ...newItems[idx], color: e.target.value, size: '' };
+                                    setAllocationItems(newItems);
+                                  }}
+                                    className="w-full theme-bg-subtle border-2 theme-border rounded-lg py-2 px-3 focus:border-amber-500 outline-none font-medium text-xs text-white">
+                                    <option value="">Color</option>
+                                    {uniqueColors.map(c => <option key={c} value={c}>{c}</option>)}
+                                  </select>
+                                ) : (
+                                  <input type="text" value={prod?.color || ''} disabled
+                                    className="w-full theme-bg-subtle border-2 theme-border rounded-lg py-2 px-3 font-medium text-xs text-gray-400" />
+                                )}
+                              </td>
+                              <td className="py-2 pr-2">
+                                {hasVariants ? (
+                                  <select value={item.size} onChange={(e) => {
+                                    const newItems = [...allocationItems];
+                                    newItems[idx] = { ...newItems[idx], size: e.target.value };
+                                    setAllocationItems(newItems);
+                                  }}
+                                    className="w-full theme-bg-subtle border-2 theme-border rounded-lg py-2 px-3 focus:border-amber-500 outline-none font-medium text-xs text-white">
+                                    <option value="">Size</option>
+                                    {availableSizes.map(s => <option key={s} value={s}>{s}</option>)}
+                                  </select>
+                                ) : (
+                                  <input type="text" value={prod?.size || ''} disabled
+                                    className="w-full theme-bg-subtle border-2 theme-border rounded-lg py-2 px-3 font-medium text-xs text-gray-400" />
+                                )}
+                              </td>
+                              <td className="py-2 pr-2">
+                                <input type="number" min="1" value={item.qty}
+                                  onChange={(e) => {
+                                    const newItems = [...allocationItems];
+                                    newItems[idx] = { ...newItems[idx], qty: Math.min(parseInt(e.target.value) || 1, maxQty) };
+                                    setAllocationItems(newItems);
+                                  }}
+                                  className="w-full theme-bg-subtle border-2 theme-border rounded-lg py-2 px-3 focus:border-amber-500 outline-none font-black text-xs text-white text-center" />
+                                <p className="text-[9px] theme-text-muted mt-0.5 text-center">max {maxQty}</p>
+                              </td>
+                              <td className="py-2 text-center">
+                                {allocationItems.length > 1 && (
+                                  <button type="button" onClick={() => setAllocationItems(allocationItems.filter((_, i) => i !== idx))}
+                                    className="p-1.5 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-lg transition-all">
+                                    <X size={12} />
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
-                  {selectedProduct && (() => {
-                    const variants = selectedProduct.variants || [];
-                    if (!variants.length) {
-                      return (<>
-                        <div>
-                          <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Color</label>
-                          <input type="text" value={selectedProduct.color || ''} disabled
-                            className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 font-medium theme-text-muted mt-2" />
-                        </div>
-                        <div>
-                          <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Size</label>
-                          <input type="text" value={selectedProduct.size || ''} disabled
-                            className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 font-medium theme-text-muted mt-2" />
-                        </div>
-                      </>);
-                    }
-                    const uniqueColors = [...new Set(variants.map(v => v.color).filter(Boolean))];
-                    const uniqueSizes = [...new Set(variants.map(v => v.size).filter(Boolean))];
-                    const availableSizes = selectedColor
-                      ? [...new Set(variants.filter(v => v.color === selectedColor).map(v => v.size).filter(Boolean))]
-                      : uniqueSizes;
-                    return (<>
-                      <div>
-                        <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Color *</label>
-                        <select value={selectedColor} onChange={(e) => { setSelectedColor(e.target.value); setSelectedSize(''); }}
-                          className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 focus:border-amber-500 outline-none font-medium text-white mt-2">
-                          <option value="">Select Color</option>
-                          {uniqueColors.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Size *</label>
-                        <select value={selectedSize} onChange={(e) => setSelectedSize(e.target.value)}
-                          className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 focus:border-amber-500 outline-none font-medium text-white mt-2">
-                          <option value="">Select Size</option>
-                          {availableSizes.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                      </div>
-                    </>);
-                  })()}
-                  <div>
-                    <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Quantity *</label>
-                    <input type="number" min="1" value={allocationQty}
-                      onChange={(e) => {
-                        const max = (() => {
-                          if (!selectedProduct) return 1;
-                          const vs = selectedProduct.variants || [];
-                          if (vs.length && selectedColor && selectedSize) {
-                            const v = vs.find(x => x.color === selectedColor && x.size === selectedSize);
-                            if (v) return v.stock;
-                          }
-                          if (!vs.length) return selectedProduct.stock || 1;
-                          return 1;
-                        })();
-                        setAllocationQty(Math.min(parseInt(e.target.value) || 1, max));
-                      }}
-                      className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 focus:border-amber-500 outline-none font-black text-lg text-white mt-2" />
-                    {selectedProduct && (() => {
-                      const vs = selectedProduct.variants || [];
-                      if (vs.length && selectedColor && selectedSize) {
-                        const v = vs.find(x => x.color === selectedColor && x.size === selectedSize);
-                        if (v) return <p className="text-xs md:text-sm theme-text-muted font-bold mt-1">Available: {v.stock}</p>;
-                      }
-                      if (!vs.length) return <p className="text-xs md:text-sm theme-text-muted font-bold mt-1">Available: {selectedProduct.stock}</p>;
-                      return null;
-                    })()}
-                  </div>
-                  <div>
-                    <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Notes</label>
-                    <textarea value={allocationNotes} onChange={(e) => setAllocationNotes(e.target.value)}
-                      className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 focus:border-amber-500 outline-none font-medium text-white mt-2 min-h-[80px]"
-                      placeholder="Optional notes about this allocation..." />
-                  </div>
+
+                  <button type="button" onClick={() => setAllocationItems([...allocationItems, { product: null, color: '', size: '', qty: 1 }])}
+                    className="text-xs font-black text-emerald-400 hover:text-emerald-300 transition-colors flex items-center space-x-2">
+                    <PlusCircle size={14} />
+                    <span>Add Product</span>
+                  </button>
                 </div>
-                <div className="mt-8 flex justify-end">
+
+                <div className="mt-6 flex justify-end">
                   <button onClick={handleAllocate}
-                    disabled={allocationLoading || !personName.trim() || !selectedProduct || !selectedColor || !selectedSize || allocationQty < 1}
+                    disabled={allocationLoading || !personName.trim() || !allocationItems.some(i => i.product && i.qty > 0)}
                     className="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black py-3.5 px-8 rounded-2xl transition-all flex items-center space-x-3 active:scale-95">
                     {allocationLoading ? <RefreshCcw className="animate-spin" size={16} /> : <Send size={16} />}
                     <span>{allocationLoading ? 'Allocating...' : 'Allocate Product'}</span>
