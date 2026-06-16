@@ -1054,7 +1054,7 @@ const SmartOrderForm = () => {
     ? productsInCategory.find(i => i.name === formData.productType) 
     : null;
   // Get variants array from selected product, or empty
-  const selectedProductVariants = selectedProduct?.variants && Array.isArray(selectedProduct.variants)
+  const selectedProductVariants = selectedProduct?.variants && Array.isArray(selectedProduct.variants) && selectedProduct.variants.length > 0
     ? selectedProduct.variants
     : (selectedProduct ? [{ color: selectedProduct.color, size: selectedProduct.size, stock: selectedProduct.stock, price: selectedProduct.price }] : []);
   // Fabric from selected product
@@ -1063,11 +1063,11 @@ const SmartOrderForm = () => {
     : inventory.filter(i => i.category === 'FABRIC');
   // Colors from variant color values
   const colors = formData.productType && selectedProductVariants.length > 0
-    ? [...new Set(selectedProductVariants.filter(v => v.color).map(v => v.color))]
+    ? [...new Set(selectedProductVariants.filter(v => v.color != null && v.color !== '').map(v => v.color))]
     : [];
   // Sizes from variant size values
   const availableSizes = formData.productType && selectedProductVariants.length > 0
-    ? [...new Set(selectedProductVariants.filter(v => v.size).map(v => v.size))]
+    ? [...new Set(selectedProductVariants.filter(v => v.size != null && v.size !== '').map(v => v.size))]
     : [];
 
   // Compute inventory-based unit price  
