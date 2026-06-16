@@ -193,7 +193,14 @@ const WarehouseDashboard = () => {
     setAllocationLoading(false);
   };
 
-  usePolling(() => fetchData(true), 10000);
+  // Check tab visibility to avoid polling when user isn't looking
+  const [pageVisible, setPageVisible] = useState(true);
+  useEffect(() => {
+    const handler = () => setPageVisible(!document.hidden);
+    document.addEventListener('visibilitychange', handler);
+    return () => document.removeEventListener('visibilitychange', handler);
+  }, []);
+  usePolling(() => { if (pageVisible) fetchData(true); }, 60000);
 
   const getStatusColor = (status) => {
     switch (status) {
