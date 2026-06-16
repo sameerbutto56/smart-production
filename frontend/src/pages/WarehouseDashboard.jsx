@@ -64,33 +64,32 @@ const WarehouseDashboard = () => {
     const token = sessionStorage.getItem('token');
     try {
       if (activeTab === 'requests' || activeTab === 'dashboard' || activeTab === 'allocation') {
-        const [reqRes, invRes] = await Promise.all([
+        const results = await Promise.allSettled([
           axios.get(`${API_URL}/api/stock-requests`, { headers: { Authorization: `Bearer ${token}` } }),
           axios.get(`${API_URL}/api/inventory`, { headers: { Authorization: `Bearer ${token}` } })
         ]);
-        setRequests(reqRes.data);
-        setInventory(invRes.data);
+        if (results[0].status === 'fulfilled') setRequests(results[0].value.data);
+        if (results[1].status === 'fulfilled') setInventory(results[1].value.data);
       } else if (activeTab === 'inventory' || activeTab === 'history') {
-        const invRes = await axios.get(`${API_URL}/api/inventory`, { headers: { Authorization: `Bearer ${token}` } });
-        setInventory(invRes.data);
-        const reqRes = await axios.get(`${API_URL}/api/stock-requests`, { headers: { Authorization: `Bearer ${token}` } });
-        setRequests(reqRes.data);
+        const results = await Promise.allSettled([
+          axios.get(`${API_URL}/api/inventory`, { headers: { Authorization: `Bearer ${token}` } }),
+          axios.get(`${API_URL}/api/stock-requests`, { headers: { Authorization: `Bearer ${token}` } })
+        ]);
+        if (results[0].status === 'fulfilled') setInventory(results[0].value.data);
+        if (results[1].status === 'fulfilled') setRequests(results[1].value.data);
       } else if (activeTab === 'production') {
         const invRes = await axios.get(`${API_URL}/api/production/inventory`, { headers: { Authorization: `Bearer ${token}` } });
         setProductionInventory(invRes.data);
       } else if (activeTab === 'tasks') {
-        const [unseenRes, prodRes] = await Promise.all([
+        const results = await Promise.allSettled([
           axios.get(`${API_URL}/api/orders/unseen-tasks`, { headers: { Authorization: `Bearer ${token}` } }),
           axios.get(`${API_URL}/api/orders/production-returned`, { headers: { Authorization: `Bearer ${token}` } })
         ]);
-        setUnseenTasks(unseenRes.data);
-        setProductionTasks(prodRes.data);
+        if (results[0].status === 'fulfilled') setUnseenTasks(results[0].value.data);
+        if (results[1].status === 'fulfilled') setProductionTasks(results[1].value.data);
       }
     } catch (error) {
-      if (!silent) {
-        console.error('Error fetching data:', error);
-        toast.error(`Failed: ${error.response?.data?.message || error.message || 'load data'}`);
-      }
+      if (!silent) console.error('Error fetching data:', error);
     }
     if (!silent) setLoading(false);
   };
