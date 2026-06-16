@@ -3389,7 +3389,7 @@ const SmartOrderForm = () => {
                                 cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0) + calcDelivery
                               ).toLocaleString()}</td>
                               <td className="text-right font-black text-white text-sm py-2 pl-2">₨{(
-                                cartItems.reduce((s, idx) => s + (parseFloat(formData[`adjItemPrice_${idx}`]) || parseFloat(cartItems[idx].totalPrice) || 0), 0) + adjDelivery
+                                cartItems.reduce((s, item, i) => s + (parseFloat(formData[`adjItemPrice_${i}`]) || parseFloat(item.totalPrice) || 0), 0) + adjDelivery
                               ).toLocaleString()}</td>
                             </tr>
                           </>
