@@ -5,7 +5,7 @@ import {
   RefreshCcw, Search, Clock, Truck, Building2, PlusCircle,
   Eye, ThumbsUp, ThumbsDown, FileText, BarChart3, MinusCircle,
   CheckCircle, AlertCircle, Download, TrendingUp, User, Gift, Send,
-  Factory, Trash2, ClipboardList
+  Factory, Trash2, ClipboardList, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
