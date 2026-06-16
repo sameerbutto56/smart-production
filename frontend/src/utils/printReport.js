@@ -288,3 +288,206 @@ function summaryRow(label, value) {
 function currency(v) {
   return `₨${(v || 0).toLocaleString()}`;
 }
+
+function parseJSON(data) {
+  try { return typeof data === 'string' ? JSON.parse(data) : data; } catch (e) { return {}; }
+}
+
+export function printJobSheet(order) {
+  const title = `Job Sheet — ${order.orderNumber || order.id?.slice(0, 8)}`;
+  const win = openPrintWindow(title);
+
+  const rawPd = parseJSON(order.productDetails);
+  const allItems = Array.isArray(rawPd) ? rawPd : null;
+  const isMultiItem = allItems && allItems.length > 0;
+  const firstProduct = isMultiItem ? (allItems[0]?.productDetails || allItems[0] || {}) : (rawPd || {});
+  const custom = parseJSON(order.customization);
+  const rawSizes = parseJSON(order.sizeData);
+  const sizes = (rawSizes && Object.keys(rawSizes).length > 0) ? rawSizes : ({});
+
+  win.document.write('<div class="report-meta"><span>Enamels Industries</span><span>' + new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) + '</span></div>');
+
+  // Order info
+  win.document.write('<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;border-bottom:2px solid #1a1a1a;padding-bottom:10px">');
+  win.document.write('<div><h1 style="font-size:22pt;font-weight:900;text-transform:uppercase;letter-spacing:-0.5px">Job Sheet</h1>');
+  win.document.write('<p style="font-size:9pt;color:#555;margin-top:2px">Order #' + (order.orderNumber || order.id?.slice(0, 8)) + '</p></div>');
+  win.document.write('<div style="text-align:right"><p style="font-size:11pt;font-weight:800">' + (order.customerName || '—') + '</p>');
+  win.document.write('<p style="font-size:8pt;color:#666">' + (order.customerPhone || '') + '</p>');
+  if (order.address) win.document.write('<p style="font-size:8pt;color:#666">' + order.address + '</p>');
+  if (order.city) win.document.write('<p style="font-size:8pt;color:#666">' + order.city + '</p>');
+  win.document.write('</div></div>');
+
+  // Order meta badges
+  win.document.write('<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">');
+  [order.type, order.priority, order.outletName || order.source, order.paymentStatus === 'PAID' ? 'PAID' : (order.advancePaid ? 'ADVANCE' : 'PENDING')].filter(Boolean).forEach(label => {
+    let color = '#6b7280';
+    if (label === 'PAID' || label === 'FULL_CUSTOM') color = '#059669';
+    else if (label === 'SUPER_URGENT') color = '#dc2626';
+    else if (label === 'URGENT') color = '#d97706';
+    else if (label === 'OUTLET') color = '#7c3aed';
+    win.document.write('<span style="padding:2px 12px;border-radius:4px;font-size:7.5pt;font-weight:700;text-transform:uppercase;background:' + color + '20;color:' + color + ';border:1px solid ' + color + '40">' + label + '</span>');
+  });
+  win.document.write('</div>');
+
+  // Products table
+  win.document.write('<div class="section-title">Products</div>');
+  if (isMultiItem) {
+    win.document.write('<table><thead><tr><th>#</th><th>Product</th><th>Fabric & Color</th><th>Size & Gender</th><th style="text-align:center">Qty</th><th style="text-align:right">Price</th></tr></thead><tbody>');
+    allItems.forEach((item, idx) => {
+      const p = item.productDetails || {};
+      win.document.write('<tr>');
+      win.document.write('<td style="font-weight:700">' + (idx + 1) + '</td>');
+      win.document.write('<td style="font-weight:700">' + (p.productType || '—') + '</td>');
+      win.document.write('<td>' + [p.fabricType, p.color].filter(Boolean).join(' • ') + '</td>');
+      win.document.write('<td>' + (p.size || 'Custom') + ' • ' + (p.gender || 'MALE') + '</td>');
+      win.document.write('<td style="text-align:center;font-weight:700">' + (item.quantity || 1) + '</td>');
+      win.document.write('<td style="text-align:right;font-weight:700">' + currency(item.totalPrice) + '</td>');
+      win.document.write('</tr>');
+    });
+    win.document.write('</tbody></table>');
+  } else {
+    win.document.write('<table><thead><tr><th>Product</th><th>Fabric</th><th>Color</th><th>Size</th><th>Gender</th><th style="text-align:center">Qty</th><th style="text-align:right">Price</th></tr></thead><tbody>');
+    win.document.write('<tr>');
+    win.document.write('<td style="font-weight:700">' + (firstProduct.productType || '—') + '</td>');
+    win.document.write('<td>' + (firstProduct.fabricType || '—') + '</td>');
+    win.document.write('<td>' + (firstProduct.color || '—') + '</td>');
+    win.document.write('<td>' + (firstProduct.size || 'Custom') + '</td>');
+    win.document.write('<td>' + (firstProduct.gender || 'MALE') + '</td>');
+    win.document.write('<td style="text-align:center;font-weight:700">' + (order.quantity || 1) + '</td>');
+    win.document.write('<td style="text-align:right;font-weight:700">' + currency(order.totalPrice) + '</td>');
+    win.document.write('</tr></tbody></table>');
+  }
+
+  // Per-product branding
+  win.document.write('<div class="section-title">Branding & Customization</div>');
+  const brandingItems = isMultiItem ? allItems : [{ productDetails: firstProduct, customization: custom }];
+  brandingItems.forEach((item, idx) => {
+    const p = item.productDetails || {};
+    const c = item.customization ? parseJSON(item.customization) : custom;
+    const hasNames = c?.articleNames?.length > 0 || c?.nameSpelling;
+    const hasLogos = c?.logos?.length > 0;
+    const hasSpecs = c?.stitchingStyle || c?.fitType || c?.nameColor || c?.logoPlacement;
+    const hasNotes = c?.designNotes;
+
+    if (!hasNames && !hasLogos && !hasSpecs && !hasNotes) return;
+
+    win.document.write('<div style="border:1px solid #ddd;border-radius:4px;padding:10px;margin-bottom:10px;page-break-inside:avoid">');
+    win.document.write('<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #eee">');
+    win.document.write('<span style="background:#1a1a1a;color:#fff;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:9pt;font-weight:800">' + (idx + 1) + '</span>');
+    win.document.write('<span style="font-weight:800;font-size:10pt;text-transform:uppercase">' + (p.productType || 'Item ' + (idx + 1)) + '</span>');
+    if (p.color) win.document.write('<span style="font-size:8pt;color:#888">(' + p.color + ')</span>');
+    win.document.write('</div>');
+
+    // Name lines
+    if (hasNames) {
+      win.document.write('<div style="margin-bottom:6px">');
+      win.document.write('<p style="font-size:7.5pt;font-weight:800;text-transform:uppercase;color:#7c3aed;margin-bottom:3px">Name Lines</p>');
+      if (c.articleNames?.length > 0) {
+        c.articleNames.forEach((an, ai) => {
+          win.document.write('<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span style="background:#7c3aed20;color:#7c3aed;font-size:7pt;font-weight:800;padding:0 6px;border-radius:2px">L' + (ai + 1) + '</span><span style="font-size:10pt;font-weight:700">' + an + '</span></div>');
+        });
+      } else {
+        win.document.write('<div style="display:flex;align-items:center;gap:6px"><span style="background:#7c3aed20;color:#7c3aed;font-size:7pt;font-weight:800;padding:0 6px;border-radius:2px">L1</span><span style="font-size:10pt;font-weight:700">' + c.nameSpelling + '</span></div>');
+      }
+      win.document.write('</div>');
+    }
+
+    // Branding specs
+    if (hasSpecs) {
+      win.document.write('<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">');
+      if (c.stitchingStyle) win.document.write('<span style="font-size:7.5pt;font-weight:700;padding:1px 8px;border-radius:2px;background:#dbeafe;color:#1e40af">' + (c.stitchingStyle === 'DBL' ? 'Double Stitch' : 'Single Stitch') + '</span>');
+      if (c.fitType) win.document.write('<span style="font-size:7.5pt;font-weight:700;padding:1px 8px;border-radius:2px;background:#e0e7ff;color:#3730a3">' + c.fitType + ' Fit</span>');
+      if (c.nameColor) win.document.write('<span style="font-size:7.5pt;font-weight:700;padding:1px 8px;border-radius:2px;background:#fce7f3;color:#9d174d">Color: ' + c.nameColor + '</span>');
+      if (c.logoPlacement) win.document.write('<span style="font-size:7.5pt;font-weight:700;padding:1px 8px;border-radius:2px;background:#ccfbf1;color:#0f766e">Pos: ' + c.logoPlacement + '</span>');
+      if (c.logoColor) win.document.write('<span style="font-size:7.5pt;font-weight:700;padding:1px 8px;border-radius:2px;background:#fef3c7;color:#92400e">Logo: ' + c.logoColor + '</span>');
+      win.document.write('</div>');
+    }
+
+    // Logos
+    if (hasLogos) {
+      win.document.write('<div style="margin-bottom:6px">');
+      win.document.write('<p style="font-size:7.5pt;font-weight:800;text-transform:uppercase;color:#d97706;margin-bottom:3px">Logos</p>');
+      c.logos.forEach((l, li) => {
+        win.document.write('<div style="font-size:9pt;font-weight:600;background:#fffbeb;padding:3px 8px;border-radius:2px;margin-bottom:2px;border:1px solid #fef3c7">' + (l.name || 'Logo ' + (li + 1)) + (l.design ? ' — ' + l.design : '') + '</div>');
+      });
+      win.document.write('</div>');
+    }
+
+    // Special notes
+    if (hasNotes) {
+      win.document.write('<div style="background:#fffbeb;border-left:3px solid #d97706;padding:6px 10px;border-radius:2px">');
+      win.document.write('<p style="font-size:7.5pt;font-weight:800;text-transform:uppercase;color:#d97706;margin-bottom:2px">Special Note</p>');
+      win.document.write('<p style="font-size:9pt;font-style:italic;color:#92400e">' + c.designNotes + '</p></div>');
+    }
+
+    // Female options
+    if (p.gender === 'Female' && (p.femaleOptions?.dupatta || p.femaleOptions?.sleeves || p.femaleOptions?.shirtLength)) {
+      const opts = [];
+      if (p.femaleOptions.dupatta) opts.push('Dupatta');
+      if (p.femaleOptions.sleeves) opts.push('Sleeves: ' + p.femaleOptions.sleeves);
+      if (p.femaleOptions.shirtLength) opts.push('Length: ' + p.femaleOptions.shirtLength);
+      win.document.write('<p style="font-size:7.5pt;margin-top:4px;color:#db2777;font-weight:700">' + opts.join(' | ') + '</p>');
+    }
+
+    win.document.write('</div>');
+  });
+
+  // Measurements
+  const measItems = isMultiItem ? allItems : [{ productDetails: firstProduct, sizeData: sizes }];
+  const hasAnyMeas = measItems.some(item => {
+    const s = item.sizeData || {};
+    return Object.values(s).some(v => v);
+  });
+  if (hasAnyMeas) {
+    win.document.write('<div class="section-title">Measurements (inches)</div>');
+    measItems.forEach((item, idx) => {
+      const p = item.productDetails || {};
+      const s = item.sizeData || {};
+      const meas = Object.entries(s).filter(([_, v]) => v);
+      if (meas.length === 0) return;
+      win.document.write('<div style="margin-bottom:8px;page-break-inside:avoid">');
+      if (isMultiItem) {
+        win.document.write('<p style="font-size:7.5pt;font-weight:800;text-transform:uppercase;color:#1e40af;margin-bottom:3px">#' + (idx + 1) + ' ' + (p.productType || '') + '</p>');
+      }
+      win.document.write('<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px">');
+      meas.forEach(([k, v]) => {
+        win.document.write('<div style="text-align:center;border:1px solid #ddd;border-radius:3px;padding:4px"><p style="font-size:6pt;font-weight:700;text-transform:uppercase;color:#888;margin-bottom:1px">' + k.replace(/([A-Z])/g, ' $1') + '</p><p style="font-size:11pt;font-weight:800">' + v + '"</p></div>');
+      });
+      win.document.write('</div></div>');
+    });
+  }
+
+  // Production timeline
+  const pipelines = {
+    'STANDARD': ['ORDER_ENTRY', 'STORE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+    'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+    'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY']
+  };
+  const pipeline = pipelines[order.type] || pipelines['STANDARD'];
+  win.document.write('<div class="section-title">Production Timeline (' + pipeline.length + ' Steps)</div>');
+  win.document.write('<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:4px;margin-bottom:14px">');
+  pipeline.forEach((stageName, i) => {
+    const stageData = order.stages?.find(s => s.stageName === stageName);
+    const isCompleted = stageData?.status === 'COMPLETED';
+    const isCurrent = order.currentStage === stageName;
+    const bgColor = isCompleted ? '#d1fae5' : isCurrent ? '#dbeafe' : '#f3f4f6';
+    const textColor = isCompleted ? '#065f46' : isCurrent ? '#1e40af' : '#6b7280';
+    const borderColor = isCompleted ? '#a7f3d0' : isCurrent ? '#93c5fd' : '#e5e7eb';
+    win.document.write('<div style="display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:4px;background:' + bgColor + ';border:1px solid ' + borderColor + '">');
+    win.document.write('<span style="width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8pt;font-weight:800;background:' + textColor + ';color:#fff">' + (i + 1) + '</span>');
+    win.document.write('<span style="font-size:8pt;font-weight:' + (isCurrent ? '800' : '600') + ';color:' + textColor + ';text-transform:uppercase">' + stageName.replace(/_/g, ' ') + '</span>');
+    if (isCompleted && stageData?.completedAt) {
+      win.document.write('<span style="font-size:6.5pt;color:' + textColor + ';margin-left:auto;opacity:0.7">' + new Date(stageData.completedAt).toLocaleDateString() + '</span>');
+    }
+    win.document.write('</div>');
+  });
+  win.document.write('</div>');
+
+  // Footer
+  win.document.write('<div style="display:flex;justify-content:space-between;font-size:7.5pt;color:#999;border-top:1px solid #ddd;padding-top:8px;margin-top:12px">');
+  win.document.write('<span>Created: ' + new Date(order.createdAt).toLocaleDateString() + '</span>');
+  win.document.write('<span>Stage: ' + order.currentStage + '</span>');
+  win.document.write('</div>');
+
+  closePrintWindow(win);
+}

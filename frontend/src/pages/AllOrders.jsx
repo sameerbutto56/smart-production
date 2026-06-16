@@ -20,6 +20,7 @@ import {
   Grid
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { printJobSheet } from '../utils/printReport';
 import socket from '../socket';
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
@@ -1094,12 +1095,20 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                   <span className="w-1.5 h-1.5 bg-gray-700 rounded-full"></span>
                   <span>Stage: {selectedOrder.currentStage}</span>
                 </div>
-                <button 
-                  onClick={() => setShowModal(false)}
-                  className="bg-gray-800 hover:bg-gray-700 text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all"
-                >
-                  Close Job Sheet
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => printJobSheet(selectedOrder)}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2"
+                  >
+                    <Download size={14} /> Print Job Sheet
+                  </button>
+                  <button 
+                    onClick={() => setShowModal(false)}
+                    className="bg-gray-800 hover:bg-gray-700 text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all"
+                  >
+                    Close Job Sheet
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>

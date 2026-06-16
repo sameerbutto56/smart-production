@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw, MessageSquare, History, Target, Trash2, Truck, Users, Phone, ShieldAlert, RotateCcw, Lock, Package, AlertTriangle } from 'lucide-react';
+import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw, MessageSquare, History, Target, Trash2, Truck, Users, Phone, ShieldAlert, RotateCcw, Lock, Package, AlertTriangle, Printer } from 'lucide-react';
 import axios from 'axios';
 import { useLanguage } from '../context/LanguageContext';
 import Button from './Button';
 import { LoadingSpinner } from './LoadingSpinner';
+import { printJobSheet } from '../utils/printReport';
 import toast from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
@@ -1955,12 +1956,20 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     <span className="text-xs">⚡</span> Force
                   </button>
                 )}
-                <button 
-                  onClick={() => setShowFullSheet(false)}
-                  className="bg-gray-800 hover:bg-gray-700 text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all"
-                >
-                  Close Job Sheet
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => printJobSheet(order)}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2"
+                  >
+                    <Printer size={14} /> Print Job Sheet
+                  </button>
+                  <button 
+                    onClick={() => setShowFullSheet(false)}
+                    className="bg-gray-800 hover:bg-gray-700 text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all"
+                  >
+                    Close Job Sheet
+                  </button>
+                </div>
               </div>
             </div>
           </motion.div>
