@@ -36,6 +36,7 @@ const WarehouseDashboard = () => {
   const [allocationItems, setAllocationItems] = useState([{ product: null, color: '', size: '', qty: 1 }]);
   const [allocationNotes, setAllocationNotes] = useState('');
   const [allocationLoading, setAllocationLoading] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
   const [allocationRecords, setAllocationRecords] = useState([]);
   const [allocationStats, setAllocationStats] = useState([]);
   const [allocTotal, setAllocTotal] = useState(0);
@@ -1110,8 +1111,8 @@ const WarehouseDashboard = () => {
                       <thead>
                         <tr className="text-xs font-black theme-text-muted uppercase tracking-widest border-b theme-border">
                           <th className="pb-2 pr-2 w-[30%]">Product</th>
-                          <th className="pb-2 pr-2 w-[15%]">Color</th>
                           <th className="pb-2 pr-2 w-[12%]">Size</th>
+                          <th className="pb-2 pr-2 w-[15%]">Color</th>
                           <th className="pb-2 pr-2 w-[10%]">Qty</th>
                           <th className="pb-2 w-[8%]"></th>
                         </tr>
@@ -1121,14 +1122,17 @@ const WarehouseDashboard = () => {
                           const prod = item.product;
                           const variants = prod?.variants || [];
                           const hasVariants = variants.length > 0;
-                          const uniqueColors = hasVariants ? [...new Set(variants.map(v => v.color).filter(Boolean))] : [];
-                          const availableSizes = hasVariants && item.color
-                            ? [...new Set(variants.filter(v => v.color === item.color).map(v => v.size).filter(Boolean))]
-                            : (hasVariants ? [...new Set(variants.map(v => v.size).filter(Boolean))] : []);
+                          const uniqueSizes = hasVariants ? [...new Set(variants.map(v => v.size).filter(Boolean))] : [];
+                          const availableColors = hasVariants && item.size
+                            ? [...new Set(variants.filter(v => v.size === item.size).map(v => v.color).filter(Boolean))]
+                            : (hasVariants ? [...new Set(variants.map(v => v.color).filter(Boolean))] : []);
+                          const filteredInventory = productSearch
+                            ? inventory.filter(i => i.stock > 0 && i.name.toLowerCase().includes(productSearch.toLowerCase()))
+                            : inventory.filter(i => i.stock > 0);
                           const maxQty = (() => {
                             if (!prod) return 1;
-                            if (hasVariants && item.color && item.size) {
-                              const v = variants.find(x => x.color === item.color && x.size === item.size);
+                            if (hasVariants && item.size && item.color) {
+                              const v = variants.find(x => x.size === item.size && x.color === item.color);
                               if (v) return v.stock;
                             }
                             if (!hasVariants) return prod.stock || 1;
@@ -1137,6 +1141,9 @@ const WarehouseDashboard = () => {
                           return (
                             <tr key={idx} className="border-b border-gray-800/30">
                               <td className="py-2 pr-2">
+                                <input type="text" value={productSearch} onChange={(e) => setProductSearch(e.target.value)}
+                                  placeholder="Search product..."
+                                  className="w-full theme-bg-subtle border-2 theme-border rounded-lg py-1.5 px-3 focus:border-amber-500 outline-none font-medium text-xs text-white mb-1.5" />
                                 <select value={item.product?.id || ''} onChange={(e) => {
                                   const p = inventory.find(i => i.id === e.target.value);
                                   const newItems = [...allocationItems];
@@ -1145,40 +1152,40 @@ const WarehouseDashboard = () => {
                                 }}
                                   className="w-full theme-bg-subtle border-2 theme-border rounded-lg py-2 px-3 focus:border-amber-500 outline-none font-medium text-xs text-white">
                                   <option value="">Select Product</option>
-                                  {inventory.filter(i => i.stock > 0).map(p => (
+                                  {filteredInventory.map(p => (
                                     <option key={p.id} value={p.id}>{p.name} ({p.stock})</option>
                                   ))}
                                 </select>
                               </td>
                               <td className="py-2 pr-2">
                                 {hasVariants ? (
-                                  <select value={item.color} onChange={(e) => {
+                                  <select value={item.size} onChange={(e) => {
                                     const newItems = [...allocationItems];
-                                    newItems[idx] = { ...newItems[idx], color: e.target.value, size: '' };
+                                    newItems[idx] = { ...newItems[idx], size: e.target.value, color: '' };
                                     setAllocationItems(newItems);
                                   }}
                                     className="w-full theme-bg-subtle border-2 theme-border rounded-lg py-2 px-3 focus:border-amber-500 outline-none font-medium text-xs text-white">
-                                    <option value="">Color</option>
-                                    {uniqueColors.map(c => <option key={c} value={c}>{c}</option>)}
+                                    <option value="">Size</option>
+                                    {uniqueSizes.map(s => <option key={s} value={s}>{s}</option>)}
                                   </select>
                                 ) : (
-                                  <input type="text" value={prod?.color || ''} disabled
+                                  <input type="text" value={prod?.size || ''} disabled
                                     className="w-full theme-bg-subtle border-2 theme-border rounded-lg py-2 px-3 font-medium text-xs text-gray-400" />
                                 )}
                               </td>
                               <td className="py-2 pr-2">
                                 {hasVariants ? (
-                                  <select value={item.size} onChange={(e) => {
+                                  <select value={item.color} onChange={(e) => {
                                     const newItems = [...allocationItems];
-                                    newItems[idx] = { ...newItems[idx], size: e.target.value };
+                                    newItems[idx] = { ...newItems[idx], color: e.target.value };
                                     setAllocationItems(newItems);
                                   }}
                                     className="w-full theme-bg-subtle border-2 theme-border rounded-lg py-2 px-3 focus:border-amber-500 outline-none font-medium text-xs text-white">
-                                    <option value="">Size</option>
-                                    {availableSizes.map(s => <option key={s} value={s}>{s}</option>)}
+                                    <option value="">Color</option>
+                                    {availableColors.map(c => <option key={c} value={c}>{c}</option>)}
                                   </select>
                                 ) : (
-                                  <input type="text" value={prod?.size || ''} disabled
+                                  <input type="text" value={prod?.color || ''} disabled
                                     className="w-full theme-bg-subtle border-2 theme-border rounded-lg py-2 px-3 font-medium text-xs text-gray-400" />
                                 )}
                               </td>
