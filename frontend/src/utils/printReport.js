@@ -329,6 +329,13 @@ export function printJobSheet(order) {
   });
   win.document.write('</div>');
 
+  // Instruction Notes
+  if (order.instructionNotes) {
+    win.document.write('<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:4px;padding:10px;margin-bottom:14px;page-break-inside:avoid">');
+    win.document.write('<p style="font-size:7.5pt;font-weight:800;text-transform:uppercase;color:#d97706;margin-bottom:4px">📋 Instruction Notes</p>');
+    win.document.write('<p style="font-size:9pt;font-weight:600;color:#92400e">' + order.instructionNotes + '</p></div>');
+  }
+
   // Products table
   win.document.write('<div class="section-title">Products</div>');
   if (isMultiItem) {
@@ -340,7 +347,8 @@ export function printJobSheet(order) {
       win.document.write('<td style="font-weight:700">' + (idx + 1) + '</td>');
       win.document.write('<td style="font-weight:700">' + (p.productType || '—') + '</td>');
       win.document.write('<td>' + [p.fabricType, p.color].filter(Boolean).join(' • ') + '</td>');
-      win.document.write('<td>' + (p.size || 'Custom') + ' • ' + (p.gender || 'MALE') + '</td>');
+      const extras = [p.sleeveLength ? 'Slv:' + p.sleeveLength : null, p.shirtLength ? 'Len:' + p.shirtLength : null].filter(Boolean).join(' | ');
+      win.document.write('<td>' + (p.size || 'Custom') + ' • ' + (p.gender || 'MALE') + (extras ? '<br><span style="font-size:7pt;color:#db2777;font-weight:700">' + extras + '</span>' : '') + '</td>');
       win.document.write('<td style="text-align:center;font-weight:700">' + (item.quantity || 1) + '</td>');
       win.document.write('<td style="text-align:center;font-weight:700;color:#e11d48">' + (capQty || '—') + '</td>');
       win.document.write('<td style="text-align:right;font-weight:700">' + currency(item.totalPrice) + '</td>');
@@ -354,8 +362,9 @@ export function printJobSheet(order) {
     win.document.write('<td style="font-weight:700">' + (firstProduct.productType || '—') + '</td>');
     win.document.write('<td>' + (firstProduct.fabricType || '—') + '</td>');
     win.document.write('<td>' + (firstProduct.color || '—') + '</td>');
+    const extras = [firstProduct.sleeveLength ? 'Slv:' + firstProduct.sleeveLength : null, firstProduct.shirtLength ? 'Len:' + firstProduct.shirtLength : null].filter(Boolean).join(' | ');
     win.document.write('<td>' + (firstProduct.size || 'Custom') + '</td>');
-    win.document.write('<td>' + (firstProduct.gender || 'MALE') + '</td>');
+    win.document.write('<td>' + (firstProduct.gender || 'MALE') + (extras ? '<br><span style="font-size:7pt;color:#db2777;font-weight:700">' + extras + '</span>' : '') + '</td>');
     win.document.write('<td style="text-align:center;font-weight:700">' + (order.quantity || 1) + '</td>');
     win.document.write('<td style="text-align:center;font-weight:700;color:#e11d48">' + (capQty || '—') + '</td>');
     win.document.write('<td style="text-align:right;font-weight:700">' + currency(order.totalPrice) + '</td>');
@@ -424,13 +433,12 @@ export function printJobSheet(order) {
       win.document.write('<p style="font-size:9pt;font-style:italic;color:#92400e">' + c.designNotes + '</p></div>');
     }
 
-    // Female options
-    if (p.gender === 'Female' && (p.femaleOptions?.dupatta || p.femaleOptions?.sleeves || p.femaleOptions?.shirtLength)) {
-      const opts = [];
-      if (p.femaleOptions.dupatta) opts.push('Dupatta');
-      if (p.femaleOptions.sleeves) opts.push('Sleeves: ' + p.femaleOptions.sleeves);
-      if (p.femaleOptions.shirtLength) opts.push('Length: ' + p.femaleOptions.shirtLength);
-      win.document.write('<p style="font-size:7.5pt;margin-top:4px;color:#db2777;font-weight:700">' + opts.join(' | ') + '</p>');
+    // Sleeve / Shirt Length
+    const slv = p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves ? p.femaleOptions.sleeves : null);
+    const slen = p.shirtLength || (p.gender === 'Female' && p.femaleOptions?.shirtLength ? p.femaleOptions.shirtLength : null);
+    const femaleOpts = [slv ? 'Sleeves: ' + slv : null, slen ? 'Length: ' + slen : null, (p.gender === 'Female' && p.femaleOptions?.dupatta) ? 'Dupatta' : null].filter(Boolean);
+    if (femaleOpts.length > 0) {
+      win.document.write('<p style="font-size:7.5pt;margin-top:4px;color:#db2777;font-weight:700">' + femaleOpts.join(' | ') + '</p>');
     }
 
     // Matching Cap

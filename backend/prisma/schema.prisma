@@ -76,6 +76,7 @@ model Order {
   refundedById    String?
   storeRequested  Boolean      @default(false)
   storeRequestedAt DateTime?
+  instructionNotes String?
   // Delivery enhancement fields
   riderAcceptedAt   DateTime?
   noResponseCount   Int          @default(0)

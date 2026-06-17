@@ -35,6 +35,8 @@
 - **Per-product Matching Cap**: moved cap from global `femaleOptions` to per-product toggle + quantity in Selection tab. Removed all 4 Cap Quantity sections from Tailoring tabs. Cap price fixed at `₨500` per unit.
 - **Restructured Financial Summary** as comparison table (Calculated / Adjusted columns) with rows: Product Price, Customization Charges, Matching Cap Charges, Delivery Charges, Discount, Grand Total. Added discount field.
 - **Advance Payment amount**: replaced boolean `advancePaid` checkbox with `advanceAmount` number input (+ `₨`). Added Advance Received (–) and Remaining Balance lines in Financial Summary. Propagated `advanceAmount` across all components (OrderEntry, AllOrders, DeliveryDashboard, DeliverySheet, History, EditRequestDashboard). Updated backend order creation and edit flow to store and return `advanceAmount`. Updated schema with `advanceAmount Float @default(0)`. Validation checks `advanceAmount > 0` for FULL_CUSTOM orders.
+- **Sleeve Length & Shirt Length per product**: added gender-independent `sleeveLength` (Full/Half/Quarter) and `shirtLength` (Long/Short) dropdowns in OrderEntry Selection tab, stored per-item in `productDetails`. Displayed across AllOrders, OrderCard, print Job Sheet, and Job Sheet modals for all genders (not just Female).
+- **Instruction Notes**: added `instructionNotes String?` to Prisma schema (pushed). Textarea in Basics tab (Standard Orders only). Stored on Order model, displayed in Job Sheet modal and print Job Sheet. Included in backend `createOrder` and `approveEditRequest` field mapping.
 
 ### In Progress
 - (none)
@@ -54,14 +56,18 @@
 
 ## Next Steps
 - Verify no remaining issues with color/size display for products missing variants.
+- Test sleeveLength/shirtLength display in production for all gender combinations.
+- Observe instructionNotes display in production for Standard Orders.
 
 ## Critical Context
-- Latest commit includes: Advance Payment amount feature.
+- Latest commit includes: Advance Payment amount, Sleeve Length, Shirt Length, Instruction Notes features.
 - Build passes with 0 errors.
 - `isAccessory` uses substring matching (`catUpper.includes('COAT')`).
 - `calculateAndRecordRevenue` at line 2482 of `order.controller.js` is idempotent.
 - Cap pricing is hardcoded `capUnitPrice = 500`.
 - `advanceAmount` field added to Prisma schema, DB pushed, and backend controller updated to accept/store it.
+- `sleeveLength` and `shirtLength` are per-product top-level fields in `productDetails` (not inside `femaleOptions`), applied to all genders.
+- `instructionNotes` stored as `String?` on Order model, displayed in Job Sheet and print output.
 
 ## Relevant Files
 - `frontend/src/pages/OrderEntry.jsx`: Matching Cap in Selection tab, restructured Financial Summary with discount + advance amount lines, advance amount input in Basics tabs, handleCheckout uses adjusted values
@@ -74,8 +80,9 @@
 - `frontend/src/pages/WarehouseDashboard.jsx`: polling 60s + visibility check
 - `frontend/src/pages/History.jsx`: advance amount column
 - `frontend/src/pages/EditRequestDashboard.jsx`: advance amount in diff fields
-- `frontend/src/utils/printReport.js`: `printJobSheet` with Cap column in products table, per-product Matching Cap badge
-- `backend/src/controllers/order.controller.js`: deliveryCharges, paymentStatus, advanceAmount, idempotent revenue recording
+- `frontend/src/utils/printReport.js`: `printJobSheet` with Cap column in products table, per-product Matching Cap badge, sleeve/shirt length, instruction notes
+- `backend/src/controllers/order.controller.js`: deliveryCharges, paymentStatus, advanceAmount, idempotent revenue recording, instructionNotes
+- `backend/src/controllers/editRequest.controller.js`: instructionNotes field mapping
 - `backend/src/controllers/analytics.controller.js`: paymentStatus filter
 - `backend/prisma/schema.prisma`: deliveryCharges, advanceAmount fields
 - `frontend/src/hooks/usePolling.js`: polling hook (unchanged)

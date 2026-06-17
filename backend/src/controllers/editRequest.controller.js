@@ -312,7 +312,8 @@ const approveEditRequest = async (req, res) => {
     const fieldsToMap = [
       'customerName', 'customerPhone', 'address', 'city', 'type',
       'priority', 'advancePaid', 'logoDesign', 'logoName',
-      'logoCharges', 'namePrintingCharges', 'customizationPrice'
+      'logoCharges', 'namePrintingCharges', 'customizationPrice',
+      'instructionNotes'
     ];
 
     fieldsToMap.forEach(field => {

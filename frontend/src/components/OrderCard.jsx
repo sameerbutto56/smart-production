@@ -1737,8 +1737,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           {orderItems.map((item, idx) => {
                             const p = item.productDetails || item;
                             const itemCust = item.customization ? parseJSON(item.customization) : null;
-                            const hasSleeves = p.femaleOptions?.sleeves && p.femaleOptions.sleeves !== 'full';
-                            const hasShirtLength = p.femaleOptions?.shirtLength && p.femaleOptions.shirtLength !== 'long';
+                            const hasSleeves = p.sleeveLength || (p.femaleOptions?.sleeves && p.femaleOptions.sleeves !== 'full');
+                            const hasShirtLength = p.shirtLength || (p.femaleOptions?.shirtLength && p.femaleOptions.shirtLength !== 'long');
                             const hasArticleNames = itemCust?.articleNames && itemCust.articleNames.length > 0;
                             const hasLogos = itemCust?.logos && itemCust.logos.length > 0;
                             const hasCust = hasArticleNames || hasLogos || itemCust?.nameSpelling || itemCust?.stitchingStyle || itemCust?.fitType;
@@ -1756,7 +1756,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                     <div>{p.size || 'Custom'} • {p.gender || 'MALE'}</div>
                                     {(hasSleeves || hasShirtLength) && (
                                       <div className="text-xs md:text-sm text-pink-400 font-black mt-0.5">
-                                        {hasSleeves && `Sleeves: ${p.femaleOptions.sleeves}`} {hasShirtLength && `| Length: ${p.femaleOptions.shirtLength}`}
+                                        {hasSleeves && `Sleeves: ${p.sleeveLength || p.femaleOptions?.sleeves}`} {hasShirtLength && `| Length: ${p.shirtLength || p.femaleOptions?.shirtLength}`}
                                       </div>
                                     )}
                                   </td>
@@ -1841,16 +1841,16 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         <p className="text-xl font-black text-blue-400">{val}"</p>
                       </div>
                     ))}
-                    {product?.gender === 'Female' && product?.femaleOptions?.sleeves && (
+                    {(product?.sleeveLength || (product?.gender === 'Female' && product?.femaleOptions?.sleeves)) && (
                       <div className="text-center p-4 bg-gray-900 rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
                         <p className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter mb-1">SLEEVES</p>
-                        <p className="text-sm font-black text-white uppercase">{product.femaleOptions.sleeves}</p>
+                        <p className="text-sm font-black text-white uppercase">{product.sleeveLength || product.femaleOptions?.sleeves}</p>
                       </div>
                     )}
-                    {product?.gender === 'Female' && product?.femaleOptions?.shirtLength && (
+                    {(product?.shirtLength || (product?.gender === 'Female' && product?.femaleOptions?.shirtLength)) && (
                       <div className="text-center p-4 bg-gray-900 rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
                         <p className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter mb-1">SHIRT LENGTH</p>
-                        <p className="text-sm font-black text-white uppercase">{product.femaleOptions.shirtLength}</p>
+                        <p className="text-sm font-black text-white uppercase">{product.shirtLength || product.femaleOptions?.shirtLength}</p>
                       </div>
                     )}
                   </div>
@@ -1906,6 +1906,12 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 <div>
                   <h4 className="text-xs md:text-sm font-black text-yellow-500 uppercase tracking-[0.3em] mb-6">04. Design Notes & Special Requests</h4>
                   <div className="h-full min-h-[200px] bg-yellow-500/5 p-4 md:p-8 rounded-3xl border border-yellow-500/10 text-gray-300 leading-relaxed text-sm shadow-inner">
+                    {order?.instructionNotes && (
+                      <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                        <p className="text-xs font-black text-amber-400 uppercase tracking-widest mb-1">📋 Instruction Notes</p>
+                        <p className="text-sm font-bold text-amber-200">{order.instructionNotes}</p>
+                      </div>
+                    )}
                     {custom?.designNotes ? (
                       <p className="italic mb-4">{custom.designNotes}</p>
                     ) : (

@@ -83,6 +83,9 @@ const SmartOrderForm = () => {
     quantity: 1,
     matchingCap: false,
     matchingCapQty: 0,
+    sleeveLength: 'full',
+    shirtLength: 'long',
+    instructionNotes: '',
 
     // Product Selection
     productType: '',
@@ -782,6 +785,8 @@ const SmartOrderForm = () => {
         size: formData.size,
         gender: formData.gender,
         femaleOptions: formData.femaleOptions,
+        sleeveLength: formData.sleeveLength || 'full',
+        shirtLength: formData.shirtLength || 'long',
         matchingCap: formData.matchingCap,
         matchingCapQty: formData.matchingCapQty
       },
@@ -845,7 +850,9 @@ const SmartOrderForm = () => {
       gender: 'Male',
       femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
       matchingCap: false,
-      matchingCapQty: 0
+      matchingCapQty: 0,
+      sleeveLength: 'full',
+      shirtLength: 'long'
     }));
     setLogoEntries([{ name: '', design: '' }]);
     setArticleNameEntries(['']);
@@ -873,6 +880,8 @@ const SmartOrderForm = () => {
       femaleOptions: pd.femaleOptions || { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
       matchingCap: pd.matchingCap || false,
       matchingCapQty: pd.matchingCapQty || 0,
+      sleeveLength: pd.sleeveLength || 'full',
+      shirtLength: pd.shirtLength || 'long',
       quantity: item.quantity || 1,
       totalPrice: '',
       logoCharges: item.logoCharges?.toString() || '',
@@ -970,6 +979,7 @@ const SmartOrderForm = () => {
         sizeData: finalItems[0].sizeData,
         quantity: finalItems.reduce((sum, item) => sum + (item.quantity || 1), 0),
         totalPrice: adjTotal,
+        instructionNotes: formData.instructionNotes || '',
       };
 
       await axios.post(`${API_URL}/api/orders`, combinedOrder);
@@ -1025,6 +1035,9 @@ const SmartOrderForm = () => {
           femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
           matchingCap: false,
           matchingCapQty: 0,
+          sleeveLength: 'full',
+          shirtLength: 'long',
+          instructionNotes: '',
           adjProductPrice: '',
           adjCustomization: '',
           adjCapCharges: '',
@@ -1866,6 +1879,17 @@ const SmartOrderForm = () => {
                     </div>
                   )}
                 </div>
+
+                  {formData.type === 'STANDARD' && (
+                    <div className="mt-6 space-y-3">
+                      <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'ہدایات' : 'Instruction Notes'}</label>
+                      <textarea value={formData.instructionNotes || ''}
+                        onChange={e => setFormData({...formData, instructionNotes: e.target.value})}
+                        className="w-full theme-input rounded-2xl py-4 px-5 text-sm font-bold resize-none"
+                        rows={3} placeholder={useUrdu ? 'اضافی ہدایات یہاں درج کریں...' : 'Enter any special instructions...'}
+                      />
+                    </div>
+                  )}
               </div>
 
               <div className={`lg:col-span-4 glass p-6 md:p-12 rounded-[2rem] md:rounded-[3.5rem] space-y-8 md:space-y-10 border theme-border shadow-2xl ${useUrdu ? 'text-right' : ''}`}>
@@ -2238,6 +2262,49 @@ const SmartOrderForm = () => {
                   {formData.productType && colors.length === 0 && (
                     <div className="mt-6 theme-bg-subtle p-6 rounded-2xl border theme-border text-center">
                       <p className="theme-text-secondary text-sm font-bold">Colors: Available (Standard)</p>
+                    </div>
+                  )}
+
+                  {/* Sleeve Length & Shirt Length */}
+                  {formData.productType && (
+                    <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="theme-bg-subtle p-4 md:p-5 rounded-2xl border theme-border">
+                        <h3 className="text-sm font-black text-cyan-400 uppercase mb-3">Sleeve Length</h3>
+                        <div className="flex gap-2">
+                          {[
+                            { value: 'full', label: 'Full' },
+                            { value: 'half', label: 'Half' },
+                            { value: 'quarter', label: 'Quarter' }
+                          ].map(opt => (
+                            <button key={opt.value} type="button"
+                              onClick={() => setFormData({...formData, sleeveLength: opt.value})}
+                              className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase transition-all ${
+                                formData.sleeveLength === opt.value
+                                  ? 'bg-cyan-600 text-white shadow-lg'
+                                  : 'bg-gray-800 text-gray-500 hover:text-white'
+                              }`}
+                            >{opt.label}</button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="theme-bg-subtle p-4 md:p-5 rounded-2xl border theme-border">
+                        <h3 className="text-sm font-black text-indigo-400 uppercase mb-3">Shirt Length</h3>
+                        <div className="flex gap-2">
+                          {[
+                            { value: 'long', label: 'Long' },
+                            { value: 'short', label: 'Short' }
+                          ].map(opt => (
+                            <button key={opt.value} type="button"
+                              onClick={() => setFormData({...formData, shirtLength: opt.value})}
+                              className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase transition-all ${
+                                formData.shirtLength === opt.value
+                                  ? 'bg-indigo-600 text-white shadow-lg'
+                                  : 'bg-gray-800 text-gray-500 hover:text-white'
+                              }`}
+                            >{opt.label}</button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   )}
 

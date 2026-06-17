@@ -724,6 +724,9 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                     </div>
                   </div>
                   <p className="theme-text-secondary font-bold tracking-wide">{selectedOrder.customerName}</p>
+                  {selectedOrder.instructionNotes && (
+                    <p className="mt-2 text-xs text-amber-400/80 font-medium italic max-w-md leading-snug">📋 {selectedOrder.instructionNotes}</p>
+                  )}
                 </div>
                 <button 
                   onClick={() => setShowModal(false)}
@@ -757,8 +760,8 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                               const p = item.productDetails || {};
                               const c = item.customization || {};
                               const s = item.sizeData || {};
-                              const hasSleeves = p.gender === 'Female' && p.femaleOptions?.sleeves;
-                              const hasShirtLength = p.gender === 'Female' && p.femaleOptions?.shirtLength;
+                              const hasSleeves = p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves);
+                              const hasShirtLength = p.shirtLength || (p.gender === 'Female' && p.femaleOptions?.shirtLength);
                               const hasMeasurements = s && Object.values(s).some(v => v);
 
                               return (
@@ -831,7 +834,7 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                                     <div>{p.size || 'Custom'} • {p.gender || 'MALE'}</div>
                                     {(hasSleeves || hasShirtLength) && (
                                       <div className="text-xs md:text-sm text-pink-400 font-black mt-0.5">
-                                        {hasSleeves && `Sleeves: ${p.femaleOptions.sleeves}`} {hasShirtLength && `| Length: ${p.femaleOptions.shirtLength}`}
+                                        {hasSleeves && `Sleeves: ${p.sleeveLength || p.femaleOptions?.sleeves}`} {hasShirtLength && `| Length: ${p.shirtLength || p.femaleOptions?.shirtLength}`}
                                       </div>
                                     )}
                                   </td>
@@ -853,6 +856,8 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                         { label: 'Order Size', val: product?.size },
                         { label: 'Gender', val: product?.gender },
                         ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
+                        ...(product?.sleeveLength ? [{ label: 'Sleeve Length', val: product.sleeveLength }] : []),
+                        ...(product?.shirtLength ? [{ label: 'Shirt Length', val: product.shirtLength }] : []),
                         { label: 'Payment', val: selectedOrder.paymentStatus || (parseFloat(selectedOrder.advanceAmount) > 0 ? 'ADVANCE' : 'PENDING') }
                       ].filter(i => i.val).map((item, i) => (
                         <div key={i} className="theme-bg p-4 md:p-6 rounded-3xl border theme-border">
@@ -886,16 +891,16 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                           <p className="text-xl font-black text-blue-400">{val}"</p>
                         </div>
                       ))}
-                      {product?.gender === 'Female' && product?.femaleOptions?.sleeves && (
+                      {(product?.sleeveLength || (product?.gender === 'Female' && product?.femaleOptions?.sleeves)) && (
                         <div className="text-center p-4 theme-bg-subtle rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
                           <p className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter mb-1">SLEEVES</p>
-                          <p className="text-sm font-black text-white uppercase">{product.femaleOptions.sleeves}</p>
+                          <p className="text-sm font-black text-white uppercase">{product.sleeveLength || product.femaleOptions?.sleeves}</p>
                         </div>
                       )}
-                      {product?.gender === 'Female' && product?.femaleOptions?.shirtLength && (
+                      {(product?.shirtLength || (product?.gender === 'Female' && product?.femaleOptions?.shirtLength)) && (
                         <div className="text-center p-4 theme-bg-subtle rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
                           <p className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter mb-1">SHIRT LENGTH</p>
-                          <p className="text-sm font-black text-white uppercase">{product.femaleOptions.shirtLength}</p>
+                          <p className="text-sm font-black text-white uppercase">{product.shirtLength || product.femaleOptions?.shirtLength}</p>
                         </div>
                       )}
                     </div>
