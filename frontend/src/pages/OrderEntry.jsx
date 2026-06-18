@@ -140,7 +140,6 @@ const SmartOrderForm = () => {
     adjProductPrice: '',
     adjCustomization: '',
     adjCapCharges: '',
-    adjDeliveryCharges: '',
     adjDiscount: ''
   });
 
@@ -389,7 +388,6 @@ const SmartOrderForm = () => {
           },
         gender: 'Male',
         femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
-        adjDeliveryCharges: ''
         });
 
         // Parse and populate product items into cart
@@ -948,11 +946,11 @@ const SmartOrderForm = () => {
       const calcCustomization = cartItems.reduce((s, i) => s + (parseFloat(i.logoCharges || 0) + parseFloat(i.namePrintingCharges || 0) + parseFloat(i.customizationPrice || 0)), 0);
       const calcCap = cartItems.reduce((s, i) => s + (parseInt(i.capCharges) || 0), 0);
       const orderTotalBeforeDelivery = calcProductPrice + calcCustomization + calcCap;
-      const calcDelivery = orderTotalBeforeDelivery > 7000 ? 0 : (parseFloat(formData.deliveryCharges) || 0);
+      const calcDelivery = orderTotalBeforeDelivery > 7000 ? 0 : 250;
       const adjProductPrice = parseFloat(formData.adjProductPrice) || calcProductPrice;
       const adjCustomization = parseFloat(formData.adjCustomization) || calcCustomization;
       const adjCap = parseFloat(formData.adjCapCharges) || calcCap;
-      const adjDelivery = orderTotalBeforeDelivery > 7000 ? 0 : (parseFloat(formData.adjDeliveryCharges) || calcDelivery);
+      const adjDelivery = calcDelivery;
       const discount = parseFloat(formData.adjDiscount) || 0;
       const adjTotal = adjProductPrice + adjCustomization + adjCap + adjDelivery - discount;
 
@@ -1000,7 +998,8 @@ const SmartOrderForm = () => {
         advanceAmount: '',
         paymentStatus: 'PENDING',
         totalPrice: '',
-        deliveryCharges: '',
+    // deliveryCharges auto-calculated: 250 or FREE if > 7000
+
         quantity: 1,
         productType: '',
         fabricType: '',
@@ -1042,7 +1041,6 @@ const SmartOrderForm = () => {
           adjProductPrice: '',
           adjCustomization: '',
           adjCapCharges: '',
-          adjDeliveryCharges: '',
           adjDiscount: ''
         });
         setLogoEntries([{ name: '', design: '' }]);
@@ -1793,36 +1791,28 @@ const SmartOrderForm = () => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                     <div className="space-y-4">
-                      <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'ڈلیوری چارجز' : 'Delivery Charges'}</label>
-                      <div className="relative group">
-                        {(() => {
-                          const thresholdCheck = cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0);
-                          const isFreeDelivery = thresholdCheck > 7000;
-                          if (isFreeDelivery && formData.deliveryCharges !== '0') {
-                            setTimeout(() => setFormData(f => ({...f, deliveryCharges: '0'})), 0);
-                          }
-                          return null;
-                        })()}
-                        <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-amber-500/10 text-amber-500`}>
-                          <span className="font-black text-xs">🚚</span>
-                        </div>
-                        <input
-                          type="number"
-                          min="0"
-                          onKeyDown={preventEnterSubmit}
-                          value={formData.deliveryCharges}
-                          onChange={(e) => setFormData({...formData, deliveryCharges: e.target.value})}
-                          className={`w-full theme-input rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all text-xl font-bold`}
-                          placeholder="e.g. 200"
-                          disabled={cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0) > 7000}
-                        />
-                      </div>
-                      {cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0) > 7000 && (
-                        <div className="flex items-center gap-2 mt-2 px-2">
-                          <span className="text-[10px] font-black text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-full tracking-wider uppercase">FREE DELIVERY</span>
-                          <span className="text-[10px] text-emerald-400/60">(Order &gt; ₨7,000)</span>
-                        </div>
-                      )}
+                      {(() => {
+                        const isFree = cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0) > 7000;
+                        return (
+                          <>
+                            <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'ڈلیوری چارجز' : 'Delivery Charges'}</label>
+                            <div className={`relative group ${isFree ? 'opacity-60' : ''}`}>
+                              <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 flex items-center justify-center w-8 h-8 rounded-full ${isFree ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
+                                <span className="font-black text-xs">🚚</span>
+                              </div>
+                              <div className={`w-full theme-input rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} text-xl font-bold flex items-center ${isFree ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                {isFree ? 'FREE' : '₨250'}
+                              </div>
+                            </div>
+                            {isFree && (
+                              <div className="flex items-center gap-2 mt-2 px-2">
+                                <span className="text-[10px] font-black text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-full tracking-wider uppercase">FREE DELIVERY</span>
+                                <span className="text-[10px] text-emerald-400/60">(Order &gt; ₨7,000)</span>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                     <div className="space-y-4">
                       <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'کل رقم (Inventory Auto-Calculated)' : 'Order Amount (Auto-Calculated)'}</label>
@@ -3413,7 +3403,7 @@ const SmartOrderForm = () => {
                 {cartItems.length > 0 && (
                   <div className="flex justify-end items-center gap-4 mt-3 pt-3 border-t border-gray-800/50">
                     <span className="text-xs md:text-sm text-gray-400 font-black uppercase tracking-wider">{useUrdu ? 'کل آئٹمز' : 'Total Items'}: <span className="text-white">{cartItems.reduce((s, i) => s + (parseInt(i.quantity) || 1), 0)}</span></span>
-                    <span className="text-sm font-black text-emerald-400">{useUrdu ? 'کل قیمت' : 'Total'}: ₨{(cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0) + (cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0) > 7000 ? 0 : (parseFloat(formData.deliveryCharges) || 0))).toLocaleString()}</span>
+                    <span className="text-sm font-black text-emerald-400">{useUrdu ? 'کل قیمت' : 'Total'}: ₨{(cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0) + (cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0) > 7000 ? 0 : 250)).toLocaleString()}</span>
                   </div>
                 )}
               </div>
@@ -3441,11 +3431,11 @@ const SmartOrderForm = () => {
                         const calcCustomization = cartItems.reduce((s, i) => s + (parseFloat(i.logoCharges || 0) + parseFloat(i.namePrintingCharges || 0) + parseFloat(i.customizationPrice || 0)), 0);
                         const calcCap = cartItems.reduce((s, i) => s + (parseInt(i.capCharges) || 0), 0);
                         const orderTotalBeforeDelivery = calcProductPrice + calcCustomization + calcCap;
-                        const calcDelivery = orderTotalBeforeDelivery > 7000 ? 0 : (parseFloat(formData.deliveryCharges) || 0);
+                        const calcDelivery = orderTotalBeforeDelivery > 7000 ? 0 : 250;
                         const adjProductPrice = parseFloat(formData.adjProductPrice) || calcProductPrice;
                         const adjCustomization = parseFloat(formData.adjCustomization) || calcCustomization;
                         const adjCap = parseFloat(formData.adjCapCharges) || calcCap;
-                        const adjDelivery = orderTotalBeforeDelivery > 7000 ? 0 : (parseFloat(formData.adjDeliveryCharges) || calcDelivery);
+                        const adjDelivery = calcDelivery;
                         const discount = parseFloat(formData.adjDiscount) || 0;
                         const advanceAmt = parseFloat(formData.advanceAmount) || 0;
                         const calcTotal = calcProductPrice + calcCustomization + calcCap + calcDelivery;
@@ -3487,9 +3477,7 @@ const SmartOrderForm = () => {
                                 {calcDelivery === 0 ? 'FREE' : `₨${calcDelivery.toLocaleString()}`}
                               </td>
                               <td className="text-right py-1.5 pl-2">
-                                {adjDelivery === 0
-                                  ? <span className="text-emerald-500 font-black text-xs">FREE</span>
-                                  : inp('adjDeliveryCharges', calcDelivery, 'amber-400')}
+                                <span className={`font-black text-xs ${calcDelivery === 0 ? 'text-emerald-500' : 'text-amber-400'}`}>{calcDelivery === 0 ? 'FREE' : `₨${calcDelivery.toLocaleString()}`}</span>
                               </td>
                             </tr>
                             <tr className="border-b border-gray-800/30">
@@ -3747,8 +3735,15 @@ const SmartOrderForm = () => {
                     </div>
                     <div className="mt-3">
                       <span className="text-gray-400 block mb-1">{useUrdu ? 'ڈلیوری چارجز' : 'Delivery Charges'}</span>
-                      <input type="number" min="0" value={formData.deliveryCharges} onChange={e => setFormData({...formData, deliveryCharges: e.target.value})}
-                        className={`w-full theme-input rounded-xl py-2.5 px-3 text-sm font-bold ${hasChanged(String(originalOrder.deliveryCharges || ''), formData.deliveryCharges) ? 'border-amber-500/50 bg-amber-500/5' : ''}`} />
+                      {(() => {
+                        const isFree = cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0) > 7000;
+                        return (
+                          <div className={`w-full theme-input rounded-xl py-2.5 px-3 text-sm font-bold flex items-center gap-2 ${isFree ? 'text-emerald-400' : 'text-amber-400'}`}>
+                            {isFree ? 'FREE DELIVERY' : '₨250'}
+                            {isFree && <span className="text-[9px] text-emerald-500/60">(Order &gt; ₨7,000)</span>}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -3808,8 +3803,12 @@ const SmartOrderForm = () => {
 
                   {/* Pricing Subtotal */}
                   {(() => {
-                    const totalNewPrice = cartItems.reduce((sum, item) => sum + (parseFloat(item.totalPrice) || 0), 0) + (parseFloat(formData.deliveryCharges) || 0);
-                    const origPrice = (parseFloat(originalOrder.totalPrice) || 0) + (parseFloat(originalOrder.deliveryCharges) || 0);
+                    const orderTotalNoDelivery = cartItems.reduce((sum, item) => sum + (parseFloat(item.totalPrice) || 0), 0);
+                    const newDelivery = orderTotalNoDelivery > 7000 ? 0 : 250;
+                    const totalNewPrice = orderTotalNoDelivery + newDelivery;
+                    const origOrderTotal = parseFloat(originalOrder.totalPrice) || 0;
+                    const origDelivery = parseFloat(originalOrder.deliveryCharges) || 0;
+                    const origPrice = origOrderTotal + origDelivery;
                     const diff = totalNewPrice - origPrice;
                     return (
                       <div className="border-t border-emerald-500/10 pt-3 flex justify-between items-center text-xs font-black">
