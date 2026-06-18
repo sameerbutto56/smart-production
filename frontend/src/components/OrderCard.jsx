@@ -276,14 +276,18 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     </div>
                     {p?.gender === 'Female' && (
                       <>
-                        <div className="bg-gray-950/50 p-2 rounded-lg">
-                          <p className="text-[9px] text-gray-500 font-black uppercase">Sleeves</p>
-                          <p className="text-xs md:text-sm font-black text-white">{female.sleeves || 'N/A'}</p>
-                        </div>
-                        <div className="bg-gray-950/50 p-2 rounded-lg">
-                          <p className="text-[9px] text-gray-500 font-black uppercase">Shirt L.</p>
-                          <p className="text-xs md:text-sm font-black text-white">{female.shirtLength || 'N/A'}</p>
-                        </div>
+                        {(p?.sleeveLength || (female.sleeves && female.sleeves !== 'full')) && (
+                          <div className="bg-gray-950/50 p-2 rounded-lg">
+                            <p className="text-[9px] text-gray-500 font-black uppercase">Sleeves</p>
+                            <p className="text-xs md:text-sm font-black text-white">{p.sleeveLength || female.sleeves || 'N/A'}</p>
+                          </div>
+                        )}
+                        {(p?.shirtLength || (female.shirtLength && female.shirtLength !== 'long')) && (
+                          <div className="bg-gray-950/50 p-2 rounded-lg">
+                            <p className="text-[9px] text-gray-500 font-black uppercase">Shirt L.</p>
+                            <p className="text-xs md:text-sm font-black text-white">{p.shirtLength || female.shirtLength || 'N/A'}</p>
+                          </div>
+                        )}
                       </>
                     )}
                     {p?.sleeveLength && p?.gender !== 'Female' && (

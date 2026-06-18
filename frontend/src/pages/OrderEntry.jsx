@@ -83,8 +83,8 @@ const SmartOrderForm = () => {
     quantity: 1,
     matchingCap: false,
     matchingCapQty: 0,
-    sleeveLength: 'full',
-    shirtLength: 'long',
+    sleeveLength: '',
+    shirtLength: '',
     instructionNotes: '',
     shopifyOrderDate: '',
 
@@ -785,8 +785,8 @@ const SmartOrderForm = () => {
         size: formData.size,
         gender: formData.gender,
         femaleOptions: formData.femaleOptions,
-        sleeveLength: formData.sleeveLength || 'full',
-        shirtLength: formData.shirtLength || 'long',
+        sleeveLength: formData.sleeveLength || '',
+        shirtLength: formData.shirtLength || '',
         matchingCap: formData.matchingCap,
         matchingCapQty: formData.matchingCapQty
       },
@@ -851,8 +851,8 @@ const SmartOrderForm = () => {
       femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
       matchingCap: false,
       matchingCapQty: 0,
-      sleeveLength: 'full',
-      shirtLength: 'long'
+      sleeveLength: '',
+      shirtLength: ''
     }));
     setLogoEntries([{ name: '', design: '' }]);
     setArticleNameEntries(['']);
@@ -880,8 +880,8 @@ const SmartOrderForm = () => {
       femaleOptions: pd.femaleOptions || { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
       matchingCap: pd.matchingCap || false,
       matchingCapQty: pd.matchingCapQty || 0,
-      sleeveLength: pd.sleeveLength || 'full',
-      shirtLength: pd.shirtLength || 'long',
+      sleeveLength: pd.sleeveLength || '',
+      shirtLength: pd.shirtLength || '',
       quantity: item.quantity || 1,
       totalPrice: '',
       logoCharges: item.logoCharges?.toString() || '',
@@ -1038,8 +1038,8 @@ const SmartOrderForm = () => {
           femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
           matchingCap: false,
           matchingCapQty: 0,
-          sleeveLength: 'full',
-          shirtLength: 'long',
+          sleeveLength: '',
+          shirtLength: '',
           instructionNotes: '',
           shopifyOrderDate: '',
           adjProductPrice: '',
@@ -2302,7 +2302,7 @@ const SmartOrderForm = () => {
                             { value: 'half', label: 'Half' }
                           ].map(opt => (
                             <button key={opt.value} type="button"
-                              onClick={() => setFormData({...formData, sleeveLength: opt.value})}
+                              onClick={() => setFormData({...formData, sleeveLength: formData.sleeveLength === opt.value ? '' : opt.value})}
                               className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase transition-all ${
                                 formData.sleeveLength === opt.value
                                   ? 'bg-cyan-600 text-white shadow-lg'
@@ -2321,7 +2321,7 @@ const SmartOrderForm = () => {
                             { value: 'regular', label: 'Regular' }
                           ].map(opt => (
                             <button key={opt.value} type="button"
-                              onClick={() => setFormData({...formData, shirtLength: opt.value})}
+                              onClick={() => setFormData({...formData, shirtLength: formData.shirtLength === opt.value ? '' : opt.value})}
                               className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase transition-all ${
                                 formData.shirtLength === opt.value
                                   ? 'bg-indigo-600 text-white shadow-lg'
