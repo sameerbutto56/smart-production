@@ -2888,22 +2888,48 @@ const dispatchOrder = async (req, res) => {
 
       await createAuditLog(orderId, 'DISPATCHED_ENAMELS', `Dispatched via Enamels Delivery. Tracking: ${trackingUrl || 'N/A'}`, req.user.id);
     } else {
-      // TCS / POST_EX — stay in DISPATCH, set dispatchStatus to PENDING
-      updateData.dispatchStatus = 'PENDING';
-      await createAuditLog(orderId, 'DISPATCHED_COURIER', `Dispatched via ${deliveryMethod}. Tracking: ${trackingUrl || 'N/A'}`, req.user.id);
+      // TCS / POST_EX — advance to OUT_FOR_DELIVERY
+      const currentStage = order.stages.find(s =>
+        ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
+      );
+      if (currentStage) {
+        await prisma.orderStage.update({
+          where: { id: currentStage.id },
+          data: { status: 'COMPLETED', completedAt: new Date(), rejectionReason: `Dispatched via ${deliveryMethod}` }
+        });
+      }
 
+      const durations = await getStageDurations(order.priority);
+      const deadline = calculateDeadline(new Date(), durations['OUT_FOR_DELIVERY'] || 24);
+      await prisma.orderStage.create({
+        data: { orderId, stageName: 'OUT_FOR_DELIVERY', status: 'PENDING', deadlineAt: deadline }
+      });
+
+      updateData.currentStage = 'OUT_FOR_DELIVERY';
+      updateData.status = 'IN_PROGRESS';
+      updateData.dispatchStatus = 'PENDING';
+
+      const recipientUsers = await prisma.user.findMany({
+        where: { role: { in: getRolesForStage('OUT_FOR_DELIVERY') } },
+        select: { id: true }
+      });
       await prisma.routingHistory.create({
         data: {
           orderId,
           sentByUserId: req.user.id,
-          sentToStage: 'DISPATCH',
-          sentToUserIds: '[]',
+          sentToStage: 'OUT_FOR_DELIVERY',
+          sentToUserIds: JSON.stringify(recipientUsers.map(u => u.id)),
           previousStage: 'DISPATCH',
-          newStage: 'DISPATCH',
-          remarks: `Dispatched via ${deliveryMethod}. Tracking: ${trackingUrl || 'N/A'}. Status: PENDING`,
+          newStage: 'OUT_FOR_DELIVERY',
+          remarks: `Dispatched via ${deliveryMethod}. Tracking: ${trackingUrl || 'N/A'}`,
           createdAt: new Date()
         }
       }).catch(() => {});
+      await prisma.seenTask.deleteMany({
+        where: { userId: { in: recipientUsers.map(u => u.id) }, orderId, stageName: 'OUT_FOR_DELIVERY' }
+      }).catch(() => {});
+
+      await createAuditLog(orderId, 'DISPATCHED_COURIER', `Dispatched via ${deliveryMethod}. Tracking: ${trackingUrl || 'N/A'}`, req.user.id);
     }
 
     await prisma.order.update({ where: { id: orderId }, data: updateData });

@@ -907,6 +907,7 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                   </section>
                 )}
 
+                {selectedOrder.type !== 'STANDARD' && (
                 <section>
                   <h4 className="text-xs md:text-sm font-black text-emerald-500 uppercase tracking-[0.3em] mb-6">
                     {isMultiItem ? '03. Per-Product Engraving' : '03. Engraving'}
@@ -1019,7 +1020,9 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                     </div>
                   )}
                 </section>
+                )}
 
+                {selectedOrder.type === 'FULL_CUSTOM' && (
                 <section>
                    <div className="flex justify-between items-center mb-6">
                       <h4 className="text-xs md:text-sm font-black text-blue-500 uppercase tracking-[0.3em]">05. Production Timeline</h4>
@@ -1091,10 +1094,12 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                    </div>
                    
 
-                </section>
-              </div>
+                 </section>
+                )}
 
-              <div className="p-4 md:p-8 theme-bg border-t theme-border flex justify-between items-center">
+               </div>
+
+               <div className="p-4 md:p-8 theme-bg border-t theme-border flex justify-between items-center">
                 <div className="flex items-center gap-3 text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest flex-wrap">
                   <span className="text-emerald-400">Entry: {new Date(selectedOrder.createdAt).toLocaleDateString()}</span>
                   {selectedOrder.shopifyOrderDate && (

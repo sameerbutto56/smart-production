@@ -1888,6 +1888,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 </section>
               )}
 
+              {order.type !== 'STANDARD' && (
               <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8">
                 <div>
                   <h4 className="text-xs md:text-sm font-black text-emerald-500 uppercase tracking-[0.3em] mb-6">03. Engraving</h4>
@@ -1970,6 +1971,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   </div>
                 </div>
               </section>
+              )}
             </div>
 
             <div className="p-4 md:p-8 bg-gray-950/80 border-t border-gray-800 flex justify-between items-center">

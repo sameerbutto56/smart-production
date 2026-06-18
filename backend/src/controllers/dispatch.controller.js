@@ -198,6 +198,11 @@ const updateCourierStatus = async (req, res) => {
     const existingDetails = order.courierDetails || {};
     const updateData = { dispatchStatus };
 
+    if (dispatchStatus === 'DISPATCHED' || dispatchStatus === 'IN_TRANSIT') {
+      if (order.currentStage !== 'OUT_FOR_DELIVERY') {
+        updateData.currentStage = 'OUT_FOR_DELIVERY';
+      }
+    }
     if (dispatchStatus === 'DELIVERED' || dispatchStatus === 'COMPLETED') {
       updateData.currentStage = 'COMPLETED';
       updateData.status = 'COMPLETED';

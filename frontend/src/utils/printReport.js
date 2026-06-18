@@ -556,11 +556,12 @@ export function printJobSheet(order, userRole) {
   // ─── PRODUCTS TABLE (Urdu labels) ───
   win.document.write('<div class="section-title" style="font-size:26px">' + urduSection.products + '</div>');
   if (isMultiItem) {
-    const headers = ['#', urduSection.product, urduSection.fabricColor, urduSection.sizeGender, urduSection.qty, urduSection.cap, 'Price'];
+    const showCap = orderType !== 'STANDARD';
+    const headers = ['#', urduSection.product, urduSection.fabricColor, urduSection.sizeGender, urduSection.qty].concat(showCap ? [urduSection.cap] : []).concat(['Price']);
     win.document.write('<table><thead><tr>' + headers.map(h => '<th>' + h + '</th>').join('') + '</tr></thead><tbody>');
     allItems.forEach((item, idx) => {
       const p = item.productDetails || {};
-      const capQty = p.matchingCap ? (p.matchingCapQty || 0) : (item.capCharges > 0 ? (p.femaleOptions?.cap || 0) : 0);
+      const capQty = showCap && p.matchingCap ? (p.matchingCapQty || 0) : (showCap && item.capCharges > 0 ? (p.femaleOptions?.cap || 0) : 0);
       win.document.write('<tr>');
       win.document.write('<td style="font-weight:700">' + (idx + 1) + '</td>');
       win.document.write('<td style="font-weight:700;font-size:22px">' + (p.productType || '—') + '</td>');
@@ -568,14 +569,15 @@ export function printJobSheet(order, userRole) {
       const extras = [p.sleeveLength ? urduSection.sleeves + ': ' + p.sleeveLength : null, p.shirtLength ? urduSection.length + ': ' + p.shirtLength : null].filter(Boolean).join(' | ');
       win.document.write('<td style="font-size:22px">' + (p.size || cap('Custom')) + ' • ' + (p.gender || 'Male') + (extras ? '<br><span style="font-size:20px;color:#db2777;font-weight:700">' + extras + '</span>' : '') + '</td>');
       win.document.write('<td style="text-align:center;font-weight:700;font-size:22px">' + (item.quantity || 1) + '</td>');
-      win.document.write('<td style="text-align:center;font-weight:700;font-size:22px;color:#e11d48">' + (capQty || '—') + '</td>');
+      if (showCap) win.document.write('<td style="text-align:center;font-weight:700;font-size:22px;color:#e11d48">' + (capQty || '—') + '</td>');
       win.document.write('<td style="text-align:right;font-weight:700;font-size:22px">' + priceDisplay(item.totalPrice) + '</td>');
       win.document.write('</tr>');
     });
     win.document.write('</tbody></table>');
   } else {
-    const capQty = firstProduct.matchingCap ? (firstProduct.matchingCapQty || 0) : 0;
-    const headers = [urduSection.product, 'Fabric', 'Color', 'Size', 'Gender', urduSection.qty, urduSection.cap, 'Price'];
+    const showCap = orderType !== 'STANDARD';
+    const capQty = showCap && firstProduct.matchingCap ? (firstProduct.matchingCapQty || 0) : 0;
+    const headers = [urduSection.product, 'Fabric', 'Color', 'Size', 'Gender', urduSection.qty].concat(showCap ? [urduSection.cap] : []).concat(['Price']);
     win.document.write('<table><thead><tr>' + headers.map(h => '<th>' + h + '</th>').join('') + '</tr></thead><tbody>');
     win.document.write('<tr>');
     win.document.write('<td style="font-weight:700;font-size:22px">' + (firstProduct.productType || '—') + '</td>');
@@ -585,7 +587,7 @@ export function printJobSheet(order, userRole) {
     win.document.write('<td style="font-size:22px">' + (firstProduct.size || cap('Custom')) + '</td>');
     win.document.write('<td style="font-size:22px">' + (firstProduct.gender || 'Male') + (extras ? '<br><span style="font-size:20px;color:#db2777;font-weight:700">' + extras + '</span>' : '') + '</td>');
     win.document.write('<td style="text-align:center;font-weight:700;font-size:22px">' + (order.quantity || 1) + '</td>');
-    win.document.write('<td style="text-align:center;font-weight:700;font-size:22px;color:#e11d48">' + (capQty || '—') + '</td>');
+    if (showCap) win.document.write('<td style="text-align:center;font-weight:700;font-size:22px;color:#e11d48">' + (capQty || '—') + '</td>');
     win.document.write('<td style="text-align:right;font-weight:700;font-size:22px">' + priceDisplay(order.totalPrice) + '</td>');
     win.document.write('</tr></tbody></table>');
   }
@@ -695,7 +697,8 @@ export function printJobSheet(order, userRole) {
     }
   }
 
-  // ─── FINANCIAL SUMMARY ───
+  // ─── FINANCIAL SUMMARY (STANDARD: hide pricing details) ───
+  if (orderType !== 'STANDARD') {
   win.document.write('<div class="section-title" style="font-size:26px">Financial Summary</div>');
   (() => {
     const items = isMultiItem ? allItems : [];
@@ -723,6 +726,7 @@ export function printJobSheet(order, userRole) {
     win.document.write('<tr style="border-top:3px solid #111"><td style="font-weight:900;padding:4px 20px 4px 0;font-size:26px">Grand Total</td><td style="text-align:right;font-weight:900;font-size:26px">' + priceDisplay(grandTotal) + '</td></tr>');
     win.document.write('</tbody></table>');
   })();
+  }
 
   // ─── FOOTER ───
   win.document.write('<div style="display:flex;justify-content:space-between;font-size:18px;color:#999;border-top:2px solid #ddd;padding-top:6px;margin-top:8px">');
