@@ -342,12 +342,16 @@ const createOrder = async (req, res) => {
     const finalLogoCharges = parseFloat(req.body.logoCharges) || (hasLogo ? brandingRates.logoCharge : 0);
     const finalNamePrintingCharges = parseFloat(req.body.namePrintingCharges) || (hasNamePrinting ? brandingRates.namePrintingCharge : 0);
     const finalCustomizationPrice = parseFloat(req.body.customizationPrice) || (hasCustomization ? brandingRates.customizationCharge : 0);
-    const finalDeliveryCharges = parseFloat(req.body.deliveryCharges) || 0;
+    let finalDeliveryCharges = parseFloat(req.body.deliveryCharges) || 0;
 
     let baseTotal = finalProductDetails && Array.isArray(finalProductDetails)
       ? finalProductDetails.reduce((sum, item) => sum + (item.totalPrice || 0), 0)
       : (parseFloat(req.body.totalPrice) || 0);
-    const finalTotalPrice = baseTotal + finalLogoCharges + finalNamePrintingCharges + finalCustomizationPrice + finalDeliveryCharges;
+    const orderTotalBeforeDelivery = baseTotal + finalLogoCharges + finalNamePrintingCharges + finalCustomizationPrice;
+    if (orderTotalBeforeDelivery > 7000) {
+      finalDeliveryCharges = 0;
+    }
+    const finalTotalPrice = orderTotalBeforeDelivery + finalDeliveryCharges;
 
     const order = await prisma.order.create({
       data: {

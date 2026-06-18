@@ -947,11 +947,12 @@ const SmartOrderForm = () => {
       const calcProductPrice = cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) - parseFloat(i.logoCharges || 0) - parseFloat(i.namePrintingCharges || 0) - parseFloat(i.customizationPrice || 0) - (parseInt(i.capCharges) || 0)), 0);
       const calcCustomization = cartItems.reduce((s, i) => s + (parseFloat(i.logoCharges || 0) + parseFloat(i.namePrintingCharges || 0) + parseFloat(i.customizationPrice || 0)), 0);
       const calcCap = cartItems.reduce((s, i) => s + (parseInt(i.capCharges) || 0), 0);
-      const calcDelivery = parseFloat(formData.deliveryCharges) || 0;
+      const orderTotalBeforeDelivery = calcProductPrice + calcCustomization + calcCap;
+      const calcDelivery = orderTotalBeforeDelivery > 7000 ? 0 : (parseFloat(formData.deliveryCharges) || 0);
       const adjProductPrice = parseFloat(formData.adjProductPrice) || calcProductPrice;
       const adjCustomization = parseFloat(formData.adjCustomization) || calcCustomization;
       const adjCap = parseFloat(formData.adjCapCharges) || calcCap;
-      const adjDelivery = parseFloat(formData.adjDeliveryCharges) || calcDelivery;
+      const adjDelivery = orderTotalBeforeDelivery > 7000 ? 0 : (parseFloat(formData.adjDeliveryCharges) || calcDelivery);
       const discount = parseFloat(formData.adjDiscount) || 0;
       const adjTotal = adjProductPrice + adjCustomization + adjCap + adjDelivery - discount;
 
@@ -1794,6 +1795,14 @@ const SmartOrderForm = () => {
                     <div className="space-y-4">
                       <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'ڈلیوری چارجز' : 'Delivery Charges'}</label>
                       <div className="relative group">
+                        {(() => {
+                          const thresholdCheck = cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0);
+                          const isFreeDelivery = thresholdCheck > 7000;
+                          if (isFreeDelivery && formData.deliveryCharges !== '0') {
+                            setTimeout(() => setFormData(f => ({...f, deliveryCharges: '0'})), 0);
+                          }
+                          return null;
+                        })()}
                         <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-amber-500/10 text-amber-500`}>
                           <span className="font-black text-xs">🚚</span>
                         </div>
@@ -1805,8 +1814,15 @@ const SmartOrderForm = () => {
                           onChange={(e) => setFormData({...formData, deliveryCharges: e.target.value})}
                           className={`w-full theme-input rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all text-xl font-bold`}
                           placeholder="e.g. 200"
+                          disabled={cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0) > 7000}
                         />
                       </div>
+                      {cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0) > 7000 && (
+                        <div className="flex items-center gap-2 mt-2 px-2">
+                          <span className="text-[10px] font-black text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-full tracking-wider uppercase">FREE DELIVERY</span>
+                          <span className="text-[10px] text-emerald-400/60">(Order &gt; ₨7,000)</span>
+                        </div>
+                      )}
                     </div>
                     <div className="space-y-4">
                       <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'کل رقم (Inventory Auto-Calculated)' : 'Order Amount (Auto-Calculated)'}</label>
@@ -3397,7 +3413,7 @@ const SmartOrderForm = () => {
                 {cartItems.length > 0 && (
                   <div className="flex justify-end items-center gap-4 mt-3 pt-3 border-t border-gray-800/50">
                     <span className="text-xs md:text-sm text-gray-400 font-black uppercase tracking-wider">{useUrdu ? 'کل آئٹمز' : 'Total Items'}: <span className="text-white">{cartItems.reduce((s, i) => s + (parseInt(i.quantity) || 1), 0)}</span></span>
-                    <span className="text-sm font-black text-emerald-400">{useUrdu ? 'کل قیمت' : 'Total'}: ₨{(cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0) + (parseFloat(formData.deliveryCharges) || 0)).toLocaleString()}</span>
+                    <span className="text-sm font-black text-emerald-400">{useUrdu ? 'کل قیمت' : 'Total'}: ₨{(cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0) + (cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0) > 7000 ? 0 : (parseFloat(formData.deliveryCharges) || 0))).toLocaleString()}</span>
                   </div>
                 )}
               </div>
@@ -3424,11 +3440,12 @@ const SmartOrderForm = () => {
                         const calcProductPrice = cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) - parseFloat(i.logoCharges || 0) - parseFloat(i.namePrintingCharges || 0) - parseFloat(i.customizationPrice || 0) - (parseInt(i.capCharges) || 0)), 0);
                         const calcCustomization = cartItems.reduce((s, i) => s + (parseFloat(i.logoCharges || 0) + parseFloat(i.namePrintingCharges || 0) + parseFloat(i.customizationPrice || 0)), 0);
                         const calcCap = cartItems.reduce((s, i) => s + (parseInt(i.capCharges) || 0), 0);
-                        const calcDelivery = parseFloat(formData.deliveryCharges) || 0;
+                        const orderTotalBeforeDelivery = calcProductPrice + calcCustomization + calcCap;
+                        const calcDelivery = orderTotalBeforeDelivery > 7000 ? 0 : (parseFloat(formData.deliveryCharges) || 0);
                         const adjProductPrice = parseFloat(formData.adjProductPrice) || calcProductPrice;
                         const adjCustomization = parseFloat(formData.adjCustomization) || calcCustomization;
                         const adjCap = parseFloat(formData.adjCapCharges) || calcCap;
-                        const adjDelivery = parseFloat(formData.adjDeliveryCharges) || calcDelivery;
+                        const adjDelivery = orderTotalBeforeDelivery > 7000 ? 0 : (parseFloat(formData.adjDeliveryCharges) || calcDelivery);
                         const discount = parseFloat(formData.adjDiscount) || 0;
                         const advanceAmt = parseFloat(formData.advanceAmount) || 0;
                         const calcTotal = calcProductPrice + calcCustomization + calcCap + calcDelivery;
@@ -3461,9 +3478,19 @@ const SmartOrderForm = () => {
                               </tr>
                             )}
                             <tr className="border-b border-gray-800/30">
-                              <td className="text-amber-400 font-bold py-1.5 pr-2">{useUrdu ? 'ڈلیوری چارجز' : 'Delivery Charges'}</td>
-                              <td className="text-right text-amber-400 font-black py-1.5 px-2">₨{calcDelivery.toLocaleString()}</td>
-                              <td className="text-right py-1.5 pl-2">{inp('adjDeliveryCharges', calcDelivery, 'amber-400')}</td>
+                              <td className={`font-bold py-1.5 pr-2 ${calcDelivery === 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                {calcDelivery === 0
+                                  ? <>{useUrdu ? 'ڈلیوری چارجز' : 'Delivery Charges'} <span className="text-[9px] tracking-widest text-emerald-500">(FREE)</span></>
+                                  : (useUrdu ? 'ڈلیوری چارجز' : 'Delivery Charges')}
+                              </td>
+                              <td className={`text-right font-black py-1.5 px-2 ${calcDelivery === 0 ? 'text-emerald-500' : 'text-amber-400'}`}>
+                                {calcDelivery === 0 ? 'FREE' : `₨${calcDelivery.toLocaleString()}`}
+                              </td>
+                              <td className="text-right py-1.5 pl-2">
+                                {adjDelivery === 0
+                                  ? <span className="text-emerald-500 font-black text-xs">FREE</span>
+                                  : inp('adjDeliveryCharges', calcDelivery, 'amber-400')}
+                              </td>
                             </tr>
                             <tr className="border-b border-gray-800/30">
                               <td className="text-emerald-400 font-bold py-1.5 pr-2">{useUrdu ? 'ڈسکاؤنٹ' : 'Discount'}</td>
