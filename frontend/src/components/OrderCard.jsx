@@ -464,7 +464,12 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   )}
                 </div>
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                  <p className="text-xs md:text-sm text-gray-400 font-bold tracking-wide truncate max-w-[140px] md:max-w-[200px]">{order.customerName}</p>
+                  <p className="text-xs md:text-sm text-gray-400 font-bold tracking-wide truncate max-w-[140px] md:max-w-[200px]">
+                    {order.customerName}
+                    {order.shopifyOrderDate && (
+                      <span className="text-purple-400 ml-2 font-black text-[9px] md:text-[10px]">Shopify: {new Date(order.shopifyOrderDate).toLocaleDateString()}</span>
+                    )}
+                  </p>
                   <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black tracking-widest ${order.status === 'ON_HOLD' ? 'bg-orange-500/20 text-orange-400' : isWaitingApproval ? 'bg-orange-500 text-white animate-pulse' : 'bg-blue-500/10 text-blue-400'} border border-current flex items-center gap-1`}>
                     {(isWaitingApproval || order.status === 'ON_HOLD') && <AlertCircle size={7} />}
                     {order.status === 'ON_HOLD' ? t('Hold') : t(currentStage?.stageName)}
@@ -1740,7 +1745,14 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     Full Production Job Sheet
                   </span>
                 </div>
-                <p className="text-gray-400 font-bold tracking-wide">{order.customerName}</p>
+                <p className="text-gray-400 font-bold tracking-wide">
+                  {order.customerName}
+                  {order.shopifyOrderDate && (
+                    <span className="text-purple-400 ml-3 font-black text-xs md:text-sm">
+                      Shopify: {new Date(order.shopifyOrderDate).toLocaleDateString()}
+                    </span>
+                  )}
+                </p>
               </div>
               <button 
                 onClick={() => setShowFullSheet(false)}
@@ -1978,12 +1990,6 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
             <div className="p-4 md:p-8 bg-gray-950/80 border-t border-gray-800 flex justify-between items-center">
               <div className="flex flex-wrap items-center gap-x-4 text-xs md:text-sm text-gray-500 font-black uppercase tracking-widest">
                 <span className="text-emerald-400">Entry: {new Date(order.createdAt).toLocaleDateString()}</span>
-                {order.shopifyOrderDate && (
-                  <>
-                    <span className="w-1.5 h-1.5 bg-gray-700 rounded-full shrink-0"></span>
-                    <span className="text-purple-400">Shopify: {new Date(order.shopifyOrderDate).toLocaleDateString()}</span>
-                  </>
-                )}
                 <span className="w-1.5 h-1.5 bg-gray-700 rounded-full shrink-0"></span>
                 <span>Stage: {currentStage?.stageName}</span>
                 {order.deliveredAt && (

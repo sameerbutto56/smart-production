@@ -542,6 +542,9 @@ const AllOrders = () => {
                       </div>
                       <div className="text-xs theme-text-muted font-medium mt-1">
                         {order.customerName}
+                        {order.shopifyOrderDate && (
+                          <span className="text-purple-400 ml-2 font-black">Shopify: {new Date(order.shopifyOrderDate).toLocaleDateString()}</span>
+                        )}
                       </div>
                       {order.createdBy?.name && (
                         <div className="flex items-center gap-1 mt-1">
@@ -723,7 +726,14 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                       </span>
                     </div>
                   </div>
-                  <p className="theme-text-secondary font-bold tracking-wide">{selectedOrder.customerName}</p>
+                  <p className="theme-text-secondary font-bold tracking-wide">
+                    {selectedOrder.customerName}
+                    {selectedOrder.shopifyOrderDate && (
+                      <span className="text-purple-400 ml-3 font-black text-xs md:text-sm">
+                        Shopify: {new Date(selectedOrder.shopifyOrderDate).toLocaleDateString()}
+                      </span>
+                    )}
+                  </p>
                   {selectedOrder.instructionNotes && (
                     <p className="mt-2 text-xs text-amber-400/80 font-medium italic max-w-md leading-snug">📋 {selectedOrder.instructionNotes}</p>
                   )}
@@ -1102,12 +1112,6 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                <div className="p-4 md:p-8 theme-bg border-t theme-border flex justify-between items-center">
                 <div className="flex items-center gap-3 text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest flex-wrap">
                   <span className="text-emerald-400">Entry: {new Date(selectedOrder.createdAt).toLocaleDateString()}</span>
-                  {selectedOrder.shopifyOrderDate && (
-                    <>
-                      <span className="w-1.5 h-1.5 bg-gray-700 rounded-full"></span>
-                      <span className="text-purple-400">Shopify: {new Date(selectedOrder.shopifyOrderDate).toLocaleDateString()}</span>
-                    </>
-                  )}
                   <span className="w-1.5 h-1.5 bg-gray-700 rounded-full"></span>
                   <span>Stage: {selectedOrder.currentStage}</span>
                 </div>
