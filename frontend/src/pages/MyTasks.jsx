@@ -69,6 +69,8 @@ const MyTasks = () => {
   };
 
   const [urgencyFilter, setUrgencyFilter] = useState('ALL');
+  const isDispatchRole = ['DISPATCH', 'MAIN_EMPLOYEE'].includes(user?.role);
+  const [dispatchDeliveryFilter, setDispatchDeliveryFilter] = useState('ALL');
 
   const fetchRoutingHistory = async () => {
     try {
@@ -350,6 +352,32 @@ const MyTasks = () => {
         </button>
       </div>
 
+      {/* Dispatch Delivery Method Filter */}
+      {isDispatchRole && hasTaskFilters && (
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
+          <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest mr-1">Delivery:</span>
+          {[
+            { value: 'ALL', label: 'All' },
+            { value: 'IMMENT', label: 'Enamels' },
+            { value: 'TCS', label: 'TCS' },
+            { value: 'POST_EX', label: 'PostEx' },
+            { value: 'WALK_IN', label: 'Working Received' },
+          ].map(dm => (
+            <button
+              key={dm.value}
+              onClick={() => setDispatchDeliveryFilter(dm.value)}
+              className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                dispatchDeliveryFilter === dm.value
+                  ? 'bg-purple-600 text-white shadow-lg'
+                  : 'bg-gray-800/50 text-gray-500 hover:text-gray-300 hover:bg-gray-700/50'
+              }`}
+            >
+              {dm.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Production Deadline Summary for PRODUCTION workers */}
       {user?.role === 'PRODUCTION' && filteredOrders.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -407,8 +435,16 @@ const MyTasks = () => {
           {/* Unseen Tasks */}
           {taskFilter === 'unseen' && (
             <div className="space-y-6">
-              {unseenData?.unseen?.length > 0
-                ? renderOrderCards(unseenData.unseen, { showUnseen: true, onMarkSeen: handleMarkSeen })
+              {(isDispatchRole
+                ? (unseenData?.unseen || []).filter(o => dispatchDeliveryFilter === 'ALL' || o.deliveryType === dispatchDeliveryFilter)
+                : unseenData?.unseen || []
+              ).length > 0
+                ? renderOrderCards(
+                    isDispatchRole
+                      ? (unseenData?.unseen || []).filter(o => dispatchDeliveryFilter === 'ALL' || o.deliveryType === dispatchDeliveryFilter)
+                      : unseenData?.unseen || [],
+                    { showUnseen: true, onMarkSeen: handleMarkSeen }
+                  )
                 : renderEmpty(<Eye size={36} className="theme-text-muted" />, 'No Unseen Tasks', 'All new orders have been reviewed and accepted.')
               }
             </div>
@@ -417,8 +453,15 @@ const MyTasks = () => {
           {/* Assigned/Accepted Tasks */}
           {taskFilter === 'assigned' && (
             <div className="space-y-6">
-              {unseenData?.seen?.length > 0
-                ? renderOrderCards(unseenData.seen)
+              {(isDispatchRole
+                ? (unseenData?.seen || []).filter(o => dispatchDeliveryFilter === 'ALL' || o.deliveryType === dispatchDeliveryFilter)
+                : unseenData?.seen || []
+              ).length > 0
+                ? renderOrderCards(
+                    isDispatchRole
+                      ? (unseenData?.seen || []).filter(o => dispatchDeliveryFilter === 'ALL' || o.deliveryType === dispatchDeliveryFilter)
+                      : unseenData?.seen || []
+                  )
                 : renderEmpty(<CheckCircle size={36} className="theme-text-muted" />, 'No Assigned Tasks', 'You have not accepted any tasks yet.')
               }
             </div>

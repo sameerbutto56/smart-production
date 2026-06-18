@@ -1322,9 +1322,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           onChange={(e) => setNextStage(e.target.value)}
                         >
                           <option value="">Select delivery method...</option>
-                          <option value="ENAMELS">Enamels Delivery</option>
+                          <option value="IMMENT">Through Enamels Delivery (Internal)</option>
                           <option value="TCS">TCS</option>
-                          <option value="POST_EX">Post Ex</option>
+                          <option value="POST_EX">PostEx</option>
+                          <option value="WALK_IN">Working Received by Customer / Received by Customer</option>
                         </select>
                         <input
                           type="text"

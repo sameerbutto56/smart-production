@@ -2834,9 +2834,9 @@ const getRoutingHistory = async (req, res) => {
 const dispatchOrder = async (req, res) => {
   const { orderId } = req.params;
   const { deliveryMethod, trackingUrl } = req.body;
-  const validMethods = ['ENAMELS', 'TCS', 'POST_EX'];
+  const validMethods = ['ENAMELS', 'TCS', 'POST_EX', 'IMMENT', 'WALK_IN'];
   if (!validMethods.includes(deliveryMethod)) {
-    return res.status(400).json({ message: 'Invalid delivery method. Must be ENAMELS, TCS, or POST_EX.' });
+    return res.status(400).json({ message: 'Invalid delivery method. Must be ENAMELS, TCS, POST_EX, IMMENT, or WALK_IN.' });
   }
 
   try {
@@ -2894,8 +2894,12 @@ const dispatchOrder = async (req, res) => {
       }).catch(() => {});
 
       await createAuditLog(orderId, 'DISPATCHED_ENAMELS', `Dispatched via Enamels Delivery. Tracking: ${trackingUrl || 'N/A'}`, req.user.id);
+    } else if (deliveryMethod === 'IMMENT') {
+      // IMMENT — stay in DISPATCH, internal processing continues
+      updateData.dispatchStatus = 'IMMENT_PROCESSING';
+      await createAuditLog(orderId, 'DISPATCHED_IMMENT', `Dispatched via Imment (Internal Delivery). Tracking: ${trackingUrl || 'N/A'}`, req.user.id);
     } else {
-      // TCS / POST_EX — advance to OUT_FOR_DELIVERY
+      // TCS / POST_EX / WALK_IN — advance to OUT_FOR_DELIVERY
       const currentStage = order.stages.find(s =>
         ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
       );
@@ -2914,7 +2918,10 @@ const dispatchOrder = async (req, res) => {
 
       updateData.currentStage = 'OUT_FOR_DELIVERY';
       updateData.status = 'IN_PROGRESS';
-      updateData.dispatchStatus = 'PENDING';
+      updateData.dispatchStatus = deliveryMethod === 'WALK_IN' ? 'DELIVERED' : 'PENDING';
+      if (deliveryMethod === 'WALK_IN') {
+        updateData.deliveredAt = new Date();
+      }
 
       const recipientUsers = await prisma.user.findMany({
         where: { role: { in: getRolesForStage('OUT_FOR_DELIVERY') } },
@@ -2964,8 +2971,8 @@ const updateDispatchStatus = async (req, res) => {
     if (order.currentStage !== 'DISPATCH') {
       return res.status(400).json({ message: 'Order is not in DISPATCH stage' });
     }
-    if (!order.deliveryType || !['TCS', 'POST_EX'].includes(order.deliveryType)) {
-      return res.status(400).json({ message: 'Only TCS/Post Ex orders can have dispatch status updated' });
+    if (!order.deliveryType || !['TCS', 'POST_EX', 'WALK_IN', 'IMMENT'].includes(order.deliveryType)) {
+      return res.status(400).json({ message: 'Only TCS/Post Ex/Walk-in/Imment orders can have dispatch status updated' });
     }
 
     const updateData = { dispatchStatus, updatedAt: new Date() };
@@ -2976,6 +2983,26 @@ const updateDispatchStatus = async (req, res) => {
     } else if (dispatchStatus === 'RETURNED') {
       updateData.currentStage = 'RETURNED';
       await createAuditLog(orderId, 'DISPATCH_RETURNED', `Order returned via ${order.deliveryType}. Tracking: ${order.trackingNumber || 'N/A'}`, req.user.id);
+    }
+
+    // For IMMENT completion, also advance to OUT_FOR_DELIVERY when marked delivered
+    if (order.deliveryType === 'IMMENT' && dispatchStatus === 'DELIVERED') {
+      const currentStage = order.stages?.find(s =>
+        ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
+      );
+      if (currentStage) {
+        await prisma.orderStage.update({
+          where: { id: currentStage.id },
+          data: { status: 'COMPLETED', completedAt: new Date(), rejectionReason: 'Delivered via Imment' }
+        });
+      }
+      const durations = await getStageDurations(order.priority);
+      const deadline = calculateDeadline(new Date(), durations['OUT_FOR_DELIVERY'] || 24);
+      await prisma.orderStage.create({
+        data: { orderId, stageName: 'OUT_FOR_DELIVERY', status: 'COMPLETED', completedAt: new Date(), deadlineAt: deadline }
+      });
+      updateData.currentStage = 'OUT_FOR_DELIVERY';
+      updateData.status = 'COMPLETED';
     }
 
     await prisma.order.update({ where: { id: orderId }, data: updateData });
