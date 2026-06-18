@@ -15,7 +15,7 @@ const createAuditLog = async (orderId, action, details, userId) => {
 const getStageDurations = async (priority = 'NORMAL') => {
   const setting = await prisma.systemSetting.findUnique({ where: { key: 'DEADLINE_CONFIG' } });
   let config = {
-    stageDurations: { STORE: 24, PRODUCTION: 48, LOGO_DESIGN: 24, DISPATCH: 12, OUT_FOR_DELIVERY: 12 },
+    stageDurations: { STORE: 24, PRODUCTION_ACCEPTANCE: 4, PRODUCTION: 48, LOGO_DESIGN: 24, DISPATCH: 12, OUT_FOR_DELIVERY: 12 },
     slaMultipliers: { NORMAL: 1, URGENT: 0.75, SUPER_URGENT: 0.5 }
   };
   if (setting) {
@@ -33,6 +33,7 @@ const getStageDurations = async (priority = 'NORMAL') => {
 const getDispatchQueue = async (req, res) => {
   try {
     const whereClause = {
+      currentStage: { notIn: ['OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED'] },
       OR: [
         { currentStage: 'DISPATCH' },
         { dispatchStatus: { in: ['COURIER_REQUIRED', 'READY_FOR_DISPATCH', 'BOOKED', 'DISPATCHED', 'IN_TRANSIT'] } }

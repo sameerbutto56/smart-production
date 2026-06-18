@@ -62,6 +62,7 @@ const PIPELINE_STAGES = [
   { id: 'ORDER_ENTRY', label: 'Order Entry', icon: ClipboardList },
   { id: 'STORE', label: 'Store', icon: Package },
   { id: 'LOGO_DESIGN', label: 'Logo Design', icon: Circle },
+  { id: 'PRODUCTION_ACCEPTANCE', label: 'Production Acceptance', icon: Circle },
   { id: 'PRODUCTION', label: 'Production', icon: Circle },
   { id: 'DISPATCH', label: 'Dispatch', icon: Truck },
   { id: 'OUT_FOR_DELIVERY', label: 'Out for Delivery', icon: Truck },
@@ -1757,6 +1758,7 @@ const AdminDashboard = () => {
                 <option value="">Send to...</option>
                 <option value="STORE">Store</option>
                 <option value="LOGO_DESIGN">Logo Design</option>
+                <option value="PRODUCTION_ACCEPTANCE">Production Acceptance</option>
                 <option value="PRODUCTION">Production</option>
                 <option value="STORE_RECEIVE">Store Inventory</option>
                 <option value="DISPATCH">Dispatch</option>

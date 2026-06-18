@@ -29,18 +29,19 @@ const sortByPriority = (orders) => {
 };
 
 const NEXT_STAGES = {
-  'STANDARD': ['STORE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-  'READY_LOGO': ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-  'FULL_CUSTOM': ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY']
+  'STANDARD': ['STORE', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+  'READY_LOGO': ['STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+  'FULL_CUSTOM': ['STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY']
 };
  
-const AUTO_TRANSITION_STAGES = ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
+const AUTO_TRANSITION_STAGES = ['STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
 
 // Validates forward-only stage transitions to prevent routing loops
 const validateStageTransition = (fromStage, toStage, orderType) => {
   const validTransitions = {
-    'STORE': { 'STANDARD': ['PRODUCTION', 'DISPATCH', 'LOGO_DESIGN'], 'READY_LOGO': ['LOGO_DESIGN'], 'FULL_CUSTOM': ['LOGO_DESIGN'] },
-    'LOGO_DESIGN': { 'STANDARD': ['PRODUCTION'], 'READY_LOGO': ['PRODUCTION'], 'FULL_CUSTOM': ['PRODUCTION'] },
+    'STORE': { 'STANDARD': ['PRODUCTION_ACCEPTANCE', 'DISPATCH', 'LOGO_DESIGN'], 'READY_LOGO': ['LOGO_DESIGN'], 'FULL_CUSTOM': ['LOGO_DESIGN'] },
+    'LOGO_DESIGN': { 'STANDARD': ['PRODUCTION_ACCEPTANCE'], 'READY_LOGO': ['PRODUCTION_ACCEPTANCE'], 'FULL_CUSTOM': ['PRODUCTION_ACCEPTANCE'] },
+    'PRODUCTION_ACCEPTANCE': { 'STANDARD': ['PRODUCTION'], 'READY_LOGO': ['PRODUCTION'], 'FULL_CUSTOM': ['PRODUCTION'] },
     'PRODUCTION': { 'STANDARD': ['STORE_RECEIVE'], 'READY_LOGO': ['STORE_RECEIVE'], 'FULL_CUSTOM': ['STORE_RECEIVE'] },
     'STORE_RECEIVE': { 'STANDARD': ['DISPATCH'], 'READY_LOGO': ['DISPATCH'], 'FULL_CUSTOM': ['DISPATCH'] },
     'DISPATCH': { 'STANDARD': ['OUT_FOR_DELIVERY'], 'READY_LOGO': ['OUT_FOR_DELIVERY'], 'FULL_CUSTOM': ['OUT_FOR_DELIVERY'] },
@@ -58,6 +59,7 @@ const getRolesForStage = (stageName) => {
   const map = {
     'STORE': ['STORE', 'STORE_EMPLOYEE'],
     'LOGO_DESIGN': ['LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER'],
+    'PRODUCTION_ACCEPTANCE': ['PRODUCTION'],
     'PRODUCTION': ['PRODUCTION'],
     'STORE_RECEIVE': ['STORE', 'STORE_EMPLOYEE'],
     'DISPATCH': ['DISPATCH', 'MAIN_EMPLOYEE'],
@@ -81,7 +83,7 @@ const getStageDurations = async (priority = 'NORMAL') => {
   });
 
   let config = {
-    stageDurations: { STORE: 24, LOGO_DESIGN: 24, PRODUCTION: 48, STORE_RECEIVE: 12, DISPATCH: 12, OUT_FOR_DELIVERY: 12 },
+    stageDurations: { STORE: 24, LOGO_DESIGN: 24, PRODUCTION_ACCEPTANCE: 4, PRODUCTION: 48, STORE_RECEIVE: 12, DISPATCH: 12, OUT_FOR_DELIVERY: 12 },
     slaMultipliers: { NORMAL: 1, URGENT: 0.75, SUPER_URGENT: 0.5 }
   };
 
@@ -237,7 +239,7 @@ const createProductionRecordFromOrder = async (order, stageCompleted) => {
 
 
 const createOrder = async (req, res) => {
-  const { orderNumber: requestedOrderNumber, customerName, customerPhone, address, city, type, urgent, priority, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, advanceAmount, shopifyOrderId, paymentDeadline, productImage, items, paymentStatus, deliveryCharges, instructionNotes } = req.body;
+  const { orderNumber: requestedOrderNumber, customerName, customerPhone, address, city, type, urgent, priority, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, advanceAmount, shopifyOrderId, paymentDeadline, productImage, items, paymentStatus, deliveryCharges, instructionNotes, shopifyOrderDate } = req.body;
 
   // Derive priority and urgent
   const finalPriority = priority || (urgent ? 'URGENT' : 'NORMAL');
@@ -390,6 +392,7 @@ const createOrder = async (req, res) => {
         advanceAmount: advanceAmount || 0,
         paymentStatus: paymentStatus || 'PENDING',
         instructionNotes: instructionNotes || null,
+        shopifyOrderDate: shopifyOrderDate ? new Date(shopifyOrderDate) : null,
         productImage,
         totalPrice: finalTotalPrice,
         shopifyOrderId,
@@ -2368,17 +2371,28 @@ const checkOrderInventory = async (req, res) => {
           continue;
         }
 
+        const positiveVariants = inventoryItem.variants && Array.isArray(inventoryItem.variants)
+          ? inventoryItem.variants.filter(v => (v.stock || 0) > 0)
+          : [];
+
         let availableQty = 0;
         let variantDetails = [];
-        if (inventoryItem.variants && Array.isArray(inventoryItem.variants)) {
+        if (positiveVariants.length > 0) {
+          variantDetails = positiveVariants.map(v => ({
+            color: v.color,
+            size: v.size,
+            stock: v.stock || 0
+          }));
+          availableQty = positiveVariants.reduce((sum, v) => sum + (v.stock || 0), 0);
+        } else if (inventoryItem.variants && Array.isArray(inventoryItem.variants)) {
           variantDetails = inventoryItem.variants.map(v => ({
             color: v.color,
             size: v.size,
             stock: v.stock || 0
           }));
-          availableQty = inventoryItem.variants.reduce((sum, v) => sum + (v.stock || 0), 0);
+          availableQty = 0;
         } else {
-          availableQty = inventoryItem.stock || 0;
+          availableQty = (inventoryItem.stock || 0) > 0 ? (inventoryItem.stock || 0) : 0;
         }
 
         let status = 'available';
@@ -2612,7 +2626,7 @@ const getRolesForStageBasedOnRole = (role) => {
   const map = {
     'STORE': ['STORE'],
     'STORE_EMPLOYEE': ['STORE'],
-    'PRODUCTION': ['PRODUCTION'],
+    'PRODUCTION': ['PRODUCTION_ACCEPTANCE', 'PRODUCTION'],
     'LOGO_DESIGN': ['LOGO_DESIGN'],
     'LOGO_DESIGN_EMPLOYEE': ['LOGO_DESIGN'],
     'LOGO_DESIGNER': ['LOGO_DESIGN'],

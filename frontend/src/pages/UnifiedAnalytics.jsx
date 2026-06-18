@@ -124,7 +124,7 @@ const UnifiedAnalytics = () => {
   );
 
   const renderOrders = () => {
-    const stageNames = ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
+    const stageNames = ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
     const stageData = stageNames.map(n => ({ name: n.replace(/_/g, ' '), count: data?.stageCounts?.[n] || 0 }));
     return (
       <div className="space-y-4">

@@ -272,7 +272,7 @@ const MyTasks = () => {
           </div>
           <div>
             <h1 className="text-xl md:text-3xl font-black theme-text-primary tracking-tight">
-              {hasTaskFilters ? 'My Tasks' : 'Production Tasks'}
+              {hasTaskFilters ? 'My Tasks' : 'Active Tasks'}
             </h1>
             <p className="theme-text-secondary text-xs font-bold uppercase tracking-widest mt-1">Managing orders for {user?.role?.replace('_', ' ')}</p>
           </div>
@@ -336,7 +336,7 @@ const MyTasks = () => {
                 }`}
               >
                 <RefreshCcw size={14} />
-                Production Tasks {((productionData?.unseen?.length || 0) + (productionData?.seen?.length || 0)) > 0 && <span className="ml-1 bg-purple-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{(productionData?.unseen?.length || 0) + (productionData?.seen?.length || 0)}</span>}
+                Active Tasks ({((productionData?.unseen?.length || 0) + (productionData?.seen?.length || 0)) > 0 && <span className="ml-1 bg-purple-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{(productionData?.unseen?.length || 0) + (productionData?.seen?.length || 0)}</span>})
               </button>
             )}
           </div>
@@ -435,7 +435,7 @@ const MyTasks = () => {
                     <div>
                       <h3 className="font-black text-xs theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
-                        New Production Returns ({productionData.unseen.length})
+                        New Active Tasks ({productionData.unseen.length})
                       </h3>
                       {renderOrderCards(productionData.unseen, { showUnseen: true, onMarkSeen: handleMarkSeen })}
                     </div>
@@ -551,6 +551,7 @@ const MyTasks = () => {
                 <option value="">Send to...</option>
                 <option value="STORE">Store</option>
                 <option value="LOGO_DESIGN">Logo Design</option>
+                <option value="PRODUCTION_ACCEPTANCE">Production Acceptance</option>
                 <option value="PRODUCTION">Production</option>
                 <option value="STORE_RECEIVE">Store Inventory</option>
                 <option value="DISPATCH">Dispatch</option>

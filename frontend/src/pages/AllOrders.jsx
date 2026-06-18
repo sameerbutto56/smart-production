@@ -595,9 +595,9 @@ const AllOrders = () => {
                             animate={{ 
                               width: (() => {
 const pipelines = {
-  'STANDARD': ['ORDER_ENTRY', 'STORE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-  'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-  'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY']
+  'STANDARD': ['ORDER_ENTRY', 'STORE', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+  'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+  'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY']
 };
 const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                                 const progress = ((currentPipeline.indexOf(order.currentStage) + 1) / currentPipeline.length) * 100;
@@ -909,7 +909,7 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
 
                 <section>
                   <h4 className="text-xs md:text-sm font-black text-emerald-500 uppercase tracking-[0.3em] mb-6">
-                    {isMultiItem ? '03. Per-Product Branding & Customization' : '03. Branding & Tailoring'}
+                    {isMultiItem ? '03. Per-Product Engraving' : '03. Engraving'}
                   </h4>
                   {isMultiItem ? (
                     <div className="space-y-6">
@@ -1027,9 +1027,9 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                         Total Workflow: {
                           (() => {
                             const pipelines = {
-                              'STANDARD': ['ORDER_ENTRY', 'STORE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-                              'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-                              'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY']
+                              'STANDARD': ['ORDER_ENTRY', 'STORE', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                              'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                              'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY']
                             };
                             return pipelines[selectedOrder.type]?.length || 8;
                           })()
@@ -1039,9 +1039,9 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {(() => {
                         const pipelines = {
-                          'STANDARD': ['ORDER_ENTRY', 'STORE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-                          'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-                          'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY']
+                          'STANDARD': ['ORDER_ENTRY', 'STORE', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                          'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+                          'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY']
                         };
                         const currentPipeline = pipelines[selectedOrder.type] || pipelines['STANDARD'];
                         
@@ -1095,8 +1095,14 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
               </div>
 
               <div className="p-4 md:p-8 theme-bg border-t theme-border flex justify-between items-center">
-                <div className="flex items-center space-x-4 text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest">
-                  <span>Created: {new Date(selectedOrder.createdAt).toLocaleDateString()}</span>
+                <div className="flex items-center gap-3 text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest flex-wrap">
+                  <span className="text-emerald-400">Entry: {new Date(selectedOrder.createdAt).toLocaleDateString()}</span>
+                  {selectedOrder.shopifyOrderDate && (
+                    <>
+                      <span className="w-1.5 h-1.5 bg-gray-700 rounded-full"></span>
+                      <span className="text-purple-400">Shopify: {new Date(selectedOrder.shopifyOrderDate).toLocaleDateString()}</span>
+                    </>
+                  )}
                   <span className="w-1.5 h-1.5 bg-gray-700 rounded-full"></span>
                   <span>Stage: {selectedOrder.currentStage}</span>
                 </div>

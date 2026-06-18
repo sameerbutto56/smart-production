@@ -1,5 +1,8 @@
 ## Goal
 - Add Prepaid Order workflow, per-product branding details in Summary/Job Sheet, printable Production Job Sheet, and proper CAP quantity pricing.
+- Job Sheet must be fully readable for production staff with Urdu transliteration, large fonts, and clear layout.
+- Shopify Order Date stored/displayed separately from Order Entry Date.
+- "Branding & Customization" renamed to "Engraving" everywhere.
 
 ## Constraints & Preferences
 - Delivery riders primarily use mobile devices – UI must be fully responsive with compact cards and expandable details.
@@ -38,6 +41,28 @@
 - **Sleeve Length & Shirt Length per product**: added gender-independent `sleeveLength` (Full/Half/Quarter) and `shirtLength` (Long/Short) dropdowns in OrderEntry Selection tab, stored per-item in `productDetails`. Displayed across AllOrders, OrderCard, print Job Sheet, and Job Sheet modals for all genders (not just Female).
 - **Instruction Notes**: added `instructionNotes String?` to Prisma schema (pushed). Textarea in Basics tab (Standard Orders only). Stored on Order model, displayed in Job Sheet modal and print Job Sheet. Included in backend `createOrder` and `approveEditRequest` field mapping.
 
+### Done (latest session)
+- Renamed "Branding & Customization" → "Engraving" across all files: `printReport.js` section title, `AllOrders.jsx` heading, `OrderCard.jsx` heading, `OrderEntry.jsx` tab labels and Urdu label.
+- Added `shopifyOrderDate DateTime?` to Prisma schema (pushed to DB).
+- Added Shopify Order Date input field (`datetime-local`) in OrderEntry Basics tab (after City field, before Delivery Charges).
+- Backend `createOrder` accepts `shopifyOrderDate`, stores as `Date`.
+- `editRequest.controller.js`: added `shopifyOrderDate` to `fieldsToMap` with date parsing.
+- Both dates (Order Entry Date/Time + Shopify Order Date) now shown in:
+  - AllOrders Job Sheet modal footer
+  - OrderCard Full Sheet modal footer
+  - printJobSheet output (green date row at top)
+- **printJobSheet complete redesign** for maximum readability:
+  - Font sizes dramatically increased (body 28px, headings 26px, tables 22px)
+  - Google Fonts "Noto Nastaliq Urdu" loaded for Urdu text support
+  - All section titles in Urdu: پروڈکٹس, اینگرونگ, پیمائش, ہدایات
+  - Urdu labels for table column headers (پروڈکٹ, کپڑا اور رنگ, etc.)
+  - Urdu measurement labels continue to display
+  - `romanToUrdu()` transliteration function converts Roman English to Urdu
+  - Instruction Notes displayed in Urdu via transliteration
+  - High contrast, bold fonts, generous spacing for weak eyesight
+  - Green date row showing both dates prominently
+  - Financial Summary stays in English (admin purpose)
+
 ### In Progress
 - (none)
 
@@ -55,12 +80,10 @@
 - Advance amount replaces the old boolean `advancePaid` – `advanceAmount` is stored as a `Float` number; components now check `parseFloat(order.advanceAmount) > 0` instead of `order.advancePaid`.
 
 ## Next Steps
-- Verify no remaining issues with color/size display for products missing variants.
-- Test sleeveLength/shirtLength display in production for all gender combinations.
-- Observe instructionNotes display in production for Standard Orders.
+- (none – all planned work is done)
 
 ## Critical Context
-- Latest commit includes: Advance Payment amount, Sleeve Length, Shirt Length, Instruction Notes features.
+- Latest commit includes: Advance Payment amount, Sleeve Length, Shirt Length, Instruction Notes, Engraving rename, Shopify Order Date, Urdu Job Sheet redesign features.
 - Build passes with 0 errors.
 - `isAccessory` uses substring matching (`catUpper.includes('COAT')`).
 - `calculateAndRecordRevenue` at line 2482 of `order.controller.js` is idempotent.
@@ -80,10 +103,10 @@
 - `frontend/src/pages/WarehouseDashboard.jsx`: polling 60s + visibility check
 - `frontend/src/pages/History.jsx`: advance amount column
 - `frontend/src/pages/EditRequestDashboard.jsx`: advance amount in diff fields
-- `frontend/src/utils/printReport.js`: `printJobSheet` with Cap column in products table, per-product Matching Cap badge, sleeve/shirt length, instruction notes
-- `backend/src/controllers/order.controller.js`: deliveryCharges, paymentStatus, advanceAmount, idempotent revenue recording, instructionNotes
-- `backend/src/controllers/editRequest.controller.js`: instructionNotes field mapping
+- `frontend/src/utils/printReport.js`: `printJobSheet` with Cap column in products table, per-product Matching Cap badge, sleeve/shirt length, instruction notes, Urdu transliteration (`romanToUrdu`), full readability redesign, both dates display
+- `backend/src/controllers/order.controller.js`: deliveryCharges, paymentStatus, advanceAmount, idempotent revenue recording, instructionNotes, shopifyOrderDate
+- `backend/src/controllers/editRequest.controller.js`: instructionNotes, shopifyOrderDate field mapping
 - `backend/src/controllers/analytics.controller.js`: paymentStatus filter
-- `backend/prisma/schema.prisma`: deliveryCharges, advanceAmount fields
+- `backend/prisma/schema.prisma`: deliveryCharges, advanceAmount, shopifyOrderDate fields
 - `frontend/src/hooks/usePolling.js`: polling hook (unchanged)
 - `AGENTS.md`: full change log

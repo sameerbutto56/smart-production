@@ -176,14 +176,14 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const custom = parseJSON(order.customization);
 
   const pipelines = {
-    'STANDARD': ['ORDER_ENTRY', 'STORE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-    'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-    'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY']
+    'STANDARD': ['ORDER_ENTRY', 'STORE', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+    'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
+    'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY']
   };
 
   const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
 
-  const productionStages = ['PRODUCTION'];
+  const productionStages = ['PRODUCTION_ACCEPTANCE', 'PRODUCTION'];
   const productionDeadline = order.productionDeadline || order.stages?.find(s => s.stageName === 'PRODUCTION')?.deadlineAt;
   const isCurrentlyInProduction = productionStages.includes(currentStage?.stageName);
 
@@ -755,6 +755,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 >
                   <option value="">Select destination...</option>
                   <option value="LOGO_DESIGN">Logo Design</option>
+                  <option value="PRODUCTION_ACCEPTANCE">Production Acceptance</option>
                   <option value="PRODUCTION">Production</option>
                   <option value="DISPATCH">Dispatch</option>
                   <option value="ORDER_ENTRY">Order Entry</option>
@@ -881,12 +882,12 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                 <button
                                   onClick={async () => {
                                     setShowMoreActions(false);
-                                    const dest = prompt('Route Order To:\n(STORE / LOGO_DESIGN / PRODUCTION / STORE_RECEIVE / DISPATCH / OUT_FOR_DELIVERY / ORDER_ENTRY)');
+                                    const dest = prompt('Route Order To:\n(STORE / LOGO_DESIGN / PRODUCTION_ACCEPTANCE / PRODUCTION / STORE_RECEIVE / DISPATCH / OUT_FOR_DELIVERY / ORDER_ENTRY)');
                                     if (dest) {
                                       let destUpper = dest.trim().toUpperCase().replace(/ /g, '_');
                                       // Auto-correct common shorthand
                                       if (destUpper === 'LOGO') destUpper = 'LOGO_DESIGN';
-                                      const valid = ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'];
+                                      const valid = ['STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'];
                                       if (valid.includes(destUpper)) {
                                         try {
                                           const token = sessionStorage.getItem('token');
@@ -899,7 +900,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                           alert('Route failed: ' + (err.response?.data?.message || err.message));
                                         }
                                       } else {
-                                        alert('Invalid destination. Valid: STORE, LOGO_DESIGN, PRODUCTION, STORE_RECEIVE, DISPATCH, OUT_FOR_DELIVERY, ORDER_ENTRY');
+                                        alert('Invalid destination. Valid: STORE, LOGO_DESIGN, PRODUCTION_ACCEPTANCE, PRODUCTION, STORE_RECEIVE, DISPATCH, OUT_FOR_DELIVERY, ORDER_ENTRY');
                                       }
                                     }
                                   }}
@@ -971,7 +972,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     <div className="flex gap-2 justify-center">
                       <button
                         onClick={() => {
-                          const next = window.prompt('Send to which stage?\n(STORE / LOGO_DESIGN / PRODUCTION / STORE_RECEIVE / DISPATCH)');
+                          const next = window.prompt('Send to which stage?\n(STORE / LOGO_DESIGN / PRODUCTION_ACCEPTANCE / PRODUCTION / STORE_RECEIVE / DISPATCH)');
                           if (next) {
                             onUpdateStage(order.id, currentStage.id, 'request', { nextStage: next.trim().toUpperCase().replace(/ /g, '_') });
                           }
@@ -1173,6 +1174,37 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     >
                       <AlertCircle size={14} />
                       <span>Design Problem</span>
+                      <span className="text-[6px] md:text-[9px] text-red-200 tracking-widest">→ NOTIFY {order.source === 'OUTLET' ? 'BRANCH' : 'FAISAL'}</span>
+                    </button>
+                  </div>
+                ) : currentStage?.stageName === 'PRODUCTION_ACCEPTANCE' ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={async () => {
+                        try {
+                          const token = sessionStorage.getItem('token');
+                          await axios.post(`${API_URL}/api/orders/${order.id}/route`, {
+                            destinationStage: 'PRODUCTION',
+                            remarks: 'Accepted by Production'
+                          }, { headers: { Authorization: `Bearer ${token}` } });
+                          toast.success('Order accepted for production');
+                          if (onMarkSeen) onMarkSeen();
+                        } catch (err) {
+                          toast.error('Failed to accept: ' + (err.response?.data?.message || err.message));
+                        }
+                      }}
+                      className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
+                    >
+                      <CheckCircle size={16} />
+                      <span>Accept</span>
+                      <span className="text-[6px] md:text-[9px] text-emerald-200 tracking-widest">→ PRODUCTION</span>
+                    </button>
+                    <button
+                      onClick={() => setShowProblemModal(true)}
+                      className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-red-900/20"
+                    >
+                      <AlertCircle size={14} />
+                      <span>Report Problem</span>
                       <span className="text-[6px] md:text-[9px] text-red-200 tracking-widest">→ NOTIFY {order.source === 'OUTLET' ? 'BRANCH' : 'FAISAL'}</span>
                     </button>
                   </div>
@@ -1858,7 +1890,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
 
               <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8">
                 <div>
-                  <h4 className="text-xs md:text-sm font-black text-emerald-500 uppercase tracking-[0.3em] mb-6">03. Branding & Tailoring</h4>
+                  <h4 className="text-xs md:text-sm font-black text-emerald-500 uppercase tracking-[0.3em] mb-6">03. Engraving</h4>
                   <div className="space-y-4">
                     {custom?.articleNames && custom.articleNames.length > 0
                       ? custom.articleNames.map((an, ai) => (
@@ -1942,7 +1974,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
 
             <div className="p-4 md:p-8 bg-gray-950/80 border-t border-gray-800 flex justify-between items-center">
               <div className="flex flex-wrap items-center gap-x-4 text-xs md:text-sm text-gray-500 font-black uppercase tracking-widest">
-                <span>Created: {new Date(order.createdAt).toLocaleDateString()}</span>
+                <span className="text-emerald-400">Entry: {new Date(order.createdAt).toLocaleDateString()}</span>
+                {order.shopifyOrderDate && (
+                  <>
+                    <span className="w-1.5 h-1.5 bg-gray-700 rounded-full shrink-0"></span>
+                    <span className="text-purple-400">Shopify: {new Date(order.shopifyOrderDate).toLocaleDateString()}</span>
+                  </>
+                )}
                 <span className="w-1.5 h-1.5 bg-gray-700 rounded-full shrink-0"></span>
                 <span>Stage: {currentStage?.stageName}</span>
                 {order.deliveredAt && (

@@ -313,7 +313,8 @@ const approveEditRequest = async (req, res) => {
       'customerName', 'customerPhone', 'address', 'city', 'type',
       'priority', 'advancePaid', 'logoDesign', 'logoName',
       'logoCharges', 'namePrintingCharges', 'customizationPrice',
-      'instructionNotes'
+      'instructionNotes',
+      'shopifyOrderDate'
     ];
 
     fieldsToMap.forEach(field => {
@@ -322,6 +323,8 @@ const approveEditRequest = async (req, res) => {
           updateData[field] = !!requestedChanges[field];
         } else if (['logoCharges', 'namePrintingCharges', 'customizationPrice'].includes(field)) {
           updateData[field] = parseFloat(requestedChanges[field]) || 0;
+        } else if (field === 'shopifyOrderDate') {
+          updateData[field] = requestedChanges[field] ? new Date(requestedChanges[field]) : null;
         } else {
           updateData[field] = requestedChanges[field];
         }

@@ -7,7 +7,7 @@ import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../comp
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
-const STAGES = ['STORE', 'LOGO_DESIGN', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'];
+const STAGES = ['STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'];
 
 const AdminSettings = () => {
   const { themeId, currentTheme, changeTheme, setGlobalThemeId, THEMES, isUsingPersonal } = useTheme();

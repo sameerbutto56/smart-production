@@ -86,6 +86,7 @@ const SmartOrderForm = () => {
     sleeveLength: 'full',
     shirtLength: 'long',
     instructionNotes: '',
+    shopifyOrderDate: '',
 
     // Product Selection
     productType: '',
@@ -163,7 +164,7 @@ const SmartOrderForm = () => {
     fabric: 'کپڑا',
     color: 'رنگ',
     size: 'سائز',
-    branding: 'برانڈنگ اور کڑھائی',
+    branding: 'اینگرونگ (Engraving)',
     articleName: 'آرٹیکل کا نام',
     embroideryColor: 'کڑھائی کا رنگ',
     placement: 'جگہ',
@@ -297,7 +298,8 @@ const SmartOrderForm = () => {
           shirtLength: '', trouserLength: '', bottom: '', thigh: '', mori: '', ganda: ''
         },
         gender: 'Male',
-        femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false }
+        femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
+        shopifyOrderDate: ''
       });
       setLogoEntries([{ name: '', design: '' }]);
       setArticleNameEntries(['']);
@@ -388,6 +390,7 @@ const SmartOrderForm = () => {
           },
         gender: 'Male',
         femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
+        shopifyOrderDate: found.shopifyOrderDate ? (() => { const d = new Date(found.shopifyOrderDate); return isNaN(d.getTime()) ? '' : d.toISOString().slice(0,16); })() : '',
         });
 
         // Parse and populate product items into cart
@@ -979,6 +982,7 @@ const SmartOrderForm = () => {
         quantity: finalItems.reduce((sum, item) => sum + (item.quantity || 1), 0),
         totalPrice: adjTotal,
         instructionNotes: formData.instructionNotes || '',
+        shopifyOrderDate: formData.shopifyOrderDate || null,
       };
 
       await axios.post(`${API_URL}/api/orders`, combinedOrder);
@@ -1038,6 +1042,7 @@ const SmartOrderForm = () => {
           sleeveLength: 'full',
           shirtLength: 'long',
           instructionNotes: '',
+          shopifyOrderDate: '',
           adjProductPrice: '',
           adjCustomization: '',
           adjCapCharges: '',
@@ -1140,7 +1145,7 @@ const SmartOrderForm = () => {
   const allTabs = [
     { id: 'basic', label: '1. Basics', icon: Layout },
     { id: 'product', label: '2. Selection', icon: ShoppingCart },
-    { id: 'custom', label: '3. Branding', icon: Scissors, customOnly: true },
+    { id: 'custom', label: '3. Engraving', icon: Scissors, customOnly: true },
     { id: 'sizes', label: '4. Tailoring', icon: Ruler, customOnly: true },
   ];
 
@@ -1787,9 +1792,24 @@ const SmartOrderForm = () => {
                       />
                     </div>
                   </div>
-                </div>
+                  </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                    <div className="space-y-4">
+                      <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'شاپیفائے آرڈر کی تاریخ' : 'Shopify Order Date (Optional)'}</label>
+                      <div className="relative group">
+                        <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-purple-500/10 text-purple-500`}>
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                        </div>
+                        <input
+                          type="datetime-local"
+                          onKeyDown={preventEnterSubmit}
+                          value={formData.shopifyOrderDate}
+                          onChange={(e) => setFormData({...formData, shopifyOrderDate: e.target.value})}
+                          className={`w-full theme-input rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all text-xl font-bold`}
+                        />
+                      </div>
+                    </div>
                     <div className="space-y-4">
                       {(() => {
                         const isFree = cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0) > 7000;
@@ -2389,7 +2409,7 @@ const SmartOrderForm = () => {
                   </div>
                   <div>
                     <h3 className="text-2xl font-black theme-text-primary">{t('branding')}</h3>
-                    <p className="theme-text-muted text-xs md:text-sm font-black uppercase tracking-widest mt-1">Logo & embroidery details</p>
+                    <p className="theme-text-muted text-xs md:text-sm font-black uppercase tracking-widest mt-1">Engraving details</p>
                   </div>
                 </div>
 
@@ -3884,7 +3904,7 @@ const SmartOrderForm = () => {
 const tabs = [
   { id: 'basic', label: '1. Basics', icon: Layout },
   { id: 'product', label: '2. Selection', icon: ShoppingCart },
-  { id: 'custom', label: '3. Branding', icon: Scissors },
+  { id: 'custom', label: '3. Engraving', icon: Scissors },
   { id: 'sizes', label: '4. Tailoring', icon: Ruler },
 ];
 
