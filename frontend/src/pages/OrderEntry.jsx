@@ -724,7 +724,6 @@ const SmartOrderForm = () => {
       if (!isOutlet && !formData.orderNumber.trim()) return t('orderNo') + ' ' + t('required');
       if (!formData.customerName.trim()) return t('customerName') + ' ' + t('required');
       if (!formData.customerPhone.trim()) return t('customerPhone') + ' ' + t('required');
-    if (formData.type === 'FULL_CUSTOM' && !(parseFloat(formData.advanceAmount) > 0)) return 'Advance payment is compulsory for custom orders.';
     }
     if (activeTab === 'product') {
       if (!formData.productType) return 'Please select a Product.';
