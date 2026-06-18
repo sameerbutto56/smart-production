@@ -1102,7 +1102,7 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                 </div>
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={() => printJobSheet(selectedOrder)}
+                    onClick={() => printJobSheet(selectedOrder, user?.role)}
                     className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2"
                   >
                     <Download size={14} /> Print Job Sheet

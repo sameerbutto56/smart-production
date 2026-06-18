@@ -1964,7 +1964,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 )}
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={() => printJobSheet(order)}
+                    onClick={() => printJobSheet(order, userRole)}
                     className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2"
                   >
                     <Printer size={14} /> Print Job Sheet

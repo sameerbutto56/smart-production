@@ -5,8 +5,8 @@ const PRINT_CSS = `
     font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
     color: #1a1a1a;
     background: #fff;
-    font-size: 11pt;
-    line-height: 1.5;
+    font-size: 13pt;
+    line-height: 1.6;
     padding: 0;
   }
   .report-header {
@@ -15,12 +15,12 @@ const PRINT_CSS = `
     padding-bottom: 12px;
     margin-bottom: 18px;
   }
-  .report-header h1 { font-size: 18pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
-  .report-header p { font-size: 9pt; color: #555; margin-top: 4px; }
+  .report-header h1 { font-size: 22pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
+  .report-header p { font-size: 10pt; color: #555; margin-top: 4px; }
   .report-meta {
     display: flex;
     justify-content: space-between;
-    font-size: 8pt;
+    font-size: 9pt;
     color: #666;
     margin-bottom: 14px;
     text-transform: uppercase;
@@ -30,24 +30,24 @@ const PRINT_CSS = `
     width: 100%;
     border-collapse: collapse;
     margin-bottom: 16px;
-    font-size: 8.5pt;
+    font-size: 10pt;
   }
   th {
     background: #1a1a1a;
     color: #fff;
-    padding: 7px 6px;
+    padding: 8px 8px;
     text-align: left;
-    font-size: 7.5pt;
+    font-size: 9pt;
     text-transform: uppercase;
     letter-spacing: 0.3px;
   }
   td {
-    padding: 5px 6px;
+    padding: 7px 8px;
     border-bottom: 1px solid #ddd;
   }
   tr:nth-child(even) td { background: #f8f8f8; }
   .section-title {
-    font-size: 11pt;
+    font-size: 13pt;
     font-weight: 800;
     margin: 18px 0 8px;
     text-transform: uppercase;
@@ -66,19 +66,19 @@ const PRINT_CSS = `
     padding: 8px;
     text-align: center;
   }
-  .summary-card .label { font-size: 6.5pt; text-transform: uppercase; color: #888; letter-spacing: 0.3px; }
-  .summary-card .value { font-size: 13pt; font-weight: 800; margin-top: 2px; }
+  .summary-card .label { font-size: 7pt; text-transform: uppercase; color: #888; letter-spacing: 0.3px; }
+  .summary-card .value { font-size: 15pt; font-weight: 800; margin-top: 2px; }
   .summary-row {
     display: flex;
     justify-content: space-between;
     padding: 4px 0;
     border-bottom: 1px dashed #ddd;
-    font-size: 9pt;
+    font-size: 10pt;
   }
   .summary-row:last-child { border-bottom: none; }
   .footer {
     text-align: center;
-    font-size: 7pt;
+    font-size: 8pt;
     color: #999;
     border-top: 1px solid #ddd;
     padding-top: 8px;
@@ -88,7 +88,7 @@ const PRINT_CSS = `
     display: inline-block;
     padding: 1px 6px;
     border-radius: 2px;
-    font-size: 7pt;
+    font-size: 8pt;
     font-weight: 700;
     text-transform: uppercase;
   }
@@ -293,7 +293,10 @@ function parseJSON(data) {
   try { return typeof data === 'string' ? JSON.parse(data) : data; } catch (e) { return {}; }
 }
 
-export function printJobSheet(order) {
+export function printJobSheet(order, userRole) {
+  const showPrice = ['SUPER_ADMIN', 'ADMIN'].includes(userRole);
+  const priceDisplay = (v) => showPrice ? currency(v) : '★ ★ ★';
+
   const title = `Job Sheet — ${order.orderNumber || order.id?.slice(0, 8)}`;
   const win = openPrintWindow(title);
 
@@ -351,7 +354,7 @@ export function printJobSheet(order) {
       win.document.write('<td>' + (p.size || 'Custom') + ' • ' + (p.gender || 'MALE') + (extras ? '<br><span style="font-size:7pt;color:#db2777;font-weight:700">' + extras + '</span>' : '') + '</td>');
       win.document.write('<td style="text-align:center;font-weight:700">' + (item.quantity || 1) + '</td>');
       win.document.write('<td style="text-align:center;font-weight:700;color:#e11d48">' + (capQty || '—') + '</td>');
-      win.document.write('<td style="text-align:right;font-weight:700">' + currency(item.totalPrice) + '</td>');
+      win.document.write('<td style="text-align:right;font-weight:700">' + priceDisplay(item.totalPrice) + '</td>');
       win.document.write('</tr>');
     });
     win.document.write('</tbody></table>');
@@ -367,7 +370,7 @@ export function printJobSheet(order) {
     win.document.write('<td>' + (firstProduct.gender || 'MALE') + (extras ? '<br><span style="font-size:7pt;color:#db2777;font-weight:700">' + extras + '</span>' : '') + '</td>');
     win.document.write('<td style="text-align:center;font-weight:700">' + (order.quantity || 1) + '</td>');
     win.document.write('<td style="text-align:center;font-weight:700;color:#e11d48">' + (capQty || '—') + '</td>');
-    win.document.write('<td style="text-align:right;font-weight:700">' + currency(order.totalPrice) + '</td>');
+    win.document.write('<td style="text-align:right;font-weight:700">' + priceDisplay(order.totalPrice) + '</td>');
     win.document.write('</tr></tbody></table>');
   }
 
