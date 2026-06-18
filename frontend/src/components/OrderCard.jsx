@@ -21,6 +21,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       order.stages[0];
 
   const isFaisal = ['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET'].includes(userRole);
+  const showPrice = ['SUPER_ADMIN', 'ADMIN'].includes(userRole);
+  const priceDisplay = (v) => showPrice ? `₨${(v || 0).toLocaleString()}` : '★ ★ ★';
   const [timeLeft, setTimeLeft] = useState('');
   const [isDelayed, setIsDelayed] = useState(false);
   const [showFullSheet, setShowFullSheet] = useState(false);
@@ -481,9 +483,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     </span>
                   )}
                   {order.totalPrice > 0 && (
-                    <span className="text-xs md:text-sm text-emerald-400 font-black flex items-center gap-1 bg-emerald-500/10 px-1.5 py-0.5 rounded-md border border-emerald-500/20">
-                      <span>₨</span>
-                      <span>{order.totalPrice.toLocaleString()}</span>
+                    <span className={`text-xs md:text-sm font-black flex items-center gap-1 px-1.5 py-0.5 rounded-md border ${showPrice ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 'text-gray-500 bg-gray-800/50 border-gray-700/30'}`}>
+                      {showPrice ? <><span>₨</span><span>{order.totalPrice.toLocaleString()}</span></> : '★ ★ ★'}
                     </span>
                   )}
                 </div>
@@ -576,13 +577,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               )}
               <span className="text-[9px] md:text-[10px] font-black text-blue-400 bg-blue-900/30 px-2 py-0.5 rounded-md">Qty: {order.quantity || 1}</span>
               {order.logoCharges > 0 && (
-                <span className="text-[9px] md:text-[10px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-md">Logo: ₨{Number(order.logoCharges).toLocaleString()}</span>
+                <span className="text-[9px] md:text-[10px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-md">Logo: {showPrice ? `₨${Number(order.logoCharges).toLocaleString()}` : '★ ★ ★'}</span>
               )}
               {order.namePrintingCharges > 0 && (
-                <span className="text-[9px] md:text-[10px] font-black text-purple-400 bg-purple-900/30 px-2 py-0.5 rounded-md">Name: ₨{Number(order.namePrintingCharges).toLocaleString()}</span>
+                <span className="text-[9px] md:text-[10px] font-black text-purple-400 bg-purple-900/30 px-2 py-0.5 rounded-md">Name: {showPrice ? `₨${Number(order.namePrintingCharges).toLocaleString()}` : '★ ★ ★'}</span>
               )}
               {order.customizationPrice > 0 && (
-                <span className="text-[9px] md:text-[10px] font-black text-emerald-400 bg-emerald-900/30 px-2 py-0.5 rounded-md">Custom: ₨{Number(order.customizationPrice).toLocaleString()}</span>
+                <span className="text-[9px] md:text-[10px] font-black text-emerald-400 bg-emerald-900/30 px-2 py-0.5 rounded-md">Custom: {showPrice ? `₨${Number(order.customizationPrice).toLocaleString()}` : '★ ★ ★'}</span>
               )}
               {order.paymentStatus && (
                 <span className={`text-[9px] md:text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-tighter ${
@@ -596,7 +597,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               )}
               {order.courierDetails?.payments?.length > 0 && (
                 <span className="text-[6px] md:text-[9px] font-bold text-gray-500">
-                  ₨{order.courierDetails.payments.reduce((s, p) => s + (p.amount || 0), 0).toLocaleString()} / ₨{(order.totalPrice || 0).toLocaleString()}
+                  {showPrice ? `₨${order.courierDetails.payments.reduce((s, p) => s + (p.amount || 0), 0).toLocaleString()} / ₨${(order.totalPrice || 0).toLocaleString()}` : '★ ★ ★'}
                 </span>
               )}
               {order.deliveryType && (
@@ -1761,7 +1762,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                     )}
                                   </td>
                                   <td className="py-4 px-4 text-center text-white font-black">{item.quantity || 1}</td>
-                                  <td className="py-4 px-4 text-right pr-4 text-emerald-400 font-black">₨{Number(item.totalPrice || 0).toLocaleString()}</td>
+                                  <td className={`py-4 px-4 text-right pr-4 font-black ${showPrice ? 'text-emerald-400' : 'text-gray-500'}`}>{priceDisplay(item.totalPrice)}</td>
                                 </tr>
                                 {hasCust && (
                                   <tr className="bg-purple-900/5 border-b border-gray-800/50">
@@ -1816,9 +1817,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         { label: 'Order Size', val: product?.size },
                         { label: 'Gender', val: product?.gender },
                         ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
-                        ...(order.logoCharges > 0 ? [{ label: 'Logo Charge', val: `₨${order.logoCharges}` }] : []),
-                        ...(order.namePrintingCharges > 0 ? [{ label: 'Name Printing', val: `₨${order.namePrintingCharges}` }] : []),
-                        { label: 'Customization Charge', val: `₨${order.customizationPrice || 0}` },
+                        ...(order.logoCharges > 0 ? [{ label: 'Logo Charge', val: showPrice ? `₨${order.logoCharges}` : '★ ★ ★' }] : []),
+                        ...(order.namePrintingCharges > 0 ? [{ label: 'Name Printing', val: showPrice ? `₨${order.namePrintingCharges}` : '★ ★ ★' }] : []),
+                        { label: 'Customization Charge', val: showPrice ? `₨${order.customizationPrice || 0}` : '★ ★ ★' },
                         { label: 'Payment', val: order.paymentStatus }
                       ].filter(i => i.val).map((item, i) => (
                         <div key={i} className="bg-gray-950/50 p-6 rounded-3xl border border-gray-800/50">
@@ -2360,7 +2361,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
             <div className="space-y-4">
               <div>
                 <label className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">Total Price</label>
-                <p className="text-2xl font-black text-white mt-1">₨{order.totalPrice?.toLocaleString() || '0'}</p>
+                <p className={`text-2xl font-black mt-1 ${showPrice ? 'text-white' : 'text-gray-500'}`}>{priceDisplay(order.totalPrice)}</p>
               </div>
 
               {order.courierDetails?.payments?.length > 0 && (
@@ -2369,12 +2370,12 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   {order.courierDetails.payments.map((p, i) => (
                     <div key={i} className="flex items-center justify-between text-xs md:text-sm py-0.5 border-b border-gray-800/50 last:border-0">
                       <span className="font-bold text-gray-400">{p.method}</span>
-                      <span className="font-black text-emerald-400">₨{p.amount?.toLocaleString()}</span>
+                      <span className={`font-black ${showPrice ? 'text-emerald-400' : 'text-gray-500'}`}>{priceDisplay(p.amount)}</span>
                     </div>
                   ))}
                   <div className="flex items-center justify-between text-xs md:text-sm pt-1 mt-1 border-t border-gray-700">
                     <span className="font-black text-gray-300">Total Paid</span>
-                    <span className="font-black text-emerald-400">₨{order.courierDetails.payments.reduce((s, p) => s + (p.amount || 0), 0).toLocaleString()}</span>
+                    <span className={`font-black ${showPrice ? 'text-emerald-400' : 'text-gray-500'}`}>{priceDisplay(order.courierDetails.payments.reduce((s, p) => s + (p.amount || 0), 0))}</span>
                   </div>
                 </div>
               )}
