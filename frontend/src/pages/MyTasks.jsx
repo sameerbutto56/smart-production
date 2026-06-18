@@ -71,6 +71,15 @@ const MyTasks = () => {
   const [urgencyFilter, setUrgencyFilter] = useState('ALL');
   const isDispatchRole = ['DISPATCH', 'MAIN_EMPLOYEE'].includes(user?.role);
   const [dispatchDeliveryFilter, setDispatchDeliveryFilter] = useState('ALL');
+  const [dispatchStatusFilter, setDispatchStatusFilter] = useState('ALL');
+
+  const filterDispatchOrders = useMemo(() => {
+    return (orders) => (orders || []).filter(o => {
+      if (dispatchDeliveryFilter !== 'ALL' && o.deliveryType !== dispatchDeliveryFilter) return false;
+      if (dispatchStatusFilter !== 'ALL' && o.dispatchStatus !== dispatchStatusFilter) return false;
+      return true;
+    });
+  }, [dispatchDeliveryFilter, dispatchStatusFilter]);
 
   const fetchRoutingHistory = async () => {
     try {
@@ -354,28 +363,50 @@ const MyTasks = () => {
 
       {/* Dispatch Delivery Method Filter */}
       {isDispatchRole && hasTaskFilters && (
-        <div className="flex items-center gap-2 mb-4 flex-wrap">
-          <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest mr-1">Delivery:</span>
-          {[
-            { value: 'ALL', label: 'All' },
-            { value: 'IMMENT', label: 'Enamels' },
-            { value: 'TCS', label: 'TCS' },
-            { value: 'POST_EX', label: 'PostEx' },
-            { value: 'WALK_IN', label: 'Working Received' },
-          ].map(dm => (
-            <button
-              key={dm.value}
-              onClick={() => setDispatchDeliveryFilter(dm.value)}
-              className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
-                dispatchDeliveryFilter === dm.value
-                  ? 'bg-purple-600 text-white shadow-lg'
-                  : 'bg-gray-800/50 text-gray-500 hover:text-gray-300 hover:bg-gray-700/50'
-              }`}
-            >
-              {dm.label}
-            </button>
-          ))}
-        </div>
+        <>
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest mr-1">Delivery:</span>
+            {[
+              { value: 'ALL', label: 'All' },
+              { value: 'IMMENT', label: 'Enamels' },
+              { value: 'TCS', label: 'TCS' },
+              { value: 'POST_EX', label: 'PostEx' },
+              { value: 'WALK_IN', label: 'Working Received' },
+            ].map(dm => (
+              <button
+                key={dm.value}
+                onClick={() => setDispatchDeliveryFilter(dm.value)}
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                  dispatchDeliveryFilter === dm.value
+                    ? 'bg-purple-600 text-white shadow-lg'
+                    : 'bg-gray-800/50 text-gray-500 hover:text-gray-300 hover:bg-gray-700/50'
+                }`}
+              >
+                {dm.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest mr-1">Status:</span>
+            {[
+              { value: 'ALL', label: 'All' },
+              { value: 'PENDING', label: 'Deliver Pending' },
+              { value: 'RETURNED', label: 'Return' },
+            ].map(ds => (
+              <button
+                key={ds.value}
+                onClick={() => setDispatchStatusFilter(ds.value)}
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                  dispatchStatusFilter === ds.value
+                    ? 'bg-rose-600 text-white shadow-lg'
+                    : 'bg-gray-800/50 text-gray-500 hover:text-gray-300 hover:bg-gray-700/50'
+                }`}
+              >
+                {ds.label}
+              </button>
+            ))}
+          </div>
+        </>
       )}
 
       {/* Production Deadline Summary for PRODUCTION workers */}
@@ -436,12 +467,12 @@ const MyTasks = () => {
           {taskFilter === 'unseen' && (
             <div className="space-y-6">
               {(isDispatchRole
-                ? (unseenData?.unseen || []).filter(o => dispatchDeliveryFilter === 'ALL' || o.deliveryType === dispatchDeliveryFilter)
+                ? filterDispatchOrders(unseenData?.unseen)
                 : unseenData?.unseen || []
               ).length > 0
                 ? renderOrderCards(
                     isDispatchRole
-                      ? (unseenData?.unseen || []).filter(o => dispatchDeliveryFilter === 'ALL' || o.deliveryType === dispatchDeliveryFilter)
+                      ? filterDispatchOrders(unseenData?.unseen)
                       : unseenData?.unseen || [],
                     { showUnseen: true, onMarkSeen: handleMarkSeen }
                   )
@@ -454,12 +485,12 @@ const MyTasks = () => {
           {taskFilter === 'assigned' && (
             <div className="space-y-6">
               {(isDispatchRole
-                ? (unseenData?.seen || []).filter(o => dispatchDeliveryFilter === 'ALL' || o.deliveryType === dispatchDeliveryFilter)
+                ? filterDispatchOrders(unseenData?.seen)
                 : unseenData?.seen || []
               ).length > 0
                 ? renderOrderCards(
                     isDispatchRole
-                      ? (unseenData?.seen || []).filter(o => dispatchDeliveryFilter === 'ALL' || o.deliveryType === dispatchDeliveryFilter)
+                      ? filterDispatchOrders(unseenData?.seen)
                       : unseenData?.seen || []
                   )
                 : renderEmpty(<CheckCircle size={36} className="theme-text-muted" />, 'No Assigned Tasks', 'You have not accepted any tasks yet.')
