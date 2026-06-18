@@ -2378,12 +2378,19 @@ const checkOrderInventory = async (req, res) => {
         let availableQty = 0;
         let variantDetails = [];
         if (positiveVariants.length > 0) {
-          variantDetails = positiveVariants.map(v => ({
+          const hasColorSpec = !!prod.color;
+          const hasSizeSpec = !!prod.size;
+          const matchedVariants = positiveVariants.filter(v => {
+            if (hasColorSpec && v.color && v.color.toLowerCase() !== prod.color.toLowerCase()) return false;
+            if (hasSizeSpec && v.size && v.size.toLowerCase() !== prod.size.toLowerCase()) return false;
+            return true;
+          });
+          variantDetails = matchedVariants.map(v => ({
             color: v.color,
             size: v.size,
             stock: v.stock || 0
           }));
-          availableQty = positiveVariants.reduce((sum, v) => sum + (v.stock || 0), 0);
+          availableQty = matchedVariants.reduce((sum, v) => sum + (v.stock || 0), 0);
         } else if (inventoryItem.variants && Array.isArray(inventoryItem.variants)) {
           variantDetails = inventoryItem.variants.map(v => ({
             color: v.color,

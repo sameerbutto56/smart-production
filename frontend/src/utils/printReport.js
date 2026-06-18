@@ -212,16 +212,14 @@ function romanToUrdu(text) {
     'z': 'ز', 'f': 'ف', 'q': 'ق', 'd': 'د', 'g': 'گ', 'e': 'ے', 'i': 'ی',
     'o': 'و', 'u': 'و', 'c': 'ک', 'v': 'و', 'x': 'کس'
   };
-  // Only apply char mapping to words not already matched by phrases
+  // Apply char mapping to remaining English words (fallback for unmatched phrases)
   const words = result.split(/(\s+)/);
   result = words.map(word => {
     if (/[\u0600-\u06FF]/.test(word)) return word; // already has Urdu chars
     if (/[a-zA-Z]/.test(word)) {
       const len = word.length;
-      // If it's a short word (likely name), keep it as-is
-      if (len <= 2) return word;
-      // For longer words with no phrase match, leave them in English
-      return word;
+      if (len <= 2) return word; // short words likely names – keep as-is
+      return word.toLowerCase().split('').map(ch => charMap[ch] || ch).join('');
     }
     return word;
   }).join('');
