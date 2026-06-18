@@ -81,6 +81,16 @@ const MyTasks = () => {
     });
   }, [dispatchDeliveryFilter, dispatchStatusFilter]);
 
+  const filterBySearch = (orders) => {
+    if (!searchTerm || searchTerm.trim() === "") return orders || [];
+    const s = searchTerm.toLowerCase().trim();
+    return (orders || []).filter(o =>
+      (o.customerName || "").toLowerCase().includes(s) ||
+      (o.id || "").toLowerCase().includes(s) ||
+      (o.orderNumber || "").toLowerCase().includes(s)
+    );
+  };
+
   const fetchRoutingHistory = async () => {
     try {
       const token = sessionStorage.getItem('token');
@@ -466,14 +476,13 @@ const MyTasks = () => {
           {/* Unseen Tasks */}
           {taskFilter === 'unseen' && (
             <div className="space-y-6">
-              {(isDispatchRole
-                ? filterDispatchOrders(unseenData?.unseen)
-                : unseenData?.unseen || []
-              ).length > 0
+              {filterBySearch(isDispatchRole ? filterDispatchOrders(unseenData?.unseen) : unseenData?.unseen).length > 0
                 ? renderOrderCards(
-                    isDispatchRole
-                      ? filterDispatchOrders(unseenData?.unseen)
-                      : unseenData?.unseen || [],
+                    filterBySearch(
+                      isDispatchRole
+                        ? filterDispatchOrders(unseenData?.unseen)
+                        : unseenData?.unseen || []
+                    ),
                     { showUnseen: true, onMarkSeen: handleMarkSeen }
                   )
                 : renderEmpty(<Eye size={36} className="theme-text-muted" />, 'No Unseen Tasks', 'All new orders have been reviewed and accepted.')
@@ -484,14 +493,13 @@ const MyTasks = () => {
           {/* Assigned/Accepted Tasks */}
           {taskFilter === 'assigned' && (
             <div className="space-y-6">
-              {(isDispatchRole
-                ? filterDispatchOrders(unseenData?.seen)
-                : unseenData?.seen || []
-              ).length > 0
+              {filterBySearch(isDispatchRole ? filterDispatchOrders(unseenData?.seen) : unseenData?.seen).length > 0
                 ? renderOrderCards(
-                    isDispatchRole
-                      ? filterDispatchOrders(unseenData?.seen)
-                      : unseenData?.seen || []
+                    filterBySearch(
+                      isDispatchRole
+                        ? filterDispatchOrders(unseenData?.seen)
+                        : unseenData?.seen || []
+                    )
                   )
                 : renderEmpty(<CheckCircle size={36} className="theme-text-muted" />, 'No Assigned Tasks', 'You have not accepted any tasks yet.')
               }
@@ -505,25 +513,25 @@ const MyTasks = () => {
                 <PageLoader text="Loading production tasks..." />
               ) : (
                 <>
-                  {productionData?.unseen?.length > 0 && (
+                  {filterBySearch(productionData?.unseen).length > 0 && (
                     <div>
                       <h3 className="font-black text-xs theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
-                        New Active Tasks ({productionData.unseen.length})
+                        New Active Tasks ({filterBySearch(productionData.unseen).length})
                       </h3>
-                      {renderOrderCards(productionData.unseen, { showUnseen: true, onMarkSeen: handleMarkSeen })}
+                      {renderOrderCards(filterBySearch(productionData.unseen), { showUnseen: true, onMarkSeen: handleMarkSeen })}
                     </div>
                   )}
-                  {productionData?.seen?.length > 0 && (
+                  {filterBySearch(productionData?.seen).length > 0 && (
                     <div>
                       <h3 className="font-black text-xs theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
                         <CheckCircle size={14} className="text-emerald-400" />
-                        Reviewed Production ({productionData.seen.length})
+                        Reviewed Production ({filterBySearch(productionData.seen).length})
                       </h3>
-                      {renderOrderCards(productionData.seen)}
+                      {renderOrderCards(filterBySearch(productionData.seen))}
                     </div>
                   )}
-                  {(!productionData?.unseen?.length && !productionData?.seen?.length) &&
+                  {(!filterBySearch(productionData?.unseen).length && !filterBySearch(productionData?.seen).length) &&
                     renderEmpty(<RefreshCcw size={36} className="theme-text-muted" />, 'No Production Tasks', 'No orders returned from production yet.')
                   }
                 </>
