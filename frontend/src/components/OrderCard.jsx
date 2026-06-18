@@ -1718,9 +1718,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 md:space-y-10 custom-scrollbar">
-              {userRole !== 'LOGO_DESIGN' && (
-                <section>
-                  <h4 className="text-xs md:text-sm font-black text-blue-500 uppercase tracking-[0.3em] mb-6">01. Material & Product Specs</h4>
+              <section>
+                <h4 className="text-xs md:text-sm font-black text-blue-500 uppercase tracking-[0.3em] mb-6">01. Material & Product Specs</h4>
                   {isMultiItem ? (
                     <div className="overflow-x-auto rounded-2xl border border-gray-800">
                       <table className="w-full text-left">
@@ -1830,9 +1829,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     </div>
                   )}
                 </section>
-              )}
 
-              {!isMultiItem && userRole !== 'LOGO_DESIGN' && order.type === 'FULL_CUSTOM' && (
+              {!isMultiItem && order.type === 'FULL_CUSTOM' && (
                 <section className="bg-blue-600/5 p-4 md:p-8 rounded-xl md:rounded-[2rem] border border-blue-500/10">
                   <h4 className="text-xs md:text-sm font-black text-blue-400 uppercase tracking-[0.3em] mb-6">02. Precise Measurements (Inches)</h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
