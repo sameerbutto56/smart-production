@@ -286,6 +286,18 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         </div>
                       </>
                     )}
+                    {p?.sleeveLength && p?.gender !== 'Female' && (
+                      <div className="bg-gray-950/50 p-2 rounded-lg">
+                        <p className="text-[9px] text-gray-500 font-black uppercase">Sleeves</p>
+                        <p className="text-xs md:text-sm font-black text-white">{p.sleeveLength === 'full' ? 'Full' : p.sleeveLength === 'half' ? 'Half' : 'Quarter'}</p>
+                      </div>
+                    )}
+                    {p?.shirtLength && p?.gender !== 'Female' && (
+                      <div className="bg-gray-950/50 p-2 rounded-lg">
+                        <p className="text-[9px] text-gray-500 font-black uppercase">Shirt L.</p>
+                        <p className="text-xs md:text-sm font-black text-white">{p.shirtLength === 'long' ? 'Full' : 'Short'}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1861,6 +1873,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         { label: 'Order Size', val: product?.size },
                         { label: 'Gender', val: product?.gender },
                         ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
+                        ...(product?.sleeveLength ? [{ label: 'Sleeve', val: product.sleeveLength === 'full' ? 'Full Sleeve' : product.sleeveLength === 'half' ? 'Half Sleeve' : 'Quarter Sleeve' }] : []),
+                        ...(product?.shirtLength ? [{ label: 'Shirt Length', val: product.shirtLength === 'long' ? 'Full Length' : 'Short Length' }] : []),
                         ...(order.logoCharges > 0 ? [{ label: 'Logo Charge', val: showPrice ? `₨${order.logoCharges}` : '★ ★ ★' }] : []),
                         ...(order.namePrintingCharges > 0 ? [{ label: 'Name Printing', val: showPrice ? `₨${order.namePrintingCharges}` : '★ ★ ★' }] : []),
                         { label: 'Customization Charge', val: showPrice ? `₨${order.customizationPrice || 0}` : '★ ★ ★' },
