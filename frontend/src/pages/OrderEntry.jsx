@@ -2274,8 +2274,7 @@ const SmartOrderForm = () => {
                           {[
                             { value: 'full', label: 'Full' },
                             { value: 'three-quarter', label: '3 Quarter' },
-                            { value: 'half', label: 'Half' },
-                            { value: 'regular', label: 'Regular' }
+                            { value: 'half', label: 'Half' }
                           ].map(opt => (
                             <button key={opt.value} type="button"
                               onClick={() => setFormData({...formData, sleeveLength: opt.value})}
@@ -2293,7 +2292,8 @@ const SmartOrderForm = () => {
                         <div className="flex gap-2">
                           {[
                             { value: 'long', label: 'Long' },
-                            { value: 'short', label: 'Short' }
+                            { value: 'short', label: 'Short' },
+                            { value: 'regular', label: 'Regular' }
                           ].map(opt => (
                             <button key={opt.value} type="button"
                               onClick={() => setFormData({...formData, shirtLength: opt.value})}
