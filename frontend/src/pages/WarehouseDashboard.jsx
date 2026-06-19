@@ -2036,15 +2036,17 @@ const WarehouseDashboard = () => {
                   <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Destination</label>
                   <select value={routeDestination} onChange={(e) => setRouteDestination(e.target.value)}
                     className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 focus:border-amber-500 outline-none font-bold text-white mt-2">
-                    <option value="LOGO_DESIGN">🎨 Logo Design</option>
-                    <option value="PRODUCTION_ACCEPTANCE">🏭 Production Acceptance</option>
-                    <option value="PRODUCTION">⚙️ Production</option>
-                    <option value="STORE_RECEIVE">📥 Store Receive</option>
-                    <option value="DISPATCH">📦 Dispatch</option>
-                    <option value="OUT_FOR_DELIVERY">🚚 Out for Delivery</option>
-                    <option value="STORE">🏪 Store</option>
-                    <option value="ORDER_ENTRY">📝 Order Entry</option>
-                    <option value="RETURN_TO_SOURCE">↩ Return to Source</option>
+                    {(() => { const st = routingModal?.stages?.find(s => ['PENDING','IN_PROGRESS','WAITING_APPROVAL'].includes(s.status))?.stageName; return (<>
+                      {st !== 'LOGO_DESIGN' && <option value="LOGO_DESIGN">🎨 Logo Design</option>}
+                      {st !== 'PRODUCTION_ACCEPTANCE' && <option value="PRODUCTION_ACCEPTANCE">🏭 Production Acceptance</option>}
+                      {st !== 'PRODUCTION' && <option value="PRODUCTION">⚙️ Production</option>}
+                      {st !== 'STORE_RECEIVE' && <option value="STORE_RECEIVE">📥 Store Receive</option>}
+                      {st !== 'DISPATCH' && <option value="DISPATCH">📦 Dispatch</option>}
+                      {st !== 'OUT_FOR_DELIVERY' && <option value="OUT_FOR_DELIVERY">🚚 Out for Delivery</option>}
+                      {st !== 'STORE' && <option value="STORE">🏪 Store</option>}
+                      {st !== 'ORDER_ENTRY' && <option value="ORDER_ENTRY">📝 Order Entry</option>}
+                      <option value="RETURN_TO_SOURCE">↩ Return to Source</option>
+                    </>)})()}
                   </select>
                 </div>
                 <div>

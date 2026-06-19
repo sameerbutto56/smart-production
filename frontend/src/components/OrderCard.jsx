@@ -819,11 +819,11 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   onChange={(e) => setNextStage(e.target.value)}
                 >
                   <option value="">Select destination...</option>
-                  <option value="LOGO_DESIGN">Logo Design</option>
-                  <option value="PRODUCTION_ACCEPTANCE">Production Acceptance</option>
-                  <option value="PRODUCTION">Production</option>
-                  <option value="DISPATCH">Dispatch</option>
-                  <option value="ORDER_ENTRY">Order Entry</option>
+                  {currentStage?.stageName !== 'LOGO_DESIGN' && <option value="LOGO_DESIGN">Logo Design</option>}
+                  {currentStage?.stageName !== 'PRODUCTION_ACCEPTANCE' && <option value="PRODUCTION_ACCEPTANCE">Production Acceptance</option>}
+                  {currentStage?.stageName !== 'PRODUCTION' && <option value="PRODUCTION">Production</option>}
+                  {currentStage?.stageName !== 'DISPATCH' && <option value="DISPATCH">Dispatch</option>}
+                  {currentStage?.stageName !== 'ORDER_ENTRY' && <option value="ORDER_ENTRY">Order Entry</option>}
                   <option disabled className="text-gray-600">──────────</option>
                   <option value="HOLD">Hold / Pending</option>
                   <option value="REJECT">Reject Order</option>
@@ -1038,13 +1038,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       <select value={nextStage} onChange={(e) => setNextStage(e.target.value)}
                         className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2.5 px-3 outline-none focus:border-blue-500 transition-all text-white text-xs font-bold appearance-none">
                         <option value="">Select destination...</option>
-                        <option value="LOGO_DESIGN">Logo Design</option>
-                        <option value="PRODUCTION_ACCEPTANCE">Production Acceptance</option>
-                        <option value="PRODUCTION">Production</option>
-                        <option value="STORE_RECEIVE">Store Receive</option>
-                        <option value="DISPATCH">Dispatch</option>
-                        <option value="OUT_FOR_DELIVERY">Out for Delivery</option>
-                        <option value="ORDER_ENTRY">Order Entry</option>
+                        {currentStage?.stageName !== 'LOGO_DESIGN' && <option value="LOGO_DESIGN">Logo Design</option>}
+                        {currentStage?.stageName !== 'PRODUCTION_ACCEPTANCE' && <option value="PRODUCTION_ACCEPTANCE">Production Acceptance</option>}
+                        {currentStage?.stageName !== 'PRODUCTION' && <option value="PRODUCTION">Production</option>}
+                        {currentStage?.stageName !== 'STORE_RECEIVE' && <option value="STORE_RECEIVE">Store Receive</option>}
+                        {currentStage?.stageName !== 'DISPATCH' && <option value="DISPATCH">Dispatch</option>}
+                        {currentStage?.stageName !== 'OUT_FOR_DELIVERY' && <option value="OUT_FOR_DELIVERY">Out for Delivery</option>}
+                        {currentStage?.stageName !== 'ORDER_ENTRY' && <option value="ORDER_ENTRY">Order Entry</option>}
                       </select>
                       <div className="flex gap-2">
                         <button onClick={() => {

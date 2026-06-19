@@ -2578,8 +2578,8 @@ const manualRouteOrder = async (req, res) => {
       ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
     );
 
-    // Enforce forward-only routing to prevent loops (except for SUPER_ADMIN)
-    if (currentStage && req.user.role !== 'SUPER_ADMIN') {
+    // Enforce forward-only routing to prevent loops (except for SUPER_ADMIN, STORE, STORE_EMPLOYEE)
+    if (currentStage && !['SUPER_ADMIN', 'STORE', 'STORE_EMPLOYEE'].includes(req.user.role)) {
       const validation = validateStageTransition(currentStage.stageName, destinationStage, order.type);
       if (!validation.valid) {
         return res.status(400).json({ message: validation.message, expectedNext: validation.expected });
