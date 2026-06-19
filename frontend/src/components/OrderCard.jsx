@@ -1031,29 +1031,37 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
             ) : (
               !isFaisal && (
                 currentStage?.status === 'COMPLETED' ? (
-                  <div className="w-full p-4 bg-gray-900/50 rounded-2xl border border-gray-800 text-center">
-                    <p className="text-xs md:text-sm font-black text-gray-400 uppercase tracking-widest mb-2">Task Already Completed</p>
+                  <div className="w-full p-4 bg-gray-900/50 rounded-2xl border border-gray-800">
+                    <p className="text-xs md:text-sm font-black text-gray-400 uppercase tracking-widest mb-1">Task Already Completed</p>
                     <p className="text-xs text-gray-500 mb-3">This task was completed by another user. You can route it forward if needed.</p>
-                    <div className="flex gap-2 justify-center">
-                      <button
-                        onClick={() => {
-                          const next = window.prompt('Send to which stage?\n(STORE / LOGO_DESIGN / PRODUCTION_ACCEPTANCE / PRODUCTION / STORE_RECEIVE / DISPATCH)');
-                          if (next) {
-                            onUpdateStage(order.id, currentStage.id, 'request', { nextStage: next.trim().toUpperCase().replace(/ /g, '_') });
-                          }
+                    <div className="space-y-2">
+                      <select value={nextStage} onChange={(e) => setNextStage(e.target.value)}
+                        className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2.5 px-3 outline-none focus:border-blue-500 transition-all text-white text-xs font-bold appearance-none">
+                        <option value="">Select destination...</option>
+                        <option value="LOGO_DESIGN">Logo Design</option>
+                        <option value="PRODUCTION_ACCEPTANCE">Production Acceptance</option>
+                        <option value="PRODUCTION">Production</option>
+                        <option value="STORE_RECEIVE">Store Receive</option>
+                        <option value="DISPATCH">Dispatch</option>
+                        <option value="OUT_FOR_DELIVERY">Out for Delivery</option>
+                        <option value="ORDER_ENTRY">Order Entry</option>
+                      </select>
+                      <div className="flex gap-2">
+                        <button onClick={() => {
+                          if (!nextStage) { toast.error('Select a destination'); return; }
+                          onUpdateStage(order.id, currentStage.id, 'request', { nextStage });
                         }}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all"
-                      >
-                        Route Forward
-                      </button>
-                      <button
-                        onClick={() => {
-                          onUpdateStage(order.id, currentStage.id, 'request', {});
-                        }}
-                        className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all"
-                      >
-                        Re-request Completion
-                      </button>
+                          disabled={!nextStage}
+                          className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all"
+                        >
+                          Route Forward
+                        </button>
+                        <button onClick={() => onUpdateStage(order.id, currentStage.id, 'request', {})}
+                          className="px-4 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all"
+                        >
+                          Re-request
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ) : (
