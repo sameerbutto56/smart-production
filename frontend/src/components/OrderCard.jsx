@@ -59,6 +59,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const [showMoreActions, setShowMoreActions] = useState(false);
   const [showJobSheet, setShowJobSheet] = useState(false);
   const [showProdHistory, setShowProdHistory] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [trackingUrl, setTrackingUrl] = useState('');
   const [actionLoading, setActionLoading] = useState(null);
 
@@ -456,7 +457,11 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
         layout
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className={`glass rounded-3xl overflow-hidden max-w-full mb-6 ${order.priority === 'SUPER_URGENT' ? 'card-super-urgent border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : order.priority === 'URGENT' ? 'card-urgent' : isDelayed ? 'card-delayed' : 'border border-gray-800'} ${order.status === 'REJECTED' ? 'border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.1)]' : order.status === 'ON_HOLD' ? 'border-orange-500/50 shadow-[0_0_20px_rgba(249,115,22,0.1)]' : ''}`}
+        onClick={(e) => {
+          if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || e.target.closest('textarea') || e.target.closest('a')) return;
+          setIsExpanded(prev => !prev);
+        }}
+        className={`cursor-pointer glass rounded-3xl overflow-hidden max-w-full mb-6 ${order.priority === 'SUPER_URGENT' ? 'card-super-urgent border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : order.priority === 'URGENT' ? 'card-urgent' : isDelayed ? 'card-delayed' : 'border border-gray-800'} ${order.status === 'REJECTED' ? 'border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.1)]' : order.status === 'ON_HOLD' ? 'border-orange-500/50 shadow-[0_0_20px_rgba(249,115,22,0.1)]' : ''}`}
       >
         <div className="p-3 md:p-4">
           <div className="flex justify-between items-start gap-2 md:gap-3 mb-2 md:mb-3">
@@ -577,6 +582,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   {order.address}
                 </span>
               )}
+              <motion.div
+                animate={{ rotate: isExpanded ? 180 : 0 }}
+                transition={{ duration: 0.25 }}
+                className="text-gray-600 mt-0.5"
+              >
+                <ChevronRight size={10} />
+              </motion.div>
               {['SUPER_ADMIN', 'ADMIN'].includes(userRole) && (
                 <button
                   onClick={(e) => {
@@ -600,6 +612,16 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               )}
             </div>
           </div>
+
+          <AnimatePresence initial={false}>
+            {isExpanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.25, ease: 'easeInOut' }}
+                className="overflow-hidden"
+              >
 
           {/* Product Details Strip */}
           {(product?.color || product?.size || product?.fabricType || product?.productType || order.quantity > 0 || order.customizationPrice > 0 || order.logoCharges > 0 || order.namePrintingCharges > 0) && (
@@ -1746,9 +1768,20 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               </div>
             )}
           </AnimatePresence>
+            </motion.div>
+          )}
+        </AnimatePresence>
         </div>
         
-        {/* Pipeline Progress Bar */}
+        <AnimatePresence initial={false}>
+          {isExpanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.25, ease: 'easeInOut' }}
+              className="overflow-hidden"
+            >
         <div className="px-3 md:px-4 pb-3 md:pb-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[9px] text-gray-600 font-black uppercase tracking-widest">
@@ -1771,6 +1804,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
             </motion.div>
           </div>
         </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
 
       {showFullSheet && (
