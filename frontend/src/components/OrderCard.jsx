@@ -42,6 +42,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [selectedDeliveryType, setSelectedDeliveryType] = useState('');
   const [showForceModal, setShowForceModal] = useState(false);
+  const [storeRouteDest, setStoreRouteDest] = useState('DISPATCH');
   const [forceAction, setForceAction] = useState('FORCE_MOVE');
   const [forceStage, setForceStage] = useState('');
   const [forceHours, setForceHours] = useState('');
@@ -1342,22 +1343,35 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                               <span className="text-[6px] md:text-[9px] text-blue-200 tracking-widest">→ UPDATE STOCK</span>
                             </button>
                           ) : (
-                            <button
-                              onClick={async () => {
-                                try {
-                                  const token = sessionStorage.getItem('token');
-                                  await axios.post(`${API_URL}/api/orders/${order.id}/route`, { destinationStage: 'DISPATCH', remarks: 'Inventory added, routing to dispatch' }, { headers: { Authorization: `Bearer ${token}` } });
-                                  toast.success('Sent to Dispatch');
-                                } catch (err) {
-                                  alert('Failed: ' + (err.response?.data?.message || err.message));
-                                }
-                              }}
-                              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
-                            >
-                              <Truck size={14} />
-                              <span>Send to Dispatch</span>
-                              <span className="text-[6px] md:text-[9px] text-emerald-200 tracking-widest">→ ROUTE TO DISPATCH</span>
-                            </button>
+                            <div className="col-span-2 space-y-2">
+                              <div className="flex flex-wrap gap-1">
+                                {['LOGO_DESIGN','PRODUCTION_ACCEPTANCE','PRODUCTION','DISPATCH','OUT_FOR_DELIVERY','ORDER_ENTRY'].map(dest => (
+                                  <button key={dest} onClick={() => setStoreRouteDest(dest)}
+                                    className={`px-2 py-1 rounded-lg text-[9px] font-black border transition-all ${
+                                      storeRouteDest === dest
+                                        ? 'border-amber-500 bg-amber-500/20 text-amber-300'
+                                        : 'border-gray-700 text-gray-400 hover:border-gray-500'
+                                    }`}>
+                                    {dest.replace(/_/g, ' ')}
+                                  </button>
+                                ))}
+                              </div>
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const token = sessionStorage.getItem('token');
+                                    await axios.post(`${API_URL}/api/orders/${order.id}/route`, { destinationStage: storeRouteDest, remarks: 'Inventory added, routing from Store' }, { headers: { Authorization: `Bearer ${token}` } });
+                                    toast.success(`Sent to ${storeRouteDest.replace(/_/g, ' ')}`);
+                                  } catch (err) {
+                                    alert('Failed: ' + (err.response?.data?.message || err.message));
+                                  }
+                                }}
+                                className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 active:scale-95 shadow-lg shadow-emerald-900/20"
+                              >
+                                <Truck size={14} />
+                                <span>Route to {storeRouteDest.replace(/_/g, ' ')}</span>
+                              </button>
+                            </div>
                           )}
                           <button
                             onClick={() => setShowProblemModal(true)}
