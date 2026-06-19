@@ -26,6 +26,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const [timeLeft, setTimeLeft] = useState('');
   const [isDelayed, setIsDelayed] = useState(false);
   const [showFullSheet, setShowFullSheet] = useState(false);
+  const [printLang, setPrintLang] = useState('ur');
   const [urgencyColor, setUrgencyColor] = useState('text-blue-400');
   const [deadlineStatus, setDeadlineStatus] = useState(''); // ON_TIME, APPROACHING, OVERDUE, COMPLETED
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
@@ -263,6 +264,16 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   ))}
                 </div>
 
+                {/* Custom Attribute Source Products */}
+                {(p?.fabricSourceProduct || p?.colorSourceProduct || p?.designSourceProduct || p?.sizeSourceProduct) && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {p?.fabricSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Fabric: {p.fabricSourceProduct}</span>}
+                    {p?.colorSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Color: {p.colorSourceProduct}</span>}
+                    {p?.designSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Design: {p.designSourceProduct}</span>}
+                    {p?.sizeSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Size: {p.sizeSourceProduct}</span>}
+                  </div>
+                )}
+
                 <div className="bg-indigo-600/10 p-3 rounded-xl border border-indigo-600/20 mt-3">
                   <p className="text-xs text-indigo-400 font-black uppercase tracking-widest mb-2">Production Specs</p>
                   <div className="grid grid-cols-2 gap-2">
@@ -274,6 +285,12 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       <p className="text-[9px] text-gray-500 font-black uppercase">Style</p>
                       <p className="text-xs md:text-sm font-black text-white">{c?.stitchingStyle || 'STANDARD'}</p>
                     </div>
+                    {c?.engravingType && (
+                      <div className="bg-gray-950/50 p-2 rounded-lg">
+                        <p className="text-[9px] text-gray-500 font-black uppercase">Engraving</p>
+                        <p className="text-xs md:text-sm font-black text-violet-400">{c.engravingType === 'direct' ? 'Direct' : 'Patch'}</p>
+                      </div>
+                    )}
                     {p?.gender === 'Female' && (
                       <>
                         {(p?.sleeveLength || (female.sleeves && female.sleeves !== 'full')) && (
@@ -595,6 +612,15 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               )}
               {product?.size && (
                 <span className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-tighter bg-gray-900 px-2 py-0.5 rounded-md">Size: {product.size}</span>
+              )}
+              {/* Custom Attribute Source Products */}
+              {(product?.fabricSourceProduct || product?.colorSourceProduct || product?.designSourceProduct || product?.sizeSourceProduct) && (
+                <>
+                  {product?.fabricSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-md border border-amber-500/20 truncate max-w-[100px]">F:{product.fabricSourceProduct}</span>}
+                  {product?.colorSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-md border border-amber-500/20 truncate max-w-[100px]">C:{product.colorSourceProduct}</span>}
+                  {product?.designSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-md border border-amber-500/20 truncate max-w-[100px]">D:{product.designSourceProduct}</span>}
+                  {product?.sizeSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-md border border-amber-500/20 truncate max-w-[100px]">S:{product.sizeSourceProduct}</span>}
+                </>
               )}
               <span className="text-[9px] md:text-[10px] font-black text-blue-400 bg-blue-900/30 px-2 py-0.5 rounded-md">Qty: {order.quantity || 1}</span>
               {order.logoCharges > 0 && (
@@ -1843,6 +1869,15 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                             Logo: {logo.name || `#${li + 1}`}{logo.design ? ` — ${logo.design.substring(0, 40)}${logo.design.length > 40 ? '...' : ''}` : ''}
                                           </span>
                                         ))}
+                                        {/* Custom Attribute Sources */}
+                                        {(p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct) && (
+                                          <>
+                                            {p.fabricSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">FabSrc: {p.fabricSourceProduct}</span>}
+                                            {p.colorSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">ClrSrc: {p.colorSourceProduct}</span>}
+                                            {p.designSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">DesSrc: {p.designSourceProduct}</span>}
+                                            {p.sizeSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">SizSrc: {p.sizeSourceProduct}</span>}
+                                          </>
+                                        )}
                                         {itemCust?.stitchingStyle && (
                                           <span className="text-[10px] font-bold text-blue-400 bg-blue-500/10 px-2 py-1 rounded-md">
                                             {itemCust.stitchingStyle === 'DBL' ? 'Double' : 'Single'} Stitch
@@ -1879,6 +1914,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
                         ...(product?.sleeveLength ? [{ label: 'Sleeve', val: product.sleeveLength === 'full' ? 'Full Sleeve' : product.sleeveLength === 'half' ? 'Half Sleeve' : 'Quarter Sleeve' }] : []),
                         ...(product?.shirtLength ? [{ label: 'Shirt Length', val: product.shirtLength === 'long' ? 'Full Length' : 'Short Length' }] : []),
+                        ...(product?.fabricSourceProduct ? [{ label: 'Fabric Source', val: product.fabricSourceProduct }] : []),
+                        ...(product?.colorSourceProduct ? [{ label: 'Color Source', val: product.colorSourceProduct }] : []),
+                        ...(product?.designSourceProduct ? [{ label: 'Design Source', val: product.designSourceProduct }] : []),
+                        ...(product?.sizeSourceProduct ? [{ label: 'Size Source', val: product.sizeSourceProduct }] : []),
                         ...(order.logoCharges > 0 ? [{ label: 'Logo Charge', val: showPrice ? `₨${order.logoCharges}` : '★ ★ ★' }] : []),
                         ...(order.namePrintingCharges > 0 ? [{ label: 'Name Printing', val: showPrice ? `₨${order.namePrintingCharges}` : '★ ★ ★' }] : []),
                         { label: 'Customization Charge', val: showPrice ? `₨${order.customizationPrice || 0}` : '★ ★ ★' },
@@ -1954,11 +1993,12 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       </>
                     )}
                     {[
+                      { l: 'Engraving Type', v: custom?.engravingType === 'direct' ? 'Direct Engraving' : custom?.engravingType === 'patch' ? 'Patch Engraving' : null },
                       { l: 'Embroidery Color', v: custom?.nameColor },
                       { l: 'Logo Location', v: custom?.logoPlacement },
                       { l: 'Fit Type', v: custom?.fitType },
                       { l: 'Stitching Style', v: custom?.stitchingStyle }
-                    ].map((item, i) => (
+                    ].filter(i => i.v).map((item, i) => (
                       <div key={i} className="flex justify-between items-center p-4 bg-gray-950/30 rounded-2xl border border-gray-800/30">
                         <span className="text-xs md:text-sm text-gray-500 font-bold uppercase tracking-widest">{item.l}</span>
                         <span className="text-sm font-black text-emerald-400">{item.v || 'N/A'}</span>
@@ -2027,8 +2067,16 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   </button>
                 )}
                 <div className="flex items-center gap-3">
+                  <select
+                    value={printLang}
+                    onChange={(e) => setPrintLang(e.target.value)}
+                    className="bg-gray-800 border border-gray-700 text-white text-xs font-black px-2 py-2 rounded-xl uppercase tracking-widest"
+                  >
+                    <option value="ur">اردو</option>
+                    <option value="en">English</option>
+                  </select>
                   <button
-                    onClick={() => printJobSheet(order, userRole)}
+                    onClick={() => printJobSheet(order, userRole, printLang)}
                     className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2"
                   >
                     <Printer size={14} /> Print Job Sheet

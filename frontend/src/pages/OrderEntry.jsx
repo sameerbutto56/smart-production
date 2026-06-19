@@ -94,6 +94,15 @@ const SmartOrderForm = () => {
     color: '',
     size: '',
 
+    // Custom attribute source products
+    fabricSourceProduct: '',
+    colorSourceProduct: '',
+    designSourceProduct: '',
+    sizeSourceProduct: '',
+
+    // Engraving type
+    engravingType: 'direct',
+
     // Customization
     logoDesign: '',
     logoName: '',
@@ -788,7 +797,11 @@ const SmartOrderForm = () => {
         sleeveLength: formData.sleeveLength || '',
         shirtLength: formData.shirtLength || '',
         matchingCap: formData.matchingCap,
-        matchingCapQty: formData.matchingCapQty
+        matchingCapQty: formData.matchingCapQty,
+        fabricSourceProduct: formData.fabricSourceProduct,
+        colorSourceProduct: formData.colorSourceProduct,
+        designSourceProduct: formData.designSourceProduct,
+        sizeSourceProduct: formData.sizeSourceProduct
       },
       customization: {
         nameSpelling: articleNameEntries.filter(Boolean).join(', '),
@@ -801,7 +814,8 @@ const SmartOrderForm = () => {
         designNotes: formData.designNotes,
         designReference: formData.designReference,
         additionalFeatures: formData.additionalFeatures,
-        logos: logoEntries
+        logos: logoEntries,
+        engravingType: formData.engravingType || 'direct'
       },
       sizeData: formData.measurements,
       capCharges,
@@ -852,7 +866,12 @@ const SmartOrderForm = () => {
       matchingCap: false,
       matchingCapQty: 0,
       sleeveLength: '',
-      shirtLength: ''
+      shirtLength: '',
+      fabricSourceProduct: '',
+      colorSourceProduct: '',
+      designSourceProduct: '',
+      sizeSourceProduct: '',
+      engravingType: 'direct'
     }));
     setLogoEntries([{ name: '', design: '' }]);
     setArticleNameEntries(['']);
@@ -882,6 +901,11 @@ const SmartOrderForm = () => {
       matchingCapQty: pd.matchingCapQty || 0,
       sleeveLength: pd.sleeveLength || '',
       shirtLength: pd.shirtLength || '',
+      fabricSourceProduct: pd.fabricSourceProduct || '',
+      colorSourceProduct: pd.colorSourceProduct || '',
+      designSourceProduct: pd.designSourceProduct || '',
+      sizeSourceProduct: pd.sizeSourceProduct || '',
+      engravingType: cust.engravingType || 'direct',
       quantity: item.quantity || 1,
       totalPrice: '',
       logoCharges: item.logoCharges?.toString() || '',
@@ -2365,6 +2389,38 @@ const SmartOrderForm = () => {
                     </div>
                   )}
 
+                  {/* Custom Attribute Source Products */}
+                  {formData.productType && (
+                    <div className="mt-6 theme-bg-subtle p-4 md:p-6 rounded-2xl border border-amber-500/20 bg-amber-500/5">
+                      <h3 className="text-sm font-black text-amber-400 uppercase mb-3 flex items-center gap-2">
+                        <span role="img" aria-label="source">🔗</span> Source Products
+                      </h3>
+                      <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-4">Optionally source each attribute from a different product</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {[
+                          { key: 'fabricSourceProduct', label: 'Fabric Source' },
+                          { key: 'colorSourceProduct', label: 'Color Source' },
+                          { key: 'designSourceProduct', label: 'Design Source' },
+                          { key: 'sizeSourceProduct', label: 'Size Source' },
+                        ].map(field => (
+                          <div key={field.key}>
+                            <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1 block">{field.label}</label>
+                            <select
+                              value={formData[field.key]}
+                              onChange={(e) => setFormData({...formData, [field.key]: e.target.value})}
+                              className="w-full theme-input rounded-xl py-2.5 px-3 text-xs font-bold appearance-none"
+                            >
+                              <option value="">— Use Selected Product —</option>
+                              {products.filter(p => p.name !== formData.productType).map(p => (
+                                <option key={p.id} value={p.name}>{p.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className={`mt-6 md:mt-10 pt-6 md:pt-10 border-t theme-border flex flex-col sm:flex-row items-center justify-between gap-4 md:gap-8 ${useUrdu ? 'flex-row-reverse' : ''}`}>
                     <div className="space-y-1">
                       <h3 className={`text-xl font-black text-blue-400 flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-4'}`}>
@@ -2413,6 +2469,28 @@ const SmartOrderForm = () => {
                 </div>
 
                 <div className="space-y-4 md:space-y-8">
+                  {/* Engraving Type */}
+                  <div className="space-y-3">
+                    <label className="text-xs font-black theme-text-muted uppercase tracking-[0.3em] ml-2">Engraving Method</label>
+                    <div className="flex p-2 theme-bg rounded-[1.5rem] border-2 theme-border h-[72px]">
+                      {[
+                        { value: 'direct', label: 'Direct Engraving' },
+                        { value: 'patch', label: 'Patch Engraving' },
+                      ].map(opt => (
+                        <button key={opt.value} type="button"
+                          onClick={() => setFormData({...formData, engravingType: opt.value})}
+                          className={`flex-1 rounded-xl text-xs md:text-sm font-black transition-all ${
+                            formData.engravingType === opt.value
+                              ? 'bg-purple-600 text-white shadow-xl'
+                              : 'text-gray-600 hover:text-white'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-black theme-text-muted uppercase tracking-[0.3em] ml-2">{t('articleName')}</label>
@@ -3304,7 +3382,7 @@ const SmartOrderForm = () => {
                   {cartItems.map((item, idx) => {
                     const pd = item.productDetails || {};
                     const cust = item.customization || {};
-                    const hasCust = cust.nameSpelling || cust.stitchingStyle || cust.fitType || cust.designNotes || item.logoDesign || cust.logos;
+                    const hasCust = cust.nameSpelling || cust.stitchingStyle || cust.fitType || cust.designNotes || item.logoDesign || cust.logos || cust.engravingType;
                     const hasMeas = Object.values(item.sizeData || {}).some(v => v);
                     const isCustom = item.type === 'FULL_CUSTOM';
                     return (
@@ -3324,6 +3402,15 @@ const SmartOrderForm = () => {
                               {item.capCharges > 0 && <span className="text-xs font-black text-rose-400">×{pd.matchingCapQty || 0} Matching Cap</span>}
                               <span className="text-xs md:text-sm font-black text-blue-400">×{item.quantity || 1}</span>
                             </div>
+                            {/* Custom Attribute Source Products */}
+                            {(pd.fabricSourceProduct || pd.colorSourceProduct || pd.designSourceProduct || pd.sizeSourceProduct) && (
+                              <div className="flex flex-wrap gap-1.5 mt-1">
+                                {pd.fabricSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Fabric: {pd.fabricSourceProduct}</span>}
+                                {pd.colorSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Color: {pd.colorSourceProduct}</span>}
+                                {pd.designSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Design: {pd.designSourceProduct}</span>}
+                                {pd.sizeSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Size: {pd.sizeSourceProduct}</span>}
+                              </div>
+                            )}
                             {hasCust && (
                               <div className="mt-2 space-y-2">
                                 {/* Article Names / Name Lines */}
@@ -3344,8 +3431,9 @@ const SmartOrderForm = () => {
                                   </div>
                                 )}
                                 {/* Branding Specs */}
-                                {(cust.stitchingStyle || cust.fitType || cust.nameColor || cust.logoColor || cust.logoPlacement) && (
+                                {(cust.stitchingStyle || cust.fitType || cust.nameColor || cust.logoColor || cust.logoPlacement || cust.engravingType) && (
                                   <div className="flex flex-wrap gap-1.5">
+                                    {cust.engravingType && <span className="text-[10px] font-black text-violet-400 bg-violet-900/30 px-2 py-0.5 rounded border border-violet-500/20">{cust.engravingType === 'direct' ? 'Direct Engraving' : 'Patch Engraving'}</span>}
                                     {cust.stitchingStyle && <span className="text-[10px] font-black text-blue-400 bg-blue-900/30 px-2 py-0.5 rounded border border-blue-500/20">{cust.stitchingStyle === 'DBL' ? 'Double Stitch' : 'Single Stitch'}</span>}
                                     {cust.fitType && <span className="text-[10px] font-black text-indigo-400 bg-indigo-900/30 px-2 py-0.5 rounded border border-indigo-500/20">{cust.fitType} Fit</span>}
                                     {cust.nameColor && <span className="text-[10px] font-black text-rose-400 bg-rose-900/30 px-2 py-0.5 rounded border border-rose-500/20">Color: {cust.nameColor}</span>}

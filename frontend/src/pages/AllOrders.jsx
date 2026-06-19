@@ -48,6 +48,7 @@ const AllOrders = () => {
   };
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [printLang, setPrintLang] = useState('ur');
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [filterType, setFilterType] = useState('ALL');
   const [filterUrgent, setFilterUrgent] = useState(false);
@@ -582,6 +583,15 @@ const AllOrders = () => {
                           <span className="text-xs md:text-sm font-black bg-pink-600 text-white px-1.5 py-0.5 rounded uppercase">Dupatta</span>
                         )}
                       </div>
+                      {/* Custom Attribute Source Products */}
+                      {(product?.fabricSourceProduct || product?.colorSourceProduct || product?.designSourceProduct || product?.sizeSourceProduct) && (
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          {product?.fabricSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Fabric: {product.fabricSourceProduct}</span>}
+                          {product?.colorSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Color: {product.colorSourceProduct}</span>}
+                          {product?.designSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Design: {product.designSourceProduct}</span>}
+                          {product?.sizeSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Size: {product.sizeSourceProduct}</span>}
+                        </div>
+                      )}
                       <div className="text-xs md:text-sm theme-text-muted mt-1">
                         {parseFloat(order.advanceAmount) > 0 ? `Advance: ₨${parseFloat(order.advanceAmount).toLocaleString()}` : 'Payment: Pending'}
                       </div>
@@ -800,8 +810,9 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                                           </div>
                                         )}
                                         {/* Branding specs */}
-                                        {(c.nameColor || c.logoPlacement || c.stitchingStyle || c.fitType || c.logoColor) && (
+                                        {(c.nameColor || c.logoPlacement || c.stitchingStyle || c.fitType || c.logoColor || c.engravingType) && (
                                           <div className="flex flex-wrap gap-1">
+                                            {c.engravingType && <span className="text-[9px] font-black text-violet-400 bg-violet-900/30 px-1.5 py-0.5 rounded">{c.engravingType === 'direct' ? 'Direct' : 'Patch'} Engraving</span>}
                                             {c.stitchingStyle && <span className="text-[9px] font-black text-blue-400 bg-blue-900/30 px-1.5 py-0.5 rounded">{c.stitchingStyle === 'DBL' ? 'Double' : 'Single'} Stitch</span>}
                                             {c.fitType && <span className="text-[9px] font-black text-indigo-400 bg-indigo-900/30 px-1.5 py-0.5 rounded">{c.fitType} Fit</span>}
                                             {c.nameColor && <span className="text-[9px] font-black text-rose-400 bg-rose-900/30 px-1.5 py-0.5 rounded">Color: {c.nameColor}</span>}
@@ -815,6 +826,15 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                                             {c.logos.map((l, li) => (
                                               <span key={li} className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded">{l.name || `Logo ${li + 1}`}{l.design ? `: ${l.design}` : ''}</span>
                                             ))}
+                                          </div>
+                                        )}
+                                        {/* Custom Attribute Source Products */}
+                                        {(p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct) && (
+                                          <div className="flex flex-wrap gap-1">
+                                            {p.fabricSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Fabric: {p.fabricSourceProduct}</span>}
+                                            {p.colorSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Color: {p.colorSourceProduct}</span>}
+                                            {p.designSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Design: {p.designSourceProduct}</span>}
+                                            {p.sizeSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Size: {p.sizeSourceProduct}</span>}
                                           </div>
                                         )}
                                         {/* Special Notes */}
@@ -868,6 +888,10 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                         ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
                         ...(product?.sleeveLength ? [{ label: 'Sleeve Length', val: product.sleeveLength }] : []),
                         ...(product?.shirtLength ? [{ label: 'Shirt Length', val: product.shirtLength }] : []),
+                        ...(product?.fabricSourceProduct ? [{ label: 'Fabric Source', val: product.fabricSourceProduct }] : []),
+                        ...(product?.colorSourceProduct ? [{ label: 'Color Source', val: product.colorSourceProduct }] : []),
+                        ...(product?.designSourceProduct ? [{ label: 'Design Source', val: product.designSourceProduct }] : []),
+                        ...(product?.sizeSourceProduct ? [{ label: 'Size Source', val: product.sizeSourceProduct }] : []),
                         { label: 'Payment', val: selectedOrder.paymentStatus || (parseFloat(selectedOrder.advanceAmount) > 0 ? 'ADVANCE' : 'PENDING') }
                       ].filter(i => i.val).map((item, i) => (
                         <div key={i} className="theme-bg p-4 md:p-6 rounded-3xl border theme-border">
@@ -958,15 +982,28 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                               )}
                               {/* Branding Specs */}
                               <div className="space-y-2">
-                                {(c.stitchingStyle || c.fitType || c.nameColor || c.logoPlacement) && (
+                                {(c.stitchingStyle || c.fitType || c.nameColor || c.logoPlacement || c.engravingType) && (
                                   <div className="bg-indigo-500/5 p-3 rounded-xl border border-indigo-500/10">
                                     <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest mb-2">Tailoring Specs</p>
                                     <div className="grid grid-cols-2 gap-2">
+                                      {c.engravingType && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Engraving</span><p className="text-xs font-black text-violet-400">{c.engravingType === 'direct' ? 'Direct' : 'Patch'}</p></div>}
                                       {c.stitchingStyle && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Stitch</span><p className="text-xs font-black text-white">{c.stitchingStyle === 'DBL' ? 'Double' : 'Single'}</p></div>}
                                       {c.fitType && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Fit</span><p className="text-xs font-black text-white">{c.fitType}</p></div>}
                                       {c.nameColor && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Color</span><p className="text-xs font-black text-rose-400">{c.nameColor}</p></div>}
                                       {c.logoPlacement && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Position</span><p className="text-xs font-black text-teal-400">{c.logoPlacement}</p></div>}
                                       {c.logoColor && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Logo Color</span><p className="text-xs font-black text-amber-400">{c.logoColor}</p></div>}
+                                    </div>
+                                  </div>
+                                )}
+                                {/* Custom Attribute Source Products */}
+                                {(p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct) && (
+                                  <div className="bg-amber-500/5 p-3 rounded-xl border border-amber-500/10">
+                                    <p className="text-[10px] text-amber-400 font-black uppercase tracking-widest mb-2">Source Products</p>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {p.fabricSourceProduct && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Fabric</span><p className="text-xs font-black text-amber-300">{p.fabricSourceProduct}</p></div>}
+                                      {p.colorSourceProduct && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Color</span><p className="text-xs font-black text-amber-300">{p.colorSourceProduct}</p></div>}
+                                      {p.designSourceProduct && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Design</span><p className="text-xs font-black text-amber-300">{p.designSourceProduct}</p></div>}
+                                      {p.sizeSourceProduct && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Size</span><p className="text-xs font-black text-amber-300">{p.sizeSourceProduct}</p></div>}
                                     </div>
                                   </div>
                                 )}
@@ -999,12 +1036,13 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                       <div>
                         <div className="space-y-4">
                           {[
+                            { l: 'Engraving Type', v: custom?.engravingType === 'direct' ? 'Direct Engraving' : custom?.engravingType === 'patch' ? 'Patch Engraving' : null },
                             { l: 'Branding Name', v: custom?.nameSpelling },
                             { l: 'Embroidery Color', v: custom?.nameColor },
                             { l: 'Logo Location', v: custom?.logoPlacement },
                             { l: 'Fit Type', v: custom?.fitType },
                             { l: 'Stitching Style', v: custom?.stitchingStyle }
-                          ].map((item, i) => (
+                          ].filter(item => item.v).map((item, i) => (
                             <div key={i} className="flex justify-between items-center p-4 theme-bg rounded-2xl border theme-border">
                               <span className="text-xs md:text-sm theme-text-muted font-bold uppercase tracking-widest">{item.l}</span>
                               <span className="text-sm font-black text-emerald-400">{item.v || 'N/A'}</span>
@@ -1116,8 +1154,16 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                   <span>Stage: {selectedOrder.currentStage}</span>
                 </div>
                 <div className="flex items-center gap-3">
+                  <select
+                    value={printLang}
+                    onChange={(e) => setPrintLang(e.target.value)}
+                    className="bg-gray-800 border border-gray-700 text-white text-xs font-black px-2 py-2 rounded-xl uppercase tracking-widest"
+                  >
+                    <option value="ur">اردو</option>
+                    <option value="en">English</option>
+                  </select>
                   <button
-                    onClick={() => printJobSheet(selectedOrder, user?.role)}
+                    onClick={() => printJobSheet(selectedOrder, user?.role, printLang)}
                     className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2"
                   >
                     <Download size={14} /> Print Job Sheet

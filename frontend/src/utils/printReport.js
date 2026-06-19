@@ -460,6 +460,52 @@ const urduSection = {
   orderEntryDate: 'آرڈر انٹری کی تاریخ',
   shopifyDate: 'شاپیفائے آرڈر کی تاریخ',
   orderDate: 'آرڈر کی تاریخ',
+  engravingType: 'اینگرونگ کی قسم',
+  directEngraving: 'ڈائریکٹ اینگرونگ',
+  patchEngraving: 'پیچ اینگرونگ',
+  customAttributes: 'کسٹم ایٹریبیوٹس',
+  fabricSource: 'کپڑا ماخذ',
+  colorSource: 'رنگ ماخذ',
+  designSource: 'ڈیزائن ماخذ',
+  sizeSource: 'سائز ماخذ',
+  sourceProducts: 'ماخذ پروڈکٹس',
+  jobSheet: 'جاب شیٹ',
+};
+
+/** English labels for production sections */
+const enSection = {
+  products: 'Products',
+  engraving: 'Engraving',
+  measurements: 'Measurements',
+  instructionNotes: 'Instruction Notes',
+  product: 'Product',
+  fabricColor: 'Fabric & Color',
+  sizeGender: 'Size & Gender',
+  qty: 'Qty',
+  cap: 'Cap',
+  sleeves: 'Sleeves',
+  length: 'Length',
+  nameLines: 'Name Lines',
+  logos: 'Logos',
+  specialNote: 'Special Note',
+  matchingCap: 'Matching Cap',
+  stitchingStyle: 'Stitching',
+  fitType: 'Fit',
+  color: 'Color',
+  position: 'Position',
+  orderEntryDate: 'Entry Date',
+  shopifyDate: 'Shopify Date',
+  orderDate: 'Order Date',
+  engravingType: 'Engraving Type',
+  directEngraving: 'Direct Engraving',
+  patchEngraving: 'Patch Engraving',
+  customAttributes: 'Custom Attributes',
+  fabricSource: 'Fabric Source',
+  colorSource: 'Color Source',
+  designSource: 'Design Source',
+  sizeSource: 'Size Source',
+  sourceProducts: 'Source Products',
+  jobSheet: 'Job Sheet',
 };
 
 /** Urdu measurement labels */
@@ -490,12 +536,15 @@ const urduLabels = {
 /** Capitalize first letter */
 const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
 
-export function printJobSheet(order, userRole) {
+export function printJobSheet(order, userRole, lang = 'ur') {
   const showPrice = ['SUPER_ADMIN', 'ADMIN'].includes(userRole);
   const priceDisplay = (v) => showPrice ? currency(v) : '★ ★ ★';
 
+  const sec = lang === 'en' ? enSection : urduSection;
+  const isUrdu = lang === 'ur';
+
   const orderType = order.type || 'STANDARD';
-  const title = `Job Sheet — ${order.orderNumber || order.id?.slice(0, 8)}`;
+  const title = `${sec.jobSheet} — ${order.orderNumber || order.id?.slice(0, 8)}`;
   const win = openPrintWindow(title);
 
   const rawPd = parseJSON(order.productDetails);
@@ -511,163 +560,208 @@ export function printJobSheet(order, userRole) {
   const shopifyDate = order.shopifyOrderDate ? fmtDate(order.shopifyOrderDate) : null;
 
   // ─── HEADER ───
-  win.document.write('<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;border-bottom:3px solid #111;padding-bottom:8px">');
-  win.document.write('<div>');
-  win.document.write('<h1 style="font-size:28px;font-weight:900;text-transform:uppercase;letter-spacing:-0.5px">Job Sheet</h1>');
-  win.document.write('<p style="font-size:20px;color:#555;margin-top:3px;font-weight:700">Order #' + (order.orderNumber || order.id?.slice(0, 8)) + '</p>');
-  win.document.write('</div>');
-  win.document.write('<div style="text-align:right">');
-  win.document.write('<p style="font-size:22px;font-weight:900">' + (order.customerName || '—') + '</p>');
-  win.document.write('<p style="font-size:20px;color:#666;font-weight:600">' + (order.customerPhone || '') + '</p>');
-  if (order.address) win.document.write('<p style="font-size:18px;color:#666">' + order.address + '</p>');
-  if (order.city) win.document.write('<p style="font-size:18px;color:#666">' + order.city + '</p>');
-  win.document.write('</div></div>');
+  win.document.write(`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;border-bottom:3px solid #111;padding-bottom:8px">`);
+  win.document.write(`<div>`);
+  win.document.write(`<h1 style="font-size:28px;font-weight:900;text-transform:uppercase;letter-spacing:-0.5px">${sec.jobSheet}</h1>`);
+  win.document.write(`<p style="font-size:20px;color:#555;margin-top:3px;font-weight:700">Order #${order.orderNumber || order.id?.slice(0, 8)}</p>`);
+  win.document.write(`</div>`);
+  win.document.write(`<div style="text-align:right">`);
+  win.document.write(`<p style="font-size:22px;font-weight:900">${order.customerName || '—'}</p>`);
+  win.document.write(`<p style="font-size:20px;color:#666;font-weight:600">${order.customerPhone || ''}</p>`);
+  if (order.address) win.document.write(`<p style="font-size:18px;color:#666">${order.address}</p>`);
+  if (order.city) win.document.write(`<p style="font-size:18px;color:#666">${order.city}</p>`);
+  win.document.write(`</div></div>`);
 
   // ─── DATES ROW ───
-  win.document.write('<div style="display:flex;justify-content:space-between;margin-bottom:8px;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:6px 10px;">');
-  win.document.write('<div><span style="font-size:18px;font-weight:700;color:#166534">' + urduSection.orderEntryDate + ':</span> <span style="font-size:20px;font-weight:900;color:#111">' + entryDate + '</span></div>');
+  win.document.write(`<div style="display:flex;justify-content:space-between;margin-bottom:8px;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:6px 10px;">`);
+  win.document.write(`<div><span style="font-size:18px;font-weight:700;color:#166534">${sec.orderEntryDate}:</span> <span style="font-size:20px;font-weight:900;color:#111">${entryDate}</span></div>`);
   if (shopifyDate) {
-    win.document.write('<div><span style="font-size:18px;font-weight:700;color:#7c3aed">' + urduSection.shopifyDate + ':</span> <span style="font-size:20px;font-weight:900;color:#111">' + shopifyDate + '</span></div>');
+    const shopifyLabel = isUrdu ? `${sec.shopifyDate}:` : `${sec.shopifyDate}:`;
+    win.document.write(`<div><span style="font-size:18px;font-weight:700;color:#7c3aed">${shopifyLabel}</span> <span style="font-size:20px;font-weight:900;color:#111">${shopifyDate}</span></div>`);
   }
-  win.document.write('</div>');
+  win.document.write(`</div>`);
 
   // ─── ORDER META BADGES ───
-  win.document.write('<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">');
+  win.document.write(`<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">`);
   [order.type, order.priority, order.outletName || order.source, order.paymentStatus === 'PAID' ? 'PAID' : (order.advancePaid ? 'ADVANCE' : 'PENDING')].filter(Boolean).forEach(label => {
     let color = '#6b7280';
     if (label === 'PAID' || label === 'FULL_CUSTOM') color = '#059669';
     else if (label === 'SUPER_URGENT') color = '#dc2626';
     else if (label === 'URGENT') color = '#d97706';
     else if (label === 'OUTLET') color = '#7c3aed';
-    win.document.write('<span style="padding:3px 12px;border-radius:6px;font-size:20px;font-weight:700;text-transform:uppercase;background:' + color + '20;color:' + color + ';border:2px solid ' + color + '40">' + label + '</span>');
+    win.document.write(`<span style="padding:3px 12px;border-radius:6px;font-size:20px;font-weight:700;text-transform:uppercase;background:${color}20;color:${color};border:2px solid ${color}40">${label}</span>`);
   });
-  win.document.write('</div>');
+  win.document.write(`</div>`);
 
-  // ─── INSTRUCTION NOTES (Urdu transliterated) ───
+  // ─── INSTRUCTION NOTES ───
   if (order.instructionNotes) {
-    const urduNotes = romanToUrdu(order.instructionNotes);
-    win.document.write('<div style="background:#fef3c7;border:2px solid #f59e0b;border-radius:8px;padding:8px 12px;margin-bottom:8px;page-break-inside:avoid">');
-    win.document.write('<p style="font-size:20px;font-weight:900;text-transform:uppercase;color:#b45309;margin-bottom:4px" class="urdu">' + urduSection.instructionNotes + '</p>');
-    win.document.write('<p style="font-size:26px;font-weight:700;color:#92400e" class="urdu">' + urduNotes + '</p></div>');
+    const notesDisplay = isUrdu ? romanToUrdu(order.instructionNotes) : order.instructionNotes;
+    win.document.write(`<div style="background:#fef3c7;border:2px solid #f59e0b;border-radius:8px;padding:8px 12px;margin-bottom:8px;page-break-inside:avoid">`);
+    win.document.write(`<p style="font-size:20px;font-weight:900;text-transform:uppercase;color:#b45309;margin-bottom:4px"${isUrdu ? ' class="urdu"' : ''}>${sec.instructionNotes}</p>`);
+    win.document.write(`<p style="font-size:26px;font-weight:700;color:#92400e"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
   }
 
-  // ─── PRODUCTS TABLE (Urdu labels) ───
-  win.document.write('<div class="section-title" style="font-size:26px">' + urduSection.products + '</div>');
+  // ─── PRODUCTS TABLE ───
+  win.document.write(`<div class="section-title" style="font-size:26px">${sec.products}</div>`);
   if (isMultiItem) {
     const showCap = orderType !== 'STANDARD';
-    const headers = ['#', urduSection.product, urduSection.fabricColor, urduSection.sizeGender, urduSection.qty].concat(showCap ? [urduSection.cap] : []).concat(['Price']);
-    win.document.write('<table><thead><tr>' + headers.map(h => '<th>' + h + '</th>').join('') + '</tr></thead><tbody>');
+    // Add attribute source headers if any item has them
+    const hasAttrSources = allItems.some(item => {
+      const p = item.productDetails || {};
+      return p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct;
+    });
+    const headers = ['#', sec.product, sec.fabricColor, sec.sizeGender, sec.qty].concat(showCap ? [sec.cap] : []).concat(['Price']);
+    win.document.write(`<table><thead><tr>${headers.map(h => '<th>' + h + '</th>').join('')}</tr></thead><tbody>`);
     allItems.forEach((item, idx) => {
       const p = item.productDetails || {};
       const capQty = showCap && p.matchingCap ? (p.matchingCapQty || 0) : (showCap && item.capCharges > 0 ? (p.femaleOptions?.cap || 0) : 0);
-      win.document.write('<tr>');
-      win.document.write('<td style="font-weight:700">' + (idx + 1) + '</td>');
-      win.document.write('<td style="font-weight:700;font-size:22px">' + (p.productType || '—') + '</td>');
-      win.document.write('<td style="font-size:22px">' + [p.fabricType, p.color].filter(Boolean).join(' • ') + '</td>');
-      const extras = [p.sleeveLength ? urduSection.sleeves + ': ' + p.sleeveLength : null, p.shirtLength ? urduSection.length + ': ' + p.shirtLength : null].filter(Boolean).join(' | ');
-      win.document.write('<td style="font-size:22px">' + (p.size || cap('Custom')) + ' • ' + (p.gender || 'Male') + (extras ? '<br><span style="font-size:20px;color:#db2777;font-weight:700">' + extras + '</span>' : '') + '</td>');
-      win.document.write('<td style="text-align:center;font-weight:700;font-size:22px">' + (item.quantity || 1) + '</td>');
-      if (showCap) win.document.write('<td style="text-align:center;font-weight:700;font-size:22px;color:#e11d48">' + (capQty || '—') + '</td>');
-      win.document.write('<td style="text-align:right;font-weight:700;font-size:22px">' + priceDisplay(item.totalPrice) + '</td>');
-      win.document.write('</tr>');
+      win.document.write(`<tr>`);
+      win.document.write(`<td style="font-weight:700">${idx + 1}</td>`);
+      win.document.write(`<td style="font-weight:700;font-size:22px">${p.productType || '—'}`);
+      // Show attribute source badges inline
+      if (p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct) {
+        win.document.write(`<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px">`);
+        if (p.fabricSourceProduct) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">F:${p.fabricSourceProduct}</span>`);
+        if (p.colorSourceProduct) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">C:${p.colorSourceProduct}</span>`);
+        if (p.designSourceProduct) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">D:${p.designSourceProduct}</span>`);
+        if (p.sizeSourceProduct) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">S:${p.sizeSourceProduct}</span>`);
+        win.document.write(`</div>`);
+      }
+      win.document.write(`</td>`);
+      win.document.write(`<td style="font-size:22px">${[p.fabricType, p.color].filter(Boolean).join(' • ')}</td>`);
+      const extras = [p.sleeveLength ? `${sec.sleeves}: ${p.sleeveLength}` : null, p.shirtLength ? `${sec.length}: ${p.shirtLength}` : null].filter(Boolean).join(' | ');
+      win.document.write(`<td style="font-size:22px">${p.size || cap('Custom')} • ${p.gender || 'Male'}${extras ? '<br><span style="font-size:20px;color:#db2777;font-weight:700">' + extras + '</span>' : ''}</td>`);
+      win.document.write(`<td style="text-align:center;font-weight:700;font-size:22px">${item.quantity || 1}</td>`);
+      if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;font-size:22px;color:#e11d48">${capQty || '—'}</td>`);
+      win.document.write(`<td style="text-align:right;font-weight:700;font-size:22px">${priceDisplay(item.totalPrice)}</td>`);
+      win.document.write(`</tr>`);
     });
-    win.document.write('</tbody></table>');
+    win.document.write(`</tbody></table>`);
   } else {
     const showCap = orderType !== 'STANDARD';
     const capQty = showCap && firstProduct.matchingCap ? (firstProduct.matchingCapQty || 0) : 0;
-    const headers = [urduSection.product, 'Fabric', 'Color', 'Size', 'Gender', urduSection.qty].concat(showCap ? [urduSection.cap] : []).concat(['Price']);
-    win.document.write('<table><thead><tr>' + headers.map(h => '<th>' + h + '</th>').join('') + '</tr></thead><tbody>');
-    win.document.write('<tr>');
-    win.document.write('<td style="font-weight:700;font-size:22px">' + (firstProduct.productType || '—') + '</td>');
-    win.document.write('<td style="font-size:22px">' + (firstProduct.fabricType || '—') + '</td>');
-    win.document.write('<td style="font-size:22px">' + (firstProduct.color || '—') + '</td>');
-    const extras = [firstProduct.sleeveLength ? urduSection.sleeves + ': ' + firstProduct.sleeveLength : null, firstProduct.shirtLength ? urduSection.length + ': ' + firstProduct.shirtLength : null].filter(Boolean).join(' | ');
-    win.document.write('<td style="font-size:22px">' + (firstProduct.size || cap('Custom')) + '</td>');
-    win.document.write('<td style="font-size:22px">' + (firstProduct.gender || 'Male') + (extras ? '<br><span style="font-size:20px;color:#db2777;font-weight:700">' + extras + '</span>' : '') + '</td>');
-    win.document.write('<td style="text-align:center;font-weight:700;font-size:22px">' + (order.quantity || 1) + '</td>');
-    if (showCap) win.document.write('<td style="text-align:center;font-weight:700;font-size:22px;color:#e11d48">' + (capQty || '—') + '</td>');
-    win.document.write('<td style="text-align:right;font-weight:700;font-size:22px">' + priceDisplay(order.totalPrice) + '</td>');
-    win.document.write('</tr></tbody></table>');
+    const headers = [sec.product, 'Fabric', 'Color', 'Size', 'Gender', sec.qty].concat(showCap ? [sec.cap] : []).concat(['Price']);
+    win.document.write(`<table><thead><tr>${headers.map(h => '<th>' + h + '</th>').join('')}</tr></thead><tbody>`);
+    win.document.write(`<tr>`);
+    win.document.write(`<td style="font-weight:700;font-size:22px">${firstProduct.productType || '—'}`);
+    // Show attribute source badges
+    if (firstProduct.fabricSourceProduct || firstProduct.colorSourceProduct || firstProduct.designSourceProduct || firstProduct.sizeSourceProduct) {
+      win.document.write(`<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px">`);
+      if (firstProduct.fabricSourceProduct) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">F:${firstProduct.fabricSourceProduct}</span>`);
+      if (firstProduct.colorSourceProduct) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">C:${firstProduct.colorSourceProduct}</span>`);
+      if (firstProduct.designSourceProduct) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">D:${firstProduct.designSourceProduct}</span>`);
+      if (firstProduct.sizeSourceProduct) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">S:${firstProduct.sizeSourceProduct}</span>`);
+      win.document.write(`</div>`);
+    }
+    win.document.write(`</td>`);
+    win.document.write(`<td style="font-size:22px">${firstProduct.fabricType || '—'}</td>`);
+    win.document.write(`<td style="font-size:22px">${firstProduct.color || '—'}</td>`);
+    const extras = [firstProduct.sleeveLength ? `${sec.sleeves}: ${firstProduct.sleeveLength}` : null, firstProduct.shirtLength ? `${sec.length}: ${firstProduct.shirtLength}` : null].filter(Boolean).join(' | ');
+    win.document.write(`<td style="font-size:22px">${firstProduct.size || cap('Custom')}</td>`);
+    win.document.write(`<td style="font-size:22px">${firstProduct.gender || 'Male'}${extras ? '<br><span style="font-size:20px;color:#db2777;font-weight:700">' + extras + '</span>' : ''}</td>`);
+    win.document.write(`<td style="text-align:center;font-weight:700;font-size:22px">${order.quantity || 1}</td>`);
+    if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;font-size:22px;color:#e11d48">${capQty || '—'}</td>`);
+    win.document.write(`<td style="text-align:right;font-weight:700;font-size:22px">${priceDisplay(order.totalPrice)}</td>`);
+    win.document.write(`</tr></tbody></table>`);
   }
 
-  // ─── ENGRAVING (hidden for STANDARD) ───
+  // ─── ENGRAVING ───
   if (orderType !== 'STANDARD') {
-    win.document.write('<div class="section-title" style="font-size:26px">' + urduSection.engraving + '</div>');
+    win.document.write(`<div class="section-title" style="font-size:26px">${sec.engraving}</div>`);
     const brandingItems = isMultiItem ? allItems : [{ productDetails: firstProduct, customization: custom }];
     brandingItems.forEach((item, idx) => {
       const p = item.productDetails || {};
       const c = item.customization ? parseJSON(item.customization) : custom;
       const hasNames = c?.articleNames?.length > 0 || c?.nameSpelling;
       const hasLogos = c?.logos?.length > 0;
-      const hasSpecs = c?.stitchingStyle || c?.fitType || c?.nameColor || c?.logoPlacement;
+      const hasSpecs = c?.stitchingStyle || c?.fitType || c?.nameColor || c?.logoPlacement || c?.engravingType;
       const hasNotes = c?.designNotes;
+      const hasAttrSources = p?.fabricSourceProduct || p?.colorSourceProduct || p?.designSourceProduct || p?.sizeSourceProduct;
 
-      if (!hasNames && !hasLogos && !hasSpecs && !hasNotes) return;
+      if (!hasNames && !hasLogos && !hasSpecs && !hasNotes && !hasAttrSources) return;
 
-      win.document.write('<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px;page-break-inside:avoid">');
-      win.document.write('<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding-bottom:6px;border-bottom:2px solid #eee">');
-      win.document.write('<span style="background:#111;color:#fff;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:20px;font-weight:800">' + (idx + 1) + '</span>');
-      win.document.write('<span style="font-weight:900;font-size:22px;text-transform:uppercase">' + (p.productType || 'Item ' + (idx + 1)) + '</span>');
-      if (p.color) win.document.write('<span style="font-size:18px;color:#888">(' + p.color + ')</span>');
-      win.document.write('</div>');
+      win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px;page-break-inside:avoid">`);
+      win.document.write(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding-bottom:6px;border-bottom:2px solid #eee">`);
+      win.document.write(`<span style="background:#111;color:#fff;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:20px;font-weight:800">${idx + 1}</span>`);
+      win.document.write(`<span style="font-weight:900;font-size:22px;text-transform:uppercase">${p.productType || 'Item ' + (idx + 1)}</span>`);
+      if (p.color) win.document.write(`<span style="font-size:18px;color:#888">(${p.color})</span>`);
+      win.document.write(`</div>`);
 
+      // Engraving Type
+      if (c?.engravingType) {
+        win.document.write(`<div style="margin-bottom:6px">`);
+        const engravingLabel = c.engravingType === 'direct' ? sec.directEngraving : sec.patchEngraving;
+        win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#7c3aed;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${sec.engravingType}: ${engravingLabel}</p>`);
+        win.document.write(`</div>`);
+      }
+
+      // Name Lines
       if (hasNames) {
-        win.document.write('<div style="margin-bottom:6px">');
-        win.document.write('<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#7c3aed;margin-bottom:3px" class="urdu">' + urduSection.nameLines + '</p>');
+        win.document.write(`<div style="margin-bottom:6px">`);
+        win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#7c3aed;margin-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.nameLines}</p>`);
         if (c.articleNames?.length > 0) {
           c.articleNames.forEach((an, ai) => {
-            win.document.write('<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span style="background:#7c3aed20;color:#7c3aed;font-size:18px;font-weight:800;padding:2px 6px;border-radius:3px">L' + (ai + 1) + '</span><span style="font-size:24px;font-weight:700">' + an + '</span></div>');
+            win.document.write(`<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span style="background:#7c3aed20;color:#7c3aed;font-size:18px;font-weight:800;padding:2px 6px;border-radius:3px">L${ai + 1}</span><span style="font-size:24px;font-weight:700">${an}</span></div>`);
           });
         } else {
-          win.document.write('<div style="display:flex;align-items:center;gap:6px"><span style="background:#7c3aed20;color:#7c3aed;font-size:18px;font-weight:800;padding:2px 6px;border-radius:3px">L1</span><span style="font-size:24px;font-weight:700">' + c.nameSpelling + '</span></div>');
+          win.document.write(`<div style="display:flex;align-items:center;gap:6px"><span style="background:#7c3aed20;color:#7c3aed;font-size:18px;font-weight:800;padding:2px 6px;border-radius:3px">L1</span><span style="font-size:24px;font-weight:700">${c.nameSpelling}</span></div>`);
         }
-        win.document.write('</div>');
+        win.document.write(`</div>`);
       }
 
-      if (hasSpecs) {
-        win.document.write('<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">');
-        if (c.stitchingStyle) win.document.write('<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#dbeafe;color:#1e40af">' + romanToUrdu(c.stitchingStyle === 'DBL' ? 'Double Stitch' : 'Single Stitch') + '</span>');
-        if (c.fitType) win.document.write('<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#e0e7ff;color:#3730a3">' + romanToUrdu(c.fitType + ' Fit') + '</span>');
-        if (c.nameColor) win.document.write('<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fce7f3;color:#9d174d">' + urduSection.color + ': ' + c.nameColor + '</span>');
-        if (c.logoPlacement) win.document.write('<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#ccfbf1;color:#0f766e">' + urduSection.position + ': ' + c.logoPlacement + '</span>');
-        if (c.logoColor) win.document.write('<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#92400e">Logo: ' + c.logoColor + '</span>');
-        win.document.write('</div>');
+      // Specs badges
+      if (hasSpecs || hasAttrSources) {
+        win.document.write(`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">`);
+        if (c.stitchingStyle) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#dbeafe;color:#1e40af">${isUrdu ? romanToUrdu(c.stitchingStyle === 'DBL' ? 'Double Stitch' : 'Single Stitch') : (c.stitchingStyle === 'DBL' ? 'Double Stitch' : 'Single Stitch')}</span>`);
+        if (c.fitType) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#e0e7ff;color:#3730a3">${isUrdu ? romanToUrdu(c.fitType + ' Fit') : c.fitType + ' Fit'}</span>`);
+        if (c.nameColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fce7f3;color:#9d174d">${sec.color}: ${c.nameColor}</span>`);
+        if (c.logoPlacement) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#ccfbf1;color:#0f766e">${sec.position}: ${c.logoPlacement}</span>`);
+        if (c.logoColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#92400e">Logo: ${c.logoColor}</span>`);
+        // Attribute source badges
+        if (p.fabricSourceProduct) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.fabricSource}: ${p.fabricSourceProduct}</span>`);
+        if (p.colorSourceProduct) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.colorSource}: ${p.colorSourceProduct}</span>`);
+        if (p.designSourceProduct) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.designSource}: ${p.designSourceProduct}</span>`);
+        if (p.sizeSourceProduct) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.sizeSource}: ${p.sizeSourceProduct}</span>`);
+        win.document.write(`</div>`);
       }
 
+      // Logos
       if (hasLogos) {
-        win.document.write('<div style="margin-bottom:6px">');
-        win.document.write('<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#d97706;margin-bottom:3px" class="urdu">' + urduSection.logos + '</p>');
+        win.document.write(`<div style="margin-bottom:6px">`);
+        win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#d97706;margin-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.logos}</p>`);
         c.logos.forEach((l, li) => {
-          win.document.write('<div style="font-size:22px;font-weight:700;background:#fffbeb;padding:4px 8px;border-radius:4px;margin-bottom:2px;border:2px solid #fef3c7">' + (l.name || 'Logo ' + (li + 1)) + (l.design ? ' — ' + l.design : '') + '</div>');
+          win.document.write(`<div style="font-size:22px;font-weight:700;background:#fffbeb;padding:4px 8px;border-radius:4px;margin-bottom:2px;border:2px solid #fef3c7">${l.name || 'Logo ' + (li + 1)}${l.design ? ' — ' + l.design : ''}</div>`);
         });
-        win.document.write('</div>');
+        win.document.write(`</div>`);
       }
 
+      // Special Notes
       if (hasNotes) {
-        win.document.write('<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px">');
-        win.document.write('<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#d97706;margin-bottom:2px" class="urdu">' + urduSection.specialNote + '</p>');
-        win.document.write('<p style="font-size:22px;font-style:italic;color:#92400e" class="urdu">' + romanToUrdu(c.designNotes) + '</p></div>');
+        const notesDisplay = isUrdu ? romanToUrdu(c.designNotes) : c.designNotes;
+        win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px">`);
+        win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#d97706;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
+        win.document.write(`<p style="font-size:22px;font-style:italic;color:#92400e"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
       }
 
-      // Sleeve / Shirt Length with Urdu
+      // Sleeve / Shirt Length
       const slv = p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves ? p.femaleOptions.sleeves : null);
       const slen = p.shirtLength || (p.gender === 'Female' && p.femaleOptions?.shirtLength ? p.femaleOptions.shirtLength : null);
-      const femaleOpts = [slv ? urduSection.sleeves + ': ' + slv : null, slen ? urduSection.length + ': ' + slen : null, (p.gender === 'Female' && p.femaleOptions?.dupatta) ? 'Dupatta' : null].filter(Boolean);
-      if (femaleOpts.length > 0) {
-        win.document.write('<p style="font-size:20px;margin-top:4px;color:#db2777;font-weight:700">' + femaleOpts.join(' | ') + '</p>');
+      const opts = [slv ? `${sec.sleeves}: ${slv}` : null, slen ? `${sec.length}: ${slen}` : null, (p.gender === 'Female' && p.femaleOptions?.dupatta) ? 'Dupatta' : null].filter(Boolean);
+      if (opts.length > 0) {
+        win.document.write(`<p style="font-size:20px;margin-top:4px;color:#db2777;font-weight:700">${opts.join(' | ')}</p>`);
       }
 
       // Matching Cap
       const capQty = p.matchingCap ? (p.matchingCapQty || 0) : 0;
       if (capQty > 0) {
-        win.document.write('<p style="font-size:20px;margin-top:4px;color:#e11d48;font-weight:700">' + urduSection.matchingCap + ' ×' + capQty + '</p>');
+        win.document.write(`<p style="font-size:20px;margin-top:4px;color:#e11d48;font-weight:700">${sec.matchingCap} ×${capQty}</p>`);
       }
 
-      win.document.write('</div>');
+      win.document.write(`</div>`);
     });
   }
 
-  // ─── MEASUREMENTS (Urdu labels, FULL_CUSTOM only) ───
+  // ─── MEASUREMENTS ───
   if (orderType === 'FULL_CUSTOM') {
     const measItems = isMultiItem ? allItems : [{ productDetails: firstProduct, sizeData: sizes }];
     const hasAnyMeas = measItems.some(item => {
@@ -675,29 +769,29 @@ export function printJobSheet(order, userRole) {
       return Object.values(s).some(v => v);
     });
     if (hasAnyMeas) {
-      win.document.write('<div class="section-title" style="font-size:26px">' + urduSection.measurements + '</div>');
+      win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
       measItems.forEach((item, idx) => {
         const p = item.productDetails || {};
         const s = item.sizeData || {};
         const meas = Object.entries(s).filter(([_, v]) => v);
         if (meas.length === 0) return;
-        win.document.write('<div style="margin-bottom:6px;page-break-inside:avoid">');
+        win.document.write(`<div style="margin-bottom:6px;page-break-inside:avoid">`);
         if (isMultiItem) {
-          win.document.write('<p style="font-size:20px;font-weight:900;text-transform:uppercase;color:#1e40af;margin-bottom:3px">#' + (idx + 1) + ' ' + (p.productType || '') + '</p>');
+          win.document.write(`<p style="font-size:20px;font-weight:900;text-transform:uppercase;color:#1e40af;margin-bottom:3px">#${idx + 1} ${p.productType || ''}</p>`);
         }
-        win.document.write('<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px">');
+        win.document.write(`<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px">`);
         meas.forEach(([k, v]) => {
-          const label = urduLabels[k.toLowerCase()] || k.replace(/([A-Z])/g, ' $1').trim();
-          win.document.write('<div style="text-align:center;border:2px solid #ddd;border-radius:6px;padding:5px"><p style="font-size:18px;font-weight:700;color:#888;margin-bottom:2px" class="urdu">' + label + '</p><p style="font-size:24px;font-weight:900">' + v + '</p></div>');
+          const label = isUrdu ? (urduLabels[k.toLowerCase()] || k.replace(/([A-Z])/g, ' $1').trim()) : (k.charAt(0).toUpperCase() + k.slice(1).replace(/([A-Z])/g, ' $1').trim());
+          win.document.write(`<div style="text-align:center;border:2px solid #ddd;border-radius:6px;padding:5px"><p style="font-size:18px;font-weight:700;color:#888;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${label}</p><p style="font-size:24px;font-weight:900">${v}</p></div>`);
         });
-        win.document.write('</div></div>');
+        win.document.write(`</div></div>`);
       });
     }
   }
 
-  // ─── FINANCIAL SUMMARY (STANDARD: hide pricing details) ───
+  // ─── FINANCIAL SUMMARY ───
   if (orderType !== 'STANDARD') {
-  win.document.write('<div class="section-title" style="font-size:26px">Financial Summary</div>');
+  win.document.write(`<div class="section-title" style="font-size:26px">Financial Summary</div>`);
   (() => {
     const items = isMultiItem ? allItems : [];
     const calcProductPrice = items.reduce((s, i) => s + (parseFloat(i.totalPrice) - parseFloat(i.logoCharges || 0) - parseFloat(i.namePrintingCharges || 0) - parseFloat(i.customizationPrice || 0) - (parseInt(i.capCharges) || 0)), 0) || (isMultiItem ? 0 : (parseFloat(order.totalPrice) || 0));
@@ -709,28 +803,28 @@ export function printJobSheet(order, userRole) {
     const discount = parseFloat(order.discount) || 0;
     const grandTotal = orderTotalNoDelivery + (isFreeDelivery ? 0 : deliveryCharges) - discount;
 
-    win.document.write('<table style="width:auto;margin-left:auto"><tbody>');
-    win.document.write('<tr><td style="font-weight:700;padding:3px 20px 3px 0;font-size:22px">Product Price</td><td style="text-align:right;font-weight:800;font-size:22px">' + priceDisplay(calcProductPrice) + '</td></tr>');
+    win.document.write(`<table style="width:auto;margin-left:auto"><tbody>`);
+    win.document.write(`<tr><td style="font-weight:700;padding:3px 20px 3px 0;font-size:22px">Product Price</td><td style="text-align:right;font-weight:800;font-size:22px">${priceDisplay(calcProductPrice)}</td></tr>`);
     if (calcCustomization > 0) {
-      win.document.write('<tr><td style="font-weight:700;padding:3px 20px 3px 0;color:#7c3aed;font-size:22px">Customization Charges</td><td style="text-align:right;font-weight:800;color:#7c3aed;font-size:22px">' + priceDisplay(calcCustomization) + '</td></tr>');
+      win.document.write(`<tr><td style="font-weight:700;padding:3px 20px 3px 0;color:#7c3aed;font-size:22px">Customization Charges</td><td style="text-align:right;font-weight:800;color:#7c3aed;font-size:22px">${priceDisplay(calcCustomization)}</td></tr>`);
     }
     if (calcCap > 0) {
-      win.document.write('<tr><td style="font-weight:700;padding:3px 20px 3px 0;color:#e11d48;font-size:22px">Matching Cap Charges</td><td style="text-align:right;font-weight:800;color:#e11d48;font-size:22px">' + priceDisplay(calcCap) + '</td></tr>');
+      win.document.write(`<tr><td style="font-weight:700;padding:3px 20px 3px 0;color:#e11d48;font-size:22px">Matching Cap Charges</td><td style="text-align:right;font-weight:800;color:#e11d48;font-size:22px">${priceDisplay(calcCap)}</td></tr>`);
     }
-    win.document.write('<tr><td style="font-weight:700;padding:3px 20px 3px 0;color:' + (isFreeDelivery ? '#059669' : '#d97706') + ';font-size:22px">Delivery Charges</td><td style="text-align:right;font-weight:800;color:' + (isFreeDelivery ? '#059669' : '#d97706') + ';font-size:22px">' + (isFreeDelivery ? 'FREE' : priceDisplay(deliveryCharges)) + '</td></tr>');
+    win.document.write(`<tr><td style="font-weight:700;padding:3px 20px 3px 0;color:${isFreeDelivery ? '#059669' : '#d97706'};font-size:22px">Delivery Charges</td><td style="text-align:right;font-weight:800;color:${isFreeDelivery ? '#059669' : '#d97706'};font-size:22px">${isFreeDelivery ? 'FREE' : priceDisplay(deliveryCharges)}</td></tr>`);
     if (discount > 0) {
-      win.document.write('<tr><td style="font-weight:700;padding:3px 20px 3px 0;color:#dc2626;font-size:22px">Discount</td><td style="text-align:right;font-weight:800;color:#dc2626;font-size:22px">−' + priceDisplay(discount) + '</td></tr>');
+      win.document.write(`<tr><td style="font-weight:700;padding:3px 20px 3px 0;color:#dc2626;font-size:22px">Discount</td><td style="text-align:right;font-weight:800;color:#dc2626;font-size:22px">−${priceDisplay(discount)}</td></tr>`);
     }
-    win.document.write('<tr style="border-top:3px solid #111"><td style="font-weight:900;padding:4px 20px 4px 0;font-size:26px">Grand Total</td><td style="text-align:right;font-weight:900;font-size:26px">' + priceDisplay(grandTotal) + '</td></tr>');
-    win.document.write('</tbody></table>');
+    win.document.write(`<tr style="border-top:3px solid #111"><td style="font-weight:900;padding:4px 20px 4px 0;font-size:26px">Grand Total</td><td style="text-align:right;font-weight:900;font-size:26px">${priceDisplay(grandTotal)}</td></tr>`);
+    win.document.write(`</tbody></table>`);
   })();
   }
 
   // ─── FOOTER ───
-  win.document.write('<div style="display:flex;justify-content:space-between;font-size:18px;color:#999;border-top:2px solid #ddd;padding-top:6px;margin-top:8px">');
-  win.document.write('<span>' + urduSection.orderEntryDate + ': ' + entryDate + '</span>');
-  win.document.write('<span>' + orderType.replace(/_/g, ' ') + '</span>');
-  win.document.write('</div>');
+  win.document.write(`<div style="display:flex;justify-content:space-between;font-size:18px;color:#999;border-top:2px solid #ddd;padding-top:6px;margin-top:8px">`);
+  win.document.write(`<span>${sec.orderEntryDate}: ${entryDate}</span>`);
+  win.document.write(`<span>${orderType.replace(/_/g, ' ')}${isUrdu ? '' : ''}</span>`);
+  win.document.write(`</div>`);
 
   closePrintWindow(win);
 }
