@@ -3,7 +3,7 @@ import axios from 'axios';
 import {
   Package, ShoppingCart, CheckCircle2, XCircle, AlertTriangle,
   RefreshCcw, Search, Clock, Truck, Building2, PlusCircle,
-  Eye, ThumbsUp, ThumbsDown, FileText, BarChart3, MinusCircle,
+  Eye, ThumbsUp, ThumbsDown, FileText, BarChart3, MinusCircle, Minus, Plus,
   CheckCircle, AlertCircle, Download, TrendingUp, User, Gift, Send,
   Factory, Trash2, ClipboardList, X
 } from 'lucide-react';
@@ -1481,20 +1481,78 @@ const WarehouseDashboard = () => {
                             </span>
                           </div>
                           {isSelected && hasVariants && (
-                            <div className="grid grid-cols-2 gap-2 mt-3" onClick={(e) => e.stopPropagation()}>
-                              {uniqueSizes.length > 0 && (
-                                <select value={allocSelectedSize} onChange={(e) => { setAllocSelectedSize(e.target.value); setAllocSelectedColor(''); }}
-                                  className="theme-bg-subtle border-2 theme-border rounded-lg py-1.5 px-2 text-xs font-medium text-white outline-none">
-                                  <option value="">Size</option>
-                                  {uniqueSizes.map(s => <option key={s} value={s}>{s}</option>)}
-                                </select>
-                              )}
+                            <div className="space-y-3 mt-3" onClick={(e) => e.stopPropagation()}>
                               {uniqueColors.length > 0 && (
-                                <select value={allocSelectedColor} onChange={(e) => setAllocSelectedColor(e.target.value)}
-                                  className="theme-bg-subtle border-2 theme-border rounded-lg py-1.5 px-2 text-xs font-medium text-white outline-none">
-                                  <option value="">Color</option>
-                                  {uniqueColors.map(c => <option key={c} value={c}>{c}</option>)}
-                                </select>
+                                <div>
+                                  <p className="text-[10px] font-black theme-text-muted uppercase tracking-wider mb-1.5">Color</p>
+                                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
+                                    {uniqueColors.map(c => {
+                                      const stockForColor = variants.filter(v => v.color === c).reduce((s, v) => s + (v.stock || 0), 0);
+                                      const disabled = stockForColor <= 0;
+                                      const colorMap = {
+                                        'white': '#ffffff', 'black': '#1a1a1a', 'navy': '#1e3a5f', 'royal blue': '#4169e1',
+                                        'dark blue': '#0a2351', 'light blue': '#add8e6', 'sky blue': '#87ceeb',
+                                        'red': '#dc2626', 'dark red': '#8b0000', 'maroon': '#800000', 'wine': '#722f37',
+                                        'green': '#16a34a', 'dark green': '#064e3b', 'olive': '#808000', 'teal': '#008080',
+                                        'grey': '#6b7280', 'gray': '#6b7280', 'dark grey': '#374151', 'dark gray': '#374151',
+                                        'light grey': '#d1d5db', 'light gray': '#d1d5db', 'silver': '#c0c0c0', 'gold': '#d4af37',
+                                        'purple': '#9333ea', 'indigo': '#4f46e5', 'pink': '#ec4899', 'brown': '#8b4513',
+                                        'khaki': '#c3b091', 'beige': '#f5f5dc', 'cream': '#fffdd0', 'tan': '#d2b48c',
+                                        'orange': '#f97316', 'yellow': '#eab308', 'coral': '#ff7f50', 'mint': '#98ff98',
+                                        'peach': '#ffdab9', 'lavender': '#e6e6fa', 'turquoise': '#40e0d0', 'magenta': '#ff00ff',
+                                        'burgundy': '#900020', 'charcoal': '#36454f', 'camel': '#c19a6b', 'rust': '#b7410e'
+                                      };
+                                      const normalizedKey = c.toLowerCase().trim();
+                                      const bgHex = colorMap[normalizedKey] || '#374151';
+                                      const darkColors = new Set(['black','navy','dark blue','dark red','maroon','wine','dark green','olive','teal','grey','gray','dark grey','dark gray','purple','indigo','brown','charcoal','burgundy','rust']);
+                                      const textClass = darkColors.has(normalizedKey) ? 'text-white' : 'text-gray-900';
+                                      return (
+                                        <button key={c} type="button"
+                                          onClick={() => { setAllocSelectedColor(c === allocSelectedColor ? '' : c); setAllocSelectedSize(''); }}
+                                          disabled={disabled}
+                                          className={`relative rounded-xl border-2 transition-all overflow-hidden ${disabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'} ${
+                                            allocSelectedColor === c ? 'border-amber-500 ring-2 ring-amber-500/30 scale-105 z-10' : 'border-gray-700 hover:border-gray-500'
+                                          }`}>
+                                          <div className="w-full aspect-square flex items-center justify-center" style={{ backgroundColor: bgHex }}>
+                                            {allocSelectedColor === c && <CheckCircle2 size={16} className={textClass + ' drop-shadow-lg'} />}
+                                          </div>
+                                          <div className="py-1 px-1 theme-bg text-center">
+                                            <p className={`text-[9px] font-bold truncate ${allocSelectedColor === c ? 'text-amber-300' : 'theme-text-primary'}`}>{c}</p>
+                                            <p className="text-[8px] font-bold theme-text-muted">{stockForColor} left</p>
+                                          </div>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                              {uniqueSizes.length > 0 && (
+                                <div>
+                                  <p className="text-[10px] font-black theme-text-muted uppercase tracking-wider mb-1.5">Size</p>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {uniqueSizes.map(s => {
+                                      const stockForSize = allocSelectedColor
+                                        ? variants.filter(v => v.color === allocSelectedColor && v.size === s).reduce((sum, v) => sum + (v.stock || 0), 0)
+                                        : variants.filter(v => v.size === s).reduce((sum, v) => sum + (v.stock || 0), 0);
+                                      const disabled = stockForSize <= 0;
+                                      return (
+                                        <button key={s} type="button"
+                                          onClick={() => setAllocSelectedSize(s === allocSelectedSize ? '' : s)}
+                                          disabled={disabled}
+                                          className={`w-14 py-2 rounded-lg text-xs font-black border-2 transition-all ${
+                                            allocSelectedSize === s
+                                              ? 'border-amber-500 bg-amber-500/20 text-amber-300'
+                                              : disabled
+                                              ? 'border-gray-800 text-gray-600 cursor-not-allowed opacity-40'
+                                              : 'border-gray-700 text-gray-300 hover:border-gray-500'
+                                          }`}>
+                                          {s}
+                                          <span className="block text-[9px] font-bold mt-0.5">{stockForSize}</span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
                               )}
                             </div>
                           )}
@@ -1506,10 +1564,20 @@ const WarehouseDashboard = () => {
                                   <Minus size={14} />
                                 </button>
                                 <span className="font-black text-white text-sm w-8 text-center">{allocQty}</span>
-                                <button onClick={() => setAllocQty(q => q + 1)}
+                                <button onClick={() => {
+                                  const maxQ = hasVariants && allocSelectedSize && allocSelectedColor
+                                    ? (variants.find(v => v.size === allocSelectedSize && v.color === allocSelectedColor)?.stock || 999)
+                                    : 999;
+                                  setAllocQty(q => q < maxQ ? q + 1 : q);
+                                }}
                                   className="p-1.5 bg-gray-800 rounded-lg hover:bg-gray-700 transition-all text-gray-300">
                                   <Plus size={14} />
                                 </button>
+                                {hasVariants && allocSelectedSize && allocSelectedColor && (
+                                  <span className="text-[9px] theme-text-muted font-bold">
+                                    / {variants.find(v => v.size === allocSelectedSize && v.color === allocSelectedColor)?.stock || 0}
+                                  </span>
+                                )}
                               </div>
                               <button onClick={(e) => {
                                 e.stopPropagation();
