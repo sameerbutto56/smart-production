@@ -13,12 +13,7 @@ const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'l
 const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSeen, selected, onToggleSelect }) => {
   const { t, isUrdu, LanguageToggle } = useLanguage();
   const [localInventoryAdded, setLocalInventoryAdded] = useState(false);
-  const currentStage = order.stages.find(s => s.status === 'WAITING_APPROVAL') || 
-                      order.stages.find(s => s.status === 'ON_HOLD') ||
-                      order.stages.find(s => s.status === 'IN_PROGRESS') || 
-                      order.stages.find(s => s.status === 'PENDING') || 
-                      order.stages.find(s => s.stageName === order.currentStage) || 
-                      order.stages[0];
+  const currentStage = order.stages?.find(s => s.stageName === order.currentStage) || order.stages?.[0];
 
   const isFaisal = ['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET'].includes(userRole);
   const showPrice = ['SUPER_ADMIN', 'ADMIN'].includes(userRole);
@@ -176,14 +171,6 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const rawSizes = parseJSON(order.sizeData);
   const sizes = (rawSizes && Object.keys(rawSizes).length > 0) ? rawSizes : (standardMeasurements[product?.size] || {});
   const custom = parseJSON(order.customization);
-
-  const pipelines = {
-    'STANDARD': ['ORDER_ENTRY', 'STORE', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-    'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-    'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY']
-  };
-
-  const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
 
   const productionStages = ['PRODUCTION_ACCEPTANCE', 'PRODUCTION'];
   const productionDeadline = order.productionDeadline || order.stages?.find(s => s.stageName === 'PRODUCTION')?.deadlineAt;
@@ -1687,11 +1674,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-[0.15em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-lg shadow-blue-900/20"
                     >
                       <CheckCircle size={14} />
-                      <span>{(() => {
-                        const nextStageIdx = currentPipeline.indexOf(currentStage?.stageName) + 1;
-                        const nextStage = currentPipeline[nextStageIdx];
-                        return nextStage ? `${t('MOVE TO')} ${t(nextStage.replace(/_/g, ' '))}` : t('COMPLETE TASK');
-                      })()}</span>
+                      <span>{t('COMPLETE TASK')}</span>
                     </button>
                     <button
                       onClick={() => setShowProblemModal(true)}
@@ -1784,26 +1767,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               className="overflow-hidden"
             >
         <div className="px-3 md:px-4 pb-3 md:pb-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[9px] text-gray-600 font-black uppercase tracking-widest">
-              {currentStage?.status === 'WAITING_APPROVAL' ? 'Authorization Pending' : currentStage?.stageName?.replace(/_/g, ' ') || 'Processing'}
-            </span>
-            <span className="text-xs text-gray-600 font-mono">
-              {currentPipeline.indexOf(currentStage?.stageName) + 1}/{currentPipeline.length}
-            </span>
-          </div>
-          <div className="w-full h-2 bg-gray-950 rounded-full overflow-hidden border border-gray-800">
-            <motion.div 
-              initial={{ width: 0 }}
-              animate={{ 
-                width: `${Math.max(5, ((currentPipeline.indexOf(currentStage?.stageName) + 1) / currentPipeline.length) * 100)}%`
-              }}
-              transition={{ duration: 1, ease: "easeOut" }}
-              className={`h-full rounded-full bg-gradient-to-r ${isDelayed ? 'from-red-600 to-orange-500' : 'from-blue-600 to-emerald-500'} shadow-lg relative`}
-            >
-              <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
-            </motion.div>
-          </div>
+          <span className="text-[9px] text-gray-500 font-black uppercase tracking-widest">
+            {currentStage?.status === 'WAITING_APPROVAL' ? 'Authorization Pending' : currentStage?.stageName?.replace(/_/g, ' ') || 'Processing'}
+          </span>
         </div>
             </motion.div>
           )}

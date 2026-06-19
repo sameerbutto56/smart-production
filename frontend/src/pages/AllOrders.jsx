@@ -55,6 +55,7 @@ const AllOrders = () => {
   const [filterCity, setFilterCity] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [isGroupedView, setIsGroupedView] = useState(false);
+  const [sortOrder, setSortOrder] = useState('desc');
   
   const { t, LanguageToggle, isUrdu } = useLanguage();
   const location = useLocation();
@@ -224,6 +225,10 @@ const AllOrders = () => {
     const notStoreReceive = isStoreRole || order.currentStage !== 'STORE_RECEIVE';
     
     return matchesSearch && matchesStatus && matchesType && matchesUrgent && matchesCity && matchesRole && notStoreReceive;
+  }).sort((a, b) => {
+    const numA = parseInt(a.orderNumber) || 0;
+    const numB = parseInt(b.orderNumber) || 0;
+    return sortOrder === 'asc' ? numA - numB : numB - numA;
   });
 
   const groupedOrders = useMemo(() => {
@@ -342,7 +347,7 @@ const AllOrders = () => {
             <span className="text-xs font-black uppercase tracking-widest hidden sm:inline">Filters</span>
           </button>
 
-          <div className="flex theme-bg border theme-border rounded-xl p-1">
+           <div className="flex theme-bg border theme-border rounded-xl p-1">
             <button
               onClick={() => setIsGroupedView(false)}
               className={`p-2 rounded-lg transition-all ${!isGroupedView ? 'bg-blue-600 text-white shadow-lg' : 'theme-text-muted hover:text-white'}`}
@@ -358,6 +363,14 @@ const AllOrders = () => {
               <Users size={18} />
             </button>
           </div>
+
+          <button
+            onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+            className={`p-3 rounded-xl border transition-all flex items-center gap-2 ${sortOrder === 'asc' ? 'bg-amber-600/20 border-amber-500/30 text-amber-400' : 'theme-bg-subtle theme-border theme-text-secondary hover:bg-gray-800 hover:text-white'}`}
+            title={sortOrder === 'asc' ? 'Sort: Ascending (oldest first)' : 'Sort: Descending (newest first)'}
+          >
+            <span className="text-xs font-black uppercase tracking-widest"># {sortOrder === 'asc' ? '↑' : '↓'}</span>
+          </button>
         </div>
 
           {showFilters && (
@@ -410,6 +423,16 @@ const AllOrders = () => {
                   className={`w-10 h-5 rounded-full transition-all relative ${filterUrgent ? 'bg-blue-600' : 'bg-gray-800'}`}
                 >
                   <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${filterUrgent ? 'right-1' : 'left-1'}`} />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between p-4 theme-bg border theme-border rounded-xl">
+                <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Sort Order</span>
+                <button 
+                  onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                  className={`px-3 py-1 rounded-lg text-xs font-black uppercase transition-all ${sortOrder === 'asc' ? 'bg-amber-600/20 text-amber-400 border border-amber-500/30' : 'bg-blue-600/20 text-blue-400 border border-blue-500/30'}`}
+                >
+                  #{sortOrder === 'asc' ? ' ↑ Asc' : ' ↓ Desc'}
                 </button>
               </div>
 
@@ -616,30 +639,9 @@ const AllOrders = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center space-x-2">
-                        <span className={`bg-gray-800 px-2 py-1 rounded-md text-xs md:text-sm font-black border border-gray-700 uppercase tracking-wider ${isWaitingApproval ? 'text-yellow-400 border-yellow-400/30' : 'text-gray-300'}`}>
-                          {isWaitingApproval ? `WAITING: ${order.currentStage.replace(/_/g, ' ')}` : order.currentStage.replace(/_/g, ' ')}
-                        </span>
-                        
-                        <div className="w-24 h-2 bg-gray-800 rounded-full mt-2 overflow-hidden border border-gray-700/50 shadow-inner">
-                          <motion.div 
-                            initial={{ width: 0 }}
-                            animate={{ 
-                              width: (() => {
-const pipelines = {
-  'STANDARD': ['ORDER_ENTRY', 'STORE', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-  'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-  'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY']
-};
-const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
-                                const progress = ((currentPipeline.indexOf(order.currentStage) + 1) / currentPipeline.length) * 100;
-                                return `${Math.max(5, progress)}%`;
-                              })()
-                            }}
-                            className="h-full bg-gradient-to-r from-blue-500 to-emerald-400 shadow-[0_0_12px_#3b82f666] transition-all duration-1000"
-                          />
-                        </div>
-                      </div>
+                      <span className={`bg-gray-800 px-2 py-1 rounded-md text-xs md:text-sm font-black border border-gray-700 uppercase tracking-wider ${isWaitingApproval ? 'text-yellow-400 border-yellow-400/30' : 'text-gray-300'}`}>
+                        {isWaitingApproval ? `WAITING: ${order.currentStage.replace(/_/g, ' ')}` : order.currentStage.replace(/_/g, ' ')}
+                      </span>
                     </td>
                     <td className="px-6 py-4">
                       {order.priority === 'SUPER_URGENT' ? (
@@ -1103,75 +1105,57 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
 
                 {selectedOrder.type === 'FULL_CUSTOM' && (
                 <section>
-                   <div className="flex justify-between items-center mb-6">
-                      <h4 className="text-xs md:text-sm font-black text-blue-500 uppercase tracking-[0.3em]">05. Production Timeline</h4>
-                      <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest bg-gray-950 px-3 py-1 rounded-full border border-gray-800">
-                        Total Workflow: {
-                          (() => {
-                            const pipelines = {
-                              'STANDARD': ['ORDER_ENTRY', 'STORE', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-                              'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-                              'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY']
-                            };
-                            return pipelines[selectedOrder.type]?.length || 8;
-                          })()
-                        } Steps
-                      </span>
-                   </div>
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {(() => {
-                        const pipelines = {
-                          'STANDARD': ['ORDER_ENTRY', 'STORE', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-                          'READY_LOGO': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'],
-                          'FULL_CUSTOM': ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY']
-                        };
-                        const currentPipeline = pipelines[selectedOrder.type] || pipelines['STANDARD'];
-                        
-                        // Count how many times order came to Faisal (WAITING_APPROVAL stages)
-                        const faisalApprovals = selectedOrder.stages?.filter(s => s.status === 'COMPLETED' || s.status === 'WAITING_APPROVAL').length || 0;
-                        
-                        return currentPipeline.map((stageName, i) => {
-                          const stageData = selectedOrder.stages?.find(s => s.stageName === stageName);
-                          const isCompleted = stageData?.status === 'COMPLETED';
-                          const isCurrent = selectedOrder.currentStage === stageName;
-                          const isOrderEntry = stageName === 'ORDER_ENTRY';
-                          
-                          // For ORDER_ENTRY, show the order creation time
-                          const displayTime = isCompleted ? (
-                            new Date(stageData.completedAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })
-                          ) : isOrderEntry ? (
-                            `Created: ${new Date(selectedOrder.createdAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}`
-                          ) : stageData?.deadlineAt ? (
-                            `Target: ${new Date(stageData.deadlineAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}`
-                          ) : 'TBD';
-                          
-                          return (
-                            <div key={stageName} className={`p-4 rounded-2xl border transition-all flex items-center justify-between gap-4 ${
-                              isCompleted ? 'bg-emerald-500/5 border-emerald-500/20 opacity-60' : 
-                              isCurrent ? 'bg-blue-600/10 border-blue-500 animate-pulse' : 
-                              'theme-bg theme-border'
-                            }`}>
-                              <div className="flex items-center gap-3">
-                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs md:text-sm font-black ${
-                                  isCompleted ? 'bg-emerald-500 text-white' : 
-                                  isCurrent ? 'bg-blue-500 text-white' : 
-                                  'bg-gray-800 theme-text-muted'
-                                }`}>
-                                  {i + 1}
-                                </div>
-                                <span className={`text-xs md:text-sm font-black uppercase tracking-widest ${isCompleted ? 'text-emerald-400' : isCurrent ? 'text-blue-400' : 'theme-text-muted'}`}>
-                                  {stageName.replace(/_/g, ' ')}
-                                </span>
-                              </div>
-                              <span className={`text-xs md:text-sm font-bold font-mono whitespace-nowrap ${isCompleted ? 'text-emerald-600' : isOrderEntry ? 'theme-text-secondary' : 'theme-text-muted'}`}>
-                                {displayTime}
-                              </span>
-                            </div>
-                          );
-                        });
-                      })()}
-                   </div>
-                   
+                    <div className="flex justify-between items-center mb-6">
+                       <h4 className="text-xs md:text-sm font-black text-blue-500 uppercase tracking-[0.3em]">05. Production Timeline</h4>
+                       <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest bg-gray-950 px-3 py-1 rounded-full border border-gray-800">
+                         {selectedOrder.stages?.length || 0} Stages
+                       </span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                       {(() => {
+                         const stages = [...(selectedOrder.stages || [])]
+                           .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0))
+                           .map((stageData, i) => {
+                           const isCompleted = stageData.status === 'COMPLETED';
+                           const isCurrent = selectedOrder.currentStage === stageData.stageName;
+                           const isOrderEntry = stageData.stageName === 'ORDER_ENTRY';
+                           
+                           const displayTime = isCompleted ? (
+                             new Date(stageData.completedAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })
+                           ) : isOrderEntry ? (
+                             `Created: ${new Date(selectedOrder.createdAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}`
+                           ) : stageData.deadlineAt ? (
+                             `Target: ${new Date(stageData.deadlineAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}`
+                           ) : '-';
+                           
+                           return (
+                             <div key={stageData.id || i} className={`p-4 rounded-2xl border transition-all flex items-center justify-between gap-4 ${
+                               isCompleted ? 'bg-emerald-500/5 border-emerald-500/20 opacity-60' : 
+                               isCurrent ? 'bg-blue-600/10 border-blue-500 animate-pulse' : 
+                               'theme-bg theme-border'
+                             }`}>
+                               <div className="flex items-center gap-3">
+                                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs md:text-sm font-black ${
+                                   isCompleted ? 'bg-emerald-500 text-white' : 
+                                   isCurrent ? 'bg-blue-500 text-white' : 
+                                   'bg-gray-800 theme-text-muted'
+                                 }`}>
+                                   {i + 1}
+                                 </div>
+                                 <span className={`text-xs md:text-sm font-black uppercase tracking-widest ${isCompleted ? 'text-emerald-400' : isCurrent ? 'text-blue-400' : 'theme-text-muted'}`}>
+                                   {stageData.stageName.replace(/_/g, ' ')}
+                                 </span>
+                               </div>
+                               <span className={`text-xs md:text-sm font-bold font-mono whitespace-nowrap ${isCompleted ? 'text-emerald-600' : isOrderEntry ? 'theme-text-secondary' : 'theme-text-muted'}`}>
+                                 {displayTime}
+                               </span>
+                             </div>
+                           );
+                         });
+                         return stages.length > 0 ? stages : <p className="text-gray-500 text-sm">No stages recorded</p>;
+                       })()}
+                    </div>
+                    
 
                  </section>
                 )}
