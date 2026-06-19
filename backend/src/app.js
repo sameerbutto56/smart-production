@@ -58,6 +58,7 @@ const dispatchRoutes = require('./routes/dispatch.routes');
 const editRequestRoutes = require('./routes/editRequest.routes');
 const productionRoutes = require('./routes/production.routes');
 const analyticsRoutes = require('./routes/analytics.routes');
+const outletDemandRoutes = require('./routes/outletDemand.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
@@ -70,6 +71,7 @@ app.use('/api/dispatch', dispatchRoutes);
 app.use('/api/edit-requests', editRequestRoutes);
 app.use('/api/production', productionRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/demand', outletDemandRoutes);
 
 // Safe Socket.io stub for serverless environments (overridden in server.js)
 const safeIo = {

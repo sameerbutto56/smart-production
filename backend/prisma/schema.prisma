@@ -242,11 +242,16 @@ model Allocation {
   quantity  Int
   notes     String?
   itemId    String?
+  allocatedById String?
+  allocatedByName String?
+  status    String   @default("ACTIVE")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([personName])
   @@index([createdAt])
+  @@index([status])
+  @@index([allocatedById])
 }
 
 model OrderEditRequest {
@@ -363,4 +368,23 @@ model RoutingHistory {
   @@index([sentToStage])
   @@index([newStage])
   @@index([previousStage, newStage])
+}
+
+model OutletDemandRequest {
+  id              String    @id @default(uuid())
+  outletId        String
+  outletName      String
+  status          String    @default("PENDING")
+  items           Json
+  notes           String?
+  storeNotes      String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  approvedAt      DateTime?
+  approvedById    String?
+
+  @@index([outletId])
+  @@index([status])
+  @@index([outletName])
+  @@index([createdAt])
 }

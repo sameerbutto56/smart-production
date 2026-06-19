@@ -264,7 +264,10 @@ const allocateInventory = async (req, res) => {
           size: allocSize,
           quantity: deductQty,
           notes: notes || '',
-          itemId: item.id
+          itemId: item.id,
+          allocatedById: req.user?.id || null,
+          allocatedByName: req.user?.name || null,
+          status: 'ACTIVE'
         }
       });
       allocations.push(allocation);
@@ -274,6 +277,7 @@ const allocateInventory = async (req, res) => {
           orderId: null,
           action: 'INVENTORY_ALLOCATED',
           details: `Allocated ${deductQty}x ${item.name}${variantLabel ? ' (' + variantLabel + ')' : ''} to ${personName.trim()}`,
+          performedBy: req.user?.id || 'system',
           userId: req.user?.id || null
         }
       });
@@ -318,7 +322,19 @@ const getAllocationStats = async (req, res) => {
       timesTaken: s._count.id,
       lastTaken: s._max.createdAt
     })).sort((a, b) => b.timesTaken - a.timesTaken);
-    res.json(result);
+
+    const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+    const todayTotal = await prisma.allocation.count({ where: { createdAt: { gte: todayStart } } });
+    const activeTotal = await prisma.allocation.count({ where: { status: 'ACTIVE' } });
+    const totalAllQty = await prisma.allocation.aggregate({ _sum: { quantity: true } });
+
+    // Recent 5 allocations
+    const recent = await prisma.allocation.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 5
+    });
+
+    res.json({ perPerson: result, todayTotal, activeTotal, totalAllocated: totalAllQty._sum.quantity || 0, recent });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching allocation stats', error: error.message });
   }
@@ -341,4 +357,22 @@ const searchInventory = async (req, res) => {
   }
 };
 
-module.exports = { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem, clearAllInventory, bulkUploadInventory, allocateInventory, getAllocations, getAllocationStats, searchInventory };
+const updateAllocationStatus = async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  const validStatuses = ['ACTIVE', 'USED', 'COMPLETED'];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ message: `Status must be one of: ${validStatuses.join(', ')}` });
+  }
+  try {
+    const allocation = await prisma.allocation.update({
+      where: { id },
+      data: { status }
+    });
+    res.json(allocation);
+  } catch (error) {
+    res.status(500).json({ message: 'Error updating allocation status', error: error.message });
+  }
+};
+
+module.exports = { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem, clearAllInventory, bulkUploadInventory, allocateInventory, getAllocations, getAllocationStats, searchInventory, updateAllocationStatus };

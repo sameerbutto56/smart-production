@@ -17,7 +17,7 @@ import { usePolling } from '../hooks/usePolling';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
-const TABS = ['dashboard', 'tasks', 'requests', 'inventory', 'production', 'analytics', 'history', 'allocation'];
+const TABS = ['dashboard', 'tasks', 'requests', 'inventory', 'production', 'analytics', 'history', 'allocation', 'demands'];
 const COLORS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899'];
 const CATEGORIES = ['CAPS', 'SHIRTS', 'JACKETS', 'PANTS', 'ACCESSORIES', 'GENERAL'];
 
@@ -56,13 +56,23 @@ const WarehouseDashboard = () => {
   const [routeDestination, setRouteDestination] = useState('LOGO_DESIGN');
   const [routeRemarks, setRouteRemarks] = useState('');
   const [routeLoading, setRouteLoading] = useState(false);
+  const [demandRequests, setDemandRequests] = useState([]);
+  const [demandStats, setDemandStats] = useState({ pending: 0, approved: 0, partiallyApproved: 0, rejected: 0, total: 0 });
+  const [demandLoading, setDemandLoading] = useState(false);
+  const [demandSearch, setDemandSearch] = useState('');
+  const [demandFilter, setDemandFilter] = useState('');
+  const [demandApproveModal, setDemandApproveModal] = useState(null);
+  const [demandApproveItems, setDemandApproveItems] = useState([]);
 
   useEffect(() => {
     if (activeTab === 'allocation') {
       fetchAllocations();
       fetchAllocationStats();
     }
-  }, [activeTab, allocPage]);
+    if (activeTab === 'demands') {
+      fetchDemands();
+    }
+  }, [activeTab, allocPage, demandFilter]);
 
   useEffect(() => {
     fetchData();
@@ -118,13 +128,70 @@ const WarehouseDashboard = () => {
     setAllocLoading(false);
   };
 
+  const [allocSummary, setAllocSummary] = useState({ todayTotal: 0, activeTotal: 0, totalAllocated: 0, recent: [] });
+
   const fetchAllocationStats = async () => {
     try {
       const token = sessionStorage.getItem('token');
       const res = await axios.get(`${API_URL}/api/inventory/allocations/stats`, { headers: { Authorization: `Bearer ${token}` } });
-      setAllocationStats(res.data);
+      const data = res.data;
+      // New format: { perPerson: [...], todayTotal, activeTotal, totalAllocated, recent }
+      if (data.perPerson) {
+        setAllocationStats(data.perPerson);
+        setAllocSummary({ todayTotal: data.todayTotal || 0, activeTotal: data.activeTotal || 0, totalAllocated: data.totalAllocated || 0, recent: data.recent || [] });
+      } else {
+        // Legacy format: array of person stats
+        setAllocationStats(data);
+        setAllocSummary({ todayTotal: 0, activeTotal: 0, totalAllocated: 0, recent: [] });
+      }
     } catch (error) {
       console.error('Error fetching allocation stats:', error);
+    }
+  };
+
+  const updateAllocationStatus = async (id, status) => {
+    try {
+      const token = sessionStorage.getItem('token');
+      await axios.patch(`${API_URL}/api/inventory/allocations/${id}/status`, { status }, { headers: { Authorization: `Bearer ${token}` } });
+      toast.success(`Allocation marked as ${status}`);
+      fetchAllocations();
+      fetchAllocationStats();
+    } catch (error) {
+      toast.error('Failed to update allocation status');
+    }
+  };
+
+  const fetchDemands = async () => {
+    setDemandLoading(true);
+    try {
+      const token = sessionStorage.getItem('token');
+      const params = {};
+      if (demandFilter) params.status = demandFilter;
+      if (demandSearch.trim()) params.outletName = demandSearch.trim();
+      const [allRes, statsRes] = await Promise.allSettled([
+        axios.get(`${API_URL}/api/demand/all`, { params, headers: { Authorization: `Bearer ${token}` } }),
+        axios.get(`${API_URL}/api/demand/stats`, { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+      if (allRes.status === 'fulfilled') setDemandRequests(allRes.value.data);
+      if (statsRes.status === 'fulfilled') setDemandStats(statsRes.value.data);
+    } catch (error) {
+      console.error('Error fetching demands:', error);
+    }
+    setDemandLoading(false);
+  };
+
+  const handleDemandApprove = async (id, status, items) => {
+    try {
+      const token = sessionStorage.getItem('token');
+      await axios.put(`${API_URL}/api/demand/${id}/approve`,
+        { status, items, storeNotes: '' },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      toast.success(`Demand request ${status.toLowerCase()}`);
+      setDemandApproveModal(null);
+      fetchDemands();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to update demand');
     }
   };
 
@@ -427,6 +494,7 @@ const WarehouseDashboard = () => {
                 {tab === 'analytics' && <><TrendingUp size={14} className="inline mr-2" />Analytics</>}
                 {tab === 'history' && <><Clock size={14} className="inline mr-2" />History</>}
                 {tab === 'allocation' && <><Gift size={14} className="inline mr-2" />Allocation</>}
+                {tab === 'demands' && <><ShoppingCart size={14} className="inline mr-2" />Demands {demandStats.pending > 0 && <span className="ml-1 bg-red-500 text-white text-xs md:text-sm px-1.5 py-0.5 rounded-full">{demandStats.pending}</span>}</>}
           </button>
         ))}
       </div>
@@ -1518,7 +1586,27 @@ const WarehouseDashboard = () => {
                 </div>
               )}
 
-              {/* Allocation History */}
+              {/* Summary Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="glass p-4 rounded-xl border-2 border-gray-900">
+                  <p className="text-xs font-black theme-text-muted uppercase tracking-widest">Today</p>
+                  <p className="text-2xl font-black text-blue-400 mt-1">{allocSummary.todayTotal}</p>
+                </div>
+                <div className="glass p-4 rounded-xl border-2 border-gray-900">
+                  <p className="text-xs font-black theme-text-muted uppercase tracking-widest">Active</p>
+                  <p className="text-2xl font-black text-amber-400 mt-1">{allocSummary.activeTotal}</p>
+                </div>
+                <div className="glass p-4 rounded-xl border-2 border-gray-900">
+                  <p className="text-xs font-black theme-text-muted uppercase tracking-widest">Total Allocated</p>
+                  <p className="text-2xl font-black text-emerald-400 mt-1">{allocSummary.totalAllocated}</p>
+                </div>
+                <div className="glass p-4 rounded-xl border-2 border-gray-900">
+                  <p className="text-xs font-black theme-text-muted uppercase tracking-widest">Records</p>
+                  <p className="text-2xl font-black text-purple-400 mt-1">{allocTotal}</p>
+                </div>
+              </div>
+
+              {/* Allocation History Cards */}
               <div className="glass p-4 md:p-8 rounded-xl md:rounded-[2.5rem] border-2 theme-border">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                   <h3 className="font-black theme-text-primary uppercase tracking-wider text-sm flex items-center space-x-3">
@@ -1545,31 +1633,61 @@ const WarehouseDashboard = () => {
                   </div>
                 ) : (
                   <>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left">
-                        <thead>
-                        <tr className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest border-b theme-border">
-                            <th className="pb-3 pr-4">Person</th>
-                            <th className="pb-3 pr-4">Item</th>
-                            <th className="pb-3 pr-4">Variant</th>
-                            <th className="pb-3 pr-4">Qty</th>
-                            <th className="pb-3 pr-4">Notes</th>
-                            <th className="pb-3">Date & Time</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {allocationRecords.map(rec => (
-                            <tr key={rec.id} className="border-b border-gray-800/50 text-sm hover:bg-gray-900/30">
-                              <td className="py-3 pr-4 font-bold theme-text-primary">{rec.personName}</td>
-                              <td className="py-3 pr-4 theme-text-secondary">{rec.itemName}</td>
-                              <td className="py-3 pr-4 theme-text-secondary text-xs">{[rec.color, rec.size].filter(Boolean).join(' / ') || '-'}</td>
-                              <td className="py-3 pr-4"><span className="font-black text-amber-400">{rec.quantity}</span></td>
-                              <td className="py-3 pr-4 theme-text-muted text-xs max-w-[120px] truncate">{rec.notes || '-'}</td>
-                              <td className="py-3 text-xs theme-text-secondary">{new Date(rec.createdAt).toLocaleString()}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {allocationRecords.map(rec => {
+                        const statusColors = {
+                          ACTIVE: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+                          USED: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+                          COMPLETED: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                        };
+                        const sc = statusColors[rec.status] || 'bg-gray-500/20 text-gray-400 border-gray-500/30';
+                        return (
+                          <motion.div key={rec.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                            className="glass p-4 rounded-xl border-2 border-gray-900 hover:border-gray-700 transition-all">
+                            <div className="flex items-start justify-between mb-2">
+                              <div>
+                                <p className="font-black theme-text-primary text-sm">{rec.personName}</p>
+                                <p className="text-xs theme-text-muted font-bold">{rec.itemName}</p>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase border ${sc}`}>
+                                  {rec.status || 'ACTIVE'}
+                                </span>
+                                <span className="text-lg font-black text-amber-400">{rec.quantity}</span>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs theme-text-secondary">
+                              {rec.color && <span>Color: <span className="font-bold">{rec.color}</span></span>}
+                              {rec.size && <span>Size: <span className="font-bold">{rec.size}</span></span>}
+                            </div>
+                            {rec.notes && <p className="text-xs theme-text-muted mt-1 italic">{rec.notes}</p>}
+                            <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-800/50">
+                              <p className="text-[10px] theme-text-muted">{new Date(rec.createdAt).toLocaleString()}</p>
+                              <div className="flex space-x-1">
+                                {rec.allocatedByName && <p className="text-[10px] theme-text-muted">by {rec.allocatedByName}</p>}
+                                {rec.status === 'ACTIVE' && (
+                                  <>
+                                    <button onClick={() => updateAllocationStatus(rec.id, 'USED')}
+                                      className="px-2 py-1 bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white rounded-lg text-[10px] font-black transition-all">
+                                      Used
+                                    </button>
+                                    <button onClick={() => updateAllocationStatus(rec.id, 'COMPLETED')}
+                                      className="px-2 py-1 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-lg text-[10px] font-black transition-all">
+                                      Complete
+                                    </button>
+                                  </>
+                                )}
+                                {rec.status === 'USED' && (
+                                  <button onClick={() => updateAllocationStatus(rec.id, 'COMPLETED')}
+                                    className="px-2 py-1 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-lg text-[10px] font-black transition-all">
+                                    Complete
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
                     </div>
                     <div className="flex items-center justify-between mt-6">
                       <p className="text-xs theme-text-muted font-bold">{allocTotal} total records</p>
@@ -1587,6 +1705,166 @@ const WarehouseDashboard = () => {
                   </>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Demands Tab */}
+          {activeTab === 'demands' && (
+            <div className="space-y-4 md:space-y-8">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <h2 className="font-black theme-text-primary uppercase tracking-wider text-lg flex items-center space-x-3">
+                  <ShoppingCart size={20} className="text-amber-400" />
+                  <span>Outlet Demand Requests</span>
+                </h2>
+                <div className="flex items-center space-x-3">
+                  <input type="text" placeholder="Search by outlet..." value={demandSearch}
+                    onChange={(e) => setDemandSearch(e.target.value)}
+                    className="theme-input rounded-xl py-2 px-4 text-xs font-medium w-44"
+                  />
+                  <select value={demandFilter} onChange={(e) => setDemandFilter(e.target.value)}
+                    className="theme-bg-subtle border-2 theme-border rounded-xl py-2 px-3 text-xs font-medium text-white outline-none">
+                    <option value="">All Status</option>
+                    <option value="PENDING">Pending</option>
+                    <option value="APPROVED">Approved</option>
+                    <option value="PARTIALLY_APPROVED">Partially Approved</option>
+                    <option value="REJECTED">Rejected</option>
+                  </select>
+                  <button onClick={() => { setDemandSearch(''); setDemandFilter(''); fetchDemands(); }}
+                    className="bg-gray-800 hover:bg-gray-700 text-gray-300 font-black py-2 px-4 rounded-xl text-xs border border-gray-700">
+                    <RefreshCcw size={14} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Stats Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div className="glass p-4 rounded-xl border-2 border-gray-900">
+                  <p className="text-2xl font-black theme-text-primary">{demandStats.total}</p>
+                  <p className="text-[10px] font-black theme-text-muted uppercase tracking-widest">Total</p>
+                </div>
+                <div className="glass p-4 rounded-xl border-2 border-gray-900">
+                  <p className="text-2xl font-black text-yellow-400">{demandStats.pending}</p>
+                  <p className="text-[10px] font-black theme-text-muted uppercase tracking-widest">Pending</p>
+                </div>
+                <div className="glass p-4 rounded-xl border-2 border-gray-900">
+                  <p className="text-2xl font-black text-emerald-400">{demandStats.approved}</p>
+                  <p className="text-[10px] font-black theme-text-muted uppercase tracking-widest">Approved</p>
+                </div>
+                <div className="glass p-4 rounded-xl border-2 border-gray-900">
+                  <p className="text-2xl font-black text-blue-400">{demandStats.partiallyApproved}</p>
+                  <p className="text-[10px] font-black theme-text-muted uppercase tracking-widest">Partial</p>
+                </div>
+                <div className="glass p-4 rounded-xl border-2 border-gray-900">
+                  <p className="text-2xl font-black text-red-400">{demandStats.rejected}</p>
+                  <p className="text-[10px] font-black theme-text-muted uppercase tracking-widest">Rejected</p>
+                </div>
+              </div>
+
+              {/* Demand Request Cards */}
+              {demandLoading ? (
+                <div className="py-12 flex justify-center"><RefreshCcw className="animate-spin text-blue-400" size={32} /></div>
+              ) : demandRequests.length === 0 ? (
+                <div className="text-center py-16">
+                  <ShoppingCart size={48} className="mx-auto text-gray-700 mb-4" />
+                  <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No demand requests</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-3">
+                  {demandRequests.map((req, i) => {
+                    const items = typeof req.items === 'string' ? JSON.parse(req.items) : req.items;
+                    const totalReq = items.reduce((s, it) => s + (it.requestedQty || 0), 0);
+                    const totalApp = items.reduce((s, it) => s + (it.approvedQty || 0), 0);
+                    const isPending = req.status === 'PENDING';
+                    return (
+                      <motion.div key={req.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                        className="glass p-4 md:p-6 rounded-xl md:rounded-2xl border-2 theme-border hover:border-amber-500/30 transition-all">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+                          <div className="flex items-center space-x-4">
+                            <div className={`p-3 rounded-xl ${isPending ? 'bg-yellow-500/10 text-yellow-400' : req.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-400' : req.status === 'REJECTED' ? 'bg-red-500/10 text-red-400' : 'bg-blue-500/10 text-blue-400'}`}>
+                              {isPending ? <Clock size={18} /> : req.status === 'REJECTED' ? <XCircle size={18} /> : <CheckCircle2 size={18} />}
+                            </div>
+                            <div>
+                              <p className="font-black theme-text-primary">{req.outletName}</p>
+                              <p className="text-xs theme-text-muted font-bold">{new Date(req.createdAt).toLocaleString()}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-4">
+                            <div className="text-right">
+                              <p className="text-xs theme-text-muted font-bold">Requested: <span className="text-white font-black">{totalReq}</span></p>
+                              <p className="text-xs font-bold text-emerald-400">Approved: {totalApp}</p>
+                            </div>
+                            <span className={`px-3 py-1 rounded-full text-xs font-black uppercase border ${
+                              req.status === 'PENDING' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' :
+                              req.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                              req.status === 'REJECTED' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                              'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                            }`}>{req.status.replace('_', ' ')}</span>
+                          </div>
+                        </div>
+
+                        {/* Items Table */}
+                        <div className="overflow-x-auto mb-3">
+                          <table className="w-full text-left text-xs">
+                            <thead>
+                              <tr className="text-[10px] font-black theme-text-muted uppercase tracking-widest border-b theme-border">
+                                <th className="pb-2 pr-3">Product</th>
+                                <th className="pb-2 pr-3">Size</th>
+                                <th className="pb-2 pr-3">Color</th>
+                                <th className="pb-2 pr-3 text-center">Requested</th>
+                                <th className="pb-2 text-center">Approved</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {items.map((it, ii) => (
+                                <tr key={ii} className="border-b border-gray-800/30">
+                                  <td className="py-2 pr-3 font-bold theme-text-primary">{it.productName}</td>
+                                  <td className="py-2 pr-3 theme-text-secondary">{it.size || '-'}</td>
+                                  <td className="py-2 pr-3 theme-text-secondary">{it.color || '-'}</td>
+                                  <td className="py-2 pr-3 text-center font-bold text-white">{it.requestedQty}</td>
+                                  <td className="py-2 text-center font-bold text-emerald-400">{it.approvedQty || 0}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Actions */}
+                        {isPending && (
+                          <div className="flex justify-end space-x-3 mt-3 pt-3 border-t theme-border">
+                            <button onClick={() => {
+                              setDemandApproveItems(items.map(it => ({ ...it, approvedQty: it.approvedQty || it.requestedQty })));
+                              setDemandApproveModal({ type: 'approve', request: req });
+                            }}
+                              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl transition-all flex items-center space-x-2">
+                              <CheckCircle2 size={14} />
+                              <span>Approve</span>
+                            </button>
+                            <button onClick={() => {
+                              setDemandApproveItems(items.map(it => ({ ...it, approvedQty: it.approvedQty || 0 })));
+                              setDemandApproveModal({ type: 'partial', request: req });
+                            }}
+                              className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs rounded-xl transition-all flex items-center space-x-2">
+                              <AlertTriangle size={14} />
+                              <span>Partial</span>
+                            </button>
+                            <button onClick={() => handleDemandApprove(req.id, 'REJECTED', items)}
+                              className="px-5 py-2 bg-red-600/80 hover:bg-red-600 text-white font-black text-xs rounded-xl transition-all flex items-center space-x-2">
+                              <XCircle size={14} />
+                              <span>Reject</span>
+                            </button>
+                          </div>
+                        )}
+                        {!isPending && req.storeNotes && (
+                          <div className="mt-3 p-3 theme-bg-subtle rounded-xl border theme-border">
+                            <p className="text-[10px] font-black theme-text-muted uppercase tracking-wider">Store Notes</p>
+                            <p className="text-xs theme-text-primary font-medium mt-0.5">{req.storeNotes}</p>
+                          </div>
+                        )}
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </>
@@ -1702,6 +1980,74 @@ const WarehouseDashboard = () => {
                     className="flex-1 py-3 bg-red-600 text-white rounded-xl font-black text-xs uppercase tracking-wider hover:bg-red-500 transition-all flex items-center justify-center space-x-2">
                     <XCircle size={16} />
                     <span>Reject</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Demand Approve Modal */}
+      <AnimatePresence>
+        {demandApproveModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md" onClick={() => setDemandApproveModal(null)}>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
+              onClick={(e) => e.stopPropagation()}
+              className="glass max-w-2xl w-full max-h-[90vh] overflow-y-auto p-4 md:p-8 rounded-xl md:rounded-[2rem] border-2 theme-border shadow-[0_50px_100px_rgba(0,0,0,0.5)]">
+              <h2 className="text-xl font-black theme-text-primary mb-1">
+                {demandApproveModal.type === 'approve' ? 'Approve Demand' : 'Partially Approve'}
+              </h2>
+              <p className="theme-text-secondary text-xs font-bold mb-6">
+                #{demandApproveModal.request.outletName} — {demandApproveModal.request.id.slice(0, 8)}
+              </p>
+              <div className="space-y-4">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="text-xs font-black theme-text-muted uppercase tracking-widest border-b theme-border">
+                        <th className="pb-3 pr-3">Product</th>
+                        <th className="pb-3 pr-3">Size</th>
+                        <th className="pb-3 pr-3">Color</th>
+                        <th className="pb-3 pr-3 text-center">Requested</th>
+                        <th className="pb-3 text-center">Approved</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {demandApproveItems.map((it, ii) => (
+                        <tr key={ii} className="border-b border-gray-800/30">
+                          <td className="py-3 pr-3 font-bold theme-text-primary text-sm">{it.productName}</td>
+                          <td className="py-3 pr-3 theme-text-secondary text-xs">{it.size || '-'}</td>
+                          <td className="py-3 pr-3 theme-text-secondary text-xs">{it.color || '-'}</td>
+                          <td className="py-3 pr-3 text-center font-black text-white">{it.requestedQty}</td>
+                          <td className="py-3 text-center">
+                            <input type="number" min="0" max={it.requestedQty} value={it.approvedQty}
+                              onChange={(e) => {
+                                const newItems = [...demandApproveItems];
+                                newItems[ii] = { ...newItems[ii], approvedQty: Math.min(parseInt(e.target.value) || 0, it.requestedQty) };
+                                setDemandApproveItems(newItems);
+                              }}
+                              className="w-16 theme-bg-subtle border-2 theme-border rounded-lg py-1.5 px-2 text-sm font-black text-white text-center outline-none focus:border-amber-500" />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex justify-end space-x-3 pt-2">
+                  <button onClick={() => setDemandApproveModal(null)}
+                    className="px-6 py-3 bg-gray-800 text-gray-400 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-gray-700 transition-all">
+                    Cancel
+                  </button>
+                  <button onClick={() => {
+                    const allApproved = demandApproveItems.every(it => it.approvedQty >= it.requestedQty);
+                    const someApproved = demandApproveItems.some(it => it.approvedQty > 0);
+                    const status = allApproved ? 'APPROVED' : someApproved ? 'PARTIALLY_APPROVED' : 'REJECTED';
+                    handleDemandApprove(demandApproveModal.request.id, status, demandApproveItems);
+                  }}
+                    className="px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center space-x-2">
+                    <CheckCircle2 size={16} />
+                    <span>Confirm</span>
                   </button>
                 </div>
               </div>
