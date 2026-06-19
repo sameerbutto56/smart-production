@@ -824,19 +824,19 @@ const approveStageCompletion = async (req, res) => {
     }
 
     if (actualNextStage) {
-      const durations = await getStageDurations(order.priority);
-      const duration = durations[actualNextStage] || 24;
-      const deadline = calculateDeadline(new Date(), duration);
-
-      await prisma.orderStage.create({
-        data: {
-          orderId,
-          stageName: actualNextStage,
-          status: 'PENDING',
-          deadlineAt: deadline
-        }
+      // Prevent duplicate stage creation if requestStageCompletion already created it
+      const existingStage = await prisma.orderStage.findFirst({
+        where: { orderId, stageName: actualNextStage, status: 'PENDING' }
       });
-      await checkAndSetProductionDeadline(orderId, actualNextStage, deadline, req.user.id);
+      if (!existingStage) {
+        const durations = await getStageDurations(order.priority);
+        const duration = durations[actualNextStage] || 24;
+        const deadline = calculateDeadline(new Date(), duration);
+        await prisma.orderStage.create({
+          data: { orderId, stageName: actualNextStage, status: 'PENDING', deadlineAt: deadline }
+        });
+        await checkAndSetProductionDeadline(orderId, actualNextStage, deadline, req.user.id);
+      }
 
       await prisma.order.update({
         where: { id: orderId },
@@ -2903,10 +2903,13 @@ const storeRouteOrder = async (req, res) => {
       include: { stages: true }
     });
     if (!order) return res.status(404).json({ message: 'Order not found' });
-    if (order.currentStage !== 'STORE') return res.status(400).json({ message: 'Order is not in STORE stage' });
+    if (!['STORE', 'STORE_RECEIVE'].includes(order.currentStage)) return res.status(400).json({ message: 'Order must be in STORE or STORE_RECEIVE stage' });
 
-    const storeStage = order.stages.find(s => s.stageName === 'STORE' && s.status === 'IN_PROGRESS');
-    if (!storeStage || !storeStage.startedAt) {
+    const storeStage = order.stages.find(s =>
+      ['STORE', 'STORE_RECEIVE'].includes(s.stageName) &&
+      (s.status === 'IN_PROGRESS' || (s.stageName === 'STORE_RECEIVE' && s.status === 'PENDING'))
+    );
+    if (!storeStage) {
       return res.status(400).json({ message: 'Order must be accepted before routing' });
     }
 
@@ -2949,8 +2952,8 @@ const storeRouteOrder = async (req, res) => {
       data: {
         orderId, sentByUserId: req.user.id, sentToStage: destinationStage,
         sentToUserIds: JSON.stringify(recipientUsers.map(u => u.id)),
-        previousStage: 'STORE', newStage: destinationStage,
-        remarks: remarks || `Routed from Store by ${req.user.name}`,
+        previousStage: storeStage.stageName, newStage: destinationStage,
+        remarks: remarks || `Routed from ${storeStage.stageName} by ${req.user.name}`,
         createdAt: new Date()
       }
     });
