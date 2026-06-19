@@ -1857,27 +1857,6 @@ const SmartOrderForm = () => {
                         );
                       })()}
                     </div>
-                    <div className="space-y-4">
-                      <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'کل رقم (Inventory Auto-Calculated)' : 'Order Amount (Auto-Calculated)'}</label>
-                    <div className="relative group">
-                      <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-500`}>
-                        <span className="font-black text-xs">₨</span>
-                      </div>
-                      <input
-                        type="number"
-                        onKeyDown={preventEnterSubmit}
-                        value={formData.totalPrice || (computedTotalPrice > 0 ? computedTotalPrice : '')}
-                        onChange={(e) => setFormData({...formData, totalPrice: e.target.value})}
-                        className={`w-full theme-input rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all text-xl font-bold`}
-                        placeholder={computedUnitPrice > 0 ? `₨${computedUnitPrice} x ${formData.quantity || 1} = ₨${computedTotalPrice.toLocaleString()}` : "e.g. 2650"}
-                      />
-                    </div>
-                    {computedUnitPrice > 0 && (
-                      <p className={`text-xs md:text-sm font-bold text-emerald-400/80 ${useUrdu ? 'text-right' : ''}`}>
-                        {useUrdu ? `فہرست قیمت: ₨${computedUnitPrice} × ${formData.quantity || 1} = ₨${computedTotalPrice.toLocaleString()}` : `₨${Number(computedUnitPrice).toLocaleString()} per unit × ${formData.quantity || 1} = ₨${Number(computedTotalPrice).toLocaleString()}`}
-                      </p>
-                    )}
-                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
