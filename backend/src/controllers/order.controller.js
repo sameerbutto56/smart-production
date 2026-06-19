@@ -2830,6 +2830,259 @@ const getRoutingHistory = async (req, res) => {
   }
 };
 
+// ====== STORE PROFILE ======
+const acceptStoreOrder = async (req, res) => {
+  const { orderId } = req.params;
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { stages: true }
+    });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (order.currentStage !== 'STORE') return res.status(400).json({ message: 'Order is not in STORE stage' });
+
+    const storeStage = order.stages.find(s => s.stageName === 'STORE' && s.status === 'PENDING');
+    if (!storeStage) return res.status(400).json({ message: 'No pending STORE stage to accept' });
+    if (storeStage.startedAt) return res.status(400).json({ message: 'Order already accepted' });
+
+    const acceptedAt = new Date();
+    await prisma.orderStage.update({
+      where: { id: storeStage.id },
+      data: { startedAt: acceptedAt, status: 'IN_PROGRESS' }
+    });
+
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { storeAcceptedAt: acceptedAt }
+    });
+
+    await createAuditLog(orderId, 'STORE_ACCEPT', `Order accepted at Store by ${req.user.name}`, req.user.id);
+
+    const io = req.app.get('io');
+    io.emit('order-updated', { orderId });
+
+    const updated = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { stages: { orderBy: { createdAt: 'asc' } } }
+    });
+
+    res.json({ message: 'Order accepted at Store', order: updated });
+  } catch (error) {
+    res.status(500).json({ message: 'Error accepting order', error: error.message });
+  }
+};
+
+const STORE_ROUTE_DESTINATIONS = ['LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'DISPATCH', 'RETURN_TO_SOURCE'];
+
+const storeRouteOrder = async (req, res) => {
+  const { orderId } = req.params;
+  let { destinationStage, remarks } = req.body;
+  if (destinationStage === 'LOGO') destinationStage = 'LOGO_DESIGN';
+
+  if (!STORE_ROUTE_DESTINATIONS.includes(destinationStage)) {
+    return res.status(400).json({ message: `Store can only route to: ${STORE_ROUTE_DESTINATIONS.join(', ')}` });
+  }
+
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { stages: true }
+    });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (order.currentStage !== 'STORE') return res.status(400).json({ message: 'Order is not in STORE stage' });
+
+    const storeStage = order.stages.find(s => s.stageName === 'STORE' && s.status === 'IN_PROGRESS');
+    if (!storeStage || !storeStage.startedAt) {
+      return res.status(400).json({ message: 'Order must be accepted before routing' });
+    }
+
+    await prisma.orderStage.update({
+      where: { id: storeStage.id },
+      data: { status: 'COMPLETED', completedAt: new Date(), rejectionReason: `Routed to ${destinationStage} by ${req.user.name}` }
+    });
+
+    if (destinationStage === 'RETURN_TO_SOURCE') {
+      const sourceStage = order.source === 'OUTLET' ? 'ORDER_ENTRY' : 'ORDER_ENTRY';
+      await prisma.order.update({
+        where: { id: orderId },
+        data: { currentStage: sourceStage, status: 'PENDING', storeAcceptedAt: null }
+      });
+
+      await createAuditLog(orderId, 'STORE_RETURN_TO_SOURCE', `Order returned to ${sourceStage} by ${req.user.name}`, req.user.id);
+
+      const io = req.app.get('io');
+      io.emit('order-updated', { orderId });
+
+      return res.json({ message: 'Order returned to source' });
+    }
+
+    const durations = await getStageDurations(order.priority);
+    const deadline = calculateDeadline(new Date(), durations[destinationStage] || 24);
+    await prisma.orderStage.create({
+      data: { orderId, stageName: destinationStage, status: 'PENDING', deadlineAt: deadline }
+    });
+
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { currentStage: destinationStage, status: 'IN_PROGRESS' }
+    });
+
+    const recipientUsers = await prisma.user.findMany({
+      where: { role: { in: getRolesForStage(destinationStage) } },
+      select: { id: true }
+    });
+    await prisma.routingHistory.create({
+      data: {
+        orderId, sentByUserId: req.user.id, sentToStage: destinationStage,
+        sentToUserIds: JSON.stringify(recipientUsers.map(u => u.id)),
+        previousStage: 'STORE', newStage: destinationStage,
+        remarks: remarks || `Routed from Store by ${req.user.name}`,
+        createdAt: new Date()
+      }
+    });
+
+    await prisma.seenTask.deleteMany({
+      where: { userId: { in: recipientUsers.map(u => u.id) }, orderId, stageName: destinationStage }
+    }).catch(() => {});
+
+    await createAuditLog(orderId, 'STORE_ROUTE', `Routed from Store to ${destinationStage} by ${req.user.name}`, req.user.id);
+
+    const io = req.app.get('io');
+    io.emit('order-updated', { orderId });
+
+    const updated = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { stages: { orderBy: { createdAt: 'asc' } } }
+    });
+
+    res.json({ message: `Order routed to ${destinationStage}`, order: updated });
+  } catch (error) {
+    res.status(500).json({ message: 'Error routing order from Store', error: error.message });
+  }
+};
+
+const returnToStore = async (req, res) => {
+  const { orderId } = req.params;
+  const { returnedFrom, reason } = req.body;
+
+  const validSources = ['LOGO_DESIGN', 'PRODUCTION', 'DISPATCH'];
+  if (!validSources.includes(returnedFrom)) {
+    return res.status(400).json({ message: `Invalid return source. Must be one of: ${validSources.join(', ')}` });
+  }
+
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { stages: true }
+    });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    const activeStage = order.stages.find(s =>
+      ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
+    );
+    if (activeStage) {
+      await prisma.orderStage.update({
+        where: { id: activeStage.id },
+        data: {
+          status: 'COMPLETED',
+          completedAt: new Date(),
+          returnedFrom,
+          returnReason: reason || `Returned from ${returnedFrom}`
+        }
+      });
+    }
+
+    const durations = await getStageDurations(order.priority);
+    const deadline = calculateDeadline(new Date(), durations['STORE'] || 24);
+    await prisma.orderStage.create({
+      data: { orderId, stageName: 'STORE', status: 'PENDING', deadlineAt: deadline, returnedFrom, returnReason: reason || null }
+    });
+
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { currentStage: 'STORE', status: 'IN_PROGRESS' }
+    });
+
+    await prisma.routingHistory.create({
+      data: {
+        orderId, sentByUserId: req.user.id, sentToStage: 'STORE', sentToUserIds: '[]',
+        previousStage: activeStage?.stageName || returnedFrom, newStage: 'STORE',
+        remarks: `Returned to Store from ${returnedFrom}${reason ? ': ' + reason : ''}`,
+        createdAt: new Date()
+      }
+    });
+
+    await createAuditLog(orderId, 'RETURN_TO_STORE', `Returned to Store from ${returnedFrom}${reason ? ' - ' + reason : ''}`, req.user.id);
+
+    const io = req.app.get('io');
+    io.emit('order-updated', { orderId });
+
+    const updated = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { stages: { orderBy: { createdAt: 'asc' } } }
+    });
+
+    res.json({ message: `Order returned to Store from ${returnedFrom}`, order: updated });
+  } catch (error) {
+    res.status(500).json({ message: 'Error returning order to Store', error: error.message });
+  }
+};
+
+const getStoreDashboardOrders = async (req, res) => {
+  const userId = req.user.id;
+  const limit = parseInt(req.query.limit) || 250;
+  const sourceFilter = req.query.source || 'ALL';
+
+  try {
+    const whereStore = {
+      currentStage: 'STORE',
+      status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
+    };
+    if (sourceFilter !== 'ALL') whereStore.source = sourceFilter;
+
+    const storeOrders = await prisma.order.findMany({
+      where: whereStore,
+      include: {
+        stages: { orderBy: { createdAt: 'asc' } },
+        auditLogs: { orderBy: { timestamp: 'desc' }, take: 5 },
+        createdBy: { select: { name: true } }
+      },
+      orderBy: { createdAt: 'asc' },
+      take: limit
+    });
+
+    const returnedOrders = storeOrders.filter(o => o.stages.some(s => s.stageName === 'STORE' && s.returnedFrom));
+
+    const incomingOrders = storeOrders.filter(o => o.stages.some(s => s.stageName === 'STORE' && s.status === 'PENDING' && !s.startedAt));
+
+    const activeOrders = storeOrders.filter(o => {
+      if (returnedOrders.includes(o)) return false;
+      return o.stages.some(s => s.stageName === 'STORE' && s.startedAt && s.status === 'IN_PROGRESS');
+    });
+
+    const seenRecords = await prisma.seenTask.findMany({
+      where: { userId, orderId: { in: storeOrders.map(o => o.id) }, stageName: 'STORE' }
+    });
+    const seenOrderIds = new Set(seenRecords.map(r => r.orderId));
+
+    const markSeen = (orders) => orders.map(o => ({ ...o, isUnseen: !seenOrderIds.has(o.id) }));
+
+    const getReturnedFrom = (from) => returnedOrders.filter(o =>
+      o.stages.some(s => s.stageName === 'STORE' && s.returnedFrom === from)
+    );
+
+    res.json({
+      incoming: markSeen(incomingOrders),
+      active: markSeen(activeOrders),
+      returnedFromLogo: markSeen(getReturnedFrom('LOGO_DESIGN')),
+      returnedFromProduction: markSeen(getReturnedFrom('PRODUCTION')),
+      returnedFromDispatch: markSeen(getReturnedFrom('DISPATCH')),
+      total: storeOrders.length
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching store dashboard', error: error.message });
+  }
+};
 // ====== DISPATCH MANAGEMENT ======
 const dispatchOrder = async (req, res) => {
   const { orderId } = req.params;
@@ -3044,6 +3297,10 @@ module.exports = {
   getStoreProductionOrders,
   getRoutingHistory,
   getStoreRequests,
+  acceptStoreOrder,
+  storeRouteOrder,
+  returnToStore,
+  getStoreDashboardOrders,
   refundOrder,
   getRefundQueue,
   processRefund,

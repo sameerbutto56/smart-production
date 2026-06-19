@@ -76,6 +76,7 @@ model Order {
   refundedById    String?
   storeRequested  Boolean      @default(false)
   storeRequestedAt DateTime?
+  storeAcceptedAt   DateTime?
   instructionNotes String?
   shopifyOrderDate  DateTime?
   // Delivery enhancement fields
@@ -163,6 +164,8 @@ model OrderStage {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   rejectionReason    String?
+  returnedFrom       String?
+  returnReason       String?
   requestNextStep    Boolean   @default(false)
   assignedEmployee   User?     @relation(fields: [assignedEmployeeId], references: [id])
   order              Order     @relation(fields: [orderId], references: [id])

@@ -27,6 +27,10 @@ const {
   getStoreProductionOrders,
   getRoutingHistory,
   getStoreRequests,
+  acceptStoreOrder,
+  storeRouteOrder,
+  returnToStore,
+  getStoreDashboardOrders,
   refundOrder,
   getRefundQueue,
   processRefund,
@@ -114,6 +118,12 @@ router.post('/:orderId/route', authenticate, authorize(['STORE', 'SUPER_ADMIN', 
 
 // Bulk Routing (all authenticated workers)
 router.post('/bulk-route', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), bulkRouteOrders);
+
+// Store Profile Routes
+router.post('/:orderId/accept-store', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), acceptStoreOrder);
+router.post('/:orderId/store-route', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), storeRouteOrder);
+router.post('/:orderId/return-to-store', authenticate, authorize(['LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'PRODUCTION', 'DISPATCH', 'MAIN_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), returnToStore);
+router.get('/store-dashboard', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), getStoreDashboardOrders);
 
 // Seen/Unseen
 router.post('/:orderId/mark-seen', authenticate, markOrderAsSeen);

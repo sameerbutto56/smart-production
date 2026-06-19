@@ -46,7 +46,14 @@ const WarehouseDashboard = () => {
   const [productionInventory, setProductionInventory] = useState([]);
   const [unseenTasks, setUnseenTasks] = useState(null);
   const [productionTasks, setProductionTasks] = useState(null);
-  const [tasksSubTab, setTasksSubTab] = useState('unseen');
+  const [tasksSubTab, setTasksSubTab] = useState('incoming');
+  const [storeDashboard, setStoreDashboard] = useState(null);
+  const [storeLoading, setStoreLoading] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState('ALL');
+  const [routingModal, setRoutingModal] = useState(null);
+  const [routeDestination, setRouteDestination] = useState('LOGO_DESIGN');
+  const [routeRemarks, setRouteRemarks] = useState('');
+  const [routeLoading, setRouteLoading] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'allocation') {
@@ -82,10 +89,10 @@ const WarehouseDashboard = () => {
         setProductionInventory(invRes.data);
       } else if (activeTab === 'tasks') {
         const results = await Promise.allSettled([
-          axios.get(`${API_URL}/api/orders/unseen-tasks`, { headers: { Authorization: `Bearer ${token}` } }),
+          axios.get(`${API_URL}/api/orders/store-dashboard`, { params: { limit: 250, source: sourceFilter !== 'ALL' ? sourceFilter : undefined }, headers: { Authorization: `Bearer ${token}` } }),
           axios.get(`${API_URL}/api/orders/production-returned`, { headers: { Authorization: `Bearer ${token}` } })
         ]);
-        if (results[0].status === 'fulfilled') setUnseenTasks(results[0].value.data);
+        if (results[0].status === 'fulfilled') setStoreDashboard(results[0].value.data);
         if (results[1].status === 'fulfilled') setProductionTasks(results[1].value.data);
       }
     } catch (error) {
@@ -130,6 +137,57 @@ const WarehouseDashboard = () => {
     } catch (e) {
       console.error('Failed to fetch unseen tasks:', e);
     }
+  };
+
+  const fetchStoreDashboard = async () => {
+    setStoreLoading(true);
+    try {
+      const token = sessionStorage.getItem('token');
+      if (!token) return;
+      const params = { limit: 250 };
+      if (sourceFilter !== 'ALL') params.source = sourceFilter;
+      const res = await axios.get(`${API_URL}/api/orders/store-dashboard`, {
+        params,
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setStoreDashboard(res.data);
+    } catch (e) {
+      console.error('Failed to fetch store dashboard:', e);
+    }
+    setStoreLoading(false);
+  };
+
+  const handleAcceptOrder = async (orderId) => {
+    try {
+      const token = sessionStorage.getItem('token');
+      await axios.post(`${API_URL}/api/orders/${orderId}/accept-store`, {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      toast.success('Order accepted at Store');
+      fetchStoreDashboard();
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Error accepting order');
+    }
+  };
+
+  const handleRouteOrder = async () => {
+    if (!routingModal) return;
+    setRouteLoading(true);
+    try {
+      const token = sessionStorage.getItem('token');
+      await axios.post(`${API_URL}/api/orders/${routingModal.id}/store-route`,
+        { destinationStage: routeDestination, remarks: routeRemarks },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      toast.success(`Order routed to ${routeDestination.replace(/_/g, ' ')}`);
+      setRoutingModal(null);
+      setRouteDestination('LOGO_DESIGN');
+      setRouteRemarks('');
+      fetchStoreDashboard();
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Error routing order');
+    }
+    setRouteLoading(false);
   };
 
   const fetchProductionTasks = async () => {
@@ -482,113 +540,290 @@ const WarehouseDashboard = () => {
             </div>
           )}
 
-          {/* Tasks Tab */}
+          {/* Store Profile - Tasks Tab */}
           {activeTab === 'tasks' && (
             <div className="space-y-4 md:space-y-6">
-              {/* Three-filter tabs */}
-              <div className="flex theme-bg border-2 theme-border rounded-2xl p-1.5 overflow-x-auto no-scrollbar">
-                <button onClick={() => setTasksSubTab('unseen')}
-                  className={`px-6 py-3 text-xs font-black rounded-xl transition-all whitespace-nowrap uppercase tracking-wider flex items-center gap-1.5 ${tasksSubTab === 'unseen' ? 'bg-amber-600 text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-gray-800'}`}
-                >
-                  <Eye size={14} />Unseen Tasks {unseenTasks?.unseen?.length > 0 && <span className="ml-1 bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{unseenTasks.unseen.length}</span>}
-                </button>
-                <button onClick={() => setTasksSubTab('assigned')}
-                  className={`px-6 py-3 text-xs font-black rounded-xl transition-all whitespace-nowrap uppercase tracking-wider flex items-center gap-1.5 ${tasksSubTab === 'assigned' ? 'bg-amber-600 text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-gray-800'}`}
-                >
-                  <CheckCircle size={14} />Assigned/Accepted ({unseenTasks?.seen?.length || 0})
-                </button>
-                <button onClick={() => setTasksSubTab('production')}
-                  className={`px-6 py-3 text-xs font-black rounded-xl transition-all whitespace-nowrap uppercase tracking-wider flex items-center gap-1.5 ${tasksSubTab === 'production' ? 'bg-amber-600 text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-gray-800'}`}
-                >
-                  <RefreshCcw size={14} />Production Tasks {((productionTasks?.unseen?.length || 0) + (productionTasks?.seen?.length || 0)) > 0 && <span className="ml-1 bg-purple-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{(productionTasks?.unseen?.length || 0) + (productionTasks?.seen?.length || 0)}</span>}
-                </button>
+              {/* Source filter */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex theme-bg border-2 theme-border rounded-2xl p-1.5 overflow-x-auto no-scrollbar">
+                  <button onClick={() => { setSourceFilter('ALL'); fetchStoreDashboard(); }}
+                    className={`px-4 py-2 text-xs font-black rounded-xl transition-all whitespace-nowrap uppercase tracking-wider ${sourceFilter === 'ALL' ? 'bg-amber-600 text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-gray-800'}`}>
+                    All Sources
+                  </button>
+                  <button onClick={() => { setSourceFilter('ONLINE'); fetchStoreDashboard(); }}
+                    className={`px-4 py-2 text-xs font-black rounded-xl transition-all whitespace-nowrap uppercase tracking-wider ${sourceFilter === 'ONLINE' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-gray-800'}`}>
+                    <span className="text-blue-400 mr-1">🌐</span>Online
+                  </button>
+                  <button onClick={() => { setSourceFilter('OUTLET'); fetchStoreDashboard(); }}
+                    className={`px-4 py-2 text-xs font-black rounded-xl transition-all whitespace-nowrap uppercase tracking-wider ${sourceFilter === 'OUTLET' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-gray-800'}`}>
+                    <span className="text-emerald-400 mr-1">🏪</span>Outlet
+                  </button>
+                  <button onClick={() => { setSourceFilter('INTERNAL'); fetchStoreDashboard(); }}
+                    className={`px-4 py-2 text-xs font-black rounded-xl transition-all whitespace-nowrap uppercase tracking-wider ${sourceFilter === 'INTERNAL' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-gray-800'}`}>
+                    <span className="text-purple-400 mr-1">⚙</span>Internal
+                  </button>
+                </div>
+                <div className="flex theme-bg border-2 theme-border rounded-2xl p-1.5 overflow-x-auto no-scrollbar">
+                  <button onClick={() => setTasksSubTab('incoming')}
+                    className={`px-4 py-2 text-xs font-black rounded-xl transition-all whitespace-nowrap uppercase tracking-wider flex items-center gap-1.5 ${tasksSubTab === 'incoming' ? 'bg-amber-600 text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-gray-800'}`}>
+                    <ShoppingCart size={14} />Incoming {storeDashboard?.incoming?.length > 0 && <span className="ml-1 bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{storeDashboard.incoming.length}</span>}
+                  </button>
+                  <button onClick={() => setTasksSubTab('active')}
+                    className={`px-4 py-2 text-xs font-black rounded-xl transition-all whitespace-nowrap uppercase tracking-wider flex items-center gap-1.5 ${tasksSubTab === 'active' ? 'bg-amber-600 text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-gray-800'}`}>
+                    <CheckCircle size={14} />Active ({storeDashboard?.active?.length || 0})
+                  </button>
+                  <button onClick={() => setTasksSubTab('returns')}
+                    className={`px-4 py-2 text-xs font-black rounded-xl transition-all whitespace-nowrap uppercase tracking-wider flex items-center gap-1.5 ${tasksSubTab === 'returns' ? 'bg-amber-600 text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-gray-800'}`}>
+                    <RefreshCcw size={14} />Returns ({(storeDashboard?.returnedFromLogo?.length || 0) + (storeDashboard?.returnedFromProduction?.length || 0) + (storeDashboard?.returnedFromDispatch?.length || 0)})
+                  </button>
+                </div>
               </div>
 
-              {/* Unseen Tasks */}
-              {tasksSubTab === 'unseen' && (
-                <div className="space-y-6">
-                  {unseenTasks === null ? (
-                    <PageLoader text="Loading tasks..." />
+              {/* Store stats summary */}
+              {storeDashboard && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="glass p-3 rounded-xl border-2 border-blue-500/20">
+                    <p className="text-xs font-black theme-text-muted uppercase tracking-wider">Incoming</p>
+                    <p className="text-lg font-black text-blue-400">{storeDashboard.incoming?.length || 0}</p>
+                  </div>
+                  <div className="glass p-3 rounded-xl border-2 border-emerald-500/20">
+                    <p className="text-xs font-black theme-text-muted uppercase tracking-wider">Active</p>
+                    <p className="text-lg font-black text-emerald-400">{storeDashboard.active?.length || 0}</p>
+                  </div>
+                  <div className="glass p-3 rounded-xl border-2 border-purple-500/20">
+                    <p className="text-xs font-black theme-text-muted uppercase tracking-wider">Returns</p>
+                    <p className="text-lg font-black text-purple-400">{(storeDashboard.returnedFromLogo?.length || 0) + (storeDashboard.returnedFromProduction?.length || 0) + (storeDashboard.returnedFromDispatch?.length || 0)}</p>
+                  </div>
+                  <div className="glass p-3 rounded-xl border-2 border-amber-500/20">
+                    <p className="text-xs font-black theme-text-muted uppercase tracking-wider">Total</p>
+                    <p className="text-lg font-black text-amber-400">{storeDashboard.total || 0}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Incoming Orders - Pending Acceptance */}
+              {tasksSubTab === 'incoming' && (
+                <div className="space-y-4">
+                  {storeLoading ? (
+                    <PageLoader text="Loading incoming orders..." />
+                  ) : !storeDashboard?.incoming?.length ? (
+                    <div className="text-center py-12 glass rounded-2xl theme-border">
+                      <ShoppingCart size={48} className="mx-auto text-gray-600 mb-4" />
+                      <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No incoming orders pending acceptance</p>
+                    </div>
                   ) : (
-                    <>
-                      <div>
-                        <h3 className="font-black text-sm theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                          Unseen ({unseenTasks.unseen?.length || 0})
-                        </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
-                          {(unseenTasks.unseen || []).length > 0 ? (
-                            unseenTasks.unseen.map(order => (
-                              <OrderCard key={order.id} order={order} userRole={user?.role} isUnseen={true} onMarkSeen={() => handleMarkSeen(order.id)} />
-                            ))
-                          ) : (
-                            <div className="col-span-full text-center py-12 glass rounded-2xl theme-border">
-                              <CheckCircle size={48} className="mx-auto text-emerald-500 mb-4" />
-                              <p className="theme-text-muted font-black text-xs uppercase tracking-widest">All caught up! No unseen tasks.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
+                      {storeDashboard.incoming.map(order => {
+                        const storeStage = order.stages?.find(s => s.stageName === 'STORE');
+                        const delay = storeStage?.createdAt ? Math.floor((Date.now() - new Date(storeStage.createdAt).getTime()) / 60000) : 0;
+                        const sourceColor = order.source === 'ONLINE' ? 'text-blue-400' : order.source === 'OUTLET' ? 'text-emerald-400' : 'text-purple-400';
+                        return (
+                          <div key={order.id} className="glass p-4 rounded-2xl border-2 border-yellow-500/20 hover:border-yellow-500/40 transition-all">
+                            <div className="flex items-start justify-between mb-3">
+                              <div>
+                                <p className="font-black theme-text-primary text-sm flex items-center gap-2">
+                                  #{order.orderNumber || 'N/A'}
+                                  {order.urgent && <span className="text-[9px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded-full font-black">URGENT</span>}
+                                </p>
+                                <p className="font-bold theme-text-secondary text-xs mt-0.5">{order.customerName}</p>
+                                {order.customerPhone && <p className="text-[10px] theme-text-muted font-mono">{order.customerPhone}</p>}
+                              </div>
+                              <div className="flex flex-col items-end gap-1">
+                                <span className={`text-[10px] font-black uppercase tracking-wider ${sourceColor}`}>{order.source}</span>
+                                {order.outletName && <span className="text-[9px] theme-text-muted">{order.outletName}</span>}
+                              </div>
                             </div>
-                          )}
-                        </div>
-                      </div>
-                    </>
+                            <div className="flex items-center justify-between text-[10px] theme-text-muted font-bold mb-3">
+                              <span>Received: {storeStage?.createdAt ? new Date(storeStage.createdAt).toLocaleString() : '-'}</span>
+                              <span className={delay > 60 ? 'text-red-400' : delay > 30 ? 'text-yellow-400' : 'text-emerald-400'}>
+                                {delay > 0 ? `${delay}m ago` : 'Just now'}
+                              </span>
+                            </div>
+                            <button onClick={() => handleAcceptOrder(order.id)}
+                              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 active:scale-95">
+                              <CheckCircle size={14} />
+                              Accept Order
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
               )}
 
-              {/* Assigned/Accepted Tasks */}
-              {tasksSubTab === 'assigned' && (
-                <div className="space-y-6">
-                  {unseenTasks?.seen?.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
-                      {unseenTasks.seen.map(order => (
-                        <OrderCard key={order.id} order={order} userRole={user?.role} />
-                      ))}
+              {/* Active Orders - Accepted, Ready to Route */}
+              {tasksSubTab === 'active' && (
+                <div className="space-y-4">
+                  {storeLoading ? (
+                    <PageLoader text="Loading active orders..." />
+                  ) : !storeDashboard?.active?.length ? (
+                    <div className="text-center py-12 glass rounded-2xl theme-border">
+                      <CheckCircle size={48} className="mx-auto text-gray-600 mb-4" />
+                      <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No active orders. Accept incoming orders first.</p>
                     </div>
                   ) : (
-                    <div className="col-span-full text-center py-12 glass rounded-2xl theme-border">
-                      <CheckCircle size={48} className="mx-auto text-gray-600 mb-4" />
-                      <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No assigned tasks yet.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
+                      {storeDashboard.active.map(order => {
+                        const storeStage = order.stages?.find(s => s.stageName === 'STORE');
+                        const acceptanceDelay = storeStage?.startedAt && storeStage?.createdAt
+                          ? Math.floor((new Date(storeStage.startedAt).getTime() - new Date(storeStage.createdAt).getTime()) / 60000) : 0;
+                        return (
+                          <div key={order.id} className="glass p-4 rounded-2xl border-2 border-emerald-500/20 hover:border-emerald-500/40 transition-all">
+                            <div className="flex items-start justify-between mb-3">
+                              <div>
+                                <p className="font-black theme-text-primary text-sm flex items-center gap-2">
+                                  #{order.orderNumber || 'N/A'}
+                                </p>
+                                <p className="font-bold theme-text-secondary text-xs mt-0.5">{order.customerName}</p>
+                                {order.customerPhone && <p className="text-[10px] theme-text-muted font-mono">{order.customerPhone}</p>}
+                              </div>
+                              <span className={`text-[10px] font-black uppercase tracking-wider ${order.source === 'ONLINE' ? 'text-blue-400' : order.source === 'OUTLET' ? 'text-emerald-400' : 'text-purple-400'}`}>{order.source}</span>
+                            </div>
+                            <div className="text-[10px] theme-text-muted font-bold mb-3 space-y-1">
+                              <p>Accepted: {storeStage?.startedAt ? new Date(storeStage.startedAt).toLocaleString() : '-'}</p>
+                              {acceptanceDelay > 0 && <p>Acceptance Delay: <span className={acceptanceDelay > 60 ? 'text-red-400' : 'text-yellow-400'}>{acceptanceDelay}m</span></p>}
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                className="py-2 bg-blue-600/20 text-blue-400 border border-blue-500/20 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-blue-600/30 transition-all active:scale-95"
+                                onClick={() => { setRoutingModal(order); setRouteDestination('LOGO_DESIGN'); setRouteRemarks(''); }}>
+                                🎨 Logo
+                              </button>
+                              <button
+                                className="py-2 bg-purple-600/20 text-purple-400 border border-purple-500/20 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-purple-600/30 transition-all active:scale-95"
+                                onClick={() => { setRoutingModal(order); setRouteDestination('PRODUCTION_ACCEPTANCE'); setRouteRemarks(''); }}>
+                                🏭 Production
+                              </button>
+                              <button
+                                className="py-2 bg-amber-600/20 text-amber-400 border border-amber-500/20 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-amber-600/30 transition-all active:scale-95"
+                                onClick={() => { setRoutingModal(order); setRouteDestination('DISPATCH'); setRouteRemarks(''); }}>
+                                📦 Dispatch
+                              </button>
+                              <button
+                                className="py-2 bg-gray-600/20 text-gray-400 border border-gray-500/20 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-gray-600/30 transition-all active:scale-95"
+                                onClick={() => { setRoutingModal(order); setRouteDestination('RETURN_TO_SOURCE'); setRouteRemarks(''); }}>
+                                ↩ Source
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Production Tasks */}
-              {tasksSubTab === 'production' && (
+              {/* Returns Tab */}
+              {tasksSubTab === 'returns' && (
                 <div className="space-y-6">
-                  {productionTasks === null ? (
-                    <PageLoader text="Loading production tasks..." />
+                  {storeLoading ? (
+                    <PageLoader text="Loading returns..." />
                   ) : (
                     <>
-                      {productionTasks?.unseen?.length > 0 && (
+                      {/* Returned from Logo */}
+                      {storeDashboard?.returnedFromLogo?.length > 0 && (
                         <div>
                           <h3 className="font-black text-sm theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
-                            New Production Returns ({productionTasks.unseen.length})
+                            <span className="w-2 h-2 rounded-full bg-blue-500" />
+                            Returned from Logo ({storeDashboard.returnedFromLogo.length})
                           </h3>
-                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
-                            {productionTasks.unseen.map(order => (
-                              <OrderCard key={order.id} order={order} userRole={user?.role} isUnseen={true} onMarkSeen={() => handleMarkSeen(order.id)} />
-                            ))}
+                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
+                            {storeDashboard.returnedFromLogo.map(order => {
+                              const storeStage = order.stages?.find(s => s.stageName === 'STORE' && s.returnedFrom === 'LOGO_DESIGN');
+                              return (
+                                <div key={order.id} className="glass p-4 rounded-2xl border-2 border-blue-500/20">
+                                  <div className="flex items-start justify-between mb-2">
+                                    <div>
+                                      <p className="font-black theme-text-primary text-sm">#{order.orderNumber || 'N/A'}</p>
+                                      <p className="font-bold theme-text-secondary text-xs">{order.customerName}</p>
+                                    </div>
+                                    <span className="text-[10px] text-blue-400 font-black uppercase">← Logo</span>
+                                  </div>
+                                  {storeStage?.returnReason && <p className="text-[10px] theme-text-muted font-bold mb-2">Reason: {storeStage.returnReason}</p>}
+                                  <div className="flex gap-2">
+                                    <button onClick={() => handleAcceptOrder(order.id)}
+                                      className="flex-1 py-2 bg-emerald-600/20 text-emerald-400 border border-emerald-500/20 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-emerald-600/30 transition-all active:scale-95">
+                                      Re-accept
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       )}
-                      {productionTasks?.seen?.length > 0 && (
+
+                      {/* Returned from Production */}
+                      {storeDashboard?.returnedFromProduction?.length > 0 && (
                         <div>
                           <h3 className="font-black text-sm theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
-                            <CheckCircle size={14} className="text-emerald-400" />
-                            Reviewed Production ({productionTasks.seen.length})
+                            <span className="w-2 h-2 rounded-full bg-purple-500" />
+                            Returned from Production ({storeDashboard.returnedFromProduction.length})
                           </h3>
-                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
-                            {productionTasks.seen.map(order => (
-                              <OrderCard key={order.id} order={order} userRole={user?.role} />
-                            ))}
+                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
+                            {storeDashboard.returnedFromProduction.map(order => {
+                              const storeStage = order.stages?.find(s => s.stageName === 'STORE' && (s.returnedFrom === 'PRODUCTION' || s.returnedFrom === 'PRODUCTION_ACCEPTANCE'));
+                              return (
+                                <div key={order.id} className="glass p-4 rounded-2xl border-2 border-purple-500/20">
+                                  <div className="flex items-start justify-between mb-2">
+                                    <div>
+                                      <p className="font-black theme-text-primary text-sm">#{order.orderNumber || 'N/A'}</p>
+                                      <p className="font-bold theme-text-secondary text-xs">{order.customerName}</p>
+                                    </div>
+                                    <span className="text-[10px] text-purple-400 font-black uppercase">← Production</span>
+                                  </div>
+                                  {storeStage?.returnReason && <p className="text-[10px] theme-text-muted font-bold mb-2">Reason: {storeStage.returnReason}</p>}
+                                  <div className="flex gap-2">
+                                    <button onClick={() => handleAcceptOrder(order.id)}
+                                      className="flex-1 py-2 bg-emerald-600/20 text-emerald-400 border border-emerald-500/20 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-emerald-600/30 transition-all active:scale-95">
+                                      Re-accept
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       )}
-                      {(!productionTasks?.unseen?.length && !productionTasks?.seen?.length) && (
-                        <div className="col-span-full text-center py-12 glass rounded-2xl theme-border">
+
+                      {/* Returned from Dispatch */}
+                      {storeDashboard?.returnedFromDispatch?.length > 0 && (
+                        <div>
+                          <h3 className="font-black text-sm theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-amber-500" />
+                            Returned from Dispatch ({storeDashboard.returnedFromDispatch.length})
+                          </h3>
+                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
+                            {storeDashboard.returnedFromDispatch.map(order => {
+                              const storeStage = order.stages?.find(s => s.stageName === 'STORE' && s.returnedFrom === 'DISPATCH');
+                              return (
+                                <div key={order.id} className="glass p-4 rounded-2xl border-2 border-amber-500/20">
+                                  <div className="flex items-start justify-between mb-2">
+                                    <div>
+                                      <p className="font-black theme-text-primary text-sm">#{order.orderNumber || 'N/A'}</p>
+                                      <p className="font-bold theme-text-secondary text-xs">{order.customerName}</p>
+                                    </div>
+                                    <span className="text-[10px] text-amber-400 font-black uppercase">← Dispatch</span>
+                                  </div>
+                                  {storeStage?.returnReason && <p className="text-[10px] theme-text-muted font-bold mb-2">Reason: {storeStage.returnReason}</p>}
+                                  <div className="flex gap-2">
+                                    <button onClick={() => handleAcceptOrder(order.id)}
+                                      className="flex-1 py-2 bg-emerald-600/20 text-emerald-400 border border-emerald-500/20 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-emerald-600/30 transition-all active:scale-95">
+                                      Re-accept
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {(!storeDashboard?.returnedFromLogo?.length && !storeDashboard?.returnedFromProduction?.length && !storeDashboard?.returnedFromDispatch?.length) && (
+                        <div className="text-center py-12 glass rounded-2xl theme-border">
                           <RefreshCcw size={48} className="mx-auto text-gray-600 mb-4" />
-                          <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No production tasks yet.</p>
+                          <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No returned orders</p>
                         </div>
                       )}
                     </>
@@ -1335,6 +1570,51 @@ const WarehouseDashboard = () => {
           )}
         </>
       )}
+
+      {/* Routing Modal */}
+      <AnimatePresence>
+        {routingModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
+              className="glass max-w-md w-full p-4 md:p-8 rounded-xl md:rounded-[2rem] border-2 theme-border shadow-[0_50px_100px_rgba(0,0,0,0.5)]">
+              <h2 className="text-xl font-black theme-text-primary mb-1">Route Order</h2>
+              <p className="theme-text-secondary text-xs font-bold mb-6">
+                #{routingModal.orderNumber || 'N/A'} — {routingModal.customerName}
+              </p>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Destination</label>
+                  <select value={routeDestination} onChange={(e) => setRouteDestination(e.target.value)}
+                    className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 focus:border-amber-500 outline-none font-bold text-white mt-2">
+                    <option value="LOGO_DESIGN">🎨 Logo Design</option>
+                    <option value="PRODUCTION_ACCEPTANCE">🏭 Production</option>
+                    <option value="DISPATCH">📦 Dispatch</option>
+                    <option value="RETURN_TO_SOURCE">↩ Return to Source</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Remarks (optional)</label>
+                  <input type="text" value={routeRemarks} onChange={(e) => setRouteRemarks(e.target.value)}
+                    placeholder="Add a note..."
+                    className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 focus:border-amber-500 outline-none font-medium text-white mt-2"
+                  />
+                </div>
+                <div className="flex space-x-3">
+                  <button onClick={() => setRoutingModal(null)}
+                    className="flex-1 py-3 bg-gray-800 text-gray-400 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-gray-700 transition-all">
+                    Cancel
+                  </button>
+                  <button onClick={handleRouteOrder} disabled={routeLoading}
+                    className="flex-1 py-3 bg-amber-600 text-white rounded-xl font-black text-xs uppercase tracking-wider hover:bg-amber-500 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+                    {routeLoading ? <RefreshCcw size={14} className="animate-spin" /> : <Send size={14} />}
+                    {routeLoading ? 'Routing...' : `Route to ${routeDestination.replace(/_/g, ' ')}`}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Approve Modal */}
       <AnimatePresence>
