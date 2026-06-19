@@ -2372,9 +2372,9 @@ const SmartOrderForm = () => {
                     </div>
                   )}
 
-                  {/* Custom Attribute Source Products */}
-                  {formData.productType && (
-                    <div className="mt-6 theme-bg-subtle p-4 md:p-6 rounded-2xl border border-amber-500/20 bg-amber-500/5">
+                  {/* Custom Requirements */}
+                  {formData.type === 'FULL_CUSTOM' && (
+                  <div className="mt-6 theme-bg-subtle p-4 md:p-6 rounded-2xl border border-amber-500/20 bg-amber-500/5">
                       <h3 className="text-sm font-black text-amber-400 uppercase mb-3 flex items-center gap-2">
                         <span role="img" aria-label="source">🔗</span> Custom Requirements
                       </h3>
@@ -2407,8 +2407,8 @@ const SmartOrderForm = () => {
                             placeholder="Any other product reference or instruction"
                           />
                         </div>
-                      </div>
                     </div>
+                  </div>
                   )}
 
                   <div className={`mt-6 md:mt-10 pt-6 md:pt-10 border-t theme-border flex flex-col sm:flex-row items-center justify-between gap-4 md:gap-8 ${useUrdu ? 'flex-row-reverse' : ''}`}>
