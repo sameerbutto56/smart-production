@@ -583,7 +583,7 @@ export function printJobSheet(order, userRole, lang = 'ur') {
 
   // ─── ORDER META BADGES ───
   win.document.write(`<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">`);
-  [order.type, order.priority, order.outletName || order.source, order.paymentStatus === 'PAID' ? 'PAID' : (order.advancePaid ? 'ADVANCE' : 'PENDING')].filter(Boolean).forEach(label => {
+  [order.type, order.priority, order.outletName || order.source, order.paymentStatus === 'PAID' ? 'PAID' : (order.advancePaid ? 'ADVANCE' : '')].filter(Boolean).forEach(label => {
     let color = '#6b7280';
     if (label === 'PAID' || label === 'FULL_CUSTOM') color = '#059669';
     else if (label === 'SUPER_URGENT') color = '#dc2626';
