@@ -145,11 +145,14 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
                   {order.deliveryMethod}
                 </span>
               )}
-              {order.paymentStatus === 'PAID' && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  PAID
-                </span>
-              )}
+              {(() => {
+                const _isPaid = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID';
+                const _hasAdv = parseFloat(order.advanceAmount || 0) > 0;
+                const _rem = Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0));
+                if (_isPaid) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">PAID</span>;
+                if (_hasAdv) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black bg-orange-500/20 text-orange-400 border border-orange-500/30">REMAINING COD: ₨{_rem.toLocaleString()}</span>;
+                return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black uppercase bg-red-500/20 text-red-400 border border-red-500/30">CASH ON DELIVERY</span>;
+              })()}
             </div>
           </div>
           <div className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs md:text-sm font-black border ${
@@ -211,7 +214,7 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
                 ₨{Number(order.totalPrice || 0).toLocaleString()}
               </p>
               <p className="text-xs md:text-sm theme-text-muted font-bold mt-0.5">
-                {order.paymentMethod === 'ONLINE_TRANSFER' ? '💳 Online' : parseFloat(order.advanceAmount) > 0 ? `✅ Adv ₨${parseFloat(order.advanceAmount).toLocaleString()}` : '💵 COD'}
+                {order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? '✅ PAID' : parseFloat(order.advanceAmount) > 0 ? `💰 Remaining COD: ₨${Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0)).toLocaleString()}` : '💰 CASH ON DELIVERY'}
               </p>
             </div>
           </div>
@@ -243,76 +246,84 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
                 </p>
               </div>
             )}
-            {order.paymentStatus === 'PAID' ? (
-              /* Prepaid order: only show Deliver / No Response / Return — no payment collection */
-              <div className="space-y-3">
-                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-2.5 flex items-center gap-3">
-                  <span className="text-emerald-400 font-black text-xs uppercase tracking-wider">Payment Status: PAID</span>
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <button disabled={loading === order.id} onClick={() => onAction(order.id, 'DELIVERED', '', 'CASH', 0, 0)} className="py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-emerald-900/40 flex items-center justify-center gap-1.5">
-                    <span>✓</span> Deliver
-                  </button>
-                  <button disabled={loading === order.id} onClick={() => onAction(order.id, 'NOT_RESPONDED', '')} className="py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-amber-900/40 flex items-center justify-center gap-1.5">
-                    <PhoneOff size={14} /> No Reply
-                  </button>
-                  <button disabled={loading === order.id} onClick={() => onAction(order.id, 'CANCELLED', 'Returned - not delivered')} className="py-3 rounded-xl bg-red-600/80 hover:bg-red-600 text-white font-black text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-red-900/40 flex items-center justify-center gap-1.5">
-                    <RotateCcw size={14} /> Return
-                  </button>
-                </div>
-              </div>
-            ) : (
-              /* Unpaid order: show Payment Method selection + delivery actions */
-              <div className="space-y-3">
-                <div className="bg-gray-800/40 rounded-2xl p-3 border border-gray-700/50">
-                  <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest mb-2">Payment Method</p>
-                  <div className="flex flex-wrap gap-2">
-                    <button onClick={() => { setPaymentMethods(prev => ({ ...prev, [order.id]: 'CASH' })); setHalfPayments(prev => ({ ...prev, [order.id]: undefined })); }}
-                      className={`flex-1 min-w-[80px] py-2.5 rounded-xl text-xs font-black transition-all ${(paymentMethods[order.id] || 'CASH') === 'CASH' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40' : 'bg-gray-800 theme-text-secondary border border-gray-700'}`}>💵 Cash</button>
-                    <button onClick={() => { setPaymentMethods(prev => ({ ...prev, [order.id]: 'ONLINE_TRANSFER' })); setHalfPayments(prev => ({ ...prev, [order.id]: undefined })); }}
-                      className={`flex-1 min-w-[80px] py-2.5 rounded-xl text-xs font-black transition-all ${paymentMethods[order.id] === 'ONLINE_TRANSFER' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' : 'bg-gray-800 theme-text-secondary border border-gray-700'}`}>💳 Online</button>
-                    <button onClick={() => { setPaymentMethods(prev => ({ ...prev, [order.id]: 'HALF_CASH_HALF_ONLINE' })); if (!halfPayments?.[order.id]) { const total = Number(order.totalPrice || 0); setHalfPayments(prev => ({ ...prev, [order.id]: { cash: Math.floor(total / 2), online: Math.ceil(total / 2) } })); } }}
-                      className={`flex-1 min-w-[80px] py-2.5 rounded-xl text-xs font-black transition-all ${paymentMethods[order.id] === 'HALF_CASH_HALF_ONLINE' ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/40' : 'bg-gray-800 theme-text-secondary border border-gray-700'}`}>💜 Half & Half</button>
-                  </div>
-                  {paymentMethods[order.id] === 'HALF_CASH_HALF_ONLINE' && (
-                    <div className="grid grid-cols-2 gap-3 mt-3">
-                      <div>
-                        <p className="text-xs theme-text-muted font-black uppercase tracking-widest mb-1">Cash Amount</p>
-                        <input type="number" value={halfPayments?.[order.id]?.cash || 0} onChange={e => setHalfPayments(prev => ({ ...prev, [order.id]: { ...prev?.[order.id], cash: Math.min(Number(e.target.value) || 0, order.totalPrice || 0) } }))} className="w-full px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 text-white font-black text-sm outline-none focus:border-purple-500" min="0" max={order.totalPrice || 0} />
-                      </div>
-                      <div>
-                        <p className="text-xs theme-text-muted font-black uppercase tracking-widest mb-1">Online Amount</p>
-                        <input type="number" value={halfPayments?.[order.id]?.online || 0} onChange={e => setHalfPayments(prev => ({ ...prev, [order.id]: { ...prev?.[order.id], online: Math.min(Number(e.target.value) || 0, order.totalPrice || 0) } }))} className="w-full px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 text-white font-black text-sm outline-none focus:border-purple-500" min="0" max={order.totalPrice || 0} />
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <button disabled={loading === order.id}
-                    onClick={() => { const method = paymentMethods[order.id] || 'CASH'; if (method === 'HALF_CASH_HALF_ONLINE') { const hp = halfPayments?.[order.id] || { cash: 0, online: 0 }; onAction(order.id, 'DELIVERED', '', method, hp.cash, hp.online); } else { onAction(order.id, 'DELIVERED', '', method); } }}
-                    className="flex flex-col items-center justify-center gap-1.5 py-5 bg-emerald-600 text-white rounded-2xl font-black active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-emerald-900/40">
-                    {loading === order.id ? <LoadingSpinner size={16} text="Processing..." /> : <><CheckCircle2 size={28} /><span className="text-sm">Delivered</span><span className="text-xs opacity-70 font-bold">مل گیا</span></>}
-                  </button>
-                  <button disabled={loading === order.id} onClick={() => onAction(order.id, 'NOT_RESPONDED', 'Customer did not respond')}
-                    className="flex flex-col items-center justify-center gap-1.5 py-5 bg-gray-800 border-2 border-amber-500/40 text-amber-400 rounded-2xl font-black active:scale-95 transition-all disabled:opacity-50">
-                    {loading === order.id ? <LoadingSpinner size={16} text="Processing..." /> : <><PhoneOff size={28} /><span className="text-sm">No Response</span><span className="text-xs opacity-70 font-bold">جواب نہیں</span></>}
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <button disabled={loading === order.id} onClick={() => { const reason = prompt('Reason for return:'); if (!reason) return; onAction(order.id, 'RETURN', reason); }}
-                    className="flex items-center justify-center gap-2 py-3 bg-orange-600/10 hover:bg-orange-600/20 rounded-2xl border border-orange-500/20 text-sm font-black uppercase tracking-wider text-orange-400 active:scale-95 transition-all">
-                    {loading === order.id ? <LoadingSpinner size={16} text="Processing..." /> : <><AlertCircle size={18} />Return</>}
-                  </button>
-                  {attempts.length > 0 && (
-                    <button onClick={() => setShowHistory(!showHistory)}
-                      className="flex items-center justify-center gap-2 py-3 bg-gray-800 rounded-2xl border border-gray-700 text-sm font-black text-gray-300 active:scale-95 transition-all">
-                      {showHistory ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                      History ({attempts.length})
+            {(() => {
+              const _isPaid = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID';
+              const _hasAdv = parseFloat(order.advanceAmount || 0) > 0;
+              const _rem = Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0));
+              const statusBanner = _isPaid
+                ? <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-2.5 flex items-center gap-3"><span className="text-emerald-400 font-black text-xs uppercase tracking-wider">Payment Status: PAID</span></div>
+                : _hasAdv
+                  ? <div className="bg-orange-500/10 border border-orange-500/20 rounded-2xl px-4 py-2.5 flex items-center gap-3"><span className="text-orange-400 font-black text-xs uppercase tracking-wider">REMAINING COD: ₨{_rem.toLocaleString()}</span></div>
+                  : <div className="bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-2.5 flex items-center gap-3"><span className="text-red-400 font-black text-xs uppercase tracking-wider">CASH ON DELIVERY</span></div>;
+              if (_isPaid) return (
+                <div className="space-y-3">
+                  {statusBanner}
+                  <div className="grid grid-cols-3 gap-3">
+                    <button disabled={loading === order.id} onClick={() => onAction(order.id, 'DELIVERED', '', 'CASH', 0, 0)} className="py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-emerald-900/40 flex items-center justify-center gap-1.5">
+                      <span>✓</span> Deliver
                     </button>
-                  )}
+                    <button disabled={loading === order.id} onClick={() => onAction(order.id, 'NOT_RESPONDED', '')} className="py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-amber-900/40 flex items-center justify-center gap-1.5">
+                      <PhoneOff size={14} /> No Reply
+                    </button>
+                    <button disabled={loading === order.id} onClick={() => onAction(order.id, 'CANCELLED', 'Returned - not delivered')} className="py-3 rounded-xl bg-red-600/80 hover:bg-red-600 text-white font-black text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-red-900/40 flex items-center justify-center gap-1.5">
+                      <RotateCcw size={14} /> Return
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+              return (
+                <div className="space-y-3">
+                  {statusBanner}
+                  <div className="bg-gray-800/40 rounded-2xl p-3 border border-gray-700/50">
+                    <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest mb-2">Payment Method</p>
+                    <div className="flex flex-wrap gap-2">
+                      <button onClick={() => { setPaymentMethods(prev => ({ ...prev, [order.id]: 'CASH' })); setHalfPayments(prev => ({ ...prev, [order.id]: undefined })); }}
+                        className={`flex-1 min-w-[80px] py-2.5 rounded-xl text-xs font-black transition-all ${(paymentMethods[order.id] || 'CASH') === 'CASH' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40' : 'bg-gray-800 theme-text-secondary border border-gray-700'}`}>💵 Cash</button>
+                      <button onClick={() => { setPaymentMethods(prev => ({ ...prev, [order.id]: 'ONLINE_TRANSFER' })); setHalfPayments(prev => ({ ...prev, [order.id]: undefined })); }}
+                        className={`flex-1 min-w-[80px] py-2.5 rounded-xl text-xs font-black transition-all ${paymentMethods[order.id] === 'ONLINE_TRANSFER' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' : 'bg-gray-800 theme-text-secondary border border-gray-700'}`}>💳 Online</button>
+                      <button onClick={() => { setPaymentMethods(prev => ({ ...prev, [order.id]: 'HALF_CASH_HALF_ONLINE' })); if (!halfPayments?.[order.id]) { const total = Number(order.totalPrice || 0); setHalfPayments(prev => ({ ...prev, [order.id]: { cash: Math.floor(total / 2), online: Math.ceil(total / 2) } })); } }}
+                        className={`flex-1 min-w-[80px] py-2.5 rounded-xl text-xs font-black transition-all ${paymentMethods[order.id] === 'HALF_CASH_HALF_ONLINE' ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/40' : 'bg-gray-800 theme-text-secondary border border-gray-700'}`}>💜 Half & Half</button>
+                    </div>
+                    {paymentMethods[order.id] === 'HALF_CASH_HALF_ONLINE' && (
+                      <div className="grid grid-cols-2 gap-3 mt-3">
+                        <div>
+                          <p className="text-xs theme-text-muted font-black uppercase tracking-widest mb-1">Cash Amount</p>
+                          <input type="number" value={halfPayments?.[order.id]?.cash || 0} onChange={e => setHalfPayments(prev => ({ ...prev, [order.id]: { ...prev?.[order.id], cash: Math.min(Number(e.target.value) || 0, order.totalPrice || 0) } }))} className="w-full px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 text-white font-black text-sm outline-none focus:border-purple-500" min="0" max={order.totalPrice || 0} />
+                        </div>
+                        <div>
+                          <p className="text-xs theme-text-muted font-black uppercase tracking-widest mb-1">Online Amount</p>
+                          <input type="number" value={halfPayments?.[order.id]?.online || 0} onChange={e => setHalfPayments(prev => ({ ...prev, [order.id]: { ...prev?.[order.id], online: Math.min(Number(e.target.value) || 0, order.totalPrice || 0) } }))} className="w-full px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 text-white font-black text-sm outline-none focus:border-purple-500" min="0" max={order.totalPrice || 0} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button disabled={loading === order.id}
+                      onClick={() => { const method = paymentMethods[order.id] || 'CASH'; if (method === 'HALF_CASH_HALF_ONLINE') { const hp = halfPayments?.[order.id] || { cash: 0, online: 0 }; onAction(order.id, 'DELIVERED', '', method, hp.cash, hp.online); } else { onAction(order.id, 'DELIVERED', '', method); } }}
+                      className="flex flex-col items-center justify-center gap-1.5 py-5 bg-emerald-600 text-white rounded-2xl font-black active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-emerald-900/40">
+                      {loading === order.id ? <LoadingSpinner size={16} text="Processing..." /> : <><CheckCircle2 size={28} /><span className="text-sm">Delivered</span><span className="text-xs opacity-70 font-bold">مل گیا</span></>}
+                    </button>
+                    <button disabled={loading === order.id} onClick={() => onAction(order.id, 'NOT_RESPONDED', 'Customer did not respond')}
+                      className="flex flex-col items-center justify-center gap-1.5 py-5 bg-gray-800 border-2 border-amber-500/40 text-amber-400 rounded-2xl font-black active:scale-95 transition-all disabled:opacity-50">
+                      {loading === order.id ? <LoadingSpinner size={16} text="Processing..." /> : <><PhoneOff size={28} /><span className="text-sm">No Response</span><span className="text-xs opacity-70 font-bold">جواب نہیں</span></>}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button disabled={loading === order.id} onClick={() => { const reason = prompt('Reason for return:'); if (!reason) return; onAction(order.id, 'RETURN', reason); }}
+                      className="flex items-center justify-center gap-2 py-3 bg-orange-600/10 hover:bg-orange-600/20 rounded-2xl border border-orange-500/20 text-sm font-black uppercase tracking-wider text-orange-400 active:scale-95 transition-all">
+                      {loading === order.id ? <LoadingSpinner size={16} text="Processing..." /> : <><AlertCircle size={18} />Return</>}
+                    </button>
+                    {attempts.length > 0 && (
+                      <button onClick={() => setShowHistory(!showHistory)}
+                        className="flex items-center justify-center gap-2 py-3 bg-gray-800 rounded-2xl border border-gray-700 text-sm font-black text-gray-300 active:scale-95 transition-all">
+                        {showHistory ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                        History ({attempts.length})
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
           </>
         )}
 

@@ -518,6 +518,14 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       <Lock size={7} />
                     </span>
                   )}
+                  {(() => {
+                    const isPaid = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID';
+                    const hasAdvance = parseFloat(order.advanceAmount || 0) > 0;
+                    const remainingAmt = Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0));
+                    if (isPaid) return <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black tracking-tighter bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">PAID</span>;
+                    if (hasAdvance) return <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black tracking-tighter bg-orange-500/20 text-orange-400 border border-orange-500/30">REMAINING COD: ₨{remainingAmt.toLocaleString()}</span>;
+                    return <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black tracking-tighter bg-red-500/20 text-red-400 border border-red-500/30">CASH ON DELIVERY</span>;
+                  })()}
                 </div>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
                   {order.customerPhone && (
@@ -661,15 +669,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               {order.customizationPrice > 0 && (
                 <span className="text-[9px] md:text-[10px] font-black text-emerald-400 bg-emerald-900/30 px-2 py-0.5 rounded-md">Custom: {showPrice ? `₨${Number(order.customizationPrice).toLocaleString()}` : '★ ★ ★'}</span>
               )}
-              {order.paymentStatus && (
-                <span className={`text-[9px] md:text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-tighter ${
-                  order.paymentStatus === 'PAID' ? 'bg-emerald-500/20 text-emerald-400' :
-                  order.paymentStatus === 'FULL_PAID' ? 'bg-emerald-500/20 text-emerald-400' :
-                  order.paymentStatus === 'ADVANCE_PAID' ? 'bg-amber-500/20 text-amber-400' :
-                  'bg-red-500/20 text-red-400'
-                }`}>
-                  {order.paymentStatus === 'PAID' ? 'PAID' : order.paymentStatus === 'FULL_PAID' ? 'Paid' : order.paymentStatus === 'ADVANCE_PAID' ? 'Advance' : 'Unpaid'}
-                </span>
+              {order.paymentStatus === 'PAID' && (
+                <span className="text-[9px] md:text-[10px] font-black px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400">PAID</span>
               )}
               {order.courierDetails?.payments?.length > 0 && (
                 <span className="text-[6px] md:text-[9px] font-bold text-gray-500">

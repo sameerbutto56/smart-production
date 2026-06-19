@@ -430,13 +430,14 @@ const DeliverySheet = () => {
                             : '—'}
                         </td>
                         <td className="py-4 px-3 text-xs font-black">
-                          {order.paymentStatus === 'PAID' ? (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">PAID</span>
-                          ) : order.paymentStatus === 'FULL_PAID' ? (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Paid</span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black uppercase bg-red-500/10 text-red-400 border border-red-500/20">Unpaid</span>
-                          )}
+                          {(() => {
+                            const _isPaid = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID';
+                            const _hasAdv = parseFloat(order.advanceAmount || 0) > 0;
+                            const _rem = Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0));
+                            if (_isPaid) return <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">PAID</span>;
+                            if (_hasAdv) return <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black bg-orange-500/20 text-orange-400 border border-orange-500/30">REMAINING COD: ₨{_rem.toLocaleString()}</span>;
+                            return <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black uppercase bg-red-500/10 text-red-400 border border-red-500/20">CASH ON DELIVERY</span>;
+                          })()}
                         </td>
                         <td className="py-4 px-3 text-xs">
                           {order.status === 'COMPLETED' || order.currentStage === 'DELIVERED' ? (
@@ -612,7 +613,7 @@ const DeliverySheet = () => {
                     <td>{deliveryDate?.completedAt ? new Date(deliveryDate.completedAt).toLocaleDateString() : '—'}</td>
                     <td style={{ fontWeight: 'bold', color: order.noResponseCount >= 3 ? '#dc2626' : order.noResponseCount > 0 ? '#d97706' : '#000' }}>{order.noResponseCount ? `${order.noResponseCount}/3` : '—'}</td>
                     <td>{order.nextDeliveryDate ? new Date(order.nextDeliveryDate).toLocaleDateString() : '—'}</td>
-                    <td style={{ fontWeight: 'bold', color: order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? '#059669' : '#dc2626' }}>{order.paymentStatus === 'PAID' ? 'PAID' : order.paymentStatus === 'FULL_PAID' ? 'Paid' : 'Unpaid'}</td>
+                    <td style={{ fontWeight: 'bold', color: (order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID') ? '#059669' : '#dc2626' }}>{order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? 'PAID' : parseFloat(order.advanceAmount) > 0 ? `REMAINING COD: ₨${Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0)).toLocaleString()}` : 'CASH ON DELIVERY'}</td>
                     <td>{order.status === 'COMPLETED' || order.currentStage === 'DELIVERED' ? 'Completed' : 'Pending'}</td>
                     <td style={{ fontWeight: 'bold' }}>₨ {Number(order.totalPrice || 0).toLocaleString()}</td>
                   </tr>

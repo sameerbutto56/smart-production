@@ -1440,9 +1440,14 @@ const AdminDashboard = () => {
                                 o.status === 'PENDING' ? 'bg-yellow-500/20 text-yellow-400' :
                                 'bg-red-500/20 text-red-400'
                               }`}>{o.status}</span>
-                              {o.paymentStatus === 'PAID' && (
-                                <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-emerald-500/20 text-emerald-400">PAID</span>
-                              )}
+                              {(() => {
+                                const _p = o.paymentStatus === 'PAID' || o.paymentStatus === 'FULL_PAID';
+                                const _a = parseFloat(o.advanceAmount || 0) > 0;
+                                const _r = Math.max(0, (o.totalPrice || 0) - parseFloat(o.advanceAmount || 0));
+                                if (_p) return <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-emerald-500/20 text-emerald-400">PAID</span>;
+                                if (_a) return <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-orange-500/20 text-orange-400">REMAINING COD</span>;
+                                return <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-red-500/20 text-red-400">COD</span>;
+                              })()}
                             </td>
                             <td className="py-3 pr-4 text-right font-bold text-white">₨{o.totalPrice || 0}</td>
                             <td className="py-3 pr-4 text-right font-bold text-gray-400 text-xs md:text-sm">{new Date(o.createdAt).toLocaleDateString()}</td>
@@ -1604,9 +1609,14 @@ const AdminDashboard = () => {
                                       o.status === 'PENDING' ? 'bg-yellow-500/20 text-yellow-400' :
                                       'bg-red-500/20 text-red-400'
                                     }`}>{o.status}</span>
-                                    {o.paymentStatus === 'PAID' && (
-                                      <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-emerald-500/20 text-emerald-400">PAID</span>
-                                    )}
+                                    {(() => {
+                                      const _p = o.paymentStatus === 'PAID' || o.paymentStatus === 'FULL_PAID';
+                                      const _a = parseFloat(o.advanceAmount || 0) > 0;
+                                      const _r = Math.max(0, (o.totalPrice || 0) - parseFloat(o.advanceAmount || 0));
+                                      if (_p) return <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-emerald-500/20 text-emerald-400">PAID</span>;
+                                      if (_a) return <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-orange-500/20 text-orange-400">REMAINING COD</span>;
+                                      return <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-red-500/20 text-red-400">COD</span>;
+                                    })()}
                                   </td>
                                   <td className="py-2 pr-4 text-right font-bold text-white">₨{o.totalPrice || 0}</td>
                                 </tr>
