@@ -3357,6 +3357,7 @@ const SmartOrderForm = () => {
                   <Package size={12} /> {useUrdu ? 'آرڈر کی تفصیلات' : 'Order Details'}
                 </h3>
                 <div className="flex flex-wrap gap-2 mb-3">
+                  {formData.orderNumber && <span className="text-xs font-black px-2 py-1 bg-blue-900/30 text-blue-400 rounded-md uppercase">#{formData.orderNumber}</span>}
                   <span className="text-xs font-black px-2 py-1 bg-gray-900 rounded-md text-gray-300 uppercase">{cartItems[0]?.type}</span>
                   <span className="text-xs font-black px-2 py-1 bg-gray-900 rounded-md text-gray-300 uppercase">{cartItems[0]?.priority}</span>
                   {parseFloat(cartItems[0]?.advanceAmount) > 0 && <span className="text-xs font-black px-2 py-1 bg-amber-900/30 rounded-md text-amber-400 uppercase">ADVANCE: ₨{parseFloat(cartItems[0]?.advanceAmount).toLocaleString()}</span>}
