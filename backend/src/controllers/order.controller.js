@@ -2886,15 +2886,15 @@ const acceptStoreOrder = async (req, res) => {
   }
 };
 
-const STORE_ROUTE_DESTINATIONS = ['LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'DISPATCH', 'RETURN_TO_SOURCE'];
+const validAllStages = ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
 
 const storeRouteOrder = async (req, res) => {
   const { orderId } = req.params;
   let { destinationStage, remarks } = req.body;
   if (destinationStage === 'LOGO') destinationStage = 'LOGO_DESIGN';
 
-  if (!STORE_ROUTE_DESTINATIONS.includes(destinationStage)) {
-    return res.status(400).json({ message: `Store can only route to: ${STORE_ROUTE_DESTINATIONS.join(', ')}` });
+  if (!validAllStages.includes(destinationStage) && destinationStage !== 'RETURN_TO_SOURCE') {
+    return res.status(400).json({ message: `Invalid destination stage: ${destinationStage}. Must be one of: ${[...validAllStages, 'RETURN_TO_SOURCE'].join(', ')}` });
   }
 
   try {

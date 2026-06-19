@@ -34,10 +34,15 @@ const WarehouseDashboard = () => {
   const [rejectNotes, setRejectNotes] = useState('');
   const [approveQty, setApproveQty] = useState(0);
   const [personName, setPersonName] = useState('');
-  const [allocationItems, setAllocationItems] = useState([{ product: null, color: '', size: '', qty: 1 }]);
-  const [allocationNotes, setAllocationNotes] = useState('');
   const [allocationLoading, setAllocationLoading] = useState(false);
-  const [productSearch, setProductSearch] = useState('');
+  // Selection-based allocation (Order Entry style)
+  const [allocCartItems, setAllocCartItems] = useState([]);
+  const [allocProdSearch, setAllocProdSearch] = useState('');
+  const [allocSelectedProduct, setAllocSelectedProduct] = useState(null);
+  const [allocSelectedSize, setAllocSelectedSize] = useState('');
+  const [allocSelectedColor, setAllocSelectedColor] = useState('');
+  const [allocQty, setAllocQty] = useState(1);
+  const [allocNotes, setAllocNotes] = useState('');
   const [allocationRecords, setAllocationRecords] = useState([]);
   const [allocationStats, setAllocationStats] = useState([]);
   const [allocTotal, setAllocTotal] = useState(0);
@@ -287,10 +292,10 @@ const WarehouseDashboard = () => {
 
   const handleAllocate = async () => {
     if (!personName.trim()) { toast.error('Please enter person name'); return; }
-    const validItems = allocationItems.filter(i => i.product && i.qty > 0);
-    if (!validItems.length) { toast.error('Add at least one product'); return; }
-    for (const item of validItems) {
-      const vs = item.product.variants || [];
+    if (!allocCartItems.length) { toast.error('Add at least one product to cart'); return; }
+    for (const item of allocCartItems) {
+      const p = inventory.find(i => i.id === item.productId);
+      const vs = p?.variants || [];
       if (vs.length && (!item.color || !item.size)) { toast.error('Select color and size for all items'); return; }
     }
     setAllocationLoading(true);
@@ -298,18 +303,20 @@ const WarehouseDashboard = () => {
       const token = sessionStorage.getItem('token');
       await axios.post(`${API_URL}/api/inventory/allocate`, {
         personName: personName.trim(),
-        items: validItems.map(i => ({
-          itemId: i.product.id,
+        items: allocCartItems.map(i => ({
+          itemId: i.productId,
           color: i.color,
           size: i.size,
           quantity: i.qty
         })),
-        notes: allocationNotes,
+        notes: allocNotes,
       }, { headers: { Authorization: `Bearer ${token}` } });
       toast.success('Products allocated successfully');
       setPersonName('');
-      setAllocationItems([{ product: null, color: '', size: '', qty: 1 }]);
-      setAllocationNotes('');
+      setAllocCartItems([]);
+      setAllocNotes('');
+      setAllocProdSearch('');
+      setAllocSelectedProduct(null);
       fetchData(true);
       fetchAllocations();
       fetchAllocationStats();
@@ -754,26 +761,46 @@ const WarehouseDashboard = () => {
                               <p>Accepted: {storeStage?.startedAt ? new Date(storeStage.startedAt).toLocaleString() : '-'}</p>
                               {acceptanceDelay > 0 && <p>Acceptance Delay: <span className={acceptanceDelay > 60 ? 'text-red-400' : 'text-yellow-400'}>{acceptanceDelay}m</span></p>}
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              <button
-                                className="py-2 bg-blue-600/20 text-blue-400 border border-blue-500/20 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-blue-600/30 transition-all active:scale-95"
+                            <div className="grid grid-cols-3 md:grid-cols-5 gap-1.5">
+                              <button className="py-1.5 bg-blue-600/20 text-blue-400 border border-blue-500/20 rounded-lg font-black text-[9px] uppercase tracking-wider hover:bg-blue-600/30 transition-all active:scale-95"
                                 onClick={() => { setRoutingModal(order); setRouteDestination('LOGO_DESIGN'); setRouteRemarks(''); }}>
                                 🎨 Logo
                               </button>
-                              <button
-                                className="py-2 bg-purple-600/20 text-purple-400 border border-purple-500/20 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-purple-600/30 transition-all active:scale-95"
+                              <button className="py-1.5 bg-purple-600/20 text-purple-400 border border-purple-500/20 rounded-lg font-black text-[9px] uppercase tracking-wider hover:bg-purple-600/30 transition-all active:scale-95"
                                 onClick={() => { setRoutingModal(order); setRouteDestination('PRODUCTION_ACCEPTANCE'); setRouteRemarks(''); }}>
-                                🏭 Production
+                                🏭 Prod
                               </button>
-                              <button
-                                className="py-2 bg-amber-600/20 text-amber-400 border border-amber-500/20 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-amber-600/30 transition-all active:scale-95"
+                              <button className="py-1.5 bg-violet-600/20 text-violet-400 border border-violet-500/20 rounded-lg font-black text-[9px] uppercase tracking-wider hover:bg-violet-600/30 transition-all active:scale-95"
+                                onClick={() => { setRoutingModal(order); setRouteDestination('PRODUCTION'); setRouteRemarks(''); }}>
+                                ⚙️ Direct
+                              </button>
+                              <button className="py-1.5 bg-amber-600/20 text-amber-400 border border-amber-500/20 rounded-lg font-black text-[9px] uppercase tracking-wider hover:bg-amber-600/30 transition-all active:scale-95"
                                 onClick={() => { setRoutingModal(order); setRouteDestination('DISPATCH'); setRouteRemarks(''); }}>
                                 📦 Dispatch
                               </button>
-                              <button
-                                className="py-2 bg-gray-600/20 text-gray-400 border border-gray-500/20 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-gray-600/30 transition-all active:scale-95"
+                              <button className="py-1.5 bg-cyan-600/20 text-cyan-400 border border-cyan-500/20 rounded-lg font-black text-[9px] uppercase tracking-wider hover:bg-cyan-600/30 transition-all active:scale-95"
+                                onClick={() => { setRoutingModal(order); setRouteDestination('STORE_RECEIVE'); setRouteRemarks(''); }}>
+                                📥 Receive
+                              </button>
+                              <button className="py-1.5 bg-emerald-600/20 text-emerald-400 border border-emerald-500/20 rounded-lg font-black text-[9px] uppercase tracking-wider hover:bg-emerald-600/30 transition-all active:scale-95"
+                                onClick={() => { setRoutingModal(order); setRouteDestination('OUT_FOR_DELIVERY'); setRouteRemarks(''); }}>
+                                🚚 Deliver
+                              </button>
+                              <button className="py-1.5 bg-gray-600/20 text-gray-400 border border-gray-500/20 rounded-lg font-black text-[9px] uppercase tracking-wider hover:bg-gray-600/30 transition-all active:scale-95"
                                 onClick={() => { setRoutingModal(order); setRouteDestination('RETURN_TO_SOURCE'); setRouteRemarks(''); }}>
                                 ↩ Source
+                              </button>
+                              <button className="py-1.5 bg-indigo-600/20 text-indigo-400 border border-indigo-500/20 rounded-lg font-black text-[9px] uppercase tracking-wider hover:bg-indigo-600/30 transition-all active:scale-95"
+                                onClick={() => { setRoutingModal(order); setRouteDestination('ORDER_ENTRY'); setRouteRemarks(''); }}>
+                                📝 Entry
+                              </button>
+                              <button className="py-1.5 bg-orange-600/20 text-orange-400 border border-orange-500/20 rounded-lg font-black text-[9px] uppercase tracking-wider hover:bg-orange-600/30 transition-all active:scale-95 md:hidden"
+                                onClick={() => { setRoutingModal(order); setRouteDestination('STORE'); setRouteRemarks(''); }}>
+                                🏪 Store
+                              </button>
+                              <button onClick={() => { setRoutingModal(order); setRouteRemarks(''); }}
+                                className="py-1.5 bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-lg font-black text-[9px] uppercase tracking-wider hover:bg-amber-600/50 transition-all active:scale-95 col-span-2">
+                                ⋯ More
                               </button>
                             </div>
                           </div>
@@ -1410,147 +1437,203 @@ const WarehouseDashboard = () => {
                 <span className="text-xs font-bold theme-text-muted">Assign inventory to workers</span>
               </div>
 
-              {/* Allocation Form */}
-              <div className="glass p-4 md:p-8 rounded-xl md:rounded-[2.5rem] border-2 border-gray-900">
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-6">
-                    <div>
-                      <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Person Name *</label>
-                      <input type="text" value={personName} onChange={(e) => setPersonName(e.target.value)}
-                        placeholder="Enter person's name"
-                        className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 focus:border-amber-500 outline-none font-medium text-white mt-2" />
-                    </div>
-                    <div>
-                      <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Notes</label>
-                      <textarea value={allocationNotes} onChange={(e) => setAllocationNotes(e.target.value)}
-                        className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 focus:border-amber-500 outline-none font-medium text-white mt-2 min-h-[40px]"
-                        placeholder="Optional notes..." />
-                    </div>
+              {/* Selection-Based Allocation (Order Entry Style) */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+                {/* Person Name + Product Browser */}
+                <div className="lg:col-span-2 space-y-4">
+                  <div className="glass p-4 md:p-6 rounded-xl md:rounded-[2.5rem] border-2 border-gray-900">
+                    <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Recipient Name *</label>
+                    <input type="text" value={personName} onChange={(e) => setPersonName(e.target.value)}
+                      placeholder="Enter person's name"
+                      className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 focus:border-amber-500 outline-none font-medium text-white mt-2" />
                   </div>
 
-                  {/* Product Items Table */}
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className="text-xs font-black theme-text-muted uppercase tracking-widest border-b theme-border">
-                          <th className="pb-2 pr-2 w-[30%]">Product</th>
-                          <th className="pb-2 pr-2 w-[12%]">Size</th>
-                          <th className="pb-2 pr-2 w-[15%]">Color</th>
-                          <th className="pb-2 pr-2 w-[10%]">Qty</th>
-                          <th className="pb-2 w-[8%]"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {allocationItems.map((item, idx) => {
-                          const prod = item.product;
-                          const variants = prod?.variants || [];
-                          const hasVariants = variants.length > 0;
-                          const uniqueSizes = hasVariants ? [...new Set(variants.map(v => v.size).filter(Boolean))] : [];
-                          const availableColors = hasVariants && item.size
-                            ? [...new Set(variants.filter(v => v.size === item.size).map(v => v.color).filter(Boolean))]
-                            : (hasVariants ? [...new Set(variants.map(v => v.color).filter(Boolean))] : []);
-                          const filteredInventory = productSearch
-                            ? inventory.filter(i => i.stock > 0 && i.name.toLowerCase().includes(productSearch.toLowerCase()))
-                            : inventory.filter(i => i.stock > 0);
-                          const maxQty = (() => {
-                            if (!prod) return 1;
-                            if (hasVariants && item.size && item.color) {
-                              const v = variants.find(x => x.size === item.size && x.color === item.color);
-                              if (v) return v.stock;
-                            }
-                            if (!hasVariants) return prod.stock || 1;
-                            return 1;
-                          })();
-                          return (
-                            <tr key={idx} className="border-b border-gray-800/30">
-                              <td className="py-2 pr-2">
-                                <input type="text" value={productSearch} onChange={(e) => setProductSearch(e.target.value)}
-                                  placeholder="Search product..."
-                                  className="w-full theme-bg-subtle border-2 theme-border rounded-lg py-1.5 px-3 focus:border-amber-500 outline-none font-medium text-xs text-white mb-1.5" />
-                                <select value={item.product?.id || ''} onChange={(e) => {
-                                  const p = inventory.find(i => i.id === e.target.value);
-                                  const newItems = [...allocationItems];
-                                  newItems[idx] = { product: p || null, color: '', size: '', qty: 1 };
-                                  setAllocationItems(newItems);
-                                }}
-                                  className="w-full theme-bg-subtle border-2 theme-border rounded-lg py-2 px-3 focus:border-amber-500 outline-none font-medium text-xs text-white">
-                                  <option value="">Select Product</option>
-                                  {filteredInventory.map(p => (
-                                    <option key={p.id} value={p.id}>{p.name} ({p.stock})</option>
-                                  ))}
+                  <div className="relative group">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 theme-text-muted group-focus-within:text-amber-500 transition-colors" size={18} />
+                    <input type="text" placeholder="Search products to allocate..." value={allocProdSearch}
+                      onChange={(e) => setAllocProdSearch(e.target.value)}
+                      className="w-full theme-input rounded-2xl py-4 pl-12 pr-6 focus:outline-none focus:border-amber-500 transition-all font-medium" />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {(allocProdSearch
+                      ? inventory.filter(i => i.stock > 0 && i.name.toLowerCase().includes(allocProdSearch.toLowerCase()))
+                      : inventory.filter(i => i.stock > 0)
+                    ).map((item, i) => {
+                      const variants = item.variants || [];
+                      const hasVariants = variants.length > 0;
+                      const uniqueSizes = hasVariants ? [...new Set(variants.map(v => v.size).filter(Boolean))] : [];
+                      const uniqueColors = hasVariants ? [...new Set(variants.map(v => v.color).filter(Boolean))] : [];
+                      const isSelected = allocSelectedProduct?.id === item.id;
+                      return (
+                        <motion.div key={item.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
+                          className={`glass p-4 rounded-2xl border-2 transition-all cursor-pointer ${isSelected ? 'border-amber-500 bg-amber-500/5' : 'theme-border hover:border-amber-500/30'}`}
+                          onClick={() => { setAllocSelectedProduct(item); setAllocSelectedSize(''); setAllocSelectedColor(''); setAllocQty(1); }}>
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <h3 className="font-black theme-text-primary text-sm">{item.name}</h3>
+                              <p className="text-[10px] font-bold theme-text-muted uppercase tracking-wider">{item.category}</p>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase border ${
+                              item.stock <= 3 ? 'border-red-500/20 bg-red-500/5 text-red-400' : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400'
+                            }`}>
+                              {item.stock} left
+                            </span>
+                          </div>
+                          {isSelected && hasVariants && (
+                            <div className="grid grid-cols-2 gap-2 mt-3" onClick={(e) => e.stopPropagation()}>
+                              {uniqueSizes.length > 0 && (
+                                <select value={allocSelectedSize} onChange={(e) => { setAllocSelectedSize(e.target.value); setAllocSelectedColor(''); }}
+                                  className="theme-bg-subtle border-2 theme-border rounded-lg py-1.5 px-2 text-xs font-medium text-white outline-none">
+                                  <option value="">Size</option>
+                                  {uniqueSizes.map(s => <option key={s} value={s}>{s}</option>)}
                                 </select>
-                              </td>
-                              <td className="py-2 pr-2">
-                                {hasVariants ? (
-                                  <select value={item.size} onChange={(e) => {
-                                    const newItems = [...allocationItems];
-                                    newItems[idx] = { ...newItems[idx], size: e.target.value, color: '' };
-                                    setAllocationItems(newItems);
-                                  }}
-                                    className="w-full theme-bg-subtle border-2 theme-border rounded-lg py-2 px-3 focus:border-amber-500 outline-none font-medium text-xs text-white">
-                                    <option value="">Size</option>
-                                    {uniqueSizes.map(s => <option key={s} value={s}>{s}</option>)}
-                                  </select>
-                                ) : (
-                                  <input type="text" value={prod?.size || ''} disabled
-                                    className="w-full theme-bg-subtle border-2 theme-border rounded-lg py-2 px-3 font-medium text-xs text-gray-400" />
-                                )}
-                              </td>
-                              <td className="py-2 pr-2">
-                                {hasVariants ? (
-                                  <select value={item.color} onChange={(e) => {
-                                    const newItems = [...allocationItems];
-                                    newItems[idx] = { ...newItems[idx], color: e.target.value };
-                                    setAllocationItems(newItems);
-                                  }}
-                                    className="w-full theme-bg-subtle border-2 theme-border rounded-lg py-2 px-3 focus:border-amber-500 outline-none font-medium text-xs text-white">
-                                    <option value="">Color</option>
-                                    {availableColors.map(c => <option key={c} value={c}>{c}</option>)}
-                                  </select>
-                                ) : (
-                                  <input type="text" value={prod?.color || ''} disabled
-                                    className="w-full theme-bg-subtle border-2 theme-border rounded-lg py-2 px-3 font-medium text-xs text-gray-400" />
-                                )}
-                              </td>
-                              <td className="py-2 pr-2">
-                                <input type="number" min="1" value={item.qty}
-                                  onChange={(e) => {
-                                    const newItems = [...allocationItems];
-                                    newItems[idx] = { ...newItems[idx], qty: Math.min(parseInt(e.target.value) || 1, maxQty) };
-                                    setAllocationItems(newItems);
-                                  }}
-                                  className="w-full theme-bg-subtle border-2 theme-border rounded-lg py-2 px-3 focus:border-amber-500 outline-none font-black text-xs text-white text-center" />
-                                <p className="text-[9px] theme-text-muted mt-0.5 text-center">max {maxQty}</p>
-                              </td>
-                              <td className="py-2 text-center">
-                                {allocationItems.length > 1 && (
-                                  <button type="button" onClick={() => setAllocationItems(allocationItems.filter((_, i) => i !== idx))}
-                                    className="p-1.5 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-lg transition-all">
-                                    <X size={12} />
-                                  </button>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                              )}
+                              {uniqueColors.length > 0 && (
+                                <select value={allocSelectedColor} onChange={(e) => setAllocSelectedColor(e.target.value)}
+                                  className="theme-bg-subtle border-2 theme-border rounded-lg py-1.5 px-2 text-xs font-medium text-white outline-none">
+                                  <option value="">Color</option>
+                                  {uniqueColors.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                              )}
+                            </div>
+                          )}
+                          {isSelected && (
+                            <div className="flex items-center justify-between mt-3" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center space-x-2">
+                                <button onClick={() => setAllocQty(q => Math.max(1, q - 1))}
+                                  className="p-1.5 bg-gray-800 rounded-lg hover:bg-gray-700 transition-all text-gray-300">
+                                  <Minus size={14} />
+                                </button>
+                                <span className="font-black text-white text-sm w-8 text-center">{allocQty}</span>
+                                <button onClick={() => setAllocQty(q => q + 1)}
+                                  className="p-1.5 bg-gray-800 rounded-lg hover:bg-gray-700 transition-all text-gray-300">
+                                  <Plus size={14} />
+                                </button>
+                              </div>
+                              <button onClick={(e) => {
+                                e.stopPropagation();
+                                const vs = item.variants || [];
+                                if (vs.length > 0 && (!allocSelectedSize || !allocSelectedColor)) {
+                                  toast.error('Select size and color first');
+                                  return;
+                                }
+                                setAllocCartItems(prev => {
+                                  const existing = prev.findIndex(i => i.productId === item.id && i.size === allocSelectedSize && i.color === allocSelectedColor);
+                                  if (existing >= 0) {
+                                    const updated = [...prev];
+                                    updated[existing] = { ...updated[existing], qty: updated[existing].qty + allocQty };
+                                    return updated;
+                                  }
+                                  return [...prev, { productId: item.id, productName: item.name, size: allocSelectedSize, color: allocSelectedColor, qty: allocQty }];
+                                });
+                                toast.success('Added to allocation cart');
+                              }}
+                                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-black text-xs rounded-xl transition-all active:scale-95 flex items-center space-x-1.5">
+                                <PlusCircle size={14} />
+                                <span>Add to Cart</span>
+                              </button>
+                            </div>
+                          )}
+                          {!isSelected && (
+                            <div className="flex items-center space-x-2 mt-2 text-[10px] theme-text-muted">
+                              {hasVariants && <span>{uniqueSizes.length} sizes • {uniqueColors.length} colors</span>}
+                              {!hasVariants && <span>{item.size || item.fabric || 'No variants'}</span>}
+                            </div>
+                          )}
+                        </motion.div>
+                      );
+                    })}
+                    {inventory.filter(i => i.stock > 0).length === 0 && (
+                      <div className="col-span-2 text-center py-12">
+                        <Package size={48} className="mx-auto text-gray-700 mb-4" />
+                        <p className="theme-text-muted font-black text-xs">No products in stock</p>
+                      </div>
+                    )}
                   </div>
-
-                  <button type="button" onClick={() => setAllocationItems([...allocationItems, { product: null, color: '', size: '', qty: 1 }])}
-                    className="text-xs font-black text-emerald-400 hover:text-emerald-300 transition-colors flex items-center space-x-2">
-                    <PlusCircle size={14} />
-                    <span>Add Product</span>
-                  </button>
                 </div>
 
-                <div className="mt-6 flex justify-end">
-                  <button onClick={handleAllocate}
-                    disabled={allocationLoading || !personName.trim() || !allocationItems.some(i => i.product && i.qty > 0)}
-                    className="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black py-3.5 px-8 rounded-2xl transition-all flex items-center space-x-3 active:scale-95">
-                    {allocationLoading ? <RefreshCcw className="animate-spin" size={16} /> : <Send size={16} />}
-                    <span>{allocationLoading ? 'Allocating...' : 'Allocate Product'}</span>
-                  </button>
+                {/* Cart Panel */}
+                <div className="lg:col-span-1">
+                  <div className="glass p-4 md:p-6 rounded-xl md:rounded-[2.5rem] border-2 border-gray-900 lg:sticky lg:top-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-black theme-text-primary uppercase tracking-wider text-sm flex items-center space-x-2">
+                        <ShoppingCart size={16} className="text-amber-400" />
+                        <span>Allocation Cart</span>
+                      </h3>
+                      {allocCartItems.length > 0 && (
+                        <button onClick={() => setAllocCartItems([])} className="text-xs font-black text-red-400 hover:text-red-300 uppercase tracking-wider">Clear</button>
+                      )}
+                    </div>
+
+                    {allocCartItems.length === 0 ? (
+                      <div className="text-center py-8">
+                        <Package size={36} className="mx-auto text-gray-700 mb-3" />
+                        <p className="theme-text-muted font-black text-xs uppercase tracking-widest">Cart is empty</p>
+                        <p className="text-[10px] theme-text-muted font-bold mt-1">Select a product and add to cart</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 mb-4 max-h-[320px] overflow-y-auto">
+                        {allocCartItems.map((item, idx) => {
+                          const p = inventory.find(i => i.id === item.productId);
+                          const maxQ = (() => {
+                            if (!p) return 999;
+                            const vs = p.variants || [];
+                            if (vs.length && item.size && item.color) {
+                              const v = vs.find(x => x.size === item.size && x.color === item.color);
+                              return v ? v.stock : 999;
+                            }
+                            return p.stock || 999;
+                          })();
+                          return (
+                            <div key={idx} className="p-3 theme-bg-subtle rounded-xl border theme-border">
+                              <div className="flex items-center justify-between mb-1">
+                                <p className="font-bold theme-text-primary text-xs">{item.productName}</p>
+                                <button onClick={() => setAllocCartItems(prev => prev.filter((_, n) => n !== idx))}
+                                  className="p-1 hover:bg-red-500/10 rounded-lg transition-all">
+                                  <X size={12} className="text-red-400" />
+                                </button>
+                              </div>
+                              <div className="flex items-center space-x-2 text-[10px] theme-text-muted mb-2">
+                                {item.size && <span>Size: {item.size}</span>}
+                                {item.color && <span>Color: {item.color}</span>}
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <button onClick={() => setAllocCartItems(prev => prev.map((i, n) => n === idx ? { ...i, qty: Math.max(1, i.qty - 1) } : i))}
+                                  className="p-1 bg-gray-800 rounded-lg hover:bg-gray-700 transition-all text-gray-300">
+                                  <Minus size={12} />
+                                </button>
+                                <span className="font-black text-white text-xs w-6 text-center">{item.qty}</span>
+                                <button onClick={() => setAllocCartItems(prev => prev.map((i, n) => n === idx ? { ...i, qty: Math.min(i.qty + 1, maxQ) } : i))}
+                                  className="p-1 bg-gray-800 rounded-lg hover:bg-gray-700 transition-all text-gray-300">
+                                  <Plus size={12} />
+                                </button>
+                                <span className="text-[9px] theme-text-muted ml-1">max {maxQ}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {allocCartItems.length > 0 && (
+                      <>
+                        <textarea value={allocNotes} onChange={(e) => setAllocNotes(e.target.value)}
+                          placeholder="Optional notes..."
+                          className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-2 px-3 text-xs font-medium text-white outline-none min-h-[50px] mb-3" />
+                        <div className="flex justify-between items-center py-2 border-t theme-border mb-3">
+                          <span className="text-xs font-bold theme-text-muted uppercase">Total Items</span>
+                          <span className="font-black theme-text-primary">{allocCartItems.reduce((s, i) => s + i.qty, 0)}</span>
+                        </div>
+                        <button onClick={handleAllocate}
+                          disabled={allocationLoading || !personName.trim()}
+                          className="w-full bg-amber-600 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black py-3.5 rounded-xl transition-all flex items-center justify-center space-x-3 active:scale-95">
+                          {allocationLoading ? <RefreshCcw className="animate-spin" size={18} /> : <Send size={18} />}
+                          <span>{allocationLoading ? 'Allocating...' : `Allocate to ${personName.trim() || 'Person'}`}</span>
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1886,8 +1969,13 @@ const WarehouseDashboard = () => {
                   <select value={routeDestination} onChange={(e) => setRouteDestination(e.target.value)}
                     className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 focus:border-amber-500 outline-none font-bold text-white mt-2">
                     <option value="LOGO_DESIGN">🎨 Logo Design</option>
-                    <option value="PRODUCTION_ACCEPTANCE">🏭 Production</option>
+                    <option value="PRODUCTION_ACCEPTANCE">🏭 Production Acceptance</option>
+                    <option value="PRODUCTION">⚙️ Production</option>
+                    <option value="STORE_RECEIVE">📥 Store Receive</option>
                     <option value="DISPATCH">📦 Dispatch</option>
+                    <option value="OUT_FOR_DELIVERY">🚚 Out for Delivery</option>
+                    <option value="STORE">🏪 Store</option>
+                    <option value="ORDER_ENTRY">📝 Order Entry</option>
                     <option value="RETURN_TO_SOURCE">↩ Return to Source</option>
                   </select>
                 </div>
