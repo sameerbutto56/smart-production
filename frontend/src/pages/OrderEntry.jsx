@@ -2390,7 +2390,7 @@ const SmartOrderForm = () => {
                               className="w-full theme-input rounded-xl py-2.5 px-3 text-xs font-bold appearance-none"
                             >
                               <option value="">— Use Selected Product —</option>
-                              {products.filter(p => p.name !== formData.productType).map(p => (
+                              {inventory.filter(p => p.name !== formData.productType).map(p => (
                                 <option key={p.id} value={p.name}>{p.name}</option>
                               ))}
                             </select>
