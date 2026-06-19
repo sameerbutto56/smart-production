@@ -1,5 +1,16 @@
 const prisma = require('../prisma');
 
+const getProductCategory = (productType) => {
+  if (!productType) return 'GENERAL';
+  const pt = productType.toUpperCase();
+  if (pt.includes('CAP') || pt.includes('HAT')) return 'CAPS';
+  if (pt.includes('SHIRT') || pt.includes('T-SHIRT') || pt.includes('TEE') || pt.includes('POLO') || pt.includes('KURTA')) return 'SHIRTS';
+  if (pt.includes('JACKET') || pt.includes('BLAZER') || pt.includes('SWEATER') || pt.includes('HOODIE') || pt.includes('COAT')) return 'JACKETS';
+  if (pt.includes('PANT') || pt.includes('TROUSER') || pt.includes('JEANS') || pt.includes('SHORTS') || pt.includes('SALWAR')) return 'PANTS';
+  if (pt.includes('BAG') || pt.includes('BELT') || pt.includes('WALLET') || pt.includes('SCARF') || pt.includes('TIE')) return 'ACCESSORIES';
+  return 'GENERAL';
+};
+
 const safeQuery = async (fn, fallback) => {
   try {
     return await fn();
@@ -75,9 +86,9 @@ const createProductionRecord = async (req, res) => {
     if (!record) return res.status(503).json({ message: 'Production tables not available yet — run npx prisma db push' });
 
     await safeQuery(async () => {
-      const existing = await prisma.productionInventory.findFirst({
-        where: { productName, productionCost: prodCost, sellingValue: sellVal, source: source || 'OUTLET' }
-      });
+      const existing = orderId ? await prisma.productionInventory.findFirst({
+        where: { orderId }
+      }) : null;
       if (existing) {
         await prisma.productionInventory.update({
           where: { id: existing.id },
@@ -86,9 +97,10 @@ const createProductionRecord = async (req, res) => {
       } else {
         await prisma.productionInventory.create({
           data: {
-            productName, quantity: qty, productionCost: prodCost, sellingValue: sellVal,
+            productName, category: getProductCategory(productName), quantity: qty,
+            productionCost: prodCost, sellingValue: sellVal,
             profitMargin: ((sellVal - totalCost) / (sellVal || 1)) * 100,
-            source: source || 'OUTLET', productionDate: new Date()
+            source: source || 'OUTLET', orderId: orderId || null, productionDate: new Date()
           }
         });
       }
@@ -202,7 +214,9 @@ const getProductionDashboard = async (req, res) => {
 
 const getProductionInventory = async (req, res) => {
   try {
-    const items = await safeQuery(() => prisma.productionInventory.findMany({ orderBy: { productionDate: 'desc' } }), []);
+    const { category } = req.query;
+    const where = category ? { category } : {};
+    const items = await safeQuery(() => prisma.productionInventory.findMany({ where, orderBy: [{ category: 'asc' }, { productionDate: 'desc' }] }), []);
     res.json(items);
   } catch (error) {
     res.json(emptyInventory);
@@ -211,7 +225,7 @@ const getProductionInventory = async (req, res) => {
 
 const addToProductionInventory = async (req, res) => {
   try {
-    const { productName, quantity, productionCost, sellingValue, source, productionDate } = req.body;
+    const { productName, category, quantity, productionCost, sellingValue, source, orderId, productionDate } = req.body;
     if (!productName || !quantity) {
       return res.status(400).json({ message: 'productName and quantity are required' });
     }
@@ -220,9 +234,9 @@ const addToProductionInventory = async (req, res) => {
     const sellVal = parseFloat(sellingValue) || 0;
     const margin = sellVal > 0 ? ((sellVal - prodCost) / sellVal) * 100 : 0;
 
-    const existing = await safeQuery(() => prisma.productionInventory.findFirst({
-      where: { productName, productionCost: prodCost, sellingValue: sellVal, source: source || 'OUTLET' }
-    }), null);
+    const existing = orderId ? await safeQuery(() => prisma.productionInventory.findFirst({
+      where: { orderId }
+    }), null) : null;
     if (existing) {
       const updated = await prisma.productionInventory.update({
         where: { id: existing.id },
@@ -232,8 +246,10 @@ const addToProductionInventory = async (req, res) => {
     }
     const item = await safeQuery(() => prisma.productionInventory.create({
       data: {
-        productName, quantity: qty, productionCost: prodCost, sellingValue: sellVal,
+        productName, category: category || getProductCategory(productName) || 'GENERAL', quantity: qty,
+        productionCost: prodCost, sellingValue: sellVal,
         profitMargin: margin, source: source || 'OUTLET',
+        orderId: orderId || null,
         productionDate: productionDate ? new Date(productionDate) : new Date()
       }
     }), null);

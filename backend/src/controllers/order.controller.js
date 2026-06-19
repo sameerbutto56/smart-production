@@ -19,6 +19,18 @@ const isSystemPaused = async () => {
 };
 
 const PRIORITY_ORDER = { 'SUPER_URGENT': 0, 'URGENT': 1, 'NORMAL': 2 };
+
+const getProductCategory = (productType) => {
+  if (!productType) return 'GENERAL';
+  const pt = productType.toUpperCase();
+  if (pt.includes('CAP') || pt.includes('HAT')) return 'CAPS';
+  if (pt.includes('SHIRT') || pt.includes('T-SHIRT') || pt.includes('TEE') || pt.includes('POLO') || pt.includes('KURTA')) return 'SHIRTS';
+  if (pt.includes('JACKET') || pt.includes('BLAZER') || pt.includes('SWEATER') || pt.includes('HOODIE') || pt.includes('COAT')) return 'JACKETS';
+  if (pt.includes('PANT') || pt.includes('TROUSER') || pt.includes('JEANS') || pt.includes('SHORTS') || pt.includes('SALWAR')) return 'PANTS';
+  if (pt.includes('BAG') || pt.includes('BELT') || pt.includes('WALLET') || pt.includes('SCARF') || pt.includes('TIE')) return 'ACCESSORIES';
+  return 'GENERAL';
+};
+
 const sortByPriority = (orders) => {
   return [...orders].sort((a, b) => {
     const pa = PRIORITY_ORDER[a.priority] ?? 2;
@@ -210,7 +222,7 @@ const createProductionRecordFromOrder = async (order, stageCompleted) => {
 
       try {
         const existing = await prisma.productionInventory.findFirst({
-          where: { productName, productionCost: prodCost, sellingValue: sellVal, source: orderSource }
+          where: { orderId: order.id }
         });
         if (existing) {
           await prisma.productionInventory.update({
@@ -220,9 +232,10 @@ const createProductionRecordFromOrder = async (order, stageCompleted) => {
         } else {
           await prisma.productionInventory.create({
             data: {
-              productName, quantity: qty, productionCost: prodCost, sellingValue: sellVal,
+              productName, category: getProductCategory(productName), quantity: qty,
+              productionCost: prodCost, sellingValue: sellVal,
               profitMargin: sellVal > 0 ? ((sellVal - totalCost) / sellVal) * 100 : 0,
-              source: orderSource, productionDate: new Date()
+              source: orderSource, orderId: order.id, productionDate: new Date()
             }
           });
         }
@@ -2093,7 +2106,7 @@ const addOrderToInventory = async (req, res) => {
       } catch (e) { if (e?.code !== 'P2021') throw e; }
       try {
         const existing = await prisma.productionInventory.findFirst({
-          where: { productName, productionCost: prodCost, sellingValue: sellVal, source: orderSource }
+          where: { orderId: order.id }
         });
         if (existing) {
           await prisma.productionInventory.update({
@@ -2103,9 +2116,10 @@ const addOrderToInventory = async (req, res) => {
         } else {
           await prisma.productionInventory.create({
             data: {
-              productName, quantity: qty, productionCost: prodCost, sellingValue: sellVal,
+              productName, category: getProductCategory(prod.productType), quantity: qty,
+              productionCost: prodCost, sellingValue: sellVal,
               profitMargin: sellVal > 0 ? ((sellVal - totalCost) / sellVal) * 100 : 0,
-              source: orderSource, productionDate: new Date()
+              source: orderSource, orderId: order.id, productionDate: new Date()
             }
           });
         }
@@ -2965,7 +2979,7 @@ const returnToStore = async (req, res) => {
   const { orderId } = req.params;
   const { returnedFrom, reason } = req.body;
 
-  const validSources = ['LOGO_DESIGN', 'PRODUCTION', 'DISPATCH'];
+  const validSources = ['PRODUCTION', 'DISPATCH'];
   if (!validSources.includes(returnedFrom)) {
     return res.status(400).json({ message: `Invalid return source. Must be one of: ${validSources.join(', ')}` });
   }

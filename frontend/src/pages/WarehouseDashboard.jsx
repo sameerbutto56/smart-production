@@ -19,6 +19,7 @@ const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'l
 
 const TABS = ['dashboard', 'tasks', 'requests', 'inventory', 'production', 'analytics', 'history', 'allocation'];
 const COLORS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899'];
+const CATEGORIES = ['CAPS', 'SHIRTS', 'JACKETS', 'PANTS', 'ACCESSORIES', 'GENERAL'];
 
 const WarehouseDashboard = () => {
   const { user } = useAuth();
@@ -44,6 +45,7 @@ const WarehouseDashboard = () => {
   const [allocSearch, setAllocSearch] = useState('');
   const [allocLoading, setAllocLoading] = useState(false);
   const [productionInventory, setProductionInventory] = useState([]);
+  const [prodCategoryFilter, setProdCategoryFilter] = useState('');
   const [unseenTasks, setUnseenTasks] = useState(null);
   const [productionTasks, setProductionTasks] = useState(null);
   const [tasksSubTab, setTasksSubTab] = useState('incoming');
@@ -1015,62 +1017,81 @@ const WarehouseDashboard = () => {
             </div>
           )}
 
-          {/* Production Inventory Tab */}
+          {/* Production Inventory Tab - Category Wise */}
           {activeTab === 'production' && (
             <div className="space-y-4 md:space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="font-black theme-text-primary text-lg uppercase tracking-wider">Production Inventory</h2>
-                <span className="text-xs font-bold theme-text-muted">Finished products from Production</span>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <h2 className="font-black theme-text-primary text-lg uppercase tracking-wider flex items-center gap-2">
+                  <Factory size={20} className="text-amber-400" />
+                  Production Inventory
+                </h2>
+                <div className="flex items-center gap-2">
+                  <input type="text" placeholder="Search items..."
+                    className="theme-input rounded-xl py-2 px-4 text-xs font-medium outline-none focus:border-amber-500 w-40"
+                    value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                  <select value={prodCategoryFilter || ''} onChange={(e) => setProdCategoryFilter(e.target.value)}
+                    className="theme-input rounded-xl py-2 px-3 text-xs font-bold outline-none focus:border-amber-500">
+                    <option value="">All Categories</option>
+                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                  <span className="text-xs font-bold theme-text-muted">{productionInventory.length} total</span>
+                </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {productionInventory.length === 0 ? (
-                  <div className="col-span-full text-center py-16">
-                    <Factory size={48} className="mx-auto text-gray-700 mb-4" />
-                    <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No production inventory items yet</p>
+              {productionInventory.length === 0 ? (
+                <div className="text-center py-16">
+                  <Factory size={48} className="mx-auto text-gray-700 mb-4" />
+                  <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No production inventory items yet</p>
+                </div>
+              ) : (() => {
+                const filtered = productionInventory.filter(item => {
+                  const matchSearch = !searchTerm || item.productName?.toLowerCase().includes(searchTerm.toLowerCase());
+                  const matchCat = !prodCategoryFilter || item.category === prodCategoryFilter;
+                  return matchSearch && matchCat;
+                });
+                const grouped = filtered.reduce((acc, item) => {
+                  const cat = item.category || 'GENERAL';
+                  if (!acc[cat]) acc[cat] = [];
+                  acc[cat].push(item);
+                  return acc;
+                }, {});
+                const catOrder = ['CAPS', 'SHIRTS', 'JACKETS', 'PANTS', 'ACCESSORIES', 'GENERAL'];
+                const sortedCats = Object.keys(grouped).sort((a, b) => {
+                  const ai = catOrder.indexOf(a), bi = catOrder.indexOf(b);
+                  return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+                });
+                const catIcons = { CAPS: '🧢', SHIRTS: '👕', JACKETS: '🧥', PANTS: '👖', ACCESSORIES: '🎒', GENERAL: '📦' };
+                return sortedCats.map(cat => (
+                  <div key={cat}>
+                    <h3 className="font-black text-sm theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
+                      <span>{catIcons[cat] || '📦'}</span>
+                      {cat} <span className="text-xs theme-text-muted font-bold">({grouped[cat].length} items, {grouped[cat].reduce((s, i) => s + i.quantity, 0)} units)</span>
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+                      {grouped[cat].map((item, i) => (
+                        <div key={item.id} className="glass p-4 rounded-2xl border-2 theme-border hover:border-amber-500/30 transition-all">
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex items-center space-x-2">
+                              <div className="p-2 bg-amber-500/10 rounded-lg"><Factory size={14} className="text-amber-400" /></div>
+                              <div>
+                                <h4 className="font-black theme-text-primary text-xs">{item.productName}</h4>
+                                <span className="text-[9px] font-black uppercase text-blue-400">{item.source}</span>
+                              </div>
+                            </div>
+                            <div className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase border border-emerald-500/20 bg-emerald-500/5 text-emerald-400">{item.quantity} units</div>
+                          </div>
+                          {item.orderId && <p className="text-[9px] theme-text-muted font-mono mb-2">Order: {item.orderId.slice(0, 8)}...</p>}
+                          <div className="grid grid-cols-3 gap-2 pt-2 border-t theme-border text-center text-[10px]">
+                            <div><p className="font-black theme-text-muted uppercase">Cost</p><p className="font-bold theme-text-primary">₨{item.productionCost?.toLocaleString()}</p></div>
+                            <div><p className="font-black theme-text-muted uppercase">Value</p><p className="font-bold text-emerald-400">₨{item.sellingValue?.toLocaleString()}</p></div>
+                            <div><p className="font-black theme-text-muted uppercase">Margin</p><p className={`font-bold ${item.profitMargin >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{item.profitMargin?.toFixed(1)}%</p></div>
+                          </div>
+                          <p className="text-[9px] font-bold theme-text-muted mt-2">{new Date(item.productionDate).toLocaleDateString()}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ) : (
-                  productionInventory.map((item, i) => (
-                    <motion.div key={item.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
-                      className="glass p-5 rounded-2xl border-2 theme-border hover:border-amber-500/30 transition-all">
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-center space-x-3">
-                          <div className="p-2.5 bg-amber-500/10 rounded-xl">
-                            <Factory size={18} className="text-amber-400" />
-                          </div>
-                          <div>
-                            <h3 className="font-black theme-text-primary text-sm">{item.productName}</h3>
-                            <span className="px-2 py-0.5 rounded-full text-xs font-black uppercase border border-blue-500/20 bg-blue-500/5 text-blue-400">
-                              {item.source}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="px-3 py-1 rounded-full text-xs md:text-sm font-black uppercase border border-emerald-500/20 bg-emerald-500/5 text-emerald-400">
-                          {item.quantity} units
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t theme-border text-center">
-                        <div>
-                          <p className="text-xs font-black theme-text-muted uppercase">Cost</p>
-                          <p className="font-bold text-xs theme-text-primary">₨{item.productionCost?.toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-black theme-text-muted uppercase">Value</p>
-                          <p className="font-bold text-xs text-emerald-400">₨{item.sellingValue?.toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-black theme-text-muted uppercase">Margin</p>
-                          <p className={`font-bold text-xs ${item.profitMargin >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                            {item.profitMargin?.toFixed(1)}%
-                          </p>
-                        </div>
-                      </div>
-                      <p className="text-xs font-bold theme-text-muted mt-3">
-                        {new Date(item.productionDate).toLocaleDateString()}
-                      </p>
-                    </motion.div>
-                  ))
-                )}
-              </div>
+                ));
+              })()}
             </div>
           )}
 
