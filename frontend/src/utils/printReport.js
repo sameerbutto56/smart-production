@@ -569,7 +569,7 @@ export function printJobSheet(order, userRole, lang = 'ur') {
   win.document.write(`<p style="font-size:22px;font-weight:900">${order.customerName || '—'}</p>`);
   win.document.write(`<p style="font-size:20px;color:#666;font-weight:600">${order.customerPhone || ''}</p>`);
   if (order.address) win.document.write(`<p style="font-size:18px;color:#666">${order.address}</p>`);
-  if (order.city) win.document.write(`<p style="font-size:18px;color:#666">${order.city}</p>`);
+  if (order.city) win.document.write(`<p style="font-size:24px;font-weight:900;color:#d97706;background:#fef3c7;display:inline-block;padding:4px 14px;border-radius:6px;margin-top:4px;text-transform:uppercase">📍 CITY: ${order.city}</p>`);
   win.document.write(`</div></div>`);
 
   // ─── DATES ROW ───

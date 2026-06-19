@@ -543,6 +543,9 @@ const AllOrders = () => {
                       </div>
                       <div className="text-xs theme-text-muted font-medium mt-1">
                         {order.customerName}
+                        {order.city && (
+                          <span className="ml-2 text-amber-400 font-black bg-amber-500/10 px-1.5 py-0.5 rounded uppercase tracking-wider">📍 {order.city}</span>
+                        )}
                         {order.shopifyOrderDate && (
                           <span className="text-purple-400 ml-2 font-black">Shopify: {new Date(order.shopifyOrderDate).toLocaleDateString()}</span>
                         )}
@@ -738,6 +741,11 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                   </div>
                   <p className="theme-text-secondary font-bold tracking-wide">
                     {selectedOrder.customerName}
+                    {selectedOrder.city && (
+                      <span className="ml-3 text-amber-400 font-black text-sm md:text-base bg-amber-500/10 px-2 py-0.5 rounded-lg uppercase tracking-wider">
+                        📍 {selectedOrder.city}
+                      </span>
+                    )}
                     {selectedOrder.shopifyOrderDate && (
                       <span className="text-purple-400 ml-3 font-black text-xs md:text-sm">
                         Shopify: {new Date(selectedOrder.shopifyOrderDate).toLocaleDateString()}

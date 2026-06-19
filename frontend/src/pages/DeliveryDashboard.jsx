@@ -188,6 +188,11 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
             </div>
           )}
 
+          {order.city && (
+            <div className="bg-amber-500/10 rounded-2xl px-4 py-3 border border-amber-500/20">
+              <p className="font-black text-amber-400 text-base md:text-lg uppercase tracking-wider">📍 {order.city}</p>
+            </div>
+          )}
           {order.address && (
             <div className="bg-gray-800/50 rounded-2xl px-4 py-3 border theme-border">
               <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest">📍 Delivery Address</p>

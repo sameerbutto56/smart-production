@@ -566,9 +566,14 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   })()}
                 </div>
               )}
+              {order.city && (
+                <span className="text-[10px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-sm uppercase tracking-wider text-right">
+                  📍 {order.city}
+                </span>
+              )}
               {order.address && (
                 <span className="text-[9px] text-gray-500 font-medium truncate max-w-[90px] md:max-w-[140px] text-right" title={order.address}>
-                  📍 {order.address}
+                  {order.address}
                 </span>
               )}
               {['SUPER_ADMIN', 'ADMIN'].includes(userRole) && (
@@ -1789,6 +1794,11 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 </div>
                 <p className="text-gray-400 font-bold tracking-wide">
                   {order.customerName}
+                  {order.city && (
+                    <span className="ml-3 text-amber-400 font-black text-sm md:text-base bg-amber-500/10 px-2 py-0.5 rounded-lg uppercase tracking-wider">
+                      📍 {order.city}
+                    </span>
+                  )}
                   {order.shopifyOrderDate && (
                     <span className="text-purple-400 ml-3 font-black text-xs md:text-sm">
                       Shopify: {new Date(order.shopifyOrderDate).toLocaleDateString()}
