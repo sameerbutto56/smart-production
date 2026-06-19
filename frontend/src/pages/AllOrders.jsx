@@ -52,6 +52,7 @@ const AllOrders = () => {
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [filterType, setFilterType] = useState('ALL');
   const [filterUrgent, setFilterUrgent] = useState(false);
+  const [filterCity, setFilterCity] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [isGroupedView, setIsGroupedView] = useState(false);
   
@@ -205,10 +206,12 @@ const AllOrders = () => {
     const orderNum = (order.orderNumber || '').toLowerCase();
     const search = (searchTerm || '').toLowerCase();
 
-    const matchesSearch = name.includes(search) || id.includes(search) || orderNum.includes(search);
+    const cityField = (order.city || '').toLowerCase();
+    const matchesSearch = name.includes(search) || id.includes(search) || orderNum.includes(search) || cityField.includes(search);
     const matchesStatus = filterStatus === 'ALL' || order.status === filterStatus;
     const matchesType = filterType === 'ALL' || order.type === filterType;
     const matchesUrgent = !filterUrgent || order.urgent;
+    const matchesCity = !filterCity || cityField.includes(filterCity.toLowerCase());
     
     // Strict Role Filtering
     const userRole = String(user?.role || '').toUpperCase().trim();
@@ -220,7 +223,7 @@ const AllOrders = () => {
     const isStoreRole = ['STORE', 'STORE_EMPLOYEE'].includes(userRole);
     const notStoreReceive = isStoreRole || order.currentStage !== 'STORE_RECEIVE';
     
-    return matchesSearch && matchesStatus && matchesType && matchesUrgent && matchesRole && notStoreReceive;
+    return matchesSearch && matchesStatus && matchesType && matchesUrgent && matchesCity && matchesRole && notStoreReceive;
   });
 
   const groupedOrders = useMemo(() => {
@@ -389,6 +392,17 @@ const AllOrders = () => {
                 </select>
               </div>
 
+              <div className="space-y-3">
+                <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">City</label>
+                <input
+                  type="text"
+                  value={filterCity}
+                  onChange={(e) => setFilterCity(e.target.value)}
+                  className="w-full theme-input rounded-xl py-2 px-3 text-xs outline-none focus:border-amber-500"
+                  placeholder="Filter by city..."
+                />
+              </div>
+
               <div className="flex items-center justify-between p-4 theme-bg border theme-border rounded-xl">
                 <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Urgent Only</span>
                 <button 
@@ -404,6 +418,7 @@ const AllOrders = () => {
                   setFilterStatus('ALL');
                   setFilterType('ALL');
                   setFilterUrgent(false);
+                  setFilterCity('');
                   setShowFilters(false);
                 }}
                 className="w-full py-2 text-xs md:text-sm font-black uppercase theme-text-muted hover:text-white transition-colors"
