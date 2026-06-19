@@ -586,13 +586,14 @@ const AllOrders = () => {
                           <span className="text-xs md:text-sm font-black bg-pink-600 text-white px-1.5 py-0.5 rounded uppercase">Dupatta</span>
                         )}
                       </div>
-                      {/* Custom Attribute Source Products */}
-                      {(product?.fabricSourceProduct || product?.colorSourceProduct || product?.designSourceProduct || product?.sizeSourceProduct) && (
+                      {/* Custom Requirements */}
+                      {(product?.fabricSourceProduct || product?.colorSourceProduct || product?.designSourceProduct || product?.sizeSourceProduct || product?.additionalProductRef) && (
                         <div className="flex flex-wrap gap-1.5 mt-1">
                           {product?.fabricSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Fabric: {product.fabricSourceProduct}</span>}
                           {product?.colorSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Color: {product.colorSourceProduct}</span>}
                           {product?.designSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Design: {product.designSourceProduct}</span>}
                           {product?.sizeSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Size: {product.sizeSourceProduct}</span>}
+                          {product?.additionalProductRef && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Extra: {product.additionalProductRef}</span>}
                         </div>
                       )}
                       <div className="text-xs md:text-sm theme-text-muted mt-1">
@@ -836,13 +837,14 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                                             ))}
                                           </div>
                                         )}
-                                        {/* Custom Attribute Source Products */}
-                                        {(p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct) && (
+                                        {/* Custom Requirements */}
+                                        {(p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct || p.additionalProductRef) && (
                                           <div className="flex flex-wrap gap-1">
-                                            {p.fabricSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Fabric: {p.fabricSourceProduct}</span>}
-                                            {p.colorSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Color: {p.colorSourceProduct}</span>}
-                                            {p.designSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Design: {p.designSourceProduct}</span>}
-                                            {p.sizeSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Size: {p.sizeSourceProduct}</span>}
+                                            {p.fabricSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Fabric Req: {p.fabricSourceProduct}</span>}
+                                            {p.colorSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Color Req: {p.colorSourceProduct}</span>}
+                                            {p.designSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Design Req: {p.designSourceProduct}</span>}
+                                            {p.sizeSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Size Req: {p.sizeSourceProduct}</span>}
+                                            {p.additionalProductRef && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Extra: {p.additionalProductRef}</span>}
                                           </div>
                                         )}
                                         {/* Special Notes */}
@@ -896,10 +898,11 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                         ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
                         ...(product?.sleeveLength ? [{ label: 'Sleeve Length', val: product.sleeveLength }] : []),
                         ...(product?.shirtLength ? [{ label: 'Shirt Length', val: product.shirtLength }] : []),
-                        ...(product?.fabricSourceProduct ? [{ label: 'Fabric Source', val: product.fabricSourceProduct }] : []),
-                        ...(product?.colorSourceProduct ? [{ label: 'Color Source', val: product.colorSourceProduct }] : []),
-                        ...(product?.designSourceProduct ? [{ label: 'Design Source', val: product.designSourceProduct }] : []),
-                        ...(product?.sizeSourceProduct ? [{ label: 'Size Source', val: product.sizeSourceProduct }] : []),
+                        ...(product?.fabricSourceProduct ? [{ label: 'Fabric Required', val: product.fabricSourceProduct }] : []),
+                        ...(product?.colorSourceProduct ? [{ label: 'Color Required', val: product.colorSourceProduct }] : []),
+                        ...(product?.designSourceProduct ? [{ label: 'Design Required', val: product.designSourceProduct }] : []),
+                        ...(product?.sizeSourceProduct ? [{ label: 'Size Required', val: product.sizeSourceProduct }] : []),
+                        ...(product?.additionalProductRef ? [{ label: 'Additional Reference', val: product.additionalProductRef }] : []),
                         { label: 'Payment', val: selectedOrder.paymentStatus || (parseFloat(selectedOrder.advanceAmount) > 0 ? 'ADVANCE' : 'PENDING') }
                       ].filter(i => i.val).map((item, i) => (
                         <div key={i} className="theme-bg p-4 md:p-6 rounded-3xl border theme-border">
@@ -1003,15 +1006,16 @@ const currentPipeline = pipelines[order.type] || pipelines['STANDARD'];
                                     </div>
                                   </div>
                                 )}
-                                {/* Custom Attribute Source Products */}
-                                {(p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct) && (
+                                {/* Custom Requirements */}
+                                {(p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct || p.additionalProductRef) && (
                                   <div className="bg-amber-500/5 p-3 rounded-xl border border-amber-500/10">
-                                    <p className="text-[10px] text-amber-400 font-black uppercase tracking-widest mb-2">Source Products</p>
+                                    <p className="text-[10px] text-amber-400 font-black uppercase tracking-widest mb-2">Custom Requirements</p>
                                     <div className="grid grid-cols-2 gap-2">
-                                      {p.fabricSourceProduct && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Fabric</span><p className="text-xs font-black text-amber-300">{p.fabricSourceProduct}</p></div>}
-                                      {p.colorSourceProduct && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Color</span><p className="text-xs font-black text-amber-300">{p.colorSourceProduct}</p></div>}
-                                      {p.designSourceProduct && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Design</span><p className="text-xs font-black text-amber-300">{p.designSourceProduct}</p></div>}
-                                      {p.sizeSourceProduct && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Size</span><p className="text-xs font-black text-amber-300">{p.sizeSourceProduct}</p></div>}
+                                      {p.fabricSourceProduct && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Fabric Req</span><p className="text-xs font-black text-amber-300">{p.fabricSourceProduct}</p></div>}
+                                      {p.colorSourceProduct && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Color Req</span><p className="text-xs font-black text-amber-300">{p.colorSourceProduct}</p></div>}
+                                      {p.designSourceProduct && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Design Req</span><p className="text-xs font-black text-amber-300">{p.designSourceProduct}</p></div>}
+                                      {p.sizeSourceProduct && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Size Req</span><p className="text-xs font-black text-amber-300">{p.sizeSourceProduct}</p></div>}
+                                      {p.additionalProductRef && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Extra Ref</span><p className="text-xs font-black text-amber-300">{p.additionalProductRef}</p></div>}
                                     </div>
                                   </div>
                                 )}

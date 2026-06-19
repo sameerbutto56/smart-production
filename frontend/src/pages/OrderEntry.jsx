@@ -99,6 +99,7 @@ const SmartOrderForm = () => {
     colorSourceProduct: '',
     designSourceProduct: '',
     sizeSourceProduct: '',
+    additionalProductRef: '',
 
     // Engraving type
     engravingType: 'direct',
@@ -801,7 +802,8 @@ const SmartOrderForm = () => {
         fabricSourceProduct: formData.fabricSourceProduct,
         colorSourceProduct: formData.colorSourceProduct,
         designSourceProduct: formData.designSourceProduct,
-        sizeSourceProduct: formData.sizeSourceProduct
+        sizeSourceProduct: formData.sizeSourceProduct,
+        additionalProductRef: formData.additionalProductRef
       },
       customization: {
         nameSpelling: articleNameEntries.filter(Boolean).join(', '),
@@ -871,6 +873,7 @@ const SmartOrderForm = () => {
       colorSourceProduct: '',
       designSourceProduct: '',
       sizeSourceProduct: '',
+      additionalProductRef: '',
       engravingType: 'direct'
     }));
     setLogoEntries([{ name: '', design: '' }]);
@@ -905,6 +908,7 @@ const SmartOrderForm = () => {
       colorSourceProduct: pd.colorSourceProduct || '',
       designSourceProduct: pd.designSourceProduct || '',
       sizeSourceProduct: pd.sizeSourceProduct || '',
+      additionalProductRef: pd.additionalProductRef || '',
       engravingType: cust.engravingType || 'direct',
       quantity: item.quantity || 1,
       totalPrice: '',
@@ -2372,30 +2376,37 @@ const SmartOrderForm = () => {
                   {formData.productType && (
                     <div className="mt-6 theme-bg-subtle p-4 md:p-6 rounded-2xl border border-amber-500/20 bg-amber-500/5">
                       <h3 className="text-sm font-black text-amber-400 uppercase mb-3 flex items-center gap-2">
-                        <span role="img" aria-label="source">🔗</span> Source Products
+                        <span role="img" aria-label="source">🔗</span> Custom Requirements
                       </h3>
-                      <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-4">Optionally source each attribute from a different product</p>
+                      <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-4">Type your custom requirements — no inventory search needed</p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {[
-                          { key: 'fabricSourceProduct', label: 'Fabric Source' },
-                          { key: 'colorSourceProduct', label: 'Color Source' },
-                          { key: 'designSourceProduct', label: 'Design Source' },
-                          { key: 'sizeSourceProduct', label: 'Size Source' },
+                          { key: 'fabricSourceProduct', label: 'Required Fabric' },
+                          { key: 'colorSourceProduct', label: 'Required Color' },
+                          { key: 'designSourceProduct', label: 'Required Design' },
+                          { key: 'sizeSourceProduct', label: 'Required Size Reference' },
                         ].map(field => (
                           <div key={field.key}>
                             <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1 block">{field.label}</label>
-                            <select
+                            <input
+                              type="text"
                               value={formData[field.key]}
                               onChange={(e) => setFormData({...formData, [field.key]: e.target.value})}
-                              className="w-full theme-input rounded-xl py-2.5 px-3 text-xs font-bold appearance-none"
-                            >
-                              <option value="">— Use Selected Product —</option>
-                              {inventory.filter(p => p.name !== formData.productType).map(p => (
-                                <option key={p.id} value={p.name}>{p.name}</option>
-                              ))}
-                            </select>
+                              className="w-full theme-input rounded-xl py-2.5 px-3 text-xs font-bold"
+                              placeholder={field.label === 'Required Fabric' ? 'e.g. Similar to Cotton Polo Shirt' : field.label === 'Required Color' ? 'e.g. Black similar to Premium Hoodie' : field.label === 'Required Design' ? 'e.g. Same as Sports Jacket' : 'e.g. Size reference notes'}
+                            />
                           </div>
                         ))}
+                        <div>
+                          <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Additional Product Reference</label>
+                          <input
+                            type="text"
+                            value={formData.additionalProductRef}
+                            onChange={(e) => setFormData({...formData, additionalProductRef: e.target.value})}
+                            className="w-full theme-input rounded-xl py-2.5 px-3 text-xs font-bold"
+                            placeholder="Any other product reference or instruction"
+                          />
+                        </div>
                       </div>
                     </div>
                   )}
@@ -3381,13 +3392,14 @@ const SmartOrderForm = () => {
                               {item.capCharges > 0 && <span className="text-xs font-black text-rose-400">×{pd.matchingCapQty || 0} Matching Cap</span>}
                               <span className="text-xs md:text-sm font-black text-blue-400">×{item.quantity || 1}</span>
                             </div>
-                            {/* Custom Attribute Source Products */}
-                            {(pd.fabricSourceProduct || pd.colorSourceProduct || pd.designSourceProduct || pd.sizeSourceProduct) && (
+                            {/* Custom Requirements */}
+                            {(pd.fabricSourceProduct || pd.colorSourceProduct || pd.designSourceProduct || pd.sizeSourceProduct || pd.additionalProductRef) && (
                               <div className="flex flex-wrap gap-1.5 mt-1">
                                 {pd.fabricSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Fabric: {pd.fabricSourceProduct}</span>}
                                 {pd.colorSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Color: {pd.colorSourceProduct}</span>}
                                 {pd.designSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Design: {pd.designSourceProduct}</span>}
                                 {pd.sizeSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Size: {pd.sizeSourceProduct}</span>}
+                                {pd.additionalProductRef && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Extra: {pd.additionalProductRef}</span>}
                               </div>
                             )}
                             {hasCust && (

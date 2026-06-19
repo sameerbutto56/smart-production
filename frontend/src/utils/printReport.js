@@ -464,11 +464,11 @@ const urduSection = {
   directEngraving: 'ڈائریکٹ اینگرونگ',
   patchEngraving: 'پیچ اینگرونگ',
   customAttributes: 'کسٹم ایٹریبیوٹس',
-  fabricSource: 'کپڑا ماخذ',
-  colorSource: 'رنگ ماخذ',
-  designSource: 'ڈیزائن ماخذ',
-  sizeSource: 'سائز ماخذ',
-  sourceProducts: 'ماخذ پروڈکٹس',
+  fabricSource: 'مطلوبہ کپڑا',
+  colorSource: 'مطلوبہ رنگ',
+  designSource: 'مطلوبہ ڈیزائن',
+  sizeSource: 'مطلوبہ سائز',
+  sourceProducts: 'کسٹم ضروریات',
   jobSheet: 'جاب شیٹ',
 };
 
@@ -500,11 +500,11 @@ const enSection = {
   directEngraving: 'Direct Engraving',
   patchEngraving: 'Patch Engraving',
   customAttributes: 'Custom Attributes',
-  fabricSource: 'Fabric Source',
-  colorSource: 'Color Source',
-  designSource: 'Design Source',
-  sizeSource: 'Size Source',
-  sourceProducts: 'Source Products',
+  fabricSource: 'Fabric Required',
+  colorSource: 'Color Required',
+  designSource: 'Design Required',
+  sizeSource: 'Size Required',
+  sourceProducts: 'Custom Requirements',
   jobSheet: 'Job Sheet',
 };
 
@@ -608,7 +608,7 @@ export function printJobSheet(order, userRole, lang = 'ur') {
     // Add attribute source headers if any item has them
     const hasAttrSources = allItems.some(item => {
       const p = item.productDetails || {};
-      return p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct;
+      return p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct || p.additionalProductRef;
     });
     const headers = ['#', sec.product, sec.fabricColor, sec.sizeGender, sec.qty].concat(showCap ? [sec.cap] : []).concat(['Price']);
     win.document.write(`<table><thead><tr>${headers.map(h => '<th>' + h + '</th>').join('')}</tr></thead><tbody>`);
@@ -619,12 +619,13 @@ export function printJobSheet(order, userRole, lang = 'ur') {
       win.document.write(`<td style="font-weight:700">${idx + 1}</td>`);
       win.document.write(`<td style="font-weight:700;font-size:22px">${p.productType || '—'}`);
       // Show attribute source badges inline
-      if (p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct) {
+      if (p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct || p.additionalProductRef) {
         win.document.write(`<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px">`);
         if (p.fabricSourceProduct) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">F:${p.fabricSourceProduct}</span>`);
         if (p.colorSourceProduct) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">C:${p.colorSourceProduct}</span>`);
         if (p.designSourceProduct) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">D:${p.designSourceProduct}</span>`);
         if (p.sizeSourceProduct) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">S:${p.sizeSourceProduct}</span>`);
+        if (p.additionalProductRef) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">E:${p.additionalProductRef}</span>`);
         win.document.write(`</div>`);
       }
       win.document.write(`</td>`);
@@ -645,12 +646,13 @@ export function printJobSheet(order, userRole, lang = 'ur') {
     win.document.write(`<tr>`);
     win.document.write(`<td style="font-weight:700;font-size:22px">${firstProduct.productType || '—'}`);
     // Show attribute source badges
-    if (firstProduct.fabricSourceProduct || firstProduct.colorSourceProduct || firstProduct.designSourceProduct || firstProduct.sizeSourceProduct) {
+    if (firstProduct.fabricSourceProduct || firstProduct.colorSourceProduct || firstProduct.designSourceProduct || firstProduct.sizeSourceProduct || firstProduct.additionalProductRef) {
       win.document.write(`<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px">`);
       if (firstProduct.fabricSourceProduct) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">F:${firstProduct.fabricSourceProduct}</span>`);
       if (firstProduct.colorSourceProduct) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">C:${firstProduct.colorSourceProduct}</span>`);
       if (firstProduct.designSourceProduct) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">D:${firstProduct.designSourceProduct}</span>`);
       if (firstProduct.sizeSourceProduct) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">S:${firstProduct.sizeSourceProduct}</span>`);
+      if (firstProduct.additionalProductRef) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">E:${firstProduct.additionalProductRef}</span>`);
       win.document.write(`</div>`);
     }
     win.document.write(`</td>`);
@@ -676,7 +678,7 @@ export function printJobSheet(order, userRole, lang = 'ur') {
       const hasLogos = c?.logos?.length > 0;
       const hasSpecs = c?.stitchingStyle || c?.fitType || c?.nameColor || c?.logoPlacement || c?.engravingType;
       const hasNotes = c?.designNotes;
-      const hasAttrSources = p?.fabricSourceProduct || p?.colorSourceProduct || p?.designSourceProduct || p?.sizeSourceProduct;
+      const hasAttrSources = p?.fabricSourceProduct || p?.colorSourceProduct || p?.designSourceProduct || p?.sizeSourceProduct || p?.additionalProductRef;
 
       if (!hasNames && !hasLogos && !hasSpecs && !hasNotes && !hasAttrSources) return;
 
@@ -722,6 +724,7 @@ export function printJobSheet(order, userRole, lang = 'ur') {
         if (p.colorSourceProduct) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.colorSource}: ${p.colorSourceProduct}</span>`);
         if (p.designSourceProduct) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.designSource}: ${p.designSourceProduct}</span>`);
         if (p.sizeSourceProduct) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.sizeSource}: ${p.sizeSourceProduct}</span>`);
+        if (p.additionalProductRef) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">Extra: ${p.additionalProductRef}</span>`);
         win.document.write(`</div>`);
       }
 

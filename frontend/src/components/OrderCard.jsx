@@ -264,13 +264,14 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   ))}
                 </div>
 
-                {/* Custom Attribute Source Products */}
-                {(p?.fabricSourceProduct || p?.colorSourceProduct || p?.designSourceProduct || p?.sizeSourceProduct) && (
+                {/* Custom Requirements */}
+                {(p?.fabricSourceProduct || p?.colorSourceProduct || p?.designSourceProduct || p?.sizeSourceProduct || p?.additionalProductRef) && (
                   <div className="flex flex-wrap gap-1.5 mt-2">
                     {p?.fabricSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Fabric: {p.fabricSourceProduct}</span>}
                     {p?.colorSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Color: {p.colorSourceProduct}</span>}
                     {p?.designSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Design: {p.designSourceProduct}</span>}
                     {p?.sizeSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Size: {p.sizeSourceProduct}</span>}
+                    {p?.additionalProductRef && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Extra: {p.additionalProductRef}</span>}
                   </div>
                 )}
 
@@ -618,13 +619,14 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               {product?.size && (
                 <span className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-tighter bg-gray-900 px-2 py-0.5 rounded-md">Size: {product.size}</span>
               )}
-              {/* Custom Attribute Source Products */}
-              {(product?.fabricSourceProduct || product?.colorSourceProduct || product?.designSourceProduct || product?.sizeSourceProduct) && (
+              {/* Custom Requirements */}
+              {(product?.fabricSourceProduct || product?.colorSourceProduct || product?.designSourceProduct || product?.sizeSourceProduct || product?.additionalProductRef) && (
                 <>
                   {product?.fabricSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-md border border-amber-500/20 truncate max-w-[100px]">F:{product.fabricSourceProduct}</span>}
                   {product?.colorSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-md border border-amber-500/20 truncate max-w-[100px]">C:{product.colorSourceProduct}</span>}
                   {product?.designSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-md border border-amber-500/20 truncate max-w-[100px]">D:{product.designSourceProduct}</span>}
                   {product?.sizeSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-md border border-amber-500/20 truncate max-w-[100px]">S:{product.sizeSourceProduct}</span>}
+                  {product?.additionalProductRef && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-md border border-amber-500/20 truncate max-w-[100px]">E:{product.additionalProductRef}</span>}
                 </>
               )}
               <span className="text-[9px] md:text-[10px] font-black text-blue-400 bg-blue-900/30 px-2 py-0.5 rounded-md">Qty: {order.quantity || 1}</span>
@@ -1879,13 +1881,14 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                             Logo: {logo.name || `#${li + 1}`}{logo.design ? ` — ${logo.design.substring(0, 40)}${logo.design.length > 40 ? '...' : ''}` : ''}
                                           </span>
                                         ))}
-                                        {/* Custom Attribute Sources */}
-                                        {(p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct) && (
+                                        {/* Custom Requirements */}
+                                        {(p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct || p.additionalProductRef) && (
                                           <>
-                                            {p.fabricSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">FabSrc: {p.fabricSourceProduct}</span>}
-                                            {p.colorSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">ClrSrc: {p.colorSourceProduct}</span>}
-                                            {p.designSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">DesSrc: {p.designSourceProduct}</span>}
-                                            {p.sizeSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">SizSrc: {p.sizeSourceProduct}</span>}
+                                            {p.fabricSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">Fabric: {p.fabricSourceProduct}</span>}
+                                            {p.colorSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">Color: {p.colorSourceProduct}</span>}
+                                            {p.designSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">Design: {p.designSourceProduct}</span>}
+                                            {p.sizeSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">Size: {p.sizeSourceProduct}</span>}
+                                            {p.additionalProductRef && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">Extra: {p.additionalProductRef}</span>}
                                           </>
                                         )}
                                         {itemCust?.stitchingStyle && (
@@ -1924,10 +1927,11 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
                         ...(product?.sleeveLength ? [{ label: 'Sleeve', val: product.sleeveLength === 'full' ? 'Full Sleeve' : product.sleeveLength === 'half' ? 'Half Sleeve' : 'Quarter Sleeve' }] : []),
                         ...(product?.shirtLength ? [{ label: 'Shirt Length', val: product.shirtLength === 'long' ? 'Full Length' : 'Short Length' }] : []),
-                        ...(product?.fabricSourceProduct ? [{ label: 'Fabric Source', val: product.fabricSourceProduct }] : []),
-                        ...(product?.colorSourceProduct ? [{ label: 'Color Source', val: product.colorSourceProduct }] : []),
-                        ...(product?.designSourceProduct ? [{ label: 'Design Source', val: product.designSourceProduct }] : []),
-                        ...(product?.sizeSourceProduct ? [{ label: 'Size Source', val: product.sizeSourceProduct }] : []),
+                        ...(product?.fabricSourceProduct ? [{ label: 'Fabric Required', val: product.fabricSourceProduct }] : []),
+                        ...(product?.colorSourceProduct ? [{ label: 'Color Required', val: product.colorSourceProduct }] : []),
+                        ...(product?.designSourceProduct ? [{ label: 'Design Required', val: product.designSourceProduct }] : []),
+                        ...(product?.sizeSourceProduct ? [{ label: 'Size Required', val: product.sizeSourceProduct }] : []),
+                        ...(product?.additionalProductRef ? [{ label: 'Additional Ref', val: product.additionalProductRef }] : []),
                         ...(order.logoCharges > 0 ? [{ label: 'Logo Charge', val: showPrice ? `₨${order.logoCharges}` : '★ ★ ★' }] : []),
                         ...(order.namePrintingCharges > 0 ? [{ label: 'Name Printing', val: showPrice ? `₨${order.namePrintingCharges}` : '★ ★ ★' }] : []),
                         { label: 'Customization Charge', val: showPrice ? `₨${order.customizationPrice || 0}` : '★ ★ ★' },
