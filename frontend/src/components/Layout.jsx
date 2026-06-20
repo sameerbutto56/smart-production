@@ -56,7 +56,6 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     { name: 'All Orders', path: '/orders', icon: Package, roles: ['SUPER_ADMIN', 'FAISAL', 'ADMIN', 'OUTLET'] },
     { name: 'Delivery Sheet', path: '/delivery-sheet', icon: ClipboardList, roles: ['SUPER_ADMIN', 'FAISAL', 'ADMIN', 'OUTLET'] },
     { name: 'History (Admin)', path: '/history', icon: History, roles: ['SUPER_ADMIN', 'ADMIN'] },
-    { name: 'Dispatch', path: '/dispatch', icon: Truck, roles: ['DISPATCH', 'SUPER_ADMIN', 'ADMIN', 'FAISAL'] },
     { name: 'Deliveries', path: '/delivery', icon: Truck, roles: ['DELIVERY_BOY', 'SUPER_ADMIN'] },
     { name: 'Deleted Orders', path: '/deleted-orders', icon: Trash2, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Production', path: '/production', icon: Factory, roles: ['SUPER_ADMIN', 'ADMIN', 'PRODUCTION'] },

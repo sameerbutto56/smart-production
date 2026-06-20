@@ -9,6 +9,7 @@ import { Search, Filter, Loader2, Sparkles, AlertCircle, Activity, Clock, Target
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 import socket from '../socket';
 import toast from 'react-hot-toast';
+import DispatchDashboard from './DispatchDashboard';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -285,6 +286,10 @@ const MyTasks = () => {
       </div>
     </motion.div>
   );
+
+  if (user?.role === 'DISPATCH') {
+    return <DispatchDashboard />;
+  }
 
   return (
     <div className="space-y-4 md:space-y-8 max-w-7xl mx-auto">
