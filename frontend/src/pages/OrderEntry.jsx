@@ -864,12 +864,11 @@ const SmartOrderForm = () => {
     setArticleNameEntries(['']);
 
     setShowAddMore(true);
-  }, [formData, computedTotalPrice, capCharges, cartItems, articleNameEntries, logoEntries]);
+  }, [formData, cartItems, articleNameEntries, logoEntries]);
 
   const removeCartItem = useCallback((idx) => {
-    const newCart = cartItems.filter((_, i) => i !== idx);
-    setCartItems(newCart);
-  });
+    setCartItems(prev => prev.filter((_, i) => i !== idx));
+  }, []);
 
   const editCartItem = useCallback((idx, tab) => {
     const item = cartItems[idx];

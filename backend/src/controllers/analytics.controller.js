@@ -100,7 +100,7 @@ const getSourceAnalytics = async (req, res) => {
 
     // Use $transaction to run all aggregation queries in parallel over a single connection
     try {
-      const [
+      let [
         totalOrders, completedOrders, returnedOrders,
         deliveredCod, deliveredOnline, deliveredPrepaid,
         pendingOrders,
@@ -135,14 +135,14 @@ const getSourceAnalytics = async (req, res) => {
         prisma.order.findMany({ where, select: { createdAt: true, totalPrice: true, refundStatus: true }, orderBy: { createdAt: 'asc' } })
       ]);
 
-      const codRevenue = codRevenue._sum.totalPrice || 0;
-      const totalRevenue = totalRevenue._sum.totalPrice || 0;
-      const onlineRevenue = onlineRevenue._sum.totalPrice || 0;
-      const prepaidRevenue = prepaidRevenue._sum.totalPrice || 0;
-      const refundedTotal = refundedTotal._sum.totalPrice || 0;
-      const returnedPaidRefunded = returnedPaidRefunded._sum.totalPrice || 0;
-      const pendingValue = pendingValue._sum.totalPrice || 0;
-      const codReturnedAmount = codReturnedAmount._sum.totalPrice || 0;
+      codRevenue = codRevenue._sum.totalPrice || 0;
+      totalRevenue = totalRevenue._sum.totalPrice || 0;
+      onlineRevenue = onlineRevenue._sum.totalPrice || 0;
+      prepaidRevenue = prepaidRevenue._sum.totalPrice || 0;
+      refundedTotal = refundedTotal._sum.totalPrice || 0;
+      returnedPaidRefunded = returnedPaidRefunded._sum.totalPrice || 0;
+      pendingValue = pendingValue._sum.totalPrice || 0;
+      codReturnedAmount = codReturnedAmount._sum.totalPrice || 0;
 
       const returnedCodCount = Math.max(0, returnedAllCod - returnedPaidCount);
 

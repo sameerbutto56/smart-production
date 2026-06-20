@@ -77,6 +77,8 @@
 - Restored inventory from seed (21 items), then removed all per user request (0 items).
 - Fixed analytics source filter: `buildSourceFilter` now matches by `outletName` regardless of `source` field; `getSources` no longer restricts to `source: 'OUTLET'` so Online orders appear.
 - **Shoes category size selection**: Added `isShoes` helper in `OrderEntry.jsx` to show size buttons for SHOES despite `isAccessory` returning `true`. Size buttons use default `['S', 'M', 'L', 'XL', '2XL']` sizes (not empty). `handleCategorySelect` skips `setSize('Standard')` for SHOES.
+- **Fixed `useCallback` TDZ crash**: `handleAddToCart` dependency array referenced `computedTotalPrice` and `capCharges` — `const` variables defined **after** the `useCallback` call in the component body. This caused `ReferenceError: Cannot access 'Ie' before initialization` in the production build. Removed those variables from deps (computations happen inside callback body, where TDZ is no longer an issue).
+- **Fixed missing `useCallback` deps**: `removeCartItem` had no dependency array — switched to functional update pattern `setCartItems(prev => prev.filter(...))` with `[]` deps for a stable reference.
 
 ### In Progress
 - (none)
@@ -95,6 +97,8 @@
 ### Frontend
 - **API service layer**: Created `frontend/src/services/api.js` — axios instance with auto token interceptor. Migrated `OrderEntry.jsx`, `ThemeContext.jsx`, `DispatchDashboard.jsx` from raw axios.
 - **`useCallback`**: Wrapped 7 handlers in `OrderEntry.jsx` (`handleSizeSelect`, `toggleEditMode`, `fetchOrderByNumber`, `handleAddToCart`, `removeCartItem`, `editCartItem`, `handleCheckout`).
+  - **Bug fix**: `handleAddToCart` deps referenced `computedTotalPrice`/`capCharges` (defined after `useCallback`) — removed from deps, values read from closure.
+  - **Bug fix**: `removeCartItem` had missing deps array — switched to functional update with `[]` deps.
 - **`useMemo`**: Wrapped `reduce()` calls and static objects extracted outside component in `OrderEntry.jsx`.
 - **`React.memo`**: Wrapped `KpiCard`, `StageBadge`, `OrderListModal`, `DrillDetail` in `UnifiedAnalytics.jsx`.
 - **Context memoization**: All 4 providers (`LanguageContext`, `ThemeContext`, `AuthContext`, `SearchContext`) now wrap children in `useMemo`.
