@@ -1179,7 +1179,7 @@ const SmartOrderForm = () => {
   const filteredTabs = allTabs.filter(tab => {
     if (tab.customOnly && formData.type === 'STANDARD') return false;
     if (tab.customOnly && !isCustomizableProduct(selectedProductCategory)) return false;
-    if (tab.id === 'sizes' && (isAccessory(selectedProductCategory) || isShoes(selectedProductCategory))) return false;
+    if (tab.id === 'sizes' && isAccessory(selectedProductCategory)) return false;
     return true;
   });
 
@@ -2205,7 +2205,7 @@ const SmartOrderForm = () => {
                     </div>
                     {(!isAccessory(selectedProductCategory) || isShoes(selectedProductCategory)) && (
                       <div className={`flex p-1.5 theme-bg rounded-xl border-2 theme-border ${useUrdu ? 'flex-row-reverse' : ''}`}>
-                        {(availableSizes.length > 0 ? availableSizes : (isShoes(selectedProductCategory) ? [] : ['S', 'M', 'L', 'XL', '2XL'])).map(s => (
+                        {(availableSizes.length > 0 ? availableSizes : ['S', 'M', 'L', 'XL', '2XL']).map(s => (
                           <button
                             key={s}
                             type="button"
@@ -2342,7 +2342,7 @@ const SmartOrderForm = () => {
                   )}
 
                   {/* Matching Cap */}
-                  {formData.productType && !isAccessory(selectedProductCategory) && !isShoes(selectedProductCategory) && (
+                  {formData.productType && !isAccessory(selectedProductCategory) && (
                     <div className="mt-6 theme-bg-subtle p-4 md:p-6 rounded-2xl border theme-border">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
