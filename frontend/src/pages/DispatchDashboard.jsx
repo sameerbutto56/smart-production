@@ -9,7 +9,13 @@ import socket from '../socket';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
-const COURIER_OPTIONS = ['TCS', 'Leopards', 'M&P', 'Trax', 'Other'];
+const DISPATCH_OPTIONS = [
+  { id: 'ENAMELS', label: 'Enamels Delivery', type: 'dispatch', desc: 'Assign to Enamels delivery team' },
+  { id: 'TCS', label: 'TCS', type: 'courier', desc: 'Book TCS courier' },
+  { id: 'POST_EX', label: 'PostEx', type: 'courier', desc: 'Book PostEx courier' },
+  { id: 'WALK_IN', label: 'Received by Customer', type: 'walkin', desc: 'Mark delivered directly' },
+  { id: 'OTHER', label: 'Other', type: 'courier', desc: 'Other courier service' },
+];
 
 const PRIORITY_BADGE = {
   SUPER_URGENT: { bg: 'bg-red-600', text: 'text-white', label: 'SUPER URGENT' },
@@ -32,7 +38,8 @@ const DispatchDashboard = () => {
   const [deliveryMethod, setDeliveryMethod] = useState('');
   const [destinationCity, setDestinationCity] = useState('');
   const [notes, setNotes] = useState('');
-  const [courierName, setCourierName] = useState('TCS');
+  const [selectedOption, setSelectedOption] = useState(DISPATCH_OPTIONS[0]);
+  const [otherCourierName, setOtherCourierName] = useState('');
   const [trackingNumber, setTrackingNumber] = useState('');
   const [estimatedDelivery, setEstimatedDelivery] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -93,21 +100,33 @@ const DispatchDashboard = () => {
   };
 
   const handleBookCourier = async (orderId) => {
-    if (!trackingNumber.trim() || !courierName) return;
+    const option = selectedOption;
+    if (option.type === 'courier' && !trackingNumber.trim()) return;
+    if (option.id === 'OTHER' && !otherCourierName.trim()) return;
     setSubmitting(true);
+    const token = sessionStorage.getItem('token');
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.post(`${API_URL}/api/dispatch/${orderId}/book`,
-        { courierName, trackingNumber, estimatedDelivery: estimatedDelivery || null },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      if (option.id === 'ENAMELS' || option.id === 'WALK_IN') {
+        await axios.post(`${API_URL}/api/orders/${orderId}/dispatch`,
+          { deliveryMethod: option.id, trackingUrl: trackingNumber || null },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      } else {
+        const name = option.id === 'OTHER' ? otherCourierName.trim() : option.label;
+        await axios.post(`${API_URL}/api/dispatch/${orderId}/book`,
+          { courierName: name, trackingNumber, estimatedDelivery: estimatedDelivery || null },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      }
       setBookModal(null);
       setTrackingNumber('');
       setEstimatedDelivery('');
-      toast.success('Courier booked successfully!', { duration: 3000 });
+      setOtherCourierName('');
+      setSelectedOption(DISPATCH_OPTIONS[0]);
+      toast.success(option.id === 'WALK_IN' ? 'Order marked as received by customer!' : option.id === 'ENAMELS' ? 'Assigned to Enamels Delivery!' : 'Courier booked successfully!', { duration: 3000 });
       fetchDashboard();
     } catch (err) {
-      alert('Failed to book courier: ' + (err.response?.data?.error || err.message));
+      alert('Failed: ' + (err.response?.data?.error || err.message));
     }
     setSubmitting(false);
   };
@@ -373,7 +392,7 @@ const DispatchDashboard = () => {
                       <button onClick={() => setBookModal(order)}
                         disabled={statusLoading === order.id}
                         className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50">
-                        {statusLoading === order.id ? <LoadingSpinner size={12} /> : <><Truck size={14} /> Book Courier</>}
+                        {statusLoading === order.id ? <LoadingSpinner size={12} /> : <><Truck size={14} /> Dispatch</>}
                       </button>
                     ) : order.dispatchStatus === 'BOOKED' ? (
                       <button onClick={() => handleUpdateStatus(order.id, 'DISPATCHED')}
@@ -532,39 +551,65 @@ const DispatchDashboard = () => {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
               className="glass max-w-md w-full p-4 md:p-8 rounded-[2rem] border-2 theme-border shadow-2xl">
-              <h2 className="text-2xl font-black theme-text-primary mb-2">Book Courier</h2>
+              <h2 className="text-2xl font-black theme-text-primary mb-2">Dispatch Order</h2>
               <p className="theme-text-secondary text-xs font-bold mb-6">Order #{bookModal?.orderNumber || bookModal?.id?.substring(0, 8)} — {bookModal?.customerName}</p>
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest mb-2 block">Courier Service</label>
+                  <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest mb-2 block">Dispatch Method</label>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    {COURIER_OPTIONS.map(c => (
-                      <button key={c} onClick={() => setCourierName(c)}
+                    {DISPATCH_OPTIONS.map(o => (
+                      <button key={o.id} onClick={() => { setSelectedOption(o); setTrackingNumber(''); setOtherCourierName(''); }}
                         className={`py-3 px-2 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all border-2 ${
-                          courierName === c ? 'border-purple-500 bg-purple-600 text-white' : 'theme-border theme-bg theme-text-muted'
-                        }`}>{c}</button>
+                          selectedOption.id === o.id ? 'border-purple-500 bg-purple-600 text-white' : 'theme-border theme-bg theme-text-muted'
+                        }`} title={o.desc}>{o.label}</button>
                     ))}
                   </div>
                 </div>
-                <div>
-                  <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest mb-2 block">Tracking Number</label>
-                  <input type="text" value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)}
-                    className="w-full theme-input rounded-xl py-3 px-4 focus:border-purple-500 outline-none font-black"
-                    placeholder="Enter tracking number..." />
-                </div>
-                <div>
-                  <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest mb-2 block">Estimated Delivery Date (optional)</label>
-                  <input type="date" value={estimatedDelivery} onChange={(e) => setEstimatedDelivery(e.target.value)}
-                    className="w-full theme-input rounded-xl py-3 px-4 focus:border-purple-500 outline-none font-black" />
-                </div>
+                {selectedOption.type === 'courier' && (
+                  <>
+                    <div>
+                      <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest mb-2 block">Tracking Number</label>
+                      <input type="text" value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)}
+                        className="w-full theme-input rounded-xl py-3 px-4 focus:border-purple-500 outline-none font-black"
+                        placeholder="Enter tracking number..." />
+                    </div>
+                    <div>
+                      <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest mb-2 block">Estimated Delivery Date (optional)</label>
+                      <input type="date" value={estimatedDelivery} onChange={(e) => setEstimatedDelivery(e.target.value)}
+                        className="w-full theme-input rounded-xl py-3 px-4 focus:border-purple-500 outline-none font-black" />
+                    </div>
+                    {selectedOption.id === 'OTHER' && (
+                      <div>
+                        <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest mb-2 block">Courier Name</label>
+                        <input type="text" value={otherCourierName} onChange={(e) => setOtherCourierName(e.target.value)}
+                          className="w-full theme-input rounded-xl py-3 px-4 focus:border-purple-500 outline-none font-black"
+                          placeholder="Enter courier name..." />
+                      </div>
+                    )}
+                  </>
+                )}
+                {selectedOption.type === 'dispatch' && (
+                  <div>
+                    <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest mb-2 block">Tracking URL (optional)</label>
+                    <input type="text" value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)}
+                      className="w-full theme-input rounded-xl py-3 px-4 focus:border-purple-500 outline-none font-black"
+                      placeholder="Enter tracking URL or number..." />
+                  </div>
+                )}
+                {selectedOption.type === 'walkin' && (
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 text-center">
+                    <p className="text-xs md:text-sm font-black text-emerald-400">Order will be marked as received by customer directly.</p>
+                  </div>
+                )}
               </div>
               <div className="flex space-x-3 mt-8">
-                <button onClick={() => { setBookModal(null); setTrackingNumber(''); setEstimatedDelivery(''); }}
+                <button onClick={() => { setBookModal(null); setTrackingNumber(''); setEstimatedDelivery(''); setOtherCourierName(''); setSelectedOption(DISPATCH_OPTIONS[0]); }}
                   className="flex-1 py-3 bg-gray-800 text-gray-400 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-gray-700 transition-all">Cancel</button>
-                <button onClick={() => handleBookCourier(bookModal.id)} disabled={submitting || !trackingNumber.trim()}
+                <button onClick={() => handleBookCourier(bookModal.id)}
+                  disabled={submitting || (selectedOption.type === 'courier' && !trackingNumber.trim()) || (selectedOption.id === 'OTHER' && !otherCourierName.trim())}
                   className="flex-1 py-3 bg-purple-600 text-white rounded-xl font-black text-xs uppercase tracking-wider hover:bg-purple-500 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
                   {submitting ? <Loader2 className="animate-spin" size={16} /> : <Truck size={16} />}
-                  Book Courier
+                  {selectedOption.id === 'WALK_IN' ? 'Confirm Received' : selectedOption.id === 'ENAMELS' ? 'Assign Delivery' : 'Book Courier'}
                 </button>
               </div>
             </motion.div>
