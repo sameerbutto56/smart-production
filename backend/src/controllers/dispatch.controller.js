@@ -307,4 +307,58 @@ const markPickedUp = async (req, res) => {
   }
 };
 
-module.exports = { getDispatchQueue, requestCourierDispatch, bookCourier, updateCourierStatus, getPickupOrders, markPickedUp };
+// Dispatch dashboard with 3 categories: unseen, active, all orders
+const getDispatchDashboard = async (req, res) => {
+  try {
+    const baseWhere = {};
+    if (req.user?.role === 'OUTLET') {
+      const name = req.user?.name || '';
+      let outletName = 'OUTLET';
+      if (name.includes('1') || name.toLowerCase().includes('johar')) outletName = 'JOHAR TOWN BRANCH';
+      else if (name.includes('2') || name.toLowerCase().includes('jail')) outletName = 'JAIL ROAD BRANCH';
+      else if (name.includes('3') || name.toLowerCase().includes('abbottabad')) outletName = 'ABBOTTABAD BRANCH';
+      baseWhere.outletName = outletName;
+    }
+
+    const orders = await prisma.order.findMany({
+      where: {
+        ...baseWhere,
+        OR: [
+          { currentStage: { in: ['DISPATCH', 'OUT_FOR_DELIVERY'] } },
+          { dispatchStatus: { not: null } }
+        ]
+      },
+      include: {
+        stages: { orderBy: { createdAt: 'asc' } },
+        auditLogs: { orderBy: { timestamp: 'desc' }, take: 10 },
+        createdBy: { select: { name: true, role: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Categorize
+    const unseen = [];
+    const active = [];
+    const allOrders = [];
+
+    for (const order of orders) {
+      const dispatchStage = order.stages.find(s => s.stageName === 'DISPATCH');
+      const isAccepted = dispatchStage?.startedAt != null;
+      const isPending = dispatchStage?.status === 'PENDING' || !dispatchStage;
+
+      if (order.currentStage === 'DISPATCH' && !isAccepted && isPending) {
+        unseen.push(order);
+      } else if (order.currentStage === 'DISPATCH' && isAccepted && !order.deliveryType) {
+        active.push(order);
+      } else {
+        allOrders.push(order);
+      }
+    }
+
+    res.json({ unseen, active, allOrders, counts: { unseen: unseen.length, active: active.length, all: allOrders.length } });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch dispatch dashboard', error: error.message });
+  }
+};
+
+module.exports = { getDispatchQueue, requestCourierDispatch, bookCourier, updateCourierStatus, getPickupOrders, markPickedUp, getDispatchDashboard };

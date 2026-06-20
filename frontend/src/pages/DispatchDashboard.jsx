@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Truck, Package, MapPin, Clock, Search, Loader2, Phone, CheckCircle2, X, ExternalLink, User, Hash, AlertTriangle, Globe, Send, Store, ShoppingBag } from 'lucide-react';
+import { Truck, Package, MapPin, Clock, Search, Loader2, Phone, CheckCircle2, X, ExternalLink, User, Hash, AlertTriangle, Globe, Send, Store, ShoppingBag, Eye } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import { PageLoader, LoadingSpinner, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
+import { PageLoader, LoadingSpinner } from '../components/LoadingSpinner';
+import socket from '../socket';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -20,11 +21,12 @@ const DispatchDashboard = () => {
   const { user } = useAuth();
   const isOutlet = user?.role === 'OUTLET';
   const isDispatchAdmin = ['SUPER_ADMIN', 'FAISAL', 'ADMIN'].includes(user?.role || '');
-  const [activeTab, setActiveTab] = useState('courier');
-  const [orders, setOrders] = useState([]);
-  const [pickupOrders, setPickupOrders] = useState([]);
+  const [activeTab, setActiveTab] = useState('unseen');
+  const [data, setData] = useState({ unseen: [], active: [], allOrders: [], counts: { unseen: 0, active: 0, all: 0 } });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [cityFilter, setCityFilter] = useState('');
+  const [methodFilter, setMethodFilter] = useState('');
   const [bookModal, setBookModal] = useState(null);
   const [requestModal, setRequestModal] = useState(null);
   const [deliveryMethod, setDeliveryMethod] = useState('');
@@ -35,45 +37,58 @@ const DispatchDashboard = () => {
   const [estimatedDelivery, setEstimatedDelivery] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [statusLoading, setStatusLoading] = useState(null);
-  const [filter, setFilter] = useState('ALL');
+  const [acceptLoading, setAcceptLoading] = useState(null);
+  const queueRefreshRef = useRef(null);
 
-  useEffect(() => {
-    if (activeTab === 'courier') fetchQueue();
-    else fetchPickupOrders();
-    const interval = setInterval(() => {
-      if (activeTab === 'courier') fetchQueue();
-      else fetchPickupOrders();
-    }, 15000);
-    return () => clearInterval(interval);
-  }, [activeTab]);
-
-  const fetchQueue = async () => {
+  const fetchDashboard = async () => {
     setLoading(true);
     try {
       const token = sessionStorage.getItem('token');
-      const res = await axios.get(`${API_URL}/api/dispatch/queue`, {
+      const res = await axios.get(`${API_URL}/api/dispatch/dashboard`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setOrders(res.data);
+      setData(res.data);
     } catch (err) {
-      console.error('Failed to fetch dispatch queue:', err);
+      console.error('Failed to fetch dispatch dashboard:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchPickupOrders = async () => {
-    setLoading(true);
+  useEffect(() => {
+    fetchDashboard();
+    const interval = setInterval(fetchDashboard, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const handleStageAccepted = () => {
+      if (queueRefreshRef.current) clearTimeout(queueRefreshRef.current);
+      queueRefreshRef.current = setTimeout(fetchDashboard, 500);
+    };
+    socket.on('stage-accepted', handleStageAccepted);
+    socket.on('dispatch-request', fetchDashboard);
+    socket.on('order-updated', fetchDashboard);
+    return () => {
+      socket.off('stage-accepted', handleStageAccepted);
+      socket.off('dispatch-request', fetchDashboard);
+      socket.off('order-updated', fetchDashboard);
+    };
+  }, []);
+
+  const handleAcceptTask = async (orderId) => {
+    setAcceptLoading(orderId);
     try {
       const token = sessionStorage.getItem('token');
-      const res = await axios.get(`${API_URL}/api/dispatch/pickup`, {
+      await axios.post(`${API_URL}/api/orders/${orderId}/accept-task`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setPickupOrders(res.data);
+      toast.success('Task accepted!', { duration: 2000 });
+      fetchDashboard();
     } catch (err) {
-      console.error('Failed to fetch pickup orders:', err);
+      toast.error('Failed to accept task: ' + (err.response?.data?.error || err.message));
     } finally {
-      setLoading(false);
+      setAcceptLoading(null);
     }
   };
 
@@ -90,7 +105,7 @@ const DispatchDashboard = () => {
       setTrackingNumber('');
       setEstimatedDelivery('');
       toast.success('Courier booked successfully!', { duration: 3000 });
-      fetchQueue();
+      fetchDashboard();
     } catch (err) {
       alert('Failed to book courier: ' + (err.response?.data?.error || err.message));
     }
@@ -111,7 +126,7 @@ const DispatchDashboard = () => {
       setDestinationCity('');
       setNotes('');
       toast.success('Courier dispatch requested! Dispatch department notified.', { duration: 4000 });
-      fetchQueue();
+      fetchDashboard();
     } catch (err) {
       alert('Failed to request courier: ' + (err.response?.data?.error || err.message));
     }
@@ -127,7 +142,7 @@ const DispatchDashboard = () => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       toast.success(`Status updated to ${dispatchStatus}`, { duration: 2000 });
-      fetchQueue();
+      fetchDashboard();
     } catch (err) {
       alert('Failed to update: ' + (err.response?.data?.error || err.message));
     } finally {
@@ -143,7 +158,7 @@ const DispatchDashboard = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       toast.success('Order marked as picked up!', { duration: 3000 });
-      fetchPickupOrders();
+      fetchDashboard();
     } catch (err) {
       alert('Failed to mark as picked up: ' + (err.response?.data?.error || err.message));
     } finally {
@@ -151,22 +166,96 @@ const DispatchDashboard = () => {
     }
   };
 
-  const filtered = orders.filter(o => {
-    if (filter !== 'ALL' && o.dispatchStatus !== filter) return false;
+  const getFilteredAllOrders = () => {
+    let items = data.allOrders;
     const q = search.toLowerCase();
-    return !q || o.customerName?.toLowerCase().includes(q) || o.orderNumber?.toLowerCase().includes(q) || o.outletName?.toLowerCase().includes(q);
-  });
+    if (q) items = items.filter(o =>
+      o.customerName?.toLowerCase().includes(q) ||
+      (o.orderNumber || '').toLowerCase().includes(q) ||
+      o.outletName?.toLowerCase().includes(q)
+    );
+    if (cityFilter) items = items.filter(o => (o.city || '').toLowerCase() === cityFilter.toLowerCase());
+    if (methodFilter) items = items.filter(o => (o.deliveryType || '').toLowerCase() === methodFilter.toLowerCase());
+    return items;
+  };
+
+  const getFilteredActive = () => {
+    let items = data.active;
+    const q = search.toLowerCase();
+    if (q) items = items.filter(o =>
+      o.customerName?.toLowerCase().includes(q) ||
+      (o.orderNumber || '').toLowerCase().includes(q) ||
+      o.outletName?.toLowerCase().includes(q)
+    );
+    if (cityFilter) items = items.filter(o => (o.city || '').toLowerCase() === cityFilter.toLowerCase());
+    if (methodFilter) items = items.filter(o => (o.deliveryMethod || '').toLowerCase().includes(methodFilter.toLowerCase()));
+    return items;
+  };
+
+  const allCities = [...new Set([...data.active, ...data.allOrders].map(o => o.city).filter(Boolean))];
 
   const tabs = [
-    { id: 'courier', label: 'Courier Dispatch', icon: Truck, desc: 'Manage all courier shipments' },
-    { id: 'pickup', label: 'Customer Pickup', icon: Store, desc: 'Orders ready for customer pickup' },
+    { id: 'unseen', label: 'Unseen Tasks', icon: Eye, desc: 'Orders awaiting acceptance', count: data.counts.unseen },
+    { id: 'active', label: 'Active Tasks', icon: Package, desc: 'Accepted orders in progress', count: data.counts.active },
+    { id: 'all', label: 'All Orders', icon: Truck, desc: 'Processed & delivered orders', count: data.counts.all },
   ];
 
-  if (!isOutlet) {
-    tabs.push({ id: 'in_city', label: 'In-City Delivery', icon: Package, desc: 'Local delivery management' });
-  }
+  const renderOrderCard = (order, actions) => {
+    const badge = PRIORITY_BADGE[order.priority] || PRIORITY_BADGE.NORMAL;
+    return (
+      <motion.div key={order.id} layout
+        className={`glass rounded-[2rem] p-4 md:p-6 border ${order.priority === 'SUPER_URGENT' ? 'border-red-500/40 shadow-[0_0_15px_rgba(239,68,68,0.2)]' : 'theme-border'}`}>
+        <div className="flex flex-col md:flex-row md:items-center gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <span className={`text-xs md:text-sm font-black px-2 py-0.5 rounded-full ${badge.bg} ${badge.text}`}>{badge.label}</span>
+              <span className={`text-xs md:text-sm font-black px-2 py-0.5 rounded-full ${order.source === 'ONLINE ORDER' || order.source === 'INTERNAL' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'}`}>
+                {order.source === 'ONLINE ORDER' || order.source === 'INTERNAL' ? 'ONLINE' : order.source}
+              </span>
+              {order.outletName && <span className="text-xs md:text-sm font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{order.outletName}</span>}
+              {order.deliveryType && (
+                <span className={`text-xs md:text-sm font-black px-2 py-0.5 rounded-full ${
+                  order.deliveryType === 'COURIER' ? 'bg-purple-500/10 text-purple-400' :
+                  order.deliveryType === 'PICKUP' ? 'bg-amber-500/10 text-amber-400' :
+                  'bg-emerald-500/10 text-emerald-400'
+                }`}>{order.deliveryType.replace(/_/g, ' ')}</span>
+              )}
+              {order.dispatchStatus && !['PENDING'].includes(order.dispatchStatus) && (
+                <span className={`text-xs md:text-sm font-black px-2 py-0.5 rounded-full ${
+                  order.dispatchStatus === 'DELIVERED' || order.dispatchStatus === 'PICKED_UP' ? 'bg-emerald-500/10 text-emerald-400' :
+                  order.dispatchStatus === 'DISPATCHED' ? 'bg-indigo-500/10 text-indigo-400' :
+                  order.dispatchStatus === 'IN_TRANSIT' ? 'bg-yellow-500/10 text-yellow-400' :
+                  order.dispatchStatus === 'BOOKED' ? 'bg-blue-500/10 text-blue-400' :
+                  'bg-amber-500/10 text-amber-400'
+                }`}>{order.dispatchStatus.replace(/_/g, ' ')}</span>
+              )}
+            </div>
+            <h3 className="font-black text-xl theme-text-primary truncate">#{order.orderNumber || order.id.substring(0, 8)} — {order.customerName}</h3>
+            <div className="flex flex-wrap items-center gap-3 mt-2 text-xs md:text-sm theme-text-secondary font-bold">
+              <span className="flex items-center gap-1"><Phone size={12} />{order.customerPhone || 'N/A'}</span>
+              {order.address && <span className="flex items-center gap-1 text-blue-400 font-black max-w-[300px] truncate" title={order.address}><MapPin size={12} />{order.address}</span>}
+              {order.city && <span className="flex items-center gap-1"><MapPin size={12} />{order.city}</span>}
+              {order.deliveryMethod && <span className="flex items-center gap-1"><Package size={12} />{order.deliveryMethod}</span>}
+              <span className="flex items-center gap-1"><Clock size={12} />{new Date(order.createdAt).toLocaleDateString()}</span>
+            </div>
+            {order.trackingNumber && (
+              <div className="mt-2 inline-flex items-center gap-2 bg-blue-500/10 px-3 py-1.5 rounded-xl border border-blue-500/20">
+                <ExternalLink size={12} className="text-blue-400" />
+                <span className="text-xs md:text-sm font-black text-blue-400">Tracking: {order.trackingNumber}</span>
+              </div>
+            )}
+          </div>
+          <div className="flex flex-col gap-2 md:items-end">
+            <div className="flex gap-2 flex-wrap">
+              {actions}
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    );
+  };
 
-  if (loading) {
+  if (loading && !data.unseen.length && !data.active.length && !data.allOrders.length) {
     return <PageLoader text="Loading Dispatch Dashboard..." />;
   }
 
@@ -190,20 +279,48 @@ const DispatchDashboard = () => {
         {tabs.map(tab => {
           const Icon = tab.icon;
           return (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 flex flex-col items-center gap-1 py-3 px-4 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all ${
+            <button key={tab.id} onClick={() => { setActiveTab(tab.id); setSearch(''); setCityFilter(''); setMethodFilter(''); }}
+              className={`flex-1 flex flex-col items-center gap-1 py-3 px-4 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all relative ${
                 activeTab === tab.id
                   ? 'bg-purple-600 text-white shadow-lg'
                   : 'theme-text-muted hover:text-gray-300'
               }`}>
               <Icon size={16} />
               <span>{tab.label}</span>
+              {tab.count > 0 && (
+                <span className={`absolute -top-1.5 -right-1.5 text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center ${
+                  activeTab === tab.id ? 'bg-white text-purple-700' : 'bg-purple-500/20 text-purple-400'
+                }`}>{tab.count}</span>
+              )}
             </button>
           );
         })}
       </div>
 
-      {activeTab === 'courier' && (
+      {activeTab === 'unseen' && (
+        <>
+          {data.unseen.length === 0 ? (
+            <div className="glass rounded-2xl md:rounded-[3rem] border theme-border p-6 md:p-20 text-center">
+              <Eye className="mx-auto text-gray-800 mb-4" size={48} />
+              <h3 className="theme-text-muted font-black uppercase">No Unseen Tasks</h3>
+              <p className="theme-text-muted text-xs font-bold mt-2">All dispatch orders have been accepted. Great work!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {data.unseen.map(order => renderOrderCard(order, (
+                <button onClick={() => handleAcceptTask(order.id)}
+                  disabled={acceptLoading === order.id}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50">
+                  {acceptLoading === order.id ? <Loader2 className="animate-spin" size={14} /> : <CheckCircle2 size={14} />}
+                  ACCEPT TASK & START WORK
+                </button>
+              )))}
+            </div>
+          )}
+        </>
+      )}
+
+      {activeTab === 'active' && (
         <>
           <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
             <div className="relative flex-1 max-w-md">
@@ -211,192 +328,163 @@ const DispatchDashboard = () => {
               <input type="text" placeholder="Search by order #, customer, or outlet..." value={search} onChange={(e) => setSearch(e.target.value)}
                 className="w-full theme-input border-2 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-purple-500 transition-all text-sm font-bold" />
             </div>
-            <div className="flex flex-wrap gap-1">
-              {(isOutlet ? ['ALL', 'PENDING', 'COURIER_REQUIRED', 'BOOKED', 'DISPATCHED'] : ['ALL', 'COURIER_REQUIRED', 'READY_FOR_DISPATCH', 'BOOKED', 'DISPATCHED', 'IN_TRANSIT']).map(f => (
-                <button key={f} onClick={() => setFilter(f)}
-                  className={`px-3 py-1.5 rounded-lg text-xs md:text-sm font-black uppercase tracking-widest transition-all ${filter === f ? (isOutlet ? 'bg-blue-600 text-white' : 'bg-purple-600 text-white') : 'theme-bg theme-text-muted hover:text-gray-300 border theme-border'}`}>
-                  {f.replace(/_/g, ' ')}
-                </button>
-              ))}
+            <div className="flex flex-wrap gap-2">
+              <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)}
+                className="theme-input rounded-xl py-2.5 px-3 text-xs font-black uppercase tracking-wider border-2">
+                <option value="">All Cities</option>
+                {allCities.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <select value={methodFilter} onChange={(e) => setMethodFilter(e.target.value)}
+                className="theme-input rounded-xl py-2.5 px-3 text-xs font-black uppercase tracking-wider border-2">
+                <option value="">All Methods</option>
+                <option value="courier">Courier</option>
+                <option value="pickup">Pickup</option>
+              </select>
             </div>
           </div>
 
-          {filtered.length === 0 ? (
+          {getFilteredActive().length === 0 ? (
             <div className="glass rounded-2xl md:rounded-[3rem] border theme-border p-6 md:p-20 text-center">
               <Package className="mx-auto text-gray-800 mb-4" size={48} />
-              <h3 className="theme-text-muted font-black uppercase">{isOutlet ? 'No orders ready for dispatch' : 'No orders in dispatch queue'}</h3>
-              <p className="theme-text-muted text-xs font-bold mt-2">{isOutlet ? 'Orders that reach the dispatch stage will appear here for courier request.' : 'Orders needing courier dispatch will appear here.'}</p>
+              <h3 className="theme-text-muted font-black uppercase">No Active Tasks</h3>
+              <p className="theme-text-muted text-xs font-bold mt-2">Accepted dispatch orders awaiting action will appear here.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4">
-              {filtered.map(order => {
-                const badge = PRIORITY_BADGE[order.priority] || PRIORITY_BADGE.NORMAL;
-                return (
-                  <motion.div key={order.id} layout
-                    className={`glass rounded-[2rem] p-4 md:p-6 border ${order.priority === 'SUPER_URGENT' ? 'border-red-500/40 shadow-[0_0_15px_rgba(239,68,68,0.2)]' : 'theme-border'}`}>
-                    <div className="flex flex-col md:flex-row md:items-center gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <span className={`text-xs md:text-sm font-black px-2 py-0.5 rounded-full ${badge.bg} ${badge.text}`}>{badge.label}</span>
-                          <span className={`text-xs md:text-sm font-black px-2 py-0.5 rounded-full ${order.source === 'ONLINE ORDER' || order.source === 'INTERNAL' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'}`}>
-                            {order.source === 'ONLINE ORDER' || order.source === 'INTERNAL' ? 'ONLINE' : order.source}
-                          </span>
-                          {order.outletName && <span className="text-xs md:text-sm font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{order.outletName}</span>}
-                          {order.deliveryType && (
-                            <span className={`text-xs md:text-sm font-black px-2 py-0.5 rounded-full ${
-                              order.deliveryType === 'COURIER' ? 'bg-purple-500/10 text-purple-400' :
-                              order.deliveryType === 'PICKUP' ? 'bg-amber-500/10 text-amber-400' :
-                              'bg-emerald-500/10 text-emerald-400'
-                            }`}>{order.deliveryType.replace(/_/g, ' ')}</span>
-                          )}
-                        </div>
-                        <h3 className="font-black text-xl theme-text-primary truncate">#{order.orderNumber || order.id.substring(0, 8)} — {order.customerName}</h3>
-                        <div className="flex flex-wrap items-center gap-3 mt-2 text-xs md:text-sm theme-text-secondary font-bold">
-                          <span className="flex items-center gap-1"><Phone size={12} />{order.customerPhone || 'N/A'}</span>
-                          {order.address && <span className="flex items-center gap-1 text-blue-400 font-black max-w-[300px] truncate" title={order.address}><MapPin size={12} />{order.address}</span>}
-                          <span className="flex items-center gap-1"><Package size={12} />{order.deliveryMethod || 'Not set'}</span>
-                          <span className="flex items-center gap-1"><Clock size={12} />{new Date(order.createdAt).toLocaleDateString()}</span>
-                        </div>
-                        {order.trackingNumber && (
-                          <div className="mt-2 inline-flex items-center gap-2 bg-blue-500/10 px-3 py-1.5 rounded-xl border border-blue-500/20">
-                            <ExternalLink size={12} className="text-blue-400" />
-                            <span className="text-xs md:text-sm font-black text-blue-400">Tracking: {order.trackingNumber}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="flex flex-col gap-2 md:items-end">
-                        <div className="flex gap-2 flex-wrap">
-                          {isOutlet ? (
-                            !order.dispatchStatus || order.dispatchStatus === 'PENDING' ? (
-                              <button onClick={() => setRequestModal(order)}
-                                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex items-center gap-1.5">
-                                <Send size={14} /> Request Courier
-                              </button>
-                            ) : (
-                              <span className={`px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider ${
-                                order.dispatchStatus === 'COURIER_REQUIRED' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
-                                order.dispatchStatus === 'BOOKED' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
-                                order.dispatchStatus === 'DISPATCHED' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' :
-                                order.dispatchStatus === 'IN_TRANSIT' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' :
-                                'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                              }`}>{order.dispatchStatus?.replace(/_/g, ' ')}</span>
-                            )
-                          ) : (
-                            <>
-                              {(!order.dispatchStatus || order.dispatchStatus === 'PENDING' || order.dispatchStatus === 'COURIER_REQUIRED') ? (
-                                <button onClick={() => setBookModal(order)}
-                                  disabled={statusLoading === order.id}
-                                  className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50">
-                                  {statusLoading === order.id ? <LoadingSpinner size={12} /> : <><Truck size={14} /> Book Courier</>}
-                                </button>
-                              ) : order.dispatchStatus === 'BOOKED' ? (
-                                <button onClick={() => handleUpdateStatus(order.id, 'DISPATCHED')}
-                                  disabled={statusLoading === order.id}
-                                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all disabled:opacity-50">
-                                  {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Mark Dispatched'}
-                                </button>
-                              ) : order.dispatchStatus === 'DISPATCHED' ? (
-                                <button onClick={() => handleUpdateStatus(order.id, 'IN_TRANSIT')}
-                                  disabled={statusLoading === order.id}
-                                  className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all disabled:opacity-50">
-                                  {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Mark In Transit'}
-                                </button>
-                              ) : order.dispatchStatus === 'IN_TRANSIT' ? (
-                                <button onClick={() => handleUpdateStatus(order.id, 'DELIVERED')}
-                                  disabled={statusLoading === order.id}
-                                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all disabled:opacity-50">
-                                  {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Mark Delivered'}
-                                </button>
-                              ) : null}
-                            </>
-                          )}
-                        </div>
-                        {order.courierDetails?.courierName && (
-                          <div className="flex gap-3 text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">
-                            <span>{order.courierDetails.courierName}</span>
-                            <span className={`px-2 py-0.5 rounded-full ${
-                              order.dispatchStatus === 'DELIVERED' ? 'bg-emerald-500/10 text-emerald-400' :
-                              order.dispatchStatus === 'DISPATCHED' ? 'bg-blue-500/10 text-blue-400' :
-                              order.dispatchStatus === 'IN_TRANSIT' ? 'bg-amber-500/10 text-amber-400' :
-                              'bg-gray-500/10 theme-text-muted'
-                            }`}>{order.dispatchStatus}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
+              {getFilteredActive().map(order => renderOrderCard(order, (
+                isOutlet ? (
+                  !order.dispatchStatus || order.dispatchStatus === 'PENDING' ? (
+                    <button onClick={() => setRequestModal(order)}
+                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex items-center gap-1.5">
+                      <Send size={14} /> Request Courier
+                    </button>
+                  ) : (
+                    <span className={`px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider ${
+                      order.dispatchStatus === 'COURIER_REQUIRED' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
+                      order.dispatchStatus === 'BOOKED' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
+                      order.dispatchStatus === 'DISPATCHED' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' :
+                      order.dispatchStatus === 'IN_TRANSIT' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' :
+                      'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    }`}>{order.dispatchStatus?.replace(/_/g, ' ')}</span>
+                  )
+                ) : (
+                  <>
+                    {(!order.dispatchStatus || order.dispatchStatus === 'PENDING' || order.dispatchStatus === 'COURIER_REQUIRED') ? (
+                      <button onClick={() => setBookModal(order)}
+                        disabled={statusLoading === order.id}
+                        className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50">
+                        {statusLoading === order.id ? <LoadingSpinner size={12} /> : <><Truck size={14} /> Book Courier</>}
+                      </button>
+                    ) : order.dispatchStatus === 'BOOKED' ? (
+                      <button onClick={() => handleUpdateStatus(order.id, 'DISPATCHED')}
+                        disabled={statusLoading === order.id}
+                        className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all disabled:opacity-50">
+                        {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Mark Dispatched'}
+                      </button>
+                    ) : order.dispatchStatus === 'DISPATCHED' ? (
+                      <button onClick={() => handleUpdateStatus(order.id, 'IN_TRANSIT')}
+                        disabled={statusLoading === order.id}
+                        className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all disabled:opacity-50">
+                        {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Mark In Transit'}
+                      </button>
+                    ) : order.dispatchStatus === 'IN_TRANSIT' ? (
+                      <button onClick={() => handleUpdateStatus(order.id, 'DELIVERED')}
+                        disabled={statusLoading === order.id}
+                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all disabled:opacity-50">
+                        {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Mark Delivered'}
+                      </button>
+                    ) : null}
+                  </>
+                )
+              )))}
             </div>
           )}
         </>
       )}
 
-      {activeTab === 'pickup' && (
+      {activeTab === 'all' && (
         <>
-          {pickupOrders.length === 0 ? (
+          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 theme-text-muted" size={16} />
+              <input type="text" placeholder="Search by order #, customer, or outlet..." value={search} onChange={(e) => setSearch(e.target.value)}
+                className="w-full theme-input border-2 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-purple-500 transition-all text-sm font-bold" />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)}
+                className="theme-input rounded-xl py-2.5 px-3 text-xs font-black uppercase tracking-wider border-2">
+                <option value="">All Cities</option>
+                {allCities.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <select value={methodFilter} onChange={(e) => setMethodFilter(e.target.value)}
+                className="theme-input rounded-xl py-2.5 px-3 text-xs font-black uppercase tracking-wider border-2">
+                <option value="">All Methods</option>
+                <option value="courier">Courier</option>
+                <option value="pickup">Pickup</option>
+              </select>
+            </div>
+          </div>
+
+          {getFilteredAllOrders().length === 0 ? (
             <div className="glass rounded-2xl md:rounded-[3rem] border theme-border p-6 md:p-20 text-center">
-              <Store className="mx-auto text-gray-800 mb-4" size={48} />
-              <h3 className="theme-text-muted font-black uppercase">No pickup orders</h3>
-              <p className="theme-text-muted text-xs font-bold mt-2">Orders marked for customer pickup will appear here.</p>
+              <Truck className="mx-auto text-gray-800 mb-4" size={48} />
+              <h3 className="theme-text-muted font-black uppercase">No Orders Found</h3>
+              <p className="theme-text-muted text-xs font-bold mt-2">Try adjusting your search or filters.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4">
-              {pickupOrders.map(order => {
-                const badge = PRIORITY_BADGE[order.priority] || PRIORITY_BADGE.NORMAL;
+              {getFilteredAllOrders().map(order => {
+                const isPickup = order.deliveryType === 'PICKUP';
                 const isPickedUp = order.dispatchStatus === 'PICKED_UP' || order.currentStage === 'COMPLETED';
-                return (
-                  <motion.div key={order.id} layout
-                    className={`glass rounded-[2rem] p-4 md:p-6 border ${isPickedUp ? 'border-emerald-500/30' : order.priority === 'SUPER_URGENT' ? 'border-red-500/40' : 'theme-border'}`}>
-                    <div className="flex flex-col md:flex-row md:items-center gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <span className={`text-xs md:text-sm font-black px-2 py-0.5 rounded-full ${badge.bg} ${badge.text}`}>{badge.label}</span>
-                          <span className="text-xs md:text-sm font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">PICKUP</span>
-                          {order.outletName && <span className="text-xs md:text-sm font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{order.outletName}</span>}
-                          {isPickedUp && <span className="text-xs md:text-sm font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">PICKED UP</span>}
-                        </div>
-                        <h3 className="font-black text-xl theme-text-primary truncate">#{order.orderNumber || order.id.substring(0, 8)} — {order.customerName}</h3>
-                        <div className="flex flex-wrap items-center gap-3 mt-2 text-xs md:text-sm theme-text-secondary font-bold">
-                          <span className="flex items-center gap-1"><Phone size={12} />{order.customerPhone || 'N/A'}</span>
-                          {order.address && <span className="flex items-center gap-1 text-blue-400 font-black max-w-[350px]" title={order.address}><MapPin size={14} />{order.address}</span>}
-                          {order.city && <span className="flex items-center gap-1"><Clock size={12} />{order.city}</span>}
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-2 md:items-end">
-                        {!isPickedUp && (
-                          <button onClick={() => {
-                            if (window.confirm(`Confirm pickup for Order #${order.orderNumber || order.id.substring(0, 8)}?`)) {
-                              handleMarkPickedUp(order.id);
-                            }
-                          }}
-                            disabled={statusLoading === order.id}
-                            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50">
-                            {statusLoading === order.id ? <LoadingSpinner size={12} /> : <><CheckCircle2 size={14} /> Mark Picked Up</>}
-                          </button>
-                        )}
-                        {isPickedUp && (
-                          <span className="px-4 py-2.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider">
-                            ✓ Picked Up
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </motion.div>
-                );
+                const canMarkPickup = isPickup && !isPickedUp;
+
+                return renderOrderCard(order, (
+                  <>
+                    {order.dispatchStatus === 'BOOKED' && isDispatchAdmin && (
+                      <button onClick={() => handleUpdateStatus(order.id, 'DISPATCHED')}
+                        disabled={statusLoading === order.id}
+                        className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all disabled:opacity-50">
+                        {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Mark Dispatched'}
+                      </button>
+                    )}
+                    {order.dispatchStatus === 'DISPATCHED' && isDispatchAdmin && (
+                      <button onClick={() => handleUpdateStatus(order.id, 'IN_TRANSIT')}
+                        disabled={statusLoading === order.id}
+                        className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all disabled:opacity-50">
+                        {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Mark In Transit'}
+                      </button>
+                    )}
+                    {order.dispatchStatus === 'IN_TRANSIT' && isDispatchAdmin && (
+                      <button onClick={() => handleUpdateStatus(order.id, 'DELIVERED')}
+                        disabled={statusLoading === order.id}
+                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all disabled:opacity-50">
+                        {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Mark Delivered'}
+                      </button>
+                    )}
+                    {canMarkPickup && (
+                      <button onClick={() => {
+                        if (window.confirm(`Confirm pickup for Order #${order.orderNumber || order.id.substring(0, 8)}?`)) {
+                          handleMarkPickedUp(order.id);
+                        }
+                      }}
+                        disabled={statusLoading === order.id}
+                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50">
+                        {statusLoading === order.id ? <LoadingSpinner size={12} /> : <><CheckCircle2 size={14} /> Mark Picked Up</>}
+                      </button>
+                    )}
+                    {!canMarkPickup && !['BOOKED', 'DISPATCHED', 'IN_TRANSIT'].includes(order.dispatchStatus) && (
+                      <span className={`px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider ${
+                        isPickedUp ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                        order.dispatchStatus === 'DELIVERED' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                        'theme-bg theme-text-muted border theme-border'
+                      }`}>{order.dispatchStatus?.replace(/_/g, ' ') || 'Awaiting Action'}</span>
+                    )}
+                  </>
+                ));
               })}
             </div>
           )}
         </>
-      )}
-
-      {activeTab === 'in_city' && (
-        <div className="glass rounded-2xl md:rounded-[3rem] border theme-border p-6 md:p-20 text-center">
-          <Package className="mx-auto text-gray-800 mb-4" size={48} />
-          <h3 className="theme-text-muted font-black uppercase">In-City Delivery</h3>
-          <p className="theme-text-muted text-xs font-bold mt-2">In-city deliveries are managed from the Deliveries tab.</p>
-        </div>
       )}
 
       <AnimatePresence>

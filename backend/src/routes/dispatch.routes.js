@@ -1,8 +1,9 @@
 const express = require('express');
-const { getDispatchQueue, requestCourierDispatch, bookCourier, updateCourierStatus, getPickupOrders, markPickedUp } = require('../controllers/dispatch.controller');
+const { getDispatchQueue, requestCourierDispatch, bookCourier, updateCourierStatus, getPickupOrders, markPickedUp, getDispatchDashboard } = require('../controllers/dispatch.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 const router = express.Router();
 
+router.get('/dashboard', authenticate, getDispatchDashboard);
 router.get('/queue', authenticate, getDispatchQueue);
 router.post('/:orderId/request', authenticate, authorize(['SUPER_ADMIN', 'FAISAL', 'ADMIN', 'OUTLET']), requestCourierDispatch);
 router.post('/:orderId/book', authenticate, authorize(['SUPER_ADMIN', 'FAISAL', 'ADMIN']), bookCourier);
