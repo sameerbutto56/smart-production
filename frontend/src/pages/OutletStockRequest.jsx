@@ -5,10 +5,10 @@ import {
   RefreshCcw, Search, Clock, Plus, Minus, Send, Eye, ClipboardList,
   Warehouse, FileText, Trash2, Filter
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
+import { PageLoader } from '../components/LoadingSpinner';
 import { usePolling } from '../hooks/usePolling';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
@@ -88,6 +88,9 @@ const OutletStockRequest = () => {
 
   // --- Demand Request Handlers ---
   const addToCart = (item) => {
+    const variants = item.variants || [];
+    const sizes = [...new Set(variants.map(v => v.size).filter(Boolean))];
+    const colors = [...new Set(variants.map(v => v.color).filter(Boolean))];
     setCartItems(prev => {
       const existing = prev.find(i => i.productId === item.id && i.size === item.selectedSize && i.color === item.selectedColor);
       if (existing) {
@@ -98,9 +101,11 @@ const OutletStockRequest = () => {
         productId: item.id,
         productName: item.name,
         category: item.category,
-        size: item.selectedSize || '',
-        color: item.selectedColor || '',
-        qty: 1
+        size: item.selectedSize || (sizes[0] || ''),
+        color: item.selectedColor || (colors[0] || ''),
+        qty: 1,
+        availableSizes: sizes,
+        availableColors: colors
       }];
     });
   };
@@ -161,15 +166,6 @@ const OutletStockRequest = () => {
     }
   };
 
-  const getAvailabilityStyle = (avail) => {
-    switch (avail) {
-      case 'Available': return 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20';
-      case 'Limited': return 'bg-amber-500/15 text-amber-400 border-amber-500/20';
-      case 'Not Available': return 'bg-red-500/15 text-red-400 border-red-500/20';
-      default: return 'bg-gray-500/10 text-gray-400 border-gray-500/20';
-    }
-  };
-
   const statusCounts = {
     pending: myRequests.filter(r => r.status === 'PENDING').length,
     approved: myRequests.filter(r => ['APPROVED', 'PARTIALLY_APPROVED'].includes(r.status)).length,
@@ -224,7 +220,7 @@ const OutletStockRequest = () => {
             activeTab === 'inventory' ? 'bg-blue-600 text-white shadow-lg' : 'theme-text-muted hover:text-white hover:bg-gray-800'
           }`}>
           <Warehouse size={14} />
-          <span>Warehouse Inventory</span>
+          <span>Warehouse Catalog</span>
         </button>
       </div>
 
@@ -249,26 +245,17 @@ const OutletStockRequest = () => {
                   {filteredInventory.map((item, i) => {
                     const variants = item.variants || [];
                     const hasVariants = variants.length > 0;
-                    const uniqueSizes = hasVariants ? [...new Set(variants.map(v => v.size).filter(Boolean))] : [];
-                    const uniqueColors = hasVariants ? [...new Set(variants.map(v => v.color).filter(Boolean))] : [];
+                    const sizes = hasVariants ? [...new Set(variants.map(v => v.size).filter(Boolean))] : [];
+                    const colors = hasVariants ? [...new Set(variants.map(v => v.color).filter(Boolean))] : [];
                     return (
                       <motion.div key={item.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
                         className="glass p-4 md:p-5 rounded-2xl border-2 theme-border hover:border-blue-500/30 transition-all">
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <h3 className="font-black theme-text-primary text-sm">{item.name}</h3>
-                            <p className="text-xs font-bold theme-text-muted uppercase tracking-wider">{item.category}</p>
-                          </div>
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase border ${
-                            item.stock <= 0 ? 'border-red-500/20 bg-red-500/5 text-red-400' :
-                            item.stock <= 10 ? 'border-amber-500/20 bg-amber-500/5 text-amber-400' :
-                            'border-emerald-500/20 bg-emerald-500/5 text-emerald-400'
-                          }`}>
-                            {item.stock <= 0 ? 'Out of Stock' : `${item.stock} left`}
-                          </span>
+                        <div className="mb-3">
+                          <h3 className="font-black theme-text-primary text-sm">{item.name}</h3>
+                          <p className="text-xs font-bold theme-text-muted uppercase tracking-wider">{item.category}</p>
                         </div>
-                        <div className="grid grid-cols-2 gap-2 mt-3">
-                          {hasVariants && uniqueSizes.length > 0 && (
+                        <div className="grid grid-cols-2 gap-2">
+                          {sizes.length > 0 && (
                             <select value={item.selectedSize || ''} onChange={(e) => {
                               const updated = [...inventory];
                               const idx = updated.findIndex(x => x.id === item.id);
@@ -277,10 +264,10 @@ const OutletStockRequest = () => {
                             }}
                               className="theme-bg-subtle border-2 theme-border rounded-lg py-1.5 px-2 text-xs font-medium text-white outline-none">
                               <option value="">Size</option>
-                              {uniqueSizes.map(s => <option key={s} value={s}>{s}</option>)}
+                              {sizes.map(s => <option key={s} value={s}>{s}</option>)}
                             </select>
                           )}
-                          {hasVariants && uniqueColors.length > 0 && (
+                          {colors.length > 0 && (
                             <select value={item.selectedColor || ''} onChange={(e) => {
                               const updated = [...inventory];
                               const idx = updated.findIndex(x => x.id === item.id);
@@ -289,7 +276,7 @@ const OutletStockRequest = () => {
                             }}
                               className="theme-bg-subtle border-2 theme-border rounded-lg py-1.5 px-2 text-xs font-medium text-white outline-none">
                               <option value="">Color</option>
-                              {uniqueColors.map(c => <option key={c} value={c}>{c}</option>)}
+                              {colors.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           )}
                         </div>
@@ -327,7 +314,7 @@ const OutletStockRequest = () => {
                     <div className="text-center py-10">
                       <Package size={40} className="mx-auto text-gray-700 mb-3" />
                       <p className="theme-text-muted font-black text-xs uppercase tracking-widest">Cart is empty</p>
-                      <p className="text-xs theme-text-muted font-bold mt-1">Add products to submit a demand request</p>
+                      <p className="text-xs theme-text-muted font-bold mt-1">Select a product to start</p>
                     </div>
                   ) : (
                     <div className="space-y-3 mb-4 max-h-[400px] overflow-y-auto">
@@ -342,18 +329,32 @@ const OutletStockRequest = () => {
                           <div className="grid grid-cols-3 gap-1 mt-2">
                             <div>
                               <label className="text-[9px] font-black theme-text-muted uppercase">Size</label>
-                              <input type="text" value={item.size} onChange={(e) => updateCartItem(idx, 'size', e.target.value)}
-                                className="w-full theme-bg border rounded-lg py-1 px-1.5 text-[10px] font-medium text-white outline-none" />
+                              <select value={item.size} onChange={(e) => updateCartItem(idx, 'size', e.target.value)}
+                                className="w-full theme-bg border rounded-lg py-1 px-1.5 text-[10px] font-medium text-white outline-none">
+                                {(item.availableSizes?.length ? item.availableSizes : [item.size]).map(s => (
+                                  <option key={s} value={s}>{s}</option>
+                                ))}
+                              </select>
                             </div>
                             <div>
                               <label className="text-[9px] font-black theme-text-muted uppercase">Color</label>
-                              <input type="text" value={item.color} onChange={(e) => updateCartItem(idx, 'color', e.target.value)}
-                                className="w-full theme-bg border rounded-lg py-1 px-1.5 text-[10px] font-medium text-white outline-none" />
+                              <select value={item.color} onChange={(e) => updateCartItem(idx, 'color', e.target.value)}
+                                className="w-full theme-bg border rounded-lg py-1 px-1.5 text-[10px] font-medium text-white outline-none">
+                                {(item.availableColors?.length ? item.availableColors : [item.color]).map(c => (
+                                  <option key={c} value={c}>{c}</option>
+                                ))}
+                              </select>
                             </div>
                             <div>
                               <label className="text-[9px] font-black theme-text-muted uppercase">Qty</label>
-                              <input type="number" min="1" value={item.qty} onChange={(e) => updateCartItem(idx, 'qty', parseInt(e.target.value) || 1)}
-                                className="w-full theme-bg border rounded-lg py-1 px-1.5 text-[10px] font-black text-white outline-none text-center" />
+                              <div className="flex items-center border rounded-lg theme-bg">
+                                <button onClick={() => updateCartItem(idx, 'qty', Math.max(1, (item.qty || 1) - 1))}
+                                  className="px-1.5 py-1 text-gray-400 hover:text-white"><Minus size={10} /></button>
+                                <input type="text" value={item.qty} readOnly
+                                  className="w-full bg-transparent text-center text-[10px] font-black text-white outline-none py-1" />
+                                <button onClick={() => updateCartItem(idx, 'qty', (item.qty || 1) + 1)}
+                                  className="px-1.5 py-1 text-gray-400 hover:text-white"><Plus size={10} /></button>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -465,15 +466,15 @@ const OutletStockRequest = () => {
             </div>
           )}
 
-          {/* ======= Warehouse Inventory Tab ======= */}
+          {/* ======= Warehouse Catalog Tab ======= */}
           {activeTab === 'inventory' && (
             <div className="space-y-6">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <h2 className="font-black theme-text-primary uppercase tracking-wider text-sm flex items-center space-x-2">
                   <Warehouse size={18} className="text-blue-400" />
-                  <span>Warehouse Inventory</span>
+                  <span>Warehouse Catalog</span>
                 </h2>
-                <p className="text-xs theme-text-muted font-bold">Stock levels are approximate</p>
+                <p className="text-xs theme-text-muted font-bold">View available product variants</p>
               </div>
 
               <div className="flex flex-col md:flex-row gap-3">
@@ -505,15 +506,8 @@ const OutletStockRequest = () => {
                   {filteredOutletInv.map((item, i) => (
                     <motion.div key={item.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
                       className="glass p-4 rounded-2xl border-2 theme-border hover:border-gray-800 transition-all">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <h3 className="font-black theme-text-primary text-sm">{item.name}</h3>
-                          <p className="text-[10px] font-bold theme-text-muted uppercase tracking-wider">{item.category}</p>
-                        </div>
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase border ${getAvailabilityStyle(item.availability)}`}>
-                          {item.availability}
-                        </span>
-                      </div>
+                      <h3 className="font-black theme-text-primary text-sm mb-1">{item.name}</h3>
+                      <p className="text-[10px] font-bold theme-text-muted uppercase tracking-wider">{item.category}</p>
                       {(item.color || item.size) && (
                         <div className="flex flex-wrap gap-2 mt-2">
                           {item.color && <span className="text-[10px] theme-text-muted bg-gray-800/50 px-2 py-0.5 rounded-lg">Color: {item.color}</span>}

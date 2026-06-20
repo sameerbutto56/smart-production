@@ -128,29 +128,13 @@ const getInventoryForOutlet = async (req, res) => {
         category: true,
         color: true,
         size: true,
-        fabric: true,
-        stock: true
+        fabric: true
       }
     });
-    const result = items.map(item => {
-      let availability;
-      if (item.stock <= 0) availability = 'Not Available';
-      else if (item.stock <= 10) availability = 'Limited';
-      else availability = 'Available';
-      return {
-        id: item.id,
-        name: item.name,
-        category: item.category,
-        color: item.color,
-        size: item.size,
-        fabric: item.fabric,
-        availability
-      };
-    });
-    let filtered = result;
+    let filtered = items;
     if (search) {
       const q = search.toLowerCase();
-      filtered = result.filter(r =>
+      filtered = items.filter(r =>
         r.name.toLowerCase().includes(q) ||
         r.category?.toLowerCase().includes(q) ||
         r.color?.toLowerCase().includes(q)
