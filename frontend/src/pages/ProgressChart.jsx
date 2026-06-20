@@ -3,6 +3,7 @@ import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { debounce } from '../utils/debounce';
 import { 
   BarChart3, 
   Clock, 
@@ -40,16 +41,17 @@ const ProgressChart = () => {
   const pipeline = ['STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
 
   useEffect(() => {
+    const debouncedFetch = debounce(fetchData, 300);
     fetchData();
     const clock = setInterval(() => setCurrentTime(new Date()), 1000);
     
-    socket.on('order-updated', fetchData);
-    socket.on('new-order', fetchData);
+    socket.on('order-updated', debouncedFetch);
+    socket.on('new-order', debouncedFetch);
 
     return () => {
       clearInterval(clock);
-      socket.off('order-updated');
-      socket.off('new-order');
+      socket.off('order-updated', debouncedFetch);
+      socket.off('new-order', debouncedFetch);
     };
   }, []);
 

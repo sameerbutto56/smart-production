@@ -90,111 +90,153 @@ const getSources = async (req, res) => {
 // GET /api/analytics/source/:sourceId — full analytics for one source
 const getSourceAnalytics = async (req, res) => {
   try {
-    // Support both route param (source/:sourceId) and query param (unified?branch=)
     const sourceId = req.params.sourceId || req.query.branch || 'all';
     const where = buildFilters(req.query, sourceId);
 
-    // Sequential queries to avoid connection pool exhaustion (Vercel limit=1)
     const whereCompleted = { ...where, status: { in: ['COMPLETED', 'DELIVERED'] } };
     const wherePending = { ...where, status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] } };
     const whereRefunded = { ...where, refundStatus: { in: ['REFUNDED', 'PARTIAL'] } };
-    const whereRefundPending = { ...where, refundStatus: { in: ['REQUESTED', 'PROCESSING'] } };
     const whereAllRefunded = { ...where, refundStatus: { not: 'NONE' } };
 
-    const totalOrders = await safeCount(where);
-    const completedOrders = await safeCount(whereCompleted);
-    const returnedOrders = await safeCount(whereAllRefunded);
-
-    const deliveredCod = await safeCount({ ...whereCompleted, paymentMethod: 'CASH' });
-    const deliveredOnline = await safeCount({ ...whereCompleted, paymentMethod: { in: ['ONLINE', 'ONLINE_TRANSFER'] } });
-    const deliveredPrepaid = await safeCount({ ...whereCompleted, paymentStatus: { in: ['PAID', 'FULL_PAID'] } });
-
-    const pendingOrders = await safeCount(wherePending);
-
-    const totalRevenue = await safeSum(where, 'totalPrice');
-    const codRevenue = await safeSum({ ...where, paymentMethod: 'CASH' }, 'totalPrice');
-    const onlineRevenue = await safeSum({ ...where, paymentMethod: { in: ['ONLINE', 'ONLINE_TRANSFER'] } }, 'totalPrice');
-    const prepaidRevenue = await safeSum({ ...where, paymentStatus: { in: ['PAID', 'FULL_PAID'] } }, 'totalPrice');
-
-    const refundedTotal = await safeSum(whereRefunded, 'totalPrice');
-    const refundedCount = await safeCount(whereRefunded);
-    const pendingRefundCount = await safeCount(whereRefundPending);
-
-    const returnedPaidCount = await safeCount({
-      ...where, refundStatus: { in: ['REFUNDED', 'PARTIAL'] }, paymentStatus: { in: ['PAID', 'FULL_PAID'] }
-    });
-    const returnedAllCod = await safeCount({ ...whereAllRefunded, paymentMethod: 'CASH' });
-    const returnedCodCount = Math.max(0, returnedAllCod - returnedPaidCount);
-    const returnedPaidRefunded = await safeSum({
-      ...where, refundStatus: { in: ['REFUNDED', 'PARTIAL'] }, paymentStatus: { in: ['PAID', 'FULL_PAID'] }
-    }, 'totalPrice');
-
-    const pendingValue = await safeSum(wherePending, 'totalPrice');
-
-    const completedRefunds = await safeCount({ ...where, refundStatus: 'REFUNDED', paymentStatus: { in: ['PAID', 'FULL_PAID'] } });
-    const pendingRefunds = await safeCount({
-      ...where, refundStatus: { in: ['REQUESTED', 'PROCESSING'] }, paymentStatus: { in: ['PAID', 'FULL_PAID'] }
-    });
-    const codReturnedAmount = await safeSum({ ...whereAllRefunded, paymentMethod: 'CASH' }, 'totalPrice');
-
-    // Stage breakdown (single query)
-    let stageGroups = [];
+    // Use $transaction to run all aggregation queries in parallel over a single connection
     try {
-      stageGroups = await prisma.order.groupBy({
-        by: ['currentStage'],
-        where: { ...where, currentStage: { notIn: ['DELIVERED', 'COMPLETED'] } },
-        _count: { id: true }
-      });
-    } catch {}
-
-    // Monthly trends (single query)
-    const recentOrders = await safeFind({
-      where,
-      select: { createdAt: true, totalPrice: true, refundStatus: true },
-      orderBy: { createdAt: 'asc' }
-    });
-    const monthlyMap = {};
-    for (const o of recentOrders) {
-      const m = new Date(o.createdAt).toLocaleString('en-US', { month: 'short', year: '2-digit' });
-      if (!monthlyMap[m]) monthlyMap[m] = { month: m, orders: 0, revenue: 0, returns: 0 };
-      monthlyMap[m].orders++;
-      monthlyMap[m].revenue += o.totalPrice || 0;
-      if (o.refundStatus !== 'NONE') monthlyMap[m].returns++;
-    }
-    const monthlyTrend = Object.values(monthlyMap);
-
-    const stageCounts = {};
-    for (const g of stageGroups) stageCounts[g.currentStage] = g._count.id;
-
-    const pendingByStage = {};
-    const stageOrder = ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
-    for (const s of stageOrder) pendingByStage[s] = stageCounts[s] || 0;
-
-    res.json({
-      summary: {
-        totalOrders,
-        deliveredOrders: completedOrders,
-        returnedOrders: Math.max(0, returnedOrders),
-        pendingOrders
-      },
-      deliveredBreakdown: {
-        cod: { count: deliveredCod, amount: codRevenue },
-        online: { count: deliveredOnline, amount: onlineRevenue },
-        prepaid: { count: deliveredPrepaid, amount: prepaidRevenue }
-      },
-      returnsAnalytics: {
-        paidReturns: { count: returnedPaidCount, refundAmount: returnedPaidRefunded, completedRefunds, pendingRefunds },
-        codReturns: { count: returnedCodCount, amountImpact: codReturnedAmount },
-        financialImpact: { totalRefunded: refundedTotal, netRevenueLoss: refundedTotal }
-      },
-      pendingAnalytics: { count: pendingOrders, totalValue: pendingValue, byStage: pendingByStage },
-      financials: {
+      const [
+        totalOrders, completedOrders, returnedOrders,
+        deliveredCod, deliveredOnline, deliveredPrepaid,
+        pendingOrders,
         totalRevenue, codRevenue, onlineRevenue, prepaidRevenue,
-        totalRefunded: refundedTotal, refundedCount, pendingRefundCount,
-        netRevenue: totalRevenue - refundedTotal
-      },
-      trends: { monthly: monthlyTrend }
-    });
+        refundedTotal, refundedCount, pendingRefundCount,
+        returnedPaidCount, returnedAllCod, returnedPaidRefunded,
+        pendingValue, completedRefunds, pendingRefunds, codReturnedAmount,
+        stageGroups, recentOrders
+      ] = await prisma.$transaction([
+        prisma.order.count({ where }),
+        prisma.order.count({ where: whereCompleted }),
+        prisma.order.count({ where: whereAllRefunded }),
+        prisma.order.count({ where: { ...whereCompleted, paymentMethod: 'CASH' } }),
+        prisma.order.count({ where: { ...whereCompleted, paymentMethod: { in: ['ONLINE', 'ONLINE_TRANSFER'] } } }),
+        prisma.order.count({ where: { ...whereCompleted, paymentStatus: { in: ['PAID', 'FULL_PAID'] } } }),
+        prisma.order.count({ where: wherePending }),
+        prisma.order.aggregate({ where, _sum: { totalPrice: true } }),
+        prisma.order.aggregate({ where: { ...where, paymentMethod: 'CASH' }, _sum: { totalPrice: true } }),
+        prisma.order.aggregate({ where: { ...where, paymentMethod: { in: ['ONLINE', 'ONLINE_TRANSFER'] } }, _sum: { totalPrice: true } }),
+        prisma.order.aggregate({ where: { ...where, paymentStatus: { in: ['PAID', 'FULL_PAID'] } }, _sum: { totalPrice: true } }),
+        prisma.order.aggregate({ where: whereRefunded, _sum: { totalPrice: true } }),
+        prisma.order.count({ where: whereRefunded }),
+        prisma.order.count({ where: { ...where, refundStatus: { in: ['REQUESTED', 'PROCESSING'] } } }),
+        prisma.order.count({ where: { ...where, refundStatus: { in: ['REFUNDED', 'PARTIAL'] }, paymentStatus: { in: ['PAID', 'FULL_PAID'] } } }),
+        prisma.order.count({ where: { ...whereAllRefunded, paymentMethod: 'CASH' } }),
+        prisma.order.aggregate({ where: wherePending, _sum: { totalPrice: true } }),
+        prisma.order.count({ where: { ...where, refundStatus: 'REFUNDED', paymentStatus: { in: ['PAID', 'FULL_PAID'] } } }),
+        prisma.order.count({ where: { ...where, refundStatus: { in: ['REQUESTED', 'PROCESSING'] }, paymentStatus: { in: ['PAID', 'FULL_PAID'] } } }),
+        prisma.order.aggregate({ where: { ...whereAllRefunded, paymentMethod: 'CASH' }, _sum: { totalPrice: true } }),
+        prisma.order.aggregate({ where: { ...where, refundStatus: { in: ['REFUNDED', 'PARTIAL'] }, paymentStatus: { in: ['PAID', 'FULL_PAID'] } }, _sum: { totalPrice: true } }),
+        prisma.order.groupBy({ by: ['currentStage'], where: { ...where, currentStage: { notIn: ['DELIVERED', 'COMPLETED'] } }, _count: { id: true } }),
+        prisma.order.findMany({ where, select: { createdAt: true, totalPrice: true, refundStatus: true }, orderBy: { createdAt: 'asc' } })
+      ]);
+
+      const codRevenue = codRevenue._sum.totalPrice || 0;
+      const totalRevenue = totalRevenue._sum.totalPrice || 0;
+      const onlineRevenue = onlineRevenue._sum.totalPrice || 0;
+      const prepaidRevenue = prepaidRevenue._sum.totalPrice || 0;
+      const refundedTotal = refundedTotal._sum.totalPrice || 0;
+      const returnedPaidRefunded = returnedPaidRefunded._sum.totalPrice || 0;
+      const pendingValue = pendingValue._sum.totalPrice || 0;
+      const codReturnedAmount = codReturnedAmount._sum.totalPrice || 0;
+
+      const returnedCodCount = Math.max(0, returnedAllCod - returnedPaidCount);
+
+      // Monthly trends
+      const monthlyMap = {};
+      for (const o of recentOrders) {
+        const m = new Date(o.createdAt).toLocaleString('en-US', { month: 'short', year: '2-digit' });
+        if (!monthlyMap[m]) monthlyMap[m] = { month: m, orders: 0, revenue: 0, returns: 0 };
+        monthlyMap[m].orders++;
+        monthlyMap[m].revenue += o.totalPrice || 0;
+        if (o.refundStatus !== 'NONE') monthlyMap[m].returns++;
+      }
+      const monthlyTrend = Object.values(monthlyMap);
+
+      const stageCounts = {};
+      for (const g of stageGroups) stageCounts[g.currentStage] = g._count.id;
+
+      const pendingByStage = {};
+      const stageOrder = ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
+      for (const s of stageOrder) pendingByStage[s] = stageCounts[s] || 0;
+
+      res.json({
+        summary: { totalOrders, deliveredOrders: completedOrders, returnedOrders: Math.max(0, returnedOrders), pendingOrders },
+        deliveredBreakdown: {
+          cod: { count: deliveredCod, amount: codRevenue },
+          online: { count: deliveredOnline, amount: onlineRevenue },
+          prepaid: { count: deliveredPrepaid, amount: prepaidRevenue }
+        },
+        returnsAnalytics: {
+          paidReturns: { count: returnedPaidCount, refundAmount: returnedPaidRefunded, completedRefunds, pendingRefunds },
+          codReturns: { count: returnedCodCount, amountImpact: codReturnedAmount },
+          financialImpact: { totalRefunded: refundedTotal, netRevenueLoss: refundedTotal }
+        },
+        pendingAnalytics: { count: pendingOrders, totalValue: pendingValue, byStage: pendingByStage },
+        financials: {
+          totalRevenue, codRevenue, onlineRevenue, prepaidRevenue,
+          totalRefunded: refundedTotal, refundedCount, pendingRefundCount,
+          netRevenue: totalRevenue - refundedTotal
+        },
+        trends: { monthly: monthlyTrend }
+      });
+    } catch (txErr) {
+      // Fallback: sequential safe queries if transaction fails
+      const totalOrders = await safeCount(where);
+      const completedOrders = await safeCount(whereCompleted);
+      const returnedOrders = await safeCount(whereAllRefunded);
+      const deliveredCod = await safeCount({ ...whereCompleted, paymentMethod: 'CASH' });
+      const deliveredOnline = await safeCount({ ...whereCompleted, paymentMethod: { in: ['ONLINE', 'ONLINE_TRANSFER'] } });
+      const deliveredPrepaid = await safeCount({ ...whereCompleted, paymentStatus: { in: ['PAID', 'FULL_PAID'] } });
+      const pendingOrders = await safeCount(wherePending);
+      const totalRevenue = await safeSum(where, 'totalPrice');
+      const codRevenue = await safeSum({ ...where, paymentMethod: 'CASH' }, 'totalPrice');
+      const onlineRevenue = await safeSum({ ...where, paymentMethod: { in: ['ONLINE', 'ONLINE_TRANSFER'] } }, 'totalPrice');
+      const prepaidRevenue = await safeSum({ ...where, paymentStatus: { in: ['PAID', 'FULL_PAID'] } }, 'totalPrice');
+      const refundedTotal = await safeSum(whereRefunded, 'totalPrice');
+      const refundedCount = await safeCount(whereRefunded);
+      const pendingRefundCount = await safeCount({ ...where, refundStatus: { in: ['REQUESTED', 'PROCESSING'] } });
+      const returnedPaidCount = await safeCount({ ...where, refundStatus: { in: ['REFUNDED', 'PARTIAL'] }, paymentStatus: { in: ['PAID', 'FULL_PAID'] } });
+      const returnedAllCod = await safeCount({ ...whereAllRefunded, paymentMethod: 'CASH' });
+      const returnedCodCount = Math.max(0, returnedAllCod - returnedPaidCount);
+      const returnedPaidRefunded = await safeSum({ ...where, refundStatus: { in: ['REFUNDED', 'PARTIAL'] }, paymentStatus: { in: ['PAID', 'FULL_PAID'] } }, 'totalPrice');
+      const pendingValue = await safeSum(wherePending, 'totalPrice');
+      const completedRefunds = await safeCount({ ...where, refundStatus: 'REFUNDED', paymentStatus: { in: ['PAID', 'FULL_PAID'] } });
+      const pendingRefunds = await safeCount({ ...where, refundStatus: { in: ['REQUESTED', 'PROCESSING'] }, paymentStatus: { in: ['PAID', 'FULL_PAID'] } });
+      const codReturnedAmount = await safeSum({ ...whereAllRefunded, paymentMethod: 'CASH' }, 'totalPrice');
+
+      let stageGroups = [];
+      try { stageGroups = await prisma.order.groupBy({ by: ['currentStage'], where: { ...where, currentStage: { notIn: ['DELIVERED', 'COMPLETED'] } }, _count: { id: true } }); } catch {}
+      const stageCounts = {};
+      for (const g of stageGroups) stageCounts[g.currentStage] = g._count.id;
+      const pendingByStage = {};
+      const stageOrder = ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
+      for (const s of stageOrder) pendingByStage[s] = stageCounts[s] || 0;
+
+      const recentOrders = await safeFind({ where, select: { createdAt: true, totalPrice: true, refundStatus: true }, orderBy: { createdAt: 'asc' } });
+      const monthlyMap = {};
+      for (const o of recentOrders) {
+        const m = new Date(o.createdAt).toLocaleString('en-US', { month: 'short', year: '2-digit' });
+        if (!monthlyMap[m]) monthlyMap[m] = { month: m, orders: 0, revenue: 0, returns: 0 };
+        monthlyMap[m].orders++;
+        monthlyMap[m].revenue += o.totalPrice || 0;
+        if (o.refundStatus !== 'NONE') monthlyMap[m].returns++;
+      }
+      const monthlyTrend = Object.values(monthlyMap);
+
+      res.json({
+        summary: { totalOrders, deliveredOrders: completedOrders, returnedOrders: Math.max(0, returnedOrders), pendingOrders },
+        deliveredBreakdown: { cod: { count: deliveredCod, amount: codRevenue }, online: { count: deliveredOnline, amount: onlineRevenue }, prepaid: { count: deliveredPrepaid, amount: prepaidRevenue } },
+        returnsAnalytics: { paidReturns: { count: returnedPaidCount, refundAmount: returnedPaidRefunded, completedRefunds, pendingRefunds }, codReturns: { count: returnedCodCount, amountImpact: codReturnedAmount }, financialImpact: { totalRefunded: refundedTotal, netRevenueLoss: refundedTotal } },
+        pendingAnalytics: { count: pendingOrders, totalValue: pendingValue, byStage: pendingByStage },
+        financials: { totalRevenue, codRevenue, onlineRevenue, prepaidRevenue, totalRefunded: refundedTotal, refundedCount, pendingRefundCount, netRevenue: totalRevenue - refundedTotal },
+        trends: { monthly: monthlyTrend }
+      });
+    }
   } catch (err) {
     console.error('getSourceAnalytics error:', err);
     res.json({

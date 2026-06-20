@@ -106,7 +106,12 @@ model Order {
   @@index([createdById])
   @@index([dispatchStatus])
   @@index([source])
+  @@index([source, createdAt])
+  @@index([paymentStatus, createdAt])
+  @@index([outletName, createdAt])
   @@index([currentStage, status])
+  @@index([type, createdAt])
+  @@index([createdAt])
 }
 
 model DeliveryAttempt {
@@ -150,6 +155,8 @@ model RevenueRecord {
   @@index([outletName])
   @@index([orderType])
   @@index([createdAt])
+  @@index([source, createdAt])
+  @@index([orderId])
 }
 
 model OrderStage {
@@ -212,6 +219,7 @@ model InventoryItem {
   @@index([name])
   @@index([category])
   @@index([name, category])
+  @@index([color, size, category])
 }
 
 model StockRequest {

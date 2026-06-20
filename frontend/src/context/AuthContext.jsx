@@ -1,5 +1,6 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useMemo, useCallback } from 'react';
 import axios from 'axios';
+import api from '../services/api';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -17,29 +18,11 @@ export const AuthProvider = ({ children }) => {
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     }
     setLoading(false);
-
-    const interceptor = axios.interceptors.response.use(
-      (response) => response,
-      (error) => {
-        if (error.response?.status === 401) {
-          sessionStorage.removeItem('token');
-          sessionStorage.removeItem('user');
-          delete axios.defaults.headers.common['Authorization'];
-          setUser(null);
-          window.location.href = '/login';
-        }
-        return Promise.reject(error);
-      }
-    );
-
-    return () => {
-      axios.interceptors.response.eject(interceptor);
-    };
   }, []);
 
-  const login = async (email, password) => {
+  const login = useCallback(async (email, password) => {
     try {
-      const response = await axios.post(`${API_URL}/api/auth/login`, { email, password });
+      const response = await api.post('/api/auth/login', { email, password });
       const { token, user } = response.data;
       sessionStorage.setItem('token', token);
       sessionStorage.setItem('user', JSON.stringify(user));
@@ -49,17 +32,19 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       return { success: false, message: error.response?.data?.message || 'Login failed' };
     }
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('user');
     delete axios.defaults.headers.common['Authorization'];
     setUser(null);
-  };
+  }, []);
+
+  const value = useMemo(() => ({ user, login, logout, loading }), [user, login, logout, loading]);
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={value}>
       {!loading && children}
     </AuthContext.Provider>
   );

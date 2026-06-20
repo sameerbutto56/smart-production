@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { debounce } from '../utils/debounce';
 import {
   FileEdit, RotateCcw, Loader2, CheckCircle2, ThumbsUp, ThumbsDown,
   ChevronDown, Package, X, Clock, Search, AlertTriangle,
@@ -58,9 +59,10 @@ const EditRequestDashboard = () => {
   }, []);
 
   useEffect(() => {
+    const debouncedFetch = debounce(fetchRequests, 300);
     fetchRequests();
-    socket.on('global-alert', fetchRequests);
-    return () => socket.off('global-alert', fetchRequests);
+    socket.on('global-alert', debouncedFetch);
+    return () => socket.off('global-alert', debouncedFetch);
   }, [fetchRequests]);
 
   useEffect(() => {

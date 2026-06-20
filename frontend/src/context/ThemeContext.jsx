@@ -1,8 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import api from '../services/api';
 import { THEMES, DEFAULT_THEME } from '../themes/themeConfig';
-
-const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
 const ThemeContext = createContext();
 
@@ -35,11 +33,7 @@ export const ThemeProvider = ({ children }) => {
   useEffect(() => {
     const loadThemes = async () => {
       try {
-        const token = sessionStorage.getItem('token');
-        if (!token) return;
-        const res = await axios.get(`${API_URL}/api/users/me/theme`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const res = await api.get('/api/users/me/theme');
         const { personalTheme: pt, globalTheme: gt } = res.data;
         setGlobalTheme(gt);
         setPersonalTheme(pt);
@@ -56,10 +50,7 @@ export const ThemeProvider = ({ children }) => {
     setPersonalTheme(id);
     setThemeId(id);
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.put(`${API_URL}/api/users/me/theme`, { theme: id }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.put('/api/users/me/theme', { theme: id });
     } catch (e) {}
   }, []);
 
@@ -69,10 +60,7 @@ export const ThemeProvider = ({ children }) => {
       setThemeId(id);
     }
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.put(`${API_URL}/api/admin/theme`, { theme: id }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.put('/api/admin/theme', { theme: id });
     } catch (e) {}
   }, [personalTheme]);
 
@@ -82,27 +70,20 @@ export const ThemeProvider = ({ children }) => {
       setThemeId(globalTheme);
     }
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.put(`${API_URL}/api/users/me/theme`, { theme: '' }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.put('/api/users/me/theme', { theme: '' });
     } catch (e) {}
   }, [globalTheme]);
 
   const currentTheme = THEMES[themeId] || THEMES[DEFAULT_THEME];
 
+  const value = useMemo(() => ({
+    themeId, currentTheme, changeTheme, setGlobalThemeId,
+    resetToGlobalTheme, THEMES, globalTheme, personalTheme,
+    isUsingPersonal: !!personalTheme
+  }), [themeId, currentTheme, changeTheme, setGlobalThemeId, resetToGlobalTheme, globalTheme, personalTheme]);
+
   return (
-    <ThemeContext.Provider value={{
-      themeId,
-      currentTheme,
-      changeTheme,
-      setGlobalThemeId,
-      resetToGlobalTheme,
-      THEMES,
-      globalTheme,
-      personalTheme,
-      isUsingPersonal: !!personalTheme
-    }}>
+    <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   );

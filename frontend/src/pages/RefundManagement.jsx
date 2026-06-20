@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import socket from '../socket';
+import { debounce } from '../utils/debounce';
 import { useAuth } from '../context/AuthContext';
 import { ArrowLeft, RefreshCw, Search, RotateCcw, CheckCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -34,9 +35,10 @@ const RefundManagement = () => {
   }, [token]);
 
   useEffect(() => {
+    const debouncedFetch = debounce(fetchRefundQueue, 300);
     fetchRefundQueue();
-    socket.on('order-updated', fetchRefundQueue);
-    return () => { socket.off('order-updated', fetchRefundQueue); };
+    socket.on('order-updated', debouncedFetch);
+    return () => { socket.off('order-updated', debouncedFetch); };
   }, [fetchRefundQueue]);
 
   const processRefund = async (orderId, action) => {

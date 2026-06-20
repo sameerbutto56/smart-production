@@ -329,9 +329,16 @@ const getDispatchDashboard = async (req, res) => {
           { dispatchStatus: { not: 'PENDING' } }
         ]
       },
-      include: {
-        stages: { orderBy: { createdAt: 'asc' } },
-        auditLogs: { orderBy: { timestamp: 'desc' }, take: 10 },
+      select: {
+        id: true, orderNumber: true, customerName: true, customerPhone: true,
+        address: true, city: true, source: true, outletName: true,
+        currentStage: true, status: true, dispatchStatus: true,
+        deliveryType: true, deliveryMethod: true, priority: true,
+        trackingNumber: true, courierDetails: true,
+        totalPrice: true, paymentStatus: true, advanceAmount: true,
+        createdAt: true, updatedAt: true,
+        riderAcceptedAt: true, noResponseCount: true,
+        stages: { orderBy: { createdAt: 'asc' }, select: { stageName: true, status: true, deadlineAt: true, startedAt: true, rejectionReason: true, completedAt: true } },
         createdBy: { select: { name: true, role: true } }
       },
       orderBy: { createdAt: 'desc' }

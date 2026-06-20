@@ -45,7 +45,13 @@ const getProductionRecords = async (req, res) => {
         where,
         orderBy: { productionDate: 'desc' },
         skip: (parseInt(page) - 1) * parseInt(limit),
-        take: parseInt(limit)
+        take: parseInt(limit),
+        select: {
+          id: true, productName: true, quantity: true,
+          rawMaterialCost: true, productionCost: true, totalCost: true,
+          sellingValue: true, profit: true, productionDate: true,
+          source: true, notes: true
+        }
       }),
       prisma.productionRecord.count({ where })
     ]), [[], 0]);
@@ -162,7 +168,14 @@ const getProductionDashboard = async (req, res) => {
       if (endDate) where.productionDate.lte = new Date(endDate);
     }
 
-    const records = await safeQuery(() => prisma.productionRecord.findMany({ where }), []);
+    const records = await safeQuery(() => prisma.productionRecord.findMany({
+      where,
+      select: {
+        sellingValue: true, profit: true, quantity: true,
+        totalCost: true, source: true, productName: true,
+        productionDate: true
+      }
+    }), []);
 
     const totalEarnings = records.reduce((s, r) => s + (r.sellingValue || 0), 0);
     const totalProfit = records.reduce((s, r) => s + (r.profit || 0), 0);
@@ -216,7 +229,15 @@ const getProductionInventory = async (req, res) => {
   try {
     const { category } = req.query;
     const where = category ? { category } : {};
-    const items = await safeQuery(() => prisma.productionInventory.findMany({ where, orderBy: [{ category: 'asc' }, { productionDate: 'desc' }] }), []);
+    const items = await safeQuery(() => prisma.productionInventory.findMany({
+      where,
+      orderBy: [{ category: 'asc' }, { productionDate: 'desc' }],
+      select: {
+        id: true, productName: true, source: true, quantity: true,
+        productionCost: true, sellingValue: true, profitMargin: true,
+        productionDate: true
+      }
+    }), []);
     res.json(items);
   } catch (error) {
     res.json(emptyInventory);

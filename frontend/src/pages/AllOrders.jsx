@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import axios from 'axios';
+import { debounce } from '../utils/debounce';
 import { 
   Package, 
   Search, 
@@ -87,29 +88,30 @@ const AllOrders = () => {
       if (location.state.filterUrgent !== undefined) setFilterUrgent(location.state.filterUrgent);
       if (location.state.searchTerm) setSearchTerm(location.state.searchTerm);
     }
+    const debouncedFetch = debounce(fetchOrders, 300);
     fetchOrders();
 
     const onOrderUpdated = (data) => {
       if (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || data?.createdById === user?.id) {
-        fetchOrders();
+        debouncedFetch();
       }
     };
 
     const onNewOrder = (order) => {
       if (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || order?.createdById === user?.id) {
-        fetchOrders();
+        debouncedFetch();
         toast(`New order created: #${order.orderNumber || order.id.substring(0,8)}`, { icon: '📦' });
       }
     };
 
     socket.on('order-updated', onOrderUpdated);
     socket.on('new-order', onNewOrder);
-    socket.on('stage-accepted', () => fetchOrders());
+    socket.on('stage-accepted', debouncedFetch);
 
     return () => {
       socket.off('order-updated', onOrderUpdated);
       socket.off('new-order', onNewOrder);
-      socket.off('stage-accepted');
+      socket.off('stage-accepted', debouncedFetch);
     };
   }, [location.state]);
 

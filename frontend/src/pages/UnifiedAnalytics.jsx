@@ -31,7 +31,7 @@ const SOURCE_TABS = [
   { id: 'abbottabad', label: 'Abbottabad', icon: Landmark }
 ];
 
-const StageBadge = ({ stage }) => {
+const StageBadge = React.memo(({ stage }) => {
   const colors = {
     ORDER_ENTRY: 'bg-blue-500/20 text-blue-400',
     STORE: 'bg-purple-500/20 text-purple-400',
@@ -47,9 +47,9 @@ const StageBadge = ({ stage }) => {
       {stage.replace(/_/g, ' ')}
     </span>
   );
-};
+});
 
-const KpiCard = ({ label, value, sub, color, icon: Icon, onClick, active }) => (
+const KpiCard = React.memo(({ label, value, sub, color, icon: Icon, onClick, active }) => (
   <button onClick={onClick} className={`relative overflow-hidden bg-gradient-to-br ${color} p-[1px] rounded-2xl transition-all hover:scale-[1.02] active:scale-95 shadow-lg ${active ? 'ring-2 ring-white/30 scale-[1.02]' : ''}`}>
     <div className="bg-gray-950/90 backdrop-blur-sm rounded-2xl p-4 h-full flex flex-col items-start text-left">
       <div className="flex items-center justify-between w-full mb-2">
@@ -60,9 +60,9 @@ const KpiCard = ({ label, value, sub, color, icon: Icon, onClick, active }) => (
       {sub && <span className="text-xs text-gray-500 mt-1">{sub}</span>}
     </div>
   </button>
-);
+));
 
-const OrderListModal = ({ title, orders, onClose }) => (
+const OrderListModal = React.memo(({ title, orders, onClose }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
     <div className="bg-gray-900 rounded-2xl border border-gray-700 w-full max-w-3xl max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
       <div className="flex items-center justify-between p-4 border-b border-gray-800">
@@ -89,9 +89,9 @@ const OrderListModal = ({ title, orders, onClose }) => (
       </div>
     </div>
   </div>
-);
+));
 
-const DrillDetail = ({ title, items, onBack, onViewOrders }) => (
+const DrillDetail = React.memo(({ title, items, onBack, onViewOrders }) => (
   <div className="space-y-2">
     <div className="flex items-center gap-2">
       <button onClick={onBack} className="p-1.5 bg-gray-800 rounded-xl hover:bg-gray-700"><ArrowLeft size={12} /></button>
@@ -112,7 +112,7 @@ const DrillDetail = ({ title, items, onBack, onViewOrders }) => (
       ))}
     </div>
   </div>
-);
+));
 
 const UnifiedAnalytics = () => {
   const [source, setSource] = useState('all');

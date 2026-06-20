@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import socket from '../socket';
+import { debounce } from '../utils/debounce';
 import {
   Truck, CheckCircle2, PhoneOff, Phone,
   RefreshCw, ClipboardList, Search, AlertCircle, Calendar,
@@ -415,13 +416,14 @@ const DeliveryDashboard = () => {
   }, [token]);
 
   useEffect(() => {
+    const debouncedFetch = debounce(fetchOrders, 300);
     fetchOrders();
-    socket.on('order-updated', fetchOrders);
-    socket.on('new-order', fetchOrders);
-    socket.on('stage-accepted', fetchOrders);
+    socket.on('order-updated', debouncedFetch);
+    socket.on('new-order', debouncedFetch);
+    socket.on('stage-accepted', debouncedFetch);
     return () => {
-      socket.off('order-updated', fetchOrders);
-      socket.off('new-order', fetchOrders);
+      socket.off('order-updated', debouncedFetch);
+      socket.off('new-order', debouncedFetch);
       socket.off('stage-accepted');
     };
   }, [fetchOrders]);

@@ -5,12 +5,12 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { SearchProvider } from './context/SearchContext';
 import { LanguageProvider } from './context/LanguageContext';
 import Layout from './components/Layout';
-import Login from './pages/Login';
-import AdminDashboard from './pages/AdminDashboard';
-import MyTasks from './pages/MyTasks';
 import { ThemeProvider } from './context/ThemeContext';
 
-// Lazy-loaded route components — split into separate chunks
+// All pages lazy-loaded — each becomes its own chunk
+const Login = lazy(() => import('./pages/Login'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const MyTasks = lazy(() => import('./pages/MyTasks'));
 const OrderEntry = lazy(() => import('./pages/OrderEntry'));
 const InventoryManagement = lazy(() => import('./pages/InventoryManagement'));
 const AllOrders = lazy(() => import('./pages/AllOrders'));
@@ -58,7 +58,11 @@ function App() {
             <Toaster position="top-right" toastOptions={{ className: 'glass text-white font-black', style: { background: '#111827', border: '1px solid #1f2937' } }} />
             <Router>
               <Routes>
-                <Route path="/login" element={<Login />} />
+                <Route path="/login" element={
+                  <Suspense fallback={<div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>}>
+                    <Login />
+                  </Suspense>
+                } />
                 
                 <Route path="/progress" element={
                   <ProtectedRoute>

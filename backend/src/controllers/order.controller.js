@@ -276,12 +276,12 @@ const createOrder = async (req, res) => {
       while (!isUnique) {
         const randomNum = Math.floor(100000 + Math.random() * 900000); // 6 digit random
         orderNumber = `${prefix}${randomNum}`;
-        const existing = await prisma.order.findUnique({ where: { orderNumber } });
+        const existing = await prisma.order.findUnique({ where: { orderNumber }, select: { id: true } });
         if (!existing) isUnique = true;
       }
     } else {
       // Check if manual order number is already taken
-      const existing = await prisma.order.findUnique({ where: { orderNumber } });
+      const existing = await prisma.order.findUnique({ where: { orderNumber }, select: { id: true } });
       if (existing) {
         const io = req.app.get('io');
         if (io) {
@@ -304,18 +304,30 @@ const createOrder = async (req, res) => {
     let finalSizeData = sizeData;
 
     if (items && Array.isArray(items) && items.length > 0) {
-      // Look up inventory prices and calculate server-side pricing
+      // Look up inventory prices and calculate server-side pricing (batched)
+      const productTypes = [...new Set(items.map(i => (i.productDetails?.productType || '').trim()).filter(Boolean))];
+      const inventoryItems = productTypes.length > 0
+        ? await prisma.inventoryItem.findMany({
+            where: {
+              OR: productTypes.map(p => ({ name: { contains: p, mode: 'insensitive' } })),
+              category: { not: 'FABRIC' }
+            }
+          })
+        : [];
+      const inventoryByProduct = {};
+      for (const inv of inventoryItems) {
+        for (const pt of productTypes) {
+          if (inv.name.toLowerCase().includes(pt.toLowerCase())) {
+            inventoryByProduct[pt.toLowerCase()] = inv;
+          }
+        }
+      }
       const processedItems = [];
       for (const item of items) {
         const pd = item.productDetails || {};
         let unitPrice = 0;
         if (pd.productType) {
-          const inventoryItem = await prisma.inventoryItem.findFirst({
-            where: {
-              name: { contains: pd.productType, mode: 'insensitive' },
-              category: { not: 'FABRIC' }
-            }
-          });
+          const inventoryItem = inventoryByProduct[pd.productType.toLowerCase()];
           if (inventoryItem) {
             if (inventoryItem.variants && Array.isArray(inventoryItem.variants)) {
               const matchingVariant = inventoryItem.variants.find(v =>
@@ -545,33 +557,34 @@ const getOrders = async (req, res) => {
       // Default: If no status specified, load active orders + the 100 most recent completed orders to keep payload tiny!
       // This is backward-compatible with older frontend code that filters in memory!
       if (!limit || limit !== 'all') {
-        const activeOrders = await prisma.order.findMany({
-          where: {
-            ...where,
-            status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
-          },
-          include: {
-            stages: { orderBy: { createdAt: 'desc' } },
-            auditLogs: { orderBy: { timestamp: 'desc' }, take: 5 },
-            createdBy: { select: { name: true } }
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 500
-        });
-
-        const completedOrders = await prisma.order.findMany({
-          where: {
-            ...where,
-            status: { in: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
-          },
-          include: {
-            stages: { orderBy: { createdAt: 'desc' } },
-            auditLogs: { orderBy: { timestamp: 'desc' }, take: 5 },
-            createdBy: { select: { name: true } }
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 100
-        });
+        const [activeOrders, completedOrders] = await prisma.$transaction([
+          prisma.order.findMany({
+            where: {
+              ...where,
+              status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
+            },
+            include: {
+              stages: { orderBy: { createdAt: 'desc' } },
+              auditLogs: { orderBy: { timestamp: 'desc' }, take: 5 },
+              createdBy: { select: { name: true } }
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 500
+          }),
+          prisma.order.findMany({
+            where: {
+              ...where,
+              status: { in: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
+            },
+            include: {
+              stages: { orderBy: { createdAt: 'desc' } },
+              auditLogs: { orderBy: { timestamp: 'desc' }, take: 5 },
+              createdBy: { select: { name: true } }
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 100
+          })
+        ]);
 
         return res.json(sortByPriority([...activeOrders, ...completedOrders]));
       }
@@ -2821,25 +2834,16 @@ const getRoutingHistory = async (req, res) => {
       }
     });
 
-    // If sentByUser relation doesn't exist due to schema, manually attach user names
-    const enriched = await Promise.all(history.map(async (entry) => {
-      let senderName = 'System';
-      if (entry.sentByUserId) {
-        try {
-          const user = await prisma.user.findUnique({ where: { id: entry.sentByUserId }, select: { name: true } });
-          if (user) senderName = user.name;
-        } catch {}
-      }
-      return {
-        id: entry.id,
-        orderId: entry.orderId,
-        sentBy: senderName,
-        sentToStage: entry.sentToStage,
-        previousStage: entry.previousStage,
-        newStage: entry.newStage,
-        remarks: entry.remarks,
-        createdAt: entry.createdAt
-      };
+    // Use sentByUser relation already loaded via include
+    const enriched = history.map(entry => ({
+      id: entry.id,
+      orderId: entry.orderId,
+      sentBy: entry.sentByUser?.name || 'System',
+      sentToStage: entry.sentToStage,
+      previousStage: entry.previousStage,
+      newStage: entry.newStage,
+      remarks: entry.remarks,
+      createdAt: entry.createdAt
     }));
 
     res.json(enriched);

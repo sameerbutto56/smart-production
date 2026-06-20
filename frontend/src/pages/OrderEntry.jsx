@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
 import { 
@@ -34,6 +33,7 @@ import {
   Lock
 } from 'lucide-react';
 import socket from '../socket';
+import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { usePolling } from '../hooks/usePolling';
@@ -41,7 +41,76 @@ import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../comp
 import silhouetteMale from '../assets/silhouette.png';
 import silhouetteFemale from '../assets/silhouette-female.png';
 
-const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
+// Static constants extracted outside component to prevent re-creation on every render
+const URDU_LABELS = {
+  identity: 'شناختی معلومات',
+  orderNo: 'آرڈر نمبر',
+  customerName: 'کسٹمر کا نام',
+  customerPhone: 'فون نمبر',
+  orderType: 'آرڈر کی قسم',
+  urgent: 'ارجنٹ',
+  totalPrice: 'کل قیمت',
+  quantity: 'تعداد',
+  productSelection: 'پروڈکٹ کا انتخاب',
+  productBase: 'پروڈکٹ کی بنیاد',
+  fabric: 'کپڑا',
+  color: 'رنگ',
+  size: 'سائز',
+  branding: 'اینگرونگ (Engraving)',
+  articleName: 'آرٹیکل کا نام',
+  embroideryColor: 'کڑھائی کا رنگ',
+  placement: 'جگہ',
+  stitching: 'سلائی کی تفصیلات',
+  stitchingStyle: 'سلائی کا اسٹائل',
+  fitProfile: 'فٹ پروفائل',
+  notes: 'خصوصی ہدایات (نوٹس)',
+  measurements: 'پیمائش (انچ میں)',
+  chest: 'چھاتی',
+  shoulder: 'گندھا',
+  shirtLength: 'شرٹ لمبائی',
+  sleeves: 'بازو',
+  waist: 'ویسٹ',
+  hips: 'ہپس',
+  trouserLength: 'لمبائی',
+  thigh: 'تھائی',
+  bottom: 'بوٹم / پہنچا',
+  mori: 'موری',
+  options: 'آپشنز',
+  dupatta: 'دوپٹہ',
+  zip: 'زپ',
+  cap: 'کیپ',
+  submit: 'آرڈر درج کریں',
+  next: 'اگلا مرحلہ',
+  back: 'پیچھے',
+  standard: 'اسٹینڈرڈ',
+  logo: 'لوگو ڈیزائن',
+  custom: 'کسٹم آرڈر',
+  advance: 'ایڈوانس ادائیگی',
+  required: 'یہ خانہ لازمی ہے',
+  priority: 'ترجیح',
+  normal: 'عام',
+  super_urgent: 'انتہائی اہم'
+};
+
+const MEN_SCRUBS_SIZE_CHART = {
+  'XS': { shoulder: '16.5', chest: '19', bottom: '19', shirtLength: '28', sleeve: '8.5', trouserLength: '38', hips: '7' },
+  'S':  { shoulder: '17',   chest: '20', bottom: '20', shirtLength: '29', sleeve: '8.75', trouserLength: '39', hips: '7.25' },
+  'M':  { shoulder: '17.5', chest: '21', bottom: '21', shirtLength: '30', sleeve: '9',    trouserLength: '40', hips: '7.5' },
+  'L':  { shoulder: '18.5', chest: '22', bottom: '22', shirtLength: '31', sleeve: '9.5',  trouserLength: '41', hips: '8' },
+  'XL': { shoulder: '19.5', chest: '24', bottom: '24', shirtLength: '32', sleeve: '10',   trouserLength: '42', hips: '8.5' },
+  'XXL':{ shoulder: '20.5', chest: '26', bottom: '26', shirtLength: '33', sleeve: '10.5', trouserLength: '43', hips: '9' }
+};
+
+const WOMEN_SCRUBS_SIZE_CHART = {
+  'XS': { shoulder: '14.5', chest: '19', waist: '16', bottom: '20', shirtLength: '30', hip: '19.5', sleeve: '8.25', trouserLength: '37', hips: '6.5' },
+  'S':  { shoulder: '15',   chest: '20', waist: '16.75', bottom: '21', shirtLength: '31', hip: '20.5', sleeve: '8.5',  trouserLength: '38', hips: '6.75' },
+  'M':  { shoulder: '15.5', chest: '21', waist: '17.5',  bottom: '22', shirtLength: '32', hip: '21.5', sleeve: '9',    trouserLength: '39', hips: '7' },
+  'L':  { shoulder: '16.5', chest: '22', waist: '18.5',  bottom: '23', shirtLength: '33', hip: '22.5', sleeve: '9.5',  trouserLength: '40', hips: '7.5' },
+  'XL': { shoulder: '17.5', chest: '24', waist: '19.5',  bottom: '25', shirtLength: '34', hip: '24.5', sleeve: '10',   trouserLength: '41', hips: '8' },
+  'XXL':{ shoulder: '18.5', chest: '26', waist: '20.5',  bottom: '27', shirtLength: '35', hip: '26.5', sleeve: '10.5', trouserLength: '42', hips: '8.5' }
+};
+
+const WOMEN_SHORT_SHIRT_LENGTHS = { XS: '28', S: '28', M: '28', L: '30', XL: '30', XXL: '31' };
 
 const SmartOrderForm = () => {
   const [activeTab, setActiveTab] = useState('basic');
@@ -159,56 +228,6 @@ const SmartOrderForm = () => {
   const useUrdu = isUrdu;
   const isOutlet = user?.role === 'OUTLET';
 
-  const URDU_LABELS = {
-    identity: 'شناختی معلومات',
-    orderNo: 'آرڈر نمبر',
-    customerName: 'کسٹمر کا نام',
-    customerPhone: 'فون نمبر',
-    orderType: 'آرڈر کی قسم',
-    urgent: 'ارجنٹ',
-    totalPrice: 'کل قیمت',
-    quantity: 'تعداد',
-    productSelection: 'پروڈکٹ کا انتخاب',
-    productBase: 'پروڈکٹ کی بنیاد',
-    fabric: 'کپڑا',
-    color: 'رنگ',
-    size: 'سائز',
-    branding: 'اینگرونگ (Engraving)',
-    articleName: 'آرٹیکل کا نام',
-    embroideryColor: 'کڑھائی کا رنگ',
-    placement: 'جگہ',
-    stitching: 'سلائی کی تفصیلات',
-    stitchingStyle: 'سلائی کا اسٹائل',
-    fitProfile: 'فٹ پروفائل',
-    notes: 'خصوصی ہدایات (نوٹس)',
-    measurements: 'پیمائش (انچ میں)',
-    chest: 'چھاتی',
-    shoulder: 'گندھا',
-    shirtLength: 'شرٹ لمبائی',
-    sleeves: 'بازو',
-    waist: 'ویسٹ',
-    hips: 'ہپس',
-    trouserLength: 'لمبائی',
-    thigh: 'تھائی',
-    bottom: 'بوٹم / پہنچا',
-    mori: 'موری',
-    options: 'آپشنز',
-    dupatta: 'دوپٹہ',
-    zip: 'زپ',
-    cap: 'کیپ',
-    submit: 'آرڈر درج کریں',
-    next: 'اگلا مرحلہ',
-    back: 'پیچھے',
-    standard: 'اسٹینڈرڈ',
-    logo: 'لوگو ڈیزائن',
-    custom: 'کسٹم آرڈر',
-    advance: 'ایڈوانس ادائیگی',
-    required: 'یہ خانہ لازمی ہے',
-    priority: 'ترجیح',
-    normal: 'عام',
-    super_urgent: 'انتہائی اہم'
-  };
-
   const t = (key) => {
     if (!key) return '';
     if (isUrdu) return URDU_LABELS[key] || key;
@@ -239,10 +258,7 @@ const SmartOrderForm = () => {
 
   const fetchInventory = async () => {
     try {
-      const token = sessionStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/api/inventory`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get('/api/inventory');
       setInventory(response.data);
     } catch (error) {
       console.error('Error fetching inventory:', error);
@@ -262,7 +278,7 @@ const SmartOrderForm = () => {
     return !!b1 !== !!b2;
   };
 
-  const toggleEditMode = () => {
+  const toggleEditMode = useCallback(() => {
     if (isEditMode) {
       setIsEditMode(false);
       setEditOrderId(null);
@@ -315,9 +331,9 @@ const SmartOrderForm = () => {
     } else {
       setIsEditMode(true);
     }
-  };
+  }, [isEditMode]);
 
-  const fetchOrderByNumber = async () => {
+  const fetchOrderByNumber = useCallback(async () => {
     if (!editOrderNumber.trim()) {
       setEditOrderError('Please enter an order number');
       return;
@@ -327,11 +343,7 @@ const SmartOrderForm = () => {
     setEditOrderData(null);
     let found = null;
     try {
-      const token = sessionStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/api/orders`, {
-        headers: { Authorization: `Bearer ${token}` },
-        params: { limit: 'all' }
-      });
+      const response = await api.get('/api/orders', { params: { limit: 'all' } });
       const orders = Array.isArray(response.data) ? response.data : [];
       found = orders.find(o =>
         o.orderNumber?.toLowerCase() === editOrderNumber.trim().toLowerCase() ||
@@ -517,7 +529,6 @@ const SmartOrderForm = () => {
     // If order not found in active orders, check deleted records with source isolation
     if (!found) {
       try {
-        const token = sessionStorage.getItem('token');
         const userRole = user?.role;
         let mySource = '';
         if (userRole === 'FAISAL') {
@@ -528,9 +539,8 @@ const SmartOrderForm = () => {
           else if (name.includes('2') || name.toLowerCase().includes('jail')) mySource = 'JAIL ROAD BRANCH';
           else if (name.includes('3') || name.toLowerCase().includes('abbottabad')) mySource = 'ABBOTTABAD BRANCH';
         }
-        const delRes = await axios.get(`${API_URL}/api/orders/deleted-check`, {
-          params: { number: editOrderNumber.trim(), source: mySource || undefined },
-          headers: { Authorization: `Bearer ${token}` }
+        const delRes = await api.get('/api/orders/deleted-check', {
+          params: { number: editOrderNumber.trim(), source: mySource || undefined }
         });
         if (delRes.data) {
           setEditOrderData(null);
@@ -544,7 +554,7 @@ const SmartOrderForm = () => {
     }
 
     setEditOrderLoading(false);
-  };
+  }, [editOrderNumber, user]);
 
   const submitOrderEditRequest = async () => {
     if (!editOrderId || cartItems.length === 0) {
@@ -555,7 +565,6 @@ const SmartOrderForm = () => {
     setLoading(true);
     setError('');
     try {
-      const token = sessionStorage.getItem('token');
       const finalItems = cartItems.map(item => ({
         productDetails: item.productDetails,
         customization: item.customization || {},
@@ -587,9 +596,8 @@ const SmartOrderForm = () => {
         customizationPrice: totalCustomizationPrice
       };
 
-      await axios.post(`${API_URL}/api/orders/${editOrderId}/edit-request`,
-        { requestedChanges, reason: editReason },
-        { headers: { Authorization: `Bearer ${token}` } }
+      await api.post(`/api/orders/${editOrderId}/edit-request`,
+        { requestedChanges, reason: editReason }
       );
 
       // Reset everything out of edit request mode
@@ -651,29 +659,6 @@ const SmartOrderForm = () => {
     setIsSubmitting(false);
   };
 
-  // Official Men's Scrubs Size Chart (inches)
-  const MEN_SCRUBS_SIZE_CHART = {
-    'XS': { shoulder: '16.5', chest: '19', bottom: '19', shirtLength: '28', sleeve: '8.5', trouserLength: '38', hips: '7' },
-    'S':  { shoulder: '17',   chest: '20', bottom: '20', shirtLength: '29', sleeve: '8.75', trouserLength: '39', hips: '7.25' },
-    'M':  { shoulder: '17.5', chest: '21', bottom: '21', shirtLength: '30', sleeve: '9',    trouserLength: '40', hips: '7.5' },
-    'L':  { shoulder: '18.5', chest: '22', bottom: '22', shirtLength: '31', sleeve: '9.5',  trouserLength: '41', hips: '8' },
-    'XL': { shoulder: '19.5', chest: '24', bottom: '24', shirtLength: '32', sleeve: '10',   trouserLength: '42', hips: '8.5' },
-    'XXL':{ shoulder: '20.5', chest: '26', bottom: '26', shirtLength: '33', sleeve: '10.5', trouserLength: '43', hips: '9' }
-  };
-
-  // Official Women's Scrubs Size Chart (inches)
-  const WOMEN_SCRUBS_SIZE_CHART = {
-    'XS': { shoulder: '14.5', chest: '19', waist: '16', bottom: '20', shirtLength: '30', hip: '19.5', sleeve: '8.25', trouserLength: '37', hips: '6.5' },
-    'S':  { shoulder: '15',   chest: '20', waist: '16.75', bottom: '21', shirtLength: '31', hip: '20.5', sleeve: '8.5',  trouserLength: '38', hips: '6.75' },
-    'M':  { shoulder: '15.5', chest: '21', waist: '17.5',  bottom: '22', shirtLength: '32', hip: '21.5', sleeve: '9',    trouserLength: '39', hips: '7' },
-    'L':  { shoulder: '16.5', chest: '22', waist: '18.5',  bottom: '23', shirtLength: '33', hip: '22.5', sleeve: '9.5',  trouserLength: '40', hips: '7.5' },
-    'XL': { shoulder: '17.5', chest: '24', waist: '19.5',  bottom: '25', shirtLength: '34', hip: '24.5', sleeve: '10',   trouserLength: '41', hips: '8' },
-    'XXL':{ shoulder: '18.5', chest: '26', waist: '20.5',  bottom: '27', shirtLength: '35', hip: '26.5', sleeve: '10.5', trouserLength: '42', hips: '8.5' }
-  };
-
-  // Female short shirt lengths: XS=28, S=28, M=28, L=30, XL=30, XXL=31
-  const WOMEN_SHORT_SHIRT_LENGTHS = { XS: '28', S: '28', M: '28', L: '30', XL: '30', XXL: '31' };
-
   const isScrubsProduct = (productType) => {
     const pt = (productType || formData.productType || '').toLowerCase();
     return pt.includes('scrub') || pt.includes('uniform') || pt === '';
@@ -683,7 +668,7 @@ const SmartOrderForm = () => {
     return formData.gender === 'Female' ? WOMEN_SCRUBS_SIZE_CHART : MEN_SCRUBS_SIZE_CHART;
   };
 
-  const handleSizeSelect = (s) => {
+  const handleSizeSelect = useCallback((s) => {
     const chart = getSizeChart();
     const autoMeasurements = chart[s] || formData.measurements;
     setFormData({
@@ -691,7 +676,7 @@ const SmartOrderForm = () => {
       size: s,
       measurements: { ...autoMeasurements }
     });
-  };
+  }, [formData.gender, formData.measurements]);
 
   const validateProductConfig = () => {
     const accessory = isAccessory(selectedProductCategory);
@@ -762,7 +747,7 @@ const SmartOrderForm = () => {
   const [showProductSelector, setShowProductSelector] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
-  const handleAddToCart = () => {
+  const handleAddToCart = useCallback(() => {
     const validationError = validateProductConfig();
     if (validationError) {
       setError(validationError);
@@ -879,14 +864,14 @@ const SmartOrderForm = () => {
     setArticleNameEntries(['']);
 
     setShowAddMore(true);
-  };
+  }, [formData, computedTotalPrice, capCharges, cartItems, articleNameEntries, logoEntries]);
 
-  const removeCartItem = (idx) => {
+  const removeCartItem = useCallback((idx) => {
     const newCart = cartItems.filter((_, i) => i !== idx);
     setCartItems(newCart);
-  };
+  });
 
-  const editCartItem = (idx, tab) => {
+  const editCartItem = useCallback((idx, tab) => {
     const item = cartItems[idx];
     const pd = item.productDetails || {};
     const cust = item.customization || {};
@@ -946,14 +931,14 @@ const SmartOrderForm = () => {
     setShowReview(false);
     if (isEditMode) setShowProductSelector(true);
     setActiveTab(tab);
-  };
+  }, [cartItems, isEditMode]);
 
   const handleAddMoreProducts = () => {
     setShowAddMore(false);
     setActiveTab('product');
   };
 
-  const handleCheckout = async () => {
+  const handleCheckout = useCallback(async () => {
     if (cartItems.length === 0) return;
     if (isSubmitting) return; 
 
@@ -1011,7 +996,7 @@ const SmartOrderForm = () => {
         shopifyOrderDate: formData.shopifyOrderDate || null,
       };
 
-      await axios.post(`${API_URL}/api/orders`, combinedOrder);
+      await api.post('/api/orders', combinedOrder);
       
       setCartItems([]);
       setSuccess(true);
@@ -1085,7 +1070,7 @@ const SmartOrderForm = () => {
     }
     setLoading(false);
     setIsSubmitting(false);
-  };
+  }, [cartItems, isSubmitting, formData]);
 
   const OptionCard = ({ label, value, current, onClick, icon: Icon, sublabel, color, disabled = false }) => (
     <button
@@ -1168,6 +1153,18 @@ const SmartOrderForm = () => {
   const computedTotalPrice = computedUnitPrice * (formData.quantity || 1);
   const capUnitPrice = 500;
   const capCharges = (formData.matchingCap ? (formData.matchingCapQty || 0) : 0) * capUnitPrice;
+
+  // Memoized cart computations
+  const memoCartTotalItems = useMemo(() => cartItems.reduce((s, i) => s + (parseInt(i.quantity) || 1), 0), [cartItems]);
+  const memoCartTotalPrice = useMemo(() => cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0), [cartItems]);
+  const memoCartTotalLogoCharges = useMemo(() => cartItems.reduce((s, i) => s + (parseFloat(i.logoCharges) || 0), 0), [cartItems]);
+  const memoCartTotalNamePrinting = useMemo(() => cartItems.reduce((s, i) => s + (parseFloat(i.namePrintingCharges) || 0), 0), [cartItems]);
+  const memoCartTotalCustomization = useMemo(() => cartItems.reduce((s, i) => s + (parseFloat(i.customizationPrice) || 0), 0), [cartItems]);
+  const memoCartProductPriceExBranding = useMemo(() => cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) - parseFloat(i.logoCharges || 0) - parseFloat(i.namePrintingCharges || 0) - parseFloat(i.customizationPrice || 0) - (parseInt(i.capCharges) || 0)), 0), [cartItems]);
+  const memoCartTotalCap = useMemo(() => cartItems.reduce((s, i) => s + (parseInt(i.capCharges) || 0), 0), [cartItems]);
+  const memoOrderTotalBeforeDelivery = useMemo(() => memoCartProductPriceExBranding + memoCartTotalCustomization + memoCartTotalCap, [memoCartProductPriceExBranding, memoCartTotalCustomization, memoCartTotalCap]);
+  const memoCalcDelivery = useMemo(() => memoOrderTotalBeforeDelivery > 7000 ? 0 : 250, [memoOrderTotalBeforeDelivery]);
+  const memoIsFreeDelivery = useMemo(() => memoCartTotalPrice > 7000, [memoCartTotalPrice]);
 
   const allTabs = [
     { id: 'basic', label: '1. Basics', icon: Layout },
@@ -1370,10 +1367,10 @@ const SmartOrderForm = () => {
                 <span className="font-black text-indigo-400 uppercase tracking-wider">Changes Summary</span>
                 <span className="text-gray-700">|</span>
                 <span className="theme-text-muted font-bold">
-                  {cartItems.length} item{cartItems.length > 1 ? 's' : ''} ({cartItems.reduce((s, i) => s + (parseInt(i.quantity) || 1), 0)} units)
+                  {cartItems.length} item{cartItems.length > 1 ? 's' : ''} ({memoCartTotalItems} units)
                 </span>
                 {(() => {
-                  const newTotal = cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0);
+                  const newTotal = memoCartTotalPrice;
                   const oldTotal = parseFloat(originalOrder.totalPrice) || 0;
                   const diff = newTotal - oldTotal;
                   if (diff === 0) return null;
@@ -1658,14 +1655,14 @@ const SmartOrderForm = () => {
                 <div className="hidden md:block border-l border-amber-500/20" />
                 <div>
                   <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-1">{useUrdu ? 'مجوزہ کل' : 'Updated Total'}</p>
-                  <p className="text-lg font-black text-emerald-400">₨{cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0).toLocaleString()}</p>
+                  <p className="text-lg font-black text-emerald-400">₨{memoCartTotalPrice.toLocaleString()}</p>
                 </div>
                 <div className="hidden md:block border-l border-amber-500/20" />
                 <div>
                   <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-1">{useUrdu ? 'فرق' : 'Difference'}</p>
                   {(() => {
                     const oldT = parseFloat(originalOrder.totalPrice) || 0;
-                    const newT = cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0);
+                    const newT = memoCartTotalPrice;
                     const diff = newT - oldT;
                     return (
                       <p className={`text-lg font-black ${diff > 0 ? 'text-red-400' : diff < 0 ? 'text-emerald-400' : 'text-gray-500'}`}>
@@ -1839,7 +1836,7 @@ const SmartOrderForm = () => {
                     </div>
                     <div className="space-y-4">
                       {(() => {
-                        const isFree = cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0) > 7000;
+                        const isFree = memoIsFreeDelivery;
                         return (
                           <>
                             <label className={`text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.2em] ${useUrdu ? 'mr-4' : 'ml-4'}`}>{useUrdu ? 'ڈلیوری چارجز' : 'Delivery Charges'}</label>
@@ -3507,8 +3504,8 @@ const SmartOrderForm = () => {
                 </div>
                 {cartItems.length > 0 && (
                   <div className="flex justify-end items-center gap-4 mt-3 pt-3 border-t border-gray-800/50">
-                    <span className="text-xs md:text-sm text-gray-400 font-black uppercase tracking-wider">{useUrdu ? 'کل آئٹمز' : 'Total Items'}: <span className="text-white">{cartItems.reduce((s, i) => s + (parseInt(i.quantity) || 1), 0)}</span></span>
-                    <span className="text-sm font-black text-emerald-400">{useUrdu ? 'کل قیمت' : 'Total'}: ₨{(cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0) + (cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0) > 7000 ? 0 : 250)).toLocaleString()}</span>
+                    <span className="text-xs md:text-sm text-gray-400 font-black uppercase tracking-wider">{useUrdu ? 'کل آئٹمز' : 'Total Items'}: <span className="text-white">{memoCartTotalItems}</span></span>
+                    <span className="text-sm font-black text-emerald-400">{useUrdu ? 'کل قیمت' : 'Total'}: ₨{(memoCartTotalPrice + (memoCartTotalPrice > 7000 ? 0 : 250)).toLocaleString()}</span>
                   </div>
                 )}
               </div>
@@ -3532,9 +3529,9 @@ const SmartOrderForm = () => {
                     </thead>
                     <tbody>
                       {(() => {
-                        const calcProductPrice = cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) - parseFloat(i.logoCharges || 0) - parseFloat(i.namePrintingCharges || 0) - parseFloat(i.customizationPrice || 0) - (parseInt(i.capCharges) || 0)), 0);
-                        const calcCustomization = cartItems.reduce((s, i) => s + (parseFloat(i.logoCharges || 0) + parseFloat(i.namePrintingCharges || 0) + parseFloat(i.customizationPrice || 0)), 0);
-                        const calcCap = cartItems.reduce((s, i) => s + (parseInt(i.capCharges) || 0), 0);
+                        const calcProductPrice = memoCartProductPriceExBranding;
+                        const calcCustomization = memoCartTotalCustomization;
+                        const calcCap = memoCartTotalCap;
                         const orderTotalBeforeDelivery = calcProductPrice + calcCustomization + calcCap;
                         const calcDelivery = orderTotalBeforeDelivery > 7000 ? 0 : 250;
                         const adjProductPrice = parseFloat(formData.adjProductPrice) || calcProductPrice;
@@ -3622,7 +3619,7 @@ const SmartOrderForm = () => {
 
                 <div className="flex justify-between items-center mt-3 pt-2 border-t border-gray-800/50">
                   <span className="text-xs text-gray-400">{useUrdu ? 'کل آئٹمز' : 'Total Items'}</span>
-                  <span className="font-black text-white">{cartItems.reduce((s, i) => s + (parseInt(i.quantity) || 1), 0)}</span>
+                  <span className="font-black text-white">{memoCartTotalItems}</span>
                 </div>
                 </div>
 
@@ -3841,7 +3838,7 @@ const SmartOrderForm = () => {
                     <div className="mt-3">
                       <span className="text-gray-400 block mb-1">{useUrdu ? 'ڈلیوری چارجز' : 'Delivery Charges'}</span>
                       {(() => {
-                        const isFree = cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0) > 7000;
+                        const isFree = memoIsFreeDelivery;
                         return (
                           <div className={`w-full theme-input rounded-xl py-2.5 px-3 text-sm font-bold flex items-center gap-2 ${isFree ? 'text-emerald-400' : 'text-amber-400'}`}>
                             {isFree ? 'FREE DELIVERY' : '₨250'}
@@ -3908,7 +3905,7 @@ const SmartOrderForm = () => {
 
                   {/* Pricing Subtotal */}
                   {(() => {
-                    const orderTotalNoDelivery = cartItems.reduce((sum, item) => sum + (parseFloat(item.totalPrice) || 0), 0);
+                    const orderTotalNoDelivery = memoCartTotalPrice;
                     const newDelivery = orderTotalNoDelivery > 7000 ? 0 : 250;
                     const totalNewPrice = orderTotalNoDelivery + newDelivery;
                     const origOrderTotal = parseFloat(originalOrder.totalPrice) || 0;

@@ -84,6 +84,24 @@
 ### Blocked
 - (none)
 
+## Performance Optimizations (Jun 20)
+### Backend
+- **Composite DB indexes**: Added indexes on `orderNumber`, `currentStage`, `outletName`, `createdAt`, `paymentStatus`, `dispatchStatus` in Prisma schema → pushed to DB.
+- **`$transaction()` parallel queries**: Consolidated independent queries in `order.controller.js` (store routing, STORE_RECEIVE cleanup) and `analytics.controller.js` (22 sequential queries → 1 transaction).
+- **`.select()` pruning**: Added field-restricted `select` to 5 queries in `production.controller.js` (records, dashboard, inventory) and `dispatch.controller.js` (dashboard) — prunes unused columns from DB transfer.
+- **Batch N+1 inventory loop**: `order.controller.js` — replaced 20+ individual `findUnique` calls with 1 batch `findMany` + in-memory map.
+- **Fixed N+1 in `getRoutingHistory`**: Removed redundant per-entry `prisma.user.findUnique` (data already loaded via `include: { sentByUser }`).
+
+### Frontend
+- **API service layer**: Created `frontend/src/services/api.js` — axios instance with auto token interceptor. Migrated `OrderEntry.jsx`, `ThemeContext.jsx`, `DispatchDashboard.jsx` from raw axios.
+- **`useCallback`**: Wrapped 7 handlers in `OrderEntry.jsx` (`handleSizeSelect`, `toggleEditMode`, `fetchOrderByNumber`, `handleAddToCart`, `removeCartItem`, `editCartItem`, `handleCheckout`).
+- **`useMemo`**: Wrapped `reduce()` calls and static objects extracted outside component in `OrderEntry.jsx`.
+- **`React.memo`**: Wrapped `KpiCard`, `StageBadge`, `OrderListModal`, `DrillDetail` in `UnifiedAnalytics.jsx`.
+- **Context memoization**: All 4 providers (`LanguageContext`, `ThemeContext`, `AuthContext`, `SearchContext`) now wrap children in `useMemo`.
+- **Code splitting**: All 17 pages lazy-loaded via `React.lazy()` + `Suspense`. Main chunk 798 kB → 506 kB (37% reduction). Each page loads on-demand.
+- **Socket debouncing**: Created `frontend/src/utils/debounce.js`. Wired into `AllOrders`, `DeliveryDashboard`, `ProgressChart`, `EditRequestDashboard`, `RefundManagement`, `DispatchDashboard` — groups rapid socket events into single API call (300ms window).
+- **Build passes with 0 errors**.
+
 ## Key Decisions
 - `deliveryCharges` stored as `Float @default(0)` on Order model – simple, queryable per-order.
 - `paymentStatus` reuses existing `String @default("PENDING")` field consistently across all modules.

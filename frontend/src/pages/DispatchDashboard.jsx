@@ -1,13 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Truck, Package, MapPin, Clock, Search, Loader2, Phone, CheckCircle2, X, ExternalLink, User, Hash, AlertTriangle, Globe, Send, Store, ShoppingBag, Eye } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
 import toast from 'react-hot-toast';
 import { PageLoader, LoadingSpinner } from '../components/LoadingSpinner';
 import socket from '../socket';
-
-const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
+import { debounce } from '../utils/debounce';
 
 const DISPATCH_OPTIONS = [
   { id: 'ENAMELS', label: 'Enamels Delivery', type: 'dispatch', desc: 'Assign to Enamels delivery team' },
@@ -50,10 +48,7 @@ const DispatchDashboard = () => {
   const fetchDashboard = async () => {
     setLoading(true);
     try {
-      const token = sessionStorage.getItem('token');
-      const res = await axios.get(`${API_URL}/api/dispatch/dashboard`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await api.get('/api/dispatch/dashboard');
       setData(res.data);
     } catch (err) {
       console.error('Failed to fetch dispatch dashboard:', err);
@@ -73,23 +68,21 @@ const DispatchDashboard = () => {
       if (queueRefreshRef.current) clearTimeout(queueRefreshRef.current);
       queueRefreshRef.current = setTimeout(fetchDashboard, 500);
     };
+    const debouncedFetch = debounce(fetchDashboard, 300);
     socket.on('stage-accepted', handleStageAccepted);
-    socket.on('dispatch-request', fetchDashboard);
-    socket.on('order-updated', fetchDashboard);
+    socket.on('dispatch-request', debouncedFetch);
+    socket.on('order-updated', debouncedFetch);
     return () => {
       socket.off('stage-accepted', handleStageAccepted);
-      socket.off('dispatch-request', fetchDashboard);
-      socket.off('order-updated', fetchDashboard);
+      socket.off('dispatch-request', debouncedFetch);
+      socket.off('order-updated', debouncedFetch);
     };
   }, []);
 
   const handleAcceptTask = async (orderId) => {
     setAcceptLoading(orderId);
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.post(`${API_URL}/api/orders/${orderId}/accept-task`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.post(`/api/orders/${orderId}/accept-task`, {});
       toast.success('Task accepted!', { duration: 2000 });
       fetchDashboard();
     } catch (err) {
@@ -104,18 +97,15 @@ const DispatchDashboard = () => {
     if (option.type === 'courier' && !trackingNumber.trim()) return;
     if (option.id === 'OTHER' && !otherCourierName.trim()) return;
     setSubmitting(true);
-    const token = sessionStorage.getItem('token');
     try {
-      if (option.id === 'ENAMELS' || option.id === 'WALK_IN') {
-        await axios.post(`${API_URL}/api/orders/${orderId}/dispatch`,
-          { deliveryMethod: option.id, trackingUrl: trackingNumber || null },
-          { headers: { Authorization: `Bearer ${token}` } }
+      if (option.id === 'WALK_IN') {
+        await api.put(`/api/dispatch/${orderId}/status`,
+          { status: 'DELIVERED', deliveredAt: new Date().toISOString() }
         );
       } else {
         const name = option.id === 'OTHER' ? otherCourierName.trim() : option.label;
-        await axios.post(`${API_URL}/api/dispatch/${orderId}/book`,
-          { courierName: name, trackingNumber, estimatedDelivery: estimatedDelivery || null },
-          { headers: { Authorization: `Bearer ${token}` } }
+        await api.post(`/api/dispatch/${orderId}/book`,
+          { courierName: name, trackingNumber, estimatedDelivery: estimatedDelivery || null }
         );
       }
       setBookModal(null);
@@ -135,11 +125,9 @@ const DispatchDashboard = () => {
     if (!deliveryMethod.trim()) return;
     setSubmitting(true);
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.post(`${API_URL}/api/dispatch/${orderId}/request`,
-        { deliveryMethod, destinationCity, notes },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+        await api.post(`/api/dispatch/${orderId}/book`,
+          { courier: dispatchMethod }
+        );
       setRequestModal(null);
       setDeliveryMethod('');
       setDestinationCity('');
@@ -155,11 +143,9 @@ const DispatchDashboard = () => {
   const handleUpdateStatus = async (orderId, dispatchStatus) => {
     setStatusLoading(orderId);
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.put(`${API_URL}/api/dispatch/${orderId}/status`,
-        { dispatchStatus },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+        await api.post(`/api/orders/${orderId}/dispatch`,
+          { dispatchMethod: 'ENAMELS' }
+        );
       toast.success(`Status updated to ${dispatchStatus}`, { duration: 2000 });
       fetchDashboard();
     } catch (err) {
@@ -172,21 +158,18 @@ const DispatchDashboard = () => {
   const handleMarkPickedUp = async (orderId) => {
     setStatusLoading(orderId);
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.put(`${API_URL}/api/dispatch/${orderId}/pickup`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      toast.success('Order marked as picked up!', { duration: 3000 });
+      await api.put(`/api/dispatch/${orderId}/pickup`, {});
+      toast.success('Order marked as picked up!', { duration: 2000 });
       fetchDashboard();
     } catch (err) {
-      alert('Failed to mark as picked up: ' + (err.response?.data?.error || err.message));
+      alert('Failed to mark picked up: ' + (err.response?.data?.error || err.message));
     } finally {
       setStatusLoading(null);
     }
   };
 
-  const getFilteredAllOrders = () => {
-    let items = data.allOrders;
+  const getFilteredUnseen = () => {
+    let items = data.unseen;
     const q = search.toLowerCase();
     if (q) items = items.filter(o =>
       o.customerName?.toLowerCase().includes(q) ||
@@ -194,7 +177,7 @@ const DispatchDashboard = () => {
       o.outletName?.toLowerCase().includes(q)
     );
     if (cityFilter) items = items.filter(o => (o.city || '').toLowerCase() === cityFilter.toLowerCase());
-    if (methodFilter) items = items.filter(o => (o.deliveryType || '').toLowerCase() === methodFilter.toLowerCase());
+    if (methodFilter) items = items.filter(o => (o.deliveryMethod || '').toLowerCase().includes(methodFilter.toLowerCase()));
     return items;
   };
 
