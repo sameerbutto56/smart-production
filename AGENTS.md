@@ -70,6 +70,14 @@
   - Green date row showing both dates prominently
   - Financial Summary stays in English (admin purpose)
 
+### Done (current session)
+- Changed analytics default date range from "This Week" to "All Time" so all orders show on load.
+- Fixed outlet demand request size/color dropdowns – backend preserves variants for OUTLET role, frontend falls back to flat size/color fields when variants are empty. Reverted backend changes per request (keep original controller), kept frontend fallback.
+- Cleaned inventory (51 items deleted) and order data (75 orders + related tables) for fresh start.
+- Restored inventory from seed (21 items), then removed all per user request (0 items).
+- Fixed analytics source filter: `buildSourceFilter` now matches by `outletName` regardless of `source` field; `getSources` no longer restricts to `source: 'OUTLET'` so Online orders appear.
+- **Shoes category size selection**: Added `isShoes` helper in `OrderEntry.jsx` to show size buttons for SHOES despite `isAccessory` returning `true`. Size buttons use default `['S', 'M', 'L', 'XL', '2XL']` sizes (not empty). `handleCategorySelect` skips `setSize('Standard')` for SHOES.
+
 ### In Progress
 - (none)
 
@@ -90,7 +98,7 @@
 - (none – all planned work is done)
 
 ## Critical Context
-- Latest commit includes: Advance Payment amount, Sleeve Length, Shirt Length, Instruction Notes, Engraving rename, Shopify Order Date, Urdu Job Sheet redesign features.
+- Latest commit includes: Advance Payment amount, Sleeve Length, Shirt Length, Instruction Notes, Engraving rename, Shopify Order Date, Urdu Job Sheet redesign, Shoes size selection (isShoes helper), analytics source filter fix, outlet demand fallback.
 - Build passes with 0 errors.
 - `isAccessory` uses substring matching (`catUpper.includes('COAT')`).
 - `calculateAndRecordRevenue` at line 2482 of `order.controller.js` is idempotent.
@@ -101,9 +109,9 @@
 
 ## Relevant Files
 - `frontend/src/pages/UnifiedAnalytics.jsx`: Complete source-wise analytics dashboard with tabs, filters, drill-down cards, modals, charts
+- `frontend/src/pages/OrderEntry.jsx`: `isShoes` helper, size buttons for SHOES despite `isAccessory`, per-product matching cap, delivery charges, advance amount, sleeve/shirt length dropdowns
 - `backend/src/controllers/analytics.controller.js`: Source-wise endpoints (sources, source/:id, source/:id/orders), sequential queries, date/status/payment/city/delivery filters, backward-compatible unified endpoint
 - `backend/src/routes/analytics.routes.js`: Routes for all analytics endpoints
-- `frontend/src/pages/OrderEntry.jsx`: Matching Cap in Selection tab, restructured Financial Summary
 - `frontend/src/pages/AllOrders.jsx`: per-product branding sections
 - `frontend/src/components/OrderCard.jsx`: per-product PRODUCTION/STORE rendering
 - `frontend/src/pages/DeliveryDashboard.jsx`: PAID badges + advance amount indicator, deliveryType filter for Enamels
