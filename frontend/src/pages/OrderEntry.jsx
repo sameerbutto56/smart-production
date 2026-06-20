@@ -1125,6 +1125,7 @@ const SmartOrderForm = () => {
     const catUpper = cat.toUpperCase();
     return ['SCRUBS', 'CAP', 'CAPS'].includes(catUpper) || catUpper.includes('COAT');
   };
+  const isShoes = (cat) => cat?.toUpperCase() === 'SHOES';
   const productsInCategory = inventory
     .filter(i => i.category === selectedProductCategory)
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -1178,7 +1179,7 @@ const SmartOrderForm = () => {
   const filteredTabs = allTabs.filter(tab => {
     if (tab.customOnly && formData.type === 'STANDARD') return false;
     if (tab.customOnly && !isCustomizableProduct(selectedProductCategory)) return false;
-    if (tab.id === 'sizes' && isAccessory(selectedProductCategory)) return false;
+    if (tab.id === 'sizes' && (isAccessory(selectedProductCategory) || isShoes(selectedProductCategory))) return false;
     return true;
   });
 
@@ -2029,7 +2030,7 @@ const SmartOrderForm = () => {
                         type="button"
                         onClick={() => {
                           setSelectedProductCategory(cat);
-                          if (isAccessory(cat)) {
+                          if (isAccessory(cat) && !isShoes(cat)) {
                             setFormData(prev => ({...prev, size: 'Standard', measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hips: '' }}));
                           } else {
                             setFormData(prev => ({...prev, size: ''}));
@@ -2202,9 +2203,9 @@ const SmartOrderForm = () => {
                       </h3>
                       <p className={`theme-text-muted text-xs md:text-sm font-bold uppercase tracking-widest ${useUrdu ? 'mr-11' : 'ml-11'}`}>Step 3: Visual scaling</p>
                     </div>
-                    {!isAccessory(selectedProductCategory) && (
+                    {(!isAccessory(selectedProductCategory) || isShoes(selectedProductCategory)) && (
                       <div className={`flex p-1.5 theme-bg rounded-xl border-2 theme-border ${useUrdu ? 'flex-row-reverse' : ''}`}>
-                        {(availableSizes.length > 0 ? availableSizes : ['S', 'M', 'L', 'XL', '2XL']).map(s => (
+                        {(availableSizes.length > 0 ? availableSizes : (isShoes(selectedProductCategory) ? [] : ['S', 'M', 'L', 'XL', '2XL'])).map(s => (
                           <button
                             key={s}
                             type="button"
@@ -2341,7 +2342,7 @@ const SmartOrderForm = () => {
                   )}
 
                   {/* Matching Cap */}
-                  {formData.productType && !isAccessory(selectedProductCategory) && (
+                  {formData.productType && !isAccessory(selectedProductCategory) && !isShoes(selectedProductCategory) && (
                     <div className="mt-6 theme-bg-subtle p-4 md:p-6 rounded-2xl border theme-border">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
