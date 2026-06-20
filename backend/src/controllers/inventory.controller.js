@@ -5,7 +5,10 @@ const getInventory = async (req, res) => {
   try {
     const items = await prisma.inventoryItem.findMany({ orderBy: { name: 'asc' } });
     if (req.user?.role === 'OUTLET') {
-      const sanitized = items.map(({ stock, variants, ...rest }) => rest);
+      const sanitized = items.map(({ stock, ...rest }) => ({
+        ...rest,
+        variants: rest.variants?.map(({ stock: vs, ...v }) => v) || null
+      }));
       return res.json(sanitized);
     }
     res.json(items);
