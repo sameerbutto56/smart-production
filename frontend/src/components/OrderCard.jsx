@@ -48,6 +48,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const [forceHours, setForceHours] = useState('');
   const [forceReason, setForceReason] = useState('');
   const [forceLoading, setForceLoading] = useState(false);
+  const [showTimelineModal, setShowTimelineModal] = useState(false);
+  const [timelineData, setTimelineData] = useState([]);
+  const [timelineLoading, setTimelineLoading] = useState(false);
   const isAdmin = ['SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(userRole);
   const [invCheck, setInvCheck] = useState(null);
   const [invCheckLoading, setInvCheckLoading] = useState(false);
@@ -127,6 +130,17 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
 
     return () => clearInterval(timer);
   }, [currentStage]);
+
+  useEffect(() => {
+    if (!showTimelineModal || !order?.id) return;
+    setTimelineLoading(true);
+    const token = sessionStorage.getItem('token');
+    axios.get(`${API_URL}/api/orders/${order.id}/timeline`, {
+      headers: { Authorization: `Bearer ${token}` }
+    }).then(res => setTimelineData(res.data))
+      .catch(() => toast.error('Failed to load timeline'))
+      .finally(() => setTimelineLoading(false));
+  }, [showTimelineModal, order?.id]);
 
   const handleInventoryCheck = useCallback(() => {
     if (!currentStage || invCheck) return;
@@ -797,7 +811,18 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
           <div className="flex flex-col gap-2 w-full">
             {isUnseen && !isAdmin ? (
               <button
-                onClick={() => withActionLoading('accept', async () => { if (onMarkSeen) await onMarkSeen(); })}
+                onClick={() => withActionLoading('accept', async () => {
+                  try {
+                    const token = sessionStorage.getItem('token');
+                    await axios.post(`${API_URL}/api/orders/${order.id}/accept-task`, {}, {
+                      headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (onMarkSeen) await onMarkSeen();
+                    toast.success('Task accepted!');
+                  } catch (err) {
+                    toast.error(err.response?.data?.message || 'Failed to accept task');
+                  }
+                })}
                 disabled={!!actionLoading}
                 className={`w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-3 md:py-4 rounded-2xl text-xs md:text-xs font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center space-x-2 active:scale-95 shadow-xl shadow-blue-900/40 border border-blue-400/20 ${actionLoading ? 'opacity-60 cursor-not-allowed' : ''}`}
               >
@@ -973,6 +998,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                               >
                                 <Package size={14} />
                                 <span>Route Order To...</span>
+                              </button>
+                              <button
+                                onClick={() => { setShowMoreActions(false); setShowTimelineModal(true); }}
+                                className="w-full flex items-center gap-3 px-4 py-3 text-xs md:text-sm font-black uppercase tracking-wider text-cyan-400 hover:bg-cyan-500/10 transition-all border-b border-gray-800"
+                              >
+                                <Clock size={14} />
+                                <span>Timeline</span>
                               </button>
                               <button
                                 onClick={async () => {
@@ -2599,6 +2631,124 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
           </motion.div>
         </div>
       )}
+
+      {/* Timeline Modal */}
+      {showTimelineModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="glass max-w-2xl w-full p-4 md:p-8 rounded-xl md:rounded-[2rem] border-2 border-gray-800 shadow-2xl max-h-[90vh] flex flex-col"
+          >
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h3 className="text-xl font-black text-white uppercase tracking-tight flex items-center gap-2">
+                  <Clock size={20} className="text-cyan-400" />
+                  Order Timeline
+                </h3>
+                <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-1">
+                  #{order.orderNumber || 'N/A'} — {order.customerName}
+                </p>
+              </div>
+              <button onClick={() => setShowTimelineModal(false)} className="text-gray-500 hover:text-white transition-colors p-2">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto no-scrollbar space-y-1">
+              {timelineLoading ? (
+                <div className="flex justify-center py-12"><RefreshCcw size={24} className="animate-spin text-cyan-400" /></div>
+              ) : timelineData.length === 0 ? (
+                <div className="text-center py-12 text-gray-500 font-black uppercase tracking-widest text-xs">No timeline data</div>
+              ) : (
+                timelineData.map((entry, idx) => {
+                  const isStage = entry.type === 'stage';
+                  const isRoute = entry.type === 'route';
+                  const isAudit = entry.type === 'audit';
+                  const dotColor = isStage
+                    ? entry.status === 'COMPLETED' ? 'bg-emerald-500'
+                      : entry.acceptedAt ? 'bg-blue-500'
+                        : 'bg-gray-600'
+                    : isRoute ? 'bg-amber-500'
+                      : 'bg-purple-500';
+
+                  return (
+                    <div key={entry.id || idx} className="relative pl-10 pb-4">
+                      {idx < timelineData.length - 1 && (
+                        <div className="absolute left-[11px] top-6 bottom-0 w-[2px] bg-gray-800" />
+                      )}
+                      <div className={`absolute left-0 top-1 w-6 h-6 rounded-full border-4 border-gray-900 flex items-center justify-center ${dotColor}`}>
+                        {isStage ? (
+                          <span className="text-[8px] text-white font-black">{entry.status === 'COMPLETED' ? '✓' : entry.acceptedAt ? '●' : '○'}</span>
+                        ) : isRoute ? (
+                          <span className="text-[8px]">→</span>
+                        ) : (
+                          <span className="text-[8px]">●</span>
+                        )}
+                      </div>
+
+                      <div className="p-3 rounded-xl border border-gray-800 bg-gray-950/50">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="text-xs font-black uppercase tracking-wider"
+                            style={{ color: isStage
+                              ? entry.status === 'COMPLETED' ? '#10b981' : entry.acceptedAt ? '#3b82f6' : '#6b7280'
+                              : isRoute ? '#f59e0b' : '#a855f7'
+                            }}
+                          >
+                            {isStage ? entry.stage.replace(/_/g, ' ') : isRoute ? `${entry.from?.replace(/_/g, ' ')} → ${entry.to?.replace(/_/g, ' ')}` : entry.label}
+                          </span>
+                          <span className="text-[10px] text-gray-600 font-mono whitespace-nowrap">
+                            {new Date(entry.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+
+                        {isStage && (
+                          <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-gray-500 font-medium">
+                            <span>Received: {new Date(entry.receivedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            {entry.acceptedAt && (
+                              <span>Accepted: {new Date(entry.acceptedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            )}
+                            {entry.completedAt && (
+                              <span>Completed: {new Date(entry.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            )}
+                            {entry.delay !== null && (
+                              <span className={entry.delay > 60 ? 'text-red-400' : 'text-yellow-400'}>
+                                Delay: {entry.delay} min
+                              </span>
+                            )}
+                            {entry.returnedFrom && (
+                              <span className="text-orange-400">Returned from {entry.returnedFrom}</span>
+                            )}
+                          </div>
+                        )}
+
+                        {isRoute && entry.remarks && (
+                          <p className="mt-1 text-[10px] text-gray-600 italic">{entry.remarks}</p>
+                        )}
+
+                        {isAudit && entry.details && (
+                          <p className="mt-1 text-[10px] text-gray-600 italic">{entry.details}</p>
+                        )}
+
+                        {entry.actor && (
+                          <p className="mt-1 text-[9px] text-gray-700 font-bold">{entry.actor}</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <button onClick={() => setShowTimelineModal(false)}
+              className="mt-4 w-full py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all"
+            >
+              Close
+            </button>
+          </motion.div>
+        </div>
+      )}
+
     </>
   );
 };

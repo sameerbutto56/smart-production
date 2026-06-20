@@ -172,6 +172,7 @@ const AdminDashboard = () => {
     socket.on('stage-completion-requested', onStageCompletionRequested);
     socket.on('payment-updated', onPaymentUpdated);
     socket.on('stage-rejected', onStageRejected);
+    socket.on('stage-accepted', () => queueRefreshRef.current?.());
 
     return () => {
       socket.off('order-updated', onOrderUpdated);
@@ -179,6 +180,7 @@ const AdminDashboard = () => {
       socket.off('stage-completion-requested', onStageCompletionRequested);
       socket.off('payment-updated', onPaymentUpdated);
       socket.off('stage-rejected', onStageRejected);
+      socket.off('stage-accepted');
     };
   }, []);
 

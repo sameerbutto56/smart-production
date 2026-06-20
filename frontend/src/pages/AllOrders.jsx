@@ -104,10 +104,12 @@ const AllOrders = () => {
 
     socket.on('order-updated', onOrderUpdated);
     socket.on('new-order', onNewOrder);
+    socket.on('stage-accepted', () => fetchOrders());
 
     return () => {
       socket.off('order-updated', onOrderUpdated);
       socket.off('new-order', onNewOrder);
+      socket.off('stage-accepted');
     };
   }, [location.state]);
 

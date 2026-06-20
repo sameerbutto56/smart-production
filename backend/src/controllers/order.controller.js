@@ -2845,6 +2845,129 @@ const getRoutingHistory = async (req, res) => {
 };
 
 // ====== STORE PROFILE ======
+// Universal accept task endpoint for ANY stage
+const acceptTask = async (req, res) => {
+  const { orderId } = req.params;
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { stages: true }
+    });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    const pendingStage = order.stages.find(s =>
+      ['PENDING'].includes(s.status) && getRolesForStage(s.stageName).includes(req.user.role)
+    );
+    if (!pendingStage) return res.status(400).json({ message: 'No pending task found for your role' });
+    if (pendingStage.startedAt) return res.status(400).json({ message: 'Task already accepted' });
+
+    const acceptedAt = new Date();
+    await prisma.orderStage.update({
+      where: { id: pendingStage.id },
+      data: { startedAt: acceptedAt, status: 'IN_PROGRESS' }
+    });
+
+    await createAuditLog(orderId, 'STAGE_ACCEPTED',
+      `Task accepted at ${pendingStage.stageName} by ${req.user.name} (Delay: ${Math.round((acceptedAt - new Date(pendingStage.createdAt)) / 60000)} min)`,
+      req.user.id);
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('order-updated', { orderId });
+      io.emit('stage-accepted', { orderId, stageName: pendingStage.stageName, acceptedAt, userId: req.user.id });
+    }
+
+    const updated = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { stages: { orderBy: { createdAt: 'asc' } } }
+    });
+
+    res.json({ message: 'Task accepted', order: updated, delay: Math.round((acceptedAt - new Date(pendingStage.createdAt)) / 60000) });
+  } catch (error) {
+    res.status(500).json({ message: 'Error accepting task', error: error.message });
+  }
+};
+
+// Get unified order timeline (combines stages + routing history + audit logs)
+const getOrderTimeline = async (req, res) => {
+  const { orderId } = req.params;
+  try {
+    const [stages, routingHistory, auditLogs] = await Promise.all([
+      prisma.orderStage.findMany({
+        where: { orderId },
+        orderBy: { createdAt: 'asc' }
+      }),
+      prisma.routingHistory.findMany({
+        where: { orderId },
+        orderBy: { createdAt: 'asc' },
+        include: { sentByUser: { select: { id: true, name: true } } }
+      }),
+      prisma.auditLog.findMany({
+        where: { orderId, action: { in: ['STAGE_ACCEPTED', 'STORE_ACCEPT', 'STORE_ROUTE', 'DELIVERY_ACCEPTED', 'INVENTORY_ADDED', 'INVENTORY_CONFIRMED', 'STORE_RETURN_TO_SOURCE'] } },
+        orderBy: { timestamp: 'asc' },
+        include: { user: { select: { id: true, name: true } } }
+      })
+    ]);
+
+    // Build timeline entries
+    const entries = [];
+
+    // Add routing history entries
+    routingHistory.forEach(rh => {
+      entries.push({
+        id: rh.id,
+        type: 'route',
+        stage: rh.sentToStage,
+        timestamp: rh.createdAt,
+        label: 'Routed',
+        from: rh.previousStage,
+        to: rh.newStage,
+        actor: rh.sentByUser?.name || 'System',
+        remarks: rh.remarks || null
+      });
+    });
+
+    // Add stage entries with calculated delays
+    stages.forEach(s => {
+      const delay = s.startedAt ? Math.round((new Date(s.startedAt) - new Date(s.createdAt)) / 60000) : null;
+      entries.push({
+        id: s.id,
+        type: 'stage',
+        stage: s.stageName,
+        timestamp: s.createdAt,
+        label: s.status === 'COMPLETED' ? 'Completed' : s.startedAt ? 'Accepted' : 'Received',
+        status: s.status,
+        receivedAt: s.createdAt,
+        acceptedAt: s.startedAt || null,
+        completedAt: s.completedAt || null,
+        delay,
+        returnedFrom: s.returnedFrom || null,
+        returnReason: s.returnReason || null
+      });
+    });
+
+    // Add audit log entries for acceptances
+    auditLogs.forEach(al => {
+      entries.push({
+        id: al.id,
+        type: 'audit',
+        stage: null,
+        timestamp: al.timestamp,
+        label: al.action,
+        details: al.details,
+        actor: al.user?.name || al.performedBy
+      });
+    });
+
+    // Sort by timestamp
+    entries.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    res.json(entries);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching timeline', error: error.message });
+  }
+};
+
 const acceptStoreOrder = async (req, res) => {
   const { orderId } = req.params;
   try {
@@ -3286,15 +3409,16 @@ const updateDispatchStatus = async (req, res) => {
   }
 };
 
-module.exports = { 
-  createOrder, 
-  getOrders, 
-  requestStageCompletion, 
-  approveStageCompletion, 
+module.exports = {
+  createOrder,
+  getOrders,
+  requestStageCompletion,
+  approveStageCompletion,
   rejectStageCompletion,
   updatePaymentStatus,
   getAnalytics,
   clearHistory,
+  getOutletAnalytics,
   cancelOrder,
   deleteOrder,
   getDeletedOrders,
@@ -3306,7 +3430,6 @@ module.exports = {
   forceAction,
   setDeliveryType,
   checkOrderInventory,
-  getOutletAnalytics,
   addOrderToInventory,
   manualRouteOrder,
   markOrderAsSeen,
@@ -3325,5 +3448,7 @@ module.exports = {
   dispatchOrder,
   updateDispatchStatus,
   acceptDelivery,
-  getDeliveryHistory
+  getDeliveryHistory,
+  acceptTask,
+  getOrderTimeline
 };

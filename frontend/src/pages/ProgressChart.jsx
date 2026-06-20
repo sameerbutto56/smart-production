@@ -15,7 +15,6 @@ import {
   LogOut,
   Printer
 } from 'lucide-react';
-import { io } from 'socket.io-client';
 import socket from '../socket';
 import { useLanguage } from '../context/LanguageContext';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';

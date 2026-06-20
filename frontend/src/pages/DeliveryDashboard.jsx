@@ -416,9 +416,11 @@ const DeliveryDashboard = () => {
     fetchOrders();
     socket.on('order-updated', fetchOrders);
     socket.on('new-order', fetchOrders);
+    socket.on('stage-accepted', fetchOrders);
     return () => {
       socket.off('order-updated', fetchOrders);
       socket.off('new-order', fetchOrders);
+      socket.off('stage-accepted');
     };
   }, [fetchOrders]);
 

@@ -19,7 +19,6 @@ const {
   forceAction,
   setDeliveryType,
   checkOrderInventory,
-  getOutletAnalytics,
   addOrderToInventory,
   manualRouteOrder,
   markOrderAsSeen,
@@ -38,7 +37,10 @@ const {
   dispatchOrder,
   updateDispatchStatus,
   acceptDelivery,
-  getDeliveryHistory
+  getDeliveryHistory,
+  acceptTask,
+  getOrderTimeline,
+  getOutletAnalytics
 } = require('../controllers/order.controller');
 const { createEditRequest } = require('../controllers/editRequest.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
@@ -118,6 +120,12 @@ router.post('/:orderId/route', authenticate, authorize(['STORE', 'SUPER_ADMIN', 
 
 // Bulk Routing (all authenticated workers)
 router.post('/bulk-route', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), bulkRouteOrders);
+
+// Universal accept task (any authenticated user)
+router.post('/:orderId/accept-task', authenticate, acceptTask);
+
+// Unified order timeline
+router.get('/:orderId/timeline', authenticate, getOrderTimeline);
 
 // Store Profile Routes
 router.post('/:orderId/accept-store', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), acceptStoreOrder);
