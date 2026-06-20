@@ -18,7 +18,7 @@ const PIE_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 const fmt = (v) => `₨${(v || 0).toLocaleString()}`;
 
 const DATE_PRESETS = [
-  { label: 'Today', days: 0 }, { label: 'Yesterday', days: 1 },
+  { label: 'All Time', days: -2 }, { label: 'Today', days: 0 }, { label: 'Yesterday', days: 1 },
   { label: 'This Week', days: 7 }, { label: 'This Month', days: 30 },
   { label: 'Last 3 Months', days: 90 }, { label: 'Custom', days: -1 }
 ];
@@ -118,7 +118,7 @@ const UnifiedAnalytics = () => {
   const [source, setSource] = useState('all');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [datePreset, setDatePreset] = useState('7');
+  const [datePreset, setDatePreset] = useState('-2');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('all');
@@ -133,6 +133,7 @@ const UnifiedAnalytics = () => {
 
   const getDateRange = useCallback(() => {
     const d = parseInt(datePreset);
+    if (d === -2) return {};
     if (d === -1) return { startDate: customStart, endDate: customEnd };
     if (d === 0) {
       const t = new Date(); return { startDate: t.toISOString().split('T')[0], endDate: t.toISOString().split('T')[0] };
