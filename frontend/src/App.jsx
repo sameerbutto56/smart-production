@@ -25,6 +25,7 @@ const DeletedOrders = lazy(() => import('./pages/DeletedOrders'));
 const ProductionDashboard = lazy(() => import('./pages/ProductionDashboard'));
 const RefundManagement = lazy(() => import('./pages/RefundManagement'));
 const UnifiedAnalytics = lazy(() => import('./pages/UnifiedAnalytics'));
+const DispatchDashboard = lazy(() => import('./pages/DispatchDashboard'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -87,6 +88,7 @@ function App() {
                   <Route path="history" element={<History />} />
                   <Route path="delivery" element={<DeliveryDashboard />} />
                   <Route path="delivery-sheet" element={<DeliverySheet />} />
+                  <Route path="dispatch" element={<DispatchDashboard />} />
                   <Route path="warehouse" element={<WarehouseDashboard />} />
                   <Route path="outlet-requests" element={<OutletStockRequest />} />
                   <Route path="edit-requests" element={<EditRequestDashboard />} />
