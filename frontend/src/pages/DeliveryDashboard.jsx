@@ -389,7 +389,9 @@ const DeliveryDashboard = () => {
     setLoading(true);
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const res = await axios.get(`${API_URL}/api/orders?status=delivery`, {
+        const dt = user?.name?.toLowerCase().includes('enamels') ? 'ENAMELS' : '';
+        const params = `status=delivery${dt ? `&deliveryType=${dt}` : ''}`;
+        const res = await axios.get(`${API_URL}/api/orders?${params}`, {
           headers: { Authorization: `Bearer ${token}` },
           timeout: 15000
         });

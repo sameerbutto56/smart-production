@@ -537,6 +537,10 @@ const getOrders = async (req, res) => {
         { currentStage: { in: ['OUT_FOR_DELIVERY', 'DELIVERED'] } },
         { status: { in: ['COMPLETED', 'OUT_FOR_DELIVERY'] } }
       ];
+      // Optionally filter by deliveryType (e.g., ENAMELS, TCS, POST_EX)
+      if (req.query.deliveryType) {
+        where.deliveryType = req.query.deliveryType;
+      }
     } else {
       // Default: If no status specified, load active orders + the 100 most recent completed orders to keep payload tiny!
       // This is backward-compatible with older frontend code that filters in memory!
