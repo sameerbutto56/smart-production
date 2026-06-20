@@ -43,6 +43,8 @@
 - **Instruction Notes**: added `instructionNotes String?` to Prisma schema (pushed). Textarea in Basics tab (Standard Orders only). Stored on Order model, displayed in Job Sheet modal and print Job Sheet. Included in backend `createOrder` and `approveEditRequest` field mapping.
 
 ### Done (latest session)
+- **Outlet Demand Request with Order Entry-style selection**: Rewrote `OutletStockRequest.jsx` — product cards no longer show stock counts or badges; cart items use dropdowns (not text inputs) for size/color with +/- quantity stepper; Warehouse Inventory tab renamed to Warehouse Catalog with availability badges removed.
+- **Backend outletDemand.controller.js**: `getInventoryForOutlet` no longer queries `stock` field or computes availability — outlets see only product name, category, color, size, fabric.
 - **Source-wise Analytics Dashboard**: Complete rewrite of `UnifiedAnalytics.jsx` with source tabs (All/Online/Jail Road/Johar Town/Abbottabad), date range presets (Today/Yesterday/Week/Month/3M/Custom), payment/status/city/delivery filters, and clickable drill-down cards.
 - **Backend analytics endpoints**: `GET /api/analytics/sources`, `GET /api/analytics/source/:sourceId` (full analytics), `GET /api/analytics/source/:sourceId/orders` (drill-down lists). Sequential queries to avoid Vercel pool exhaustion. Backward-compatible with old `/api/analytics/unified?branch=` route.
 - **Drill-down cards**: Delivered → COD/Online/Prepaid breakdown; Returns → Paid Returns (refund status), COD Returns, Financial Impact; Pending → stage-wise progress bars. Each drill view has "View Orders" modal showing order list.
