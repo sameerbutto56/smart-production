@@ -16,9 +16,9 @@ const safeFind = async (args) => {
 // Build WHERE clause for source filtering
 const buildSourceFilter = (sourceId) => {
   if (!sourceId || sourceId === 'all') return {};
-  if (sourceId === 'online') return { source: 'ONLINE' };
+  if (sourceId === 'online') return { source: { in: ['ONLINE', 'INTERNAL'] } };
   const name = sourceId.replace(/_/g, ' ').toUpperCase();
-  return { source: 'OUTLET', outletName: { contains: name, mode: 'insensitive' } };
+  return { outletName: { contains: name, mode: 'insensitive' } };
 };
 
 // Build date range filter
@@ -63,7 +63,7 @@ const SOURCE_LABELS = {
 const getSources = async (req, res) => {
   try {
     const outletNames = await prisma.order.findMany({
-      where: { source: 'OUTLET', outletName: { not: null } },
+      where: { outletName: { not: null } },
       distinct: ['outletName'],
       select: { outletName: true }
     });
