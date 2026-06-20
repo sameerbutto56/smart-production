@@ -89,8 +89,9 @@ const OutletStockRequest = () => {
   // --- Demand Request Handlers ---
   const addToCart = (item) => {
     const variants = item.variants || [];
-    const sizes = [...new Set(variants.map(v => v.size).filter(Boolean))];
-    const colors = [...new Set(variants.map(v => v.color).filter(Boolean))];
+    const hasVariants = variants.length > 0;
+    const sizes = hasVariants ? [...new Set(variants.map(v => v.size).filter(Boolean))] : (item.size ? [item.size] : []);
+    const colors = hasVariants ? [...new Set(variants.map(v => v.color).filter(Boolean))] : (item.color ? [item.color] : []);
     setCartItems(prev => {
       const existing = prev.find(i => i.productId === item.id && i.size === item.selectedSize && i.color === item.selectedColor);
       if (existing) {
@@ -245,8 +246,8 @@ const OutletStockRequest = () => {
                   {filteredInventory.map((item, i) => {
                     const variants = item.variants || [];
                     const hasVariants = variants.length > 0;
-                    const sizes = hasVariants ? [...new Set(variants.map(v => v.size).filter(Boolean))] : [];
-                    const colors = hasVariants ? [...new Set(variants.map(v => v.color).filter(Boolean))] : [];
+                    const sizes = hasVariants ? [...new Set(variants.map(v => v.size).filter(Boolean))] : (item.size ? [item.size] : []);
+                    const colors = hasVariants ? [...new Set(variants.map(v => v.color).filter(Boolean))] : (item.color ? [item.color] : []);
                     return (
                       <motion.div key={item.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
                         className="glass p-4 md:p-5 rounded-2xl border-2 theme-border hover:border-blue-500/30 transition-all">
