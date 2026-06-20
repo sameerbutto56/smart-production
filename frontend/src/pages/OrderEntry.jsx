@@ -2204,13 +2204,17 @@ const SmartOrderForm = () => {
                       <p className={`theme-text-muted text-xs md:text-sm font-bold uppercase tracking-widest ${useUrdu ? 'mr-11' : 'ml-11'}`}>Step 3: Visual scaling</p>
                     </div>
                     {(!isAccessory(selectedProductCategory) || (isShoes(selectedProductCategory) && formData.productType)) && (
-                      <div className={`flex p-1.5 theme-bg rounded-xl border-2 theme-border ${useUrdu ? 'flex-row-reverse' : ''}`}>
+                      <div className={`flex flex-wrap gap-1.5 p-1.5 theme-bg rounded-xl border-2 theme-border ${useUrdu ? 'flex-row-reverse' : ''}`}>
                         {(availableSizes.length > 0 ? availableSizes : ['S', 'M', 'L', 'XL', '2XL']).map(s => (
                           <button
                             key={s}
                             type="button"
                             onClick={() => handleSizeSelect(s)}
-                            className={`w-14 h-14 rounded-lg font-black text-xs transition-all ${
+                            className={`font-black transition-all rounded-lg ${
+                              isShoes(selectedProductCategory)
+                                ? 'px-3 py-1.5 text-[10px] leading-tight'
+                                : 'w-14 h-14 text-xs'
+                            } ${
                               formData.size === s 
                                 ? 'bg-blue-600 text-white shadow-lg' 
                                 : 'text-gray-600 hover:text-white'
