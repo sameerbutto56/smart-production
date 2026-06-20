@@ -1,8 +1,9 @@
 ## Goal
-- Add Prepaid Order workflow, per-product branding details in Summary/Job Sheet, printable Production Job Sheet, and proper CAP quantity pricing.
-- Job Sheet must be fully readable for production staff with Urdu transliteration, large fonts, and clear layout.
-- Shopify Order Date stored/displayed separately from Order Entry Date.
-- "Branding & Customization" renamed to "Engraving" everywhere.
+- Source-wise analytics dashboard with drill-down, filters, and visual charts.
+- Every analytics section supports filters and clickable drill-down cards.
+- Online, Jail Road, Johar Town automatically get independent analytics.
+- Future outlets automatically inherit the same analytics structure.
+- All backend queries run sequentially to avoid Vercel connection pool timeout (limit=1).
 
 ## Constraints & Preferences
 - Delivery riders primarily use mobile devices – UI must be fully responsive with compact cards and expandable details.
@@ -42,7 +43,11 @@
 - **Instruction Notes**: added `instructionNotes String?` to Prisma schema (pushed). Textarea in Basics tab (Standard Orders only). Stored on Order model, displayed in Job Sheet modal and print Job Sheet. Included in backend `createOrder` and `approveEditRequest` field mapping.
 
 ### Done (latest session)
-- Renamed "Branding & Customization" → "Engraving" across all files: `printReport.js` section title, `AllOrders.jsx` heading, `OrderCard.jsx` heading, `OrderEntry.jsx` tab labels and Urdu label.
+- **Source-wise Analytics Dashboard**: Complete rewrite of `UnifiedAnalytics.jsx` with source tabs (All/Online/Jail Road/Johar Town/Abbottabad), date range presets (Today/Yesterday/Week/Month/3M/Custom), payment/status/city/delivery filters, and clickable drill-down cards.
+- **Backend analytics endpoints**: `GET /api/analytics/sources`, `GET /api/analytics/source/:sourceId` (full analytics), `GET /api/analytics/source/:sourceId/orders` (drill-down lists). Sequential queries to avoid Vercel pool exhaustion. Backward-compatible with old `/api/analytics/unified?branch=` route.
+- **Drill-down cards**: Delivered → COD/Online/Prepaid breakdown; Returns → Paid Returns (refund status), COD Returns, Financial Impact; Pending → stage-wise progress bars. Each drill view has "View Orders" modal showing order list.
+- **Financial Overview**: Total Revenue (COD/Online/Prepaid split), Refund Analytics (count, amount, pending), Net Revenue calculation.
+- **Visual Charts**: Order/Revenue trend (AreaChart), Return trend (LineChart), Revenue Distribution (PieChart).
 - Added `shopifyOrderDate DateTime?` to Prisma schema (pushed to DB).
 - Added Shopify Order Date input field (`datetime-local`) in OrderEntry Basics tab (after City field, before Delivery Charges).
 - Backend `createOrder` accepts `shopifyOrderDate`, stores as `Date`.
@@ -93,20 +98,21 @@
 - `instructionNotes` stored as `String?` on Order model, displayed in Job Sheet and print output.
 
 ## Relevant Files
-- `frontend/src/pages/OrderEntry.jsx`: Matching Cap in Selection tab, restructured Financial Summary with discount + advance amount lines, advance amount input in Basics tabs, handleCheckout uses adjusted values
-- `frontend/src/pages/AllOrders.jsx`: per-product branding sections, Job Sheet modal, PAID badges, advance amount display
-- `frontend/src/components/OrderCard.jsx`: per-product PRODUCTION/STORE rendering, Print button
-- `frontend/src/pages/DeliveryDashboard.jsx`: PAID badges + advance amount indicator
-- `frontend/src/pages/DeliverySheet.jsx`: Payment Status column, COD check uses advanceAmount
+- `frontend/src/pages/UnifiedAnalytics.jsx`: Complete source-wise analytics dashboard with tabs, filters, drill-down cards, modals, charts
+- `backend/src/controllers/analytics.controller.js`: Source-wise endpoints (sources, source/:id, source/:id/orders), sequential queries, date/status/payment/city/delivery filters, backward-compatible unified endpoint
+- `backend/src/routes/analytics.routes.js`: Routes for all analytics endpoints
+- `frontend/src/pages/OrderEntry.jsx`: Matching Cap in Selection tab, restructured Financial Summary
+- `frontend/src/pages/AllOrders.jsx`: per-product branding sections
+- `frontend/src/components/OrderCard.jsx`: per-product PRODUCTION/STORE rendering
+- `frontend/src/pages/DeliveryDashboard.jsx`: PAID badges + advance amount indicator, deliveryType filter for Enamels
+- `frontend/src/pages/DeliverySheet.jsx`: Payment Status column
 - `frontend/src/pages/AdminDashboard.jsx`: PAID badges
-- `frontend/src/pages/UnifiedAnalytics.jsx`: payment filter + paid/unpaid cards
 - `frontend/src/pages/WarehouseDashboard.jsx`: polling 60s + visibility check
 - `frontend/src/pages/History.jsx`: advance amount column
 - `frontend/src/pages/EditRequestDashboard.jsx`: advance amount in diff fields
-- `frontend/src/utils/printReport.js`: `printJobSheet` with Cap column in products table, per-product Matching Cap badge, sleeve/shirt length, instruction notes, Urdu transliteration (`romanToUrdu`), full readability redesign, both dates display
-- `backend/src/controllers/order.controller.js`: deliveryCharges, paymentStatus, advanceAmount, idempotent revenue recording, instructionNotes, shopifyOrderDate
+- `frontend/src/utils/printReport.js`: `printJobSheet`
+- `backend/src/controllers/order.controller.js`: deliveryCharges, paymentStatus, advanceAmount, idempotent revenue recording, deliveryType filter
 - `backend/src/controllers/editRequest.controller.js`: instructionNotes, shopifyOrderDate field mapping
-- `backend/src/controllers/analytics.controller.js`: paymentStatus filter
 - `backend/prisma/schema.prisma`: deliveryCharges, advanceAmount, shopifyOrderDate fields
 - `frontend/src/hooks/usePolling.js`: polling hook (unchanged)
 - `AGENTS.md`: full change log
