@@ -323,9 +323,10 @@ const getDispatchDashboard = async (req, res) => {
     const orders = await prisma.order.findMany({
       where: {
         ...baseWhere,
+        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] },
         OR: [
           { currentStage: { in: ['DISPATCH', 'OUT_FOR_DELIVERY'] } },
-          { dispatchStatus: { not: null } }
+          { dispatchStatus: { not: 'PENDING' } }
         ]
       },
       include: {
