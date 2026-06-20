@@ -1,169 +1,281 @@
 const prisma = require('../prisma');
 
-const buildBranchFilter = (branch) => {
-  if (!branch || branch === 'all') return {};
-  const sourceMap = { online: 'ONLINE', internal: 'ONLINE' };
-  const source = sourceMap[branch];
-  if (source === 'ONLINE') {
-    return { source: 'ONLINE' };
-  }
-  const branchName = branch.replace(/_/g, ' ').toUpperCase();
-  return { source: 'OUTLET', outletName: { contains: branchName, mode: 'insensitive' } };
+const safeCount = async (where) => {
+  try { return await prisma.order.count({ where }); } catch { return 0; }
 };
-
-const safeCount = async (model, where) => {
-  try { return await prisma[model].count({ where }); } catch { return 0; }
-};
-
-const safeFind = async (model, args) => {
-  try { return await prisma[model].findMany(args); } catch { return []; }
-};
-
-const safeAggregate = async (model, args) => {
-  try { return await prisma[model].aggregate(args); } catch { return { _sum: {}, _avg: {} }; }
-};
-
-const getUnifiedAnalytics = async (req, res) => {
+const safeSum = async (where, field) => {
   try {
-    const { branch, paymentStatus } = req.query;
-    const filter = buildBranchFilter(branch?.toLowerCase());
+    const r = await prisma.order.aggregate({ where, _sum: { [field]: true } });
+    return r._sum[field] || 0;
+  } catch { return 0; }
+};
+const safeFind = async (args) => {
+  try { return await prisma.order.findMany(args); } catch { return []; }
+};
 
-    let paymentFilter = {};
-    if (paymentStatus === 'paid') {
-      paymentFilter = { paymentStatus: { in: ['PAID', 'FULL_PAID'] } };
-    } else if (paymentStatus === 'unpaid') {
-      paymentFilter = { paymentStatus: { notIn: ['PAID', 'FULL_PAID'] } };
-    }
+// Build WHERE clause for source filtering
+const buildSourceFilter = (sourceId) => {
+  if (!sourceId || sourceId === 'all') return {};
+  if (sourceId === 'online') return { source: 'ONLINE' };
+  const name = sourceId.replace(/_/g, ' ').toUpperCase();
+  return { source: 'OUTLET', outletName: { contains: name, mode: 'insensitive' } };
+};
 
-    // Orders analytics
-    const totalOrders = await safeCount('order', { ...filter, ...paymentFilter });
-    const completedOrders = await safeCount('order', { ...filter, ...paymentFilter, status: { in: ['COMPLETED', 'DELIVERED'] } });
-    const inProgressOrders = await safeCount('order', { ...filter, ...paymentFilter, status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED', 'PENDING'] } });
-    const pendingOrders = await safeCount('order', { ...filter, ...paymentFilter, status: 'PENDING' });
-    const cancelledOrders = await safeCount('order', { ...filter, ...paymentFilter, status: { in: ['CANCELLED', 'REJECTED'] } });
-    const paidOrders = await safeCount('order', { ...filter, paymentStatus: { in: ['PAID', 'FULL_PAID'] } });
-    const unpaidOrders = await safeCount('order', { ...filter, paymentStatus: { notIn: ['PAID', 'FULL_PAID'] } });
+// Build date range filter
+const buildDateFilter = (start, end) => {
+  const f = {};
+  if (start) f.gte = new Date(start);
+  if (end) f.lte = new Date(end + 'T23:59:59.999Z');
+  return Object.keys(f).length ? { createdAt: f } : {};
+};
 
-    const revenueAgg = await safeAggregate('order', { where: { ...filter, ...paymentFilter }, _sum: { totalPrice: true, productionCost: true, productCost: true, grossProfit: true, netProfit: true, logoCharges: true, namePrintingCharges: true } });
-    const totalRevenue = revenueAgg._sum.totalPrice || 0;
-    const totalProductionCost = revenueAgg._sum.productionCost || 0;
-    const totalProductCost = revenueAgg._sum.productCost || 0;
-    const totalGrossProfit = revenueAgg._sum.grossProfit || 0;
-    const totalNetProfit = revenueAgg._sum.netProfit || 0;
+// Build generic filter from query params
+const buildFilters = (query, sourceId) => {
+  const { startDate, endDate, paymentMethod, paymentStatus, status: statusFilter, city, deliveryStatus } = query;
+  const where = { ...buildSourceFilter(sourceId), ...buildDateFilter(startDate, endDate) };
+  if (paymentMethod && paymentMethod !== 'all') where.paymentMethod = paymentMethod;
+  if (paymentStatus && paymentStatus !== 'all') {
+    if (paymentStatus === 'paid') where.paymentStatus = { in: ['PAID', 'FULL_PAID'] };
+    else if (paymentStatus === 'unpaid') where.paymentStatus = { notIn: ['PAID', 'FULL_PAID'] };
+    else where.paymentStatus = paymentStatus;
+  }
+  if (city) where.city = { contains: city, mode: 'insensitive' };
+  if (statusFilter && statusFilter !== 'all') {
+    if (statusFilter === 'active') where.status = { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] };
+    else where.status = statusFilter;
+  }
+  if (deliveryStatus && deliveryStatus !== 'all') {
+    if (deliveryStatus === 'out_for_delivery') where.currentStage = 'OUT_FOR_DELIVERY';
+    else if (deliveryStatus === 'delivered') where.currentStage = 'DELIVERED';
+    else if (deliveryStatus === 'returned') where.refundStatus = { not: 'NONE' };
+  }
+  return where;
+};
 
-    // Stage breakdown — single groupBy query instead of 7 sequential queries
-    const stageCounts = { ORDER_ENTRY: 0, STORE: 0, LOGO_DESIGN: 0, PRODUCTION: 0, STORE_RECEIVE: 0, DISPATCH: 0, OUT_FOR_DELIVERY: 0 };
-    const stageGroups = await prisma.order.groupBy({
-      by: ['currentStage'],
-      where: { ...filter, ...paymentFilter, currentStage: { in: ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'] } },
-      _count: { id: true }
+const SOURCE_LABELS = {
+  online: 'Online Orders',
+  jail_road: 'Outlet - Jail Road',
+  johar_town: 'Outlet - Johar Town',
+  abbottabad: 'Outlet - Abbottabad'
+};
+
+// GET /api/analytics/sources — list all available sources
+const getSources = async (req, res) => {
+  try {
+    const outletNames = await prisma.order.findMany({
+      where: { source: 'OUTLET', outletName: { not: null } },
+      distinct: ['outletName'],
+      select: { outletName: true }
     });
-    for (const g of stageGroups) {
-      stageCounts[g.currentStage] = g._count.id;
+    const sources = [
+      { id: 'all', label: 'All Sources', type: 'ALL' },
+      { id: 'online', label: 'Online Orders', type: 'ONLINE' }
+    ];
+    for (const o of outletNames) {
+      const id = o.outletName.toLowerCase().replace(/\s+/g, '_');
+      sources.push({ id, label: `Outlet - ${o.outletName}`, type: 'OUTLET', outletName: o.outletName });
     }
+    res.json(sources);
+  } catch (err) {
+    console.error('getSources error:', err);
+    res.json([
+      { id: 'all', label: 'All Sources', type: 'ALL' },
+      { id: 'online', label: 'Online Orders', type: 'ONLINE' },
+      { id: 'jail_road', label: 'Outlet - Jail Road', type: 'OUTLET', outletName: 'JAIL ROAD' },
+      { id: 'johar_town', label: 'Outlet - Johar Town', type: 'OUTLET', outletName: 'JOHAR TOWN' }
+    ]);
+  }
+};
 
-    // Production analytics
-    const productionFilter = {};
-    if (branch && branch !== 'all') {
-      const src = branch === 'online' ? 'ONLINE' : 'OUTLET';
-      productionFilter.source = src;
-    }
-    const prodRecords = await safeFind('productionRecord', { where: productionFilter });
-    const totalProduced = prodRecords.reduce((s, r) => s + (r.quantity || 0), 0);
-    const prodCost = prodRecords.reduce((s, r) => s + (r.totalCost || 0), 0);
-    const rawMaterialCost = prodRecords.reduce((s, r) => s + (r.rawMaterialCost || 0), 0);
-    const prodEarnings = prodRecords.reduce((s, r) => s + (r.sellingValue || 0), 0);
-    const prodProfit = prodRecords.reduce((s, r) => s + (r.profit || 0), 0);
+// GET /api/analytics/source/:sourceId — full analytics for one source
+const getSourceAnalytics = async (req, res) => {
+  try {
+    // Support both route param (source/:sourceId) and query param (unified?branch=)
+    const sourceId = req.params.sourceId || req.query.branch || 'all';
+    const where = buildFilters(req.query, sourceId);
 
-    // Product breakdown
-    const productMap = {};
-    prodRecords.forEach(r => {
-      if (!productMap[r.productName]) {
-        productMap[r.productName] = { productName: r.productName, quantity: 0, totalCost: 0, sellingValue: 0, profit: 0 };
-      }
-      productMap[r.productName].quantity += r.quantity || 0;
-      productMap[r.productName].totalCost += r.totalCost || 0;
-      productMap[r.productName].sellingValue += r.sellingValue || 0;
-      productMap[r.productName].profit += r.profit || 0;
+    const [
+      totalOrders, completedOrdersStr, returnedOrdersStr,
+      deliveredCodStr, deliveredOnlineStr, deliveredPrepaidStr,
+      pendingOrdersStr,
+      totalRevenue, codRevenue, onlineRevenue, prepaidRevenue,
+      refundedTotal, refundedCount, pendingRefundCount,
+      stageGroups
+    ] = await Promise.all([
+      safeCount(where),
+      safeCount({ ...where, status: { in: ['COMPLETED', 'DELIVERED'] } }),
+      safeCount({ ...where, refundStatus: { not: 'NONE' } }),
+      // Delivered breakdown
+      safeCount({ ...where, status: { in: ['COMPLETED', 'DELIVERED'] }, paymentMethod: 'CASH' }),
+      safeCount({ ...where, status: { in: ['COMPLETED', 'DELIVERED'] }, paymentMethod: { in: ['ONLINE', 'ONLINE_TRANSFER'] } }),
+      safeCount({ ...where, status: { in: ['COMPLETED', 'DELIVERED'] }, paymentStatus: { in: ['PAID', 'FULL_PAID'] } }),
+      // Pending
+      safeCount({ ...where, status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] } }),
+      // Revenue
+      safeSum(where, 'totalPrice'),
+      safeSum({ ...where, paymentMethod: 'CASH' }, 'totalPrice'),
+      safeSum({ ...where, paymentMethod: { in: ['ONLINE', 'ONLINE_TRANSFER'] } }, 'totalPrice'),
+      safeSum({ ...where, paymentStatus: { in: ['PAID', 'FULL_PAID'] } }, 'totalPrice'),
+      // Refunds
+      safeSum({ ...where, refundStatus: { in: ['REFUNDED', 'PARTIAL'] } }, 'totalPrice'),
+      safeCount({ ...where, refundStatus: { in: ['REFUNDED', 'PARTIAL'] } }),
+      safeCount({ ...where, refundStatus: { in: ['REQUESTED', 'PROCESSING'] } }),
+      // Stage breakdown
+      prisma.order.groupBy({
+        by: ['currentStage'],
+        where: { ...where, currentStage: { notIn: ['DELIVERED', 'COMPLETED'] } },
+        _count: { id: true }
+      }).catch(() => [])
+    ]);
+
+    const returnedPaidCount = await safeCount({
+      ...where,
+      refundStatus: { in: ['REFUNDED', 'PARTIAL'] },
+      paymentStatus: { in: ['PAID', 'FULL_PAID'] }
     });
+    const returnedCodCount = await safeCount({
+      ...where,
+      refundStatus: { not: 'NONE' },
+      paymentMethod: 'CASH'
+    }) - returnedPaidCount;
+    const returnedPaidRefunded = await safeSum({
+      ...where,
+      refundStatus: { in: ['REFUNDED', 'PARTIAL'] },
+      paymentStatus: { in: ['PAID', 'FULL_PAID'] }
+    }, 'totalPrice');
 
-    // Monthly production trend
-    const monthlyProd = {};
-    prodRecords.forEach(r => {
-      const m = new Date(r.productionDate).toLocaleString('en-US', { month: 'short', year: '2-digit' });
-      if (!monthlyProd[m]) monthlyProd[m] = { name: m, quantity: 0, profit: 0 };
-      monthlyProd[m].quantity += r.quantity || 0;
-      monthlyProd[m].profit += r.profit || 0;
+    const pendingValue = await safeSum(
+      { ...where, status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] } },
+      'totalPrice'
+    );
+
+    // Monthly trends
+    const recentOrders = await safeFind({
+      where,
+      select: { createdAt: true, totalPrice: true, refundStatus: true },
+      orderBy: { createdAt: 'asc' }
     });
-
-    // Inventory analytics
-    const invItems = await safeFind('inventoryItem', {});
-    const totalInventoryItems = invItems.length;
-    const lowStockItems = invItems.filter(i => i.stock > 0 && i.stock <= 5).length;
-    const outOfStockItems = invItems.filter(i => !i.stock || i.stock <= 0).length;
-    const totalInventoryValue = invItems.reduce((s, i) => s + ((i.stock || 0) * (i.price || 0)), 0);
-
-    // Dispatch analytics
-    const dispatchFilter = {};
-    if (branch === 'online') dispatchFilter.source = 'ONLINE';
-    else if (branch && branch !== 'all') {
-      dispatchFilter.source = 'OUTLET';
-      const branchName = branch.replace(/_/g, ' ').toUpperCase();
-      dispatchFilter.outletName = { contains: branchName, mode: 'insensitive' };
+    const monthlyMap = {};
+    for (const o of recentOrders) {
+      const m = new Date(o.createdAt).toLocaleString('en-US', { month: 'short', year: '2-digit' });
+      if (!monthlyMap[m]) monthlyMap[m] = { month: m, orders: 0, revenue: 0, returns: 0 };
+      monthlyMap[m].orders++;
+      monthlyMap[m].revenue += o.totalPrice || 0;
+      if (o.refundStatus !== 'NONE') monthlyMap[m].returns++;
     }
-    const dispatchPending = await safeCount('order', { ...dispatchFilter, ...paymentFilter, currentStage: 'DISPATCH' });
-    const outForDelivery = await safeCount('order', { ...dispatchFilter, ...paymentFilter, currentStage: 'OUT_FOR_DELIVERY' });
-    const deliveredOrders = await safeCount('order', { ...dispatchFilter, ...paymentFilter, currentStage: 'DELIVERED' });
+    const monthlyTrend = Object.values(monthlyMap);
 
-    // Revenue by source
-    const onlineOrders = await safeCount('order', { ...filter, ...paymentFilter, source: 'ONLINE' });
-    const outletOrders = totalOrders - onlineOrders;
-    const onlineRevenueAgg = await safeAggregate('order', { where: { ...filter, ...paymentFilter, source: 'ONLINE' }, _sum: { totalPrice: true, netProfit: true } });
-    const outletRevenueAgg = await safeAggregate('order', { where: { ...filter, ...paymentFilter, source: 'OUTLET' }, _sum: { totalPrice: true, netProfit: true } });
+    const stageCounts = {};
+    for (const g of stageGroups) stageCounts[g.currentStage] = g._count.id;
+
+    const pendingByStage = {};
+    const stageOrder = ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
+    for (const s of stageOrder) pendingByStage[s] = stageCounts[s] || 0;
 
     res.json({
       summary: {
-        totalOrders, completedOrders, inProgressOrders, pendingOrders, cancelledOrders, paidOrders, unpaidOrders,
-        totalRevenue, totalProductionCost, totalProductCost,
-        totalGrossProfit, totalNetProfit,
-        totalInventoryItems, lowStockItems, outOfStockItems,
-        totalInventoryValue,
-        totalProduced, prodCost, rawMaterialCost, prodEarnings, prodProfit,
-        dispatchPending, outForDelivery, deliveredOrders,
-        onlineOrders, outletOrders,
-        onlineRevenue: onlineRevenueAgg._sum.totalPrice || 0,
-        onlineProfit: onlineRevenueAgg._sum.netProfit || 0,
-        outletRevenue: outletRevenueAgg._sum.totalPrice || 0,
-        outletProfit: outletRevenueAgg._sum.netProfit || 0
+        totalOrders,
+        deliveredOrders: completedOrdersStr,
+        returnedOrders: returnedOrdersStr < 0 ? 0 : returnedOrdersStr,
+        pendingOrders
       },
-      stageCounts,
-      production: {
-        totalProduced, productionCost: prodCost, rawMaterialCost,
-        earnings: prodEarnings, profit: prodProfit,
-        byProduct: Object.values(productMap).sort((a, b) => b.profit - a.profit),
-        monthlyTrend: Object.values(monthlyProd).sort((a, b) => {
-          const da = new Date(a.name + ' 2000'), db = new Date(b.name + ' 2000');
-          return da - db;
-        })
+      deliveredBreakdown: {
+        cod: { count: deliveredCodStr, amount: codRevenue },
+        online: { count: deliveredOnlineStr, amount: onlineRevenue },
+        prepaid: { count: deliveredPrepaidStr, amount: prepaidRevenue }
+      },
+      returnsAnalytics: {
+        paidReturns: {
+          count: returnedPaidCount,
+          refundAmount: returnedPaidRefunded,
+          completedRefunds: await safeCount({ ...where, refundStatus: 'REFUNDED', paymentStatus: { in: ['PAID', 'FULL_PAID'] } }),
+          pendingRefunds: await safeCount({ ...where, refundStatus: { in: ['REQUESTED', 'PROCESSING'] }, paymentStatus: { in: ['PAID', 'FULL_PAID'] } })
+        },
+        codReturns: {
+          count: Math.max(0, returnedCodCount),
+          amountImpact: await safeSum({ ...where, refundStatus: { not: 'NONE' }, paymentMethod: 'CASH' }, 'totalPrice')
+        },
+        financialImpact: {
+          totalRefunded: refundedTotal,
+          netRevenueLoss: refundedTotal
+        }
+      },
+      pendingAnalytics: {
+        count: pendingOrders,
+        totalValue: pendingValue,
+        byStage: pendingByStage
+      },
+      financials: {
+        totalRevenue,
+        codRevenue,
+        onlineRevenue,
+        prepaidRevenue,
+        totalRefunded: refundedTotal,
+        refundedCount,
+        pendingRefundCount,
+        netRevenue: totalRevenue - refundedTotal
+      },
+      trends: {
+        monthly: monthlyTrend
       }
     });
-  } catch (error) {
-    console.error('Unified analytics error:', error);
+  } catch (err) {
+    console.error('getSourceAnalytics error:', err);
     res.json({
-      summary: {
-        totalOrders: 0, completedOrders: 0, inProgressOrders: 0, pendingOrders: 0, cancelledOrders: 0, paidOrders: 0, unpaidOrders: 0,
-        totalRevenue: 0, totalProductionCost: 0, totalProductCost: 0,
-        totalGrossProfit: 0, totalNetProfit: 0,
-        totalInventoryItems: 0, lowStockItems: 0, outOfStockItems: 0,
-        totalInventoryValue: 0,
-        totalProduced: 0, prodCost: 0, rawMaterialCost: 0, prodEarnings: 0, prodProfit: 0,
-        dispatchPending: 0, outForDelivery: 0, deliveredOrders: 0,
-        onlineOrders: 0, outletOrders: 0, onlineRevenue: 0, onlineProfit: 0, outletRevenue: 0, outletProfit: 0
-      },
-      stageCounts: {},
-      production: { totalProduced: 0, productionCost: 0, rawMaterialCost: 0, earnings: 0, profit: 0, byProduct: [], monthlyTrend: [] }
+      summary: { totalOrders: 0, deliveredOrders: 0, returnedOrders: 0, pendingOrders: 0 },
+      deliveredBreakdown: { cod: { count: 0, amount: 0 }, online: { count: 0, amount: 0 }, prepaid: { count: 0, amount: 0 } },
+      returnsAnalytics: { paidReturns: { count: 0, refundAmount: 0, completedRefunds: 0, pendingRefunds: 0 }, codReturns: { count: 0, amountImpact: 0 }, financialImpact: { totalRefunded: 0, netRevenueLoss: 0 } },
+      pendingAnalytics: { count: 0, totalValue: 0, byStage: {} },
+      financials: { totalRevenue: 0, codRevenue: 0, onlineRevenue: 0, prepaidRevenue: 0, totalRefunded: 0, refundedCount: 0, pendingRefundCount: 0, netRevenue: 0 },
+      trends: { monthly: [] }
     });
   }
 };
 
-module.exports = { getUnifiedAnalytics };
+// GET /api/analytics/source/:sourceId/orders — list orders for drill-down
+const getSourceOrders = async (req, res) => {
+  try {
+    const { sourceId } = req.params;
+    const { type, limit } = req.query; // type: delivered-cod, delivered-online, delivered-prepaid, returned-paid, returned-cod, pending
+    const where = buildFilters(req.query, sourceId);
+
+    if (type === 'delivered-cod') {
+      where.status = { in: ['COMPLETED', 'DELIVERED'] };
+      where.paymentMethod = 'CASH';
+    } else if (type === 'delivered-online') {
+      where.status = { in: ['COMPLETED', 'DELIVERED'] };
+      where.paymentMethod = { in: ['ONLINE', 'ONLINE_TRANSFER'] };
+    } else if (type === 'delivered-prepaid') {
+      where.status = { in: ['COMPLETED', 'DELIVERED'] };
+      where.paymentStatus = { in: ['PAID', 'FULL_PAID'] };
+    } else if (type === 'returned-paid') {
+      where.refundStatus = { in: ['REFUNDED', 'PARTIAL'] };
+      where.paymentStatus = { in: ['PAID', 'FULL_PAID'] };
+    } else if (type === 'returned-cod') {
+      where.refundStatus = { not: 'NONE' };
+      where.paymentMethod = 'CASH';
+    } else if (type === 'pending') {
+      where.status = { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] };
+    }
+
+    const orders = await safeFind({
+      where,
+      select: {
+        id: true, orderNumber: true, customerName: true, customerPhone: true,
+        totalPrice: true, paymentMethod: true, paymentStatus: true,
+        currentStage: true, status: true, refundStatus: true,
+        city: true, createdAt: true, source: true, outletName: true,
+        deliveryMethod: true
+      },
+      orderBy: { createdAt: 'desc' },
+      take: parseInt(limit) || 50
+    });
+
+    res.json(orders);
+  } catch (err) {
+    console.error('getSourceOrders error:', err);
+    res.json([]);
+  }
+};
+
+module.exports = { getSources, getSourceAnalytics, getSourceOrders, getUnifiedAnalytics: getSourceAnalytics };
