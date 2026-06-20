@@ -94,62 +94,60 @@ const getSourceAnalytics = async (req, res) => {
     const sourceId = req.params.sourceId || req.query.branch || 'all';
     const where = buildFilters(req.query, sourceId);
 
-    const [
-      totalOrders, completedOrdersStr, returnedOrdersStr,
-      deliveredCodStr, deliveredOnlineStr, deliveredPrepaidStr,
-      pendingOrdersStr,
-      totalRevenue, codRevenue, onlineRevenue, prepaidRevenue,
-      refundedTotal, refundedCount, pendingRefundCount,
-      stageGroups
-    ] = await Promise.all([
-      safeCount(where),
-      safeCount({ ...where, status: { in: ['COMPLETED', 'DELIVERED'] } }),
-      safeCount({ ...where, refundStatus: { not: 'NONE' } }),
-      // Delivered breakdown
-      safeCount({ ...where, status: { in: ['COMPLETED', 'DELIVERED'] }, paymentMethod: 'CASH' }),
-      safeCount({ ...where, status: { in: ['COMPLETED', 'DELIVERED'] }, paymentMethod: { in: ['ONLINE', 'ONLINE_TRANSFER'] } }),
-      safeCount({ ...where, status: { in: ['COMPLETED', 'DELIVERED'] }, paymentStatus: { in: ['PAID', 'FULL_PAID'] } }),
-      // Pending
-      safeCount({ ...where, status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] } }),
-      // Revenue
-      safeSum(where, 'totalPrice'),
-      safeSum({ ...where, paymentMethod: 'CASH' }, 'totalPrice'),
-      safeSum({ ...where, paymentMethod: { in: ['ONLINE', 'ONLINE_TRANSFER'] } }, 'totalPrice'),
-      safeSum({ ...where, paymentStatus: { in: ['PAID', 'FULL_PAID'] } }, 'totalPrice'),
-      // Refunds
-      safeSum({ ...where, refundStatus: { in: ['REFUNDED', 'PARTIAL'] } }, 'totalPrice'),
-      safeCount({ ...where, refundStatus: { in: ['REFUNDED', 'PARTIAL'] } }),
-      safeCount({ ...where, refundStatus: { in: ['REQUESTED', 'PROCESSING'] } }),
-      // Stage breakdown
-      prisma.order.groupBy({
+    // Sequential queries to avoid connection pool exhaustion (Vercel limit=1)
+    const whereCompleted = { ...where, status: { in: ['COMPLETED', 'DELIVERED'] } };
+    const wherePending = { ...where, status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] } };
+    const whereRefunded = { ...where, refundStatus: { in: ['REFUNDED', 'PARTIAL'] } };
+    const whereRefundPending = { ...where, refundStatus: { in: ['REQUESTED', 'PROCESSING'] } };
+    const whereAllRefunded = { ...where, refundStatus: { not: 'NONE' } };
+
+    const totalOrders = await safeCount(where);
+    const completedOrders = await safeCount(whereCompleted);
+    const returnedOrders = await safeCount(whereAllRefunded);
+
+    const deliveredCod = await safeCount({ ...whereCompleted, paymentMethod: 'CASH' });
+    const deliveredOnline = await safeCount({ ...whereCompleted, paymentMethod: { in: ['ONLINE', 'ONLINE_TRANSFER'] } });
+    const deliveredPrepaid = await safeCount({ ...whereCompleted, paymentStatus: { in: ['PAID', 'FULL_PAID'] } });
+
+    const pendingOrders = await safeCount(wherePending);
+
+    const totalRevenue = await safeSum(where, 'totalPrice');
+    const codRevenue = await safeSum({ ...where, paymentMethod: 'CASH' }, 'totalPrice');
+    const onlineRevenue = await safeSum({ ...where, paymentMethod: { in: ['ONLINE', 'ONLINE_TRANSFER'] } }, 'totalPrice');
+    const prepaidRevenue = await safeSum({ ...where, paymentStatus: { in: ['PAID', 'FULL_PAID'] } }, 'totalPrice');
+
+    const refundedTotal = await safeSum(whereRefunded, 'totalPrice');
+    const refundedCount = await safeCount(whereRefunded);
+    const pendingRefundCount = await safeCount(whereRefundPending);
+
+    const returnedPaidCount = await safeCount({
+      ...where, refundStatus: { in: ['REFUNDED', 'PARTIAL'] }, paymentStatus: { in: ['PAID', 'FULL_PAID'] }
+    });
+    const returnedAllCod = await safeCount({ ...whereAllRefunded, paymentMethod: 'CASH' });
+    const returnedCodCount = Math.max(0, returnedAllCod - returnedPaidCount);
+    const returnedPaidRefunded = await safeSum({
+      ...where, refundStatus: { in: ['REFUNDED', 'PARTIAL'] }, paymentStatus: { in: ['PAID', 'FULL_PAID'] }
+    }, 'totalPrice');
+
+    const pendingValue = await safeSum(wherePending, 'totalPrice');
+
+    const completedRefunds = await safeCount({ ...where, refundStatus: 'REFUNDED', paymentStatus: { in: ['PAID', 'FULL_PAID'] } });
+    const pendingRefunds = await safeCount({
+      ...where, refundStatus: { in: ['REQUESTED', 'PROCESSING'] }, paymentStatus: { in: ['PAID', 'FULL_PAID'] }
+    });
+    const codReturnedAmount = await safeSum({ ...whereAllRefunded, paymentMethod: 'CASH' }, 'totalPrice');
+
+    // Stage breakdown (single query)
+    let stageGroups = [];
+    try {
+      stageGroups = await prisma.order.groupBy({
         by: ['currentStage'],
         where: { ...where, currentStage: { notIn: ['DELIVERED', 'COMPLETED'] } },
         _count: { id: true }
-      }).catch(() => [])
-    ]);
+      });
+    } catch {}
 
-    const returnedPaidCount = await safeCount({
-      ...where,
-      refundStatus: { in: ['REFUNDED', 'PARTIAL'] },
-      paymentStatus: { in: ['PAID', 'FULL_PAID'] }
-    });
-    const returnedCodCount = await safeCount({
-      ...where,
-      refundStatus: { not: 'NONE' },
-      paymentMethod: 'CASH'
-    }) - returnedPaidCount;
-    const returnedPaidRefunded = await safeSum({
-      ...where,
-      refundStatus: { in: ['REFUNDED', 'PARTIAL'] },
-      paymentStatus: { in: ['PAID', 'FULL_PAID'] }
-    }, 'totalPrice');
-
-    const pendingValue = await safeSum(
-      { ...where, status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] } },
-      'totalPrice'
-    );
-
-    // Monthly trends
+    // Monthly trends (single query)
     const recentOrders = await safeFind({
       where,
       select: { createdAt: true, totalPrice: true, refundStatus: true },
@@ -175,49 +173,27 @@ const getSourceAnalytics = async (req, res) => {
     res.json({
       summary: {
         totalOrders,
-        deliveredOrders: completedOrdersStr,
-        returnedOrders: returnedOrdersStr < 0 ? 0 : returnedOrdersStr,
+        deliveredOrders: completedOrders,
+        returnedOrders: Math.max(0, returnedOrders),
         pendingOrders
       },
       deliveredBreakdown: {
-        cod: { count: deliveredCodStr, amount: codRevenue },
-        online: { count: deliveredOnlineStr, amount: onlineRevenue },
-        prepaid: { count: deliveredPrepaidStr, amount: prepaidRevenue }
+        cod: { count: deliveredCod, amount: codRevenue },
+        online: { count: deliveredOnline, amount: onlineRevenue },
+        prepaid: { count: deliveredPrepaid, amount: prepaidRevenue }
       },
       returnsAnalytics: {
-        paidReturns: {
-          count: returnedPaidCount,
-          refundAmount: returnedPaidRefunded,
-          completedRefunds: await safeCount({ ...where, refundStatus: 'REFUNDED', paymentStatus: { in: ['PAID', 'FULL_PAID'] } }),
-          pendingRefunds: await safeCount({ ...where, refundStatus: { in: ['REQUESTED', 'PROCESSING'] }, paymentStatus: { in: ['PAID', 'FULL_PAID'] } })
-        },
-        codReturns: {
-          count: Math.max(0, returnedCodCount),
-          amountImpact: await safeSum({ ...where, refundStatus: { not: 'NONE' }, paymentMethod: 'CASH' }, 'totalPrice')
-        },
-        financialImpact: {
-          totalRefunded: refundedTotal,
-          netRevenueLoss: refundedTotal
-        }
+        paidReturns: { count: returnedPaidCount, refundAmount: returnedPaidRefunded, completedRefunds, pendingRefunds },
+        codReturns: { count: returnedCodCount, amountImpact: codReturnedAmount },
+        financialImpact: { totalRefunded: refundedTotal, netRevenueLoss: refundedTotal }
       },
-      pendingAnalytics: {
-        count: pendingOrders,
-        totalValue: pendingValue,
-        byStage: pendingByStage
-      },
+      pendingAnalytics: { count: pendingOrders, totalValue: pendingValue, byStage: pendingByStage },
       financials: {
-        totalRevenue,
-        codRevenue,
-        onlineRevenue,
-        prepaidRevenue,
-        totalRefunded: refundedTotal,
-        refundedCount,
-        pendingRefundCount,
+        totalRevenue, codRevenue, onlineRevenue, prepaidRevenue,
+        totalRefunded: refundedTotal, refundedCount, pendingRefundCount,
         netRevenue: totalRevenue - refundedTotal
       },
-      trends: {
-        monthly: monthlyTrend
-      }
+      trends: { monthly: monthlyTrend }
     });
   } catch (err) {
     console.error('getSourceAnalytics error:', err);
