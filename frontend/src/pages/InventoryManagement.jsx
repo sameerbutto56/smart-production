@@ -5,7 +5,7 @@ import {
   Plus,
   Search,
   Edit2,
-
+  Trash2,
   Package,
   Palette,
   Layers,
