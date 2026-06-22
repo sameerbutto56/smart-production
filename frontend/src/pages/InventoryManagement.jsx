@@ -388,30 +388,6 @@ const InventoryManagement = () => {
         ))}
       </div>
 
-      {/* Summary Bar */}
-      <div className="grid grid-cols-4 gap-2 md:gap-4">
-        {[
-          { label: 'Total Products', value: items.length, color: 'text-white' },
-          { label: 'In Stock', value: items.filter(i => {
-            const v = i.variants && Array.isArray(i.variants) && i.variants.length > 0 ? i.variants : [{ stock: i.stock != null ? i.stock : 0 }];
-            return v.every(x => (x.stock || 0) > LOW_STOCK_LIMIT);
-          }).length, color: 'text-emerald-400' },
-          { label: 'Low Stock', value: items.filter(i => {
-            const v = i.variants && Array.isArray(i.variants) && i.variants.length > 0 ? i.variants : [{ stock: i.stock != null ? i.stock : 0 }];
-            return !v.some(x => (x.stock || 0) === 0) && v.some(x => (x.stock || 0) > 0 && (x.stock || 0) <= LOW_STOCK_LIMIT);
-          }).length, color: 'text-amber-400' },
-          { label: 'Out of Stock', value: items.filter(i => {
-            const v = i.variants && Array.isArray(i.variants) && i.variants.length > 0 ? i.variants : [{ stock: i.stock != null ? i.stock : 0 }];
-            return v.some(x => (x.stock || 0) === 0);
-          }).length, color: 'text-red-400' }
-        ].map(stat => (
-          <div key={stat.label} className="bg-gray-900 border border-gray-700 rounded-xl p-3 text-center">
-            <p className={`text-lg md:text-2xl font-black ${stat.color}`}>{stat.value}</p>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mt-0.5">{stat.label}</p>
-          </div>
-        ))}
-      </div>
-
       {/* Search Status Bar */}
       {searchTerm && (
         <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
