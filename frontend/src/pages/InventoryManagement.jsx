@@ -219,8 +219,8 @@ const InventoryManagement = () => {
         ? item.variants
         : [{ stock: item.stock != null ? item.stock : 0 }];
 
-      if (stockFilter === 'LOW') return variants.some(v => (v.stock || 0) > 0 && (v.stock || 0) <= LOW_STOCK_LIMIT);
-      if (stockFilter === 'OUT') return variants.some(v => (v.stock || 0) === 0);
+      if (stockFilter === 'LOW') return variants.some(v => (v.stock || 0) > 0 && (v.stock || 0) <= LOW_STOCK_LIMIT) && !variants.every(v => (v.stock || 0) === 0);
+      if (stockFilter === 'OUT') return variants.every(v => (v.stock || 0) === 0);
       return true;
     })
     .sort((a, b) => {
