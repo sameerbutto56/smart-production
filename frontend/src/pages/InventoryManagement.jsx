@@ -32,7 +32,7 @@ import { printInventoryReport } from '../utils/printReport';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
-const LOW_STOCK_LIMIT = 10;
+const LOW_STOCK_LIMIT = 5;
 
 const InventoryManagement = () => {
   const { user, loading: authLoading } = useAuth();
@@ -219,8 +219,8 @@ const InventoryManagement = () => {
         ? item.variants
         : [{ stock: item.stock != null ? item.stock : 0 }];
 
-      if (stockFilter === 'OUT') return variants.some(v => (v.stock || 0) <= 5);
-      if (stockFilter === 'LOW') return !variants.some(v => (v.stock || 0) <= 5) && variants.some(v => (v.stock || 0) > 5 && (v.stock || 0) <= LOW_STOCK_LIMIT);
+      if (stockFilter === 'OUT') return variants.some(v => (v.stock || 0) === 0);
+      if (stockFilter === 'LOW') return !variants.some(v => (v.stock || 0) === 0) && variants.some(v => (v.stock || 0) > 0 && (v.stock || 0) <= LOW_STOCK_LIMIT);
       return true;
     })
     .sort((a, b) => {
@@ -375,8 +375,8 @@ const InventoryManagement = () => {
       <div className="flex gap-2">
         {[
           { key: 'ALL', label: 'All Stock' },
-          { key: 'LOW', label: `⚠ Low Stock (6-${LOW_STOCK_LIMIT})` },
-          { key: 'OUT', label: `✕ Out of Stock (<=5)` }
+          { key: 'LOW', label: `⚠ Low Stock (<=${LOW_STOCK_LIMIT})` },
+          { key: 'OUT', label: '✕ Out of Stock' }
         ].map(opt => (
           <button key={opt.key} onClick={() => setStockFilter(opt.key)}
             className={`px-4 py-2.5 text-xs font-black rounded-xl transition-all whitespace-nowrap ${
@@ -398,11 +398,11 @@ const InventoryManagement = () => {
           }).length, color: 'text-emerald-400' },
           { label: 'Low Stock', value: items.filter(i => {
             const v = i.variants && Array.isArray(i.variants) && i.variants.length > 0 ? i.variants : [{ stock: i.stock != null ? i.stock : 0 }];
-            return !v.some(x => (x.stock || 0) <= 5) && v.some(x => (x.stock || 0) > 5 && (x.stock || 0) <= LOW_STOCK_LIMIT);
+            return !v.some(x => (x.stock || 0) === 0) && v.some(x => (x.stock || 0) > 0 && (x.stock || 0) <= LOW_STOCK_LIMIT);
           }).length, color: 'text-amber-400' },
           { label: 'Out of Stock', value: items.filter(i => {
             const v = i.variants && Array.isArray(i.variants) && i.variants.length > 0 ? i.variants : [{ stock: i.stock != null ? i.stock : 0 }];
-            return v.some(x => (x.stock || 0) <= 5);
+            return v.some(x => (x.stock || 0) === 0);
           }).length, color: 'text-red-400' }
         ].map(stat => (
           <div key={stat.label} className="bg-gray-900 border border-gray-700 rounded-xl p-3 text-center">
