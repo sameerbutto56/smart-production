@@ -388,21 +388,23 @@ const InventoryManagement = () => {
             </button>
           ))}
         </div>
-        <div className="flex bg-gray-900 border-2 border-gray-700 rounded-2xl p-1">
-          {[
-            { key: 'ALL', label: 'All' },
-            { key: 'LOW', label: 'Low Stock (<5)' },
-            { key: 'OUT', label: 'Out of Stock' }
-          ].map(opt => (
-            <button key={opt.key} onClick={() => setStockFilter(opt.key)}
-              className={`px-4 py-2.5 text-xs font-black rounded-xl transition-all whitespace-nowrap ${
-                stockFilter === opt.key
-                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/30'
-                  : 'text-gray-400 hover:text-white hover:bg-gray-700'
-              }`}
-            >{opt.label}</button>
-          ))}
-        </div>
+      </div>
+
+      {/* Stock Filter */}
+      <div className="flex gap-2">
+        {[
+          { key: 'ALL', label: 'All Stock' },
+          { key: 'LOW', label: '⚠ Low Stock (<5)' },
+          { key: 'OUT', label: '✕ Out of Stock' }
+        ].map(opt => (
+          <button key={opt.key} onClick={() => setStockFilter(opt.key)}
+            className={`px-4 py-2.5 text-xs font-black rounded-xl transition-all whitespace-nowrap ${
+              stockFilter === opt.key
+                ? 'bg-amber-600 text-white shadow-lg shadow-amber-900/30'
+                : 'bg-gray-900 text-gray-400 hover:text-white hover:bg-gray-800 border border-gray-700'
+            }`}
+          >{opt.label}</button>
+        ))}
       </div>
 
       {/* Search Status Bar */}
