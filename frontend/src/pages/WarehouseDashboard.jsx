@@ -17,22 +17,16 @@ import { usePolling } from '../hooks/usePolling';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
-const TABS = ['dashboard', 'tasks', 'requests', 'inventory', 'production', 'analytics', 'history', 'allocation', 'demands'];
+const TABS = ['dashboard', 'tasks', 'inventory', 'production', 'allocation', 'demands'];
 const COLORS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899'];
 const CATEGORIES = ['CAPS', 'SHIRTS', 'JACKETS', 'PANTS', 'ACCESSORIES', 'GENERAL'];
 
 const WarehouseDashboard = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [requests, setRequests] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedRequest, setSelectedRequest] = useState(null);
-  const [approveModal, setApproveModal] = useState(null);
-  const [rejectModal, setRejectModal] = useState(null);
-  const [rejectNotes, setRejectNotes] = useState('');
-  const [approveQty, setApproveQty] = useState(0);
   const [personName, setPersonName] = useState('');
   const [allocationLoading, setAllocationLoading] = useState(false);
   // Selection-based allocation (Order Entry style)
@@ -87,20 +81,9 @@ const WarehouseDashboard = () => {
     if (!silent) setLoading(true);
     const token = sessionStorage.getItem('token');
     try {
-      if (activeTab === 'requests' || activeTab === 'dashboard' || activeTab === 'allocation') {
-        const results = await Promise.allSettled([
-          axios.get(`${API_URL}/api/stock-requests`, { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get(`${API_URL}/api/inventory`, { headers: { Authorization: `Bearer ${token}` } })
-        ]);
-        if (results[0].status === 'fulfilled') setRequests(results[0].value.data);
-        if (results[1].status === 'fulfilled') setInventory(results[1].value.data);
-      } else if (activeTab === 'inventory' || activeTab === 'history') {
-        const results = await Promise.allSettled([
-          axios.get(`${API_URL}/api/inventory`, { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get(`${API_URL}/api/stock-requests`, { headers: { Authorization: `Bearer ${token}` } })
-        ]);
-        if (results[0].status === 'fulfilled') setInventory(results[0].value.data);
-        if (results[1].status === 'fulfilled') setRequests(results[1].value.data);
+      if (activeTab === 'dashboard' || activeTab === 'allocation' || activeTab === 'inventory') {
+        const res = await axios.get(`${API_URL}/api/inventory`, { headers: { Authorization: `Bearer ${token}` } });
+        setInventory(res.data);
       } else if (activeTab === 'production') {
         const invRes = await axios.get(`${API_URL}/api/production/inventory`, { headers: { Authorization: `Bearer ${token}` } });
         setProductionInventory(invRes.data);
@@ -354,112 +337,8 @@ const WarehouseDashboard = () => {
     return { bg: 'bg-gray-500/10', text: 'text-gray-400', border: 'border-gray-500/20' };
   };
 
-  const handleApprove = async () => {
-    if (!approveModal) return;
-    try {
-      const token = sessionStorage.getItem('token');
-      await axios.put(`${API_URL}/api/stock-requests/${approveModal.id}/approve`,
-        { approvedQty: approveQty },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      toast.success(`Approved ${approveQty} units for ${approveModal.itemName}`);
-      setApproveModal(null);
-      setApproveQty(0);
-      fetchData();
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Error approving request');
-    }
-  };
-
-  const handleReject = async () => {
-    if (!rejectModal) return;
-    try {
-      const token = sessionStorage.getItem('token');
-      await axios.put(`${API_URL}/api/stock-requests/${rejectModal.id}/reject`,
-        { notes: rejectNotes },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      toast.success(`Rejected ${rejectModal.itemName} request`);
-      setRejectModal(null);
-      setRejectNotes('');
-      fetchData();
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Error rejecting request');
-    }
-  };
-
-  const handleComplete = async (id) => {
-    try {
-      const token = sessionStorage.getItem('token');
-      await axios.put(`${API_URL}/api/stock-requests/${id}/complete`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      toast.success('Request marked as completed');
-      fetchData();
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Error completing request');
-    }
-  };
-
-  const handleDownloadExcel = async () => {
-    try {
-      const token = sessionStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/api/stock-requests/export/excel`, {
-        headers: { Authorization: `Bearer ${token}` },
-        responseType: 'blob',
-      });
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `stock-requests-${new Date().toISOString().split('T')[0]}.xlsx`;
-      a.click();
-      window.URL.revokeObjectURL(url);
-      toast.success('Excel file downloaded');
-    } catch (error) {
-      toast.error('Error downloading Excel');
-    }
-  };
-
-  // Analytics data
-  const outletStats = requests.reduce((acc, r) => {
-    if (!acc[r.outletName]) acc[r.outletName] = { name: r.outletName, requested: 0, approved: 0, pending: 0, count: 0, completed: 0, rejected: 0, received: 0 };
-    acc[r.outletName].requested += r.quantity;
-    acc[r.outletName].approved += r.approvedQty;
-    acc[r.outletName].pending += (r.quantity - r.approvedQty);
-    acc[r.outletName].count += 1;
-    if (r.status === 'COMPLETED') { acc[r.outletName].completed += 1; acc[r.outletName].received += r.approvedQty; }
-    if (r.status === 'REJECTED') acc[r.outletName].rejected += 1;
-    return acc;
-  }, {});
-  const outletChartData = Object.values(outletStats);
-
-  const statusData = [
-    { name: 'Pending', value: requests.filter(r => r.status === 'PENDING').length },
-    { name: 'Approved', value: requests.filter(r => ['APPROVED', 'PARTIALLY_APPROVED'].includes(r.status)).length },
-    { name: 'Rejected', value: requests.filter(r => r.status === 'REJECTED').length },
-    { name: 'Completed', value: requests.filter(r => r.status === 'COMPLETED').length },
-  ].filter(d => d.value > 0);
-
-  // Monthly trend
-  const monthlyMap = {};
-  requests.forEach(r => {
-    const month = new Date(r.createdAt).toLocaleString('default', { month: 'short', year: '2-digit' });
-    if (!monthlyMap[month]) monthlyMap[month] = { name: month, requested: 0, approved: 0 };
-    monthlyMap[month].requested += r.quantity;
-    monthlyMap[month].approved += r.approvedQty;
-  });
-  const monthlyData = Object.values(monthlyMap).sort((a, b) => {
-    const da = new Date(a.name + ' 2000'), db = new Date(b.name + ' 2000');
-    return da - db;
-  });
-
   const totalStock = inventory.reduce((sum, item) => sum + item.stock, 0);
-  const pendingRequests = requests.filter(r => r.status === 'PENDING');
   const lowStockItems = inventory.filter(item => item.stock <= 10);
-  const completedThisMonth = requests.filter(r =>
-    r.status === 'COMPLETED' && new Date(r.updatedAt) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-  ).length;
 
   const filteredInventory = inventory.filter(item =>
     !searchTerm || item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -495,11 +374,8 @@ const WarehouseDashboard = () => {
           >
                 {tab === 'dashboard' && <><BarChart3 size={14} className="inline mr-2" />Dashboard</>}
                 {tab === 'tasks' && <><ClipboardList size={14} className="inline mr-2" />Tasks</>}
-                {tab === 'requests' && <><ShoppingCart size={14} className="inline mr-2" />Requests {pendingRequests.length > 0 && <span className="ml-1 bg-red-500 text-white text-xs md:text-sm px-1.5 py-0.5 rounded-full">{pendingRequests.length}</span>}</>}
                 {tab === 'inventory' && <><Package size={14} className="inline mr-2" />Inventory</>}
                 {tab === 'production' && <><Factory size={14} className="inline mr-2" />Production Inventory</>}
-                {tab === 'analytics' && <><TrendingUp size={14} className="inline mr-2" />Analytics</>}
-                {tab === 'history' && <><Clock size={14} className="inline mr-2" />History</>}
                 {tab === 'allocation' && <><Gift size={14} className="inline mr-2" />Allocation</>}
                 {tab === 'demands' && <><ShoppingCart size={14} className="inline mr-2" />Demands {demandStats.pending > 0 && <span className="ml-1 bg-red-500 text-white text-xs md:text-sm px-1.5 py-0.5 rounded-full">{demandStats.pending}</span>}</>}
           </button>
@@ -527,29 +403,11 @@ const WarehouseDashboard = () => {
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
                     className="glass p-4 md:p-6 rounded-2xl border-2 theme-border hover:border-amber-500/30 transition-all">
                     <div className="flex items-center justify-between mb-4">
-                      <div className="p-3 bg-yellow-500/10 rounded-xl"><ShoppingCart className="text-yellow-400" size={20} /></div>
-                      <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Pending</span>
-                    </div>
-                    <p className="text-xl md:text-3xl font-black theme-text-primary">{pendingRequests.length}</p>
-                    <p className="text-xs font-bold theme-text-muted uppercase tracking-wider mt-1">Outlet Requests</p>
-                </motion.div>
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-                    className="glass p-4 md:p-6 rounded-2xl border-2 theme-border hover:border-amber-500/30 transition-all">
-                    <div className="flex items-center justify-between mb-4">
                       <div className="p-3 bg-red-500/10 rounded-xl"><AlertTriangle className="text-red-400" size={20} /></div>
                       <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Low</span>
                     </div>
                     <p className="text-xl md:text-3xl font-black theme-text-primary">{lowStockItems.length}</p>
                     <p className="text-xs font-bold theme-text-muted uppercase tracking-wider mt-1">Low Stock Items</p>
-                </motion.div>
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-                    className="glass p-4 md:p-6 rounded-2xl border-2 theme-border hover:border-amber-500/30 transition-all">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="p-3 bg-emerald-500/10 rounded-xl"><CheckCircle2 className="text-emerald-400" size={20} /></div>
-                      <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Month</span>
-                    </div>
-                    <p className="text-xl md:text-3xl font-black theme-text-primary">{completedThisMonth}</p>
-                    <p className="text-xs font-bold theme-text-muted uppercase tracking-wider mt-1">Completed Requests</p>
                 </motion.div>
               </div>
 
@@ -580,40 +438,6 @@ const WarehouseDashboard = () => {
                 </div>
               )}
 
-              {/* Recent Pending Requests */}
-              {pendingRequests.length > 0 && (
-                <div className="glass p-4 md:p-6 rounded-2xl border-2 border-yellow-500/20">
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center space-x-3">
-                      <ShoppingCart className="text-yellow-400" size={20} />
-                      <h2 className="font-black theme-text-primary uppercase tracking-wider text-sm">Pending Requests</h2>
-                    </div>
-                    <button onClick={() => setActiveTab('requests')} className="text-xs md:text-sm font-black text-amber-500 hover:text-amber-400 uppercase tracking-wider">View All</button>
-                  </div>
-                  <div className="space-y-3">
-                    {pendingRequests.slice(0, 5).map(req => {
-                      const oc = getOutletColor(req.outletName);
-                      return (
-                        <div key={req.id} className="flex items-center justify-between p-3 bg-gray-800/30 rounded-xl theme-border">
-                          <div className="flex items-center space-x-3">
-                            <div className={`p-2 rounded-lg ${oc.bg} ${oc.text}`}>
-                              <Building2 size={16} />
-                            </div>
-                            <div>
-                              <p className="font-bold theme-text-primary text-sm">{req.itemName}</p>
-                              <p className="text-xs md:text-sm theme-text-muted font-bold">{req.outletName} • Qty: {req.quantity}</p>
-                            </div>
-                          </div>
-                          <button onClick={() => { setSelectedRequest(req); setActiveTab('requests'); }}
-                            className="p-2 bg-amber-500/10 text-amber-400 rounded-xl hover:bg-amber-500/20 transition-all">
-                            <Eye size={16} />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
@@ -930,124 +754,7 @@ const WarehouseDashboard = () => {
             </div>
           )}
 
-          {/* Requests Tab */}
-          {activeTab === 'requests' && (
-            <div className="space-y-4 md:space-y-6">
-              <div className="flex justify-between items-center">
-                <h2 className="font-black theme-text-primary text-lg uppercase tracking-wider">Outlet Stock Requests</h2>
-                <span className="text-xs font-bold theme-text-muted">{pendingRequests.length} pending</span>
-              </div>
 
-              {/* Filter */}
-              <div className="relative group">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-amber-500 transition-colors" size={18} />
-                <input type="text" placeholder="Search by outlet, item, or status..." value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full theme-input rounded-2xl py-4 pl-12 pr-6 focus:outline-none focus:border-amber-500 transition-all font-medium theme-text-secondary"
-                />
-              </div>
-
-              {/* Requests list grouped by status */}
-              <div className="space-y-4">
-                {['PENDING', 'APPROVED', 'PARTIALLY_APPROVED', 'COMPLETED', 'REJECTED'].map(status => {
-                  const filtered = requests.filter(r =>
-                    r.status === status &&
-                    (!searchTerm || r.outletName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                     r.itemName?.toLowerCase().includes(searchTerm.toLowerCase()))
-                  );
-                  if (!filtered.length) return null;
-                  return (
-                    <div key={status}>
-                      <h3 className="font-black text-xs uppercase tracking-widest theme-text-muted mb-3 ml-1">{status.replace('_', ' ')} ({filtered.length})</h3>
-                      <div className="space-y-3">
-                        {filtered.map(req => {
-                          const oc = getOutletColor(req.outletName);
-                          const sc = getStatusColor(req.status);
-                          return (
-                            <motion.div key={req.id} layout
-                              className="glass p-5 rounded-2xl border-2 theme-border hover:border-gray-800 transition-all cursor-pointer"
-                              onClick={() => setSelectedRequest(selectedRequest?.id === req.id ? null : req)}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-4">
-                                  <div className={`p-3 rounded-xl ${oc.bg} ${oc.text} ${oc.border} border`}>
-                                    <Building2 size={16} />
-                                  </div>
-                                  <div>
-                                    <div className="flex items-center space-x-2">
-                                      <p className="font-black theme-text-primary">{req.itemName}</p>
-                                      <span className={`px-2 py-0.5 rounded-full text-xs md:text-sm font-black uppercase border ${sc}`}>{req.status.replace('_', ' ')}</span>
-                                    </div>
-                                    <p className="text-xs font-bold theme-text-muted mt-0.5">
-                                      {req.outletName} • Requested: {req.quantity} • Approved: {req.approvedQty}
-                                    </p>
-                                  </div>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                  {req.status === 'PENDING' && (
-                                    <>
-                                      <button onClick={(e) => { e.stopPropagation(); setApproveModal(req); setApproveQty(req.quantity); }}
-                                        className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl hover:bg-emerald-500/20 transition-all"
-                                        title="Approve">
-                                        <ThumbsUp size={18} />
-                                      </button>
-                                      <button onClick={(e) => { e.stopPropagation(); setRejectModal(req); setRejectNotes(''); }}
-                                        className="p-2.5 bg-red-500/10 text-red-400 rounded-xl hover:bg-red-500/20 transition-all"
-                                        title="Reject">
-                                        <ThumbsDown size={18} />
-                                      </button>
-                                    </>
-                                  )}
-                                  {['APPROVED', 'PARTIALLY_APPROVED'].includes(req.status) && (
-                                    <button onClick={(e) => { e.stopPropagation(); handleComplete(req.id); }}
-                                      className="p-2.5 bg-purple-500/10 text-purple-400 rounded-xl hover:bg-purple-500/20 transition-all"
-                                      title="Complete">
-                                      <CheckCircle size={18} />
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Expanded Details */}
-                              {selectedRequest?.id === req.id && (
-                                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
-                                  className="mt-4 pt-4 border-t theme-border">
-                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    <div>
-                                      <p className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Requested</p>
-                                      <p className="font-black theme-text-primary text-lg">{req.quantity}</p>
-                                    </div>
-                                    <div>
-                                      <p className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Approved</p>
-                                      <p className="font-black text-emerald-400 text-lg">{req.approvedQty}</p>
-                                    </div>
-                                    <div>
-                                      <p className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Pending</p>
-                                      <p className="font-black text-yellow-400 text-lg">{req.quantity - req.approvedQty}</p>
-                                    </div>
-                                    <div>
-                                      <p className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Date</p>
-                                      <p className="font-bold theme-text-secondary text-xs">{new Date(req.createdAt).toLocaleDateString()}</p>
-                                    </div>
-                                  </div>
-                                  {req.notes && (
-                                    <div className="mt-3 p-3 bg-gray-800/30 rounded-xl">
-                                      <p className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider mb-1">Notes</p>
-                                      <p className="text-sm theme-text-secondary">{req.notes}</p>
-                                    </div>
-                                  )}
-                                </motion.div>
-                              )}
-                            </motion.div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
           {/* Inventory Tab */}
           {activeTab === 'inventory' && (
@@ -1190,244 +897,7 @@ const WarehouseDashboard = () => {
             </div>
           )}
 
-          {/* Analytics Tab */}
-          {activeTab === 'analytics' && (
-            <div className="space-y-4 md:space-y-8">
-              <div className="flex items-center justify-between">
-                <h2 className="font-black theme-text-primary text-lg uppercase tracking-wider">Outlet Analytics</h2>
-                <button onClick={handleDownloadExcel} className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 px-6 rounded-2xl transition-all flex items-center space-x-3 active:scale-95">
-                  <Download size={16} />
-                  <span>Download Excel</span>
-                </button>
-              </div>
 
-              {outletChartData.length === 0 ? (
-                <div className="text-center py-16">
-                  <BarChart3 size={48} className="mx-auto text-gray-700 mb-4" />
-                  <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No data yet</p>
-                </div>
-              ) : (
-                <>
-                  {/* Per-Outlet Summary Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6">
-                    {outletChartData.map(outlet => {
-                      const perf = outlet.approved > 0 ? Math.round((outlet.approved / outlet.requested) * 100) : 0;
-                      return (
-                        <motion.div key={outlet.name} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-                          className="glass p-4 md:p-6 rounded-2xl border-2 theme-border hover:border-emerald-500/30 transition-all">
-                          <div className="flex items-center space-x-3 mb-4">
-                            <div className="p-2.5 bg-blue-500/10 rounded-xl"><Building2 className="text-blue-400" size={16} /></div>
-                            <h3 className="font-black theme-text-primary">{outlet.name}</h3>
-                          </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <p className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Requests</p>
-                              <p className="text-xl font-black theme-text-primary">{outlet.count}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Approval Rate</p>
-                              <p className="text-xl font-black text-emerald-400">{perf}%</p>
-                            </div>
-                            <div>
-                              <p className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Requested</p>
-                              <p className="text-xl font-black text-yellow-400">{outlet.requested}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Approved</p>
-                              <p className="text-xl font-black text-emerald-400">{outlet.approved}</p>
-                            </div>
-                          </div>
-                          {outlet.completed > 0 && (
-                            <div className="mt-3 pt-3 border-t theme-border flex justify-between text-xs md:text-sm font-bold">
-                              <span className="text-purple-400">{outlet.completed} Requests Completed</span>
-                              <span className="text-emerald-400">{outlet.received} Products Received</span>
-                              {outlet.rejected > 0 && <span className="text-red-400">{outlet.rejected} Rejected</span>}
-                            </div>
-                          )}
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Bar Chart: Stock Distribution (CSS) */}
-                  <div className="glass p-4 md:p-8 rounded-xl md:rounded-[2.5rem] border-2 theme-border">
-                    <h3 className="font-black theme-text-primary uppercase tracking-wider text-sm mb-8 flex items-center space-x-3">
-                      <BarChart3 size={16} className="text-blue-400" />
-                      <span>Stock Distribution by Outlet</span>
-                    </h3>
-                    {(() => {
-                      const maxRequested = Math.max(...outletChartData.map(d => d.requested), 1);
-                      return (
-                        <div className="space-y-4 md:space-y-6">
-                          {outletChartData.map(outlet => (
-                            <div key={outlet.name}>
-                              <div className="flex justify-between items-center mb-2">
-                                <span className="text-xs font-bold theme-text-secondary uppercase tracking-wider">{outlet.name}</span>
-                                <div className="flex space-x-4 text-xs md:text-sm font-bold">
-                                  <span className="text-blue-400">Req: {outlet.requested}</span>
-                                  <span className="text-emerald-400">App: {outlet.approved}</span>
-                                </div>
-                              </div>
-                              <div className="relative h-8 bg-gray-900 rounded-xl overflow-hidden">
-                                <div className="absolute inset-0 flex">
-                                  <div className="h-full bg-blue-500/40 transition-all" style={{ width: `${(outlet.requested / maxRequested) * 100}%` }} />
-                                  <div className="h-full bg-emerald-500/60 transition-all" style={{ width: `${(outlet.approved / maxRequested) * 100}%` }} />
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                          <div className="flex justify-center space-x-3 md:space-x-6 text-xs md:text-sm font-bold">
-                            <span className="flex items-center space-x-2"><span className="w-3 h-3 rounded bg-blue-500/40" /><span>Requested</span></span>
-                            <span className="flex items-center space-x-2"><span className="w-3 h-3 rounded bg-emerald-500/60" /><span>Approved</span></span>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-
-                  {/* Donut + Monthly Trend */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8">
-                    {/* Status Donut (CSS SVG) */}
-                    <div className="glass p-4 md:p-8 rounded-xl md:rounded-[2.5rem] border-2 theme-border">
-                      <h3 className="font-black theme-text-primary uppercase tracking-wider text-sm mb-6 flex items-center space-x-3">
-                        <CheckCircle2 size={18} className="text-emerald-400" />
-                        <span>Request Status Overview</span>
-                      </h3>
-                      {statusData.length > 0 ? (
-                        <div className="flex flex-col items-center">
-                          <svg width="220" height="220" viewBox="0 0 220 220">
-                            {(() => {
-                              const total = statusData.reduce((s, d) => s + d.value, 0);
-                              let cumulative = 0;
-                              const r = 80, cx = 110, cy = 110;
-                              return statusData.map((d, i) => {
-                                const pct = d.value / total;
-                                const angle = pct * 360;
-                                const startAngle = (cumulative / total) * 360;
-                                cumulative += d.value;
-                                const startRad = ((startAngle - 90) * Math.PI) / 180;
-                                const endRad = ((startAngle + angle - 90) * Math.PI) / 180;
-                                const x1 = cx + r * Math.cos(startRad);
-                                const y1 = cy + r * Math.sin(startRad);
-                                const x2 = cx + r * Math.cos(endRad);
-                                const y2 = cy + r * Math.sin(endRad);
-                                const largeArc = angle > 180 ? 1 : 0;
-                                if (angle <= 0) return null;
-                                return (
-                                  <path key={d.name}
-                                    d={`M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`}
-                                    fill={COLORS[i % COLORS.length]} opacity="0.85"
-                                  />
-                                );
-                              });
-                            })()}
-                            <circle cx="110" cy="110" r="50" fill="#030712" />
-                            <text x="110" y="105" textAnchor="middle" fill="#fff" fontSize="22" fontWeight="900">
-                              {statusData.reduce((s, d) => s + d.value, 0)}
-                            </text>
-                            <text x="110" y="125" textAnchor="middle" fill="#6b7280" fontSize="10" fontWeight="bold" textTransform="uppercase">Total</text>
-                          </svg>
-                          <div className="flex flex-wrap justify-center gap-4 mt-4">
-                            {statusData.map((d, i) => (
-                              <span key={d.name} className="flex items-center space-x-2 text-xs md:text-sm font-bold">
-                                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                                <span className="theme-text-secondary">{d.name}</span>
-                                <span className="theme-text-primary">{d.value}</span>
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="theme-text-muted text-center py-10 font-bold text-xs uppercase tracking-widest">No data</p>
-                      )}
-                    </div>
-
-                    {/* Monthly Trend (CSS) */}
-                    {monthlyData.length > 0 && (
-                      <div className="glass p-4 md:p-8 rounded-xl md:rounded-[2.5rem] border-2 theme-border">
-                        <h3 className="font-black theme-text-primary uppercase tracking-wider text-sm mb-6 flex items-center space-x-3">
-                          <TrendingUp size={18} className="text-purple-400" />
-                          <span>Monthly Trend</span>
-                        </h3>
-                        {(() => {
-                          const maxVal = Math.max(...monthlyData.flatMap(d => [d.requested, d.approved]), 1);
-                          return (
-                            <div className="space-y-4">
-                              {monthlyData.map(month => (
-                                <div key={month.name}>
-                                  <div className="flex justify-between text-xs md:text-sm font-bold mb-1">
-                                    <span className="theme-text-secondary">{month.name}</span>
-                                    <span className="text-blue-400">{month.requested}</span>
-                                  </div>
-                                  <div className="relative h-6 bg-gray-900 rounded-lg overflow-hidden">
-                                    <div className="h-full bg-blue-500/40 transition-all" style={{ width: `${(month.requested / maxVal) * 100}%` }} />
-                                    <div className="absolute inset-0 flex items-center justify-end pr-2">
-                                      <span className="text-xs font-black text-emerald-300">{month.approved}</span>
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
-                              <div className="flex justify-center space-x-3 md:space-x-6 text-xs md:text-sm font-bold pt-2">
-                                <span className="flex items-center space-x-2"><span className="w-3 h-3 rounded bg-blue-500/40" /><span>Requested</span></span>
-                                <span className="flex items-center space-x-2"><span className="w-3 h-3 rounded bg-emerald-500/60" /><span>Approved</span></span>
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* History Tab */}
-          {activeTab === 'history' && (
-            <div className="space-y-4 md:space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="font-black theme-text-primary text-lg uppercase tracking-wider">Request History</h2>
-                <button onClick={handleDownloadExcel} className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2.5 px-5 rounded-xl transition-all flex items-center space-x-2 active:scale-95 text-xs uppercase tracking-wider">
-                  <Download size={16} />
-                  <span>Download Excel</span>
-                </button>
-              </div>
-              <div className="space-y-3">
-                {requests.filter(r => r.status !== 'PENDING').map(req => {
-                  const oc = getOutletColor(req.outletName);
-                  const sc = getStatusColor(req.status);
-                  return (
-                    <motion.div key={req.id} layout
-                      className="glass p-4 rounded-2xl border-2 theme-border hover:border-gray-800 transition-all flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <div className={`p-2.5 rounded-xl ${oc.bg} ${oc.text}`}><Building2 size={18} /></div>
-                        <div>
-                          <p className="font-bold theme-text-primary text-sm">{req.itemName}</p>
-                          <p className="text-xs md:text-sm theme-text-muted font-bold">{req.outletName}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-3 md:space-x-6">
-                        <div className="text-right">
-                          <p className="text-xs font-bold theme-text-secondary">Requested: {req.quantity}</p>
-                          <p className="text-xs font-bold text-emerald-400">Approved: {req.approvedQty}</p>
-                        </div>
-                        <span className={`px-2.5 py-1 rounded-full text-xs md:text-sm font-black uppercase border ${sc}`}>
-                          {req.status.replace('_', ' ')}
-                        </span>
-                        <p className="text-xs md:text-sm theme-text-muted font-bold w-16 text-right">{new Date(req.createdAt).toLocaleDateString()}</p>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-                {requests.filter(r => r.status !== 'PENDING').length === 0 && (
-                  <div className="text-center py-16">
-                    <Clock size={48} className="mx-auto text-gray-700 mb-4" />
-                    <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No request history yet</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* Allocation Tab */}
           {activeTab === 'allocation' && (
@@ -2073,78 +1543,7 @@ const WarehouseDashboard = () => {
         )}
       </AnimatePresence>
 
-      {/* Approve Modal */}
-      <AnimatePresence>
-        {approveModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-              className="glass max-w-md w-full p-4 md:p-8 rounded-xl md:rounded-[2rem] border-2 theme-border shadow-[0_50px_100px_rgba(0,0,0,0.5)]">
-              <h2 className="text-2xl font-black theme-text-primary mb-2">Approve Request</h2>
-              <p className="theme-text-secondary text-sm font-bold mb-6">
-                {approveModal.outletName} requested <span className="theme-text-primary">{approveModal.quantity}</span> × {approveModal.itemName}
-              </p>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Quantity to Approve</label>
-                  <input type="number" min="0" max={approveModal.quantity} value={approveQty}
-                    onChange={(e) => setApproveQty(Math.min(parseInt(e.target.value) || 0, approveModal.quantity))}
-                    className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 focus:border-emerald-500 outline-none font-black text-lg text-white mt-2"
-                  />
-                </div>
-                <p className="text-xs theme-text-muted font-bold">
-                  Max: {approveModal.quantity} | Enter 0 to reject
-                </p>
-                <div className="flex space-x-3">
-                  <button onClick={() => setApproveModal(null)}
-                    className="flex-1 py-3 bg-gray-800 text-gray-400 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-gray-700 transition-all">
-                    Cancel
-                  </button>
-                  <button onClick={handleApprove}
-                    className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-black text-xs uppercase tracking-wider hover:bg-emerald-500 transition-all flex items-center justify-center space-x-2">
-                    <CheckCircle size={16} />
-                    <span>Approve {approveQty}</span>
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
-      {/* Reject Modal */}
-      <AnimatePresence>
-        {rejectModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-              className="glass max-w-md w-full p-4 md:p-8 rounded-xl md:rounded-[2rem] border-2 theme-border shadow-[0_50px_100px_rgba(0,0,0,0.5)]">
-              <h2 className="text-2xl font-black theme-text-primary mb-2">Reject Request</h2>
-              <p className="theme-text-secondary text-sm font-bold mb-6">
-                {rejectModal.outletName} • {rejectModal.itemName} × {rejectModal.quantity}
-              </p>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Reason / Notes (optional)</label>
-                  <textarea value={rejectNotes} onChange={(e) => setRejectNotes(e.target.value)}
-                    className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 focus:border-red-500 outline-none font-medium text-white mt-2 min-h-[80px]"
-                    placeholder="Why is this request being rejected?"
-                  />
-                </div>
-                <div className="flex space-x-3">
-                  <button onClick={() => setRejectModal(null)}
-                    className="flex-1 py-3 bg-gray-800 text-gray-400 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-gray-700 transition-all">
-                    Cancel
-                  </button>
-                  <button onClick={handleReject}
-                    className="flex-1 py-3 bg-red-600 text-white rounded-xl font-black text-xs uppercase tracking-wider hover:bg-red-500 transition-all flex items-center justify-center space-x-2">
-                    <XCircle size={16} />
-                    <span>Reject</span>
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* Demand Approve Modal */}
       <AnimatePresence>
