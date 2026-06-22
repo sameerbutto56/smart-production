@@ -5,7 +5,7 @@ import {
   Plus,
   Search,
   Edit2,
-  Trash2,
+
   Package,
   Palette,
   Layers,
@@ -303,34 +303,13 @@ const InventoryManagement = () => {
             className="hidden" 
           />
           {['SUPER_ADMIN', 'ADMIN'].includes(userRole) && (
-            <>
-              <button 
-                onClick={() => fileInputRef.current?.click()}
-                className="bg-gray-800 hover:bg-gray-700 text-emerald-400 border border-emerald-500/30 font-black py-4 px-6 rounded-2xl shadow-xl transition-all flex items-center space-x-3 active:scale-95"
-              >
-                <Upload size={20} />
-                <span className="hidden sm:inline">Bulk Import (Excel/CSV)</span>
-              </button>
-              <button
-                onClick={async () => {
-                  if (!window.confirm('⚠️  Delete ALL inventory items?\n\nThis action CANNOT be undone!')) return;
-                  if (window.prompt('Type "DELETE ALL" to confirm:') !== 'DELETE ALL') return;
-                  try {
-                    const token = sessionStorage.getItem('token');
-                    await axios.delete(`${API_URL}/api/inventory`, {
-                      headers: { Authorization: `Bearer ${token}` }
-                    });
-                    fetchInventory();
-                  } catch (error) {
-                    console.error('Error clearing inventory:', error);
-                  }
-                }}
-                className="bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white font-black py-4 px-6 rounded-2xl border border-red-500/30 transition-all flex items-center space-x-3 active:scale-95"
-              >
-                <Trash2 size={16} />
-                <span className="hidden sm:inline text-sm">Delete All</span>
-              </button>
-            </>
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="bg-gray-800 hover:bg-gray-700 text-emerald-400 border border-emerald-500/30 font-black py-4 px-6 rounded-2xl shadow-xl transition-all flex items-center space-x-3 active:scale-95"
+            >
+              <Upload size={20} />
+              <span className="hidden sm:inline">Bulk Import (Excel/CSV)</span>
+            </button>
           )}
           <button
             onClick={() => printInventoryReport(filteredItems)}
