@@ -220,7 +220,7 @@ const InventoryManagement = () => {
         : [{ stock: item.stock != null ? item.stock : 0 }];
 
       if (stockFilter === 'OUT') return variants.some(v => (v.stock || 0) === 0);
-      if (stockFilter === 'LOW') return !variants.some(v => (v.stock || 0) === 0) && variants.some(v => (v.stock || 0) > 0 && (v.stock || 0) <= LOW_STOCK_LIMIT);
+      if (stockFilter === 'LOW') return variants.some(v => (v.stock || 0) > 0 && (v.stock || 0) <= LOW_STOCK_LIMIT);
       return true;
     })
     .sort((a, b) => {
