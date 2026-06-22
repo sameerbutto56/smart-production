@@ -219,8 +219,8 @@ const InventoryManagement = () => {
         ? item.variants
         : [{ stock: item.stock != null ? item.stock : 0 }];
 
-      if (stockFilter === 'LOW') return variants.some(v => (v.stock || 0) > 0 && (v.stock || 0) <= LOW_STOCK_LIMIT) && !variants.every(v => (v.stock || 0) === 0);
-      if (stockFilter === 'OUT') return variants.every(v => (v.stock || 0) === 0);
+      if (stockFilter === 'OUT') return variants.some(v => (v.stock || 0) === 0);
+      if (stockFilter === 'LOW') return !variants.some(v => (v.stock || 0) === 0) && variants.some(v => (v.stock || 0) > 0 && (v.stock || 0) <= LOW_STOCK_LIMIT);
       return true;
     })
     .sort((a, b) => {
@@ -398,11 +398,11 @@ const InventoryManagement = () => {
           }).length, color: 'text-emerald-400' },
           { label: 'Low Stock', value: items.filter(i => {
             const v = i.variants && Array.isArray(i.variants) && i.variants.length > 0 ? i.variants : [{ stock: i.stock != null ? i.stock : 0 }];
-            return v.some(x => (x.stock || 0) > 0 && (x.stock || 0) <= LOW_STOCK_LIMIT) && !v.every(x => (x.stock || 0) === 0);
+            return !v.some(x => (x.stock || 0) === 0) && v.some(x => (x.stock || 0) > 0 && (x.stock || 0) <= LOW_STOCK_LIMIT);
           }).length, color: 'text-amber-400' },
           { label: 'Out of Stock', value: items.filter(i => {
             const v = i.variants && Array.isArray(i.variants) && i.variants.length > 0 ? i.variants : [{ stock: i.stock != null ? i.stock : 0 }];
-            return v.every(x => (x.stock || 0) === 0);
+            return v.some(x => (x.stock || 0) === 0);
           }).length, color: 'text-red-400' }
         ].map(stat => (
           <div key={stat.label} className="bg-gray-900 border border-gray-700 rounded-xl p-3 text-center">
