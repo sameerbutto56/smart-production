@@ -512,11 +512,25 @@ const OutletStockRequest = () => {
                       {(() => {
                         const v = item.variants || [];
                         if (v.length) {
+                          const hasColor = v.some(x => x.color);
+                          const hasSize = v.some(x => x.size);
+                          if (!hasColor && hasSize) {
+                            const sizes = v.map(x => ({ size: x.size, stock: x.stock ?? 0 }));
+                            return (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {sizes.map(s => (
+                                  <span key={s.size} className={`text-[9px] px-1.5 py-0.5 rounded-md font-bold ${s.stock > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+                                    {s.size} {s.stock > 0 ? `(${s.stock})` : '(0)'}
+                                  </span>
+                                ))}
+                              </div>
+                            );
+                          }
                           const grouped = {};
                           v.forEach(x => {
                             const c = x.color || '-';
                             if (!grouped[c]) grouped[c] = [];
-                            grouped[c].push({ size: x.size || '-', stock: x.stock ?? 0 });
+                            grouped[c].push({ size: x.size, stock: x.stock ?? 0 });
                           });
                           return (
                             <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
@@ -525,8 +539,8 @@ const OutletStockRequest = () => {
                                   <p className="text-[10px] font-bold text-gray-400 mb-0.5">{color}</p>
                                   <div className="flex flex-wrap gap-1">
                                     {sizes.map(s => (
-                                      <span key={s.size} className={`text-[9px] px-1.5 py-0.5 rounded-md font-bold ${s.stock > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
-                                        {s.size}{s.stock > 0 ? ` (${s.stock})` : ' (0)'}
+                                      <span key={s.size || 'x'} className={`text-[9px] px-1.5 py-0.5 rounded-md font-bold ${s.stock > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+                                        {s.size ? `${s.size} (${s.stock})` : `(${s.stock})`}
                                       </span>
                                     ))}
                                   </div>
