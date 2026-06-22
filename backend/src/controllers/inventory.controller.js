@@ -216,7 +216,7 @@ const allocateInventory = async (req, res) => {
       let allocColor = c || item.color;
       let allocSize = s || item.size;
 
-      if (item.variants && Array.isArray(item.variants)) {
+      if (item.variants && Array.isArray(item.variants) && item.variants.length > 0) {
         let updatedVariants = [...item.variants];
 
         if (c || s) {
