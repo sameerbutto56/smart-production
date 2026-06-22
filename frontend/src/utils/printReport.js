@@ -323,6 +323,14 @@ export function printInventoryReport(items, filter = 'ALL') {
   win.document.write(kpiCard('Categories', [...new Set(items.map(i => i.category))].length));
   win.document.write('</div>');
 
+  // Filter variants based on active stock filter
+  function variantMatchesFilter(stock) {
+    if (filter === 'ALL') return true;
+    if (filter === 'OUT') return stock === 0;
+    if (filter === 'LOW') return stock > 0 && stock <= 5;
+    return true;
+  }
+
   // Group by category
   const categories = [...new Set(items.map(i => i.category))].sort();
   categories.forEach(cat => {
@@ -331,7 +339,7 @@ export function printInventoryReport(items, filter = 'ALL') {
     win.document.write('<table><thead><tr><th>Product</th><th>Color</th><th>Size</th><th style="text-align:right">Stock</th><th style="text-align:right">Price</th><th style="text-align:right">Value</th><th>Status</th></tr></thead><tbody>');
     catItems.forEach(item => {
       const variants = item.variants && item.variants.length > 0 ? item.variants : [{ color: '—', size: '—', stock: 0, price: item.price || 0 }];
-      variants.forEach(v => {
+      variants.filter(v => variantMatchesFilter(v.stock || 0)).forEach(v => {
         const stock = v.stock || 0;
         const price = v.price || 0;
         const val = stock * price;
