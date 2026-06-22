@@ -336,7 +336,7 @@ export function printInventoryReport(items) {
         let statusClass = 'status-ok';
         let statusText = 'In Stock';
         if (stock === 0) { statusClass = 'status-bad'; statusText = 'Out of Stock'; }
-        else if (stock <= 5) { statusClass = 'status-warn'; statusText = 'Low Stock'; }
+        else if (stock <= 10) { statusClass = 'status-warn'; statusText = 'Low Stock'; }
         win.document.write(`<tr><td style="font-weight:700">${item.name}</td><td>${v.color || '—'}</td><td>${v.size || '—'}</td><td style="text-align:right;font-weight:700">${stock}</td><td style="text-align:right">${currency(price)}</td><td style="text-align:right;font-weight:700">${currency(val)}</td><td><span class="status-badge ${statusClass}">${statusText}</span></td></tr>`);
       });
     });

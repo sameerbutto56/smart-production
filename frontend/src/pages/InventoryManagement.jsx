@@ -32,6 +32,8 @@ import { printInventoryReport } from '../utils/printReport';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
+const LOW_STOCK_LIMIT = 10;
+
 const InventoryManagement = () => {
   const { user, loading: authLoading } = useAuth();
   const { t, LanguageToggle, isUrdu } = useLanguage();
@@ -219,7 +221,7 @@ const InventoryManagement = () => {
             ? item.variants.reduce((s, v) => s + (v.stock || 0), 0)
             : 0);
 
-      if (stockFilter === 'LOW') return totalStock > 0 && totalStock <= 5;
+      if (stockFilter === 'LOW') return totalStock > 0 && totalStock <= LOW_STOCK_LIMIT;
       if (stockFilter === 'OUT') return totalStock === 0;
       return true;
     })
@@ -375,7 +377,7 @@ const InventoryManagement = () => {
       <div className="flex gap-2">
         {[
           { key: 'ALL', label: 'All Stock' },
-          { key: 'LOW', label: '⚠ Low Stock (<=5)' },
+          { key: 'LOW', label: `⚠ Low Stock (<=${LOW_STOCK_LIMIT})` },
           { key: 'OUT', label: '✕ Out of Stock' }
         ].map(opt => (
           <button key={opt.key} onClick={() => setStockFilter(opt.key)}
@@ -385,6 +387,30 @@ const InventoryManagement = () => {
                 : 'bg-gray-900 text-gray-400 hover:text-white hover:bg-gray-800 border border-gray-700'
             }`}
           >{opt.label}</button>
+        ))}
+      </div>
+
+      {/* Summary Bar */}
+      <div className="grid grid-cols-4 gap-2 md:gap-4">
+        {[
+          { label: 'Total Products', value: items.length, color: 'text-white' },
+          { label: 'In Stock', value: items.filter(i => {
+            const s = i.stock != null ? i.stock : (i.variants && Array.isArray(i.variants) ? i.variants.reduce((x, v) => x + (v.stock || 0), 0) : 0);
+            return s > LOW_STOCK_LIMIT;
+          }).length, color: 'text-emerald-400' },
+          { label: 'Low Stock', value: items.filter(i => {
+            const s = i.stock != null ? i.stock : (i.variants && Array.isArray(i.variants) ? i.variants.reduce((x, v) => x + (v.stock || 0), 0) : 0);
+            return s > 0 && s <= LOW_STOCK_LIMIT;
+          }).length, color: 'text-amber-400' },
+          { label: 'Out of Stock', value: items.filter(i => {
+            const s = i.stock != null ? i.stock : (i.variants && Array.isArray(i.variants) ? i.variants.reduce((x, v) => x + (v.stock || 0), 0) : 0);
+            return s === 0;
+          }).length, color: 'text-red-400' }
+        ].map(stat => (
+          <div key={stat.label} className="bg-gray-900 border border-gray-700 rounded-xl p-3 text-center">
+            <p className={`text-lg md:text-2xl font-black ${stat.color}`}>{stat.value}</p>
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mt-0.5">{stat.label}</p>
+          </div>
         ))}
       </div>
 

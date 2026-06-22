@@ -338,7 +338,7 @@ const WarehouseDashboard = () => {
   };
 
   const totalStock = inventory.reduce((sum, item) => sum + item.stock, 0);
-  const lowStockItems = inventory.filter(item => item.stock <= 5);
+  const lowStockItems = inventory.filter(item => item.stock > 0 && item.stock <= 10);
 
   const filteredInventory = inventory.filter(item =>
     !searchTerm || item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
