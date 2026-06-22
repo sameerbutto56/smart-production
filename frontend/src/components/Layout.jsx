@@ -112,7 +112,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
               <h1 className="text-xl font-black bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent italic">
                 Enamels
               </h1>
-              <span className="text-xs font-black text-blue-500/50 tracking-[0.3em] uppercase">Build v1.0.5-OUTLET</span>
+              <span className="text-xs font-black text-emerald-500/50 tracking-[0.3em] uppercase">Production</span>
             </div>
           )}
           <button onClick={isCollapsed ? toggleCollapse : toggle} className={`${isCollapsed ? 'hidden lg:block' : 'lg:hidden'} text-gray-400 hover:text-white`}>

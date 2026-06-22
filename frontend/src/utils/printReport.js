@@ -1,99 +1,104 @@
 const PRINT_CSS = `
-  @page { size: A4; margin: 6mm 8mm; }
+  @page { size: A4 landscape; margin: 4mm 6mm; }
   @import url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;600;700&display=swap');
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: 'Segoe UI', 'Helvetica Neue', Arial, 'Noto Nastaliq Urdu', sans-serif;
-    color: #111;
+    color: #000;
     background: #fff;
-    font-size: 28px;
-    line-height: 1.4;
+    font-size: 32px;
+    line-height: 1.3;
     padding: 0;
     direction: ltr;
   }
   .urdu { font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', serif; direction: rtl; text-align: right; }
   .report-header {
     text-align: center;
-    border-bottom: 3px solid #111;
-    padding-bottom: 8px;
-    margin-bottom: 10px;
+    border-bottom: 4px solid #000;
+    padding-bottom: 10px;
+    margin-bottom: 12px;
   }
-  .report-header h1 { font-size: 26px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
-  .report-header p { font-size: 20px; color: #555; margin-top: 3px; }
+  .report-header h1 { font-size: 36px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
+  .report-header p { font-size: 24px; color: #333; margin-top: 4px; font-weight: 600; }
   .report-meta {
     display: flex;
     justify-content: space-between;
-    font-size: 20px;
-    color: #666;
-    margin-bottom: 8px;
+    font-size: 24px;
+    font-weight: 700;
+    color: #444;
+    margin-bottom: 10px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
   table {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: 10px;
-    font-size: 22px;
+    margin-bottom: 12px;
+    font-size: 26px;
   }
   th {
-    background: #111;
+    background: #000;
     color: #fff;
-    padding: 6px 8px;
+    padding: 8px 10px;
     text-align: left;
-    font-size: 20px;
+    font-size: 24px;
+    font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
   td {
-    padding: 5px 8px;
-    border-bottom: 1px solid #ddd;
-  }
-  tr:nth-child(even) td { background: #f5f5f5; }
-  .section-title {
-    font-size: 24px;
-    font-weight: 900;
-    margin: 12px 0 6px;
-    text-transform: uppercase;
+    padding: 7px 10px;
     border-bottom: 2px solid #ccc;
-    padding-bottom: 3px;
-    letter-spacing: 0.3px;
+    font-weight: 600;
+  }
+  tr:nth-child(even) td { background: #f0f0f0; }
+  .section-title {
+    font-size: 28px;
+    font-weight: 900;
+    margin: 14px 0 8px;
+    text-transform: uppercase;
+    border-bottom: 3px solid #999;
+    padding-bottom: 4px;
+    letter-spacing: 0.5px;
   }
   .summary-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-    margin-bottom: 20px;
+    gap: 10px;
+    margin-bottom: 24px;
   }
   .summary-card {
-    border: 2px solid #ddd;
-    border-radius: 6px;
-    padding: 10px;
+    border: 3px solid #ccc;
+    border-radius: 8px;
+    padding: 12px;
     text-align: center;
   }
-  .summary-card .label { font-size: 12px; text-transform: uppercase; color: #888; letter-spacing: 0.5px; }
-  .summary-card .value { font-size: 22px; font-weight: 900; margin-top: 4px; }
+  .summary-card .label { font-size: 18px; font-weight: 700; text-transform: uppercase; color: #666; letter-spacing: 0.5px; }
+  .summary-card .value { font-size: 28px; font-weight: 900; margin-top: 6px; }
   .summary-row {
     display: flex;
     justify-content: space-between;
-    padding: 6px 0;
-    border-bottom: 1px dashed #ddd;
-    font-size: 18px;
+    padding: 8px 0;
+    border-bottom: 2px dashed #ccc;
+    font-size: 22px;
+    font-weight: 600;
   }
   .summary-row:last-child { border-bottom: none; }
   .footer {
     text-align: center;
-    font-size: 16px;
-    color: #999;
-    border-top: 2px solid #ddd;
-    padding-top: 8px;
-    margin-top: 20px;
+    font-size: 20px;
+    font-weight: 600;
+    color: #888;
+    border-top: 3px solid #ccc;
+    padding-top: 10px;
+    margin-top: 24px;
   }
   .status-badge {
     display: inline-block;
-    padding: 3px 10px;
-    border-radius: 4px;
-    font-size: 18px;
-    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 22px;
+    font-weight: 900;
     text-transform: uppercase;
   }
   .status-ok { background: #d1fae5; color: #065f46; }
@@ -231,13 +236,13 @@ export function openPrintWindow(title) {
   win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>${PRINT_CSS}</style></head><body>`);
   win.document.write('<div class="report-header">');
   win.document.write(`<h1>${title}</h1>`);
-  win.document.write(`<p>Enamels — Generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>`);
+  win.document.write(`<p>Enamels Production — Generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>`);
   win.document.write('</div>');
   return win;
 }
 
 export function closePrintWindow(win) {
-  win.document.write('<div class="footer">Enamels — This is a computer-generated report.</div>');
+  win.document.write('<div class="footer">Enamels Production — This is a computer-generated report.<br><span style="font-size:16px;font-weight:400;color:#aaa">Software is developed by Sameer Butt</span></div>');
   win.document.write('</body></html>');
   win.document.close();
   win.focus();
@@ -251,7 +256,7 @@ export function printAnalyticsReport(data, branch) {
   const s = data?.summary || {};
   const prod = data?.production || {};
 
-  win.document.write('<div class="report-meta"><span>Enamels Industries</span><span>Branch: ' + branchLabel + '</span></div>');
+  win.document.write('<div class="report-meta"><span>Enamels Production</span><span>Branch: ' + branchLabel + '</span></div>');
 
   // Summary cards
   win.document.write('<div class="summary-grid">');
@@ -301,7 +306,7 @@ export function printInventoryReport(items) {
   const title = 'Inventory Report';
   const win = openPrintWindow(title);
 
-  win.document.write('<div class="report-meta"><span>Enamels Industries</span><span>Stock as of ' + new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) + '</span></div>');
+  win.document.write('<div class="report-meta"><span>Enamels Production</span><span>Stock as of ' + new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) + '</span></div>');
 
   const totalValue = items.reduce((s, i) => s + ((i.variants || []).reduce((sv, v) => sv + ((v.stock || 0) * (v.price || 0)), 0)), 0);
   const totalStock = items.reduce((s, i) => s + ((i.variants || []).reduce((sv, v) => sv + (v.stock || 0), 0)), 0);
@@ -343,7 +348,7 @@ export function printDeliveryReport(orders) {
   const win = openPrintWindow(title);
 
   const now = new Date();
-  win.document.write('<div class="report-meta"><span>Enamels Industries</span><span>Report Date: ' + now.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) + '</span></div>');
+  win.document.write('<div class="report-meta"><span>Enamels Production</span><span>Report Date: ' + now.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) + '</span></div>');
 
   const active = orders.filter(o => o.currentStage === 'OUT_FOR_DELIVERY' && o.status !== 'COMPLETED');
   const completed = orders.filter(o => o.currentStage === 'DELIVERED' || o.status === 'COMPLETED');

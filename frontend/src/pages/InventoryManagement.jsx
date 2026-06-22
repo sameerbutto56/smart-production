@@ -39,6 +39,7 @@ const InventoryManagement = () => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [stockFilter, setStockFilter] = useState('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [expandedItems, setExpandedItems] = useState({});
@@ -202,17 +203,23 @@ const InventoryManagement = () => {
   const filteredItems = items
     .filter(item => {
       const term = searchTerm.toLowerCase();
-      if (!term) return true;
-      if (item.name?.toLowerCase().includes(term)) return true;
-      if (item.category?.toLowerCase().includes(term)) return true;
-      if (item.color?.toLowerCase().includes(term)) return true;
-      if (item.variants && Array.isArray(item.variants)) {
-        if (item.variants.some(v => 
+      const matchesSearch = !term ||
+        item.name?.toLowerCase().includes(term) ||
+        item.category?.toLowerCase().includes(term) ||
+        item.color?.toLowerCase().includes(term) ||
+        (item.variants && Array.isArray(item.variants) && item.variants.some(v => 
           (v.color && v.color.toLowerCase().includes(term)) ||
           (v.size && v.size.toLowerCase().includes(term))
-        )) return true;
-      }
-      return false;
+        ));
+      if (!matchesSearch) return false;
+
+      const totalStock = item.variants && Array.isArray(item.variants)
+        ? item.variants.reduce((s, v) => s + (v.stock || 0), 0)
+        : (item.stock || 0);
+
+      if (stockFilter === 'LOW') return totalStock > 0 && totalStock < 5;
+      if (stockFilter === 'OUT') return totalStock === 0;
+      return true;
     })
     .sort((a, b) => {
       const nameA = a.name || '';
@@ -326,7 +333,7 @@ const InventoryManagement = () => {
             </>
           )}
           <button
-            onClick={() => printInventoryReport(items)}
+            onClick={() => printInventoryReport(filteredItems)}
             className="bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white font-black py-4 px-4 rounded-2xl border border-gray-700 transition-all flex items-center gap-2 active:scale-95"
             title="Print Inventory Report"
           >
@@ -379,6 +386,21 @@ const InventoryManagement = () => {
             >
               {cat}
             </button>
+          ))}
+        </div>
+        <div className="flex bg-gray-900 border-2 border-gray-700 rounded-2xl p-1">
+          {[
+            { key: 'ALL', label: 'All' },
+            { key: 'LOW', label: 'Low Stock (<5)' },
+            { key: 'OUT', label: 'Out of Stock' }
+          ].map(opt => (
+            <button key={opt.key} onClick={() => setStockFilter(opt.key)}
+              className={`px-4 py-2.5 text-xs font-black rounded-xl transition-all whitespace-nowrap ${
+                stockFilter === opt.key
+                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/30'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-700'
+              }`}
+            >{opt.label}</button>
           ))}
         </div>
       </div>
