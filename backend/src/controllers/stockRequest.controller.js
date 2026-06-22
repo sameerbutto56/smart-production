@@ -41,9 +41,11 @@ const getRequests = async (req, res) => {
       else detectedOutlet = name;
       where.outletName = detectedOutlet;
     }
+    const limit = parseInt(req.query.limit) || 200;
     const requests = await prisma.stockRequest.findMany({
       where,
       orderBy: { createdAt: 'desc' },
+      take: limit
     });
     res.json(requests);
   } catch (error) {

@@ -212,19 +212,21 @@ const getEditRequests = async (req, res) => {
     const where = {};
     if (status && status !== 'ALL') where.status = status;
 
+    const limit = parseInt(req.query.limit) || 200;
     const requests = await prisma.orderEditRequest.findMany({
       where,
       include: {
         order: {
           include: {
-            stages: { orderBy: { createdAt: 'desc' } },
-            auditLogs: { orderBy: { timestamp: 'desc' }, take: 20 }
+            stages: { orderBy: { createdAt: 'desc' }, select: { stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
+            auditLogs: { orderBy: { timestamp: 'desc' }, take: 20, select: { action: true, timestamp: true, details: true, performedBy: true } }
           }
         },
         requestedBy: { select: { id: true, name: true, role: true } },
         reviewedBy: { select: { id: true, name: true, role: true } }
       },
-      orderBy: { requestedAt: 'desc' }
+      orderBy: { requestedAt: 'desc' },
+      take: limit
     });
 
     if (stats === 'true') {

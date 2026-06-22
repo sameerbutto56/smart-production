@@ -3,7 +3,8 @@ const xlsx = require('xlsx');
 
 const getInventory = async (req, res) => {
   try {
-    const items = await prisma.inventoryItem.findMany({ orderBy: { name: 'asc' } });
+    const limit = parseInt(req.query.limit) || 500;
+    const items = await prisma.inventoryItem.findMany({ orderBy: { name: 'asc' }, take: limit });
     if (req.user?.role === 'OUTLET') {
       const sanitized = items.map(({ stock, ...rest }) => rest);
       return res.json(sanitized);

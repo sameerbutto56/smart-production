@@ -564,8 +564,8 @@ const getOrders = async (req, res) => {
               status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
             },
             include: {
-              stages: { orderBy: { createdAt: 'desc' } },
-              auditLogs: { orderBy: { timestamp: 'desc' }, take: 5 },
+              stages: { orderBy: { createdAt: 'desc' }, select: { stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
+              auditLogs: { orderBy: { timestamp: 'desc' }, take: 5, select: { action: true, timestamp: true, details: true, performedBy: true } },
               createdBy: { select: { name: true } }
             },
             orderBy: { createdAt: 'desc' },
@@ -577,8 +577,8 @@ const getOrders = async (req, res) => {
               status: { in: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
             },
             include: {
-              stages: { orderBy: { createdAt: 'desc' } },
-              auditLogs: { orderBy: { timestamp: 'desc' }, take: 5 },
+              stages: { orderBy: { createdAt: 'desc' }, select: { stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
+              auditLogs: { orderBy: { timestamp: 'desc' }, take: 5, select: { action: true, timestamp: true, details: true, performedBy: true } },
               createdBy: { select: { name: true } }
             },
             orderBy: { createdAt: 'desc' },
@@ -596,16 +596,19 @@ const getOrders = async (req, res) => {
       take: takeLimit,
       include: {
         stages: {
-          orderBy: { createdAt: 'desc' }
+          orderBy: { createdAt: 'desc' },
+          select: { stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true }
         },
         auditLogs: {
-          orderBy: { timestamp: 'desc' }
+          orderBy: { timestamp: 'desc' },
+          select: { action: true, timestamp: true, details: true, performedBy: true }
         },
         createdBy: {
           select: { name: true }
         },
         deliveryAttempts: {
-          orderBy: { attemptNumber: 'asc' }
+          orderBy: { attemptNumber: 'asc' },
+          select: { attemptNumber: true, status: true, riderName: true, attemptedAt: true, rescheduledTo: true, notes: true }
         }
       },
       orderBy: { createdAt: 'desc' }
@@ -1583,13 +1586,15 @@ const getRefundQueue = async (req, res) => {
       where.source = { in: ['ONLINE', 'INTERNAL'] };
     }
 
+    const limit = parseInt(req.query.limit) || 200;
     const orders = await prisma.order.findMany({
       where,
       include: {
-        stages: { orderBy: { createdAt: 'desc' }, take: 5 },
+        stages: { orderBy: { createdAt: 'desc' }, take: 5, select: { stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
         createdBy: { select: { name: true } }
       },
-      orderBy: { refundedAt: 'desc' }
+      orderBy: { refundedAt: 'desc' },
+      take: limit
     });
 
     res.json(orders || []);
@@ -2707,19 +2712,19 @@ const getStoreProductionOrders = async (req, res) => {
         status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
       },
       include: {
-        stages: { orderBy: { createdAt: 'desc' } },
-        auditLogs: { orderBy: { timestamp: 'desc' }, take: 5 },
+        stages: { orderBy: { createdAt: 'desc' }, select: { stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
+        auditLogs: { orderBy: { timestamp: 'desc' }, take: 5, select: { action: true, timestamp: true, details: true, performedBy: true } },
         createdBy: { select: { name: true } }
       },
       orderBy: { createdAt: 'desc' },
       take: limit
     });
-
+    
     const seenRecords = await prisma.seenTask.findMany({
       where: { userId, orderId: { in: orders.map(o => o.id) }, stageName: 'STORE_RECEIVE' }
     });
     const seenOrderIds = new Set(seenRecords.map(r => r.orderId));
-
+    
     res.json({
       unseen: orders.filter(o => !seenOrderIds.has(o.id)),
       seen: orders.filter(o => seenOrderIds.has(o.id))
@@ -2743,8 +2748,8 @@ const getUnseenOrders = async (req, res) => {
         status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
       },
       include: {
-        stages: { orderBy: { createdAt: 'desc' } },
-        auditLogs: { orderBy: { timestamp: 'desc' }, take: 5 },
+        stages: { orderBy: { createdAt: 'desc' }, select: { stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
+        auditLogs: { orderBy: { timestamp: 'desc' }, take: 5, select: { action: true, timestamp: true, details: true, performedBy: true } },
         createdBy: { select: { name: true } }
       },
       take: limit
@@ -2795,13 +2800,13 @@ const getStoreRequests = async (req, res) => {
         ...(isOutlet ? { source: 'OUTLET', outletName } : { source: { in: ['INTERNAL', 'ONLINE'] } })
       },
       include: {
-        stages: { orderBy: { createdAt: 'desc' } },
+        stages: { orderBy: { createdAt: 'desc' }, select: { stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
         createdBy: { select: { name: true } }
       },
       orderBy: { storeRequestedAt: 'desc' },
       take: limit
     });
-
+    
     // Seen/unseen split
     const seenRecords = await prisma.seenTask.findMany({
       where: {
@@ -3191,8 +3196,8 @@ const getStoreDashboardOrders = async (req, res) => {
     const storeOrders = await prisma.order.findMany({
       where: whereStore,
       include: {
-        stages: { orderBy: { createdAt: 'asc' } },
-        auditLogs: { orderBy: { timestamp: 'desc' }, take: 5 },
+        stages: { orderBy: { createdAt: 'asc' }, select: { stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
+        auditLogs: { orderBy: { timestamp: 'desc' }, take: 5, select: { action: true, timestamp: true, details: true, performedBy: true } },
         createdBy: { select: { name: true } }
       },
       orderBy: { createdAt: 'asc' },

@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, useMemo, useCallback } from 'react';
 import axios from 'axios';
 import api from '../services/api';
+import socket from '../socket';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -10,15 +11,21 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const joinRoleRoom = useCallback((role) => {
+    if (socket && role) socket.emit('join-room', `role:${role}`);
+  }, []);
+
   useEffect(() => {
     const token = sessionStorage.getItem('token');
     const savedUser = sessionStorage.getItem('user');
     if (token && savedUser) {
-      setUser(JSON.parse(savedUser));
+      const saved = JSON.parse(savedUser);
+      setUser(saved);
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      joinRoleRoom(saved.role);
     }
     setLoading(false);
-  }, []);
+  }, [joinRoleRoom]);
 
   const login = useCallback(async (email, password) => {
     try {
@@ -28,11 +35,12 @@ export const AuthProvider = ({ children }) => {
       sessionStorage.setItem('user', JSON.stringify(user));
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       setUser(user);
+      joinRoleRoom(user.role);
       return { success: true };
     } catch (error) {
       return { success: false, message: error.response?.data?.message || 'Login failed' };
     }
-  }, []);
+  }, [joinRoleRoom]);
 
   const logout = useCallback(() => {
     sessionStorage.removeItem('token');

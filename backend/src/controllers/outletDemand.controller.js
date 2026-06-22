@@ -34,9 +34,11 @@ const createDemandRequest = async (req, res) => {
 
 const getMyDemandRequests = async (req, res) => {
   try {
+    const limit = parseInt(req.query.limit) || 200;
     const demands = await prisma.outletDemandRequest.findMany({
       where: { outletId: req.user.id },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      take: limit
     });
     res.json(demands);
   } catch (error) {
@@ -50,9 +52,11 @@ const getAllDemandRequests = async (req, res) => {
     const where = {};
     if (status) where.status = status;
     if (outletName) where.outletName = { contains: outletName, mode: 'insensitive' };
+    const limit = parseInt(req.query.limit) || 200;
     const demands = await prisma.outletDemandRequest.findMany({
       where,
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      take: limit
     });
     res.json(demands);
   } catch (error) {

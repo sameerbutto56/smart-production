@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import {
   BarChart3, TrendingUp, DollarSign, RefreshCcw, ChevronRight, X, Search,
@@ -186,9 +186,8 @@ const UnifiedAnalytics = () => {
   const db = data?.deliveredBreakdown || {};
   const ra = data?.returnsAnalytics || {};
   const pa = data?.pendingAnalytics || {};
-  const fin = data?.financials || {};
-  const trends = data?.trends?.monthly || [];
-
+  const fin = useMemo(() => data?.financials || {}, [data?.financials]);
+  const trends = useMemo(() => data?.trends?.monthly || [], [data?.trends?.monthly]);
   const totalVal = s.totalOrders || 0;
   const deliveredVal = s.deliveredOrders || 0;
   const returnedVal = s.returnedOrders || 0;
@@ -369,7 +368,7 @@ const UnifiedAnalytics = () => {
     </div>
   );
 
-  const renderTrends = () => (
+  const trendsChart = useMemo(() => (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
       <div className="bg-gray-900/50 rounded-2xl border border-gray-800 p-4">
         <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-3">Order & Revenue Trend</h3>
@@ -409,14 +408,15 @@ const UnifiedAnalytics = () => {
         )}
       </div>
     </div>
-  );
+  ), [trends]);
 
-  const renderRevenuePie = () => {
-    const pieData = [
-      { name: 'COD', value: fin.codRevenue || 0, color: '#6366f1' },
-      { name: 'Online', value: fin.onlineRevenue || 0, color: '#10b981' },
-      { name: 'Prepaid', value: fin.prepaidRevenue || 0, color: '#f59e0b' }
-    ].filter(d => d.value > 0);
+  const pieData = useMemo(() => [
+    { name: 'COD', value: fin.codRevenue || 0, color: '#6366f1' },
+    { name: 'Online', value: fin.onlineRevenue || 0, color: '#10b981' },
+    { name: 'Prepaid', value: fin.prepaidRevenue || 0, color: '#f59e0b' }
+  ].filter(d => d.value > 0), [fin.codRevenue, fin.onlineRevenue, fin.prepaidRevenue]);
+
+  const revenuePie = useMemo(() => {
     if (pieData.length === 0) return null;
     return (
       <div className="bg-gray-900/50 rounded-2xl border border-gray-800 p-4">
@@ -432,7 +432,7 @@ const UnifiedAnalytics = () => {
         </ResponsiveContainer>
       </div>
     );
-  };
+  }, [pieData]);
 
   return (
     <div className="p-2 md:p-4 max-w-7xl mx-auto space-y-3">
@@ -473,10 +473,10 @@ const UnifiedAnalytics = () => {
             <>
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
                 <div className="lg:col-span-2">{renderFinancials()}</div>
-                {renderRevenuePie()}
+                {revenuePie}
               </div>
               {/* Trends */}
-              {renderTrends()}
+              {trendsChart}
             </>
           )}
         </div>
@@ -490,4 +490,4 @@ const UnifiedAnalytics = () => {
   );
 };
 
-export default UnifiedAnalytics;
+export default React.memo(UnifiedAnalytics);

@@ -52,8 +52,8 @@ const getDispatchQueue = async (req, res) => {
     const orders = await prisma.order.findMany({
       where: whereClause,
       include: {
-        stages: { orderBy: { createdAt: 'desc' } },
-        auditLogs: { orderBy: { timestamp: 'desc' }, take: 5 },
+        stages: { orderBy: { createdAt: 'desc' }, select: { stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
+        auditLogs: { orderBy: { timestamp: 'desc' }, take: 5, select: { action: true, timestamp: true, details: true, performedBy: true } },
         createdBy: { select: { name: true } }
       },
       orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }]
@@ -97,7 +97,7 @@ const requestCourierDispatch = async (req, res) => {
         where: { id: orderId },
         include: { createdBy: { select: { name: true, role: true } } }
       });
-      io.emit('dispatch-request', {
+      io.to('role:DISPATCH').emit('dispatch-request', {
         orderId,
         orderNumber: order.orderNumber,
         customerName: order.customerName,
@@ -108,7 +108,7 @@ const requestCourierDispatch = async (req, res) => {
         requestedBy: req.user.name,
         message: `New courier dispatch request from ${req.user.name} for Order #${order.orderNumber || order.id.substring(0, 8)}`
       });
-      io.emit('global-alert', {
+      io.to('role:DISPATCH').emit('global-alert', {
         title: '📦 Courier Dispatch Requested',
         message: `Order #${order.orderNumber || order.id.substring(0, 8)} — ${order.customerName}. ${order.outletName ? `From: ${order.outletName}. ` : ''}Destination: ${destinationCity || order.city || 'N/A'}.`,
         type: 'DISPATCH_REQUEST',
@@ -260,8 +260,8 @@ const getPickupOrders = async (req, res) => {
     const orders = await prisma.order.findMany({
       where: whereClause,
       include: {
-        stages: { orderBy: { createdAt: 'desc' } },
-        auditLogs: { orderBy: { timestamp: 'desc' }, take: 5 },
+        stages: { orderBy: { createdAt: 'desc' }, select: { stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
+        auditLogs: { orderBy: { timestamp: 'desc' }, take: 5, select: { action: true, timestamp: true, details: true, performedBy: true } },
         createdBy: { select: { name: true } }
       },
       orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }]
