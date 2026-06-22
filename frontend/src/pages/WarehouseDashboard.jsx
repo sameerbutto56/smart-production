@@ -1258,7 +1258,8 @@ const WarehouseDashboard = () => {
                       {allocationRecords.map(rec => {
                         const statusColors = {
                           ACTIVE: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-                          USED: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+                          APPROVED: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+                          REJECTED: 'bg-red-500/20 text-red-400 border-red-500/30',
                           COMPLETED: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
                         };
                         const sc = statusColors[rec.status] || 'bg-gray-500/20 text-gray-400 border-gray-500/30';
@@ -1288,17 +1289,17 @@ const WarehouseDashboard = () => {
                                 {rec.allocatedByName && <p className="text-[10px] theme-text-muted">by {rec.allocatedByName}</p>}
                                 {rec.status === 'ACTIVE' && (
                                   <>
-                                    <button onClick={() => updateAllocationStatus(rec.id, 'USED')}
+                                    <button onClick={() => updateAllocationStatus(rec.id, 'APPROVED')}
                                       className="px-2 py-1 bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white rounded-lg text-[10px] font-black transition-all">
-                                      Used
+                                      Approve
                                     </button>
-                                    <button onClick={() => updateAllocationStatus(rec.id, 'COMPLETED')}
-                                      className="px-2 py-1 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-lg text-[10px] font-black transition-all">
-                                      Complete
+                                    <button onClick={() => updateAllocationStatus(rec.id, 'REJECTED')}
+                                      className="px-2 py-1 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-lg text-[10px] font-black transition-all">
+                                      Reject
                                     </button>
                                   </>
                                 )}
-                                {rec.status === 'USED' && (
+                                {rec.status === 'APPROVED' && (
                                   <button onClick={() => updateAllocationStatus(rec.id, 'COMPLETED')}
                                     className="px-2 py-1 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-lg text-[10px] font-black transition-all">
                                     Complete

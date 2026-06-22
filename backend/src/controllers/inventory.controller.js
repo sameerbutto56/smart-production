@@ -361,16 +361,52 @@ const searchInventory = async (req, res) => {
 const updateAllocationStatus = async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
-  const validStatuses = ['ACTIVE', 'USED', 'COMPLETED'];
+  const validStatuses = ['ACTIVE', 'APPROVED', 'REJECTED', 'COMPLETED'];
   if (!validStatuses.includes(status)) {
     return res.status(400).json({ message: `Status must be one of: ${validStatuses.join(', ')}` });
   }
   try {
-    const allocation = await prisma.allocation.update({
+    const allocation = await prisma.allocation.findUnique({ where: { id } });
+    if (!allocation) return res.status(404).json({ message: 'Allocation not found' });
+    if (status === 'REJECTED') {
+      const item = await prisma.inventoryItem.findUnique({ where: { id: allocation.itemId } });
+      if (item) {
+        const restoreQty = allocation.quantity;
+        if (item.variants && Array.isArray(item.variants) && item.variants.length > 0) {
+          let updatedVariants = [...item.variants];
+          const matchIdx = updatedVariants.findIndex(v =>
+            (allocation.color && v.color && v.color.toLowerCase() === allocation.color.toLowerCase() && allocation.size && v.size && v.size.toLowerCase() === allocation.size.toLowerCase())
+          );
+          if (matchIdx >= 0) {
+            updatedVariants[matchIdx] = { ...updatedVariants[matchIdx], stock: (updatedVariants[matchIdx].stock || 0) + restoreQty };
+          }
+          const newTotal = updatedVariants.reduce((sum, v) => sum + (v.stock || 0), 0);
+          await prisma.inventoryItem.update({
+            where: { id: item.id },
+            data: { variants: updatedVariants, stock: newTotal }
+          });
+        } else {
+          await prisma.inventoryItem.update({
+            where: { id: item.id },
+            data: { stock: { increment: restoreQty } }
+          });
+        }
+        await prisma.auditLog.create({
+          data: {
+            orderId: null,
+            action: 'ALLOCATION_REJECTED',
+            details: `Rejected allocation of ${restoreQty}x ${item.name} to ${allocation.personName}`,
+            performedBy: req.user?.id || 'system',
+            userId: req.user?.id || null
+          }
+        });
+      }
+    }
+    const updated = await prisma.allocation.update({
       where: { id },
       data: { status }
     });
-    res.json(allocation);
+    res.json(updated);
   } catch (error) {
     res.status(500).json({ message: 'Error updating allocation status', error: error.message });
   }
