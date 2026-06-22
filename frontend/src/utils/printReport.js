@@ -1,12 +1,12 @@
 const PRINT_CSS = `
-  @page { size: A4 landscape; margin: 4mm 6mm; }
+  @page { size: A4 portrait; margin: 4mm 6mm; }
   @import url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;600;700&display=swap');
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: 'Segoe UI', 'Helvetica Neue', Arial, 'Noto Nastaliq Urdu', sans-serif;
     color: #000;
     background: #fff;
-    font-size: 32px;
+    font-size: 24px;
     line-height: 1.3;
     padding: 0;
     direction: ltr;
@@ -15,18 +15,18 @@ const PRINT_CSS = `
   .report-header {
     text-align: center;
     border-bottom: 4px solid #000;
-    padding-bottom: 10px;
-    margin-bottom: 12px;
+    padding-bottom: 8px;
+    margin-bottom: 10px;
   }
-  .report-header h1 { font-size: 36px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
-  .report-header p { font-size: 24px; color: #333; margin-top: 4px; font-weight: 600; }
+  .report-header h1 { font-size: 28px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
+  .report-header p { font-size: 18px; color: #333; margin-top: 3px; font-weight: 900; }
   .report-meta {
     display: flex;
     justify-content: space-between;
-    font-size: 24px;
-    font-weight: 700;
+    font-size: 18px;
+    font-weight: 900;
     color: #444;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
@@ -34,72 +34,72 @@ const PRINT_CSS = `
     width: 100%;
     border-collapse: collapse;
     margin-bottom: 12px;
-    font-size: 22px;
+    font-size: 18px;
     table-layout: fixed;
   }
   th {
     background: #000;
     color: #fff;
-    padding: 8px 10px;
+    padding: 6px 8px;
     text-align: left;
-    font-size: 20px;
+    font-size: 16px;
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
   td {
-    padding: 7px 10px;
+    padding: 5px 8px;
     border-bottom: 2px solid #ccc;
-    font-weight: 600;
+    font-weight: 900;
     word-break: break-word;
   }
   tr:nth-child(even) td { background: #f0f0f0; }
   .section-title {
-    font-size: 28px;
+    font-size: 22px;
     font-weight: 900;
-    margin: 14px 0 8px;
+    margin: 12px 0 6px;
     text-transform: uppercase;
     border-bottom: 3px solid #999;
-    padding-bottom: 4px;
+    padding-bottom: 3px;
     letter-spacing: 0.5px;
   }
   .summary-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 10px;
-    margin-bottom: 24px;
+    gap: 8px;
+    margin-bottom: 20px;
   }
   .summary-card {
     border: 3px solid #ccc;
     border-radius: 8px;
-    padding: 12px;
+    padding: 10px;
     text-align: center;
   }
-  .summary-card .label { font-size: 18px; font-weight: 700; text-transform: uppercase; color: #666; letter-spacing: 0.5px; }
-  .summary-card .value { font-size: 28px; font-weight: 900; margin-top: 6px; }
+  .summary-card .label { font-size: 14px; font-weight: 700; text-transform: uppercase; color: #666; letter-spacing: 0.5px; }
+  .summary-card .value { font-size: 24px; font-weight: 900; margin-top: 4px; }
   .summary-row {
     display: flex;
     justify-content: space-between;
-    padding: 8px 0;
+    padding: 6px 0;
     border-bottom: 2px dashed #ccc;
-    font-size: 22px;
+    font-size: 18px;
     font-weight: 600;
   }
   .summary-row:last-child { border-bottom: none; }
   .footer {
     text-align: center;
-    font-size: 20px;
+    font-size: 16px;
     font-weight: 600;
     color: #888;
     border-top: 3px solid #ccc;
-    padding-top: 10px;
-    margin-top: 24px;
+    padding-top: 8px;
+    margin-top: 20px;
   }
   .status-badge {
     display: inline-block;
-    padding: 4px 12px;
+    padding: 3px 10px;
     border-radius: 6px;
-    font-size: 18px;
+    font-size: 14px;
     font-weight: 900;
     text-transform: uppercase;
     white-space: nowrap;
