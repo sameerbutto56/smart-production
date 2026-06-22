@@ -280,7 +280,9 @@ const WarehouseDashboard = () => {
     for (const item of allocCartItems) {
       const p = inventory.find(i => i.id === item.productId);
       const vs = p?.variants || [];
-      if (vs.length && (!item.color || !item.size)) { toast.error('Select color and size for all items'); return; }
+      const uniqSizes = [...new Set(vs.map(v => v.size).filter(Boolean))];
+      const uniqColors = [...new Set(vs.map(v => v.color).filter(Boolean))];
+      if (vs.length > 0 && uniqSizes.length > 0 && uniqColors.length > 0 && (!item.color || !item.size)) { toast.error('Select color and size for all items'); return; }
     }
     setAllocationLoading(true);
     try {
@@ -1053,7 +1055,9 @@ const WarehouseDashboard = () => {
                               <button onClick={(e) => {
                                 e.stopPropagation();
                                 const vs = item.variants || [];
-                                if (vs.length > 0 && (!allocSelectedSize || !allocSelectedColor)) {
+                                const uniqSizes = [...new Set(vs.map(v => v.size).filter(Boolean))];
+                                const uniqColors = [...new Set(vs.map(v => v.color).filter(Boolean))];
+                                if (vs.length > 0 && uniqSizes.length > 0 && uniqColors.length > 0 && (!allocSelectedSize || !allocSelectedColor)) {
                                   toast.error('Select size and color first');
                                   return;
                                 }
