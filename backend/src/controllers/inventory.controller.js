@@ -369,13 +369,14 @@ const updateAllocationStatus = async (req, res) => {
     const allocation = await prisma.allocation.findUnique({ where: { id } });
     if (!allocation) return res.status(404).json({ message: 'Allocation not found' });
     if (status === 'REJECTED') {
-      const item = await prisma.inventoryItem.findUnique({ where: { id: allocation.itemId } });
+      const item = allocation.itemId ? await prisma.inventoryItem.findUnique({ where: { id: allocation.itemId } }) : null;
       if (item) {
         const restoreQty = allocation.quantity;
         if (item.variants && Array.isArray(item.variants) && item.variants.length > 0) {
           let updatedVariants = [...item.variants];
           const matchIdx = updatedVariants.findIndex(v =>
-            (allocation.color && v.color && v.color.toLowerCase() === allocation.color.toLowerCase() && allocation.size && v.size && v.size.toLowerCase() === allocation.size.toLowerCase())
+            (!allocation.color || (v.color && v.color.toLowerCase() === allocation.color.toLowerCase())) &&
+            (!allocation.size || (v.size && v.size.toLowerCase() === allocation.size.toLowerCase()))
           );
           if (matchIdx >= 0) {
             updatedVariants[matchIdx] = { ...updatedVariants[matchIdx], stock: (updatedVariants[matchIdx].stock || 0) + restoreQty };

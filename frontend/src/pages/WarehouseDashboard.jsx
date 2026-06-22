@@ -145,7 +145,7 @@ const WarehouseDashboard = () => {
       fetchAllocations();
       fetchAllocationStats();
     } catch (error) {
-      toast.error('Failed to update allocation status');
+      toast.error(error.response?.data?.message || 'Failed to update allocation status');
     }
   };
 
