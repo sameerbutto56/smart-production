@@ -1135,9 +1135,15 @@ const cancelOrder = async (req, res) => {
   const { reason } = req.body;
 
   try {
-    const order = await prisma.order.update({
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    // Restore all deducted inventory before cancelling
+    await restoreInventoryForDeletion(order, req.user.id);
+
+    await prisma.order.update({
       where: { id: orderId },
-      data: { 
+      data: {
         status: 'REJECTED',
         currentStage: 'CANCELLED'
       }
@@ -1176,19 +1182,28 @@ const restoreInventoryForDeletion = async (order, userId) => {
     productsToRestore.push({ productType: parsedDetails.productType, quantity: order.quantity || 1, color: parsedDetails.color, size: parsedDetails.size });
   }
 
+  if (productsToRestore.length === 0) return;
+
+  // Batch-fetch all matching inventory items in one query
+  const productTypes = [...new Set(productsToRestore.map(p => p.productType))];
+  const allInvItems = await prisma.inventoryItem.findMany({
+    where: {
+      category: { not: 'FABRIC' },
+      OR: productTypes.map(name => ({ name: { contains: name, mode: 'insensitive' } }))
+    }
+  });
+
+  const operations = [];
+  const auditEntries = [];
+
   for (const prod of productsToRestore) {
-    const inventoryItem = await prisma.inventoryItem.findFirst({
-      where: {
-        name: { contains: prod.productType, mode: 'insensitive' },
-        category: { not: 'FABRIC' }
-      }
-    });
+    const inventoryItem = allInvItems.find(inv => inv.name.toLowerCase().includes(prod.productType.toLowerCase()));
     if (!inventoryItem) continue;
 
     const restoreQty = prod.quantity || 1;
     let variantLabel = '';
 
-    if (inventoryItem.variants && Array.isArray(inventoryItem.variants)) {
+    if (inventoryItem.variants && Array.isArray(inventoryItem.variants) && inventoryItem.variants.length > 0) {
       let updatedVariants = [...inventoryItem.variants];
       if (prod.color || prod.size) {
         const matchIdx = updatedVariants.findIndex(v =>
@@ -1202,17 +1217,29 @@ const restoreInventoryForDeletion = async (order, userId) => {
         }
       }
       const newTotalStock = updatedVariants.reduce((s, v) => s + (v.stock || 0), 0);
-      await prisma.inventoryItem.update({
-        where: { id: inventoryItem.id },
-        data: { variants: updatedVariants, stock: newTotalStock }
-      });
+      operations.push(
+        prisma.inventoryItem.update({
+          where: { id: inventoryItem.id },
+          data: { variants: updatedVariants, stock: newTotalStock }
+        })
+      );
     } else {
-      await prisma.inventoryItem.update({
-        where: { id: inventoryItem.id },
-        data: { stock: { increment: restoreQty } }
-      });
+      operations.push(
+        prisma.inventoryItem.update({
+          where: { id: inventoryItem.id },
+          data: { stock: { increment: restoreQty } }
+        })
+      );
     }
-    await createAuditLog(order.id, 'INVENTORY_RESTORED', `Restored ${restoreQty} unit(s) of ${inventoryItem.name}${variantLabel ? ' (' + variantLabel + ')' : ''} to stock (order deletion reversal). Product ID: ${inventoryItem.id}`, userId);
+    auditEntries.push({ name: inventoryItem.name, qty: restoreQty, label: variantLabel, id: inventoryItem.id });
+  }
+
+  if (operations.length > 0) {
+    await prisma.$transaction(operations);
+  }
+
+  for (const entry of auditEntries) {
+    await createAuditLog(order.id, 'INVENTORY_RESTORED', `Restored ${entry.qty} unit(s) of ${entry.name}${entry.label ? ' (' + entry.label + ')' : ''} to stock (order deletion reversal). Product ID: ${entry.id}`, userId);
   }
 };
 
@@ -1882,7 +1909,7 @@ const classifyOrderItems = async (order) => {
 const deductInventoryItems = async (order, userId, itemList) => {
   if (!order || !itemList?.length) return;
 
-  const updates = [];
+  const operations = [];
 
   for (const prod of itemList) {
     const inventoryItem = prod.inventoryItem;
@@ -1913,26 +1940,35 @@ const deductInventoryItems = async (order, userId, itemList) => {
       if (deducted <= 0) continue;
 
       const newTotalStock = updatedVariants.reduce((s, v) => s + (v.stock || 0), 0);
-      updates.push(
+      operations.push(
         prisma.inventoryItem.update({
           where: { id: inventoryItem.id },
           data: { variants: updatedVariants, stock: newTotalStock }
-        }),
-        createAuditLog(order.id, 'INVENTORY_DEDUCTED', `Deducted ${deductQty} unit(s) of ${inventoryItem.name}${variantLabel ? ' (' + variantLabel + ')' : ''} from stock (non-manufactured item fulfillment). Product ID: ${inventoryItem.id}`, userId)
+        })
       );
     } else {
       const actualDeduct = Math.min(deductQty, inventoryItem.stock);
-      updates.push(
+      operations.push(
         prisma.inventoryItem.update({
           where: { id: inventoryItem.id },
           data: { stock: { decrement: actualDeduct } }
-        }),
-        createAuditLog(order.id, 'INVENTORY_DEDUCTED', `Deducted ${deductQty} unit(s) of ${inventoryItem.name} from stock (non-manufactured item fulfillment). Product ID: ${inventoryItem.id}`, userId)
+        })
       );
     }
   }
 
-  await Promise.all(updates);
+  if (operations.length === 0) return;
+
+  await prisma.$transaction(operations);
+
+  const auditLogs = itemList.map(prod => {
+    const inventoryItem = prod.inventoryItem;
+    if (!inventoryItem) return null;
+    const deductQty = prod.quantity || 1;
+    return createAuditLog(order.id, 'INVENTORY_DEDUCTED', `Deducted ${deductQty} unit(s) of ${inventoryItem.name} from stock (non-manufactured item fulfillment). Product ID: ${inventoryItem.id}`, userId);
+  }).filter(Boolean);
+
+  await Promise.all(auditLogs);
 };
 
 const deductInventory = async (order, userId) => {
