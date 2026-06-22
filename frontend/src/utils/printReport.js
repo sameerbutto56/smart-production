@@ -34,14 +34,15 @@ const PRINT_CSS = `
     width: 100%;
     border-collapse: collapse;
     margin-bottom: 12px;
-    font-size: 26px;
+    font-size: 22px;
+    table-layout: fixed;
   }
   th {
     background: #000;
     color: #fff;
     padding: 8px 10px;
     text-align: left;
-    font-size: 24px;
+    font-size: 20px;
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -50,6 +51,7 @@ const PRINT_CSS = `
     padding: 7px 10px;
     border-bottom: 2px solid #ccc;
     font-weight: 600;
+    word-break: break-word;
   }
   tr:nth-child(even) td { background: #f0f0f0; }
   .section-title {
@@ -97,9 +99,10 @@ const PRINT_CSS = `
     display: inline-block;
     padding: 4px 12px;
     border-radius: 6px;
-    font-size: 22px;
+    font-size: 18px;
     font-weight: 900;
     text-transform: uppercase;
+    white-space: nowrap;
   }
   .status-ok { background: #d1fae5; color: #065f46; }
   .status-warn { background: #fef3c7; color: #92400e; }
