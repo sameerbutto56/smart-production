@@ -396,3 +396,25 @@ model OutletDemandRequest {
   @@index([outletName])
   @@index([createdAt])
 }
+
+model Client {
+  id               String   @id @default(uuid())
+  name             String
+  gender           String
+  phone            String
+  additionalPhones Json?
+  permanentAddress String?
+  deliveryAddresses Json?
+  measurementChart String?
+  sizeDetails      Json?
+  outletName       String
+  createdById      String?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([outletName])
+  @@index([name])
+  @@index([phone])
+  @@index([isActive])
+}

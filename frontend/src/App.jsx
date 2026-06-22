@@ -25,6 +25,7 @@ const DeletedOrders = lazy(() => import('./pages/DeletedOrders'));
 const ProductionDashboard = lazy(() => import('./pages/ProductionDashboard'));
 const RefundManagement = lazy(() => import('./pages/RefundManagement'));
 const UnifiedAnalytics = lazy(() => import('./pages/UnifiedAnalytics'));
+const ClientRegistration = lazy(() => import('./pages/ClientRegistration'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -98,6 +99,7 @@ function App() {
                   <Route path="analytics" element={<UnifiedAnalytics />} />
                   <Route path="production" element={<ProductionDashboard />} />
                   <Route path="refund-management" element={<RefundManagement />} />
+                  <Route path="clients" element={<ClientRegistration />} />
                 </Route>
               </Routes>
             </Router>

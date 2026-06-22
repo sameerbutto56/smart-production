@@ -22,6 +22,7 @@ import {
   TrendingUp,
   Factory,
   RotateCcw,
+  UserPlus,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import socket from '../socket';
@@ -60,6 +61,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     { name: 'Deleted Orders', path: '/deleted-orders', icon: Trash2, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Production', path: '/production', icon: Factory, roles: ['SUPER_ADMIN', 'ADMIN', 'PRODUCTION'] },
     { name: 'Refund Management', path: '/refund-management', icon: RotateCcw, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'DELIVERY_BOY'] },
+    { name: 'Client Registration', path: '/clients', icon: UserPlus, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET'] },
 
   ];
   
@@ -73,7 +75,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     // 2. Extra safety for Outlets - explicitly remove History
     if (userRole === 'OUTLET') {
       if (item.name === 'History (Admin)' || item.name === 'History') return false;
-      return ['Order Entry', 'All Orders', 'Control Center', 'Delivery Sheet', 'Outlet Requests'].includes(item.name);
+      return ['Order Entry', 'All Orders', 'Control Center', 'Delivery Sheet', 'Outlet Requests', 'Client Registration'].includes(item.name);
     }
     
     // 3. Explicit Restriction for Delivery Boy
