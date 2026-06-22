@@ -61,7 +61,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     { name: 'Deleted Orders', path: '/deleted-orders', icon: Trash2, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Production', path: '/production', icon: Factory, roles: ['SUPER_ADMIN', 'ADMIN', 'PRODUCTION'] },
     { name: 'Refund Management', path: '/refund-management', icon: RotateCcw, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'DELIVERY_BOY'] },
-    { name: 'Client Registration', path: '/clients', icon: UserPlus, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET'] },
+    { name: 'Client Registration', path: '/clients', icon: UserPlus, roles: ['SUPER_ADMIN', 'OUTLET'] },
 
   ];
   
