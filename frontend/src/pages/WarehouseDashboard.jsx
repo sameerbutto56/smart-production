@@ -921,12 +921,13 @@ const WarehouseDashboard = () => {
                       className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 focus:border-amber-500 outline-none font-medium text-white mt-2" />
                   </div>
 
-                  <div className="relative group">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 theme-text-muted group-focus-within:text-amber-500 transition-colors" size={18} />
-                    <input type="text" placeholder="Search products to allocate..." value={allocProdSearch}
-                      onChange={(e) => setAllocProdSearch(e.target.value)}
-                      className="w-full theme-input rounded-2xl py-4 pl-12 pr-6 focus:outline-none focus:border-amber-500 transition-all font-medium" />
-                  </div>
+                  <div className="glass p-4 md:p-6 rounded-xl md:rounded-[2.5rem] border-2 border-gray-900">
+                    <div className="relative group mb-4">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 theme-text-muted group-focus-within:text-amber-500 transition-colors" size={18} />
+                      <input type="text" placeholder="Search products to allocate..." value={allocProdSearch}
+                        onChange={(e) => setAllocProdSearch(e.target.value)}
+                        className="w-full theme-input rounded-2xl py-4 pl-12 pr-6 focus:outline-none focus:border-amber-500 transition-all font-medium" />
+                    </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {(allocProdSearch
@@ -1093,6 +1094,7 @@ const WarehouseDashboard = () => {
                         <p className="theme-text-muted font-black text-xs">No products in stock</p>
                       </div>
                     )}
+                  </div>
                   </div>
                 </div>
 
