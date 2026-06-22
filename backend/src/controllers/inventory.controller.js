@@ -194,7 +194,6 @@ const allocateInventory = async (req, res) => {
     return res.status(400).json({ message: 'personName is required' });
   }
 
-  // Support both single-item (backward compat) and multi-item (items array)
   const allocateItems = items || [{ itemId, color, size, quantity }];
   if (!allocateItems.length) {
     return res.status(400).json({ message: 'At least one item is required' });
@@ -211,49 +210,22 @@ const allocateInventory = async (req, res) => {
       const item = await prisma.inventoryItem.findUnique({ where: { id } });
       if (!item) return res.status(404).json({ message: `Item not found: ${id}` });
 
-      let deductQty = parseInt(qty);
-      let variantLabel = '';
       let allocColor = c || item.color;
       let allocSize = s || item.size;
 
       if (item.variants && Array.isArray(item.variants) && item.variants.length > 0) {
-        let updatedVariants = [...item.variants];
-
-        if (c || s) {
-          const matchIdx = updatedVariants.findIndex(v =>
-            (!c || (v.color && v.color.toLowerCase() === c.toLowerCase())) &&
-            (!s || (v.size && v.size.toLowerCase() === s.toLowerCase()))
-          );
-          if (matchIdx >= 0) {
-            const available = updatedVariants[matchIdx].stock || 0;
-            if (available >= deductQty) {
-              updatedVariants[matchIdx] = { ...updatedVariants[matchIdx], stock: available - deductQty };
-              variantLabel = `${updatedVariants[matchIdx].color || ''} ${updatedVariants[matchIdx].size || ''}`.trim();
-              allocColor = updatedVariants[matchIdx].color || item.color;
-              allocSize = updatedVariants[matchIdx].size || item.size;
-            } else {
-              return res.status(400).json({ message: `Insufficient stock for ${item.name} variant ${c || ''} ${s || ''}. Only ${available} of ${deductQty} available.` });
-            }
-          } else {
-            return res.status(400).json({ message: `Variant not found for ${item.name}: ${c || ''} ${s || ''}`.trim() });
-          }
-        } else {
+        if (!c && !s) {
           return res.status(400).json({ message: `color and/or size are required for ${item.name} (has variants)` });
         }
-
-        const newTotal = updatedVariants.reduce((sum, v) => sum + (v.stock || 0), 0);
-        await prisma.inventoryItem.update({
-          where: { id: item.id },
-          data: { variants: updatedVariants, stock: newTotal }
-        });
-      } else {
-        if (item.stock < deductQty) {
-          return res.status(400).json({ message: `Insufficient stock for ${item.name}. Only ${item.stock} available.` });
+        const matchIdx = item.variants.findIndex(v =>
+          (!c || (v.color && v.color.toLowerCase() === c.toLowerCase())) &&
+          (!s || (v.size && v.size.toLowerCase() === s.toLowerCase()))
+        );
+        if (matchIdx < 0) {
+          return res.status(400).json({ message: `Variant not found for ${item.name}: ${c || ''} ${s || ''}`.trim() });
         }
-        await prisma.inventoryItem.update({
-          where: { id: item.id },
-          data: { stock: { decrement: deductQty } }
-        });
+        allocColor = item.variants[matchIdx].color || item.color;
+        allocSize = item.variants[matchIdx].size || item.size;
       }
 
       const allocation = await prisma.allocation.create({
@@ -263,7 +235,7 @@ const allocateInventory = async (req, res) => {
           itemCategory: item.category,
           color: allocColor,
           size: allocSize,
-          quantity: deductQty,
+          quantity: parseInt(qty),
           notes: notes || '',
           itemId: item.id,
           allocatedById: req.user?.id || null,
@@ -277,9 +249,8 @@ const allocateInventory = async (req, res) => {
         data: {
           orderId: null,
           action: 'INVENTORY_ALLOCATED',
-          details: `Allocated ${deductQty}x ${item.name}${variantLabel ? ' (' + variantLabel + ')' : ''} to ${personName.trim()}`,
-          performedBy: req.user?.id || 'system',
-          userId: req.user?.id || null
+          details: `Allocated ${parseInt(qty)}x ${item.name}${allocColor || allocSize ? ' (' + [allocColor, allocSize].filter(Boolean).join(' ') + ')' : ''} to ${personName.trim()}`,
+          performedBy: req.user.id
         }
       });
     }
@@ -368,47 +339,81 @@ const updateAllocationStatus = async (req, res) => {
   try {
     const allocation = await prisma.allocation.findUnique({ where: { id } });
     if (!allocation) return res.status(404).json({ message: 'Allocation not found' });
-    if (status === 'REJECTED') {
+
+    if (status === 'ACCEPTED') {
       const item = allocation.itemId ? await prisma.inventoryItem.findUnique({ where: { id: allocation.itemId } }) : null;
-      if (item) {
-        const restoreQty = allocation.quantity;
+      if (!item) return res.status(404).json({ message: 'Inventory item not found for this allocation' });
+
+      const deductQty = allocation.quantity;
+
+      await prisma.$transaction(async (tx) => {
         if (item.variants && Array.isArray(item.variants) && item.variants.length > 0) {
           let updatedVariants = [...item.variants];
           const matchIdx = updatedVariants.findIndex(v =>
             (!allocation.color || (v.color && v.color.toLowerCase() === allocation.color.toLowerCase())) &&
             (!allocation.size || (v.size && v.size.toLowerCase() === allocation.size.toLowerCase()))
           );
-          if (matchIdx >= 0) {
-            updatedVariants[matchIdx] = { ...updatedVariants[matchIdx], stock: (updatedVariants[matchIdx].stock || 0) + restoreQty };
+          if (matchIdx < 0) {
+            throw new Error(`Variant not found for ${item.name}`);
           }
+          const available = updatedVariants[matchIdx].stock || 0;
+          if (available < deductQty) {
+            throw new Error(`Insufficient stock for ${item.name}. Only ${available} of ${deductQty} available.`);
+          }
+          updatedVariants[matchIdx] = { ...updatedVariants[matchIdx], stock: available - deductQty };
           const newTotal = updatedVariants.reduce((sum, v) => sum + (v.stock || 0), 0);
-          await prisma.inventoryItem.update({
+          await tx.inventoryItem.update({
             where: { id: item.id },
             data: { variants: updatedVariants, stock: newTotal }
           });
         } else {
-          await prisma.inventoryItem.update({
+          if ((item.stock || 0) < deductQty) {
+            throw new Error(`Insufficient stock for ${item.name}. Only ${item.stock} of ${deductQty} available.`);
+          }
+          await tx.inventoryItem.update({
             where: { id: item.id },
-            data: { stock: { increment: restoreQty } }
+            data: { stock: { decrement: deductQty } }
           });
         }
+
+        await tx.auditLog.create({
+          data: {
+            orderId: null,
+            action: 'ALLOCATION_ACCEPTED',
+            details: `Accepted allocation of ${deductQty}x ${item.name} to ${allocation.personName}`,
+            performedBy: req.user.id
+          }
+        });
+
+        await tx.allocation.update({
+          where: { id },
+          data: { status }
+        });
+      });
+    } else {
+      if (status === 'REJECTED') {
         await prisma.auditLog.create({
           data: {
             orderId: null,
             action: 'ALLOCATION_REJECTED',
-            details: `Rejected allocation of ${restoreQty}x ${item.name} to ${allocation.personName}`,
-            performedBy: req.user?.id || 'system',
-            userId: req.user?.id || null
+            details: `Rejected allocation of ${allocation.quantity}x ${allocation.itemName} to ${allocation.personName}`,
+            performedBy: req.user.id
           }
         });
       }
+
+      await prisma.allocation.update({
+        where: { id },
+        data: { status }
+      });
     }
-    const updated = await prisma.allocation.update({
-      where: { id },
-      data: { status }
-    });
+
+    const updated = await prisma.allocation.findUnique({ where: { id } });
     res.json(updated);
   } catch (error) {
+    if (error.message && (error.message.includes('Insufficient') || error.message.includes('not found'))) {
+      return res.status(400).json({ message: error.message });
+    }
     res.status(500).json({ message: 'Error updating allocation status', error: error.message });
   }
 };
