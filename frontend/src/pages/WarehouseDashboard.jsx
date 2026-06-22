@@ -1259,9 +1259,15 @@ const WarehouseDashboard = () => {
                       {allocationRecords.map(rec => {
                         const statusColors = {
                           ACTIVE: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-                          APPROVED: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+                          ACCEPTED: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
                           REJECTED: 'bg-red-500/20 text-red-400 border-red-500/30',
-                          COMPLETED: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                          COMPLETED: 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+                        };
+                        const statusLabels = {
+                          ACTIVE: 'Active',
+                          ACCEPTED: 'Accepted',
+                          REJECTED: 'Rejected',
+                          COMPLETED: 'Completed'
                         };
                         const sc = statusColors[rec.status] || 'bg-gray-500/20 text-gray-400 border-gray-500/30';
                         return (
@@ -1274,7 +1280,7 @@ const WarehouseDashboard = () => {
                               </div>
                               <div className="flex items-center space-x-2">
                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase border ${sc}`}>
-                                  {rec.status || 'ACTIVE'}
+                                  {statusLabels[rec.status] || rec.status || 'ACTIVE'}
                                 </span>
                                 <span className="text-lg font-black text-amber-400">{rec.quantity}</span>
                               </div>
@@ -1290,9 +1296,9 @@ const WarehouseDashboard = () => {
                                 {rec.allocatedByName && <p className="text-[10px] theme-text-muted">by {rec.allocatedByName}</p>}
                                 {rec.status === 'ACTIVE' && (
                                   <>
-                                    <button onClick={() => updateAllocationStatus(rec.id, 'COMPLETED')}
+                                    <button onClick={() => updateAllocationStatus(rec.id, 'ACCEPTED')}
                                       className="px-2 py-1 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-lg text-[10px] font-black transition-all">
-                                      Complete
+                                      Accept
                                     </button>
                                     <button onClick={() => updateAllocationStatus(rec.id, 'REJECTED')}
                                       className="px-2 py-1 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-lg text-[10px] font-black transition-all">

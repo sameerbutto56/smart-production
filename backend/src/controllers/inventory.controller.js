@@ -361,7 +361,7 @@ const searchInventory = async (req, res) => {
 const updateAllocationStatus = async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
-  const validStatuses = ['ACTIVE', 'APPROVED', 'REJECTED', 'COMPLETED'];
+  const validStatuses = ['ACTIVE', 'ACCEPTED', 'REJECTED', 'COMPLETED'];
   if (!validStatuses.includes(status)) {
     return res.status(400).json({ message: `Status must be one of: ${validStatuses.join(', ')}` });
   }
