@@ -314,7 +314,7 @@ const InventoryManagement = () => {
             </button>
           )}
           <button
-            onClick={() => printInventoryReport(filteredItems)}
+            onClick={() => printInventoryReport(filteredItems, stockFilter)}
             className="bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white font-black py-4 px-4 rounded-2xl border border-gray-700 transition-all flex items-center gap-2 active:scale-95"
             title="Print Inventory Report"
           >

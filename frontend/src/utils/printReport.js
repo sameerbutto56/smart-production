@@ -305,8 +305,10 @@ export function printAnalyticsReport(data, branch) {
   closePrintWindow(win);
 }
 
-export function printInventoryReport(items) {
-  const title = 'Inventory Report';
+const FILTER_LABELS = { ALL: 'All Items', LOW: 'Low Stock (1-5)', OUT: 'Out of Stock (0)' };
+
+export function printInventoryReport(items, filter = 'ALL') {
+  const title = `Inventory Report - ${FILTER_LABELS[filter] || 'All Items'}`;
   const win = openPrintWindow(title);
 
   win.document.write('<div class="report-meta"><span>Enamels Production</span><span>Stock as of ' + new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) + '</span></div>');
