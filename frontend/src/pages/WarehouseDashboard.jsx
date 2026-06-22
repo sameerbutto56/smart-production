@@ -1290,21 +1290,15 @@ const WarehouseDashboard = () => {
                                 {rec.allocatedByName && <p className="text-[10px] theme-text-muted">by {rec.allocatedByName}</p>}
                                 {rec.status === 'ACTIVE' && (
                                   <>
-                                    <button onClick={() => updateAllocationStatus(rec.id, 'APPROVED')}
-                                      className="px-2 py-1 bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white rounded-lg text-[10px] font-black transition-all">
-                                      Approve
+                                    <button onClick={() => updateAllocationStatus(rec.id, 'COMPLETED')}
+                                      className="px-2 py-1 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-lg text-[10px] font-black transition-all">
+                                      Complete
                                     </button>
                                     <button onClick={() => updateAllocationStatus(rec.id, 'REJECTED')}
                                       className="px-2 py-1 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-lg text-[10px] font-black transition-all">
                                       Reject
                                     </button>
                                   </>
-                                )}
-                                {rec.status === 'APPROVED' && (
-                                  <button onClick={() => updateAllocationStatus(rec.id, 'COMPLETED')}
-                                    className="px-2 py-1 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-lg text-[10px] font-black transition-all">
-                                    Complete
-                                  </button>
                                 )}
                               </div>
                             </div>
