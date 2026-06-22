@@ -213,9 +213,11 @@ const InventoryManagement = () => {
         ));
       if (!matchesSearch) return false;
 
-      const totalStock = item.variants && Array.isArray(item.variants)
-        ? item.variants.reduce((s, v) => s + (v.stock || 0), 0)
-        : (item.stock || 0);
+      const totalStock = item.stock != null
+        ? item.stock
+        : (item.variants && Array.isArray(item.variants)
+            ? item.variants.reduce((s, v) => s + (v.stock || 0), 0)
+            : 0);
 
       if (stockFilter === 'LOW') return totalStock > 0 && totalStock <= 5;
       if (stockFilter === 'OUT') return totalStock === 0;
@@ -502,9 +504,10 @@ const InventoryManagement = () => {
               <div className="mt-6 flex items-end justify-between">
                 <div>
                   <span className="block text-2xl md:text-4xl font-black theme-text-primary tracking-tighter">
-                    {item.variants && Array.isArray(item.variants) 
-                      ? item.variants.reduce((s, v) => s + (v.stock || 0), 0)
-                      : item.stock}
+                    {item.stock != null ? item.stock
+                      : (item.variants && Array.isArray(item.variants)
+                          ? item.variants.reduce((s, v) => s + (v.stock || 0), 0)
+                          : 0)}
                   </span>
                   <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Total Units</span>
                 </div>
