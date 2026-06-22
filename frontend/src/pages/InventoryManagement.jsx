@@ -217,7 +217,7 @@ const InventoryManagement = () => {
         ? item.variants.reduce((s, v) => s + (v.stock || 0), 0)
         : (item.stock || 0);
 
-      if (stockFilter === 'LOW') return totalStock > 0 && totalStock < 5;
+      if (stockFilter === 'LOW') return totalStock > 0 && totalStock <= 5;
       if (stockFilter === 'OUT') return totalStock === 0;
       return true;
     })
@@ -394,7 +394,7 @@ const InventoryManagement = () => {
       <div className="flex gap-2">
         {[
           { key: 'ALL', label: 'All Stock' },
-          { key: 'LOW', label: '⚠ Low Stock (<5)' },
+          { key: 'LOW', label: '⚠ Low Stock (<=5)' },
           { key: 'OUT', label: '✕ Out of Stock' }
         ].map(opt => (
           <button key={opt.key} onClick={() => setStockFilter(opt.key)}
