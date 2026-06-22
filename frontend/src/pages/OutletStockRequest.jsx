@@ -511,12 +511,35 @@ const OutletStockRequest = () => {
                       <p className="text-[10px] font-bold theme-text-muted uppercase tracking-wider">{item.category}</p>
                       {(() => {
                         const v = item.variants || [];
-                        const allColors = v.length ? [...new Set(v.map(x => x.color).filter(Boolean))] : (item.color ? [item.color] : []);
-                        const allSizes = v.length ? [...new Set(v.map(x => x.size).filter(Boolean))] : (item.size ? [item.size] : []);
-                        return (allColors.length || allSizes.length) ? (
+                        if (v.length) {
+                          const grouped = {};
+                          v.forEach(x => {
+                            const c = x.color || '-';
+                            if (!grouped[c]) grouped[c] = [];
+                            grouped[c].push({ size: x.size || '-', stock: x.stock ?? 0 });
+                          });
+                          return (
+                            <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
+                              {Object.entries(grouped).map(([color, sizes]) => (
+                                <div key={color}>
+                                  <p className="text-[10px] font-bold text-gray-400 mb-0.5">{color}</p>
+                                  <div className="flex flex-wrap gap-1">
+                                    {sizes.map(s => (
+                                      <span key={s.size} className={`text-[9px] px-1.5 py-0.5 rounded-md font-bold ${s.stock > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+                                        {s.size}{s.stock > 0 ? ` (${s.stock})` : ' (0)'}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }
+                        const hasColor = item.color || item.size;
+                        return hasColor ? (
                           <div className="flex flex-wrap gap-2 mt-2">
-                            {allColors.map(c => <span key={c} className="text-[10px] theme-text-muted bg-gray-800/50 px-2 py-0.5 rounded-lg">Color: {c}</span>)}
-                            {allSizes.map(s => <span key={s} className="text-[10px] theme-text-muted bg-gray-800/50 px-2 py-0.5 rounded-lg">Size: {s}</span>)}
+                            {item.color && <span className="text-[10px] theme-text-muted bg-gray-800/50 px-2 py-0.5 rounded-lg">Color: {item.color}</span>}
+                            {item.size && <span className="text-[10px] theme-text-muted bg-gray-800/50 px-2 py-0.5 rounded-lg">Size: {item.size}</span>}
                           </div>
                         ) : null;
                       })()}
