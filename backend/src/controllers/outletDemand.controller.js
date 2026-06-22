@@ -128,7 +128,8 @@ const getInventoryForOutlet = async (req, res) => {
         category: true,
         color: true,
         size: true,
-        fabric: true
+        fabric: true,
+        variants: true
       }
     });
     let filtered = items;

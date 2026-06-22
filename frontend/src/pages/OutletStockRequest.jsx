@@ -509,12 +509,17 @@ const OutletStockRequest = () => {
                       className="glass p-4 rounded-2xl border-2 theme-border hover:border-gray-800 transition-all">
                       <h3 className="font-black theme-text-primary text-sm mb-1">{item.name}</h3>
                       <p className="text-[10px] font-bold theme-text-muted uppercase tracking-wider">{item.category}</p>
-                      {(item.color || item.size) && (
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {item.color && <span className="text-[10px] theme-text-muted bg-gray-800/50 px-2 py-0.5 rounded-lg">Color: {item.color}</span>}
-                          {item.size && <span className="text-[10px] theme-text-muted bg-gray-800/50 px-2 py-0.5 rounded-lg">Size: {item.size}</span>}
-                        </div>
-                      )}
+                      {(() => {
+                        const v = item.variants || [];
+                        const allColors = v.length ? [...new Set(v.map(x => x.color).filter(Boolean))] : (item.color ? [item.color] : []);
+                        const allSizes = v.length ? [...new Set(v.map(x => x.size).filter(Boolean))] : (item.size ? [item.size] : []);
+                        return (allColors.length || allSizes.length) ? (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {allColors.map(c => <span key={c} className="text-[10px] theme-text-muted bg-gray-800/50 px-2 py-0.5 rounded-lg">Color: {c}</span>)}
+                            {allSizes.map(s => <span key={s} className="text-[10px] theme-text-muted bg-gray-800/50 px-2 py-0.5 rounded-lg">Size: {s}</span>)}
+                          </div>
+                        ) : null;
+                      })()}
                     </motion.div>
                   ))}
                   {filteredOutletInv.length === 0 && (
