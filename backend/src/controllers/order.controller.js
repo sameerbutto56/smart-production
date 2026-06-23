@@ -641,7 +641,13 @@ const requestStageCompletion = async (req, res) => {
       return res.status(503).json({ message: 'System is paused for holidays. Stage completion is disabled.' });
     }
     const currentStage = await prisma.orderStage.findUnique({ where: { id: stageId } });
+    if (!currentStage) {
+      return res.status(404).json({ message: 'Stage not found' });
+    }
     const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
 
     // STORE stage: classify items + deduct only available items
     if (currentStage.stageName === 'STORE' && (inventoryStatus === 'have_it' || inventoryStatus === 'Available')) {
@@ -656,9 +662,10 @@ const requestStageCompletion = async (req, res) => {
         const items = Array.isArray(parsedDetails) ? parsedDetails : (parsedDetails?.productType ? [parsedDetails] : []);
         const productAvailability = req.body.productAvailability || {};
 
+        let updatedItems = items;
         // Update productDetails with availability status in DB
         if (Object.keys(productAvailability).length > 0) {
-          const updatedItems = items.map((item, idx) => {
+          updatedItems = items.map((item, idx) => {
             const av = productAvailability[idx];
             if (av !== undefined) {
               return { ...item, availabilityStatus: av ? 'available' : 'not_available' };
@@ -672,10 +679,9 @@ const requestStageCompletion = async (req, res) => {
         }
 
         // Only classify items marked as available
-        const availableItems = items.filter((item, idx) => {
-          const av = productAvailability[idx];
-          return av === undefined || av === true;
-        });
+        const availableItems = updatedItems.filter(item =>
+          item.availabilityStatus !== 'not_available'
+        );
 
         if (availableItems.length > 0) {
           const { inventoryItems, productionItems } = await classifyOrderItems(order, availableItems);
@@ -710,8 +716,8 @@ const requestStageCompletion = async (req, res) => {
       }
     }
 
-    // Enforce forward-only routing to prevent loops
-    if (actualNextStage && currentStage.stageName !== 'ORDER_ENTRY') {
+    // Enforce forward-only routing to prevent loops (except for SUPER_ADMIN, STORE, STORE_EMPLOYEE)
+    if (actualNextStage && currentStage.stageName !== 'ORDER_ENTRY' && !['SUPER_ADMIN', 'STORE', 'STORE_EMPLOYEE'].includes(req.user.role)) {
       const validation = validateStageTransition(currentStage.stageName, actualNextStage, order.type);
       if (!validation.valid) {
         await createAuditLog(orderId, 'ROUTE_BLOCKED',
@@ -801,7 +807,11 @@ const approveStageCompletion = async (req, res) => {
     if (await isSystemPaused()) {
       return res.status(503).json({ message: 'System is paused for holidays. Approvals are disabled.' });
     }
-    const currentStageRecord = await prisma.orderStage.update({
+    const currentStageRecord = await prisma.orderStage.findUnique({ where: { id: stageId } });
+    if (!currentStageRecord) {
+      return res.status(404).json({ message: 'Stage not found' });
+    }
+    await prisma.orderStage.update({
       where: { id: stageId },
       data: {
         status: 'COMPLETED',
@@ -810,6 +820,9 @@ const approveStageCompletion = async (req, res) => {
     });
 
     const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
 
     // STORE stage classification on approval — respect per-product availability
     if (currentStageRecord.stageName === 'STORE') {
@@ -871,8 +884,8 @@ const approveStageCompletion = async (req, res) => {
       actualNextStage = stages[currentIndex + 1];
     }
 
-    // Enforce forward-only routing to prevent loops
-    if (actualNextStage && currentStageRecord.stageName !== 'ORDER_ENTRY') {
+    // Enforce forward-only routing to prevent loops (except for SUPER_ADMIN, STORE, STORE_EMPLOYEE)
+    if (actualNextStage && currentStageRecord.stageName !== 'ORDER_ENTRY' && !['SUPER_ADMIN', 'STORE', 'STORE_EMPLOYEE'].includes(req.user.role)) {
       const validation = validateStageTransition(currentStageRecord.stageName, actualNextStage, order.type);
       if (!validation.valid) {
         await createAuditLog(orderId, 'ROUTE_BLOCKED',
@@ -3166,10 +3179,10 @@ const storeRouteOrder = async (req, res) => {
 
     const storeStage = order.stages.find(s =>
       ['STORE', 'STORE_RECEIVE'].includes(s.stageName) &&
-      (s.status === 'IN_PROGRESS' || (s.stageName === 'STORE_RECEIVE' && s.status === 'PENDING'))
+      ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
     );
     if (!storeStage) {
-      return res.status(400).json({ message: 'Order must be accepted before routing' });
+      return res.status(400).json({ message: 'Store stage not found' });
     }
 
     await prisma.orderStage.update({

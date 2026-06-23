@@ -986,7 +986,7 @@ const AllOrders = () => {
                                   </td>
                                   <td className="py-4 text-center text-white font-black">{item.quantity || 1}</td>
                                   <td className="py-4 text-center">
-                                    {['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(user?.role) && selectedOrder.currentStage === 'STORE' ? (
+                                    {['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(user?.role) && selectedOrder.currentStage !== 'PRODUCTION' && selectedOrder.currentStage !== 'STORE_RECEIVE' ? (
                                       <div className="flex items-center justify-center gap-1">
                                         <button
                                           type="button"
@@ -1064,7 +1064,7 @@ const AllOrders = () => {
                           ) : item.label === 'Stock' ? (
                             (() => {
                               const isStoreRole = ['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(user?.role);
-                              const isStoreStage = selectedOrder.currentStage === 'STORE';
+                              const isStoreStage = selectedOrder.currentStage !== 'PRODUCTION' && selectedOrder.currentStage !== 'STORE_RECEIVE';
                               const singleIsAvail = productAvailability[0] !== false;
                               if (isStoreRole && isStoreStage) {
                                 return (

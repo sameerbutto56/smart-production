@@ -105,10 +105,10 @@ router.put('/:orderId/priority', authenticate, authorize(['SUPER_ADMIN', 'ADMIN'
 router.put('/:orderId/delivery-type', authenticate, authorize(['SUPER_ADMIN', 'FAISAL', 'ADMIN', 'ORDER_ENTRY', 'OUTLET']), setDeliveryType);
 
 // Inventory availability check for Store department
-router.get('/:orderId/inventory-check', authenticate, authorize(['STORE', 'ADMIN', 'SUPER_ADMIN', 'FAISAL']), checkOrderInventory);
+router.get('/:orderId/inventory-check', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'ADMIN', 'SUPER_ADMIN', 'FAISAL']), checkOrderInventory);
 
 // Add products from production order to store inventory
-router.post('/:orderId/add-to-inventory', authenticate, authorize(['STORE', 'ADMIN', 'SUPER_ADMIN']), addOrderToInventory);
+router.post('/:orderId/add-to-inventory', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'ADMIN', 'SUPER_ADMIN']), addOrderToInventory);
 
 // Update per-product availability (tick/cross at STORE stage)
 router.patch('/:orderId/product-availability', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), updateProductAvailability);
@@ -120,7 +120,7 @@ router.get('/outlet-analytics', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']
 router.post('/:orderId/edit-request', authenticate, authorize(['FAISAL', 'ORDER_ENTRY', 'OUTLET']), createEditRequest);
 
 // Manual Routing (Admin/FAISAL only)
-router.post('/:orderId/route', authenticate, authorize(['STORE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), manualRouteOrder);
+router.post('/:orderId/route', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), manualRouteOrder);
 
 // Bulk Routing (all authenticated workers)
 router.post('/bulk-route', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), bulkRouteOrders);

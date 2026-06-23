@@ -85,6 +85,8 @@
 - **Fixed `handleSizeSelect` stale closure** — changed to functional update `setFormData(prev => ...)` with `[]` deps. Previously deps `[formData.gender, formData.measurements]` caused color to reset when selecting size after changing color.
 - **Per-product availability toggles (✓/✗) in Job Sheet at STORE stage**: Each product in multi-item orders gets Available/Not Available toggle in Full Sheet modal table. Only available items trigger inventory deduction when store routes the order.
 - **Backend per-product availability**: `requestStageCompletion` accepts `productAvailability` from req.body, stores `availabilityStatus` in `productDetails`, and only classifies/deducts inventory for available items. `approveStageCompletion` reads stored `availabilityStatus` from `productDetails` for same selective deduction. `classifyOrderItems` refactored to accept optional item list.
+- **Expanded Availability Toggles to Job Sheet view**: Enabled availability toggles in `AllOrders.jsx`'s Job Sheet modal across all stages except `PRODUCTION` and `STORE_RECEIVE` (aligning with `OrderCard.jsx` Full Sheet modal toggles condition).
+- **Robust backend classification on stage completion**: Refactored `requestStageCompletion` in `order.controller.js` to correctly fall back to database-stored `availabilityStatus` if `productAvailability` is not sent in the request body, preventing accidental deductions of unavailable items.
 
 ### In Progress
 - (none)
@@ -123,8 +125,7 @@
 - Advance amount replaces the old boolean `advancePaid` – `advanceAmount` is stored as a `Float` number; components now check `parseFloat(order.advanceAmount) > 0` instead of `order.advancePaid`.
 
 ## Next Steps
-- Verify per-product availability toggles end-to-end: store user sets ✓/✗ → routes order → backend deducts only for ✓ items
-- Add availability toggles in AllOrders Job Sheet / AdminDashboard job sheet views (currently only in OrderCard Full Sheet modal)
+- (none)
 
 ## Critical Context
 - Latest commit includes: Advance Payment amount, Sleeve Length, Shirt Length, Instruction Notes, Engraving rename, Shopify Order Date, Urdu Job Sheet redesign, Shoes size selection (isShoes helper), analytics source filter fix, outlet demand fallback.
