@@ -577,34 +577,16 @@ const InventoryManagement = () => {
                         </div>
                         <label className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-[0.2em]">Category</label>
                       </div>
-                      <div className="flex flex-wrap gap-1.5 mb-2">
-                        {['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS', 'FABRIC', 'SHOES', 'CLOGS', 'LABCOAT'].map(cat => (
-                          <button
-                            key={cat}
-                            type="button"
-                            onClick={() => setFormData(prev => ({...prev, category: cat}))}
-                            className={`px-3 py-1 text-[10px] font-black rounded-lg transition-all uppercase tracking-wider ${
-                              formData.category === cat
-                                ? 'bg-purple-600 text-white shadow-lg'
-                                : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white border border-gray-700'
-                            }`}
-                          >
-                            {cat}
-                          </button>
-                        ))}
-                      </div>
-                      <input
-                        list="category-options"
+                      <select
                         value={formData.category}
-                        onChange={(e) => setFormData({...formData, category: e.target.value.toUpperCase()})}
-                        className="w-full theme-input rounded-[1.25rem] py-4 px-6 font-bold uppercase"
-                        placeholder="Type or select category..."
-                      />
-                      <datalist id="category-options">
-                        {allCategories.map(cat => (
-                          <option key={cat} value={cat} />
+                        onChange={(e) => setFormData({...formData, category: e.target.value})}
+                        className="w-full theme-input rounded-[1.25rem] py-4 px-6 font-bold uppercase appearance-none cursor-pointer"
+                      >
+                        <option value="">— Select Category —</option>
+                        {['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS', 'FABRIC', 'SHOES', 'CLOGS', 'LABCOAT', ...uniqueCategories.filter(c => !['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS', 'FABRIC', 'SHOES', 'CLOGS', 'LABCOAT'].includes(c))].map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
                         ))}
-                      </datalist>
+                      </select>
                     </div>
                     <div className="space-y-4">
                       <div className="flex items-center space-x-3 mb-1">

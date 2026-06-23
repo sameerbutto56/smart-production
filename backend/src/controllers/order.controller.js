@@ -788,7 +788,8 @@ const requestStageCompletion = async (req, res) => {
     io.emit('order-updated', { orderId, createdById: order.createdById });
     return res.json({ message: 'Stage completed and auto-moved to next stage', nextStage: actualNextStage });
   } catch (error) {
-    res.status(500).json({ message: 'Error requesting completion', error: error.message });
+    console.error('requestStageCompletion error:', error.stack || error);
+    res.status(500).json({ message: 'Error requesting completion', error: error.message, stack: process.env.NODE_ENV === 'development' ? error.stack : undefined });
   }
 };
 
