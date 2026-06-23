@@ -271,19 +271,45 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
         { label: 'Color', val: product?.color },
         { label: 'Base', val: product?.productType }
       ];
-      return items.map((item, idx) => {
-        return (
-          <motion.li 
-            key={idx}
-            initial={{ opacity: 0, x: -5 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: idx * 0.1 }}
-            className="text-xs md:text-sm flex items-center justify-between p-2 bg-gray-900/30 rounded-lg border border-gray-800/20"
-          >
-            <span className="text-gray-400 font-bold uppercase tracking-tighter">{item.label}: {item.val || 'N/A'}</span>
-          </motion.li>
-        );
-      });
+      const singleIsAvail = productAvailability[0] !== false;
+      return (
+        <>
+          {isStoreRole && (
+            <li className="flex items-center justify-between p-2 bg-gray-900/30 rounded-lg border border-gray-800/20 mb-2">
+              <span className={`text-xs md:text-sm font-bold uppercase tracking-tighter ${singleIsAvail ? 'text-emerald-400' : 'text-red-400'}`}>
+                Stock: {singleIsAvail ? 'Available' : 'To Be Manufactured'}
+              </span>
+              <div className="flex gap-1 shrink-0 ml-2">
+                <button
+                  type="button"
+                  onClick={() => setProductAvailability(prev => ({...prev, [0]: true}))}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${singleIsAvail ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                >
+                  ✓
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProductAvailability(prev => ({...prev, [0]: false}))}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${!singleIsAvail ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                >
+                  ✗
+                </button>
+              </div>
+            </li>
+          )}
+          {items.map((item, idx) => (
+            <motion.li 
+              key={idx}
+              initial={{ opacity: 0, x: -5 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: idx * 0.1 }}
+              className="text-xs md:text-sm flex items-center justify-between p-2 bg-gray-900/30 rounded-lg border border-gray-800/20"
+            >
+              <span className="text-gray-400 font-bold uppercase tracking-tighter">{item.label}: {item.val || 'N/A'}</span>
+            </motion.li>
+          ))}
+        </>
+      );
     }
 
     if (stage === 'PRODUCTION') {
