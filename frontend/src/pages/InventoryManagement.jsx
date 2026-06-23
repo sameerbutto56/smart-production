@@ -280,7 +280,7 @@ const InventoryManagement = () => {
   };
 
   const uniqueCategories = [...new Set(items.map(item => item.category?.toUpperCase()).filter(Boolean))];
-  const defaultCategories = ['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS', 'FABRIC'];
+  const defaultCategories = ['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS', 'FABRIC', 'SHOES', 'CLOGS', 'LABCOAT'];
   const allCategories = [...new Set([...defaultCategories, ...uniqueCategories])];
 
   return (
@@ -576,6 +576,22 @@ const InventoryManagement = () => {
                           <Layers size={16} className="text-purple-400" />
                         </div>
                         <label className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-[0.2em]">Category</label>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS', 'FABRIC', 'SHOES', 'CLOGS', 'LABCOAT'].map(cat => (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => setFormData(prev => ({...prev, category: cat}))}
+                            className={`px-3 py-1 text-[10px] font-black rounded-lg transition-all uppercase tracking-wider ${
+                              formData.category === cat
+                                ? 'bg-purple-600 text-white shadow-lg'
+                                : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white border border-gray-700'
+                            }`}
+                          >
+                            {cat}
+                          </button>
+                        ))}
                       </div>
                       <input
                         list="category-options"

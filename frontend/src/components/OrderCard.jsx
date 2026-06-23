@@ -1969,7 +1969,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 <div className="flex items-center space-x-4 mb-2">
                   <h2 className="text-2xl md:text-4xl font-black tracking-tighter text-white">#{order.orderNumber || order.id.substring(0, 8)}</h2>
                   <span className="px-3 py-1 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs md:text-sm font-black uppercase tracking-widest rounded-lg">
-                    Full Production Job Sheet
+                    {t('Full Production Job Sheet')}
                   </span>
                 </div>
                 <p className="text-gray-400 font-bold tracking-wide">
@@ -1996,19 +1996,19 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
 
             <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 md:space-y-10 custom-scrollbar">
               <section>
-                <h4 className="text-xs md:text-sm font-black text-blue-500 uppercase tracking-[0.3em] mb-6">01. Material & Product Specs</h4>
+                <h4 className="text-xs md:text-sm font-black text-blue-500 uppercase tracking-[0.3em] mb-6">{t('01. Material & Product Specs')}</h4>
                   {isMultiItem ? (
                     <div className="overflow-x-auto rounded-2xl border border-gray-800">
                       <table className="w-full text-left">
                         <thead>
                           <tr className="border-b border-gray-800 bg-gray-950/80">
                             <th className="py-3 px-4 text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">#</th>
-                            <th className="py-3 px-4 text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">Product</th>
-                            <th className="py-3 px-4 text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">Fabric & Color</th>
-                            <th className="py-3 px-4 text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">Size & Gender</th>
-                            <th className="py-3 px-4 text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest text-center">Qty</th>
-                            <th className="py-3 px-4 text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest text-center">Stock</th>
-                            <th className="py-3 px-4 text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest text-right">Price</th>
+                            <th className="py-3 px-4 text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">{t('Product')}</th>
+                            <th className="py-3 px-4 text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">{t('Fabric & Color')}</th>
+                            <th className="py-3 px-4 text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">{t('Size & Gender')}</th>
+                            <th className="py-3 px-4 text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest text-center">{t('Qty')}</th>
+                            <th className="py-3 px-4 text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest text-center">{t('Stock')}</th>
+                            <th className="py-3 px-4 text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest text-right">{t('Price')}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2034,7 +2034,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                 rows.push(
                                   <tr key="hdr-notavail" className="bg-red-900/10 border-b border-red-500/20">
                                     <td colSpan={7} className="py-2 px-4">
-                                      <span className="text-xs font-black text-red-400 uppercase tracking-widest">⚠ To Be Manufactured</span>
+                                      <span className="text-xs font-black text-red-400 uppercase tracking-widest">⚠ {t('To Be Manufactured')}</span>
                                     </td>
                                   </tr>
                                 );
@@ -2044,7 +2044,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                 rows.push(
                                   <tr key="hdr-avail" className="bg-emerald-900/10 border-b border-emerald-500/20">
                                     <td colSpan={7} className="py-2 px-4">
-                                      <span className="text-xs font-black text-emerald-400 uppercase tracking-widest">✓ Available Items</span>
+                                      <span className="text-xs font-black text-emerald-400 uppercase tracking-widest">✓ {t('Available Items')}</span>
                                     </td>
                                   </tr>
                                 );
@@ -2065,7 +2065,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                     </div>
                                     {(hasSleeves || hasShirtLength) && (
                                       <div className={`text-xs md:text-sm font-black mt-0.5 ${isNotAvail ? 'text-orange-300' : 'text-pink-400'}`}>
-                                        {hasSleeves && `Sleeves: ${p.sleeveLength || p.femaleOptions?.sleeves}`} {hasShirtLength && `| Length: ${p.shirtLength || p.femaleOptions?.shirtLength}`}
+                                        {hasSleeves && `${t('Sleeves')}: ${p.sleeveLength || p.femaleOptions?.sleeves}`} {hasShirtLength && `| ${t('Length')}: ${p.shirtLength || p.femaleOptions?.shirtLength}`}
                                       </div>
                                     )}
                                   </td>
@@ -2090,15 +2090,15 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                       </div>
                                     ) : isNotAvail ? (
                                       <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-500/10 border border-red-500/30 rounded text-xs font-black text-red-400">
-                                        ✗ Not Available
+                                        ✗ {t('Not Available')}
                                       </span>
                                     ) : item.availabilityStatus === 'produced' ? (
                                       <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 border border-blue-500/30 rounded text-xs font-black text-blue-400">
-                                        ✓ Produced
+                                        ✓ {t('Produced')}
                                       </span>
                                     ) : (
                                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black ${productAvailability[idx] !== false ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400' : 'bg-red-500/10 border border-red-500/30 text-red-400'}`}>
-                                        {productAvailability[idx] !== false ? '✓ Available' : '✗ N/A'}
+                                        {productAvailability[idx] !== false ? `✓ ${t('Available')}` : `✗ ${t('N/A')}`}
                                       </span>
                                     )}
                                   </td>
@@ -2115,31 +2115,31 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                         ))}
                                         {!hasArticleNames && itemCust?.nameSpelling && (
                                           <span className="text-[10px] font-bold text-purple-400 bg-purple-500/10 px-2 py-1 rounded-md">
-                                            Name: {itemCust.nameSpelling}
+                                            {t('Name:')} {itemCust.nameSpelling}
                                           </span>
                                         )}
                                         {hasLogos && itemCust.logos.map((logo, li) => (
                                           <span key={li} className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md">
-                                            Logo: {logo.name || `#${li + 1}`}{logo.design ? ` — ${logo.design.substring(0, 40)}${logo.design.length > 40 ? '...' : ''}` : ''}
+                                            {t('Logo:')} {logo.name || `#${li + 1}`}{logo.design ? ` — ${logo.design.substring(0, 40)}${logo.design.length > 40 ? '...' : ''}` : ''}
                                           </span>
                                         ))}
                                         {(p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct || p.additionalProductRef) && (
                                           <>
-                                            {p.fabricSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">Fabric: {p.fabricSourceProduct}</span>}
-                                            {p.colorSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">Color: {p.colorSourceProduct}</span>}
-                                            {p.designSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">Design: {p.designSourceProduct}</span>}
-                                            {p.sizeSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">Size: {p.sizeSourceProduct}</span>}
-                                            {p.additionalProductRef && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">Extra: {p.additionalProductRef}</span>}
+                                            {p.fabricSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">{t('Fabric:')} {p.fabricSourceProduct}</span>}
+                                            {p.colorSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">{t('Color:')} {p.colorSourceProduct}</span>}
+                                            {p.designSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">{t('Design:')} {p.designSourceProduct}</span>}
+                                            {p.sizeSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">{t('Size:')} {p.sizeSourceProduct}</span>}
+                                            {p.additionalProductRef && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">{t('Extra:')} {p.additionalProductRef}</span>}
                                           </>
                                         )}
                                         {itemCust?.stitchingStyle && (
                                           <span className="text-[10px] font-bold text-blue-400 bg-blue-500/10 px-2 py-1 rounded-md">
-                                            {itemCust.stitchingStyle === 'DBL' ? 'Double' : 'Single'} Stitch
+                                            {itemCust.stitchingStyle === 'DBL' ? t('Double Stitch') : t('Single Stitch')}
                                           </span>
                                         )}
                                         {itemCust?.fitType && (
                                           <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded-md">
-                                            {itemCust.fitType} Fit
+                                            {itemCust.fitType}{t(' Fit')}
                                           </span>
                                         )}
                                         {itemCust?.designNotes && (
@@ -2162,14 +2162,14 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6">
                       {[
-                        { label: 'Product Base', val: product?.productType },
-                        { label: 'Fabric Type', val: product?.fabricType },
-                        { label: 'Primary Color', val: product?.color },
-                        { label: 'Order Size', val: product?.size },
-                        { label: 'Gender', val: product?.gender },
+                        { label: t('Product'), val: product?.productType },
+                        { label: t('Fabric'), val: product?.fabricType },
+                        { label: t('Color'), val: product?.color },
+                        { label: t('Size'), val: product?.size },
+                        { label: t('Gender'), val: product?.gender },
                         ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
-                        ...(product?.sleeveLength ? [{ label: 'Sleeve', val: product.sleeveLength === 'full' ? 'Full Sleeve' : product.sleeveLength === 'half' ? 'Half Sleeve' : product.sleeveLength === 'three-quarter' ? '3 Quarter Sleeve' : 'Quarter Sleeve' }] : []),
-                        ...(product?.shirtLength ? [{ label: 'Shirt Length', val: product.shirtLength === 'long' ? 'Full Length' : 'Short Length' }] : []),
+                        ...(product?.sleeveLength ? [{ label: t('Sleeves'), val: product.sleeveLength === 'full' ? 'Full Sleeve' : product.sleeveLength === 'half' ? 'Half Sleeve' : product.sleeveLength === 'three-quarter' ? '3 Quarter Sleeve' : 'Quarter Sleeve' }] : []),
+                        ...(product?.shirtLength ? [{ label: t('Length'), val: product.shirtLength === 'long' ? 'Full Length' : 'Short Length' }] : []),
                         ...(product?.fabricSourceProduct ? [{ label: 'Fabric Required', val: product.fabricSourceProduct }] : []),
                         ...(product?.colorSourceProduct ? [{ label: 'Color Required', val: product.colorSourceProduct }] : []),
                         ...(product?.designSourceProduct ? [{ label: 'Design Required', val: product.designSourceProduct }] : []),
@@ -2183,7 +2183,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       ].filter(i => i.val).map((item, i) => (
                         item.val === 'toggle' ? (
                           <div key={i} className="bg-gray-950/50 p-6 rounded-3xl border border-gray-800/50">
-                            <p className="text-xs md:text-sm text-gray-500 font-black uppercase tracking-widest mb-2">Stock</p>
+                            <p className="text-xs md:text-sm text-gray-500 font-black uppercase tracking-widest mb-2">{t('Stock')}</p>
                             <div className="flex items-center gap-2">
                               {['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(userRole) ? (
                                 <div className="flex items-center gap-1">
@@ -2204,7 +2204,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                 </div>
                               ) : (
                                 <span className={`text-sm font-black ${productAvailability[0] !== false ? 'text-emerald-400' : 'text-red-400'}`}>
-                                  {productAvailability[0] !== false ? 'Available' : 'N/A'}
+                                  {productAvailability[0] !== false ? t('Available') : t('N/A')}
                                 </span>
                               )}
                             </div>
@@ -2222,7 +2222,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
 
               {!isMultiItem && order.type === 'FULL_CUSTOM' && (
                 <section className="bg-blue-600/5 p-4 md:p-8 rounded-xl md:rounded-[2rem] border border-blue-500/10">
-                  <h4 className="text-xs md:text-sm font-black text-blue-400 uppercase tracking-[0.3em] mb-6">02. Precise Measurements (Inches)</h4>
+                  <h4 className="text-xs md:text-sm font-black text-blue-400 uppercase tracking-[0.3em] mb-6">{t('02. Precise Measurements (Inches)')}</h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     {Object.entries(sizes || {}).map(([key, val], i) => (
                       <div key={i} className="text-center p-4 bg-gray-900 rounded-2xl border border-gray-800 shadow-sm">
@@ -2232,13 +2232,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     ))}
                     {(product?.sleeveLength || (product?.gender === 'Female' && product?.femaleOptions?.sleeves)) && (
                       <div className="text-center p-4 bg-gray-900 rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
-                        <p className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter mb-1">SLEEVES</p>
+                        <p className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter mb-1">{t('SLEEVES')}</p>
                         <p className="text-sm font-black text-white uppercase">{product.sleeveLength || product.femaleOptions?.sleeves}</p>
                       </div>
                     )}
                     {(product?.shirtLength || (product?.gender === 'Female' && product?.femaleOptions?.shirtLength)) && (
                       <div className="text-center p-4 bg-gray-900 rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
-                        <p className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter mb-1">SHIRT LENGTH</p>
+                        <p className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter mb-1">{t('SHIRT LENGTH')}</p>
                         <p className="text-sm font-black text-white uppercase">{product.shirtLength || product.femaleOptions?.shirtLength}</p>
                       </div>
                     )}
@@ -2249,18 +2249,18 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               {order.type !== 'STANDARD' && (
               <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8">
                 <div>
-                  <h4 className="text-xs md:text-sm font-black text-emerald-500 uppercase tracking-[0.3em] mb-6">03. Engraving</h4>
+                  <h4 className="text-xs md:text-sm font-black text-emerald-500 uppercase tracking-[0.3em] mb-6">{t('03. Engraving')}</h4>
                   <div className="space-y-4">
                     {custom?.articleNames && custom.articleNames.length > 0
                       ? custom.articleNames.map((an, ai) => (
                           <div key={`an-${ai}`} className="flex justify-between items-center p-4 bg-gray-950/30 rounded-2xl border border-gray-800/30">
-                            <span className="text-xs md:text-sm text-gray-500 font-bold uppercase tracking-widest">Article Name {custom.articleNames.length > 1 ? `#${ai + 1}` : ''}</span>
+                            <span className="text-xs md:text-sm text-gray-500 font-bold uppercase tracking-widest">{t('Article Name')} {custom.articleNames.length > 1 ? `#${ai + 1}` : ''}</span>
                             <span className="text-sm font-black text-emerald-400">{an || 'N/A'}</span>
                           </div>
                         ))
                       : custom?.nameSpelling && (
                           <div className="flex justify-between items-center p-4 bg-gray-950/30 rounded-2xl border border-gray-800/30">
-                            <span className="text-xs md:text-sm text-gray-500 font-bold uppercase tracking-widest">Article Name</span>
+                            <span className="text-xs md:text-sm text-gray-500 font-bold uppercase tracking-widest">{t('Article Name')}</span>
                             <span className="text-sm font-black text-emerald-400">{custom.nameSpelling || 'N/A'}</span>
                           </div>
                         )
@@ -2270,7 +2270,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         {custom.logos.map((logo, li) => (
                           <div key={`logo-${li}`} className="p-4 bg-gray-950/30 rounded-2xl border border-amber-500/20 space-y-2">
                             <div className="flex justify-between items-center">
-                              <span className="text-xs md:text-sm text-amber-400 font-bold uppercase tracking-widest">Logo {custom.logos.length > 1 ? `#${li + 1}` : ''}</span>
+                              <span className="text-xs md:text-sm text-amber-400 font-bold uppercase tracking-widest">{t('Logo')} {custom.logos.length > 1 ? `#${li + 1}` : ''}</span>
                               <span className="text-sm font-black text-amber-400">{logo.name || 'Untitled'}</span>
                             </div>
                             {logo.design && (
@@ -2281,11 +2281,11 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       </>
                     )}
                     {[
-                      { l: 'Engraving Type', v: custom?.engravingType === 'direct' ? 'Direct Engraving' : custom?.engravingType === 'patch' ? 'Patch Engraving' : null },
-                      { l: 'Embroidery Color', v: custom?.nameColor },
-                      { l: 'Logo Location', v: custom?.logoPlacement },
-                      { l: 'Fit Type', v: custom?.fitType },
-                      { l: 'Stitching Style', v: custom?.stitchingStyle }
+                      { l: t('Engraving Type'), v: custom?.engravingType === 'direct' ? t('Direct Engraving') : custom?.engravingType === 'patch' ? t('Patch Engraving') : null },
+                      { l: t('Embroidery Color'), v: custom?.nameColor },
+                      { l: t('Logo Location'), v: custom?.logoPlacement },
+                      { l: t('Fit Type'), v: custom?.fitType },
+                      { l: t('Stitching Style'), v: custom?.stitchingStyle }
                     ].filter(i => i.v).map((item, i) => (
                       <div key={i} className="flex justify-between items-center p-4 bg-gray-950/30 rounded-2xl border border-gray-800/30">
                         <span className="text-xs md:text-sm text-gray-500 font-bold uppercase tracking-widest">{item.l}</span>
@@ -2295,22 +2295,22 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   </div>
                 </div>
                 <div>
-                  <h4 className="text-xs md:text-sm font-black text-yellow-500 uppercase tracking-[0.3em] mb-6">04. Design Notes & Special Requests</h4>
+                  <h4 className="text-xs md:text-sm font-black text-yellow-500 uppercase tracking-[0.3em] mb-6">{t('04. Design Notes & Special Requests')}</h4>
                   <div className="h-full min-h-[200px] bg-yellow-500/5 p-4 md:p-8 rounded-3xl border border-yellow-500/10 text-gray-300 leading-relaxed text-sm shadow-inner">
                     {order?.instructionNotes && (
                       <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-                        <p className="text-xs font-black text-amber-400 uppercase tracking-widest mb-1">📋 Instruction Notes</p>
+                        <p className="text-xs font-black text-amber-400 uppercase tracking-widest mb-1">{t('📋 Instruction Notes')}</p>
                         <p className="text-sm font-bold text-amber-200">{order.instructionNotes}</p>
                       </div>
                     )}
                     {custom?.designNotes ? (
                       <p className="italic mb-4">{custom.designNotes}</p>
                     ) : (
-                      <p className="italic text-gray-500">No special design notes provided for this order.</p>
+                      <p className="italic text-gray-500">{t('No special design notes provided for this order.')}</p>
                     )}
                     {custom?.articleNames && custom.articleNames.length > 0 && (
                       <div className="mt-4 pt-4 border-t border-yellow-500/10 space-y-2">
-                        <p className="text-xs font-black text-yellow-400 uppercase tracking-widest not-italic">Article Names</p>
+                        <p className="text-xs font-black text-yellow-400 uppercase tracking-widest not-italic">{t('Article Names')}</p>
                         {custom.articleNames.map((an, ai) => (
                           <p key={ai} className="font-bold text-yellow-200/80 not-italic">{an}</p>
                         ))}
@@ -2335,13 +2335,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
 
             <div className="p-4 md:p-8 bg-gray-950/80 border-t border-gray-800 flex justify-between items-center">
               <div className="flex flex-wrap items-center gap-x-4 text-xs md:text-sm text-gray-500 font-black uppercase tracking-widest">
-                <span className="text-emerald-400">Entry: {new Date(order.createdAt).toLocaleDateString()}</span>
+                <span className="text-emerald-400">{t('Entry:')} {new Date(order.createdAt).toLocaleDateString()}</span>
                 <span className="w-1.5 h-1.5 bg-gray-700 rounded-full shrink-0"></span>
-                <span>Stage: {currentStage?.stageName}</span>
+                <span>{t('Stage:')} {currentStage?.stageName}</span>
                 {order.deliveredAt && (
                   <>
                     <span className="w-1.5 h-1.5 bg-emerald-700 rounded-full shrink-0"></span>
-                    <span className="text-emerald-400">Delivered: {new Date(order.deliveredAt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })} – {new Date(order.deliveredAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span className="text-emerald-400">{t('Delivered:')} {new Date(order.deliveredAt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })} – {new Date(order.deliveredAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
                   </>
                 )}
               </div>
@@ -2367,13 +2367,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     onClick={() => printJobSheet(order, userRole, printLang)}
                     className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2"
                   >
-                    <Printer size={14} /> Print Job Sheet
+                    <Printer size={14} /> {t('Print Job Sheet')}
                   </button>
                   <button 
                     onClick={() => setShowFullSheet(false)}
                     className="bg-gray-800 hover:bg-gray-700 text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all"
                   >
-                    Close Job Sheet
+                    {t('Close Job Sheet')}
                   </button>
                 </div>
               </div>
