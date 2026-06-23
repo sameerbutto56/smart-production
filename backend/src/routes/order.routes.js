@@ -40,7 +40,8 @@ const {
   getDeliveryHistory,
   acceptTask,
   getOrderTimeline,
-  getOutletAnalytics
+  getOutletAnalytics,
+  updateProductAvailability
 } = require('../controllers/order.controller');
 const { createEditRequest } = require('../controllers/editRequest.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
@@ -108,6 +109,9 @@ router.get('/:orderId/inventory-check', authenticate, authorize(['STORE', 'ADMIN
 
 // Add products from production order to store inventory
 router.post('/:orderId/add-to-inventory', authenticate, authorize(['STORE', 'ADMIN', 'SUPER_ADMIN']), addOrderToInventory);
+
+// Update per-product availability (tick/cross at STORE stage)
+router.patch('/:orderId/product-availability', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), updateProductAvailability);
 
 // Outlet-wise analytics
 router.get('/outlet-analytics', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), getOutletAnalytics);

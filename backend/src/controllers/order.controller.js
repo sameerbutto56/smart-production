@@ -3545,6 +3545,53 @@ const updateDispatchStatus = async (req, res) => {
   }
 };
 
+const updateProductAvailability = async (req, res) => {
+  const { orderId } = req.params;
+  const { productAvailability } = req.body;
+
+  if (!productAvailability || typeof productAvailability !== 'object') {
+    return res.status(400).json({ message: 'productAvailability object is required' });
+  }
+
+  try {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    let parsedDetails;
+    try {
+      parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+    } catch {
+      parsedDetails = [];
+    }
+    const items = Array.isArray(parsedDetails) ? parsedDetails : (parsedDetails?.productType ? [parsedDetails] : []);
+
+    const updatedItems = items.map((item, idx) => {
+      const av = productAvailability[String(idx)];
+      if (av !== undefined) {
+        return { ...item, availabilityStatus: av ? 'available' : 'not_available' };
+      }
+      return item;
+    });
+
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { productDetails: JSON.stringify(updatedItems) }
+    });
+
+    await createAuditLog(orderId, 'AVAILABILITY_UPDATED',
+      `Product availability updated: ${Object.entries(productAvailability).map(([k, v]) => `#${parseInt(k)+1}: ${v ? 'Available' : 'Not Available'}`).join(', ')}`,
+      req.user.id);
+
+    const io = req.app.get('io');
+    if (io) io.emit('order-updated', { orderId, createdById: order.createdById });
+
+    res.json({ message: 'Product availability updated', items: updatedItems });
+  } catch (error) {
+    console.error('updateProductAvailability error:', error);
+    res.status(500).json({ message: 'Error updating availability', error: error.message });
+  }
+};
+
 module.exports = {
   createOrder,
   getOrders,
@@ -3586,5 +3633,6 @@ module.exports = {
   acceptDelivery,
   getDeliveryHistory,
   acceptTask,
-  getOrderTimeline
+  getOrderTimeline,
+  updateProductAvailability
 };

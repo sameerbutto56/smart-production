@@ -64,15 +64,56 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
     if (order?.productDetails) {
       try {
         const pd = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
-        if (Array.isArray(pd)) {
-          pd.forEach((item, idx) => {
-            if (item.availabilityStatus === 'not_available') init[idx] = false;
-          });
-        }
+        const items = Array.isArray(pd) ? pd : (pd?.productType ? [pd] : []);
+        items.forEach((item, idx) => {
+          init[idx] = item.availabilityStatus !== 'not_available';
+        });
       } catch {}
     }
     return init;
   });
+
+  useEffect(() => {
+    if (order?.productDetails) {
+      try {
+        const pd = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+        const items = Array.isArray(pd) ? pd : (pd?.productType ? [pd] : []);
+        const next = {};
+        items.forEach((item, idx) => {
+          next[idx] = item.availabilityStatus !== 'not_available';
+        });
+        setProductAvailability(next);
+      } catch {}
+    }
+  }, [order?.productDetails]);
+
+  const handleProductAvailabilityToggle = useCallback(async (idx, isAvailable) => {
+    try {
+      const token = sessionStorage.getItem('token');
+      // Optimistically update local state
+      setProductAvailability(prev => ({ ...prev, [idx]: isAvailable }));
+
+      await axios.patch(`${API_URL}/api/orders/${order.id}/product-availability`, {
+        productAvailability: { [idx]: isAvailable }
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      toast.success(isAvailable ? 'Item marked as Available' : 'Item marked as To Be Manufactured');
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'Failed to update product availability');
+      // Revert state
+      if (order?.productDetails) {
+        try {
+          const pd = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+          const items = Array.isArray(pd) ? pd : (pd?.productType ? [pd] : []);
+          const originalStatus = items[idx]?.availabilityStatus;
+          setProductAvailability(prev => ({ ...prev, [idx]: originalStatus !== 'not_available' }));
+        } catch {}
+      }
+    }
+  }, [order?.id, order?.productDetails]);
   const [trackingUrl, setTrackingUrl] = useState('');
   const [actionLoading, setActionLoading] = useState(null);
 
@@ -210,7 +251,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
     if (stage === 'STORE') {
       const isStoreRole = ['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(userRole);
       if (isMultiItem && orderItems?.length > 1) {
-        const sortedItems = orderItems.map((item, idx) => ({ item, idx, isNotAvail: item.availabilityStatus === 'not_available' }));
+        const sortedItems = orderItems.map((item, idx) => ({ item, idx, isNotAvail: productAvailability[idx] === false }));
         sortedItems.sort((a, b) => (a.isNotAvail === b.isNotAvail ? 0 : a.isNotAvail ? -1 : 1));
         const hasAnyNotAvail = sortedItems.some(s => s.isNotAvail);
         let headerShown = { notAvail: false, avail: false };
@@ -226,7 +267,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               </li>
             );
           }
-          if (!isNotAvail && isNotAvail === false && !headerShown.avail && hasAnyNotAvail) {
+          if (!isNotAvail && !headerShown.avail && hasAnyNotAvail) {
             headerShown.avail = true;
             rows.push(
               <li key="hdr-av" className="text-xs font-black text-emerald-400 uppercase tracking-widest py-1.5 px-2 bg-emerald-900/10 rounded-lg border border-emerald-500/20 mb-1 mt-2">
@@ -247,14 +288,14 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 <div className="flex gap-1 shrink-0 ml-2">
                   <button
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); setProductAvailability(prev => ({...prev, [idx]: true})); }}
+                    onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(idx, true); }}
                     className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${isAvail ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
                   >
                     ✓
                   </button>
                   <button
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); setProductAvailability(prev => ({...prev, [idx]: false})); }}
+                    onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(idx, false); }}
                     className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${!isAvail ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
                   >
                     ✗
@@ -282,14 +323,14 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               <div className="flex gap-1 shrink-0 ml-2">
                   <button
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); setProductAvailability(prev => ({...prev, [0]: true})); }}
+                    onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(0, true); }}
                     className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${singleIsAvail ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
                   >
                     ✓
                   </button>
                   <button
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); setProductAvailability(prev => ({...prev, [0]: false})); }}
+                    onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(0, false); }}
                     className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${!singleIsAvail ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
                 >
                   ✗
@@ -2013,7 +2054,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         </thead>
                         <tbody>
                           {(() => {
-                            const sorted = orderItems.map((item, idx) => ({ item, idx, isNotAvail: item.availabilityStatus === 'not_available' }));
+                            const sorted = orderItems.map((item, idx) => ({ item, idx, isNotAvail: productAvailability[idx] === false }));
                             const hasAnyNotAvail = sorted.some(s => s.isNotAvail);
                             const hasAnyAvail = sorted.some(s => !s.isNotAvail);
                             sorted.sort((a, b) => (a.isNotAvail === b.isNotAvail ? 0 : a.isNotAvail ? -1 : 1));
@@ -2039,7 +2080,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                   </tr>
                                 );
                               }
-                              if (!isNotAvail && isNotAvail === false && !headerShown.avail && hasAnyNotAvail) {
+                              if (!isNotAvail && !headerShown.avail && hasAnyNotAvail) {
                                 headerShown.avail = true;
                                 rows.push(
                                   <tr key="hdr-avail" className="bg-emerald-900/10 border-b border-emerald-500/20">
@@ -2075,14 +2116,14 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                       <div className="flex items-center justify-center gap-1">
                                         <button
                                           type="button"
-                                          onClick={(e) => { e.stopPropagation(); setProductAvailability(prev => ({...prev, [idx]: true})); }}
+                                          onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(idx, true); }}
                                           className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${productAvailability[idx] !== false ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
                                         >
                                           ✓
                                         </button>
                                         <button
                                           type="button"
-                                          onClick={(e) => { e.stopPropagation(); setProductAvailability(prev => ({...prev, [idx]: false})); }}
+                                          onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(idx, false); }}
                                           className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${productAvailability[idx] === false ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
                                         >
                                           ✗
@@ -2189,14 +2230,14 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                 <div className="flex items-center gap-1">
                                   <button
                                     type="button"
-                                    onClick={(e) => { e.stopPropagation(); setProductAvailability(prev => ({...prev, [0]: true})); }}
+                                    onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(0, true); }}
                                     className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black transition-all ${productAvailability[0] !== false ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
                                   >
                                     ✓
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={(e) => { e.stopPropagation(); setProductAvailability(prev => ({...prev, [0]: false})); }}
+                                    onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(0, false); }}
                                     className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black transition-all ${productAvailability[0] === false ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
                                   >
                                     ✗

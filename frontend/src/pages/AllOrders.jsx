@@ -48,6 +48,91 @@ const AllOrders = () => {
     setContextSearch(val);
   };
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [productAvailability, setProductAvailability] = useState({});
+
+  useEffect(() => {
+    if (selectedOrder?.productDetails) {
+      try {
+        const pd = typeof selectedOrder.productDetails === 'string' ? JSON.parse(selectedOrder.productDetails) : selectedOrder.productDetails;
+        const items = Array.isArray(pd) ? pd : (pd?.productType ? [pd] : []);
+        const init = {};
+        items.forEach((item, idx) => {
+          init[idx] = item.availabilityStatus !== 'not_available';
+        });
+        setProductAvailability(init);
+      } catch {}
+    } else {
+      setProductAvailability({});
+    }
+  }, [selectedOrder]);
+
+  const handleProductAvailabilityToggle = async (idx, isAvailable) => {
+    if (!selectedOrder) return;
+    try {
+      const token = sessionStorage.getItem('token');
+      // Optimistically update local state
+      setProductAvailability(prev => ({ ...prev, [idx]: isAvailable }));
+
+      await axios.patch(`${API_URL}/api/orders/${selectedOrder.id}/product-availability`, {
+        productAvailability: { [idx]: isAvailable }
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // Update selectedOrder details locally so print uses correct details
+      setSelectedOrder(prev => {
+        if (!prev) return null;
+        try {
+          const pd = typeof prev.productDetails === 'string' ? JSON.parse(prev.productDetails) : prev.productDetails;
+          const items = Array.isArray(pd) ? pd : (pd?.productType ? [pd] : []);
+          const updatedItems = items.map((item, i) => {
+            if (i === idx) {
+              return { ...item, availabilityStatus: isAvailable ? 'available' : 'not_available' };
+            }
+            return item;
+          });
+          return { ...prev, productDetails: JSON.stringify(updatedItems) };
+        } catch {
+          return prev;
+        }
+      });
+
+      // Also update the orders array so it reflects the change on the dashboard
+      setOrders(prevOrders => prevOrders.map(o => {
+        if (o.id === selectedOrder.id) {
+          try {
+            const pd = typeof o.productDetails === 'string' ? JSON.parse(o.productDetails) : o.productDetails;
+            const items = Array.isArray(pd) ? pd : (pd?.productType ? [pd] : []);
+            const updatedItems = items.map((item, i) => {
+              if (i === idx) {
+                return { ...item, availabilityStatus: isAvailable ? 'available' : 'not_available' };
+              }
+              return item;
+            });
+            return { ...o, productDetails: JSON.stringify(updatedItems) };
+          } catch {
+            return o;
+          }
+        }
+        return o;
+      }));
+
+      toast.success(isAvailable ? 'Item marked as Available' : 'Item marked as To Be Manufactured');
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'Failed to update product availability');
+      // Revert state
+      if (selectedOrder?.productDetails) {
+        try {
+          const pd = typeof selectedOrder.productDetails === 'string' ? JSON.parse(selectedOrder.productDetails) : selectedOrder.productDetails;
+          const items = Array.isArray(pd) ? pd : (pd?.productType ? [pd] : []);
+          const originalStatus = items[idx]?.availabilityStatus;
+          setProductAvailability(prev => ({ ...prev, [idx]: originalStatus !== 'not_available' }));
+        } catch {}
+      }
+    }
+  };
+
   const [showModal, setShowModal] = useState(false);
   const [printLang, setPrintLang] = useState('ur');
   const [filterStatus, setFilterStatus] = useState('ALL');
@@ -801,6 +886,7 @@ const AllOrders = () => {
                               <th className="pb-3">Fabric & Color</th>
                               <th className="pb-3">Size & Gender</th>
                               <th className="pb-3 text-center">Qty</th>
+                              <th className="pb-3 text-center">Stock</th>
                               <th className="pb-3 text-right pr-4">Price</th>
                             </tr>
                           </thead>
@@ -899,6 +985,38 @@ const AllOrders = () => {
                                     )}
                                   </td>
                                   <td className="py-4 text-center text-white font-black">{item.quantity || 1}</td>
+                                  <td className="py-4 text-center">
+                                    {['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(user?.role) && selectedOrder.currentStage === 'STORE' ? (
+                                      <div className="flex items-center justify-center gap-1">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(idx, true); }}
+                                          className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${productAvailability[idx] !== false ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                                        >
+                                          ✓
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(idx, false); }}
+                                          className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${productAvailability[idx] === false ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                                        >
+                                          ✗
+                                        </button>
+                                      </div>
+                                    ) : item.availabilityStatus === 'not_available' ? (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-500/10 border border-red-500/30 rounded text-xs font-black text-red-400">
+                                        ✗ {t('N/A')}
+                                      </span>
+                                    ) : item.availabilityStatus === 'produced' ? (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 border border-blue-500/30 rounded text-xs font-black text-blue-400">
+                                        ✓ {t('Produced')}
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 rounded text-xs font-black text-emerald-400">
+                                        ✓ {t('Available')}
+                                      </span>
+                                    )}
+                                  </td>
                                   <td className="py-4 text-right pr-4 text-emerald-400 font-black">₨{Number(item.totalPrice || 0).toLocaleString()}</td>
                                 </tr>
                               );
@@ -929,7 +1047,8 @@ const AllOrders = () => {
                           if (_isPaid) return 'PAID';
                           if (_hasAdv) return 'REMAINING';
                           return 'COD';
-                        })() }
+                        })() },
+                        { label: 'Stock', val: 'toggle' }
                       ].filter(i => i.val).map((item, i) => (
                         <div key={i} className="theme-bg p-4 md:p-6 rounded-3xl border theme-border">
                           <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest mb-2">{item.label}</p>
@@ -941,6 +1060,37 @@ const AllOrders = () => {
                               if (_isPaid) return <span className="text-lg font-black px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">PAID</span>;
                               if (_hasAdv) return <span className="text-lg font-black px-3 py-1 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">REMAINING COD: ₨{_rem.toLocaleString()}</span>;
                               return <span className="text-lg font-black px-3 py-1 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">CASH ON DELIVERY</span>;
+                            })()
+                          ) : item.label === 'Stock' ? (
+                            (() => {
+                              const isStoreRole = ['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(user?.role);
+                              const isStoreStage = selectedOrder.currentStage === 'STORE';
+                              const singleIsAvail = productAvailability[0] !== false;
+                              if (isStoreRole && isStoreStage) {
+                                return (
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(0, true); }}
+                                      className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black transition-all ${singleIsAvail ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                                    >
+                                      ✓
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(0, false); }}
+                                      className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black transition-all ${!singleIsAvail ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                                    >
+                                      ✗
+                                    </button>
+                                  </div>
+                                );
+                              }
+                              return (
+                                <span className={`text-lg font-black ${singleIsAvail ? 'text-emerald-400' : 'text-red-400'}`}>
+                                  {singleIsAvail ? t('Available') : t('N/A')}
+                                </span>
+                              );
                             })()
                           ) : (
                             <p className="text-lg font-bold text-gray-200">{item.val || 'STANDARD'}</p>
