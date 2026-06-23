@@ -247,14 +247,14 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 <div className="flex gap-1 shrink-0 ml-2">
                   <button
                     type="button"
-                    onClick={() => setProductAvailability(prev => ({...prev, [idx]: true}))}
+                    onClick={(e) => { e.stopPropagation(); setProductAvailability(prev => ({...prev, [idx]: true})); }}
                     className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${isAvail ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
                   >
                     ✓
                   </button>
                   <button
                     type="button"
-                    onClick={() => setProductAvailability(prev => ({...prev, [idx]: false}))}
+                    onClick={(e) => { e.stopPropagation(); setProductAvailability(prev => ({...prev, [idx]: false})); }}
                     className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${!isAvail ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
                   >
                     ✗
@@ -280,17 +280,17 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 Stock: {singleIsAvail ? 'Available' : 'To Be Manufactured'}
               </span>
               <div className="flex gap-1 shrink-0 ml-2">
-                <button
-                  type="button"
-                  onClick={() => setProductAvailability(prev => ({...prev, [0]: true}))}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${singleIsAvail ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
-                >
-                  ✓
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setProductAvailability(prev => ({...prev, [0]: false}))}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${!singleIsAvail ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setProductAvailability(prev => ({...prev, [0]: true})); }}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${singleIsAvail ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                  >
+                    ✓
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setProductAvailability(prev => ({...prev, [0]: false})); }}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${!singleIsAvail ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
                 >
                   ✗
                 </button>
@@ -2075,14 +2075,14 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                       <div className="flex items-center justify-center gap-1">
                                         <button
                                           type="button"
-                                          onClick={() => setProductAvailability(prev => ({...prev, [idx]: true}))}
+                                          onClick={(e) => { e.stopPropagation(); setProductAvailability(prev => ({...prev, [idx]: true})); }}
                                           className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${productAvailability[idx] !== false ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
                                         >
                                           ✓
                                         </button>
                                         <button
                                           type="button"
-                                          onClick={() => setProductAvailability(prev => ({...prev, [idx]: false}))}
+                                          onClick={(e) => { e.stopPropagation(); setProductAvailability(prev => ({...prev, [idx]: false})); }}
                                           className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${productAvailability[idx] === false ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
                                         >
                                           ✗
@@ -2189,14 +2189,14 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                 <div className="flex items-center gap-1">
                                   <button
                                     type="button"
-                                    onClick={() => setProductAvailability(prev => ({...prev, [0]: true}))}
+                                    onClick={(e) => { e.stopPropagation(); setProductAvailability(prev => ({...prev, [0]: true})); }}
                                     className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black transition-all ${productAvailability[0] !== false ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
                                   >
                                     ✓
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => setProductAvailability(prev => ({...prev, [0]: false}))}
+                                    onClick={(e) => { e.stopPropagation(); setProductAvailability(prev => ({...prev, [0]: false})); }}
                                     className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black transition-all ${productAvailability[0] === false ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
                                   >
                                     ✗
