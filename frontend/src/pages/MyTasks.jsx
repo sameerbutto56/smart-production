@@ -225,7 +225,7 @@ const MyTasks = () => {
       fetchTasks();
     } catch (error) {
       console.error(`Error performing ${action}:`, error);
-      alert(error.response?.data?.message || 'Action failed');
+      alert(error.response?.data?.error || error.response?.data?.message || 'Action failed');
     }
   };
 
