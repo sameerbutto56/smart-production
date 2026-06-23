@@ -208,20 +208,41 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const renderTasks = () => {
     const stage = currentStage?.stageName;
     if (stage === 'STORE') {
-      const isStoreRole = ['STORE', 'STORE_EMPLOYEE'].includes(userRole);
+      const isStoreRole = ['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(userRole);
       if (isMultiItem && orderItems?.length > 1) {
-        return orderItems.map((item, idx) => {
+        const sortedItems = orderItems.map((item, idx) => ({ item, idx, isNotAvail: item.availabilityStatus === 'not_available' }));
+        sortedItems.sort((a, b) => (a.isNotAvail === b.isNotAvail ? 0 : a.isNotAvail ? -1 : 1));
+        const hasAnyNotAvail = sortedItems.some(s => s.isNotAvail);
+        let headerShown = { notAvail: false, avail: false };
+        return sortedItems.flatMap(({ item, idx, isNotAvail }) => {
           const p = item.productDetails || {};
           const isAvail = productAvailability[idx] !== false;
-          return (
+          const rows = [];
+          if (isNotAvail && !headerShown.notAvail) {
+            headerShown.notAvail = true;
+            rows.push(
+              <li key="hdr-na" className="text-xs font-black text-red-400 uppercase tracking-widest py-1.5 px-2 bg-red-900/10 rounded-lg border border-red-500/20 mb-1">
+                ⚠ To Be Manufactured
+              </li>
+            );
+          }
+          if (!isNotAvail && isNotAvail === false && !headerShown.avail && hasAnyNotAvail) {
+            headerShown.avail = true;
+            rows.push(
+              <li key="hdr-av" className="text-xs font-black text-emerald-400 uppercase tracking-widest py-1.5 px-2 bg-emerald-900/10 rounded-lg border border-emerald-500/20 mb-1 mt-2">
+                ✓ Available Items
+              </li>
+            );
+          }
+          rows.push(
             <motion.li
               key={idx}
               initial={{ opacity: 0, x: -5 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: idx * 0.1 }}
-              className="text-xs md:text-sm flex items-center justify-between p-2 bg-gray-900/30 rounded-lg border border-gray-800/20"
+              className={`text-xs md:text-sm flex items-center justify-between p-2 rounded-lg border ${isNotAvail ? 'bg-red-900/10 border-red-500/30 border-l-2 border-l-red-500' : 'bg-gray-900/30 border-gray-800/20'}`}
             >
-              <span className="text-gray-400 font-bold uppercase tracking-tighter">#{idx + 1} {p.productType || 'Item'}: {p.fabricType || 'STD'} / {p.color || '—'} / Size {p.size || '—'}</span>
+              <span className={`font-bold uppercase tracking-tighter ${isNotAvail ? 'text-orange-300' : 'text-gray-400'}`}>#{idx + 1} {p.productType || 'Item'}: {p.fabricType || 'STD'} / {p.color || '—'} / Size {p.size || '—'}</span>
               {isStoreRole && (
                 <div className="flex gap-1 shrink-0 ml-2">
                   <button
@@ -242,6 +263,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               )}
             </motion.li>
           );
+          return rows;
         });
       }
       const items = [
@@ -267,25 +289,47 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
     if (stage === 'PRODUCTION') {
       const { primary: _, allItems: prodItems, isMultiItem: isMultiProd } = normalizeProduct(order.productDetails);
       const items = isMultiProd && prodItems ? prodItems : [{ productDetails: normalizeProduct(order.productDetails).primary, customization: parseJSON(order.customization), sizeData: parseJSON(order.sizeData) }];
+      // Sort: unavailable items first
+      const sortedItems = [...items].sort((a, b) => {
+        const aNA = (a.productDetails || a).availabilityStatus === 'not_available';
+        const bNA = (b.productDetails || b).availabilityStatus === 'not_available';
+        return aNA === bNA ? 0 : aNA ? -1 : 1;
+      });
 
       return (
         <div className="space-y-4">
-          {items.map((item, idx) => {
+          {sortedItems.map((item, idx) => {
             const p = item.productDetails || {};
             const c = item.customization || {};
             const s = item.sizeData || {};
             const female = p?.femaleOptions || {};
             const hasSizes = s && Object.keys(s).some(k => s[k]);
             const isFirst = idx === 0;
+            const isNotAvail = p.availabilityStatus === 'not_available';
 
             return (
               <div key={idx} className={`${isMultiProd || items.length > 1 ? 'bg-gray-900/40 p-3 rounded-xl border border-gray-800/70' : ''}`}>
                 {/* Per-product header for multi-item */}
-                {(isMultiProd || items.length > 1) && (
+                {(isMultiProd || sortedItems.length > 1) && (
                   <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-800/50">
                     <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[9px] font-black">#{idx + 1}</span>
                     <span className="text-xs font-black text-white uppercase">{p.productType || `Item ${idx + 1}`}</span>
                     {p.color && <span className="text-[9px] text-gray-500">({p.color})</span>}
+                    {isNotAvail && (
+                      <span className="ml-auto px-2 py-0.5 bg-red-500/10 border border-red-500/30 rounded text-[9px] font-black text-red-400 uppercase tracking-wider">
+                        ⚠ To Be Manufactured
+                      </span>
+                    )}
+                    {p.availabilityStatus === 'produced' && (
+                      <span className="ml-auto px-2 py-0.5 bg-blue-500/10 border border-blue-500/30 rounded text-[9px] font-black text-blue-400 uppercase tracking-wider">
+                        ✓ Produced
+                      </span>
+                    )}
+                    {p.availabilityStatus === 'available' && (
+                      <span className="ml-auto px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 rounded text-[9px] font-black text-emerald-400 uppercase tracking-wider">
+                        ✓ In Stock
+                      </span>
+                    )}
                   </div>
                 )}
                 <div className="grid grid-cols-3 gap-2">
@@ -1394,6 +1438,21 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         </div>
                       </div>
                     </div>
+                    {/* Produced Items List */}
+                    {isMultiItem && orderItems?.length > 1 && (
+                      <div className="w-full mb-3 space-y-1.5">
+                        <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1.5">Items from Production</p>
+                        {orderItems.filter(item => item.availabilityStatus === 'not_available' || item.availabilityStatus === 'produced').map((item, idx) => {
+                          const p = item.productDetails || {};
+                          return (
+                            <div key={idx} className="flex items-center justify-between p-2 bg-blue-900/10 rounded-lg border border-blue-500/20">
+                              <span className="text-xs font-bold text-blue-300 uppercase">{p.productType || 'Item'}: {p.fabricType || '—'} / {p.color || '—'}</span>
+                              <span className="text-xs font-black text-blue-400">x{item.quantity || 1}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                     {(() => {
                       const inventoryAdded = localInventoryAdded || order.auditLogs?.some(l => l.action === 'INVENTORY_ADDED');
                       return (
@@ -1927,35 +1986,74 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           </tr>
                         </thead>
                         <tbody>
-                          {orderItems.map((item, idx) => {
-                            const p = item.productDetails || item;
-                            const itemCust = item.customization ? parseJSON(item.customization) : null;
-                            const hasSleeves = p.sleeveLength || (p.femaleOptions?.sleeves && p.femaleOptions.sleeves !== 'full');
-                            const hasShirtLength = p.shirtLength || (p.femaleOptions?.shirtLength && p.femaleOptions.shirtLength !== 'long');
-                            const hasArticleNames = itemCust?.articleNames && itemCust.articleNames.length > 0;
-                            const hasLogos = itemCust?.logos && itemCust.logos.length > 0;
-                            const hasCust = hasArticleNames || hasLogos || itemCust?.nameSpelling || itemCust?.stitchingStyle || itemCust?.fitType;
-                            return (
+                          {(() => {
+                            const sorted = orderItems.map((item, idx) => ({ item, idx, isNotAvail: item.availabilityStatus === 'not_available' }));
+                            const hasAnyNotAvail = sorted.some(s => s.isNotAvail);
+                            const hasAnyAvail = sorted.some(s => !s.isNotAvail);
+                            sorted.sort((a, b) => (a.isNotAvail === b.isNotAvail ? 0 : a.isNotAvail ? -1 : 1));
+                            let headerShown = { notAvail: false, avail: false };
+                            return sorted.flatMap(({ item, idx, isNotAvail }) => {
+                              const p = item.productDetails || item;
+                              const itemCust = item.customization ? parseJSON(item.customization) : null;
+                              const hasSleeves = p.sleeveLength || (p.femaleOptions?.sleeves && p.femaleOptions.sleeves !== 'full');
+                              const hasShirtLength = p.shirtLength || (p.femaleOptions?.shirtLength && p.femaleOptions.shirtLength !== 'long');
+                              const hasArticleNames = itemCust?.articleNames && itemCust.articleNames.length > 0;
+                              const hasLogos = itemCust?.logos && itemCust.logos.length > 0;
+                              const hasCust = hasArticleNames || hasLogos || itemCust?.nameSpelling || itemCust?.stitchingStyle || itemCust?.fitType;
+                              const isProdStage = currentStage?.stageName === 'PRODUCTION';
+                              const isStoreRecv = currentStage?.stageName === 'STORE_RECEIVE';
+                              const rows = [];
+                              if (isNotAvail && !headerShown.notAvail) {
+                                headerShown.notAvail = true;
+                                rows.push(
+                                  <tr key="hdr-notavail" className="bg-red-900/10 border-b border-red-500/20">
+                                    <td colSpan={7} className="py-2 px-4">
+                                      <span className="text-xs font-black text-red-400 uppercase tracking-widest">⚠ To Be Manufactured</span>
+                                    </td>
+                                  </tr>
+                                );
+                              }
+                              if (!isNotAvail && isNotAvail === false && !headerShown.avail && hasAnyNotAvail) {
+                                headerShown.avail = true;
+                                rows.push(
+                                  <tr key="hdr-avail" className="bg-emerald-900/10 border-b border-emerald-500/20">
+                                    <td colSpan={7} className="py-2 px-4">
+                                      <span className="text-xs font-black text-emerald-400 uppercase tracking-widest">✓ Available Items</span>
+                                    </td>
+                                  </tr>
+                                );
+                              }
+                              rows.push(
                                 <React.Fragment key={idx}>
-                                <tr className="border-b border-gray-800/50 hover:bg-gray-900/30 transition-colors">
+                                <tr className={`border-b border-gray-800/50 transition-colors ${isNotAvail ? 'bg-red-900/5 hover:bg-red-900/15 border-l-2 border-l-red-500/40' : 'hover:bg-gray-900/30'}`}>
                                   <td className="py-4 px-4 text-gray-500 font-black">{idx + 1}</td>
-                                  <td className="py-4 px-4 text-white font-bold uppercase">{p.productType || '—'}</td>
+                                  <td className="py-4 px-4 font-bold uppercase">{isNotAvail ? <span className="text-orange-300">{p.productType || '—'}</span> : <span className="text-white">{p.productType || '—'}</span>}</td>
                                   <td className="py-4 px-4">
-                                    <div className="text-gray-300 uppercase">
+                                    <div className={`uppercase ${isNotAvail ? 'text-orange-200' : 'text-gray-300'}`}>
                                       {[p.fabricType, p.color].filter(Boolean).join(' • ') || '—'}
                                     </div>
                                   </td>
-                                  <td className="py-4 px-4 text-gray-300 uppercase">
-                                    <div>{p.size || 'Custom'} • {p.gender || 'MALE'}</div>
+                                  <td className="py-4 px-4 uppercase">
+                                    <div className={isNotAvail ? 'text-orange-200' : 'text-gray-300'}>
+                                      {p.size || 'Custom'} • {p.gender || 'MALE'}
+                                    </div>
                                     {(hasSleeves || hasShirtLength) && (
-                                      <div className="text-xs md:text-sm text-pink-400 font-black mt-0.5">
+                                      <div className={`text-xs md:text-sm font-black mt-0.5 ${isNotAvail ? 'text-orange-300' : 'text-pink-400'}`}>
                                         {hasSleeves && `Sleeves: ${p.sleeveLength || p.femaleOptions?.sleeves}`} {hasShirtLength && `| Length: ${p.shirtLength || p.femaleOptions?.shirtLength}`}
                                       </div>
                                     )}
                                   </td>
                                   <td className="py-4 px-4 text-center text-white font-black">{item.quantity || 1}</td>
                                   <td className="py-4 px-4 text-center">
-                                    {['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(userRole) ? (
+                                    {isNotAvail ? (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-500/10 border border-red-500/30 rounded text-xs font-black text-red-400">
+                                        ✗ Not Available
+                                      </span>
+                                    ) : item.availabilityStatus === 'produced' ? (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 border border-blue-500/30 rounded text-xs font-black text-blue-400">
+                                        ✓ Produced
+                                      </span>
+                                    ) : ['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(userRole) && !isProdStage && !isStoreRecv ? (
                                       <div className="flex items-center justify-center gap-1">
                                         <button
                                           type="button"
@@ -1973,15 +2071,15 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                         </button>
                                       </div>
                                     ) : (
-                                      <span className={`text-xs font-black ${productAvailability[idx] !== false ? 'text-emerald-400' : 'text-red-400'}`}>
-                                        {productAvailability[idx] !== false ? 'Available' : 'N/A'}
+                                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black ${productAvailability[idx] !== false ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400' : 'bg-red-500/10 border border-red-500/30 text-red-400'}`}>
+                                        {productAvailability[idx] !== false ? '✓ Available' : '✗ N/A'}
                                       </span>
                                     )}
                                   </td>
                                   <td className={`py-4 px-4 text-right pr-4 font-black ${showPrice ? 'text-emerald-400' : 'text-gray-500'}`}>{priceDisplay(item.totalPrice)}</td>
                                 </tr>
                                 {hasCust && (
-                                  <tr className="bg-purple-900/5 border-b border-gray-800/50">
+                                  <tr className={`${isNotAvail ? 'bg-red-900/5' : 'bg-purple-900/5'} border-b border-gray-800/50`}>
                                     <td colSpan={7} className="py-3 px-6">
                                       <div className="flex flex-wrap gap-3">
                                         {hasArticleNames && itemCust.articleNames.map((an, ai) => (
@@ -1999,7 +2097,6 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                             Logo: {logo.name || `#${li + 1}`}{logo.design ? ` — ${logo.design.substring(0, 40)}${logo.design.length > 40 ? '...' : ''}` : ''}
                                           </span>
                                         ))}
-                                        {/* Custom Requirements */}
                                         {(p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct || p.additionalProductRef) && (
                                           <>
                                             {p.fabricSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">Fabric: {p.fabricSourceProduct}</span>}
@@ -2029,8 +2126,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                   </tr>
                                 )}
                               </React.Fragment>
-                            );
-                          })}
+                              );
+                              return rows;
+                            });
+                          })()}
                         </tbody>
                       </table>
                     </div>

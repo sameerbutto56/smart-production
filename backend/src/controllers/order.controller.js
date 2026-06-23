@@ -2247,6 +2247,29 @@ const addOrderToInventory = async (req, res) => {
       } catch (e) { if (e?.code !== 'P2021') throw e; }
     }
 
+    // Mark produced items in productDetails as 'produced'
+    try {
+      let pd = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+      if (pd) {
+        const updated = Array.isArray(pd)
+          ? pd.map(item => {
+              if (item.availabilityStatus === 'not_available') {
+                return { ...item, availabilityStatus: 'produced' };
+              }
+              return item;
+            })
+          : pd.productType && pd.availabilityStatus === 'not_available'
+            ? { ...pd, availabilityStatus: 'produced' }
+            : pd;
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { productDetails: JSON.stringify(updated) }
+        });
+      }
+    } catch (pdErr) {
+      console.error('Failed to update productDetails availabilityStatus:', pdErr);
+    }
+
     const io = req.app.get('io');
     if (io) {
       io.emit('inventory-updated', { source: 'production', orderId });
