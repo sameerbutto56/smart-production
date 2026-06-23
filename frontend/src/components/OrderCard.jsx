@@ -2045,15 +2045,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                   </td>
                                   <td className="py-4 px-4 text-center text-white font-black">{item.quantity || 1}</td>
                                   <td className="py-4 px-4 text-center">
-                                    {isNotAvail ? (
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-500/10 border border-red-500/30 rounded text-xs font-black text-red-400">
-                                        ✗ Not Available
-                                      </span>
-                                    ) : item.availabilityStatus === 'produced' ? (
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 border border-blue-500/30 rounded text-xs font-black text-blue-400">
-                                        ✓ Produced
-                                      </span>
-                                    ) : ['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(userRole) && !isProdStage && !isStoreRecv ? (
+                                    {['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(userRole) && !isProdStage && !isStoreRecv ? (
                                       <div className="flex items-center justify-center gap-1">
                                         <button
                                           type="button"
@@ -2070,6 +2062,14 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                           ✗
                                         </button>
                                       </div>
+                                    ) : isNotAvail ? (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-500/10 border border-red-500/30 rounded text-xs font-black text-red-400">
+                                        ✗ Not Available
+                                      </span>
+                                    ) : item.availabilityStatus === 'produced' ? (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 border border-blue-500/30 rounded text-xs font-black text-blue-400">
+                                        ✓ Produced
+                                      </span>
                                     ) : (
                                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black ${productAvailability[idx] !== false ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400' : 'bg-red-500/10 border border-red-500/30 text-red-400'}`}>
                                         {productAvailability[idx] !== false ? '✓ Available' : '✗ N/A'}
