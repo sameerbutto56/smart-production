@@ -33,8 +33,33 @@ const ClientRegistration = () => {
     measurementChart: '', sizeDetails: ''
   });
 
+  const [customMeasurements, setCustomMeasurements] = useState({});
+
+  const MEASUREMENT_FIELDS = [
+    { key: 'height', label: 'Height' },
+    { key: 'shoulder', label: 'Shoulder' },
+    { key: 'chest', label: 'Chest' },
+    { key: 'waist', label: 'Waist' },
+    { key: 'hips', label: 'Hips' },
+    { key: 'neck', label: 'Neck / Collar' },
+    { key: 'frontNeck', label: 'Front Neck' },
+    { key: 'backNeck', label: 'Back Neck' },
+    { key: 'shirtLength', label: 'Shirt / Kameez Length' },
+    { key: 'blazerLength', label: 'Blazer Length' },
+    { key: 'sleeveLength', label: 'Sleeve Length' },
+    { key: 'armHole', label: 'Arm Hole' },
+    { key: 'sleeveOpening', label: 'Sleeve Opening' },
+    { key: 'wrist', label: 'Wrist' },
+    { key: 'pantLength', label: 'Pant / Shalwar Length' },
+    { key: 'thigh', label: 'Thigh' },
+    { key: 'bottom', label: 'Bottom / Paicha' },
+    { key: 'inseam', label: 'Inseam' },
+    { key: 'outseam', label: 'Outseam' },
+  ];
+
   const resetForm = () => {
     setForm({ name: '', gender: 'Male', phone: '', permanentAddress: '', measurementChart: '', sizeDetails: '' });
+    setCustomMeasurements({});
     setAdditionalPhones([]);
     setDeliveryAddresses([]);
     setSelectedClient(null);
@@ -44,6 +69,10 @@ const ClientRegistration = () => {
   const headers = () => ({ Authorization: `Bearer ${token()}` });
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const handleMeasurementChange = (key, val) => {
+    setCustomMeasurements({ ...customMeasurements, [key]: val });
+  };
 
   const addPhone = () => setAdditionalPhones([...additionalPhones, '']);
   const removePhone = (i) => setAdditionalPhones(additionalPhones.filter((_, idx) => idx !== i));
@@ -66,8 +95,12 @@ const ClientRegistration = () => {
     if (!form.name || !form.phone) return alert('Name and phone are required');
     setSaving(true);
     try {
+      const sizeDetailsValue = form.measurementChart === 'Custom Measurements' && Object.keys(customMeasurements).length > 0
+        ? JSON.stringify(customMeasurements)
+        : form.sizeDetails;
       const payload = {
         ...form,
+        sizeDetails: sizeDetailsValue,
         additionalPhones: additionalPhones.filter(Boolean),
         deliveryAddresses: deliveryAddresses.filter(Boolean),
         outletName: selectedClient ? selectedClient.outletName : (isAdmin ? form.outletName : outletName)
@@ -137,6 +170,11 @@ const ClientRegistration = () => {
       measurementChart: client.measurementChart || '',
       sizeDetails: client.sizeDetails || ''
     });
+    if (client.sizeDetails && typeof client.sizeDetails === 'string' && client.sizeDetails.startsWith('{')) {
+      try { setCustomMeasurements(JSON.parse(client.sizeDetails)); } catch (e) { setCustomMeasurements({}); }
+    } else {
+      setCustomMeasurements({});
+    }
     setAdditionalPhones(client.additionalPhones || []);
     setDeliveryAddresses(client.deliveryAddresses || []);
     setTab('register');
@@ -275,19 +313,48 @@ const ClientRegistration = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-bold theme-text-secondary block mb-1">Measurement Chart</label>
-                <select name="measurementChart" value={form.measurementChart} onChange={handleChange}
+                <select name="measurementChart" value={form.measurementChart} onChange={(e) => {
+                  handleChange(e);
+                  if (e.target.value !== 'Custom Measurements') setCustomMeasurements({});
+                }}
                   className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white focus:border-blue-500 outline-none">
                   <option value="">Select chart...</option>
                   {MEASUREMENT_CHARTS.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-xs font-bold theme-text-secondary block mb-1">Size Details</label>
-                <input name="sizeDetails" value={form.sizeDetails} onChange={handleChange}
-                  className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none"
-                  placeholder="e.g., S, M, L, XL or custom" />
+                {form.measurementChart === 'Custom Measurements' ? (
+                  <div className="flex items-center h-full">
+                    <p className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-xl border border-emerald-500/30">
+                      Full measurement chart below
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <label className="text-xs font-bold theme-text-secondary block mb-1">Size Details</label>
+                    <input name="sizeDetails" value={form.sizeDetails} onChange={handleChange}
+                      className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none"
+                      placeholder="e.g., S, M, L, XL or custom" />
+                  </>
+                )}
               </div>
             </div>
+
+            {form.measurementChart === 'Custom Measurements' && (
+              <div className="border-t-2 border-gray-700 pt-4 mt-2">
+                <p className="text-xs font-black theme-text-primary uppercase tracking-widest mb-4">Custom Measurements (inches)</p>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {MEASUREMENT_FIELDS.map(field => (
+                    <div key={field.key}>
+                      <label className="text-[10px] font-bold theme-text-secondary block mb-1 uppercase tracking-wider">{field.label}</label>
+                      <input type="text" value={customMeasurements[field.key] || ''} onChange={(e) => handleMeasurementChange(field.key, e.target.value)}
+                        className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl px-3 py-2.5 text-sm font-bold text-white placeholder-gray-600 focus:border-blue-500 outline-none"
+                        placeholder="in" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Outlet selection for admin */}
@@ -350,7 +417,15 @@ const ClientRegistration = () => {
                       <p key={i} className="text-sm font-bold text-gray-400"><span className="text-gray-500">Delivery {i + 1}:</span> {a}</p>
                     ))}
                     {client.measurementChart && <p className="text-sm font-bold text-gray-400"><span className="text-gray-500">Chart:</span> {client.measurementChart}</p>}
-                    {client.sizeDetails && <p className="text-sm font-bold text-gray-400"><span className="text-gray-500">Size:</span> {client.sizeDetails}</p>}
+                    {client.sizeDetails && typeof client.sizeDetails === 'string' && client.sizeDetails.startsWith('{') ? (
+                      <div className="mt-2"><span className="text-sm font-bold text-gray-500">Measurements:</span>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1 mt-1">
+                          {(() => { try { return Object.entries(JSON.parse(client.sizeDetails)).filter(([,v]) => v).map(([k, v]) => <p key={k} className="text-xs font-bold text-gray-400"><span className="text-gray-600 capitalize">{k.replace(/([A-Z])/g, ' $1')}:</span> {v}"</p>); } catch (e) { return <p className="text-xs text-gray-500">{client.sizeDetails}</p>; } })()}
+                        </div>
+                      </div>
+                    ) : client.sizeDetails ? (
+                      <p className="text-sm font-bold text-gray-400"><span className="text-gray-500">Size:</span> {client.sizeDetails}</p>
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -391,9 +466,17 @@ const ClientRegistration = () => {
                   {client.deliveryAddresses?.filter(Boolean).map((a, i) => (
                     <p key={i} className="text-sm font-bold text-gray-400"><span className="text-gray-500">Delivery {i + 1}:</span> {a}</p>
                   ))}
-                  {client.measurementChart && <p className="text-sm font-bold text-gray-400"><span className="text-gray-500">Chart:</span> {client.measurementChart}</p>}
-                  {client.sizeDetails && <p className="text-sm font-bold text-gray-400"><span className="text-gray-500">Size:</span> {client.sizeDetails}</p>}
-                  <p className="text-xs text-gray-600">Registered: {new Date(client.createdAt).toLocaleDateString()}</p>
+                    {client.measurementChart && <p className="text-sm font-bold text-gray-400"><span className="text-gray-500">Chart:</span> {client.measurementChart}</p>}
+                    {client.sizeDetails && typeof client.sizeDetails === 'string' && client.sizeDetails.startsWith('{') ? (
+                      <div className="mt-2"><span className="text-sm font-bold text-gray-500">Measurements:</span>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1 mt-1">
+                          {(() => { try { return Object.entries(JSON.parse(client.sizeDetails)).filter(([,v]) => v).map(([k, v]) => <p key={k} className="text-xs font-bold text-gray-400"><span className="text-gray-600 capitalize">{k.replace(/([A-Z])/g, ' $1')}:</span> {v}"</p>); } catch (e) { return <p className="text-xs text-gray-500">{client.sizeDetails}</p>; } })()}
+                        </div>
+                      </div>
+                    ) : client.sizeDetails ? (
+                      <p className="text-sm font-bold text-gray-400"><span className="text-gray-500">Size:</span> {client.sizeDetails}</p>
+                    ) : null}
+                    <p className="text-xs text-gray-600">Registered: {new Date(client.createdAt).toLocaleDateString()}</p>
                 </div>
               )}
             </div>
