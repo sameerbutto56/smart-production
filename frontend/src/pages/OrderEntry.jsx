@@ -3388,7 +3388,7 @@ const SmartOrderForm = () => {
                             <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                               <span className="text-xs text-gray-300 uppercase font-bold">{pd.color || '—'} / {pd.size || '—'}</span>
                               {pd.fabricType && <span className="text-xs text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">{pd.fabricType}</span>}
-                              {pd.sleeveLength && <span className="text-xs font-black text-pink-400 bg-pink-900/20 px-1.5 py-0.5 rounded">{pd.sleeveLength === 'full' ? 'Full Sleeve' : pd.sleeveLength === 'half' ? 'Half Sleeve' : 'Quarter Sleeve'}</span>}
+                              {pd.sleeveLength && <span className="text-xs font-black text-pink-400 bg-pink-900/20 px-1.5 py-0.5 rounded">{pd.sleeveLength === 'full' ? 'Full Sleeve' : pd.sleeveLength === 'half' ? 'Half Sleeve' : pd.sleeveLength === 'three-quarter' ? '3 Quarter Sleeve' : 'Quarter Sleeve'}</span>}
                               {pd.shirtLength && <span className="text-xs font-black text-pink-400 bg-pink-900/20 px-1.5 py-0.5 rounded">{pd.shirtLength === 'long' ? 'Full Length' : 'Short Length'}</span>}
                               {item.capCharges > 0 && <span className="text-xs font-black text-rose-400">×{pd.matchingCapQty || 0} Matching Cap</span>}
                               <span className="text-xs md:text-sm font-black text-blue-400">×{item.quantity || 1}</span>

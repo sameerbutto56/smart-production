@@ -1982,7 +1982,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         { label: 'Order Size', val: product?.size },
                         { label: 'Gender', val: product?.gender },
                         ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
-                        ...(product?.sleeveLength ? [{ label: 'Sleeve', val: product.sleeveLength === 'full' ? 'Full Sleeve' : product.sleeveLength === 'half' ? 'Half Sleeve' : 'Quarter Sleeve' }] : []),
+                        ...(product?.sleeveLength ? [{ label: 'Sleeve', val: product.sleeveLength === 'full' ? 'Full Sleeve' : product.sleeveLength === 'half' ? 'Half Sleeve' : product.sleeveLength === 'three-quarter' ? '3 Quarter Sleeve' : 'Quarter Sleeve' }] : []),
                         ...(product?.shirtLength ? [{ label: 'Shirt Length', val: product.shirtLength === 'long' ? 'Full Length' : 'Short Length' }] : []),
                         ...(product?.fabricSourceProduct ? [{ label: 'Fabric Required', val: product.fabricSourceProduct }] : []),
                         ...(product?.colorSourceProduct ? [{ label: 'Color Required', val: product.colorSourceProduct }] : []),
