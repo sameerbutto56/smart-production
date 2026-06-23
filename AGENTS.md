@@ -79,6 +79,12 @@
 - **Shoes category size selection**: Added `isShoes` helper in `OrderEntry.jsx` to show size buttons for SHOES despite `isAccessory` returning `true`. Size buttons use default `['S', 'M', 'L', 'XL', '2XL']` sizes (not empty). `handleCategorySelect` skips `setSize('Standard')` for SHOES.
 - **Fixed `useCallback` TDZ crash**: `handleAddToCart` dependency array referenced `computedTotalPrice` and `capCharges` — `const` variables defined **after** the `useCallback` call in the component body. This caused `ReferenceError: Cannot access 'Ie' before initialization` in the production build. Removed those variables from deps (computations happen inside callback body, where TDZ is no longer an issue).
 - **Fixed missing `useCallback` deps**: `removeCartItem` had no dependency array — switched to functional update pattern `setCartItems(prev => prev.filter(...))` with `[]` deps for a stable reference.
+- **Branding fields (logoName, logoDesign, logoCharges, namePrintingCharges, customizationPrice, capCharges) now preserved per-item** — included in `finalItems` payload for `handleCheckout` and `handleUpdateOrder`; backend `processedItems` and edit request `items.map` carry them through so labels survive create → store → reload → edit round-trip.
+- **`logoName` displayed as badge** in cart items list and review modal.
+- **Financial Summary split into 3 separate rows**: Logo Charges, Name Printing, Customization Charges — each with calculated/adjusted columns, conditionally shown when > 0. Added `adjLogoCharges` and `adjNamePrinting` adjustment fields.
+- **Fixed `handleSizeSelect` stale closure** — changed to functional update `setFormData(prev => ...)` with `[]` deps. Previously deps `[formData.gender, formData.measurements]` caused color to reset when selecting size after changing color.
+- **Per-product availability toggles (✓/✗) in Job Sheet at STORE stage**: Each product in multi-item orders gets Available/Not Available toggle in Full Sheet modal table. Only available items trigger inventory deduction when store routes the order.
+- **Backend per-product availability**: `requestStageCompletion` accepts `productAvailability` from req.body, stores `availabilityStatus` in `productDetails`, and only classifies/deducts inventory for available items. `approveStageCompletion` reads stored `availabilityStatus` from `productDetails` for same selective deduction. `classifyOrderItems` refactored to accept optional item list.
 
 ### In Progress
 - (none)
@@ -117,7 +123,8 @@
 - Advance amount replaces the old boolean `advancePaid` – `advanceAmount` is stored as a `Float` number; components now check `parseFloat(order.advanceAmount) > 0` instead of `order.advancePaid`.
 
 ## Next Steps
-- (none – all planned work is done)
+- Verify per-product availability toggles end-to-end: store user sets ✓/✗ → routes order → backend deducts only for ✓ items
+- Add availability toggles in AllOrders Job Sheet / AdminDashboard job sheet views (currently only in OrderCard Full Sheet modal)
 
 ## Critical Context
 - Latest commit includes: Advance Payment amount, Sleeve Length, Shirt Length, Instruction Notes, Engraving rename, Shopify Order Date, Urdu Job Sheet redesign, Shoes size selection (isShoes helper), analytics source filter fix, outlet demand fallback.
@@ -128,22 +135,11 @@
 - `advanceAmount` field added to Prisma schema, DB pushed, and backend controller updated to accept/store it.
 - `sleeveLength` and `shirtLength` are per-product top-level fields in `productDetails` (not inside `femaleOptions`), applied to all genders.
 - `instructionNotes` stored as `String?` on Order model, displayed in Job Sheet and print output.
+- **Availability status** (`availabilityStatus: 'available' | 'not_available'`) stored per-item in `productDetails`; only products marked "available" trigger inventory deduction during STORE stage completion or approval.
 
 ## Relevant Files
-- `frontend/src/pages/UnifiedAnalytics.jsx`: Complete source-wise analytics dashboard with tabs, filters, drill-down cards, modals, charts
-- `frontend/src/pages/OrderEntry.jsx`: `isShoes` helper, size buttons for SHOES despite `isAccessory`, per-product matching cap, delivery charges, advance amount, sleeve/shirt length dropdowns
-- `backend/src/controllers/analytics.controller.js`: Source-wise endpoints (sources, source/:id, source/:id/orders), sequential queries, date/status/payment/city/delivery filters, backward-compatible unified endpoint
-- `backend/src/routes/analytics.routes.js`: Routes for all analytics endpoints
-- `frontend/src/pages/AllOrders.jsx`: per-product branding sections
-- `frontend/src/components/OrderCard.jsx`: per-product PRODUCTION/STORE rendering
-- `frontend/src/pages/DeliveryDashboard.jsx`: PAID badges + advance amount indicator, deliveryType filter for Enamels
-- `frontend/src/pages/DeliverySheet.jsx`: Payment Status column
-- `frontend/src/pages/AdminDashboard.jsx`: PAID badges
-- `frontend/src/pages/WarehouseDashboard.jsx`: polling 60s + visibility check
-- `frontend/src/pages/History.jsx`: advance amount column
-- `frontend/src/pages/EditRequestDashboard.jsx`: advance amount in diff fields
-- `frontend/src/utils/printReport.js`: `printJobSheet`
-- `backend/src/controllers/order.controller.js`: deliveryCharges, paymentStatus, advanceAmount, idempotent revenue recording, deliveryType filter
+- `frontend/src/components/OrderCard.jsx`: per-product availability toggles (STORE stage), per-product PRODUCTION/STORE rendering
+- `backend/src/controllers/order.controller.js`: deliveryCharges, paymentStatus, advanceAmount, idempotent revenue recording, deliveryType filter, per-product availability (`requestStageCompletion`, `approveStageCompletion`, `classifyOrderItems`)
 - `backend/src/controllers/editRequest.controller.js`: instructionNotes, shopifyOrderDate field mapping
 - `backend/prisma/schema.prisma`: deliveryCharges, advanceAmount, shopifyOrderDate fields
 - `frontend/src/hooks/usePolling.js`: polling hook (unchanged)

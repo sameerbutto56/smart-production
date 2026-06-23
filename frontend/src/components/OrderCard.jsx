@@ -59,6 +59,20 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const [showJobSheet, setShowJobSheet] = useState(false);
   const [showProdHistory, setShowProdHistory] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [productAvailability, setProductAvailability] = useState(() => {
+    const init = {};
+    if (order?.productDetails) {
+      try {
+        const pd = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+        if (Array.isArray(pd)) {
+          pd.forEach((item, idx) => {
+            if (item.availabilityStatus === 'not_available') init[idx] = false;
+          });
+        }
+      } catch {}
+    }
+    return init;
+  });
   const [trackingUrl, setTrackingUrl] = useState('');
   const [actionLoading, setActionLoading] = useState(null);
 
@@ -194,9 +208,11 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const renderTasks = () => {
     const stage = currentStage?.stageName;
     if (stage === 'STORE') {
+      const isStoreRole = ['STORE', 'STORE_EMPLOYEE'].includes(userRole);
       if (isMultiItem && orderItems?.length > 1) {
         return orderItems.map((item, idx) => {
           const p = item.productDetails || {};
+          const isAvail = productAvailability[idx] !== false;
           return (
             <motion.li
               key={idx}
@@ -206,6 +222,24 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               className="text-xs md:text-sm flex items-center justify-between p-2 bg-gray-900/30 rounded-lg border border-gray-800/20"
             >
               <span className="text-gray-400 font-bold uppercase tracking-tighter">#{idx + 1} {p.productType || 'Item'}: {p.fabricType || 'STD'} / {p.color || '—'} / Size {p.size || '—'}</span>
+              {isStoreRole && (
+                <div className="flex gap-1 shrink-0 ml-2">
+                  <button
+                    type="button"
+                    onClick={() => setProductAvailability(prev => ({...prev, [idx]: true}))}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${isAvail ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                  >
+                    ✓
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProductAvailability(prev => ({...prev, [idx]: false}))}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${!isAvail ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                  >
+                    ✗
+                  </button>
+                </div>
+              )}
             </motion.li>
           );
         });
@@ -1237,7 +1271,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           } else {
                             const msg = nextStage ? `Route to ${nextStage.replace(/_/g, ' ')}?` : 'Confirm classification and route items?';
                             if (window.confirm(msg)) {
-                              onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Available', nextStage: nextStage || undefined });
+                              const availPayload = isMultiItem && orderItems?.length > 1
+                                ? Object.fromEntries(orderItems.map((_, idx) => [idx, productAvailability[idx] !== false]))
+                                : {};
+                              onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Available', nextStage: nextStage || undefined, productAvailability: availPayload });
                             }
                           }
                         }}
@@ -1886,6 +1923,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             <th className="py-3 px-4 text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">Fabric & Color</th>
                             <th className="py-3 px-4 text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">Size & Gender</th>
                             <th className="py-3 px-4 text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest text-center">Qty</th>
+                            <th className="py-3 px-4 text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest text-center">Stock</th>
                             <th className="py-3 px-4 text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest text-right">Price</th>
                           </tr>
                         </thead>
@@ -1899,7 +1937,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             const hasLogos = itemCust?.logos && itemCust.logos.length > 0;
                             const hasCust = hasArticleNames || hasLogos || itemCust?.nameSpelling || itemCust?.stitchingStyle || itemCust?.fitType;
                             return (
-                              <React.Fragment key={idx}>
+                                <React.Fragment key={idx}>
                                 <tr className="border-b border-gray-800/50 hover:bg-gray-900/30 transition-colors">
                                   <td className="py-4 px-4 text-gray-500 font-black">{idx + 1}</td>
                                   <td className="py-4 px-4 text-white font-bold uppercase">{p.productType || '—'}</td>
@@ -1917,11 +1955,35 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                     )}
                                   </td>
                                   <td className="py-4 px-4 text-center text-white font-black">{item.quantity || 1}</td>
+                                  <td className="py-4 px-4 text-center">
+                                    {['STORE', 'STORE_EMPLOYEE'].includes(userRole) ? (
+                                      <div className="flex items-center justify-center gap-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => setProductAvailability(prev => ({...prev, [idx]: true}))}
+                                          className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${productAvailability[idx] !== false ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                                        >
+                                          ✓
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setProductAvailability(prev => ({...prev, [idx]: false}))}
+                                          className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${productAvailability[idx] === false ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                                        >
+                                          ✗
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <span className={`text-xs font-black ${productAvailability[idx] !== false ? 'text-emerald-400' : 'text-red-400'}`}>
+                                        {productAvailability[idx] !== false ? 'Available' : 'N/A'}
+                                      </span>
+                                    )}
+                                  </td>
                                   <td className={`py-4 px-4 text-right pr-4 font-black ${showPrice ? 'text-emerald-400' : 'text-gray-500'}`}>{priceDisplay(item.totalPrice)}</td>
                                 </tr>
                                 {hasCust && (
                                   <tr className="bg-purple-900/5 border-b border-gray-800/50">
-                                    <td colSpan={6} className="py-3 px-6">
+                                    <td colSpan={7} className="py-3 px-6">
                                       <div className="flex flex-wrap gap-3">
                                         {hasArticleNames && itemCust.articleNames.map((an, ai) => (
                                           <span key={ai} className="text-[10px] font-bold text-purple-400 bg-purple-500/10 px-2 py-1 rounded-md">
