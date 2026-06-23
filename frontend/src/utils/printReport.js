@@ -19,13 +19,13 @@ const PRINT_CSS = `
     margin-bottom: 10px;
   }
   .report-header h1 { font-size: 28px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
-  .report-header p { font-size: 18px; color: #333; margin-top: 3px; font-weight: 900; }
+  .report-header p { font-size: 18px; color: #000; margin-top: 3px; font-weight: 900; }
   .report-meta {
     display: flex;
     justify-content: space-between;
     font-size: 18px;
     font-weight: 900;
-    color: #444;
+    color: #000;
     margin-bottom: 8px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -75,7 +75,7 @@ const PRINT_CSS = `
     padding: 10px;
     text-align: center;
   }
-  .summary-card .label { font-size: 14px; font-weight: 700; text-transform: uppercase; color: #666; letter-spacing: 0.5px; }
+  .summary-card .label { font-size: 14px; font-weight: 700; text-transform: uppercase; color: #000; letter-spacing: 0.5px; }
   .summary-card .value { font-size: 24px; font-weight: 900; margin-top: 4px; }
   .summary-row {
     display: flex;
@@ -83,14 +83,14 @@ const PRINT_CSS = `
     padding: 6px 0;
     border-bottom: 2px dashed #ccc;
     font-size: 18px;
-    font-weight: 600;
+    font-weight: 900;
   }
   .summary-row:last-child { border-bottom: none; }
   .footer {
     text-align: center;
     font-size: 16px;
-    font-weight: 600;
-    color: #888;
+    font-weight: 900;
+    color: #000;
     border-top: 3px solid #ccc;
     padding-top: 8px;
     margin-top: 20px;
@@ -581,21 +581,21 @@ export function printJobSheet(order, userRole, lang = 'ur') {
   win.document.write(`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;border-bottom:3px solid #111;padding-bottom:8px">`);
   win.document.write(`<div>`);
   win.document.write(`<h1 style="font-size:28px;font-weight:900;text-transform:uppercase;letter-spacing:-0.5px">${sec.jobSheet}</h1>`);
-  win.document.write(`<p style="font-size:20px;color:#555;margin-top:3px;font-weight:700">Order #${order.orderNumber || order.id?.slice(0, 8)}</p>`);
+  win.document.write(`<p style="font-size:20px;color:#000;margin-top:3px;font-weight:700">Order #${order.orderNumber || order.id?.slice(0, 8)}</p>`);
   win.document.write(`</div>`);
   win.document.write(`<div style="text-align:right">`);
   win.document.write(`<p style="font-size:22px;font-weight:900">${order.customerName || '—'}</p>`);
-  win.document.write(`<p style="font-size:20px;color:#666;font-weight:600">${order.customerPhone || ''}</p>`);
-  if (order.address) win.document.write(`<p style="font-size:18px;color:#666">${order.address}</p>`);
-  if (order.city) win.document.write(`<p style="font-size:24px;font-weight:900;color:#d97706;background:#fef3c7;display:inline-block;padding:4px 14px;border-radius:6px;margin-top:4px;text-transform:uppercase">📍 CITY: ${order.city}</p>`);
+  win.document.write(`<p style="font-size:20px;color:#000;font-weight:600">${order.customerPhone || ''}</p>`);
+  if (order.address) win.document.write(`<p style="font-size:18px;color:#000">${order.address}</p>`);
+  if (order.city) win.document.write(`<p style="font-size:24px;font-weight:900;color:#000;background:#fef3c7;display:inline-block;padding:4px 14px;border-radius:6px;margin-top:4px;text-transform:uppercase">📍 CITY: ${order.city}</p>`);
   win.document.write(`</div></div>`);
 
   // ─── DATES ROW ───
   win.document.write(`<div style="display:flex;justify-content:space-between;margin-bottom:8px;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:6px 10px;">`);
-  win.document.write(`<div><span style="font-size:18px;font-weight:700;color:#166534">${sec.orderEntryDate}:</span> <span style="font-size:20px;font-weight:900;color:#111">${entryDate}</span></div>`);
+  win.document.write(`<div><span style="font-size:18px;font-weight:700;color:#000">${sec.orderEntryDate}:</span> <span style="font-size:20px;font-weight:900;color:#111">${entryDate}</span></div>`);
   if (shopifyDate) {
     const shopifyLabel = isUrdu ? `${sec.shopifyDate}:` : `${sec.shopifyDate}:`;
-    win.document.write(`<div><span style="font-size:18px;font-weight:700;color:#7c3aed">${shopifyLabel}</span> <span style="font-size:20px;font-weight:900;color:#111">${shopifyDate}</span></div>`);
+    win.document.write(`<div><span style="font-size:18px;font-weight:700;color:#000">${shopifyLabel}</span> <span style="font-size:20px;font-weight:900;color:#111">${shopifyDate}</span></div>`);
   }
   win.document.write(`</div>`);
 
@@ -619,8 +619,8 @@ export function printJobSheet(order, userRole, lang = 'ur') {
   if (order.instructionNotes) {
     const notesDisplay = isUrdu ? romanToUrdu(order.instructionNotes) : order.instructionNotes;
     win.document.write(`<div style="background:#fef3c7;border:2px solid #f59e0b;border-radius:8px;padding:8px 12px;margin-bottom:8px;page-break-inside:avoid">`);
-    win.document.write(`<p style="font-size:20px;font-weight:900;text-transform:uppercase;color:#b45309;margin-bottom:4px"${isUrdu ? ' class="urdu"' : ''}>${sec.instructionNotes}</p>`);
-    win.document.write(`<p style="font-size:26px;font-weight:700;color:#92400e"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
+    win.document.write(`<p style="font-size:20px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px"${isUrdu ? ' class="urdu"' : ''}>${sec.instructionNotes}</p>`);
+    win.document.write(`<p style="font-size:26px;font-weight:700;color:#000"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
   }
 
   // ─── PRODUCTS TABLE ───
@@ -653,9 +653,9 @@ export function printJobSheet(order, userRole, lang = 'ur') {
       win.document.write(`</td>`);
       win.document.write(`<td style="font-size:22px">${[p.fabricType, p.color].filter(Boolean).join(' • ')}</td>`);
       const extras = [p.sleeveLength ? `${sec.sleeves}: ${p.sleeveLength}` : null, p.shirtLength ? `${sec.length}: ${p.shirtLength}` : null].filter(Boolean).join(' | ');
-      win.document.write(`<td style="font-size:22px">${p.size || cap('Custom')} • ${p.gender || 'Male'}${extras ? '<br><span style="font-size:20px;color:#db2777;font-weight:700">' + extras + '</span>' : ''}</td>`);
+      win.document.write(`<td style="font-size:22px">${p.size || cap('Custom')} • ${p.gender || 'Male'}${extras ? '<br><span style="font-size:20px;color:#000;font-weight:700">' + extras + '</span>' : ''}</td>`);
       win.document.write(`<td style="text-align:center;font-weight:700;font-size:22px">${item.quantity || 1}</td>`);
-      if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;font-size:22px;color:#e11d48">${capQty || '—'}</td>`);
+      if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;font-size:22px;color:#000">${capQty || '—'}</td>`);
       win.document.write(`<td style="text-align:right;font-weight:700;font-size:22px">${priceDisplay(item.totalPrice)}</td>`);
       win.document.write(`</tr>`);
     });
@@ -682,9 +682,9 @@ export function printJobSheet(order, userRole, lang = 'ur') {
     win.document.write(`<td style="font-size:22px">${firstProduct.color || '—'}</td>`);
     const extras = [firstProduct.sleeveLength ? `${sec.sleeves}: ${firstProduct.sleeveLength}` : null, firstProduct.shirtLength ? `${sec.length}: ${firstProduct.shirtLength}` : null].filter(Boolean).join(' | ');
     win.document.write(`<td style="font-size:22px">${firstProduct.size || cap('Custom')}</td>`);
-    win.document.write(`<td style="font-size:22px">${firstProduct.gender || 'Male'}${extras ? '<br><span style="font-size:20px;color:#db2777;font-weight:700">' + extras + '</span>' : ''}</td>`);
+    win.document.write(`<td style="font-size:22px">${firstProduct.gender || 'Male'}${extras ? '<br><span style="font-size:20px;color:#000;font-weight:700">' + extras + '</span>' : ''}</td>`);
     win.document.write(`<td style="text-align:center;font-weight:700;font-size:22px">${order.quantity || 1}</td>`);
-    if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;font-size:22px;color:#e11d48">${capQty || '—'}</td>`);
+    if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;font-size:22px;color:#000">${capQty || '—'}</td>`);
     win.document.write(`<td style="text-align:right;font-weight:700;font-size:22px">${priceDisplay(order.totalPrice)}</td>`);
     win.document.write(`</tr></tbody></table>`);
   }
@@ -708,21 +708,21 @@ export function printJobSheet(order, userRole, lang = 'ur') {
       win.document.write(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding-bottom:6px;border-bottom:2px solid #eee">`);
       win.document.write(`<span style="background:#111;color:#fff;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:20px;font-weight:800">${idx + 1}</span>`);
       win.document.write(`<span style="font-weight:900;font-size:22px;text-transform:uppercase">${p.productType || 'Item ' + (idx + 1)}</span>`);
-      if (p.color) win.document.write(`<span style="font-size:18px;color:#888">(${p.color})</span>`);
+      if (p.color) win.document.write(`<span style="font-size:18px;color:#000">(${p.color})</span>`);
       win.document.write(`</div>`);
 
       // Engraving Type
       if (c?.engravingType) {
         win.document.write(`<div style="margin-bottom:6px">`);
         const engravingLabel = c.engravingType === 'direct' ? sec.directEngraving : sec.patchEngraving;
-        win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#7c3aed;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${sec.engravingType}: ${engravingLabel}</p>`);
+        win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${sec.engravingType}: ${engravingLabel}</p>`);
         win.document.write(`</div>`);
       }
 
       // Name Lines
       if (hasNames) {
         win.document.write(`<div style="margin-bottom:6px">`);
-        win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#7c3aed;margin-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.nameLines}</p>`);
+        win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.nameLines}</p>`);
         if (c.articleNames?.length > 0) {
           c.articleNames.forEach((an, ai) => {
             win.document.write(`<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span style="background:#7c3aed20;color:#7c3aed;font-size:18px;font-weight:800;padding:2px 6px;border-radius:3px">L${ai + 1}</span><span style="font-size:24px;font-weight:700">${an}</span></div>`);
@@ -753,7 +753,7 @@ export function printJobSheet(order, userRole, lang = 'ur') {
       // Logos
       if (hasLogos) {
         win.document.write(`<div style="margin-bottom:6px">`);
-        win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#d97706;margin-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.logos}</p>`);
+        win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.logos}</p>`);
         c.logos.forEach((l, li) => {
           win.document.write(`<div style="font-size:22px;font-weight:700;background:#fffbeb;padding:4px 8px;border-radius:4px;margin-bottom:2px;border:2px solid #fef3c7">${l.name || 'Logo ' + (li + 1)}${l.design ? ' — ' + l.design : ''}</div>`);
         });
@@ -764,8 +764,8 @@ export function printJobSheet(order, userRole, lang = 'ur') {
       if (hasNotes) {
         const notesDisplay = isUrdu ? romanToUrdu(c.designNotes) : c.designNotes;
         win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px">`);
-        win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#d97706;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
-        win.document.write(`<p style="font-size:22px;font-style:italic;color:#92400e"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
+        win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
+        win.document.write(`<p style="font-size:22px;font-style:italic;color:#000"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
       }
 
       // Sleeve / Shirt Length
@@ -773,13 +773,13 @@ export function printJobSheet(order, userRole, lang = 'ur') {
       const slen = p.shirtLength || (p.gender === 'Female' && p.femaleOptions?.shirtLength ? p.femaleOptions.shirtLength : null);
       const opts = [slv ? `${sec.sleeves}: ${slv}` : null, slen ? `${sec.length}: ${slen}` : null, (p.gender === 'Female' && p.femaleOptions?.dupatta) ? 'Dupatta' : null].filter(Boolean);
       if (opts.length > 0) {
-        win.document.write(`<p style="font-size:20px;margin-top:4px;color:#db2777;font-weight:700">${opts.join(' | ')}</p>`);
+        win.document.write(`<p style="font-size:20px;margin-top:4px;color:#000;font-weight:700">${opts.join(' | ')}</p>`);
       }
 
       // Matching Cap
       const capQty = p.matchingCap ? (p.matchingCapQty || 0) : 0;
       if (capQty > 0) {
-        win.document.write(`<p style="font-size:20px;margin-top:4px;color:#e11d48;font-weight:700">${sec.matchingCap} ×${capQty}</p>`);
+        win.document.write(`<p style="font-size:20px;margin-top:4px;color:#000;font-weight:700">${sec.matchingCap} ×${capQty}</p>`);
       }
 
       win.document.write(`</div>`);
@@ -802,12 +802,12 @@ export function printJobSheet(order, userRole, lang = 'ur') {
         if (meas.length === 0) return;
         win.document.write(`<div style="margin-bottom:6px;page-break-inside:avoid">`);
         if (isMultiItem) {
-          win.document.write(`<p style="font-size:20px;font-weight:900;text-transform:uppercase;color:#1e40af;margin-bottom:3px">#${idx + 1} ${p.productType || ''}</p>`);
+          win.document.write(`<p style="font-size:20px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:3px">#${idx + 1} ${p.productType || ''}</p>`);
         }
         win.document.write(`<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px">`);
         meas.forEach(([k, v]) => {
           const label = isUrdu ? (urduLabels[k.toLowerCase()] || k.replace(/([A-Z])/g, ' $1').trim()) : (k.charAt(0).toUpperCase() + k.slice(1).replace(/([A-Z])/g, ' $1').trim());
-          win.document.write(`<div style="text-align:center;border:2px solid #ddd;border-radius:6px;padding:5px"><p style="font-size:18px;font-weight:700;color:#888;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${label}</p><p style="font-size:24px;font-weight:900">${v}</p></div>`);
+          win.document.write(`<div style="text-align:center;border:2px solid #ddd;border-radius:6px;padding:5px"><p style="font-size:18px;font-weight:700;color:#000;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${label}</p><p style="font-size:24px;font-weight:900">${v}</p></div>`);
         });
         win.document.write(`</div></div>`);
       });
@@ -831,14 +831,14 @@ export function printJobSheet(order, userRole, lang = 'ur') {
     win.document.write(`<table style="width:auto;margin-left:auto"><tbody>`);
     win.document.write(`<tr><td style="font-weight:700;padding:3px 20px 3px 0;font-size:22px">Product Price</td><td style="text-align:right;font-weight:800;font-size:22px">${priceDisplay(calcProductPrice)}</td></tr>`);
     if (calcCustomization > 0) {
-      win.document.write(`<tr><td style="font-weight:700;padding:3px 20px 3px 0;color:#7c3aed;font-size:22px">Customization Charges</td><td style="text-align:right;font-weight:800;color:#7c3aed;font-size:22px">${priceDisplay(calcCustomization)}</td></tr>`);
+      win.document.write(`<tr><td style="font-weight:700;padding:3px 20px 3px 0;font-size:22px">Customization Charges</td><td style="text-align:right;font-weight:800;font-size:22px">${priceDisplay(calcCustomization)}</td></tr>`);
     }
     if (calcCap > 0) {
-      win.document.write(`<tr><td style="font-weight:700;padding:3px 20px 3px 0;color:#e11d48;font-size:22px">Matching Cap Charges</td><td style="text-align:right;font-weight:800;color:#e11d48;font-size:22px">${priceDisplay(calcCap)}</td></tr>`);
+      win.document.write(`<tr><td style="font-weight:700;padding:3px 20px 3px 0;font-size:22px">Matching Cap Charges</td><td style="text-align:right;font-weight:800;font-size:22px">${priceDisplay(calcCap)}</td></tr>`);
     }
-    win.document.write(`<tr><td style="font-weight:700;padding:3px 20px 3px 0;color:${isFreeDelivery ? '#059669' : '#d97706'};font-size:22px">Delivery Charges</td><td style="text-align:right;font-weight:800;color:${isFreeDelivery ? '#059669' : '#d97706'};font-size:22px">${isFreeDelivery ? 'FREE' : priceDisplay(deliveryCharges)}</td></tr>`);
+    win.document.write(`<tr><td style="font-weight:700;padding:3px 20px 3px 0;font-size:22px">Delivery Charges</td><td style="text-align:right;font-weight:800;font-size:22px">${isFreeDelivery ? 'FREE' : priceDisplay(deliveryCharges)}</td></tr>`);
     if (discount > 0) {
-      win.document.write(`<tr><td style="font-weight:700;padding:3px 20px 3px 0;color:#dc2626;font-size:22px">Discount</td><td style="text-align:right;font-weight:800;color:#dc2626;font-size:22px">−${priceDisplay(discount)}</td></tr>`);
+      win.document.write(`<tr><td style="font-weight:700;padding:3px 20px 3px 0;font-size:22px">Discount</td><td style="text-align:right;font-weight:800;font-size:22px">−${priceDisplay(discount)}</td></tr>`);
     }
     win.document.write(`<tr style="border-top:3px solid #111"><td style="font-weight:900;padding:4px 20px 4px 0;font-size:26px">Grand Total</td><td style="text-align:right;font-weight:900;font-size:26px">${priceDisplay(grandTotal)}</td></tr>`);
     win.document.write(`</tbody></table>`);
@@ -846,7 +846,7 @@ export function printJobSheet(order, userRole, lang = 'ur') {
   }
 
   // ─── FOOTER ───
-  win.document.write(`<div style="display:flex;justify-content:space-between;font-size:18px;color:#999;border-top:2px solid #ddd;padding-top:6px;margin-top:8px">`);
+  win.document.write(`<div style="display:flex;justify-content:space-between;font-size:18px;color:#000;border-top:2px solid #ddd;padding-top:6px;margin-top:8px">`);
   win.document.write(`<span>${sec.orderEntryDate}: ${entryDate}</span>`);
   win.document.write(`<span>${orderType.replace(/_/g, ' ')}${isUrdu ? '' : ''}</span>`);
   win.document.write(`</div>`);
