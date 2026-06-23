@@ -579,7 +579,7 @@ const getOrders = async (req, res) => {
               status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
             },
             include: {
-              stages: { orderBy: { createdAt: 'desc' }, select: { stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
+              stages: { orderBy: { createdAt: 'desc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
               auditLogs: { orderBy: { timestamp: 'desc' }, take: 5, select: { action: true, timestamp: true, details: true, performedBy: true } },
               createdBy: { select: { name: true } }
             },
@@ -592,7 +592,7 @@ const getOrders = async (req, res) => {
               status: { in: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
             },
             include: {
-              stages: { orderBy: { createdAt: 'desc' }, select: { stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
+              stages: { orderBy: { createdAt: 'desc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
               auditLogs: { orderBy: { timestamp: 'desc' }, take: 5, select: { action: true, timestamp: true, details: true, performedBy: true } },
               createdBy: { select: { name: true } }
             },
@@ -612,7 +612,7 @@ const getOrders = async (req, res) => {
       include: {
         stages: {
           orderBy: { createdAt: 'desc' },
-          select: { stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true }
+          select: { id: true, stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true }
         },
         auditLogs: {
           orderBy: { timestamp: 'desc' },
@@ -1724,7 +1724,7 @@ const getRefundQueue = async (req, res) => {
     const orders = await prisma.order.findMany({
       where,
       include: {
-        stages: { orderBy: { createdAt: 'desc' }, take: 5, select: { stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
+        stages: { orderBy: { createdAt: 'desc' }, take: 5, select: { id: true, stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
         createdBy: { select: { name: true } }
       },
       orderBy: { refundedAt: 'desc' },
@@ -2886,7 +2886,7 @@ const getStoreProductionOrders = async (req, res) => {
         status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
       },
       include: {
-        stages: { orderBy: { createdAt: 'desc' }, select: { stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
+        stages: { orderBy: { createdAt: 'desc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
         auditLogs: { orderBy: { timestamp: 'desc' }, take: 5, select: { action: true, timestamp: true, details: true, performedBy: true } },
         createdBy: { select: { name: true } }
       },
@@ -2922,7 +2922,7 @@ const getUnseenOrders = async (req, res) => {
         status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
       },
       include: {
-        stages: { orderBy: { createdAt: 'desc' }, select: { stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
+        stages: { orderBy: { createdAt: 'desc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
         auditLogs: { orderBy: { timestamp: 'desc' }, take: 5, select: { action: true, timestamp: true, details: true, performedBy: true } },
         createdBy: { select: { name: true } }
       },
@@ -2974,7 +2974,7 @@ const getStoreRequests = async (req, res) => {
         ...(isOutlet ? { source: 'OUTLET', outletName } : { source: { in: ['INTERNAL', 'ONLINE'] } })
       },
       include: {
-        stages: { orderBy: { createdAt: 'desc' }, select: { stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
+        stages: { orderBy: { createdAt: 'desc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
         createdBy: { select: { name: true } }
       },
       orderBy: { storeRequestedAt: 'desc' },
@@ -3368,7 +3368,7 @@ const getStoreDashboardOrders = async (req, res) => {
     const storeOrders = await prisma.order.findMany({
       where: whereStore,
       include: {
-        stages: { orderBy: { createdAt: 'asc' }, select: { stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
+        stages: { orderBy: { createdAt: 'asc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
         auditLogs: { orderBy: { timestamp: 'desc' }, take: 5, select: { action: true, timestamp: true, details: true, performedBy: true } },
         createdBy: { select: { name: true } }
       },

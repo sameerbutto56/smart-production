@@ -84,7 +84,5 @@ const safeIo = {
 };
 app.set('io', safeIo);
 
-// Catch socket.io polling requests on Vercel (serverless — no real socket.io)
-app.all('/socket.io/*', (req, res) => res.status(204).end());
 
 module.exports = app;
