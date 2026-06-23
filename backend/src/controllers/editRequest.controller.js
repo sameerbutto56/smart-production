@@ -319,9 +319,9 @@ const approveEditRequest = async (req, res) => {
     // Map other order-level properties if present
     const fieldsToMap = [
       'customerName', 'customerPhone', 'address', 'city', 'type',
-      'priority', 'advancePaid', 'logoDesign', 'logoName',
+      'priority', 'advancePaid', 'advanceAmount', 'logoDesign', 'logoName',
       'logoCharges', 'namePrintingCharges', 'customizationPrice',
-      'instructionNotes',
+      'deliveryCharges', 'instructionNotes',
       'shopifyOrderDate'
     ];
 
@@ -329,7 +329,7 @@ const approveEditRequest = async (req, res) => {
       if (requestedChanges[field] !== undefined) {
         if (field === 'advancePaid') {
           updateData[field] = !!requestedChanges[field];
-        } else if (['logoCharges', 'namePrintingCharges', 'customizationPrice'].includes(field)) {
+        } else if (['logoCharges', 'namePrintingCharges', 'customizationPrice', 'advanceAmount', 'deliveryCharges'].includes(field)) {
           updateData[field] = parseFloat(requestedChanges[field]) || 0;
         } else if (field === 'shopifyOrderDate') {
           updateData[field] = requestedChanges[field] ? new Date(requestedChanges[field]) : null;

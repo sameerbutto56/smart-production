@@ -331,44 +331,21 @@ const InventoryManagement = () => {
         </div>
       </div>
 
-      {/* Filters Bar */}
-      <div className="flex flex-col lg:flex-row gap-3 md:gap-6">
-        <div className="relative flex-1">
-          <div className="absolute left-4 top-1/2 -translate-y-1/2 p-2 bg-emerald-500/10 rounded-xl z-10">
-            <Search className="text-emerald-400" size={16} />
-          </div>
-          <input 
-            type="text" 
-            placeholder="Search by name, color, or category..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-gray-900 border-2 border-gray-700 rounded-2xl py-4 pl-14 pr-12 text-sm font-bold text-white placeholder-gray-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 transition-all outline-none"
-            style={{ color: '#ffffff' }}
-          />
-          {searchTerm && (
-            <button
-              onClick={() => setSearchTerm('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg transition-all z-10"
-            >
-              <X size={14} className="text-white" />
-            </button>
-          )}
-        </div>
-        <div className="flex overflow-x-auto bg-gray-900 border-2 border-gray-700 rounded-2xl p-1">
-          {['ALL', ...allCategories].map(cat => (
-            <button 
-              key={cat} 
-              onClick={() => setSearchTerm(cat === 'ALL' ? '' : cat)}
-              className={`px-5 py-2.5 text-xs md:text-sm font-black rounded-xl transition-all whitespace-nowrap ${
-                (searchTerm === cat || (cat === 'ALL' && searchTerm === '')) 
-                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/30' 
-                  : 'text-gray-400 hover:text-white hover:bg-gray-700'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
+      {/* Filters Bar - Category Buttons */}
+      <div className="flex overflow-x-auto bg-gray-900 border-2 border-gray-700 rounded-2xl p-1">
+        {['ALL', ...allCategories].map(cat => (
+          <button 
+            key={cat} 
+            onClick={() => setSearchTerm(cat === 'ALL' ? '' : cat)}
+            className={`px-5 py-2.5 text-xs md:text-sm font-black rounded-xl transition-all whitespace-nowrap ${
+              (searchTerm === cat || (cat === 'ALL' && searchTerm === '')) 
+                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/30' 
+                : 'text-gray-400 hover:text-white hover:bg-gray-700'
+            }`}
+          >
+            {cat}
+          </button>
+        ))}
       </div>
 
       {/* Search Bar */}
