@@ -82,17 +82,14 @@
 - **Routing System Fix**: Added route validation (`destinationStage` must be in `validAllStages`) in `manualRouteOrder` and `requestStageCompletion` — returns clear error message `"Cannot route order. Destination route X does not exist. Please configure the workflow route first."`. Previously no validation existed, routing to invalid stages would silently create orphan stages with no recipients.
 - **WORKERS stage**: Added as a valid routing destination across the entire system — `validAllStages`, `validateStageTransition`, `getRolesForStage` (mapped to `PRODUCTION` role), `getRolesForStageBasedOnRole`, `getStageDurations`, `AUTO_TRANSITION_STAGES`, analytics `stageOrder`. Frontend routing UIs updated: OrderCard STORE dropdown, STORE_RECEIVE buttons, admin Move To, prompt-based routing, WarehouseDashboard quick-route buttons + modal, MyTasks bulk routing, AdminDashboard bulk routing.
 
-### In Progress
-- (none)
-
-### Blocked
-- (none)
-
-### In Progress
-- (none)
-
-### Blocked
-- (none)
+### Done (current session)
+- **Per-item Three Status system**: `inventoryDeducted: true` field in productDetails. `updateProductAvailability` now deducts inventory immediately on ✓ click. ✓ → `availabilityStatus: 'available'` + locked (no further toggling). ✗ → `availabilityStatus: 'not_available'` (no deduction).
+- **Three visual states**: Default `undefined` → ⏳ Pending (gray badge), `true` → ✓ Completed (green badge), `false` → ✗ Rejected (red badge). Initialization from DB uses strict `=== 'available'` / `=== 'not_available'` checks.
+- **Toggle protection**: ✓ button disabled+locked when Completed. Hover styles for pending items; Completed shows permanent green with `cursor-not-allowed`.
+- **Routing-time skip**: `requestStageCompletion` STORE section filters `!item.inventoryDeducted` to skip already-deducted items. Only pending items get classified/deducted.
+- **Clean avail payload**: STORE routing payload only includes explicitly `true`/`false` items.
+- **All status badges updated**: OrderCard, AllOrders everywhere.
+- **Build passes with 0 errors**.
 
 ## Performance Optimizations (Jun 20)
 ### Backend

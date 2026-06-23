@@ -57,7 +57,8 @@ const AllOrders = () => {
         const items = Array.isArray(pd) ? pd : (pd?.productType ? [pd] : []);
         const init = {};
         items.forEach((item, idx) => {
-          init[idx] = item.availabilityStatus !== 'not_available';
+          if (item.availabilityStatus === 'available') init[idx] = true;
+          else if (item.availabilityStatus === 'not_available') init[idx] = false;
         });
         setProductAvailability(init);
       } catch {}
@@ -117,7 +118,7 @@ const AllOrders = () => {
         return o;
       }));
 
-      toast.success(isAvailable ? 'Item marked as Available' : 'Item marked as To Be Manufactured');
+      toast.success(isAvailable ? 'Item Completed' : 'Item Rejected');
     } catch (err) {
       console.error(err);
       toast.error(err.response?.data?.message || 'Failed to update product availability');
@@ -127,7 +128,13 @@ const AllOrders = () => {
           const pd = typeof selectedOrder.productDetails === 'string' ? JSON.parse(selectedOrder.productDetails) : selectedOrder.productDetails;
           const items = Array.isArray(pd) ? pd : (pd?.productType ? [pd] : []);
           const originalStatus = items[idx]?.availabilityStatus;
-          setProductAvailability(prev => ({ ...prev, [idx]: originalStatus !== 'not_available' }));
+          setProductAvailability(prev => {
+            const next = { ...prev };
+            if (originalStatus === 'available') next[idx] = true;
+            else if (originalStatus === 'not_available') next[idx] = false;
+            else delete next[idx];
+            return next;
+          });
         } catch {}
       }
     }
@@ -990,30 +997,36 @@ const AllOrders = () => {
                                       <div className="flex items-center justify-center gap-1">
                                         <button
                                           type="button"
+                                          disabled={productAvailability[idx] === true}
                                           onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(idx, true); }}
-                                          className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${productAvailability[idx] !== false ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                                          className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${productAvailability[idx] === true ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 cursor-not-allowed' : productAvailability[idx] === false ? 'bg-gray-800 text-gray-500 border border-gray-700' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-emerald-500/10 hover:text-emerald-400'}`}
                                         >
                                           ✓
                                         </button>
                                         <button
                                           type="button"
+                                          disabled={productAvailability[idx] === true}
                                           onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(idx, false); }}
-                                          className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${productAvailability[idx] === false ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                                          className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${productAvailability[idx] === false ? 'bg-red-500/20 text-red-400 border border-red-500/30' : productAvailability[idx] === true ? 'bg-gray-800 text-gray-500 border border-gray-700 cursor-not-allowed' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-red-500/10 hover:text-red-400'}`}
                                         >
                                           ✗
                                         </button>
                                       </div>
-                                    ) : item.availabilityStatus === 'not_available' ? (
+                                    ) : productAvailability[idx] === false ? (
                                       <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-500/10 border border-red-500/30 rounded text-xs font-black text-red-400">
-                                        ✗ {t('N/A')}
+                                        ✗ {t('Rejected')}
+                                      </span>
+                                    ) : productAvailability[idx] === true ? (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 rounded text-xs font-black text-emerald-400">
+                                        ✓ {t('Completed')}
                                       </span>
                                     ) : item.availabilityStatus === 'produced' ? (
                                       <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 border border-blue-500/30 rounded text-xs font-black text-blue-400">
                                         ✓ {t('Produced')}
                                       </span>
                                     ) : (
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 rounded text-xs font-black text-emerald-400">
-                                        ✓ {t('Available')}
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-700/30 border border-gray-600/30 rounded text-xs font-black text-gray-400">
+                                        ⏳ {t('Pending')}
                                       </span>
                                     )}
                                   </td>
@@ -1065,21 +1078,24 @@ const AllOrders = () => {
                             (() => {
                               const isStoreRole = ['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(user?.role);
                               const isStoreStage = selectedOrder.currentStage !== 'PRODUCTION' && selectedOrder.currentStage !== 'STORE_RECEIVE';
-                              const singleIsAvail = productAvailability[0] !== false;
+                              const singleCompleted = productAvailability[0] === true;
+                              const singleRejected = productAvailability[0] === false;
                               if (isStoreRole && isStoreStage) {
                                 return (
                                   <div className="flex items-center gap-1">
                                     <button
                                       type="button"
+                                      disabled={singleCompleted}
                                       onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(0, true); }}
-                                      className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black transition-all ${singleIsAvail ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                                      className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black transition-all ${singleCompleted ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 cursor-not-allowed' : singleRejected ? 'bg-gray-800 text-gray-500 border border-gray-700' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-emerald-500/10 hover:text-emerald-400'}`}
                                     >
                                       ✓
                                     </button>
                                     <button
                                       type="button"
+                                      disabled={singleCompleted}
                                       onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(0, false); }}
-                                      className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black transition-all ${!singleIsAvail ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                                      className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black transition-all ${singleRejected ? 'bg-red-500/20 text-red-400 border border-red-500/30' : singleCompleted ? 'bg-gray-800 text-gray-500 border border-gray-700 cursor-not-allowed' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-red-500/10 hover:text-red-400'}`}
                                     >
                                       ✗
                                     </button>
@@ -1087,8 +1103,8 @@ const AllOrders = () => {
                                 );
                               }
                               return (
-                                <span className={`text-lg font-black ${singleIsAvail ? 'text-emerald-400' : 'text-red-400'}`}>
-                                  {singleIsAvail ? t('Available') : t('N/A')}
+                                <span className={`text-lg font-black ${singleCompleted ? 'text-emerald-400' : singleRejected ? 'text-red-400' : 'text-gray-400'}`}>
+                                  {singleCompleted ? t('Completed') : singleRejected ? t('Rejected') : t('Pending')}
                                 </span>
                               );
                             })()

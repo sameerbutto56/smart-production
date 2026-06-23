@@ -59,6 +59,12 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const [showJobSheet, setShowJobSheet] = useState(false);
   const [showProdHistory, setShowProdHistory] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const getItemStatus = useCallback((item) => {
+    if (item.availabilityStatus === 'available') return true;
+    if (item.availabilityStatus === 'not_available') return false;
+    return undefined;
+  }, []);
+
   const [productAvailability, setProductAvailability] = useState(() => {
     const init = {};
     if (order?.productDetails) {
@@ -66,7 +72,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
         const pd = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
         const items = Array.isArray(pd) ? pd : (pd?.productType ? [pd] : []);
         items.forEach((item, idx) => {
-          init[idx] = item.availabilityStatus !== 'not_available';
+          const st = getItemStatus(item);
+          if (st !== undefined) init[idx] = st;
         });
       } catch {}
     }
@@ -80,12 +87,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
         const items = Array.isArray(pd) ? pd : (pd?.productType ? [pd] : []);
         const next = {};
         items.forEach((item, idx) => {
-          next[idx] = item.availabilityStatus !== 'not_available';
+          const st = getItemStatus(item);
+          if (st !== undefined) next[idx] = st;
         });
         setProductAvailability(next);
       } catch {}
     }
-  }, [order?.productDetails]);
+  }, [order?.productDetails, getItemStatus]);
 
   const handleProductAvailabilityToggle = useCallback(async (idx, isAvailable) => {
     try {
@@ -99,17 +107,23 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      toast.success(isAvailable ? 'Item marked as Available' : 'Item marked as To Be Manufactured');
+      toast.success(isAvailable ? 'Item Completed' : 'Item Rejected');
     } catch (err) {
       console.error(err);
       toast.error(err.response?.data?.message || 'Failed to update product availability');
-      // Revert state
+      // Revert state to original
       if (order?.productDetails) {
         try {
           const pd = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
           const items = Array.isArray(pd) ? pd : (pd?.productType ? [pd] : []);
           const originalStatus = items[idx]?.availabilityStatus;
-          setProductAvailability(prev => ({ ...prev, [idx]: originalStatus !== 'not_available' }));
+          setProductAvailability(prev => {
+            const next = { ...prev };
+            if (originalStatus === 'available') next[idx] = true;
+            else if (originalStatus === 'not_available') next[idx] = false;
+            else delete next[idx];
+            return next;
+          });
         } catch {}
       }
     }
@@ -251,27 +265,39 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
     if (stage === 'STORE') {
       const isStoreRole = ['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(userRole);
       if (isMultiItem && orderItems?.length > 1) {
-        const sortedItems = orderItems.map((item, idx) => ({ item, idx, isNotAvail: productAvailability[idx] === false }));
-        sortedItems.sort((a, b) => (a.isNotAvail === b.isNotAvail ? 0 : a.isNotAvail ? -1 : 1));
-        const hasAnyNotAvail = sortedItems.some(s => s.isNotAvail);
-        let headerShown = { notAvail: false, avail: false };
-        return sortedItems.flatMap(({ item, idx, isNotAvail }) => {
+        const sortedItems = orderItems.map((item, idx) => ({ item, idx, isRejected: productAvailability[idx] === false, isCompleted: productAvailability[idx] === true }));
+        sortedItems.sort((a, b) => {
+          const ag = a.isCompleted ? 2 : a.isRejected ? 0 : 1;
+          const bg = b.isCompleted ? 2 : b.isRejected ? 0 : 1;
+          return bg - ag;
+        });
+        const hasRejected = sortedItems.some(s => s.isRejected);
+        const hasCompleted = sortedItems.some(s => s.isCompleted);
+        let headerShown = { rejected: false, pending: false, completed: false };
+        return sortedItems.flatMap(({ item, idx, isRejected, isCompleted }) => {
           const p = item.productDetails || {};
-          const isAvail = productAvailability[idx] !== false;
           const rows = [];
-          if (isNotAvail && !headerShown.notAvail) {
-            headerShown.notAvail = true;
+          if (isRejected && !headerShown.rejected) {
+            headerShown.rejected = true;
             rows.push(
-              <li key="hdr-na" className="text-xs font-black text-red-400 uppercase tracking-widest py-1.5 px-2 bg-red-900/10 rounded-lg border border-red-500/20 mb-1">
-                ⚠ To Be Manufactured
+              <li key="hdr-rej" className="text-xs font-black text-red-400 uppercase tracking-widest py-1.5 px-2 bg-red-900/10 rounded-lg border border-red-500/20 mb-1">
+                ✗ Rejected / Unavailable
               </li>
             );
           }
-          if (!isNotAvail && !headerShown.avail && hasAnyNotAvail) {
-            headerShown.avail = true;
+          if (isCompleted && !headerShown.completed) {
+            headerShown.completed = true;
             rows.push(
-              <li key="hdr-av" className="text-xs font-black text-emerald-400 uppercase tracking-widest py-1.5 px-2 bg-emerald-900/10 rounded-lg border border-emerald-500/20 mb-1 mt-2">
-                ✓ Available Items
+              <li key="hdr-cmp" className="text-xs font-black text-emerald-400 uppercase tracking-widest py-1.5 px-2 bg-emerald-900/10 rounded-lg border border-emerald-500/20 mb-1 mt-2">
+                ✓ Completed
+              </li>
+            );
+          }
+          if (!isRejected && !isCompleted && !headerShown.pending && (hasRejected || hasCompleted)) {
+            headerShown.pending = true;
+            rows.push(
+              <li key="hdr-pen" className="text-xs font-black text-gray-400 uppercase tracking-widest py-1.5 px-2 bg-gray-800/30 rounded-lg border border-gray-700/20 mb-1 mt-2">
+                ⏳ Pending
               </li>
             );
           }
@@ -281,22 +307,24 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               initial={{ opacity: 0, x: -5 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: idx * 0.1 }}
-              className={`text-xs md:text-sm flex items-center justify-between p-2 rounded-lg border ${isNotAvail ? 'bg-red-900/10 border-red-500/30 border-l-2 border-l-red-500' : 'bg-gray-900/30 border-gray-800/20'}`}
+              className={`text-xs md:text-sm flex items-center justify-between p-2 rounded-lg border ${isRejected ? 'bg-red-900/10 border-red-500/30 border-l-2 border-l-red-500' : isCompleted ? 'bg-emerald-900/10 border-emerald-500/30 border-l-2 border-l-emerald-500' : 'bg-gray-900/30 border-gray-800/20'}`}
             >
-              <span className={`font-bold uppercase tracking-tighter ${isNotAvail ? 'text-orange-300' : 'text-gray-400'}`}>#{idx + 1} {p.productType || 'Item'}: {p.fabricType || 'STD'} / {p.color || '—'} / Size {p.size || '—'}</span>
+              <span className={`font-bold uppercase tracking-tighter ${isRejected ? 'text-orange-300' : isCompleted ? 'text-emerald-300' : 'text-gray-400'}`}>#{idx + 1} {p.productType || 'Item'}: {p.fabricType || 'STD'} / {p.color || '—'} / Size {p.size || '—'}</span>
               {isStoreRole && (
                 <div className="flex gap-1 shrink-0 ml-2">
                   <button
                     type="button"
+                    disabled={isCompleted}
                     onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(idx, true); }}
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${isAvail ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${isCompleted ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 cursor-not-allowed' : isRejected ? 'bg-gray-800 text-gray-500 border border-gray-700' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-emerald-500/10 hover:text-emerald-400'}`}
                   >
                     ✓
                   </button>
                   <button
                     type="button"
+                    disabled={isCompleted}
                     onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(idx, false); }}
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${!isAvail ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${isRejected ? 'bg-red-500/20 text-red-400 border border-red-500/30' : isCompleted ? 'bg-gray-800 text-gray-500 border border-gray-700 cursor-not-allowed' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-red-500/10 hover:text-red-400'}`}
                   >
                     ✗
                   </button>
@@ -312,26 +340,29 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
         { label: 'Color', val: product?.color },
         { label: 'Base', val: product?.productType }
       ];
-      const singleIsAvail = productAvailability[0] !== false;
+      const singleCompleted = productAvailability[0] === true;
+      const singleRejected = productAvailability[0] === false;
       return (
         <>
           {isStoreRole && (
             <li className="flex items-center justify-between p-2 bg-gray-900/30 rounded-lg border border-gray-800/20 mb-2">
-              <span className={`text-xs md:text-sm font-bold uppercase tracking-tighter ${singleIsAvail ? 'text-emerald-400' : 'text-red-400'}`}>
-                Stock: {singleIsAvail ? 'Available' : 'To Be Manufactured'}
+              <span className={`text-xs md:text-sm font-bold uppercase tracking-tighter ${singleCompleted ? 'text-emerald-400' : singleRejected ? 'text-red-400' : 'text-gray-400'}`}>
+                Stock: {singleCompleted ? 'Completed' : singleRejected ? 'Rejected' : 'Pending'}
               </span>
               <div className="flex gap-1 shrink-0 ml-2">
                   <button
                     type="button"
+                    disabled={singleCompleted}
                     onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(0, true); }}
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${singleIsAvail ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${singleCompleted ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 cursor-not-allowed' : singleRejected ? 'bg-gray-800 text-gray-500 border border-gray-700' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-emerald-500/10 hover:text-emerald-400'}`}
                   >
                     ✓
                   </button>
                   <button
                     type="button"
+                    disabled={singleCompleted}
                     onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(0, false); }}
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${!singleIsAvail ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${singleRejected ? 'bg-red-500/20 text-red-400 border border-red-500/30' : singleCompleted ? 'bg-gray-800 text-gray-500 border border-gray-700 cursor-not-allowed' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-red-500/10 hover:text-red-400'}`}
                 >
                   ✗
                 </button>
@@ -1385,7 +1416,11 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             const msg = nextStage ? `Route to ${nextStage.replace(/_/g, ' ')}?` : 'Confirm classification and route items?';
                             if (window.confirm(msg)) {
                               const itemsArray = isMultiItem && orderItems?.length > 1 ? orderItems : [product];
-                              const availPayload = Object.fromEntries(itemsArray.map((_, idx) => [idx, productAvailability[idx] !== false]));
+                              const availPayload = {};
+                              itemsArray.forEach((_, idx) => {
+                                if (productAvailability[idx] === true) availPayload[idx] = true;
+                                if (productAvailability[idx] === false) availPayload[idx] = false;
+                              });
                               onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Available', nextStage: nextStage || undefined, productAvailability: availPayload });
                             }
                           }
@@ -2056,12 +2091,17 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         </thead>
                         <tbody>
                           {(() => {
-                            const sorted = orderItems.map((item, idx) => ({ item, idx, isNotAvail: productAvailability[idx] === false }));
-                            const hasAnyNotAvail = sorted.some(s => s.isNotAvail);
-                            const hasAnyAvail = sorted.some(s => !s.isNotAvail);
-                            sorted.sort((a, b) => (a.isNotAvail === b.isNotAvail ? 0 : a.isNotAvail ? -1 : 1));
-                            let headerShown = { notAvail: false, avail: false };
-                            return sorted.flatMap(({ item, idx, isNotAvail }) => {
+                            const sorted = orderItems.map((item, idx) => ({ item, idx, isRejected: productAvailability[idx] === false, isCompleted: productAvailability[idx] === true }));
+                            const hasRejected = sorted.some(s => s.isRejected);
+                            const hasCompleted = sorted.some(s => s.isCompleted);
+                            const hasPending = sorted.some(s => !s.isRejected && !s.isCompleted);
+                            sorted.sort((a, b) => {
+                              const ag = a.isCompleted ? 2 : a.isRejected ? 0 : 1;
+                              const bg = b.isCompleted ? 2 : b.isRejected ? 0 : 1;
+                              return bg - ag;
+                            });
+                            let headerShown = { rejected: false, completed: false, pending: false };
+                            return sorted.flatMap(({ item, idx, isRejected, isCompleted }) => {
                               const p = item.productDetails || item;
                               const itemCust = item.customization ? parseJSON(item.customization) : null;
                               const hasSleeves = p.sleeveLength || (p.femaleOptions?.sleeves && p.femaleOptions.sleeves !== 'full');
@@ -2072,42 +2112,52 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                               const isProdStage = currentStage?.stageName === 'PRODUCTION';
                               const isStoreRecv = currentStage?.stageName === 'STORE_RECEIVE';
                               const rows = [];
-                              if (isNotAvail && !headerShown.notAvail) {
-                                headerShown.notAvail = true;
+                              if (isRejected && !headerShown.rejected) {
+                                headerShown.rejected = true;
                                 rows.push(
-                                  <tr key="hdr-notavail" className="bg-red-900/10 border-b border-red-500/20">
+                                  <tr key="hdr-rejected" className="bg-red-900/10 border-b border-red-500/20">
                                     <td colSpan={7} className="py-2 px-4">
-                                      <span className="text-xs font-black text-red-400 uppercase tracking-widest">⚠ {t('To Be Manufactured')}</span>
+                                      <span className="text-xs font-black text-red-400 uppercase tracking-widest">✗ {t('Rejected / Unavailable')}</span>
                                     </td>
                                   </tr>
                                 );
                               }
-                              if (!isNotAvail && !headerShown.avail && hasAnyNotAvail) {
-                                headerShown.avail = true;
+                              if (isCompleted && !headerShown.completed) {
+                                headerShown.completed = true;
                                 rows.push(
-                                  <tr key="hdr-avail" className="bg-emerald-900/10 border-b border-emerald-500/20">
+                                  <tr key="hdr-completed" className="bg-emerald-900/10 border-b border-emerald-500/20">
                                     <td colSpan={7} className="py-2 px-4">
-                                      <span className="text-xs font-black text-emerald-400 uppercase tracking-widest">✓ {t('Available Items')}</span>
+                                      <span className="text-xs font-black text-emerald-400 uppercase tracking-widest">✓ {t('Completed')}</span>
+                                    </td>
+                                  </tr>
+                                );
+                              }
+                              if (!isRejected && !isCompleted && !headerShown.pending && (hasRejected || hasCompleted)) {
+                                headerShown.pending = true;
+                                rows.push(
+                                  <tr key="hdr-pending" className="bg-gray-800/30 border-b border-gray-700/20">
+                                    <td colSpan={7} className="py-2 px-4">
+                                      <span className="text-xs font-black text-gray-400 uppercase tracking-widest">⏳ {t('Pending')}</span>
                                     </td>
                                   </tr>
                                 );
                               }
                               rows.push(
                                 <React.Fragment key={idx}>
-                                <tr className={`border-b border-gray-800/50 transition-colors ${isNotAvail ? 'bg-red-900/5 hover:bg-red-900/15 border-l-2 border-l-red-500/40' : 'hover:bg-gray-900/30'}`}>
+                                <tr className={`border-b border-gray-800/50 transition-colors ${isRejected ? 'bg-red-900/5 hover:bg-red-900/15 border-l-2 border-l-red-500/40' : isCompleted ? 'bg-emerald-900/5 hover:bg-emerald-900/15 border-l-2 border-l-emerald-500/40' : 'hover:bg-gray-900/30'}`}>
                                   <td className="py-4 px-4 text-gray-500 font-black">{idx + 1}</td>
-                                  <td className="py-4 px-4 font-bold uppercase">{isNotAvail ? <span className="text-orange-300">{p.productType || '—'}</span> : <span className="text-white">{p.productType || '—'}</span>}</td>
+                                  <td className="py-4 px-4 font-bold uppercase">{isRejected ? <span className="text-orange-300">{p.productType || '—'}</span> : isCompleted ? <span className="text-emerald-300">{p.productType || '—'}</span> : <span className="text-white">{p.productType || '—'}</span>}</td>
                                   <td className="py-4 px-4">
-                                    <div className={`uppercase ${isNotAvail ? 'text-orange-200' : 'text-gray-300'}`}>
+                                    <div className={`uppercase ${isRejected ? 'text-orange-200' : isCompleted ? 'text-emerald-200' : 'text-gray-300'}`}>
                                       {[p.fabricType, p.color].filter(Boolean).join(' • ') || '—'}
                                     </div>
                                   </td>
                                   <td className="py-4 px-4 uppercase">
-                                    <div className={isNotAvail ? 'text-orange-200' : 'text-gray-300'}>
+                                    <div className={isRejected ? 'text-orange-200' : isCompleted ? 'text-emerald-200' : 'text-gray-300'}>
                                       {p.size || 'Custom'} • {p.gender || 'MALE'}
                                     </div>
                                     {(hasSleeves || hasShirtLength) && (
-                                      <div className={`text-xs md:text-sm font-black mt-0.5 ${isNotAvail ? 'text-orange-300' : 'text-pink-400'}`}>
+                                      <div className={`text-xs md:text-sm font-black mt-0.5 ${isRejected ? 'text-orange-300' : isCompleted ? 'text-emerald-300' : 'text-pink-400'}`}>
                                         {hasSleeves && `${t('Sleeves')}: ${p.sleeveLength || p.femaleOptions?.sleeves}`} {hasShirtLength && `| ${t('Length')}: ${p.shirtLength || p.femaleOptions?.shirtLength}`}
                                       </div>
                                     )}
@@ -2118,30 +2168,36 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                       <div className="flex items-center justify-center gap-1">
                                         <button
                                           type="button"
+                                          disabled={isCompleted}
                                           onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(idx, true); }}
-                                          className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${productAvailability[idx] !== false ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                                          className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${isCompleted ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 cursor-not-allowed' : isRejected ? 'bg-gray-800 text-gray-500 border border-gray-700' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-emerald-500/10 hover:text-emerald-400'}`}
                                         >
                                           ✓
                                         </button>
                                         <button
                                           type="button"
+                                          disabled={isCompleted}
                                           onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(idx, false); }}
-                                          className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${productAvailability[idx] === false ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                                          className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${isRejected ? 'bg-red-500/20 text-red-400 border border-red-500/30' : isCompleted ? 'bg-gray-800 text-gray-500 border border-gray-700 cursor-not-allowed' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-red-500/10 hover:text-red-400'}`}
                                         >
                                           ✗
                                         </button>
                                       </div>
-                                    ) : isNotAvail ? (
+                                    ) : isRejected ? (
                                       <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-500/10 border border-red-500/30 rounded text-xs font-black text-red-400">
-                                        ✗ {t('Not Available')}
+                                        ✗ {t('Rejected')}
+                                      </span>
+                                    ) : isCompleted ? (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 rounded text-xs font-black text-emerald-400">
+                                        ✓ {t('Completed')}
                                       </span>
                                     ) : item.availabilityStatus === 'produced' ? (
                                       <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 border border-blue-500/30 rounded text-xs font-black text-blue-400">
                                         ✓ {t('Produced')}
                                       </span>
                                     ) : (
-                                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black ${productAvailability[idx] !== false ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400' : 'bg-red-500/10 border border-red-500/30 text-red-400'}`}>
-                                        {productAvailability[idx] !== false ? `✓ ${t('Available')}` : `✗ ${t('N/A')}`}
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-700/30 border border-gray-600/30 rounded text-xs font-black text-gray-400">
+                                        ⏳ {t('Pending')}
                                       </span>
                                     )}
                                   </td>
@@ -2232,22 +2288,24 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                 <div className="flex items-center gap-1">
                                   <button
                                     type="button"
+                                    disabled={productAvailability[0] === true}
                                     onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(0, true); }}
-                                    className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black transition-all ${productAvailability[0] !== false ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                                    className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black transition-all ${productAvailability[0] === true ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 cursor-not-allowed' : productAvailability[0] === false ? 'bg-gray-800 text-gray-500 border border-gray-700' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-emerald-500/10 hover:text-emerald-400'}`}
                                   >
                                     ✓
                                   </button>
                                   <button
                                     type="button"
+                                    disabled={productAvailability[0] === true}
                                     onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(0, false); }}
-                                    className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black transition-all ${productAvailability[0] === false ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                                    className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black transition-all ${productAvailability[0] === false ? 'bg-red-500/20 text-red-400 border border-red-500/30' : productAvailability[0] === true ? 'bg-gray-800 text-gray-500 border border-gray-700 cursor-not-allowed' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-red-500/10 hover:text-red-400'}`}
                                   >
                                     ✗
                                   </button>
                                 </div>
                               ) : (
-                                <span className={`text-sm font-black ${productAvailability[0] !== false ? 'text-emerald-400' : 'text-red-400'}`}>
-                                  {productAvailability[0] !== false ? t('Available') : t('N/A')}
+                                <span className={`text-sm font-black ${productAvailability[0] === true ? 'text-emerald-400' : productAvailability[0] === false ? 'text-red-400' : 'text-gray-400'}`}>
+                                  {productAvailability[0] === true ? t('Completed') : productAvailability[0] === false ? t('Rejected') : t('Pending')}
                                 </span>
                               )}
                             </div>
