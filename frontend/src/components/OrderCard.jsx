@@ -271,8 +271,33 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
         { label: 'Color', val: product?.color },
         { label: 'Base', val: product?.productType }
       ];
-      return items.map((item, idx) => {
-        return (
+      const singleIsAvail = productAvailability[0] !== false;
+      return (
+        <>
+          {isStoreRole && (
+            <li className="flex items-center justify-between p-2 bg-gray-900/30 rounded-lg border border-gray-800/20 mb-2">
+              <span className={`text-xs md:text-sm font-bold uppercase tracking-tighter ${singleIsAvail ? 'text-emerald-400' : 'text-red-400'}`}>
+                Stock: {singleIsAvail ? 'Available' : 'Not Available'}
+              </span>
+              <div className="flex gap-1 shrink-0 ml-2">
+                <button
+                  type="button"
+                  onClick={() => setProductAvailability(prev => ({...prev, [0]: true}))}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${singleIsAvail ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                >
+                  ✓
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProductAvailability(prev => ({...prev, [0]: false}))}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${!singleIsAvail ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                >
+                  ✗
+                </button>
+              </div>
+            </li>
+          )}
+          {items.map((item, idx) => (
           <motion.li 
             key={idx}
             initial={{ opacity: 0, x: -5 }}
@@ -282,215 +307,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
           >
             <span className="text-gray-400 font-bold uppercase tracking-tighter">{item.label}: {item.val || 'N/A'}</span>
           </motion.li>
-        );
-      });
-    }
-
-    if (stage === 'PRODUCTION') {
-      const { primary: _, allItems: prodItems, isMultiItem: isMultiProd } = normalizeProduct(order.productDetails);
-      const items = isMultiProd && prodItems ? prodItems : [{ productDetails: normalizeProduct(order.productDetails).primary, customization: parseJSON(order.customization), sizeData: parseJSON(order.sizeData) }];
-      // Sort: unavailable items first
-      const sortedItems = [...items].sort((a, b) => {
-        const aNA = (a.productDetails || a).availabilityStatus === 'not_available';
-        const bNA = (b.productDetails || b).availabilityStatus === 'not_available';
-        return aNA === bNA ? 0 : aNA ? -1 : 1;
-      });
-
-      return (
-        <div className="space-y-4">
-          {sortedItems.map((item, idx) => {
-            const p = item.productDetails || {};
-            const c = item.customization || {};
-            const s = item.sizeData || {};
-            const female = p?.femaleOptions || {};
-            const hasSizes = s && Object.keys(s).some(k => s[k]);
-            const isFirst = idx === 0;
-            const isNotAvail = p.availabilityStatus === 'not_available';
-
-            return (
-              <div key={idx} className={`${isMultiProd || items.length > 1 ? 'bg-gray-900/40 p-3 rounded-xl border border-gray-800/70' : ''}`}>
-                {/* Per-product header for multi-item */}
-                {(isMultiProd || sortedItems.length > 1) && (
-                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-800/50">
-                    <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[9px] font-black">#{idx + 1}</span>
-                    <span className="text-xs font-black text-white uppercase">{p.productType || `Item ${idx + 1}`}</span>
-                    {p.color && <span className="text-[9px] text-gray-500">({p.color})</span>}
-                    {isNotAvail && (
-                      <span className="ml-auto px-2 py-0.5 bg-red-500/10 border border-red-500/30 rounded text-[9px] font-black text-red-400 uppercase tracking-wider">
-                        ⚠ To Be Manufactured
-                      </span>
-                    )}
-                    {p.availabilityStatus === 'produced' && (
-                      <span className="ml-auto px-2 py-0.5 bg-blue-500/10 border border-blue-500/30 rounded text-[9px] font-black text-blue-400 uppercase tracking-wider">
-                        ✓ Produced
-                      </span>
-                    )}
-                    {p.availabilityStatus === 'available' && (
-                      <span className="ml-auto px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 rounded text-[9px] font-black text-emerald-400 uppercase tracking-wider">
-                        ✓ In Stock
-                      </span>
-                    )}
-                  </div>
-                )}
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { l: t('Fabric'), v: p?.fabricType },
-                    { l: t('Color'), v: p?.color },
-                    { l: 'Size', v: p?.size }
-                  ].filter(m => m.v).map((m, mi) => (
-                    <div key={mi} className="bg-blue-500/5 p-2 rounded-lg border border-blue-500/10 text-center">
-                      <p className="text-[9px] text-blue-400 font-black uppercase">{m.l}</p>
-                      <p className="text-xs md:text-sm font-black text-white truncate">{m.v}</p>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Custom Requirements */}
-                {(p?.fabricSourceProduct || p?.colorSourceProduct || p?.designSourceProduct || p?.sizeSourceProduct || p?.additionalProductRef) && (
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {p?.fabricSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Fabric: {p.fabricSourceProduct}</span>}
-                    {p?.colorSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Color: {p.colorSourceProduct}</span>}
-                    {p?.designSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Design: {p.designSourceProduct}</span>}
-                    {p?.sizeSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Size: {p.sizeSourceProduct}</span>}
-                    {p?.additionalProductRef && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Extra: {p.additionalProductRef}</span>}
-                  </div>
-                )}
-
-                <div className="bg-indigo-600/10 p-3 rounded-xl border border-indigo-600/20 mt-3">
-                  <p className="text-xs text-indigo-400 font-black uppercase tracking-widest mb-2">Production Specs</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="bg-gray-950/50 p-2 rounded-lg">
-                      <p className="text-[9px] text-gray-500 font-black uppercase">Fit</p>
-                      <p className="text-xs md:text-sm font-black text-white">{c?.fitType || 'REGULAR'}</p>
-                    </div>
-                    <div className="bg-gray-950/50 p-2 rounded-lg">
-                      <p className="text-[9px] text-gray-500 font-black uppercase">Style</p>
-                      <p className="text-xs md:text-sm font-black text-white">{c?.stitchingStyle || 'STANDARD'}</p>
-                    </div>
-                    {c?.engravingType && (
-                      <div className="bg-gray-950/50 p-2 rounded-lg">
-                        <p className="text-[9px] text-gray-500 font-black uppercase">Engraving</p>
-                        <p className="text-xs md:text-sm font-black text-violet-400">{c.engravingType === 'direct' ? 'Direct' : 'Patch'}</p>
-                      </div>
-                    )}
-                    {p?.gender === 'Female' && (
-                      <>
-                        {(p?.sleeveLength || (female.sleeves && female.sleeves !== 'full')) && (
-                          <div className="bg-gray-950/50 p-2 rounded-lg">
-                            <p className="text-[9px] text-gray-500 font-black uppercase">Sleeves</p>
-                            <p className="text-xs md:text-sm font-black text-white">{p.sleeveLength || female.sleeves || 'N/A'}</p>
-                          </div>
-                        )}
-                        {(p?.shirtLength || (female.shirtLength && female.shirtLength !== 'long')) && (
-                          <div className="bg-gray-950/50 p-2 rounded-lg">
-                            <p className="text-[9px] text-gray-500 font-black uppercase">Shirt L.</p>
-                            <p className="text-xs md:text-sm font-black text-white">{p.shirtLength || female.shirtLength || 'N/A'}</p>
-                          </div>
-                        )}
-                      </>
-                    )}
-                    {p?.sleeveLength && p?.gender !== 'Female' && (
-                      <div className="bg-gray-950/50 p-2 rounded-lg">
-                        <p className="text-[9px] text-gray-500 font-black uppercase">Sleeves</p>
-                        <p className="text-xs md:text-sm font-black text-white">{p.sleeveLength === 'full' ? 'Full' : p.sleeveLength === 'half' ? 'Half' : 'Quarter'}</p>
-                      </div>
-                    )}
-                    {p?.shirtLength && p?.gender !== 'Female' && (
-                      <div className="bg-gray-950/50 p-2 rounded-lg">
-                        <p className="text-[9px] text-gray-500 font-black uppercase">Shirt L.</p>
-                        <p className="text-xs md:text-sm font-black text-white">{p.shirtLength === 'long' ? 'Full' : 'Short'}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {hasSizes && (
-                  <div className="bg-gray-950/50 p-3 rounded-xl border border-gray-800/50 mt-3">
-                    <p className="text-xs md:text-sm text-gray-500 font-black uppercase tracking-widest mb-2 px-1">Measurements</p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[
-                        { l: 'Chst', v: s?.chest },
-                        { l: 'Shld', v: s?.shoulder },
-                        { l: 'Lnth', v: s?.length },
-                        { l: 'Slve', v: s?.sleeve },
-                        { l: 'Wst', v: s?.waist },
-                        { l: 'Hps', v: s?.hips }
-                      ].filter(sm => sm.v).map((sm, si) => (
-                        <div key={si} className="text-center p-1 bg-gray-900 rounded border border-gray-800">
-                          <p className="text-[9px] text-gray-500 font-bold uppercase">{sm.l}</p>
-                          <p className="text-xs md:text-sm font-black text-white">{sm.v}"</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Name Lines per product */}
-                {(c?.articleNames?.length > 0 || c?.nameSpelling) && (
-                  <div className="bg-purple-600/10 p-3 rounded-xl border border-purple-500/20 mt-3">
-                    <p className="text-xs text-purple-400 font-black uppercase tracking-widest mb-2">Name Lines</p>
-                    <div className="flex flex-wrap gap-2">
-                      {c.articleNames?.length > 0 ? (
-                        c.articleNames.map((an, ai) => (
-                          <span key={ai} className="px-2 py-1 bg-purple-900/30 rounded text-xs font-black text-purple-300 border border-purple-500/20">
-                            L{ai + 1}: {an}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="px-2 py-1 bg-purple-900/30 rounded text-xs font-black text-purple-300 border border-purple-500/20">L1: {c.nameSpelling}</span>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Logos per product */}
-                {c?.logos?.length > 0 && (
-                  <div className="bg-amber-600/10 p-3 rounded-xl border border-amber-500/20 mt-3">
-                    <p className="text-xs text-amber-400 font-black uppercase tracking-widest mb-2">Logos</p>
-                    <div className="space-y-2">
-                      {c.logos.map((logo, li) => (
-                        <div key={li} className="bg-amber-900/20 p-2 rounded-lg border border-amber-500/10">
-                          <p className="text-xs md:text-sm font-black text-amber-300">{logo.name || `Logo ${li + 1}`}</p>
-                          {logo.design && <p className="text-xs text-gray-400 mt-0.5">{logo.design}</p>}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Special Notes per product */}
-                {c?.designNotes && (
-                  <div className="bg-yellow-500/5 p-3 rounded-xl border border-yellow-500/10 mt-3">
-                    <p className="text-xs text-yellow-500 font-black uppercase tracking-widest mb-1 flex items-center space-x-1">
-                      <MessageSquare size={10} />
-                      <span>Special Note:</span>
-                    </p>
-                    <p className="text-xs md:text-sm text-gray-300 italic font-medium leading-tight">"{c.designNotes}"</p>
-                  </div>
-                )}
-
-                {isFirst && (
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    <div className="px-2 py-1 bg-gray-800 rounded text-xs md:text-sm font-black uppercase tracking-tighter text-gray-400 border border-gray-700">
-                      GENDER: {p?.gender || 'N/A'}
-                    </div>
-                    {female.dupatta && (
-                      <div className="px-2 py-1 bg-pink-900/20 rounded text-xs md:text-sm font-black uppercase tracking-tighter text-pink-400 border border-pink-500/20">
-                        + DUPATTA
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          <div className="bg-blue-600/10 p-4 rounded-2xl border border-blue-500/20 text-center">
-             <p className="text-xs text-blue-400 font-black uppercase tracking-[0.2em] mb-1">Order ID</p>
-             <h4 className="text-xl font-black text-white">#{order.orderNumber}</h4>
-             <p className="text-xs md:text-sm text-gray-400 font-bold uppercase mt-1">{order.customerName}</p>
-          </div>
-        </div>
+          ))}
+        </>
       );
     }
 
