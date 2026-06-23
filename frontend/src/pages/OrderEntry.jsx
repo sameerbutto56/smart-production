@@ -570,7 +570,13 @@ const SmartOrderForm = () => {
         customization: item.customization || {},
         sizeData: item.sizeData || {},
         quantity: parseInt(item.quantity) || 1,
-        totalPrice: parseFloat(item.totalPrice) || 0
+        totalPrice: parseFloat(item.totalPrice) || 0,
+        logoName: item.logoName || '',
+        logoDesign: item.logoDesign || '',
+        logoCharges: parseFloat(item.logoCharges) || 0,
+        namePrintingCharges: parseFloat(item.namePrintingCharges) || 0,
+        customizationPrice: parseFloat(item.customizationPrice) || 0,
+        capCharges: parseInt(item.capCharges) || 0
       }));
 
       const totalLogoCharges = cartItems.reduce((s, i) => s + (parseFloat(i.logoCharges) || 0), 0);
@@ -951,7 +957,13 @@ const SmartOrderForm = () => {
         customization: item.customization || {},
         sizeData: item.sizeData || {},
         quantity: parseInt(item.quantity) || 1,
-        totalPrice: parseFloat(item.totalPrice) || 0
+        totalPrice: parseFloat(item.totalPrice) || 0,
+        logoName: item.logoName || '',
+        logoDesign: item.logoDesign || '',
+        logoCharges: parseFloat(item.logoCharges) || 0,
+        namePrintingCharges: parseFloat(item.namePrintingCharges) || 0,
+        customizationPrice: parseFloat(item.customizationPrice) || 0,
+        capCharges: parseInt(item.capCharges) || 0
       }));
 
       const firstItem = cartItems[0];
@@ -3248,9 +3260,10 @@ const SmartOrderForm = () => {
                     <p className="text-xs md:text-sm theme-text-muted font-bold uppercase mt-1 truncate">
                       {item.quantity}x • {item.productDetails?.size || 'Custom'} • {item.productDetails?.color}
                     </p>
-                    {(item.logoCharges || item.namePrintingCharges || item.customizationPrice) && (
+                    {(item.logoName || item.logoCharges || item.namePrintingCharges || item.customizationPrice) && (
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {item.logoCharges > 0 && <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">Logo: ₨{item.logoCharges}</span>}
+                        {item.logoName && <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">Logo: {item.logoName}</span>}
+                        {item.logoCharges > 0 && <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">Logo Fee: ₨{item.logoCharges}</span>}
                         {item.namePrintingCharges > 0 && <span className="text-[9px] font-black text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">Name: ₨{item.namePrintingCharges}</span>}
                         {item.customizationPrice > 0 && <span className="text-[9px] font-black text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded">Custom: ₨{item.customizationPrice}</span>}
                       </div>
@@ -3373,7 +3386,7 @@ const SmartOrderForm = () => {
                   {cartItems.map((item, idx) => {
                     const pd = item.productDetails || {};
                     const cust = item.customization || {};
-                    const hasCust = cust.nameSpelling || cust.stitchingStyle || cust.fitType || cust.designNotes || item.logoDesign || cust.logos || cust.engravingType;
+                    const hasCust = cust.nameSpelling || cust.stitchingStyle || cust.fitType || cust.designNotes || item.logoName || item.logoDesign || cust.logos || cust.engravingType;
                     const hasMeas = Object.values(item.sizeData || {}).some(v => v);
                     const isCustom = item.type === 'FULL_CUSTOM';
                     return (
@@ -3401,6 +3414,14 @@ const SmartOrderForm = () => {
                                 {pd.designSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Design: {pd.designSourceProduct}</span>}
                                 {pd.sizeSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Size: {pd.sizeSourceProduct}</span>}
                                 {pd.additionalProductRef && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Extra: {pd.additionalProductRef}</span>}
+                              </div>
+                            )}
+                            {/* Branding Charges */}
+                            {(item.logoCharges > 0 || item.namePrintingCharges > 0 || item.customizationPrice > 0) && (
+                              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                {item.logoCharges > 0 && <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">Logo Fee: ₨{item.logoCharges}</span>}
+                                {item.namePrintingCharges > 0 && <span className="text-[9px] font-black text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">Name Fee: ₨{item.namePrintingCharges}</span>}
+                                {item.customizationPrice > 0 && <span className="text-[9px] font-black text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20">Custom Fee: ₨{item.customizationPrice}</span>}
                               </div>
                             )}
                             {hasCust && (
@@ -3431,6 +3452,7 @@ const SmartOrderForm = () => {
                                     {cust.nameColor && <span className="text-[10px] font-black text-rose-400 bg-rose-900/30 px-2 py-0.5 rounded border border-rose-500/20">Color: {cust.nameColor}</span>}
                                     {cust.logoColor && <span className="text-[10px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Logo: {cust.logoColor}</span>}
                                     {cust.logoPlacement && <span className="text-[10px] font-black text-teal-400 bg-teal-900/30 px-2 py-0.5 rounded border border-teal-500/20">Position: {cust.logoPlacement}</span>}
+                                    {item.logoName && <span className="text-[10px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Logo: {item.logoName}</span>}
                                   </div>
                                 )}
                                 {/* Logos */}

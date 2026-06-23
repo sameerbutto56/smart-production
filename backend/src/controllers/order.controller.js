@@ -347,7 +347,13 @@ const createOrder = async (req, res) => {
           sizeData: item.sizeData,
           quantity: qty,
           unitPrice,
-          totalPrice: unitPrice * qty
+          totalPrice: unitPrice * qty,
+          logoName: item.logoName || '',
+          logoDesign: item.logoDesign || '',
+          logoCharges: parseFloat(item.logoCharges) || 0,
+          namePrintingCharges: parseFloat(item.namePrintingCharges) || 0,
+          customizationPrice: parseFloat(item.customizationPrice) || 0,
+          capCharges: parseInt(item.capCharges) || 0
         });
       }
       finalProductDetails = processedItems;

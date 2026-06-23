@@ -300,7 +300,13 @@ const approveEditRequest = async (req, res) => {
         customization: item.customization,
         sizeData: item.sizeData,
         quantity: item.quantity || 1,
-        totalPrice: item.totalPrice || 0
+        totalPrice: item.totalPrice || 0,
+        logoName: item.logoName || '',
+        logoDesign: item.logoDesign || '',
+        logoCharges: parseFloat(item.logoCharges) || 0,
+        namePrintingCharges: parseFloat(item.namePrintingCharges) || 0,
+        customizationPrice: parseFloat(item.customizationPrice) || 0,
+        capCharges: parseInt(item.capCharges) || 0
       }));
       updateData.productDetails = JSON.stringify(items);
       updateData.quantity = items.reduce((sum, item) => sum + (item.quantity || 1), 0);
