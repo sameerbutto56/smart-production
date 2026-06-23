@@ -77,16 +77,16 @@
 - Restored inventory from seed (21 items), then removed all per user request (0 items).
 - Fixed analytics source filter: `buildSourceFilter` now matches by `outletName` regardless of `source` field; `getSources` no longer restricts to `source: 'OUTLET'` so Online orders appear.
 - **Shoes category size selection**: Added `isShoes` helper in `OrderEntry.jsx` to show size buttons for SHOES despite `isAccessory` returning `true`. Size buttons use default `['S', 'M', 'L', 'XL', '2XL']` sizes (not empty). `handleCategorySelect` skips `setSize('Standard')` for SHOES.
-- **Fixed `useCallback` TDZ crash**: `handleAddToCart` dependency array referenced `computedTotalPrice` and `capCharges` — `const` variables defined **after** the `useCallback` call in the component body. This caused `ReferenceError: Cannot access 'Ie' before initialization` in the production build. Removed those variables from deps (computations happen inside callback body, where TDZ is no longer an issue).
-- **Fixed missing `useCallback` deps**: `removeCartItem` had no dependency array — switched to functional update pattern `setCartItems(prev => prev.filter(...))` with `[]` deps for a stable reference.
-- **Branding fields (logoName, logoDesign, logoCharges, namePrintingCharges, customizationPrice, capCharges) now preserved per-item** — included in `finalItems` payload for `handleCheckout` and `handleUpdateOrder`; backend `processedItems` and edit request `items.map` carry them through so labels survive create → store → reload → edit round-trip.
-- **`logoName` displayed as badge** in cart items list and review modal.
-- **Financial Summary split into 3 separate rows**: Logo Charges, Name Printing, Customization Charges — each with calculated/adjusted columns, conditionally shown when > 0. Added `adjLogoCharges` and `adjNamePrinting` adjustment fields.
-- **Fixed `handleSizeSelect` stale closure** — changed to functional update `setFormData(prev => ...)` with `[]` deps. Previously deps `[formData.gender, formData.measurements]` caused color to reset when selecting size after changing color.
-- **Per-product availability toggles (✓/✗) in Job Sheet at STORE stage**: Each product in multi-item orders gets Available/Not Available toggle in Full Sheet modal table. Only available items trigger inventory deduction when store routes the order.
-- **Backend per-product availability**: `requestStageCompletion` accepts `productAvailability` from req.body, stores `availabilityStatus` in `productDetails`, and only classifies/deducts inventory for available items. `approveStageCompletion` reads stored `availabilityStatus` from `productDetails` for same selective deduction. `classifyOrderItems` refactored to accept optional item list.
-- **Expanded Availability Toggles to Job Sheet view**: Enabled availability toggles in `AllOrders.jsx`'s Job Sheet modal across all stages except `PRODUCTION` and `STORE_RECEIVE` (aligning with `OrderCard.jsx` Full Sheet modal toggles condition).
-- **Robust backend classification on stage completion**: Refactored `requestStageCompletion` in `order.controller.js` to correctly fall back to database-stored `availabilityStatus` if `productAvailability` is not sent in the request body, preventing accidental deductions of unavailable items.
+- **Fixed `useCallback` TDZ crash**, **Fixed missing deps**, **Branding fields preserved**, **logoName badge**, **Financial Summary split**, **Fixed `handleSizeSelect` stale closure** (see full details below).
+- **Per-product availability toggles, backend classification, expanded toggles to Job Sheet** — all rolled out in prior session.
+- **Routing System Fix**: Added route validation (`destinationStage` must be in `validAllStages`) in `manualRouteOrder` and `requestStageCompletion` — returns clear error message `"Cannot route order. Destination route X does not exist. Please configure the workflow route first."`. Previously no validation existed, routing to invalid stages would silently create orphan stages with no recipients.
+- **WORKERS stage**: Added as a valid routing destination across the entire system — `validAllStages`, `validateStageTransition`, `getRolesForStage` (mapped to `PRODUCTION` role), `getRolesForStageBasedOnRole`, `getStageDurations`, `AUTO_TRANSITION_STAGES`, analytics `stageOrder`. Frontend routing UIs updated: OrderCard STORE dropdown, STORE_RECEIVE buttons, admin Move To, prompt-based routing, WarehouseDashboard quick-route buttons + modal, MyTasks bulk routing, AdminDashboard bulk routing.
+
+### In Progress
+- (none)
+
+### Blocked
+- (none)
 
 ### In Progress
 - (none)
@@ -128,7 +128,7 @@
 - (none)
 
 ## Critical Context
-- Latest commit includes: Advance Payment amount, Sleeve Length, Shirt Length, Instruction Notes, Engraving rename, Shopify Order Date, Urdu Job Sheet redesign, Shoes size selection (isShoes helper), analytics source filter fix, outlet demand fallback.
+- Latest commit includes: Routing System Fix (route validation, WORKERS stage), Full Sheet Urdu translations, inventory dropdown + search bar, Vercel MIME config fix.
 - Build passes with 0 errors.
 - `isAccessory` uses substring matching (`catUpper.includes('COAT')`).
 - `calculateAndRecordRevenue` at line 2482 of `order.controller.js` is idempotent.
@@ -137,6 +137,8 @@
 - `sleeveLength` and `shirtLength` are per-product top-level fields in `productDetails` (not inside `femaleOptions`), applied to all genders.
 - `instructionNotes` stored as `String?` on Order model, displayed in Job Sheet and print output.
 - **Availability status** (`availabilityStatus: 'available' | 'not_available'`) stored per-item in `productDetails`; only products marked "available" trigger inventory deduction during STORE stage completion or approval.
+- **Route validation**: `manualRouteOrder` and `requestStageCompletion` now validate destination is in `validAllStages` before routing. Invalid destinations return `"Cannot route order. Destination route X does not exist."`.
+- **WORKERS stage**: Added to `validAllStages`, `getRolesForStage` (→ `PRODUCTION` role), `validateStageTransition` (from all stages), `getStageDurations`, `AUTO_TRANSITION_STAGES`, analytics `stageOrder`. NOT in `NEXT_STAGES` (manual-only route, not auto-advance).
 
 ## Relevant Files
 - `frontend/src/components/OrderCard.jsx`: per-product availability toggles (STORE stage), per-product PRODUCTION/STORE rendering

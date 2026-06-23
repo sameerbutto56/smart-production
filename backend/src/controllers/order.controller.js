@@ -481,10 +481,16 @@ const createOrder = async (req, res) => {
       await calculateAndRecordRevenue(order);
     }
 
-    const io = req.app.get('io');
-    io.emit('new-order', order);
+    // Re-fetch order with stages so frontend has currentStage info immediately
+    const orderWithStages = await prisma.order.findUnique({
+      where: { id: order.id },
+      include: { stages: { orderBy: { createdAt: 'asc' } } }
+    });
 
-    res.status(201).json(order);
+    const io = req.app.get('io');
+    io.emit('new-order', orderWithStages);
+
+    res.status(201).json(orderWithStages);
   } catch (error) {
     console.error('Error creating order:', error);
     let message = 'Error creating order';
