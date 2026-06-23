@@ -126,7 +126,7 @@ const DispatchDashboard = () => {
     setSubmitting(true);
     try {
         await api.post(`/api/dispatch/${orderId}/book`,
-          { courier: dispatchMethod }
+          { courier: deliveryMethod }
         );
       setRequestModal(null);
       setDeliveryMethod('');
@@ -183,6 +183,19 @@ const DispatchDashboard = () => {
 
   const getFilteredActive = () => {
     let items = data.active;
+    const q = search.toLowerCase();
+    if (q) items = items.filter(o =>
+      o.customerName?.toLowerCase().includes(q) ||
+      (o.orderNumber || '').toLowerCase().includes(q) ||
+      o.outletName?.toLowerCase().includes(q)
+    );
+    if (cityFilter) items = items.filter(o => (o.city || '').toLowerCase() === cityFilter.toLowerCase());
+    if (methodFilter) items = items.filter(o => (o.deliveryMethod || '').toLowerCase().includes(methodFilter.toLowerCase()));
+    return items;
+  };
+
+  const getFilteredAllOrders = () => {
+    let items = data.allOrders;
     const q = search.toLowerCase();
     if (q) items = items.filter(o =>
       o.customerName?.toLowerCase().includes(q) ||
