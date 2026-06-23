@@ -2204,7 +2204,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                   <td className={`py-4 px-4 text-right pr-4 font-black ${showPrice ? 'text-emerald-400' : 'text-gray-500'}`}>{priceDisplay(item.totalPrice)}</td>
                                 </tr>
                                 {hasCust && (
-                                  <tr className={`${isNotAvail ? 'bg-red-900/5' : 'bg-purple-900/5'} border-b border-gray-800/50`}>
+                                  <tr className={`${isRejected ? 'bg-red-900/5' : 'bg-purple-900/5'} border-b border-gray-800/50`}>
                                     <td colSpan={7} className="py-3 px-6">
                                       <div className="flex flex-wrap gap-3">
                                         {hasArticleNames && itemCust.articleNames.map((an, ai) => (
