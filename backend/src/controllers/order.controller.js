@@ -46,16 +46,16 @@ const NEXT_STAGES = {
   'FULL_CUSTOM': ['STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY']
 };
  
-const AUTO_TRANSITION_STAGES = ['STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
+const AUTO_TRANSITION_STAGES = ['STORE', 'WORKERS', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
 
 // Validates forward-only stage transitions to prevent routing loops
 const validateStageTransition = (fromStage, toStage, orderType) => {
   const validTransitions = {
-    'STORE': { 'STANDARD': ['LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'], 'READY_LOGO': ['LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'], 'FULL_CUSTOM': ['LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'] },
-    'LOGO_DESIGN': { 'STANDARD': ['PRODUCTION_ACCEPTANCE', 'PRODUCTION'], 'READY_LOGO': ['PRODUCTION_ACCEPTANCE', 'PRODUCTION'], 'FULL_CUSTOM': ['PRODUCTION_ACCEPTANCE', 'PRODUCTION'] },
-    'PRODUCTION_ACCEPTANCE': { 'STANDARD': ['PRODUCTION'], 'READY_LOGO': ['PRODUCTION'], 'FULL_CUSTOM': ['PRODUCTION'] },
-    'PRODUCTION': { 'STANDARD': ['STORE_RECEIVE', 'STORE'], 'READY_LOGO': ['STORE_RECEIVE', 'STORE'], 'FULL_CUSTOM': ['STORE_RECEIVE', 'STORE'] },
-    'STORE_RECEIVE': { 'STANDARD': ['LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'], 'READY_LOGO': ['LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'], 'FULL_CUSTOM': ['LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'] },
+    'STORE': { 'STANDARD': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'], 'READY_LOGO': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'], 'FULL_CUSTOM': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'] },
+    'LOGO_DESIGN': { 'STANDARD': ['WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION'], 'READY_LOGO': ['WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION'], 'FULL_CUSTOM': ['WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION'] },
+    'PRODUCTION_ACCEPTANCE': { 'STANDARD': ['WORKERS', 'PRODUCTION'], 'READY_LOGO': ['WORKERS', 'PRODUCTION'], 'FULL_CUSTOM': ['WORKERS', 'PRODUCTION'] },
+    'PRODUCTION': { 'STANDARD': ['STORE_RECEIVE', 'STORE', 'WORKERS'], 'READY_LOGO': ['STORE_RECEIVE', 'STORE', 'WORKERS'], 'FULL_CUSTOM': ['STORE_RECEIVE', 'STORE', 'WORKERS'] },
+    'STORE_RECEIVE': { 'STANDARD': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'], 'READY_LOGO': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'], 'FULL_CUSTOM': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'] },
     'DISPATCH': { 'STANDARD': ['OUT_FOR_DELIVERY'], 'READY_LOGO': ['OUT_FOR_DELIVERY'], 'FULL_CUSTOM': ['OUT_FOR_DELIVERY'] },
     'OUT_FOR_DELIVERY': { 'STANDARD': [], 'READY_LOGO': [], 'FULL_CUSTOM': [] }
   };
@@ -67,9 +67,12 @@ const validateStageTransition = (fromStage, toStage, orderType) => {
   return { valid: true, expected: toStage };
 };
 
+const validAllStages = ['ORDER_ENTRY', 'STORE', 'WORKERS', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
+
 const getRolesForStage = (stageName) => {
   const map = {
     'STORE': ['STORE', 'STORE_EMPLOYEE'],
+    'WORKERS': ['PRODUCTION'],
     'LOGO_DESIGN': ['LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER'],
     'PRODUCTION_ACCEPTANCE': ['PRODUCTION'],
     'PRODUCTION': ['PRODUCTION'],
@@ -95,7 +98,7 @@ const getStageDurations = async (priority = 'NORMAL') => {
   });
 
   let config = {
-    stageDurations: { STORE: 24, LOGO_DESIGN: 24, PRODUCTION_ACCEPTANCE: 4, PRODUCTION: 48, STORE_RECEIVE: 12, DISPATCH: 12, OUT_FOR_DELIVERY: 12 },
+    stageDurations: { STORE: 24, WORKERS: 24, LOGO_DESIGN: 24, PRODUCTION_ACCEPTANCE: 4, PRODUCTION: 48, STORE_RECEIVE: 12, DISPATCH: 12, OUT_FOR_DELIVERY: 12 },
     slaMultipliers: { NORMAL: 1, URGENT: 0.75, SUPER_URGENT: 0.5 }
   };
 
@@ -714,6 +717,13 @@ const requestStageCompletion = async (req, res) => {
       if (currentIndex >= 0 && currentIndex < stages.length - 1) {
         actualNextStage = stages[currentIndex + 1];
       }
+    }
+
+    // Validate that the destination stage exists in the system
+    if (actualNextStage && !validAllStages.includes(actualNextStage)) {
+      return res.status(400).json({
+        message: `Cannot route order. Destination route "${actualNextStage}" does not exist. Please configure the workflow route first. Valid stages: ${validAllStages.join(', ')}.`
+      });
     }
 
     // Enforce forward-only routing to prevent loops (except for SUPER_ADMIN, STORE, STORE_EMPLOYEE)
@@ -2727,6 +2737,13 @@ const manualRouteOrder = async (req, res) => {
   // Auto-correct common shorthand
   if (destinationStage === 'LOGO') destinationStage = 'LOGO_DESIGN';
 
+  // Validate that the destination stage exists in the system
+  if (!validAllStages.includes(destinationStage)) {
+    return res.status(400).json({
+      message: `Cannot route order. Destination route "${destinationStage}" does not exist. Please configure the workflow route first. Valid stages: ${validAllStages.join(', ')}.`
+    });
+  }
+
   try {
     const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: true } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
@@ -2805,7 +2822,8 @@ const getRolesForStageBasedOnRole = (role) => {
   const map = {
     'STORE': ['STORE'],
     'STORE_EMPLOYEE': ['STORE'],
-    'PRODUCTION': ['PRODUCTION_ACCEPTANCE', 'PRODUCTION'],
+    'PRODUCTION': ['PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'WORKERS'],
+    'WORKER': ['WORKERS'],
     'LOGO_DESIGN': ['LOGO_DESIGN'],
     'LOGO_DESIGN_EMPLOYEE': ['LOGO_DESIGN'],
     'LOGO_DESIGNER': ['LOGO_DESIGN'],
@@ -3157,8 +3175,6 @@ const acceptStoreOrder = async (req, res) => {
     res.status(500).json({ message: 'Error accepting order', error: error.message });
   }
 };
-
-const validAllStages = ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
 
 const storeRouteOrder = async (req, res) => {
   const { orderId } = req.params;

@@ -990,6 +990,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 >
                   <option value="">Select destination...</option>
                   {currentStage?.stageName !== 'LOGO_DESIGN' && <option value="LOGO_DESIGN">Logo Design</option>}
+                  {currentStage?.stageName !== 'WORKERS' && <option value="WORKERS">Workers</option>}
                   {currentStage?.stageName !== 'PRODUCTION_ACCEPTANCE' && <option value="PRODUCTION_ACCEPTANCE">Production Acceptance</option>}
                   {currentStage?.stageName !== 'PRODUCTION' && <option value="PRODUCTION">Production</option>}
                   {currentStage?.stageName !== 'DISPATCH' && <option value="DISPATCH">Dispatch</option>}
@@ -1117,12 +1118,12 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                 <button
                                   onClick={async () => {
                                     setShowMoreActions(false);
-                                    const dest = prompt('Route Order To:\n(STORE / LOGO_DESIGN / PRODUCTION_ACCEPTANCE / PRODUCTION / STORE_RECEIVE / DISPATCH / OUT_FOR_DELIVERY / ORDER_ENTRY)');
+                                    const dest = prompt('Route Order To:\n(STORE / WORKERS / LOGO_DESIGN / PRODUCTION_ACCEPTANCE / PRODUCTION / STORE_RECEIVE / DISPATCH / OUT_FOR_DELIVERY / ORDER_ENTRY)');
                                     if (dest) {
                                       let destUpper = dest.trim().toUpperCase().replace(/ /g, '_');
                                       // Auto-correct common shorthand
                                       if (destUpper === 'LOGO') destUpper = 'LOGO_DESIGN';
-                                      const valid = ['STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'];
+                                      const valid = ['STORE', 'WORKERS', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'];
                                       if (valid.includes(destUpper)) {
                                         try {
                                           const token = sessionStorage.getItem('token');
@@ -1258,6 +1259,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         <option value="">Auto-route (default)</option>
                         <option value="PRODUCTION">Send to Production</option>
                         <option value="LOGO_DESIGN">Send to Logo Design</option>
+                        <option value="WORKERS">Send to Workers</option>
                         <option value="DISPATCH">Send to Dispatch</option>
                         <option disabled className="text-gray-600">─ Return to Source ─</option>
                         {(!order.source || order.source === 'ONLINE') && <option value="RETURN_ONLINE">Send back to Online</option>}
@@ -1547,7 +1549,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           ) : (
                             <div className="col-span-2 space-y-2">
                               <div className="flex flex-wrap gap-1">
-                                {['LOGO_DESIGN','PRODUCTION_ACCEPTANCE','PRODUCTION','DISPATCH','OUT_FOR_DELIVERY','ORDER_ENTRY'].map(dest => (
+                                {['LOGO_DESIGN','PRODUCTION_ACCEPTANCE','PRODUCTION','WORKERS','DISPATCH','OUT_FOR_DELIVERY','ORDER_ENTRY'].map(dest => (
                                   <button key={dest} onClick={() => setStoreRouteDest(dest)}
                                     className={`px-2 py-1 rounded-lg text-[9px] font-black border transition-all ${
                                       storeRouteDest === dest

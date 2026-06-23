@@ -609,6 +609,10 @@ const WarehouseDashboard = () => {
                                 onClick={() => { setRoutingModal(order); setRouteDestination('STORE_RECEIVE'); setRouteRemarks(''); }}>
                                 📥 Receive
                               </button>
+                              <button className="py-1.5 bg-pink-600/20 text-pink-400 border border-pink-500/20 rounded-lg font-black text-[9px] uppercase tracking-wider hover:bg-pink-600/30 transition-all active:scale-95"
+                                onClick={() => { setRoutingModal(order); setRouteDestination('WORKERS'); setRouteRemarks(''); }}>
+                                👷 Workers
+                              </button>
                               <button className="py-1.5 bg-emerald-600/20 text-emerald-400 border border-emerald-500/20 rounded-lg font-black text-[9px] uppercase tracking-wider hover:bg-emerald-600/30 transition-all active:scale-95"
                                 onClick={() => { setRoutingModal(order); setRouteDestination('OUT_FOR_DELIVERY'); setRouteRemarks(''); }}>
                                 🚚 Deliver
@@ -1516,6 +1520,7 @@ const WarehouseDashboard = () => {
                     className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 focus:border-amber-500 outline-none font-bold text-white mt-2">
                     {(() => { const st = routingModal?.stages?.find(s => ['PENDING','IN_PROGRESS','WAITING_APPROVAL'].includes(s.status))?.stageName; return (<>
                       {st !== 'LOGO_DESIGN' && <option value="LOGO_DESIGN">🎨 Logo Design</option>}
+                      {st !== 'WORKERS' && <option value="WORKERS">👷 Workers</option>}
                       {st !== 'PRODUCTION_ACCEPTANCE' && <option value="PRODUCTION_ACCEPTANCE">🏭 Production Acceptance</option>}
                       {st !== 'PRODUCTION' && <option value="PRODUCTION">⚙️ Production</option>}
                       {st !== 'STORE_RECEIVE' && <option value="STORE_RECEIVE">📥 Store Receive</option>}

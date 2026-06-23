@@ -161,7 +161,7 @@ const getSourceAnalytics = async (req, res) => {
       for (const g of stageGroups) stageCounts[g.currentStage] = g._count.id;
 
       const pendingByStage = {};
-      const stageOrder = ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
+      const stageOrder = ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
       for (const s of stageOrder) pendingByStage[s] = stageCounts[s] || 0;
 
       res.json({
@@ -214,7 +214,7 @@ const getSourceAnalytics = async (req, res) => {
       const stageCounts = {};
       for (const g of stageGroups) stageCounts[g.currentStage] = g._count.id;
       const pendingByStage = {};
-      const stageOrder = ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
+      const stageOrder = ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
       for (const s of stageOrder) pendingByStage[s] = stageCounts[s] || 0;
 
       const recentOrders = await safeFind({ where, select: { createdAt: true, totalPrice: true, refundStatus: true }, orderBy: { createdAt: 'asc' } });

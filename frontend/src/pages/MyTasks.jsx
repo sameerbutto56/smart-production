@@ -640,6 +640,7 @@ const MyTasks = () => {
                 <option value="">Send to...</option>
                 <option value="STORE">Store</option>
                 <option value="LOGO_DESIGN">Logo Design</option>
+                <option value="WORKERS">Workers</option>
                 <option value="PRODUCTION_ACCEPTANCE">Production Acceptance</option>
                 <option value="PRODUCTION">Production</option>
                 <option value="STORE_RECEIVE">Store Inventory</option>
