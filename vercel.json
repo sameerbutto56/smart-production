@@ -8,6 +8,7 @@
     }
   },
   "rewrites": [
+    { "source": "/socket.io/(.*)", "destination": "/api" },
     { "source": "/api/(.*)", "destination": "/api" },
     { "source": "/((?!.*\\..*).*)", "destination": "/index.html" }
   ]
