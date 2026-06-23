@@ -148,7 +148,7 @@ const ClientRegistration = () => {
   }, [isAdmin, outletName]);
 
   useEffect(() => {
-    if (tab === 'list') loadClients();
+    if (tab === 'search') loadClients();
   }, [tab, loadClients]);
 
   useEffect(() => {
@@ -209,8 +209,7 @@ const ClientRegistration = () => {
       <div className="flex bg-gray-900 border-2 border-gray-700 rounded-2xl p-1.5">
         {[
           { key: 'register', label: 'Register Client', icon: Plus },
-          { key: 'search', label: 'Search Clients', icon: Search },
-          { key: 'list', label: 'All Clients', icon: Building2 }
+          { key: 'search', label: 'Search / All Clients', icon: Search }
         ].map(t => (
           <button key={t.key} onClick={() => { setTab(t.key); resetForm(); }}
             className={`flex items-center gap-2 px-6 py-3 text-xs font-black rounded-xl transition-all whitespace-nowrap uppercase tracking-wider ${
@@ -376,7 +375,7 @@ const ClientRegistration = () => {
         </form>
       )}
 
-      {/* Search Tab */}
+      {/* Search / All Clients Tab */}
       {tab === 'search' && (
         <div className="space-y-4">
           <div className="relative">
@@ -388,9 +387,9 @@ const ClientRegistration = () => {
           <div className="space-y-2">
             {loading ? (
               <p className="text-center text-gray-500 font-bold py-8">Searching...</p>
-            ) : searchResults.length === 0 && searchQuery ? (
+            ) : searchQuery && searchResults.length === 0 ? (
               <p className="text-center text-gray-500 font-bold py-8">No clients found</p>
-            ) : searchResults.map(client => (
+            ) : (searchQuery ? searchResults : clients).map(client => (
               <div key={client.id} className="glass p-4 rounded-2xl border-2 theme-border">
                 <div className="flex items-start justify-between">
                   <div>
@@ -403,6 +402,7 @@ const ClientRegistration = () => {
                   </div>
                   <div className="flex gap-2">
                     <button onClick={() => editClient(client)} className="p-2 bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white rounded-xl"><Edit2 size={14} /></button>
+                    <button onClick={() => deactivateClient(client.id)} className="p-2 bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white rounded-xl"><Trash2 size={14} /></button>
                   </div>
                 </div>
                 <button onClick={() => setExpandedId(expandedId === client.id ? null : client.id)}
@@ -412,6 +412,9 @@ const ClientRegistration = () => {
                 </button>
                 {expandedId === client.id && (
                   <div className="mt-3 space-y-2 pt-3 border-t border-gray-700">
+                    {client.additionalPhones?.filter(Boolean).map((p, i) => (
+                      <p key={i} className="text-sm font-bold text-gray-400"><span className="text-gray-500">Alt Phone {i + 1}:</span> {p}</p>
+                    ))}
                     {client.permanentAddress && <p className="text-sm font-bold text-gray-400"><span className="text-gray-500">Address:</span> {client.permanentAddress}</p>}
                     {client.deliveryAddresses?.filter(Boolean).map((a, i) => (
                       <p key={i} className="text-sm font-bold text-gray-400"><span className="text-gray-500">Delivery {i + 1}:</span> {a}</p>
@@ -430,57 +433,10 @@ const ClientRegistration = () => {
                 )}
               </div>
             ))}
+            {!searchQuery && clients.length === 0 && !loading && (
+              <p className="text-center text-gray-500 font-bold py-8">No clients registered yet</p>
+            )}
           </div>
-        </div>
-      )}
-
-      {/* All Clients Tab */}
-      {tab === 'list' && (
-        <div className="space-y-2">
-          {clients.length === 0 ? (
-            <p className="text-center text-gray-500 font-bold py-8">No clients registered yet</p>
-          ) : clients.map(client => (
-            <div key={client.id} className="glass p-4 rounded-2xl border-2 theme-border">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="font-black text-lg theme-text-primary">{client.name}</h3>
-                  <p className="text-sm font-bold text-gray-400">{client.gender} • {client.outletName}</p>
-                  <p className="text-sm font-bold text-blue-400">{client.phone}</p>
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => editClient(client)} className="p-2 bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white rounded-xl"><Edit2 size={14} /></button>
-                  <button onClick={() => deactivateClient(client.id)} className="p-2 bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white rounded-xl"><Trash2 size={14} /></button>
-                </div>
-              </div>
-              <button onClick={() => setExpandedId(expandedId === client.id ? null : client.id)}
-                className="mt-2 text-xs font-bold text-gray-500 hover:text-white flex items-center gap-1">
-                {expandedId === client.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                {expandedId === client.id ? 'Hide Details' : 'Show Details'}
-              </button>
-              {expandedId === client.id && (
-                <div className="mt-3 space-y-2 pt-3 border-t border-gray-700">
-                  {client.additionalPhones?.filter(Boolean).map((p, i) => (
-                    <p key={i} className="text-sm font-bold text-gray-400"><span className="text-gray-500">Alt Phone {i + 1}:</span> {p}</p>
-                  ))}
-                  {client.permanentAddress && <p className="text-sm font-bold text-gray-400"><span className="text-gray-500">Address:</span> {client.permanentAddress}</p>}
-                  {client.deliveryAddresses?.filter(Boolean).map((a, i) => (
-                    <p key={i} className="text-sm font-bold text-gray-400"><span className="text-gray-500">Delivery {i + 1}:</span> {a}</p>
-                  ))}
-                    {client.measurementChart && <p className="text-sm font-bold text-gray-400"><span className="text-gray-500">Chart:</span> {client.measurementChart}</p>}
-                    {client.sizeDetails && typeof client.sizeDetails === 'string' && client.sizeDetails.startsWith('{') ? (
-                      <div className="mt-2"><span className="text-sm font-bold text-gray-500">Measurements:</span>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1 mt-1">
-                          {(() => { try { return Object.entries(JSON.parse(client.sizeDetails)).filter(([,v]) => v).map(([k, v]) => <p key={k} className="text-xs font-bold text-gray-400"><span className="text-gray-600 capitalize">{k.replace(/([A-Z])/g, ' $1')}:</span> {v}"</p>); } catch (e) { return <p className="text-xs text-gray-500">{client.sizeDetails}</p>; } })()}
-                        </div>
-                      </div>
-                    ) : client.sizeDetails ? (
-                      <p className="text-sm font-bold text-gray-400"><span className="text-gray-500">Size:</span> {client.sizeDetails}</p>
-                    ) : null}
-                    <p className="text-xs text-gray-600">Registered: {new Date(client.createdAt).toLocaleDateString()}</p>
-                </div>
-              )}
-            </div>
-          ))}
         </div>
       )}
     </div>
