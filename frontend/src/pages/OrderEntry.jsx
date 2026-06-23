@@ -217,6 +217,8 @@ const SmartOrderForm = () => {
       zip: false
     },
     adjProductPrice: '',
+    adjLogoCharges: '',
+    adjNamePrinting: '',
     adjCustomization: '',
     adjCapCharges: '',
     adjDiscount: ''
@@ -968,16 +970,20 @@ const SmartOrderForm = () => {
 
       const firstItem = cartItems[0];
       const calcProductPrice = cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) - parseFloat(i.logoCharges || 0) - parseFloat(i.namePrintingCharges || 0) - parseFloat(i.customizationPrice || 0) - (parseInt(i.capCharges) || 0)), 0);
-      const calcCustomization = cartItems.reduce((s, i) => s + (parseFloat(i.logoCharges || 0) + parseFloat(i.namePrintingCharges || 0) + parseFloat(i.customizationPrice || 0)), 0);
+      const calcLogo = cartItems.reduce((s, i) => s + (parseFloat(i.logoCharges) || 0), 0);
+      const calcName = cartItems.reduce((s, i) => s + (parseFloat(i.namePrintingCharges) || 0), 0);
+      const calcCustomization = cartItems.reduce((s, i) => s + (parseFloat(i.customizationPrice) || 0), 0);
       const calcCap = cartItems.reduce((s, i) => s + (parseInt(i.capCharges) || 0), 0);
-      const orderTotalBeforeDelivery = calcProductPrice + calcCustomization + calcCap;
+      const orderTotalBeforeDelivery = calcProductPrice + calcLogo + calcName + calcCustomization + calcCap;
       const calcDelivery = orderTotalBeforeDelivery > 7000 ? 0 : 250;
       const adjProductPrice = parseFloat(formData.adjProductPrice) || calcProductPrice;
+      const adjLogoCharges = parseFloat(formData.adjLogoCharges) || calcLogo;
+      const adjNamePrinting = parseFloat(formData.adjNamePrinting) || calcName;
       const adjCustomization = parseFloat(formData.adjCustomization) || calcCustomization;
       const adjCap = parseFloat(formData.adjCapCharges) || calcCap;
       const adjDelivery = calcDelivery;
       const discount = parseFloat(formData.adjDiscount) || 0;
-      const adjTotal = adjProductPrice + adjCustomization + adjCap + adjDelivery - discount;
+      const adjTotal = adjProductPrice + adjLogoCharges + adjNamePrinting + adjCustomization + adjCap + adjDelivery - discount;
 
       const combinedOrder = {
         orderNumber: firstItem.orderNumber,
@@ -1066,6 +1072,8 @@ const SmartOrderForm = () => {
           instructionNotes: '',
           shopifyOrderDate: '',
           adjProductPrice: '',
+          adjLogoCharges: '',
+          adjNamePrinting: '',
           adjCustomization: '',
           adjCapCharges: '',
           adjDiscount: ''
@@ -3551,18 +3559,22 @@ const SmartOrderForm = () => {
                     <tbody>
                       {(() => {
                         const calcProductPrice = memoCartProductPriceExBranding;
+                        const calcLogo = memoCartTotalLogoCharges;
+                        const calcName = memoCartTotalNamePrinting;
                         const calcCustomization = memoCartTotalCustomization;
                         const calcCap = memoCartTotalCap;
-                        const orderTotalBeforeDelivery = calcProductPrice + calcCustomization + calcCap;
+                        const orderTotalBeforeDelivery = calcProductPrice + calcLogo + calcName + calcCustomization + calcCap;
                         const calcDelivery = orderTotalBeforeDelivery > 7000 ? 0 : 250;
                         const adjProductPrice = parseFloat(formData.adjProductPrice) || calcProductPrice;
+                        const adjLogoCharges = parseFloat(formData.adjLogoCharges) || calcLogo;
+                        const adjNamePrinting = parseFloat(formData.adjNamePrinting) || calcName;
                         const adjCustomization = parseFloat(formData.adjCustomization) || calcCustomization;
                         const adjCap = parseFloat(formData.adjCapCharges) || calcCap;
                         const adjDelivery = calcDelivery;
                         const discount = parseFloat(formData.adjDiscount) || 0;
                         const advanceAmt = parseFloat(formData.advanceAmount) || 0;
-                        const calcTotal = calcProductPrice + calcCustomization + calcCap + calcDelivery;
-                        const adjTotal = adjProductPrice + adjCustomization + adjCap + adjDelivery - discount;
+                        const calcTotal = calcProductPrice + calcLogo + calcName + calcCustomization + calcCap + calcDelivery;
+                        const adjTotal = adjProductPrice + adjLogoCharges + adjNamePrinting + adjCustomization + adjCap + adjDelivery - discount;
                         const remainingBalance = adjTotal - advanceAmt;
                         const inp = (name, calcVal, color = 'emerald-400') => (
                           <input type="number" min="0" value={formData[name] ?? ''} placeholder={String(calcVal)}
@@ -3576,6 +3588,20 @@ const SmartOrderForm = () => {
                               <td className="text-right text-gray-300 font-black py-1.5 px-2">₨{calcProductPrice.toLocaleString()}</td>
                               <td className="text-right py-1.5 pl-2">{inp('adjProductPrice', calcProductPrice)}</td>
                             </tr>
+                            {(calcLogo > 0) && (
+                              <tr className="border-b border-gray-800/30">
+                                <td className="text-amber-400 font-bold py-1.5 pr-2">{useUrdu ? 'لوگو چارجز' : 'Logo Charges'}</td>
+                                <td className="text-right text-amber-400 font-black py-1.5 px-2">₨{calcLogo.toLocaleString()}</td>
+                                <td className="text-right py-1.5 pl-2">{inp('adjLogoCharges', calcLogo, 'amber-400')}</td>
+                              </tr>
+                            )}
+                            {(calcName > 0) && (
+                              <tr className="border-b border-gray-800/30">
+                                <td className="text-purple-400 font-bold py-1.5 pr-2">{useUrdu ? 'نام پرنٹنگ' : 'Name Printing'}</td>
+                                <td className="text-right text-purple-400 font-black py-1.5 px-2">₨{calcName.toLocaleString()}</td>
+                                <td className="text-right py-1.5 pl-2">{inp('adjNamePrinting', calcName, 'purple-400')}</td>
+                              </tr>
+                            )}
                             {(calcCustomization > 0) && (
                               <tr className="border-b border-gray-800/30">
                                 <td className="text-cyan-400 font-bold py-1.5 pr-2">{useUrdu ? 'کسٹمائزیشن چارجز' : 'Customization Charges'}</td>
