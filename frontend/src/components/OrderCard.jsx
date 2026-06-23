@@ -1271,9 +1271,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           } else {
                             const msg = nextStage ? `Route to ${nextStage.replace(/_/g, ' ')}?` : 'Confirm classification and route items?';
                             if (window.confirm(msg)) {
-                              const availPayload = isMultiItem && orderItems?.length > 1
-                                ? Object.fromEntries(orderItems.map((_, idx) => [idx, productAvailability[idx] !== false]))
-                                : {};
+                              const itemsArray = isMultiItem && orderItems?.length > 1 ? orderItems : [product];
+                              const availPayload = Object.fromEntries(itemsArray.map((_, idx) => [idx, productAvailability[idx] !== false]));
                               onUpdateStage(order.id, currentStage.id, 'request', { inventoryStatus: 'Available', nextStage: nextStage || undefined, productAvailability: availPayload });
                             }
                           }
@@ -1956,7 +1955,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                   </td>
                                   <td className="py-4 px-4 text-center text-white font-black">{item.quantity || 1}</td>
                                   <td className="py-4 px-4 text-center">
-                                    {['STORE', 'STORE_EMPLOYEE'].includes(userRole) ? (
+                                    {['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(userRole) ? (
                                       <div className="flex items-center justify-center gap-1">
                                         <button
                                           type="button"
@@ -2054,12 +2053,43 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         ...(order.logoCharges > 0 ? [{ label: 'Logo Charge', val: showPrice ? `₨${order.logoCharges}` : '★ ★ ★' }] : []),
                         ...(order.namePrintingCharges > 0 ? [{ label: 'Name Printing', val: showPrice ? `₨${order.namePrintingCharges}` : '★ ★ ★' }] : []),
                         { label: 'Customization Charge', val: showPrice ? `₨${order.customizationPrice || 0}` : '★ ★ ★' },
-                        { label: 'Payment', val: order.paymentStatus }
+                        { label: 'Payment', val: order.paymentStatus },
+                        { label: 'Stock', val: 'toggle' }
                       ].filter(i => i.val).map((item, i) => (
-                        <div key={i} className="bg-gray-950/50 p-6 rounded-3xl border border-gray-800/50">
-                          <p className="text-xs md:text-sm text-gray-500 font-black uppercase tracking-widest mb-2">{item.label}</p>
-                          <p className="text-lg font-bold text-gray-200">{item.val || 'STANDARD'}</p>
-                        </div>
+                        item.val === 'toggle' ? (
+                          <div key={i} className="bg-gray-950/50 p-6 rounded-3xl border border-gray-800/50">
+                            <p className="text-xs md:text-sm text-gray-500 font-black uppercase tracking-widest mb-2">Stock</p>
+                            <div className="flex items-center gap-2">
+                              {['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(userRole) ? (
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setProductAvailability(prev => ({...prev, [0]: true}))}
+                                    className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black transition-all ${productAvailability[0] !== false ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                                  >
+                                    ✓
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setProductAvailability(prev => ({...prev, [0]: false}))}
+                                    className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black transition-all ${productAvailability[0] === false ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}
+                                  >
+                                    ✗
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className={`text-sm font-black ${productAvailability[0] !== false ? 'text-emerald-400' : 'text-red-400'}`}>
+                                  {productAvailability[0] !== false ? 'Available' : 'N/A'}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div key={i} className="bg-gray-950/50 p-6 rounded-3xl border border-gray-800/50">
+                            <p className="text-xs md:text-sm text-gray-500 font-black uppercase tracking-widest mb-2">{item.label}</p>
+                            <p className="text-lg font-bold text-gray-200">{item.val || 'STANDARD'}</p>
+                          </div>
+                        )
                       ))}
                     </div>
                   )}
