@@ -677,14 +677,16 @@ const SmartOrderForm = () => {
   };
 
   const handleSizeSelect = useCallback((s) => {
-    const chart = getSizeChart();
-    const autoMeasurements = chart[s] || formData.measurements;
-    setFormData({
-      ...formData,
-      size: s,
-      measurements: { ...autoMeasurements }
+    setFormData(prev => {
+      const chart = prev.gender === 'Female' ? WOMEN_SCRUBS_SIZE_CHART : MEN_SCRUBS_SIZE_CHART;
+      const autoMeasurements = chart[s] || prev.measurements;
+      return {
+        ...prev,
+        size: s,
+        measurements: { ...autoMeasurements }
+      };
     });
-  }, [formData.gender, formData.measurements]);
+  }, []);
 
   const validateProductConfig = () => {
     const accessory = isAccessory(selectedProductCategory);
