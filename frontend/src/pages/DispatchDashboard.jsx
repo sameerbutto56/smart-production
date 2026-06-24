@@ -336,7 +336,7 @@ const DispatchDashboard = () => {
               )}
             </div>
             {/* Engraving / Customization */}
-            {custom && !custom.skipEngraving && (custom.engravingType || custom.nameSpelling || (custom.logos?.length > 0) || custom.designNotes) && (
+            {custom && !custom.skipEngraving && (custom.nameSpelling || (custom.articleNames?.length > 0) || (custom.logos?.length > 0) || custom.designNotes) && (
               <div>
                 <h4 className="text-xs font-black uppercase tracking-widest text-amber-400 mb-2">Engraving / Customization</h4>
                 <div className="theme-bg-subtle rounded-xl p-3 space-y-1">
