@@ -3605,34 +3605,26 @@ const SmartOrderForm = () => {
                               <td className="text-right text-gray-300 font-black py-1.5 px-2">₨{calcProductPrice.toLocaleString()}</td>
                               <td className="text-right py-1.5 pl-2">{inp('adjProductPrice', calcProductPrice)}</td>
                             </tr>
-                            {(calcLogo > 0) && (
-                              <tr className="border-b border-gray-800/30">
-                                <td className="text-amber-400 font-bold py-1.5 pr-2">{useUrdu ? 'لوگو چارجز' : 'Logo Charges'}</td>
-                                <td className="text-right text-amber-400 font-black py-1.5 px-2">₨{calcLogo.toLocaleString()}</td>
-                                <td className="text-right py-1.5 pl-2">{inp('adjLogoCharges', calcLogo, 'amber-400')}</td>
-                              </tr>
-                            )}
-                            {(calcName > 0) && (
-                              <tr className="border-b border-gray-800/30">
-                                <td className="text-purple-400 font-bold py-1.5 pr-2">{useUrdu ? 'نام پرنٹنگ' : 'Name Printing'}</td>
-                                <td className="text-right text-purple-400 font-black py-1.5 px-2">₨{calcName.toLocaleString()}</td>
-                                <td className="text-right py-1.5 pl-2">{inp('adjNamePrinting', calcName, 'purple-400')}</td>
-                              </tr>
-                            )}
-                            {(calcCustomization > 0) && (
-                              <tr className="border-b border-gray-800/30">
-                                <td className="text-cyan-400 font-bold py-1.5 pr-2">{useUrdu ? 'کسٹمائزیشن چارجز' : 'Customization Charges'}</td>
-                                <td className="text-right text-cyan-400 font-black py-1.5 px-2">₨{calcCustomization.toLocaleString()}</td>
-                                <td className="text-right py-1.5 pl-2">{inp('adjCustomization', calcCustomization, 'cyan-400')}</td>
-                              </tr>
-                            )}
-                            {(calcCap > 0) && (
-                              <tr className="border-b border-gray-800/30">
-                                <td className="text-rose-400 font-bold py-1.5 pr-2">{useUrdu ? 'میچنگ کیپ چارجز' : 'Matching Cap Charges'}</td>
-                                <td className="text-right text-rose-400 font-black py-1.5 px-2">₨{calcCap.toLocaleString()}</td>
-                                <td className="text-right py-1.5 pl-2">{inp('adjCapCharges', calcCap, 'rose-400')}</td>
-                              </tr>
-                            )}
+                            <tr className="border-b border-gray-800/30">
+                              <td className="text-amber-400 font-bold py-1.5 pr-2">{useUrdu ? 'لوگو چارجز' : 'Logo Charges'}</td>
+                              <td className="text-right text-amber-400 font-black py-1.5 px-2">₨{calcLogo.toLocaleString()}</td>
+                              <td className="text-right py-1.5 pl-2">{inp('adjLogoCharges', calcLogo, 'amber-400')}</td>
+                            </tr>
+                            <tr className="border-b border-gray-800/30">
+                              <td className="text-purple-400 font-bold py-1.5 pr-2">{useUrdu ? 'نام پرنٹنگ' : 'Name Printing'}</td>
+                              <td className="text-right text-purple-400 font-black py-1.5 px-2">₨{calcName.toLocaleString()}</td>
+                              <td className="text-right py-1.5 pl-2">{inp('adjNamePrinting', calcName, 'purple-400')}</td>
+                            </tr>
+                            <tr className="border-b border-gray-800/30">
+                              <td className="text-cyan-400 font-bold py-1.5 pr-2">{useUrdu ? 'کسٹمائزیشن چارجز' : 'Customization Charges'}</td>
+                              <td className="text-right text-cyan-400 font-black py-1.5 px-2">₨{calcCustomization.toLocaleString()}</td>
+                              <td className="text-right py-1.5 pl-2">{inp('adjCustomization', calcCustomization, 'cyan-400')}</td>
+                            </tr>
+                            <tr className="border-b border-gray-800/30">
+                              <td className="text-rose-400 font-bold py-1.5 pr-2">{useUrdu ? 'میچنگ کیپ چارجز' : 'Matching Cap Charges'}</td>
+                              <td className="text-right text-rose-400 font-black py-1.5 px-2">₨{calcCap.toLocaleString()}</td>
+                              <td className="text-right py-1.5 pl-2">{inp('adjCapCharges', calcCap, 'rose-400')}</td>
+                            </tr>
                             <tr className="border-b border-gray-800/30">
                               <td className={`font-bold py-1.5 pr-2 ${calcDelivery === 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
                                 {calcDelivery === 0
@@ -3660,20 +3652,16 @@ const SmartOrderForm = () => {
                               <td className="text-right text-gray-200 font-black text-sm py-2 px-2">₨{calcTotal.toLocaleString()}</td>
                               <td className="text-right font-black text-white text-lg py-2 pl-2">₨{adjTotal.toLocaleString()}</td>
                             </tr>
-                            {advanceAmt > 0 && (
-                              <>
-                                <tr>
-                                  <td className="text-emerald-400 font-bold py-1 pr-2">{useUrdu ? 'ایڈوانس وصول' : 'Advance Received'}</td>
-                                  <td className="text-right text-emerald-400 font-black py-1 px-2">−₨{advanceAmt.toLocaleString()}</td>
-                                  <td className="text-right text-emerald-400 font-black py-1 pl-2">−₨{advanceAmt.toLocaleString()}</td>
-                                </tr>
-                                <tr>
-                                  <td className="text-orange-400 font-black text-sm py-2 pr-2">{useUrdu ? 'باقی رقم' : 'Remaining Balance'}</td>
-                                  <td className="text-right text-orange-400 font-black text-sm py-2 px-2">₨{Math.max(0, calcTotal - advanceAmt).toLocaleString()}</td>
-                                  <td className="text-right text-orange-400 font-black text-lg py-2 pl-2">₨{Math.max(0, remainingBalance).toLocaleString()}</td>
-                                </tr>
-                              </>
-                            )}
+                            <tr>
+                              <td className="text-emerald-400 font-bold py-1 pr-2">{useUrdu ? 'ایڈوانس وصول' : 'Advance Received'}</td>
+                              <td className="text-right text-emerald-400 font-black py-1 px-2">{advanceAmt > 0 ? '−' : ''}₨{advanceAmt.toLocaleString()}</td>
+                              <td className="text-right text-emerald-400 font-black py-1 pl-2">{advanceAmt > 0 ? '−' : ''}₨{advanceAmt.toLocaleString()}</td>
+                            </tr>
+                            <tr>
+                              <td className="text-orange-400 font-black text-sm py-2 pr-2">{useUrdu ? 'باقی رقم' : 'Remaining Balance'}</td>
+                              <td className="text-right text-orange-400 font-black text-sm py-2 px-2">₨{Math.max(0, calcTotal - advanceAmt).toLocaleString()}</td>
+                              <td className="text-right text-orange-400 font-black text-lg py-2 pl-2">₨{Math.max(0, remainingBalance).toLocaleString()}</td>
+                            </tr>
                           </>
                         );
                       })()}
