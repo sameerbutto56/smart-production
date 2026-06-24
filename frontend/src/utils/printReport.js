@@ -560,6 +560,12 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const showPrice = ['SUPER_ADMIN', 'ADMIN'].includes(userRole);
   const priceDisplay = (v) => showPrice ? currency(v) : '★ ★ ★';
 
+  const slMap = { 'full':'Full Sleeve', 'half':'Half Sleeve', 'three-quarter':'3 Quarter Sleeve' };
+  const shMap = { 'long':'Full Length', 'short':'Short Length', 'regular':'Regular Length' };
+  const femSlMap = { 'full':'Full Sleeve', 'half':'Half Sleeve', 'medium':'Medium Sleeve' };
+  const femShMap = { 'long':'Full Length', 'short':'Short Length' };
+  const slDisplay = (v) => v ? (slMap[v] || v) : '';
+  const shDisplay = (v) => v ? (shMap[v] || v) : '';
   const sec = lang === 'en' ? enSection : urduSection;
   const isUrdu = lang === 'ur';
 
@@ -654,7 +660,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       }
       win.document.write(`</td>`);
       win.document.write(`<td style="font-size:22px">${[p.fabricType, p.color].filter(Boolean).join(' • ')}</td>`);
-      const extras = [p.sleeveLength ? `${sec.sleeves}: ${p.sleeveLength}` : null, p.shirtLength ? `${sec.length}: ${p.shirtLength}` : null].filter(Boolean).join(' | ');
+      const extras = [p.sleeveLength ? `${sec.sleeves}: ${slDisplay(p.sleeveLength)}` : null, p.shirtLength ? `${sec.length}: ${shDisplay(p.shirtLength)}` : null].filter(Boolean).join(' | ');
       win.document.write(`<td style="font-size:22px">${p.size || cap('Custom')} • ${p.gender || 'Male'}${extras ? '<br><span style="font-size:20px;color:#000;font-weight:700">' + extras + '</span>' : ''}</td>`);
       win.document.write(`<td style="text-align:center;font-weight:700;font-size:22px">${item.quantity || 1}</td>`);
       if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;font-size:22px;color:#000">${capQty || '—'}</td>`);
@@ -682,7 +688,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     win.document.write(`</td>`);
     win.document.write(`<td style="font-size:22px">${firstProduct.fabricType || '—'}</td>`);
     win.document.write(`<td style="font-size:22px">${firstProduct.color || '—'}</td>`);
-    const extras = [firstProduct.sleeveLength ? `${sec.sleeves}: ${firstProduct.sleeveLength}` : null, firstProduct.shirtLength ? `${sec.length}: ${firstProduct.shirtLength}` : null].filter(Boolean).join(' | ');
+    const extras = [firstProduct.sleeveLength ? `${sec.sleeves}: ${slDisplay(firstProduct.sleeveLength)}` : null, firstProduct.shirtLength ? `${sec.length}: ${shDisplay(firstProduct.shirtLength)}` : null].filter(Boolean).join(' | ');
     win.document.write(`<td style="font-size:22px">${firstProduct.size || cap('Custom')}</td>`);
     win.document.write(`<td style="font-size:22px">${firstProduct.gender || 'Male'}${extras ? '<br><span style="font-size:20px;color:#000;font-weight:700">' + extras + '</span>' : ''}</td>`);
     win.document.write(`<td style="text-align:center;font-weight:700;font-size:22px">${order.quantity || 1}</td>`);
@@ -696,6 +702,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     const brandingItems = isMultiItem ? allItems : [{ productDetails: firstProduct, customization: custom }];
     const hasAnyCustomization = brandingItems.some(item => {
       const c = item.customization ? (typeof item.customization === 'string' ? JSON.parse(item.customization) : item.customization) : custom;
+      if (c?.skipEngraving) return false;
       return c?.engravingType || c?.nameSpelling || c?.nameColor || c?.logoPlacement || c?.fitType || c?.stitchingStyle || c?.logos?.length > 0 || c?.designNotes || c?.articleNames?.length > 0;
     });
     if (!hasAnyCustomization) { /* no customization data, skip engraving section */ }
@@ -778,7 +785,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
         // Sleeve / Shirt Length
         const slv = p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves ? p.femaleOptions.sleeves : null);
         const slen = p.shirtLength || (p.gender === 'Female' && p.femaleOptions?.shirtLength ? p.femaleOptions.shirtLength : null);
-        const opts = [slv ? `${sec.sleeves}: ${slv}` : null, slen ? `${sec.length}: ${slen}` : null, (p.gender === 'Female' && p.femaleOptions?.dupatta) ? 'Dupatta' : null].filter(Boolean);
+        const opts = [slv ? `${sec.sleeves}: ${slv && p.sleeveLength ? slDisplay(slv) : (femSlMap[slv] || slv)}` : null, slen ? `${sec.length}: ${slen && p.shirtLength ? shDisplay(slen) : (femShMap[slen] || slen)}` : null, (p.gender === 'Female' && p.femaleOptions?.dupatta) ? 'Dupatta' : null].filter(Boolean);
         if (opts.length > 0) {
           win.document.write(`<p style="font-size:20px;margin-top:4px;color:#000;font-weight:700">${opts.join(' | ')}</p>`);
         }

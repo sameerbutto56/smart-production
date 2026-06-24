@@ -265,7 +265,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const renderTasks = () => {
     const stage = currentStage?.stageName;
     if (stage === 'STORE') {
-      const isStoreRole = ['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(userRole);
+      const isStoreRole = ['STORE', 'STORE_EMPLOYEE'].includes(userRole);
       if (isMultiItem && orderItems?.length > 1) {
         const sortedItems = orderItems.map((item, idx) => ({ item, idx, isRejected: productAvailability[idx] === false, isCompleted: productAvailability[idx] === true }));
         sortedItems.sort((a, b) => {
@@ -465,7 +465,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     </div>
                     <div className="bg-gray-950/50 p-2 rounded-lg">
                       <p className="text-[9px] text-gray-500 font-black uppercase">Style</p>
-                      <p className="text-xs md:text-sm font-black text-white">{c?.stitchingStyle || 'STANDARD'}</p>
+                      <p className="text-xs md:text-sm font-black text-white">{c?.stitchingStyle ? (c.stitchingStyle === 'DBL' ? 'Double' : 'Single') : 'STANDARD'}</p>
                     </div>
                     {c?.engravingType && (
                       <div className="bg-gray-950/50 p-2 rounded-lg">
@@ -478,13 +478,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         {(p?.sleeveLength || (female.sleeves && female.sleeves !== 'full')) && (
                           <div className="bg-gray-950/50 p-2 rounded-lg">
                             <p className="text-[9px] text-gray-500 font-black uppercase">Sleeves</p>
-                            <p className="text-xs md:text-sm font-black text-white">{p.sleeveLength || female.sleeves || 'N/A'}</p>
+                            <p className="text-xs md:text-sm font-black text-white">{p.sleeveLength ? ({'full':'Full Sleeve','half':'Half Sleeve','three-quarter':'3 Quarter Sleeve'}[p.sleeveLength] || p.sleeveLength) : ({'full':'Full Sleeve','half':'Half Sleeve','medium':'Medium Sleeve'}[female.sleeves] || female.sleeves || 'N/A')}</p>
                           </div>
                         )}
                         {(p?.shirtLength || (female.shirtLength && female.shirtLength !== 'long')) && (
                           <div className="bg-gray-950/50 p-2 rounded-lg">
                             <p className="text-[9px] text-gray-500 font-black uppercase">Shirt L.</p>
-                            <p className="text-xs md:text-sm font-black text-white">{p.shirtLength || female.shirtLength || 'N/A'}</p>
+                            <p className="text-xs md:text-sm font-black text-white">{p.shirtLength ? ({'long':'Full Length','short':'Short Length','regular':'Regular Length'}[p.shirtLength] || p.shirtLength) : ({'long':'Full Length','short':'Short Length'}[female.shirtLength] || female.shirtLength || 'N/A')}</p>
                           </div>
                         )}
                       </>
@@ -492,13 +492,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     {p?.sleeveLength && p?.gender !== 'Female' && (
                       <div className="bg-gray-950/50 p-2 rounded-lg">
                         <p className="text-[9px] text-gray-500 font-black uppercase">Sleeves</p>
-                        <p className="text-xs md:text-sm font-black text-white">{p.sleeveLength === 'full' ? 'Full' : p.sleeveLength === 'half' ? 'Half' : 'Quarter'}</p>
+                        <p className="text-xs md:text-sm font-black text-white">{p.sleeveLength === 'full' ? 'Full' : p.sleeveLength === 'three-quarter' ? '3 Quarter' : p.sleeveLength === 'half' ? 'Half' : p.sleeveLength || 'Quarter'}</p>
                       </div>
                     )}
                     {p?.shirtLength && p?.gender !== 'Female' && (
                       <div className="bg-gray-950/50 p-2 rounded-lg">
                         <p className="text-[9px] text-gray-500 font-black uppercase">Shirt L.</p>
-                        <p className="text-xs md:text-sm font-black text-white">{p.shirtLength === 'long' ? 'Full' : 'Short'}</p>
+                        <p className="text-xs md:text-sm font-black text-white">{p.shirtLength === 'long' ? 'Full' : p.shirtLength === 'regular' ? 'Regular' : 'Short'}</p>
                       </div>
                     )}
                   </div>
@@ -507,27 +507,36 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 {hasSizes && (
                   <div className="bg-gray-950/50 p-3 rounded-xl border border-gray-800/50 mt-3">
                     <p className="text-xs md:text-sm text-gray-500 font-black uppercase tracking-widest mb-2 px-1">Measurements</p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[
-                        { l: 'Chst', v: s?.chest },
-                        { l: 'Shld', v: s?.shoulder },
-                        { l: 'Lnth', v: s?.length },
-                        { l: 'Slve', v: s?.sleeve },
-                        { l: 'Wst', v: s?.waist },
-                        { l: 'Hps', v: s?.hips }
-                      ].filter(sm => sm.v).map((sm, si) => (
-                        <div key={si} className="text-center p-1 bg-gray-900 rounded border border-gray-800">
-                          <p className="text-[9px] text-gray-500 font-bold uppercase">{sm.l}</p>
-                          <p className="text-xs md:text-sm font-black text-white">{sm.v}"</p>
-                        </div>
-                      ))}
-                    </div>
-                    {s?.specialNote && (
-                      <div className="mt-2 bg-yellow-500/5 rounded-lg p-2 border border-yellow-500/10">
-                        <p className="text-[9px] text-yellow-400 font-black uppercase tracking-widest">Special Note</p>
-                        <p className="text-xs font-bold text-yellow-300/90 italic leading-tight">{s.specialNote}</p>
-                      </div>
-                    )}
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-gray-800">
+                          <th className="text-left text-gray-500 font-black uppercase tracking-wider py-1.5 pr-2">Measurement</th>
+                          <th className="text-right text-gray-500 font-black uppercase tracking-wider py-1.5 pl-2 w-16">Inches</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[
+                          { l: 'Chest', v: s?.chest },
+                          { l: 'Shoulder', v: s?.shoulder },
+                          { l: 'Length', v: s?.length },
+                          { l: 'Sleeve', v: s?.sleeve },
+                          { l: 'Waist', v: s?.waist },
+                          { l: 'Hips', v: s?.hips }
+                        ].filter(sm => sm.v).map((sm, si) => (
+                          <tr key={si} className="border-b border-gray-800/30">
+                            <td className="text-gray-400 font-bold py-1.5 pr-2">{sm.l}</td>
+                            <td className="text-right text-white font-black py-1.5 pl-2">{sm.v}"</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {s?.specialNote && (
+                  <div className="bg-yellow-500/5 p-3 rounded-xl border border-yellow-500/10 mt-3">
+                    <p className="text-xs md:text-sm font-black text-yellow-400 uppercase tracking-widest mb-1">Special Note</p>
+                    <p className="text-xs md:text-sm font-bold text-yellow-300/90 italic leading-tight">{s.specialNote}</p>
                   </div>
                 )}
 
@@ -2166,13 +2175,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                     </div>
                                     {(hasSleeves || hasShirtLength) && (
                                       <div className={`text-xs md:text-sm font-black mt-0.5 ${isRejected ? 'text-orange-300' : isCompleted ? 'text-emerald-300' : 'text-pink-400'}`}>
-                                        {hasSleeves && `${t('Sleeves')}: ${p.sleeveLength || p.femaleOptions?.sleeves}`} {hasShirtLength && `| ${t('Length')}: ${p.shirtLength || p.femaleOptions?.shirtLength}`}
+                                        {hasSleeves && `${t('Sleeves')}: ${p.sleeveLength ? ({'full':'Full Sleeve','half':'Half Sleeve','three-quarter':'3 Quarter Sleeve'}[p.sleeveLength] || p.sleeveLength) : ({'full':'Full Sleeve','half':'Half Sleeve','medium':'Medium Sleeve'}[p.femaleOptions?.sleeves] || p.femaleOptions?.sleeves || '')}`} {hasShirtLength && `| ${t('Length')}: ${p.shirtLength ? ({'long':'Full Length','short':'Short Length','regular':'Regular Length'}[p.shirtLength] || p.shirtLength) : ({'long':'Full Length','short':'Short Length'}[p.femaleOptions?.shirtLength] || p.femaleOptions?.shirtLength || '')}`}
                                       </div>
                                     )}
                                   </td>
                                   <td className="py-4 px-4 text-center text-white font-black">{item.quantity || 1}</td>
                                   <td className="py-4 px-4 text-center">
-                                    {['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(userRole) && !isProdStage && !isStoreRecv ? (
+                                    {['STORE', 'STORE_EMPLOYEE'].includes(userRole) && !isProdStage && !isStoreRecv ? (
                                       <div className="flex items-center justify-center gap-1">
                                         <button
                                           type="button"
@@ -2267,64 +2276,72 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       </table>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6">
-                      {[
-                        { label: t('Product'), val: product?.productType },
-                        { label: t('Fabric'), val: product?.fabricType },
-                        { label: t('Color'), val: product?.color },
-                        { label: t('Size'), val: product?.size },
-                        { label: t('Gender'), val: product?.gender },
-                        ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
-                        ...(product?.sleeveLength ? [{ label: t('Sleeves'), val: product.sleeveLength === 'full' ? 'Full Sleeve' : product.sleeveLength === 'half' ? 'Half Sleeve' : product.sleeveLength === 'three-quarter' ? '3 Quarter Sleeve' : 'Quarter Sleeve' }] : []),
-                        ...(product?.shirtLength ? [{ label: t('Length'), val: product.shirtLength === 'long' ? 'Full Length' : 'Short Length' }] : []),
-                        ...(product?.fabricSourceProduct ? [{ label: 'Fabric Required', val: product.fabricSourceProduct }] : []),
-                        ...(product?.colorSourceProduct ? [{ label: 'Color Required', val: product.colorSourceProduct }] : []),
-                        ...(product?.designSourceProduct ? [{ label: 'Design Required', val: product.designSourceProduct }] : []),
-                        ...(product?.sizeSourceProduct ? [{ label: 'Size Required', val: product.sizeSourceProduct }] : []),
-                        ...(product?.additionalProductRef ? [{ label: 'Additional Ref', val: product.additionalProductRef }] : []),
-                        ...(order.logoCharges > 0 ? [{ label: 'Logo Charge', val: showPrice ? `₨${order.logoCharges}` : '★ ★ ★' }] : []),
-                        ...(order.namePrintingCharges > 0 ? [{ label: 'Name Printing', val: showPrice ? `₨${order.namePrintingCharges}` : '★ ★ ★' }] : []),
-                        { label: 'Customization Charge', val: showPrice ? `₨${order.customizationPrice || 0}` : '★ ★ ★' },
-                        { label: 'Payment', val: order.paymentStatus },
-                        { label: 'Stock', val: 'toggle' }
-                      ].filter(i => i.val).map((item, i) => (
-                        item.val === 'toggle' ? (
-                          <div key={i} className="bg-gray-950/50 p-6 rounded-3xl border border-gray-800/50">
-                            <p className="text-xs md:text-sm text-gray-500 font-black uppercase tracking-widest mb-2">{t('Stock')}</p>
-                            <div className="flex items-center gap-2">
-                              {['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(userRole) ? (
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    type="button"
-                                    disabled={productAvailability[0] === true}
-                                    onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(0, true); }}
-                                    className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black transition-all ${productAvailability[0] === true ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 cursor-not-allowed' : productAvailability[0] === false ? 'bg-gray-800 text-gray-500 border border-gray-700' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-emerald-500/10 hover:text-emerald-400'}`}
-                                  >
-                                    ✓
-                                  </button>
-                                  <button
-                                    type="button"
-                                    disabled={productAvailability[0] === true}
-                                    onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(0, false); }}
-                                    className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black transition-all ${productAvailability[0] === false ? 'bg-red-500/20 text-red-400 border border-red-500/30' : productAvailability[0] === true ? 'bg-gray-800 text-gray-500 border border-gray-700 cursor-not-allowed' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-red-500/10 hover:text-red-400'}`}
-                                  >
-                                    ✗
-                                  </button>
-                                </div>
-                              ) : (
-                                <span className={`text-sm font-black ${productAvailability[0] === true ? 'text-emerald-400' : productAvailability[0] === false ? 'text-red-400' : 'text-gray-400'}`}>
-                                  {productAvailability[0] === true ? t('Completed') : productAvailability[0] === false ? t('Rejected') : t('Pending')}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          <div key={i} className="bg-gray-950/50 p-6 rounded-3xl border border-gray-800/50">
-                            <p className="text-xs md:text-sm text-gray-500 font-black uppercase tracking-widest mb-2">{item.label}</p>
-                            <p className="text-lg font-bold text-gray-200">{item.val || 'STANDARD'}</p>
-                          </div>
-                        )
-                      ))}
+                    <div className="overflow-x-auto rounded-2xl border border-gray-800">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="border-b border-gray-800 bg-gray-950/80">
+                            <th className="py-3 px-4 text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest w-1/3">{t('Property')}</th>
+                            <th className="py-3 px-4 text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">{t('Value')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {[
+                            { label: t('Product'), val: product?.productType },
+                            { label: t('Fabric'), val: product?.fabricType },
+                            { label: t('Color'), val: product?.color },
+                            { label: t('Size'), val: product?.size },
+                            { label: t('Gender'), val: product?.gender },
+                            ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
+                            ...(product?.sleeveLength ? [{ label: t('Sleeves'), val: product.sleeveLength === 'full' ? 'Full Sleeve' : product.sleeveLength === 'half' ? 'Half Sleeve' : product.sleeveLength === 'three-quarter' ? '3 Quarter Sleeve' : 'Quarter Sleeve' }] : []),
+                            ...(product?.shirtLength ? [{ label: t('Length'), val: product.shirtLength === 'long' ? 'Full Length' : product.shirtLength === 'regular' ? 'Regular Length' : 'Short Length' }] : []),
+                            ...(product?.fabricSourceProduct ? [{ label: 'Fabric Required', val: product.fabricSourceProduct }] : []),
+                            ...(product?.colorSourceProduct ? [{ label: 'Color Required', val: product.colorSourceProduct }] : []),
+                            ...(product?.designSourceProduct ? [{ label: 'Design Required', val: product.designSourceProduct }] : []),
+                            ...(product?.sizeSourceProduct ? [{ label: 'Size Required', val: product.sizeSourceProduct }] : []),
+                            ...(product?.additionalProductRef ? [{ label: 'Additional Ref', val: product.additionalProductRef }] : []),
+                            ...(['SUPER_ADMIN', 'ADMIN'].includes(userRole) && order.logoCharges > 0 ? [{ label: 'Logo Charge', val: showPrice ? `₨${order.logoCharges}` : '★ ★ ★' }] : []),
+                            ...(['SUPER_ADMIN', 'ADMIN'].includes(userRole) && order.namePrintingCharges > 0 ? [{ label: 'Name Printing', val: showPrice ? `₨${order.namePrintingCharges}` : '★ ★ ★' }] : []),
+                            ...(['SUPER_ADMIN', 'ADMIN'].includes(userRole) ? [{ label: 'Customization Charge', val: showPrice ? `₨${order.customizationPrice || 0}` : '★ ★ ★' }] : []),
+                            ...(['SUPER_ADMIN', 'ADMIN'].includes(userRole) ? [{ label: 'Payment', val: order.paymentStatus }] : [])
+                          ].filter(i => i.val).map((item, i) => (
+                            <tr key={i} className="border-b border-gray-800/30 hover:bg-gray-900/20">
+                              <td className="py-3 px-4 text-xs md:text-sm text-gray-500 font-black uppercase tracking-widest">{item.label}</td>
+                              <td className="py-3 px-4 text-sm md:text-base font-black text-white">{item.val}</td>
+                            </tr>
+                          ))}
+                          {['STORE', 'STORE_EMPLOYEE'].includes(userRole) && (
+                            <tr className="border-b border-gray-800/30 hover:bg-gray-900/20">
+                              <td className="py-3 px-4 text-xs md:text-sm text-gray-500 font-black uppercase tracking-widest">{t('Stock')}</td>
+                              <td className="py-3 px-4">
+                                {['STORE', 'STORE_EMPLOYEE'].includes(userRole) ? (
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      disabled={productAvailability[0] === true}
+                                      onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(0, true); }}
+                                      className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black transition-all ${productAvailability[0] === true ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 cursor-not-allowed' : productAvailability[0] === false ? 'bg-gray-800 text-gray-500 border border-gray-700' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-emerald-500/10 hover:text-emerald-400'}`}
+                                    >
+                                      ✓
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={productAvailability[0] === true}
+                                      onClick={(e) => { e.stopPropagation(); handleProductAvailabilityToggle(0, false); }}
+                                      className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black transition-all ${productAvailability[0] === false ? 'bg-red-500/20 text-red-400 border border-red-500/30' : productAvailability[0] === true ? 'bg-gray-800 text-gray-500 border border-gray-700 cursor-not-allowed' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-red-500/10 hover:text-red-400'}`}
+                                    >
+                                      ✗
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className={`text-sm font-black ${productAvailability[0] === true ? 'text-emerald-400' : productAvailability[0] === false ? 'text-red-400' : 'text-gray-400'}`}>
+                                    {productAvailability[0] === true ? t('Completed') : productAvailability[0] === false ? t('Rejected') : t('Pending')}
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </section>
@@ -2332,32 +2349,42 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               {!isMultiItem && order.type === 'FULL_CUSTOM' && (
                 <section className="bg-blue-600/5 p-4 md:p-8 rounded-xl md:rounded-[2rem] border border-blue-500/10">
                   <h4 className="text-xs md:text-sm font-black text-blue-400 uppercase tracking-[0.3em] mb-6">{t('02. Precise Measurements (Inches)')}</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                    {Object.entries(sizes || {}).map(([key, val], i) => (
-                      <div key={i} className="text-center p-4 bg-gray-900 rounded-2xl border border-gray-800 shadow-sm">
-                        <p className="text-xs md:text-sm text-gray-500 font-black uppercase tracking-tighter mb-1">{key}</p>
-                        <p className="text-xl font-black text-blue-400">{val}"</p>
-                      </div>
-                    ))}
-                    {(product?.sleeveLength || (product?.gender === 'Female' && product?.femaleOptions?.sleeves)) && (
-                      <div className="text-center p-4 bg-gray-900 rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
-                        <p className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter mb-1">{t('SLEEVES')}</p>
-                        <p className="text-sm font-black text-white uppercase">{product.sleeveLength || product.femaleOptions?.sleeves}</p>
-                      </div>
-                    )}
-                    {(product?.shirtLength || (product?.gender === 'Female' && product?.femaleOptions?.shirtLength)) && (
-                      <div className="text-center p-4 bg-gray-900 rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
-                        <p className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter mb-1">{t('SHIRT LENGTH')}</p>
-                        <p className="text-sm font-black text-white uppercase">{product.shirtLength || product.femaleOptions?.shirtLength}</p>
-                      </div>
-                    )}
-                    {sizes?.specialNote && (
-                      <div className="col-span-full text-center p-4 bg-yellow-500/5 rounded-2xl border border-yellow-500/10 shadow-sm">
-                        <p className="text-xs md:text-sm text-yellow-400 font-black uppercase tracking-tighter mb-1">Special Note</p>
-                        <p className="text-sm font-bold text-yellow-300/90 italic leading-tight">{sizes.specialNote}</p>
-                      </div>
-                    )}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-blue-500/20">
+                          <th className="text-left text-blue-400 font-black uppercase tracking-wider py-2 pr-4">{t('Measurement')}</th>
+                          <th className="text-right text-blue-400 font-black uppercase tracking-wider py-2 pl-4 w-24">{t('Inches')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(sizes || {}).filter(([k, v]) => k !== 'specialNote' && v).map(([key, val], i) => (
+                          <tr key={i} className="border-b border-blue-500/5">
+                            <td className="text-gray-300 font-bold py-2 pr-4 capitalize">{key}</td>
+                            <td className="text-right text-white font-black py-2 pl-4">{val}"</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
+                  {(product?.sleeveLength || (product?.gender === 'Female' && product?.femaleOptions?.sleeves)) && (
+                    <div className="mt-3 flex justify-between items-center p-3 bg-gray-900 rounded-xl border border-pink-500/20">
+                      <span className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter">{t('SLEEVES')}</span>
+                      <span className="text-sm font-black text-white uppercase">{product.sleeveLength ? ({'full':'Full Sleeve','half':'Half Sleeve','three-quarter':'3 Quarter Sleeve'}[product.sleeveLength] || product.sleeveLength) : ({'full':'Full Sleeve','half':'Half Sleeve','medium':'Medium Sleeve'}[product.femaleOptions?.sleeves] || product.femaleOptions?.sleeves || '—')}</span>
+                    </div>
+                  )}
+                  {(product?.shirtLength || (product?.gender === 'Female' && product?.femaleOptions?.shirtLength)) && (
+                    <div className="mt-2 flex justify-between items-center p-3 bg-gray-900 rounded-xl border border-pink-500/20">
+                      <span className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter">{t('SHIRT LENGTH')}</span>
+                      <span className="text-sm font-black text-white uppercase">{product.shirtLength ? ({'long':'Full Length','short':'Short Length','regular':'Regular Length'}[product.shirtLength] || product.shirtLength) : ({'long':'Full Length','short':'Short Length'}[product.femaleOptions?.shirtLength] || product.femaleOptions?.shirtLength || '—')}</span>
+                    </div>
+                  )}
+                  {sizes?.specialNote && (
+                    <div className="mt-3 p-3 bg-yellow-500/5 rounded-xl border border-yellow-500/10">
+                      <p className="text-xs md:text-sm text-yellow-400 font-black uppercase tracking-tighter mb-1">Special Note</p>
+                      <p className="text-sm font-bold text-yellow-300/90 italic leading-tight">{sizes.specialNote}</p>
+                    </div>
+                  )}
                 </section>
               )}
 
@@ -2400,7 +2427,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       { l: t('Embroidery Color'), v: custom?.nameColor },
                       { l: t('Logo Location'), v: custom?.logoPlacement },
                       { l: t('Fit Type'), v: custom?.fitType },
-                      { l: t('Stitching Style'), v: custom?.stitchingStyle }
+                      { l: t('Stitching Style'), v: custom?.stitchingStyle ? (custom.stitchingStyle === 'DBL' ? 'Double' : 'Single') : null }
                     ].filter(i => i.v).map((item, i) => (
                       <div key={i} className="flex justify-between items-center p-4 bg-gray-950/30 rounded-2xl border border-gray-800/30">
                         <span className="text-xs md:text-sm text-gray-500 font-bold uppercase tracking-widest">{item.l}</span>

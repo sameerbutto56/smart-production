@@ -998,13 +998,13 @@ const AllOrders = () => {
                                     <div>{p.size || 'Custom'} • {p.gender || 'MALE'}</div>
                                     {(hasSleeves || hasShirtLength) && (
                                       <div className="text-xs md:text-sm text-pink-400 font-black mt-0.5">
-                                        {hasSleeves && `Sleeves: ${p.sleeveLength || p.femaleOptions?.sleeves}`} {hasShirtLength && `| Length: ${p.shirtLength || p.femaleOptions?.shirtLength}`}
+                                        {hasSleeves && `Sleeves: ${p.sleeveLength ? ({'full':'Full Sleeve','half':'Half Sleeve','three-quarter':'3 Quarter Sleeve'}[p.sleeveLength] || p.sleeveLength) : ({'full':'Full Sleeve','half':'Half Sleeve','medium':'Medium Sleeve'}[p.femaleOptions?.sleeves] || p.femaleOptions?.sleeves || '')}`} {hasShirtLength && `| Length: ${p.shirtLength ? ({'long':'Full Length','short':'Short Length','regular':'Regular Length'}[p.shirtLength] || p.shirtLength) : ({'long':'Full Length','short':'Short Length'}[p.femaleOptions?.shirtLength] || p.femaleOptions?.shirtLength || '')}`}
                                       </div>
                                     )}
                                   </td>
                                   <td className="py-4 text-center text-white font-black">{item.quantity || 1}</td>
                                   <td className="py-4 text-center">
-                                    {['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(user?.role) && selectedOrder.currentStage !== 'PRODUCTION' && selectedOrder.currentStage !== 'STORE_RECEIVE' ? (
+                                    {['STORE', 'STORE_EMPLOYEE'].includes(user?.role) && selectedOrder.currentStage !== 'PRODUCTION' && selectedOrder.currentStage !== 'STORE_RECEIVE' ? (
                                       <div className="flex items-center justify-center gap-1">
                                         <button
                                           type="button"
@@ -1058,8 +1058,8 @@ const AllOrders = () => {
                         { label: 'Order Size', val: product?.size },
                         { label: 'Gender', val: product?.gender },
                         ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
-                        ...(product?.sleeveLength ? [{ label: 'Sleeve Length', val: product.sleeveLength }] : []),
-                        ...(product?.shirtLength ? [{ label: 'Shirt Length', val: product.shirtLength }] : []),
+                        ...(product?.sleeveLength ? [{ label: 'Sleeve Length', val: ({'full':'Full Sleeve','half':'Half Sleeve','three-quarter':'3 Quarter Sleeve'}[product.sleeveLength] || product.sleeveLength) }] : []),
+                        ...(product?.shirtLength ? [{ label: 'Shirt Length', val: ({'long':'Full Length','short':'Short Length','regular':'Regular Length'}[product.shirtLength] || product.shirtLength) }] : []),
                         ...(product?.fabricSourceProduct ? [{ label: 'Fabric Required', val: product.fabricSourceProduct }] : []),
                         ...(product?.colorSourceProduct ? [{ label: 'Color Required', val: product.colorSourceProduct }] : []),
                         ...(product?.designSourceProduct ? [{ label: 'Design Required', val: product.designSourceProduct }] : []),
@@ -1087,7 +1087,7 @@ const AllOrders = () => {
                             })()
                           ) : item.label === 'Stock' ? (
                             (() => {
-                              const isStoreRole = ['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL'].includes(user?.role);
+                              const isStoreRole = ['STORE', 'STORE_EMPLOYEE'].includes(user?.role);
                               const isStoreStage = selectedOrder.currentStage !== 'PRODUCTION' && selectedOrder.currentStage !== 'STORE_RECEIVE';
                               const singleCompleted = productAvailability[0] === true;
                               const singleRejected = productAvailability[0] === false;
@@ -1141,13 +1141,13 @@ const AllOrders = () => {
                       {(product?.sleeveLength || (product?.gender === 'Female' && product?.femaleOptions?.sleeves)) && (
                         <div className="text-center p-4 theme-bg-subtle rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
                           <p className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter mb-1">SLEEVES</p>
-                          <p className="text-sm font-black text-white uppercase">{product.sleeveLength || product.femaleOptions?.sleeves}</p>
+                          <p className="text-sm font-black text-white uppercase">{product.sleeveLength ? ({'full':'Full Sleeve','half':'Half Sleeve','three-quarter':'3 Quarter Sleeve'}[product.sleeveLength] || product.sleeveLength) : ({'full':'Full Sleeve','half':'Half Sleeve','medium':'Medium Sleeve'}[product.femaleOptions?.sleeves] || product.femaleOptions?.sleeves || '—')}</p>
                         </div>
                       )}
                       {(product?.shirtLength || (product?.gender === 'Female' && product?.femaleOptions?.shirtLength)) && (
                         <div className="text-center p-4 theme-bg-subtle rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
                           <p className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter mb-1">SHIRT LENGTH</p>
-                          <p className="text-sm font-black text-white uppercase">{product.shirtLength || product.femaleOptions?.shirtLength}</p>
+                          <p className="text-sm font-black text-white uppercase">{product.shirtLength ? ({'long':'Full Length','short':'Short Length','regular':'Regular Length'}[product.shirtLength] || product.shirtLength) : ({'long':'Full Length','short':'Short Length'}[product.femaleOptions?.shirtLength] || product.femaleOptions?.shirtLength || '—')}</p>
                         </div>
                       )}
                       {sizes?.specialNote && (
@@ -1261,7 +1261,7 @@ const AllOrders = () => {
                             { l: 'Embroidery Color', v: custom?.nameColor },
                             { l: 'Logo Location', v: custom?.logoPlacement },
                             { l: 'Fit Type', v: custom?.fitType },
-                            { l: 'Stitching Style', v: custom?.stitchingStyle }
+                            { l: 'Stitching Style', v: custom?.stitchingStyle ? (custom.stitchingStyle === 'DBL' ? 'Double' : 'Single') : null }
                           ].filter(item => item.v).map((item, i) => (
                             <div key={i} className="flex justify-between items-center p-4 theme-bg rounded-2xl border theme-border">
                               <span className="text-xs md:text-sm theme-text-muted font-bold uppercase tracking-widest">{item.l}</span>

@@ -169,8 +169,18 @@ const SmartOrderForm = () => {
     sizeSourceProduct: '',
     additionalProductRef: '',
 
+    // Custom manual entry (FULL_CUSTOM)
+    customProductName: '',
+    customFabric: '',
+    customMaterial: '',
+    customColor: '',
+    customDesign: '',
+    customRequirements: '',
+    customSpecifications: '',
+
     // Engraving type
     engravingType: 'direct',
+    skipEngraving: false,
 
     // Customization
     logoDesign: '',
@@ -698,8 +708,8 @@ const SmartOrderForm = () => {
     if (!formData.customerPhone.trim()) return t('customerPhone') + ' ' + t('required');
     if (formData.type === 'FULL_CUSTOM' && !(parseFloat(formData.advanceAmount) > 0)) return 'Advance payment is compulsory for custom orders.';
 
-    // 2. Product validation
-    if (!formData.productType) return 'Please select a Product first.';
+    // 2. Product validation (optional for FULL_CUSTOM)
+    if (!formData.productType && formData.type !== 'FULL_CUSTOM') return 'Please select a Product first.';
     
     // 3. Customizations validation
     if (formData.type !== 'STANDARD') {
@@ -737,7 +747,7 @@ const SmartOrderForm = () => {
       if (formData.type === 'FULL_CUSTOM' && !formData.stitchingStyle) return 'Please select a Stitch Pattern.';
       if (formData.type === 'FULL_CUSTOM' && !formData.fitType) return 'Please select a Fit Profile.';
     }
-    if (activeTab === 'sizes' && formData.type === 'FULL_CUSTOM' && !accessory) {
+    if (activeTab === 'sizes' && formData.type === 'FULL_CUSTOM' && !accessory && isScrubsProduct(selectedProductCategory)) {
       const m = formData.measurements;
       const required = formData.gender === 'Female'
         ? ['shoulder', 'chest', 'waist', 'bottom', 'shirtLength', 'hip', 'sleeve', 'trouserLength', 'hips']
@@ -784,9 +794,9 @@ const SmartOrderForm = () => {
       namePrintingCharges: parseFloat(formData.namePrintingCharges) || 0,
       customizationPrice: parseFloat(formData.customizationPrice) || 0,
       productDetails: {
-        productType: formData.productType,
-        fabricType: formData.fabricType,
-        color: formData.color,
+        productType: formData.productType || formData.customProductName,
+        fabricType: formData.fabricType || formData.customFabric,
+        color: formData.color || formData.customColor,
         size: formData.size,
         gender: formData.gender,
         femaleOptions: formData.femaleOptions,
@@ -794,11 +804,13 @@ const SmartOrderForm = () => {
         shirtLength: formData.shirtLength || '',
         matchingCap: formData.matchingCap,
         matchingCapQty: formData.matchingCapQty,
-        fabricSourceProduct: formData.fabricSourceProduct,
-        colorSourceProduct: formData.colorSourceProduct,
-        designSourceProduct: formData.designSourceProduct,
+        fabricSourceProduct: formData.fabricSourceProduct || formData.customFabric,
+        colorSourceProduct: formData.colorSourceProduct || formData.customColor,
+        designSourceProduct: formData.designSourceProduct || formData.customDesign,
         sizeSourceProduct: formData.sizeSourceProduct,
-        additionalProductRef: formData.additionalProductRef
+        additionalProductRef: formData.additionalProductRef || formData.customRequirements,
+        customMaterial: formData.customMaterial,
+        customSpecifications: formData.customSpecifications
       },
       customization: {
         nameSpelling: articleNameEntries.filter(Boolean).join(', '),
@@ -812,7 +824,8 @@ const SmartOrderForm = () => {
         designReference: formData.designReference,
         additionalFeatures: formData.additionalFeatures,
         logos: logoEntries,
-        engravingType: formData.engravingType || 'direct'
+        engravingType: formData.engravingType || 'direct',
+        skipEngraving: formData.skipEngraving || false
       },
       sizeData: formData.measurements,
       capCharges,
@@ -856,7 +869,8 @@ const SmartOrderForm = () => {
         bottom: '',
         thigh: '',
         mori: '',
-        ganda: ''
+        ganda: '',
+        specialNote: ''
       },
       gender: 'Male',
       femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
@@ -869,7 +883,15 @@ const SmartOrderForm = () => {
       designSourceProduct: '',
       sizeSourceProduct: '',
       additionalProductRef: '',
-      engravingType: 'direct'
+      customProductName: '',
+      customFabric: '',
+      customMaterial: '',
+      customColor: '',
+      customDesign: '',
+      customRequirements: '',
+      customSpecifications: '',
+      engravingType: 'direct',
+      skipEngraving: false
     }));
     setLogoEntries([{ name: '', design: '' }]);
     setArticleNameEntries(['']);
@@ -2080,6 +2102,46 @@ const SmartOrderForm = () => {
                   )}
                 </div>
 
+                {/* Manual Product Entry for FULL_CUSTOM */}
+                {formData.type === 'FULL_CUSTOM' && (
+                  <div className="mb-6 p-4 md:p-6 theme-bg-subtle rounded-2xl border border-blue-500/20 bg-blue-500/5">
+                    <h3 className="text-sm font-black text-blue-400 uppercase mb-1 flex items-center gap-2">
+                      <span>✏️</span> Manual Product Entry
+                    </h3>
+                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-4">Enter custom product details if not selecting from catalog</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Product Name</label>
+                        <input type="text" value={formData.customProductName} onChange={e => setFormData({...formData, customProductName: e.target.value})} className="w-full theme-input rounded-xl py-2.5 px-3 text-xs font-bold" placeholder="e.g. Custom Tunic" />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Fabric</label>
+                        <input type="text" value={formData.customFabric} onChange={e => setFormData({...formData, customFabric: e.target.value})} className="w-full theme-input rounded-xl py-2.5 px-3 text-xs font-bold" placeholder="e.g. Cotton Twill" />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Material Details</label>
+                        <input type="text" value={formData.customMaterial} onChange={e => setFormData({...formData, customMaterial: e.target.value})} className="w-full theme-input rounded-xl py-2.5 px-3 text-xs font-bold" placeholder="e.g. 100% Cotton, 200 GSM" />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Color</label>
+                        <input type="text" value={formData.customColor} onChange={e => setFormData({...formData, customColor: e.target.value})} className="w-full theme-input rounded-xl py-2.5 px-3 text-xs font-bold" placeholder="e.g. Navy Blue" />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Design Details</label>
+                        <input type="text" value={formData.customDesign} onChange={e => setFormData({...formData, customDesign: e.target.value})} className="w-full theme-input rounded-xl py-2.5 px-3 text-xs font-bold" placeholder="e.g. Mandarin collar, patch pockets" />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Custom Requirements</label>
+                        <input type="text" value={formData.customRequirements} onChange={e => setFormData({...formData, customRequirements: e.target.value})} className="w-full theme-input rounded-xl py-2.5 px-3 text-xs font-bold" placeholder="Any special requirements" />
+                      </div>
+                      <div className="sm:col-span-2 lg:col-span-3">
+                        <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Product Specifications</label>
+                        <textarea value={formData.customSpecifications} onChange={e => setFormData({...formData, customSpecifications: e.target.value})} className="w-full theme-input rounded-xl py-2.5 px-3 text-xs font-bold resize-none" rows={2} placeholder="Any additional specifications or notes" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
                   {Array.from(new Set(productsInCategory.map(i => i.name)))
                     .map(name => productsInCategory.find(i => i.name === name))
@@ -2482,6 +2544,20 @@ const SmartOrderForm = () => {
                 </div>
 
                 <div className="space-y-4 md:space-y-8">
+                  {/* Skip Engraving Toggle */}
+                  <div className="flex items-center justify-between p-4 theme-bg rounded-2xl border border-gray-700">
+                    <div>
+                      <label className="text-xs font-black theme-text-muted uppercase tracking-[0.3em]">Engraving</label>
+                      <p className="text-[10px] text-gray-500 font-bold mt-0.5">{formData.skipEngraving ? 'Engraving skipped for this item' : 'Add engraving details below'}</p>
+                    </div>
+                    <button type="button" onClick={() => setFormData({...formData, skipEngraving: !formData.skipEngraving})}
+                      className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${formData.skipEngraving ? 'bg-red-600/20 text-red-400 border border-red-500/30' : 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'}`}
+                    >
+                      {formData.skipEngraving ? 'Skipped' : 'Active'}
+                    </button>
+                  </div>
+
+                  {!formData.skipEngraving && (<>
                   {/* Engraving Type */}
                   <div className="space-y-3">
                     <label className="text-xs font-black theme-text-muted uppercase tracking-[0.3em] ml-2">Engraving Method</label>
@@ -2624,7 +2700,8 @@ const SmartOrderForm = () => {
                       </div>
                     ))}
                   </div>
-                </div>
+                </>)}
+              </div>
               </div>
 
               <div className={`glass p-6 md:p-12 rounded-[2rem] md:rounded-[3.5rem] border theme-border space-y-6 md:space-y-10 shadow-2xl ${useUrdu ? 'text-right' : ''}`}>
@@ -2804,8 +2881,8 @@ const SmartOrderForm = () => {
                   </div>
                 </div>
 
-                {/* Measurement Fields - Only for FULL_CUSTOM */}
-                {formData.type === 'FULL_CUSTOM' && isScrubsProduct(selectedProductCategory) && (
+                {/* Measurement Fields - Only for FULL_CUSTOM + SCRUBS */}
+                {false && (
                   <>
                 <div className="relative flex flex-col md:flex-row items-center justify-center max-w-6xl mx-auto gap-4 lg:gap-12">
                   
@@ -2950,18 +3027,6 @@ const SmartOrderForm = () => {
                   </div>
                 )}
 
-                {/* Special Note */}
-                <div className="col-span-full mt-6">
-                  <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-3">Special Note (Optional)</label>
-                  <textarea
-                    value={formData.measurements.specialNote || ''}
-                    onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, specialNote: e.target.value}})}
-                    className="w-full theme-input rounded-2xl p-4 text-sm font-bold border-2 border-gray-700 focus:border-emerald-500/50 transition-all resize-none"
-                    rows={3}
-                    placeholder="Any special instructions or remarks for the tailor..."
-                  />
-                </div>
-
                 {formData.gender === 'Female' && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-6 mt-6 md:mt-12 theme-bg-subtle p-4 md:p-8 rounded-2xl md:rounded-[3rem] border theme-border">
                     <div className="space-y-4">
@@ -3031,6 +3096,18 @@ const SmartOrderForm = () => {
                 </div>
                 </>
                 )}
+
+                {/* Special Note - always visible */}
+                <div className="col-span-full mt-6 p-4 md:p-6 theme-bg rounded-2xl border border-emerald-500/20">
+                  <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-3">Measurement Special Notes</label>
+                  <textarea
+                    value={formData.measurements.specialNote || ''}
+                    onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, specialNote: e.target.value}})}
+                    className="w-full theme-input rounded-2xl p-4 text-sm font-bold border-2 border-gray-700 focus:border-emerald-500/50 transition-all resize-none"
+                    rows={3}
+                    placeholder="Any special instructions or remarks for the tailor..."
+                  />
+                </div>
               </div>
             </motion.div>
           )}
@@ -3519,7 +3596,8 @@ const SmartOrderForm = () => {
 
               {/* Customization & Measurements now shown per-item in the products table above */}
 
-              {/* Financial Summary */}
+              {/* Financial Summary - hidden for FULL_CUSTOM orders */}
+              {formData.type !== 'FULL_CUSTOM' && (
               <div className="bg-gray-950/50 p-4 md:p-6 rounded-[2rem] border border-gray-800/50 mb-6">
                 <h3 className="text-xs md:text-sm font-black text-emerald-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
                   ₨ {useUrdu ? 'مالیاتی خلاصہ' : 'Financial Summary'} <span className="text-[8px] text-gray-500 tracking-[0.3em]">CALCULATED / ADJUSTED</span>
@@ -3647,6 +3725,7 @@ const SmartOrderForm = () => {
                   <span className="font-black text-white">{memoCartTotalItems}</span>
                 </div>
                 </div>
+              )}
 
               {/* Action Buttons */}
               <div className="flex gap-3">
