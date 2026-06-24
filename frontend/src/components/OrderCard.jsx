@@ -559,13 +559,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 )}
 
                 {/* Logos per product */}
-                {!c?.skipEngraving && c?.logos?.length > 0 && (
+                {!c?.skipEngraving && c?.logos?.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).length > 0 && (
                   <div className="bg-amber-600/10 p-3 rounded-xl border border-amber-500/20 mt-3">
                     <p className="text-xs text-amber-400 font-black uppercase tracking-widest mb-2">Logos</p>
                     <div className="space-y-2">
-                      {c.logos.map((logo, li) => (
+                      {c.logos.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).map((logo, li) => (
                         <div key={li} className="bg-amber-900/20 p-2 rounded-lg border border-amber-500/10">
-                          <p className="text-xs md:text-sm font-black text-amber-300">{logo.name || `Logo ${li + 1}`}</p>
+                          <p className="text-xs md:text-sm font-black text-amber-300">{logo.name || logo.design}</p>
                           {logo.design && <p className="text-xs text-gray-400 mt-0.5">{logo.design}</p>}
                         </div>
                       ))}
@@ -2611,12 +2611,12 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         ))}
                       </div>
                     )}
-                    {custom?.logos && custom.logos.length > 0 && (
+                    {custom?.logos && custom.logos.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).length > 0 && (
                       <div className="mt-4 pt-4 border-t border-yellow-500/10 space-y-3">
                         <p className="text-xs font-black text-amber-400 uppercase tracking-widest not-italic">Logo Details</p>
-                        {custom.logos.map((logo, li) => (
+                        {custom.logos.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).map((logo, li) => (
                           <div key={li} className="bg-amber-500/5 p-3 rounded-xl border border-amber-500/10">
-                            <p className="font-bold text-amber-300 not-italic text-sm">{logo.name || `Logo ${li + 1}`}</p>
+                            <p className="font-bold text-amber-300 not-italic text-sm">{logo.name || logo.design}</p>
                             {logo.design && <p className="text-gray-400 text-xs mt-1 not-italic">{logo.design}</p>}
                           </div>
                         ))}

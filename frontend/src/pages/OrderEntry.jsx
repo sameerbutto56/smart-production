@@ -1513,8 +1513,8 @@ const SmartOrderForm = () => {
                               {cust.stitchingStyle && <span className="text-[9px] font-bold text-blue-400 bg-blue-900/20 px-1.5 py-0.5 rounded">{cust.stitchingStyle === 'DBL' ? 'Double' : 'Single'} Stitch</span>}
                               {cust.fitType && <span className="text-[9px] font-bold text-indigo-400 bg-indigo-900/20 px-1.5 py-0.5 rounded">{cust.fitType} Fit</span>}
                               {originalOrder.logoDesign && <span className="text-[9px] font-bold text-amber-400 bg-amber-900/20 px-1.5 py-0.5 rounded">Has Logo</span>}
-                              {cust.logos && cust.logos.length > 0 && cust.logos.map((l, li) => (
-                                <span key={li} className="text-[9px] font-bold text-amber-400 bg-amber-900/20 px-1.5 py-0.5 rounded">{l.name || `Logo ${li + 1}`}</span>
+                              {cust.logos?.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).map((l, li) => (
+                                <span key={li} className="text-[9px] font-bold text-amber-400 bg-amber-900/20 px-1.5 py-0.5 rounded">{l.name || l.design}</span>
                               ))}
                               {d.gender && <span className="text-[9px] font-bold text-pink-400 bg-pink-900/20 px-1.5 py-0.5 rounded">{d.gender}</span>}
                             </div>
@@ -1637,8 +1637,8 @@ const SmartOrderForm = () => {
                                     {!cust.articleNames && cust.nameSpelling && <span className="text-[6px] font-bold text-purple-400 bg-purple-900/20 px-1 rounded">Name: {cust.nameSpelling}</span>}
                                     {cust.stitchingStyle && <span className="text-[6px] font-bold text-blue-400 bg-blue-900/20 px-1 rounded">{cust.stitchingStyle === 'DBL' ? 'Double' : 'Single'}</span>}
                                     {item.logoDesign && <span className="text-[6px] font-bold text-amber-400 bg-amber-900/20 px-1 rounded">Logo</span>}
-                                    {cust.logos && cust.logos.length > 0 && cust.logos.map((l, li) => (
-                                      <span key={li} className="text-[6px] font-bold text-amber-400 bg-amber-900/20 px-1 rounded">{l.name || `Logo ${li + 1}`}</span>
+                                    {cust.logos?.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).map((l, li) => (
+                                      <span key={li} className="text-[6px] font-bold text-amber-400 bg-amber-900/20 px-1 rounded">{l.name || l.design}</span>
                                     ))}
                                   </div>
                                 )}
@@ -3474,12 +3474,12 @@ const SmartOrderForm = () => {
                                   </div>
                                 )}
                                 {/* Logos */}
-                                {cust.logos?.length > 0 && (
+                                {cust.logos?.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).length > 0 && (
                                   <div className="bg-amber-500/5 rounded-lg p-2 border border-amber-500/10">
                                     <p className="text-[9px] text-amber-400 font-black uppercase tracking-widest mb-1">Logos</p>
-                                    {cust.logos.map((l, li) => (
+                                    {cust.logos.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).map((l, li) => (
                                       <div key={li} className="text-xs font-black text-amber-300 bg-amber-900/20 px-2 py-0.5 rounded border border-amber-500/20 mb-0.5 last:mb-0">
-                                        {l.name || `Logo ${li + 1}`}{l.design ? ` — ${l.design}` : ''}
+                                        {l.name || l.design}{l.name && l.design ? ` — ${l.design}` : ''}
                                       </div>
                                     ))}
                                   </div>

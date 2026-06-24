@@ -951,10 +951,10 @@ const AllOrders = () => {
                                           </div>
                                         )}
                                         {/* Logos */}
-                                        {c.logos?.length > 0 && (
+                                        {c.logos?.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).length > 0 && (
                                           <div className="flex flex-wrap gap-1">
-                                            {c.logos.map((l, li) => (
-                                              <span key={li} className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded">{l.name || `Logo ${li + 1}`}{l.design ? `: ${l.design}` : ''}</span>
+                                            {c.logos.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).map((l, li) => (
+                                              <span key={li} className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded">{l.name || l.design}{l.design ? `: ${l.design}` : ''}</span>
                                             ))}
                                           </div>
                                         )}
@@ -1228,12 +1228,12 @@ const AllOrders = () => {
                                   </div>
                                 )}
                                 {/* Logos */}
-                                {c.logos?.length > 0 && (
+                                {c.logos?.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).length > 0 && (
                                   <div className="bg-amber-500/5 p-3 rounded-xl border border-amber-500/10">
                                     <p className="text-[10px] text-amber-400 font-black uppercase tracking-widest mb-2">Logos</p>
-                                    {c.logos.map((l, li) => (
+                                    {c.logos.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).map((l, li) => (
                                       <div key={li} className="text-xs font-black text-amber-300 bg-amber-900/20 px-2 py-1 rounded border border-amber-500/20 mb-1 last:mb-0">
-                                        {l.name || `Logo ${li + 1}`}{l.design ? ` — ${l.design}` : ''}
+                                        {l.name || l.design}{l.name && l.design ? ` — ${l.design}` : ''}
                                       </div>
                                     ))}
                                   </div>
