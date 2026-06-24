@@ -303,7 +303,7 @@ const InventoryManagement = () => {
           </div>
           <div>
             <h1 className="text-xl md:text-3xl font-black theme-text-primary tracking-tight">Inventory</h1>
-            <p className="theme-text-secondary text-sm font-medium uppercase tracking-widest">Master Product Management</p>
+            <p className="theme-text-secondary text-sm font-medium uppercase tracking-widest">{user?.role === 'INVENTORY_VIEW' ? 'View available product variants' : 'Master Product Management'}</p>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -314,7 +314,7 @@ const InventoryManagement = () => {
             accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" 
             className="hidden" 
           />
-          {['SUPER_ADMIN', 'ADMIN'].includes(userRole) && (
+          {user?.role !== 'INVENTORY_VIEW' && ['SUPER_ADMIN', 'ADMIN'].includes(userRole) && (
             <button 
               onClick={() => fileInputRef.current?.click()}
               className="bg-gray-800 hover:bg-gray-700 text-emerald-400 border border-emerald-500/30 font-black py-4 px-6 rounded-2xl shadow-xl transition-all flex items-center space-x-3 active:scale-95"
@@ -323,6 +323,7 @@ const InventoryManagement = () => {
               <span className="hidden sm:inline">Bulk Import (Excel/CSV)</span>
             </button>
           )}
+          {user?.role !== 'INVENTORY_VIEW' && (
           <button
             onClick={() => printInventoryReport(filteredItems, stockFilter)}
             className="bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white font-black py-4 px-4 rounded-2xl border border-gray-700 transition-all flex items-center gap-2 active:scale-95"
@@ -331,6 +332,7 @@ const InventoryManagement = () => {
             <Printer size={18} />
             <span className="hidden sm:inline text-sm">Print</span>
           </button>
+          )}
           {user?.role !== 'INVENTORY_VIEW' && (
           <button 
             onClick={() => handleOpenModal()}
@@ -381,6 +383,7 @@ const InventoryManagement = () => {
       </div>
 
       {/* Stock Filter */}
+      {user?.role !== 'INVENTORY_VIEW' && (
       <div className="flex gap-2">
         {[
           { key: 'ALL', label: 'All Stock' },
@@ -396,6 +399,7 @@ const InventoryManagement = () => {
           >{opt.label}</button>
         ))}
       </div>
+      )}
 
       {/* Search Status Bar */}
       {(searchTerm || categoryFilter !== 'ALL') && (
@@ -409,7 +413,85 @@ const InventoryManagement = () => {
         </div>
       )}
 
-      {/* Grid */}
+      {/* Catalog Grid for INVENTORY_VIEW */}
+      {user?.role === 'INVENTORY_VIEW' ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {loading ? (
+            <div className="col-span-full py-12 flex justify-center"><RefreshCcw className="animate-spin text-blue-400" size={32} /></div>
+          ) : filteredItems.length === 0 ? (
+            <div className="col-span-full text-center py-16">
+              <Package size={48} className="mx-auto text-gray-700 mb-4" />
+              <p className="theme-text-muted font-black text-xs">No products found</p>
+            </div>
+          ) : groupedItems.map(group => [
+            <div key={`header-${group.letter}`} className="col-span-full">
+              <div className="flex items-center gap-3 pt-2 pb-0">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-900/30">
+                  <span className="font-black text-white text-lg">{group.letter}</span>
+                </div>
+                <div className="h-px flex-1 bg-gradient-to-r from-blue-500/20 to-transparent" />
+                <span className="text-xs md:text-sm font-bold text-gray-600 uppercase tracking-widest">{group.items.length} items</span>
+              </div>
+            </div>,
+            ...group.items.map((item, i) => (
+              <motion.div key={item.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
+                className="glass p-4 rounded-2xl border-2 theme-border hover:border-gray-800 transition-all">
+                <h3 className="font-black theme-text-primary text-sm mb-1">{item.name}</h3>
+                <p className="text-[10px] font-bold theme-text-muted uppercase tracking-wider">{item.category}</p>
+                {(() => {
+                  const v = item.variants || [];
+                  if (v.length) {
+                    const hasColor = v.some(x => x.color);
+                    const hasSize = v.some(x => x.size);
+                    if (!hasColor && hasSize) {
+                      const sizes = v.map(x => ({ size: x.size, stock: x.stock ?? 0 }));
+                      return (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {sizes.map(s => (
+                            <span key={s.size} className={`text-[9px] px-1.5 py-0.5 rounded-md font-bold ${s.stock > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+                              {s.size} {s.stock > 0 ? `(${s.stock})` : '(0)'}
+                            </span>
+                          ))}
+                        </div>
+                      );
+                    }
+                    const grouped = {};
+                    v.forEach(x => {
+                      const c = x.color || '-';
+                      if (!grouped[c]) grouped[c] = [];
+                      grouped[c].push({ size: x.size, stock: x.stock ?? 0 });
+                    });
+                    return (
+                      <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
+                        {Object.entries(grouped).map(([color, sizes]) => (
+                          <div key={color}>
+                            <p className="text-[10px] font-bold text-gray-400 mb-0.5">{color}</p>
+                            <div className="flex flex-wrap gap-1">
+                              {sizes.map(s => (
+                                <span key={s.size || 'x'} className={`text-[9px] px-1.5 py-0.5 rounded-md font-bold ${s.stock > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+                                  {s.size ? `${s.size} (${s.stock})` : `(${s.stock})`}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  }
+                  const hasColor = item.color || item.size;
+                  return hasColor ? (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {item.color && <span className="text-[10px] theme-text-muted bg-gray-800/50 px-2 py-0.5 rounded-lg">Color: {item.color}</span>}
+                      {item.size && <span className="text-[10px] theme-text-muted bg-gray-800/50 px-2 py-0.5 rounded-lg">Size: {item.size}</span>}
+                    </div>
+                  ) : null;
+                })()}
+              </motion.div>
+            ))
+          ]).flat()}
+        </div>
+      ) : (
+      /* Admin Grid */
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-8">
         {loading ? (
           <div className="col-span-full py-32 flex flex-col items-center justify-center space-y-4">
@@ -537,8 +619,10 @@ const InventoryManagement = () => {
           ))
         ]).flat()}
       </div>
+      )}
 
       {/* Modal */}
+      {user?.role !== 'INVENTORY_VIEW' && (
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6 bg-black/60 backdrop-blur-md">
@@ -745,6 +829,7 @@ const InventoryManagement = () => {
           </div>
         )}
       </AnimatePresence>
+      )}
     </div>
   );
 };
