@@ -710,7 +710,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
         const p = item.productDetails || {};
         const c = item.customization ? parseJSON(item.customization) : custom;
         const hasNames = c?.articleNames?.length > 0 || c?.nameSpelling;
-        const hasLogos = c?.logos?.filter(l => l.name || l.design).length > 0;
+        const hasLogos = c?.logos?.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).length > 0;
         const hasSpecs = c?.stitchingStyle || c?.fitType || c?.nameColor || c?.logoPlacement || c?.engravingType;
         const hasNotes = c?.designNotes;
         const hasAttrSources = p?.fabricSourceProduct || p?.colorSourceProduct || p?.designSourceProduct || p?.sizeSourceProduct || p?.additionalProductRef;
@@ -766,7 +766,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
         if (hasLogos) {
           win.document.write(`<div style="margin-bottom:6px">`);
           win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.logos}</p>`);
-          c.logos.filter(l => l.name || l.design).forEach((l, li) => {
+          c.logos.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).forEach((l, li) => {
             win.document.write(`<div style="font-size:22px;font-weight:700;background:#fffbeb;padding:3px 8px;border-radius:4px;margin-bottom:2px;border:2px solid #fef3c7">${l.name || l.design}${l.name && l.design ? ` — ${l.design}` : ''}</div>`);
           });
           win.document.write(`</div>`);

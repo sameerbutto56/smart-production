@@ -336,14 +336,14 @@ const DispatchDashboard = () => {
               )}
             </div>
             {/* Engraving / Customization */}
-            {custom && !custom.skipEngraving && (custom.nameSpelling || (custom.articleNames?.length > 0) || (custom.logos?.length > 0) || custom.designNotes) && (
+            {custom && !custom.skipEngraving && (custom.nameSpelling || (custom.articleNames?.length > 0) || custom.logos?.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).length > 0 || custom.designNotes) && (
               <div>
                 <h4 className="text-xs font-black uppercase tracking-widest text-amber-400 mb-2">Engraving / Customization</h4>
                 <div className="theme-bg-subtle rounded-xl p-3 space-y-1">
                   {custom.engravingType && <p className="text-xs font-bold theme-text-secondary">Type: {custom.engravingType === 'direct' ? 'Direct Engraving' : 'Patch Engraving'}</p>}
                   {custom.nameSpelling && <p className="text-xs font-bold theme-text-secondary">Name: {custom.nameSpelling}</p>}
                   {custom.articleNames?.length > 0 && <p className="text-xs font-bold theme-text-secondary">Lines: {custom.articleNames.join(', ')}</p>}
-                  {custom.logos?.filter(l => l.name || l.design).length > 0 && <p className="text-xs font-bold theme-text-secondary">Logos: {custom.logos.filter(l => l.name || l.design).map(l => l.name || l.design).join(', ')}</p>}
+                  {custom.logos?.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).length > 0 && <p className="text-xs font-bold theme-text-secondary">Logos: {custom.logos.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).map(l => l.name || l.design).join(', ')}</p>}
                   {custom.designNotes && <p className="text-xs font-bold text-amber-400">Note: {custom.designNotes}</p>}
                 </div>
               </div>
