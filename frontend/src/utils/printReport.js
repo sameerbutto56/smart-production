@@ -33,25 +33,23 @@ const PRINT_CSS = `
   table {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: 12px;
-    font-size: 18px;
-    table-layout: fixed;
+    margin-bottom: 10px;
+    font-size: 20px;
   }
   th {
     background: #000;
     color: #fff;
-    padding: 6px 8px;
+    padding: 5px 6px;
     text-align: left;
     font-size: 16px;
     font-weight: 900;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    white-space: nowrap;
   }
   td {
-    padding: 5px 8px;
+    padding: 4px 6px;
     border-bottom: 2px solid #ccc;
-    font-weight: 900;
-    word-break: break-word;
+    font-weight: 700;
   }
   tr:nth-child(even) td { background: #f0f0f0; }
   .section-title {
@@ -830,37 +828,6 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
         win.document.write(`</div>`);
       });
     }
-  }
-
-  // ─── FINANCIAL SUMMARY ───
-  if (orderType !== 'STANDARD') {
-  win.document.write(`<div class="section-title" style="font-size:26px">Financial Summary</div>`);
-  (() => {
-    const items = isMultiItem ? allItems : [];
-    const calcProductPrice = items.reduce((s, i) => s + (parseFloat(i.totalPrice) - parseFloat(i.logoCharges || 0) - parseFloat(i.namePrintingCharges || 0) - parseFloat(i.customizationPrice || 0) - (parseInt(i.capCharges) || 0)), 0) || (isMultiItem ? 0 : (parseFloat(order.totalPrice) || 0));
-    const calcCustomization = items.reduce((s, i) => s + (parseFloat(i.logoCharges || 0) + parseFloat(i.namePrintingCharges || 0) + parseFloat(i.customizationPrice || 0)), 0);
-    const calcCap = items.reduce((s, i) => s + (parseInt(i.capCharges) || 0), 0);
-    const deliveryCharges = parseFloat(order.deliveryCharges) || 0;
-    const orderTotalNoDelivery = calcProductPrice + calcCustomization + calcCap;
-    const isFreeDelivery = orderTotalNoDelivery > 7000 || deliveryCharges === 0;
-    const discount = parseFloat(order.discount) || 0;
-    const grandTotal = orderTotalNoDelivery + (isFreeDelivery ? 0 : deliveryCharges) - discount;
-
-    win.document.write(`<table style="width:auto;margin-left:auto"><tbody>`);
-    win.document.write(`<tr><td style="font-weight:700;padding:3px 20px 3px 0;font-size:22px">Product Price</td><td style="text-align:right;font-weight:800;font-size:22px">${priceDisplay(calcProductPrice)}</td></tr>`);
-    if (calcCustomization > 0) {
-      win.document.write(`<tr><td style="font-weight:700;padding:3px 20px 3px 0;font-size:22px">Customization Charges</td><td style="text-align:right;font-weight:800;font-size:22px">${priceDisplay(calcCustomization)}</td></tr>`);
-    }
-    if (calcCap > 0) {
-      win.document.write(`<tr><td style="font-weight:700;padding:3px 20px 3px 0;font-size:22px">Matching Cap Charges</td><td style="text-align:right;font-weight:800;font-size:22px">${priceDisplay(calcCap)}</td></tr>`);
-    }
-    win.document.write(`<tr><td style="font-weight:700;padding:3px 20px 3px 0;font-size:22px">Delivery Charges</td><td style="text-align:right;font-weight:800;font-size:22px">${isFreeDelivery ? 'FREE' : priceDisplay(deliveryCharges)}</td></tr>`);
-    if (discount > 0) {
-      win.document.write(`<tr><td style="font-weight:700;padding:3px 20px 3px 0;font-size:22px">Discount</td><td style="text-align:right;font-weight:800;font-size:22px">−${priceDisplay(discount)}</td></tr>`);
-    }
-    win.document.write(`<tr style="border-top:3px solid #111"><td style="font-weight:900;padding:4px 20px 4px 0;font-size:26px">Grand Total</td><td style="text-align:right;font-weight:900;font-size:26px">${priceDisplay(grandTotal)}</td></tr>`);
-    win.document.write(`</tbody></table>`);
-  })();
   }
 
   // ─── FOOTER ───
