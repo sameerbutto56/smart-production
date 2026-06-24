@@ -829,9 +829,9 @@ const AllOrders = () => {
         const hasCustomData = isMultiItem
           ? allItems.some(item => {
               const c = item.customization || {};
-              return c.engravingType || c.nameSpelling || c.nameColor || c.logoPlacement || c.fitType || c.stitchingStyle || c.logos?.length > 0 || c.designNotes || c.designReference || c.articleNames?.length > 0;
+              return !c.skipEngraving && (c.engravingType || c.nameSpelling || c.nameColor || c.logoPlacement || c.fitType || c.stitchingStyle || c.logos?.length > 0 || c.designNotes || c.designReference || c.articleNames?.length > 0);
             })
-          : custom?.engravingType || custom?.nameSpelling || custom?.nameColor || custom?.logoPlacement || custom?.fitType || custom?.stitchingStyle || custom?.logos?.length > 0 || custom?.designNotes || custom?.designReference || custom?.articleNames?.length > 0;
+          : !custom?.skipEngraving && (custom?.engravingType || custom?.nameSpelling || custom?.nameColor || custom?.logoPlacement || custom?.fitType || custom?.stitchingStyle || custom?.logos?.length > 0 || custom?.designNotes || custom?.designReference || custom?.articleNames?.length > 0);
         
         return (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8">

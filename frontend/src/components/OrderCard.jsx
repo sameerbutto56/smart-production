@@ -467,7 +467,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       <p className="text-[9px] text-gray-500 font-black uppercase">Style</p>
                       <p className="text-xs md:text-sm font-black text-white">{c?.stitchingStyle ? (c.stitchingStyle === 'DBL' ? 'Double' : 'Single') : 'STANDARD'}</p>
                     </div>
-                    {c?.engravingType && (
+                    {!c?.skipEngraving && c?.engravingType && (
                       <div className="bg-gray-950/50 p-2 rounded-lg">
                         <p className="text-[9px] text-gray-500 font-black uppercase">Engraving</p>
                         <p className="text-xs md:text-sm font-black text-violet-400">{c.engravingType === 'direct' ? 'Direct' : 'Patch'}</p>
@@ -541,7 +541,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 )}
 
                 {/* Name Lines per product */}
-                {(c?.articleNames?.length > 0 || c?.nameSpelling) && (
+                {!c?.skipEngraving && (c?.articleNames?.length > 0 || c?.nameSpelling) && (
                   <div className="bg-purple-600/10 p-3 rounded-xl border border-purple-500/20 mt-3">
                     <p className="text-xs text-purple-400 font-black uppercase tracking-widest mb-2">Name Lines</p>
                     <div className="flex flex-wrap gap-2">
@@ -559,7 +559,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 )}
 
                 {/* Logos per product */}
-                {c?.logos?.length > 0 && (
+                {!c?.skipEngraving && c?.logos?.length > 0 && (
                   <div className="bg-amber-600/10 p-3 rounded-xl border border-amber-500/20 mt-3">
                     <p className="text-xs text-amber-400 font-black uppercase tracking-widest mb-2">Logos</p>
                     <div className="space-y-2">
@@ -574,7 +574,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 )}
 
                 {/* Special Notes per product */}
-                {c?.designNotes && (
+                {!c?.skipEngraving && c?.designNotes && (
                   <div className="bg-yellow-500/5 p-3 rounded-xl border border-yellow-500/10 mt-3">
                     <p className="text-xs text-yellow-500 font-black uppercase tracking-widest mb-1 flex items-center space-x-1">
                       <MessageSquare size={10} />
@@ -916,18 +916,14 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             {ic?.fitType && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-900/30 text-purple-400">{ic.fitType} Fit</span>}
                           </div>
                         )}
-                        {order.type === 'FULL_CUSTOM' && isz && Object.keys(isz).filter(k => k !== 'specialNote' && isz[k]).length > 0 && (
+                        {order.type === 'FULL_CUSTOM' && p.size && (
                           <div>
-                            <span className="text-[9px] font-black text-gray-500 uppercase">Measurements</span>
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {Object.entries(isz).filter(([k, v]) => v && k !== 'specialNote').map(([k, v]) => (
-                                <span key={k} className="text-[9px] font-bold text-gray-400 bg-gray-900 px-1.5 py-0.5 rounded">{k}: {v}</span>
-                              ))}
-                            </div>
-                            {isz.specialNote && <p className="text-[9px] text-yellow-500 italic mt-1">{isz.specialNote}</p>}
+                            <span className="text-[9px] font-black text-gray-500 uppercase">Size</span>
+                            <span className="text-[10px] font-bold text-white ml-1 bg-gray-800 px-2 py-0.5 rounded">{p.size}</span>
+                            {isz?.specialNote && <p className="text-[9px] text-yellow-500 italic mt-1">Note: {isz.specialNote}</p>}
                           </div>
                         )}
-                        {ic && !ic.skipEngraving && (ic.engravingType || ic.nameSpelling || ic.articleNames?.length > 0 || ic.logos?.length > 0 || ic.designNotes || ic.stitchingStyle || ic.fitType || ic.nameColor || ic.logoPlacement) && (
+                        {ic && !ic.skipEngraving && (ic.engravingType || ic.nameSpelling || ic.articleNames?.length > 0 || ic.logos?.length > 0 || ic.designNotes || ic.nameColor || ic.logoPlacement) && (
                           <div className="border-t border-gray-800 pt-2 space-y-1">
                             {(ic.engravingType || ic.nameSpelling || ic.articleNames?.length > 0) && (
                               <div>
@@ -984,18 +980,14 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         </div>
                       ) : null;
                     })()}
-                    {order.type === 'FULL_CUSTOM' && sizes && Object.keys(sizes).filter(k => k !== 'specialNote' && sizes[k]).length > 0 && (
+                    {order.type === 'FULL_CUSTOM' && product?.size && (
                       <div>
-                        <span className="text-[9px] font-black text-gray-500 uppercase">Measurements</span>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {Object.entries(sizes).filter(([k, v]) => v && k !== 'specialNote').map(([k, v]) => (
-                            <span key={k} className="text-[9px] font-bold text-gray-400 bg-gray-900 px-1.5 py-0.5 rounded">{k}: {v}</span>
-                          ))}
-                        </div>
-                        {sizes.specialNote && <p className="text-[9px] text-yellow-500 italic mt-1">{sizes.specialNote}</p>}
+                        <span className="text-[9px] font-black text-gray-500 uppercase">Size</span>
+                        <span className="text-[10px] font-bold text-white ml-1 bg-gray-800 px-2 py-0.5 rounded">{product.size}</span>
+                        {sizes?.specialNote && <p className="text-[9px] text-yellow-500 italic mt-1">Note: {sizes.specialNote}</p>}
                       </div>
                     )}
-                    {custom && !custom.skipEngraving && (custom.engravingType || custom.nameSpelling || custom.articleNames?.length > 0 || custom.logos?.length > 0 || custom.designNotes || custom.stitchingStyle || custom.fitType || custom.nameColor || custom.logoPlacement) && (
+                    {custom && !custom.skipEngraving && (custom.engravingType || custom.nameSpelling || custom.articleNames?.length > 0 || custom.logos?.length > 0 || custom.designNotes || custom.nameColor || custom.logoPlacement) && (
                       <div className="border-t border-gray-800 pt-2 space-y-1">
                         {(custom.engravingType || custom.nameSpelling || custom.articleNames?.length > 0) && (
                           <div>
