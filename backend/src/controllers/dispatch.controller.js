@@ -336,6 +336,8 @@ const getDispatchDashboard = async (req, res) => {
         deliveryType: true, deliveryMethod: true, priority: true,
         trackingNumber: true, courierDetails: true,
         totalPrice: true, paymentStatus: true, advanceAmount: true,
+        type: true, productDetails: true, customization: true, sizeData: true,
+        instructionNotes: true,
         createdAt: true, updatedAt: true,
         riderAcceptedAt: true, noResponseCount: true,
         stages: { orderBy: { createdAt: 'asc' }, select: { stageName: true, status: true, deadlineAt: true, startedAt: true, rejectionReason: true, completedAt: true } },
