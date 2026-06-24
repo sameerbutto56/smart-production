@@ -81,7 +81,7 @@ const InventoryManagement = () => {
   }
 
   const userRole = String(user?.role || '').toUpperCase().trim();
-  if (user && !['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'STORE'].includes(userRole)) {
+  if (user && !['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'STORE', 'INVENTORY_VIEW'].includes(userRole)) {
     return <Navigate to="/dashboard" replace={true} />;
   }
 
