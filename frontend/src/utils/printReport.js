@@ -7,7 +7,7 @@ const PRINT_CSS = `
     color: #000;
     background: #fff;
     font-size: 24px;
-    line-height: 1.3;
+    line-height: 1.15;
     padding: 0;
     direction: ltr;
   }
@@ -15,8 +15,8 @@ const PRINT_CSS = `
   .report-header {
     text-align: center;
     border-bottom: 4px solid #000;
-    padding-bottom: 8px;
-    margin-bottom: 10px;
+    padding-bottom: 6px;
+    margin-bottom: 8px;
   }
   .report-header h1 { font-size: 28px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
   .report-header p { font-size: 18px; color: #000; margin-top: 3px; font-weight: 900; }
@@ -33,22 +33,22 @@ const PRINT_CSS = `
   table {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: 10px;
-    font-size: 20px;
+    margin-bottom: 8px;
+    font-size: 16px;
   }
   th {
     background: #000;
     color: #fff;
-    padding: 5px 6px;
+    padding: 4px 6px;
     text-align: left;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 900;
     text-transform: uppercase;
-    white-space: nowrap;
+    border: 1px solid #333;
   }
   td {
-    padding: 4px 6px;
-    border-bottom: 2px solid #ccc;
+    padding: 3px 6px;
+    border: 1px solid #ccc;
     font-weight: 700;
   }
   tr:nth-child(even) td { background: #f0f0f0; }
@@ -645,7 +645,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       const capQty = showCap && p.matchingCap ? (p.matchingCapQty || 0) : (showCap && item.capCharges > 0 ? (p.femaleOptions?.cap || 0) : 0);
       win.document.write(`<tr>`);
       win.document.write(`<td style="font-weight:700">${idx + 1}</td>`);
-      win.document.write(`<td style="font-weight:700;font-size:22px">${p.productType || '—'}`);
+      win.document.write(`<td style="font-weight:700">${p.productType || '—'}`);
       // Show attribute source badges inline
       if (p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct || p.additionalProductRef) {
         win.document.write(`<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px">`);
@@ -657,12 +657,12 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
         win.document.write(`</div>`);
       }
       win.document.write(`</td>`);
-      win.document.write(`<td style="font-size:22px">${[p.fabricType, p.color].filter(Boolean).join(' • ')}</td>`);
+      win.document.write(`<td>${[p.fabricType, p.color].filter(Boolean).join(' • ')}</td>`);
       const extras = [p.sleeveLength ? `${sec.sleeves}: ${slDisplay(p.sleeveLength)}` : null, p.shirtLength ? `${sec.length}: ${shDisplay(p.shirtLength)}` : null].filter(Boolean).join(' | ');
-      win.document.write(`<td style="font-size:22px">${p.size || cap('Custom')} • ${p.gender || 'Male'}${extras ? '<br><span style="font-size:20px;color:#000;font-weight:700">' + extras + '</span>' : ''}</td>`);
-      win.document.write(`<td style="text-align:center;font-weight:700;font-size:22px">${item.quantity || 1}</td>`);
-      if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;font-size:22px;color:#000">${capQty || '—'}</td>`);
-      win.document.write(`<td style="text-align:right;font-weight:700;font-size:22px">${priceDisplay(item.totalPrice)}</td>`);
+      win.document.write(`<td>${p.size || cap('Custom')} • ${p.gender || 'Male'}${extras ? ` • ${extras}` : ''}</td>`);
+      win.document.write(`<td style="text-align:center;font-weight:700">${item.quantity || 1}</td>`);
+      if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;color:#000">${capQty || '—'}</td>`);
+      win.document.write(`<td style="text-align:right;font-weight:700">${priceDisplay(item.totalPrice)}</td>`);
       win.document.write(`</tr>`);
     });
     win.document.write(`</tbody></table>`);
@@ -672,7 +672,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     const headers = [sec.product, 'Fabric', 'Color', 'Size', 'Gender', sec.qty].concat(showCap ? [sec.cap] : []).concat(['Price']);
     win.document.write(`<table><thead><tr>${headers.map(h => '<th>' + h + '</th>').join('')}</tr></thead><tbody>`);
     win.document.write(`<tr>`);
-    win.document.write(`<td style="font-weight:700;font-size:22px">${firstProduct.productType || '—'}`);
+    win.document.write(`<td style="font-weight:700">${firstProduct.productType || '—'}`);
     // Show attribute source badges
     if (firstProduct.fabricSourceProduct || firstProduct.colorSourceProduct || firstProduct.designSourceProduct || firstProduct.sizeSourceProduct || firstProduct.additionalProductRef) {
       win.document.write(`<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px">`);
@@ -684,14 +684,14 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       win.document.write(`</div>`);
     }
     win.document.write(`</td>`);
-    win.document.write(`<td style="font-size:22px">${firstProduct.fabricType || '—'}</td>`);
-    win.document.write(`<td style="font-size:22px">${firstProduct.color || '—'}</td>`);
+    win.document.write(`<td>${firstProduct.fabricType || '—'}</td>`);
+    win.document.write(`<td>${firstProduct.color || '—'}</td>`);
     const extras = [firstProduct.sleeveLength ? `${sec.sleeves}: ${slDisplay(firstProduct.sleeveLength)}` : null, firstProduct.shirtLength ? `${sec.length}: ${shDisplay(firstProduct.shirtLength)}` : null].filter(Boolean).join(' | ');
-    win.document.write(`<td style="font-size:22px">${firstProduct.size || cap('Custom')}</td>`);
-    win.document.write(`<td style="font-size:22px">${firstProduct.gender || 'Male'}${extras ? '<br><span style="font-size:20px;color:#000;font-weight:700">' + extras + '</span>' : ''}</td>`);
-    win.document.write(`<td style="text-align:center;font-weight:700;font-size:22px">${order.quantity || 1}</td>`);
-    if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;font-size:22px;color:#000">${capQty || '—'}</td>`);
-    win.document.write(`<td style="text-align:right;font-weight:700;font-size:22px">${priceDisplay(order.totalPrice)}</td>`);
+    win.document.write(`<td>${firstProduct.size || cap('Custom')}</td>`);
+    win.document.write(`<td>${firstProduct.gender || 'Male'}${extras ? ` ${extras}` : ''}</td>`);
+    win.document.write(`<td style="text-align:center;font-weight:700">${order.quantity || 1}</td>`);
+    if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;color:#000">${capQty || '—'}</td>`);
+    win.document.write(`<td style="text-align:right;font-weight:700">${priceDisplay(order.totalPrice)}</td>`);
     win.document.write(`</tr></tbody></table>`);
   }
 
@@ -710,7 +710,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
         const p = item.productDetails || {};
         const c = item.customization ? parseJSON(item.customization) : custom;
         const hasNames = c?.articleNames?.length > 0 || c?.nameSpelling;
-        const hasLogos = c?.logos?.length > 0;
+        const hasLogos = c?.logos?.filter(l => l.name || l.design).length > 0;
         const hasSpecs = c?.stitchingStyle || c?.fitType || c?.nameColor || c?.logoPlacement || c?.engravingType;
         const hasNotes = c?.designNotes;
         const hasAttrSources = p?.fabricSourceProduct || p?.colorSourceProduct || p?.designSourceProduct || p?.sizeSourceProduct || p?.additionalProductRef;
@@ -766,8 +766,8 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
         if (hasLogos) {
           win.document.write(`<div style="margin-bottom:6px">`);
           win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.logos}</p>`);
-          c.logos.forEach((l, li) => {
-            win.document.write(`<div style="font-size:22px;font-weight:700;background:#fffbeb;padding:4px 8px;border-radius:4px;margin-bottom:2px;border:2px solid #fef3c7">${l.name || 'Logo ' + (li + 1)}${l.design ? ' — ' + l.design : ''}</div>`);
+          c.logos.filter(l => l.name || l.design).forEach((l, li) => {
+            win.document.write(`<div style="font-size:22px;font-weight:700;background:#fffbeb;padding:3px 8px;border-radius:4px;margin-bottom:2px;border:2px solid #fef3c7">${l.name || l.design}${l.name && l.design ? ` — ${l.design}` : ''}</div>`);
           });
           win.document.write(`</div>`);
         }
