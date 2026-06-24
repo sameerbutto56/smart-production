@@ -810,16 +810,16 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       measItems.forEach((item, idx) => {
         const p = item.productDetails || {};
         const s = item.sizeData || {};
-        const meas = Object.entries(s).filter(([k, v]) => v && k !== 'specialNote');
-        if (meas.length === 0) return;
+        const productSize = p.size || 'Custom';
+        const allSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'C'];
         win.document.write(`<div style="margin-bottom:6px;page-break-inside:avoid">`);
         if (isMultiItem) {
-          win.document.write(`<p style="font-size:20px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:3px">#${idx + 1} ${p.productType || ''}</p>`);
+          win.document.write(`<p style="font-size:20px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px">#${idx + 1} ${p.productType || ''}</p>`);
         }
-        win.document.write(`<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px">`);
-        meas.forEach(([k, v]) => {
-          const label = isUrdu ? (urduLabels[k.toLowerCase()] || k.replace(/([A-Z])/g, ' $1').trim()) : (k.charAt(0).toUpperCase() + k.slice(1).replace(/([A-Z])/g, ' $1').trim());
-          win.document.write(`<div style="text-align:center;border:2px solid #ddd;border-radius:6px;padding:5px"><p style="font-size:18px;font-weight:700;color:#000;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${label}</p><p style="font-size:24px;font-weight:900">${v}</p></div>`);
+        win.document.write(`<div style="display:flex;gap:4px;flex-wrap:wrap">`);
+        allSizes.forEach(sz => {
+          const isSelected = sz === productSize || (sz === 'C' && productSize === 'Custom');
+          win.document.write(`<div style="text-align:center;border:2px solid ${isSelected ? '#000' : '#ccc'};border-radius:6px;padding:6px 14px;background:${isSelected ? '#000' : '#fff'};color:${isSelected ? '#fff' : '#666'};font-size:18px;font-weight:800">${sz}</div>`);
         });
         win.document.write(`</div>`);
         if (s.specialNote) {
