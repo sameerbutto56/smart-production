@@ -44,7 +44,21 @@ const DispatchDashboard = () => {
   const [submitting, setSubmitting] = useState(false);
   const [statusLoading, setStatusLoading] = useState(null);
   const [acceptLoading, setAcceptLoading] = useState(null);
+  const [expandedOrderId, setExpandedOrderId] = useState(null);
   const queueRefreshRef = useRef(null);
+
+  const toggleExpand = (orderId) => {
+    setExpandedOrderId(prev => prev === orderId ? null : orderId);
+  };
+
+  const parseJSON = (data) => {
+    try { return typeof data === 'string' ? JSON.parse(data) : data; } catch (e) { return {}; }
+  };
+
+  const slMap = { 'full':'Full Sleeve', 'half':'Half Sleeve', 'three-quarter':'3 Quarter Sleeve' };
+  const shMap = { 'long':'Full Length', 'short':'Short Length', 'regular':'Regular Length' };
+  const slDisplay = (v) => v ? (slMap[v] || v) : '';
+  const shDisplay = (v) => v ? (shMap[v] || v) : '';
 
   const fetchDashboard = async () => {
     setLoading(true);
@@ -218,11 +232,17 @@ const DispatchDashboard = () => {
 
   const renderOrderCard = (order, actions) => {
     const badge = PRIORITY_BADGE[order.priority] || PRIORITY_BADGE.NORMAL;
+    const isExpanded = expandedOrderId === order.id;
+    const rawPd = parseJSON(order.productDetails);
+    const allItems = Array.isArray(rawPd) ? rawPd : null;
+    const isMultiItem = allItems && allItems.length > 0;
+    const firstProduct = isMultiItem ? (allItems[0]?.productDetails || allItems[0] || {}) : (rawPd || {});
+    const custom = parseJSON(order.customization);
     return (
       <motion.div key={order.id} layout
         className={`glass rounded-[2rem] p-4 md:p-6 border ${order.priority === 'SUPER_URGENT' ? 'border-red-500/40 shadow-[0_0_15px_rgba(239,68,68,0.2)]' : 'theme-border'}`}>
-        <div className="flex flex-col md:flex-row md:items-center gap-4">
-          <div className="flex-1 min-w-0">
+        <div className="flex flex-col md:flex-row md:items-start gap-4">
+          <div className="flex-1 min-w-0 cursor-pointer" onClick={() => toggleExpand(order.id)}>
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <span className={`text-xs md:text-sm font-black px-2 py-0.5 rounded-full ${badge.bg} ${badge.text}`}>{badge.label}</span>
               <span className={`text-xs md:text-sm font-black px-2 py-0.5 rounded-full ${order.source === 'ONLINE ORDER' || order.source === 'INTERNAL' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'}`}>
@@ -253,6 +273,7 @@ const DispatchDashboard = () => {
               {order.city && <span className="flex items-center gap-1"><MapPin size={12} />{order.city}</span>}
               {order.deliveryMethod && <span className="flex items-center gap-1"><Package size={12} />{order.deliveryMethod}</span>}
               <span className="flex items-center gap-1"><Clock size={12} />{new Date(order.createdAt).toLocaleDateString()}</span>
+              <span className="text-purple-400 text-xs font-black">{isExpanded ? '▲ HIDE' : '▼ DETAILS'}</span>
             </div>
             {order.trackingNumber && (
               <div className="mt-2 inline-flex items-center gap-2 bg-blue-500/10 px-3 py-1.5 rounded-xl border border-blue-500/20">
@@ -261,12 +282,100 @@ const DispatchDashboard = () => {
               </div>
             )}
           </div>
-          <div className="flex flex-col gap-2 md:items-end">
+          <div className="flex flex-col gap-2 md:items-end shrink-0">
             <div className="flex gap-2 flex-wrap">
               {actions}
             </div>
           </div>
         </div>
+        {isExpanded && (
+          <div className="mt-4 pt-4 border-t border-gray-700/50 space-y-4">
+            {/* Products */}
+            <div>
+              <h4 className="text-xs font-black uppercase tracking-widest text-purple-400 mb-2">Products</h4>
+              <div className="space-y-2">
+                {(isMultiItem ? allItems : [{ productDetails: firstProduct }]).map((item, idx) => {
+                  const p = item.productDetails || item || {};
+                  const extras = [p.sleeveLength ? `Sleeve: ${slDisplay(p.sleeveLength)}` : null, p.shirtLength ? `Length: ${shDisplay(p.shirtLength)}` : null].filter(Boolean).join(' | ');
+                  return (
+                    <div key={idx} className="flex items-center justify-between theme-bg-subtle rounded-xl px-3 py-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-black text-sm theme-text-primary">{p.productType || '—'}</p>
+                        <p className="text-xs theme-text-muted font-bold">
+                          {[p.fabricType, p.color, p.size, p.gender].filter(Boolean).join(' • ')}
+                          {extras ? ` | ${extras}` : ''}
+                        </p>
+                      </div>
+                      <span className="font-black text-sm theme-text-primary shrink-0 ml-2">{item.quantity || 1} × {item.totalPrice ? `₨${parseFloat(item.totalPrice).toLocaleString()}` : `₨${parseFloat(order.totalPrice || 0).toLocaleString()}`}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            {/* Order Info */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="theme-bg-subtle rounded-xl px-3 py-2">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Type</p>
+                <p className="text-sm font-black theme-text-primary">{order.type || 'STANDARD'}</p>
+              </div>
+              <div className="theme-bg-subtle rounded-xl px-3 py-2">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Payment</p>
+                <p className={`text-sm font-black ${order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? 'PAID' : (parseFloat(order.advanceAmount || 0) > 0 ? `ADV: ₨${parseFloat(order.advanceAmount).toLocaleString()}` : 'COD')}
+                </p>
+              </div>
+              <div className="theme-bg-subtle rounded-xl px-3 py-2">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Total</p>
+                <p className="text-sm font-black theme-text-primary">₨{parseFloat(order.totalPrice || 0).toLocaleString()}</p>
+              </div>
+              {order.instructionNotes && (
+                <div className="theme-bg-subtle rounded-xl px-3 py-2 col-span-2 md:col-span-4">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Instructions</p>
+                  <p className="text-sm font-black text-amber-400">{order.instructionNotes}</p>
+                </div>
+              )}
+            </div>
+            {/* Engraving / Customization */}
+            {custom && !custom.skipEngraving && (custom.engravingType || custom.nameSpelling || (custom.logos?.length > 0) || custom.designNotes) && (
+              <div>
+                <h4 className="text-xs font-black uppercase tracking-widest text-amber-400 mb-2">Engraving / Customization</h4>
+                <div className="theme-bg-subtle rounded-xl p-3 space-y-1">
+                  {custom.engravingType && <p className="text-xs font-bold theme-text-secondary">Type: {custom.engravingType === 'direct' ? 'Direct Engraving' : 'Patch Engraving'}</p>}
+                  {custom.nameSpelling && <p className="text-xs font-bold theme-text-secondary">Name: {custom.nameSpelling}</p>}
+                  {custom.articleNames?.length > 0 && <p className="text-xs font-bold theme-text-secondary">Lines: {custom.articleNames.join(', ')}</p>}
+                  {custom.logos?.length > 0 && <p className="text-xs font-bold theme-text-secondary">Logos: {custom.logos.map(l => l.name || l.design).filter(Boolean).join(', ')}</p>}
+                  {custom.designNotes && <p className="text-xs font-bold text-amber-400">Note: {custom.designNotes}</p>}
+                </div>
+              </div>
+            )}
+            {/* Measurements for FULL_CUSTOM */}
+            {order.type === 'FULL_CUSTOM' && (() => {
+              const rawSizes = parseJSON(order.sizeData);
+              const sizes = (rawSizes && Object.keys(rawSizes).length > 0) ? rawSizes : null;
+              if (!sizes) return null;
+              const meas = Object.entries(sizes).filter(([k, v]) => v && k !== 'specialNote');
+              if (meas.length === 0 && !sizes.specialNote) return null;
+              return (
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-widest text-blue-400 mb-2">Measurements</h4>
+                  <div className="theme-bg-subtle rounded-xl p-3">
+                    {meas.length > 0 && (
+                      <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mb-2">
+                        {meas.map(([k, v]) => (
+                          <div key={k} className="text-center">
+                            <p className="text-[10px] font-black uppercase text-gray-500">{k.replace(/([A-Z])/g, ' $1').trim()}</p>
+                            <p className="text-sm font-black theme-text-primary">{v}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {sizes.specialNote && <p className="text-xs font-bold text-amber-400">Note: {sizes.specialNote}</p>}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
       </motion.div>
     );
   };
