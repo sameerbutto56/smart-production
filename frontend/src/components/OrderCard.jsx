@@ -520,6 +520,12 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         </div>
                       ))}
                     </div>
+                    {s?.specialNote && (
+                      <div className="mt-2 bg-yellow-500/5 rounded-lg p-2 border border-yellow-500/10">
+                        <p className="text-[9px] text-yellow-400 font-black uppercase tracking-widest">Special Note</p>
+                        <p className="text-xs font-bold text-yellow-300/90 italic leading-tight">{s.specialNote}</p>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -2341,6 +2347,12 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       <div className="text-center p-4 bg-gray-900 rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
                         <p className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter mb-1">{t('SHIRT LENGTH')}</p>
                         <p className="text-sm font-black text-white uppercase">{product.shirtLength || product.femaleOptions?.shirtLength}</p>
+                      </div>
+                    )}
+                    {sizes?.specialNote && (
+                      <div className="col-span-full text-center p-4 bg-yellow-500/5 rounded-2xl border border-yellow-500/10 shadow-sm">
+                        <p className="text-xs md:text-sm text-yellow-400 font-black uppercase tracking-tighter mb-1">Special Note</p>
+                        <p className="text-sm font-bold text-yellow-300/90 italic leading-tight">{sizes.specialNote}</p>
                       </div>
                     )}
                   </div>

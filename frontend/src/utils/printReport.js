@@ -791,14 +791,14 @@ export function printJobSheet(order, userRole, lang = 'ur') {
     const measItems = isMultiItem ? allItems : [{ productDetails: firstProduct, sizeData: sizes }];
     const hasAnyMeas = measItems.some(item => {
       const s = item.sizeData || {};
-      return Object.values(s).some(v => v);
+      return Object.entries(s).some(([k, v]) => v && k !== 'specialNote');
     });
     if (hasAnyMeas) {
       win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
       measItems.forEach((item, idx) => {
         const p = item.productDetails || {};
         const s = item.sizeData || {};
-        const meas = Object.entries(s).filter(([_, v]) => v);
+        const meas = Object.entries(s).filter(([k, v]) => v && k !== 'specialNote');
         if (meas.length === 0) return;
         win.document.write(`<div style="margin-bottom:6px;page-break-inside:avoid">`);
         if (isMultiItem) {
@@ -809,7 +809,11 @@ export function printJobSheet(order, userRole, lang = 'ur') {
           const label = isUrdu ? (urduLabels[k.toLowerCase()] || k.replace(/([A-Z])/g, ' $1').trim()) : (k.charAt(0).toUpperCase() + k.slice(1).replace(/([A-Z])/g, ' $1').trim());
           win.document.write(`<div style="text-align:center;border:2px solid #ddd;border-radius:6px;padding:5px"><p style="font-size:18px;font-weight:700;color:#000;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${label}</p><p style="font-size:24px;font-weight:900">${v}</p></div>`);
         });
-        win.document.write(`</div></div>`);
+        win.document.write(`</div>`);
+        if (s.specialNote) {
+          win.document.write(`<div style="margin-top:6px;background:#fef9e7;border:2px solid #f0c040;border-radius:6px;padding:8px 12px"><p style="font-size:18px;font-weight:800;color:#b8860b;margin-bottom:2px">${isUrdu ? romanToUrdu('Special Note') : 'Special Note'}</p><p style="font-size:20px;font-weight:600;color:#8b6914;font-style:italic">${isUrdu ? romanToUrdu(s.specialNote) : s.specialNote}</p></div>`);
+        }
+        win.document.write(`</div>`);
       });
     }
   }

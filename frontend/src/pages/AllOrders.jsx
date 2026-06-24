@@ -966,8 +966,11 @@ const AllOrders = () => {
                                         )}
                                         {hasMeasurements && (
                                           <div>
-                                            <span className="font-bold theme-text-muted uppercase tracking-wider text-xs md:text-sm">Sizes:</span> {Object.entries(s).filter(([_, v]) => v).map(([k, v]) => `${k.toUpperCase()}:${v}"`).join(', ')}
+                                            <span className="font-bold theme-text-muted uppercase tracking-wider text-xs md:text-sm">Sizes:</span> {Object.entries(s).filter(([k, v]) => v && k !== 'specialNote').map(([k, v]) => `${k.toUpperCase()}:${v}"`).join(', ')}
                                           </div>
+                                        )}
+                                        {s?.specialNote && (
+                                          <div className="mt-1 text-[10px] text-yellow-400 font-black bg-yellow-900/20 px-1.5 py-0.5 rounded italic leading-tight">📝 Special Note: {s.specialNote}</div>
                                         )}
                                       </div>
                                     )}
@@ -1137,6 +1140,12 @@ const AllOrders = () => {
                         <div className="text-center p-4 theme-bg-subtle rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
                           <p className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter mb-1">SHIRT LENGTH</p>
                           <p className="text-sm font-black text-white uppercase">{product.shirtLength || product.femaleOptions?.shirtLength}</p>
+                        </div>
+                      )}
+                      {sizes?.specialNote && (
+                        <div className="col-span-full text-center p-4 bg-yellow-500/5 rounded-2xl border border-yellow-500/10 shadow-sm">
+                          <p className="text-xs md:text-sm text-yellow-400 font-black uppercase tracking-tighter mb-1">Special Note</p>
+                          <p className="text-sm font-bold text-yellow-300/90 italic leading-tight">{sizes.specialNote}</p>
                         </div>
                       )}
                     </div>

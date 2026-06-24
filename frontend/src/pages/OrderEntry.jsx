@@ -207,7 +207,8 @@ const SmartOrderForm = () => {
       bottom: '',
       thigh: '',
       mori: '',
-      ganda: ''
+      ganda: '',
+      specialNote: ''
     },
     gender: 'Male',
     femaleOptions: {
@@ -2949,6 +2950,18 @@ const SmartOrderForm = () => {
                   </div>
                 )}
 
+                {/* Special Note */}
+                <div className="col-span-full mt-6">
+                  <label className="block text-xs md:text-sm font-black theme-text-muted uppercase tracking-[0.35em] mb-3">Special Note (Optional)</label>
+                  <textarea
+                    value={formData.measurements.specialNote || ''}
+                    onChange={(e) => setFormData({...formData, measurements: {...formData.measurements, specialNote: e.target.value}})}
+                    className="w-full theme-input rounded-2xl p-4 text-sm font-bold border-2 border-gray-700 focus:border-emerald-500/50 transition-all resize-none"
+                    rows={3}
+                    placeholder="Any special instructions or remarks for the tailor..."
+                  />
+                </div>
+
                 {formData.gender === 'Female' && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-6 mt-6 md:mt-12 theme-bg-subtle p-4 md:p-8 rounded-2xl md:rounded-[3rem] border theme-border">
                     <div className="space-y-4">
@@ -3487,9 +3500,15 @@ const SmartOrderForm = () => {
                             )}
                             {hasMeas && (
                               <div className="flex flex-wrap gap-1 mt-1.5">
-                                {Object.entries(item.sizeData || {}).filter(([_, v]) => v).map(([key, val]) => (
+                                {Object.entries(item.sizeData || {}).filter(([k, v]) => v && k !== 'specialNote').map(([key, val]) => (
                                   <span key={key} className="text-[9px] font-black text-cyan-400 bg-cyan-900/30 px-1.5 py-0.5 rounded">{key}: {val}"</span>
                                 ))}
+                              </div>
+                            )}
+                            {item.sizeData?.specialNote && (
+                              <div className="mt-2 bg-yellow-500/5 rounded-lg p-2 border border-yellow-500/10">
+                                <p className="text-[9px] text-yellow-400 font-black uppercase tracking-widest mb-0.5">Special Note</p>
+                                <p className="text-xs font-bold text-yellow-300/90 italic leading-tight">{item.sizeData.specialNote}</p>
                               </div>
                             )}
                           </div>
