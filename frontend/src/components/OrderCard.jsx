@@ -877,6 +877,167 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               )}
             </div>
           )}
+          {/* Dispatch Order Details */}
+          {currentStage?.stageName === 'DISPATCH' && (
+            <div className="mb-3 bg-gray-950/30 rounded-2xl border border-cyan-800/50 overflow-hidden">
+              <div className="p-3 md:p-4 space-y-3">
+                <h4 className="text-[10px] font-black text-cyan-400 uppercase tracking-[0.15em] flex items-center gap-2">
+                  <Package size={12} /> Order Details — Dispatch Verification
+                </h4>
+                {isMultiItem && orderItems?.length > 0 ? (
+                  orderItems.map((item, idx) => {
+                    const p = item.productDetails || item;
+                    const ic = item.customization ? parseJSON(item.customization) : custom;
+                    const isz = item.sizeData ? parseJSON(item.sizeData) : sizes;
+                    const slip = { 'full':'Full Sleeve','half':'Half Sleeve','three-quarter':'3 Quarter Sleeve' };
+                    const shmp = { 'long':'Full Length','short':'Short Length','regular':'Regular Length' };
+                    const fsl = { 'full':'Full Sleeve','half':'Half Sleeve','medium':'Medium Sleeve' };
+                    const fsh = { 'long':'Full Length','short':'Short Length' };
+                    const slv = p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves ? p.femaleOptions.sleeves : null);
+                    const shl = p.shirtLength || (p.gender === 'Female' && p.femaleOptions?.shirtLength ? p.femaleOptions.shirtLength : null);
+                    return (
+                      <div key={idx} className="border border-gray-800 rounded-xl p-2.5 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-cyan-400">#{idx + 1} {p.productType || 'Product'}</span>
+                          <span className="text-[9px] font-black text-gray-500 uppercase">Qty: {item.quantity || 1}</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+                          {p.category && <div><span className="text-gray-500">Category:</span> <span className="text-white font-bold">{p.category}</span></div>}
+                          {p.color && <div><span className="text-gray-500">Color:</span> <span className="text-white font-bold">{p.color}</span></div>}
+                          {p.size && <div><span className="text-gray-500">Size:</span> <span className="text-white font-bold">{p.size}</span></div>}
+                          {p.fabricType && <div><span className="text-gray-500">Fabric:</span> <span className="text-white font-bold">{p.fabricType}</span></div>}
+                          {p.gender && <div><span className="text-gray-500">Gender:</span> <span className="text-white font-bold">{p.gender}</span></div>}
+                        </div>
+                        {(slv || shl || ic?.stitchingStyle || ic?.fitType) && (
+                          <div className="flex flex-wrap gap-1">
+                            {slv && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-400">{slip[slv] || fsl[slv] || slv}</span>}
+                            {shl && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-400">{shmp[shl] || fsh[shl] || shl}</span>}
+                            {ic?.stitchingStyle && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-900/30 text-purple-400">{ic.stitchingStyle === 'DBL' ? 'Double Stitch' : ic.stitchingStyle === 'STD' ? 'Single Stitch' : ic.stitchingStyle}</span>}
+                            {ic?.fitType && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-900/30 text-purple-400">{ic.fitType} Fit</span>}
+                          </div>
+                        )}
+                        {order.type === 'FULL_CUSTOM' && isz && Object.keys(isz).filter(k => k !== 'specialNote' && isz[k]).length > 0 && (
+                          <div>
+                            <span className="text-[9px] font-black text-gray-500 uppercase">Measurements</span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {Object.entries(isz).filter(([k, v]) => v && k !== 'specialNote').map(([k, v]) => (
+                                <span key={k} className="text-[9px] font-bold text-gray-400 bg-gray-900 px-1.5 py-0.5 rounded">{k}: {v}</span>
+                              ))}
+                            </div>
+                            {isz.specialNote && <p className="text-[9px] text-yellow-500 italic mt-1">{isz.specialNote}</p>}
+                          </div>
+                        )}
+                        {ic && !ic.skipEngraving && (ic.engravingType || ic.nameSpelling || ic.articleNames?.length > 0 || ic.logos?.length > 0 || ic.designNotes || ic.stitchingStyle || ic.fitType || ic.nameColor || ic.logoPlacement) && (
+                          <div className="border-t border-gray-800 pt-2 space-y-1">
+                            {(ic.engravingType || ic.nameSpelling || ic.articleNames?.length > 0) && (
+                              <div>
+                                <span className="text-[9px] font-black text-amber-500 uppercase">Engraving</span>
+                                {ic.engravingType && <span className="text-[9px] font-bold text-amber-400 ml-2">{ic.engravingType === 'direct' ? 'Direct Engraving' : 'Patch Engraving'}</span>}
+                                {ic.articleNames?.length > 0 ? ic.articleNames.map((n, ai) => (
+                                  <p key={ai} className="text-[10px] text-white font-bold ml-2">L{ai + 1}: {n}</p>
+                                )) : ic.nameSpelling && <p className="text-[10px] text-white font-bold ml-2">{ic.nameSpelling}</p>}
+                              </div>
+                            )}
+                            {ic.logos?.length > 0 && (
+                              <div><span className="text-[9px] font-black text-amber-500 uppercase">Logos</span>{ic.logos.map((l, li) => (
+                                <p key={li} className="text-[10px] text-white font-bold ml-2">{l.name}{l.design ? ` — ${l.design}` : ''}</p>
+                              ))}</div>
+                            )}
+                            {ic.designNotes && <p className="text-[9px] text-yellow-500 italic">Note: {ic.designNotes}</p>}
+                            {(ic.nameColor || ic.logoPlacement) && (
+                              <div className="flex gap-1">
+                                {ic.nameColor && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-pink-900/30 text-pink-400">Color: {ic.nameColor}</span>}
+                                {ic.logoPlacement && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-teal-900/30 text-teal-400">Pos: {ic.logoPlacement}</span>}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="border border-gray-800 rounded-xl p-2.5 space-y-2">
+                    <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+                      {product?.productType && <div><span className="text-gray-500">Product:</span> <span className="text-white font-bold">{product.productType}</span></div>}
+                      {product?.category && <div><span className="text-gray-500">Category:</span> <span className="text-white font-bold">{product.category}</span></div>}
+                      {product?.color && <div><span className="text-gray-500">Color:</span> <span className="text-white font-bold">{product.color}</span></div>}
+                      {product?.size && <div><span className="text-gray-500">Size:</span> <span className="text-white font-bold">{product.size}</span></div>}
+                      {product?.fabricType && <div><span className="text-gray-500">Fabric:</span> <span className="text-white font-bold">{product.fabricType}</span></div>}
+                      {product?.gender && <div><span className="text-gray-500">Gender:</span> <span className="text-white font-bold">{product.gender}</span></div>}
+                      <div><span className="text-gray-500">Qty:</span> <span className="text-white font-bold">{order.quantity || 1}</span></div>
+                      <div><span className="text-gray-500">Type:</span> <span className="text-white font-bold">{order.type || 'STANDARD'}</span></div>
+                    </div>
+                    {(() => {
+                      const slip = { 'full':'Full Sleeve','half':'Half Sleeve','three-quarter':'3 Quarter Sleeve' };
+                      const shmp = { 'long':'Full Length','short':'Short Length','regular':'Regular Length' };
+                      const fsl = { 'full':'Full Sleeve','half':'Half Sleeve','medium':'Medium Sleeve' };
+                      const fsh = { 'long':'Full Length','short':'Short Length' };
+                      const slv = product?.sleeveLength || (product?.gender === 'Female' && product?.femaleOptions?.sleeves ? product.femaleOptions.sleeves : null);
+                      const shl = product?.shirtLength || (product?.gender === 'Female' && product?.femaleOptions?.shirtLength ? product.femaleOptions.shirtLength : null);
+                      const hasCustom = slv || shl || custom?.stitchingStyle || custom?.fitType;
+                      return hasCustom ? (
+                        <div className="flex flex-wrap gap-1">
+                          {slv && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-400">{slip[slv] || fsl[slv] || slv}</span>}
+                          {shl && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-400">{shmp[shl] || fsh[shl] || shl}</span>}
+                          {custom?.stitchingStyle && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-900/30 text-purple-400">{custom.stitchingStyle === 'DBL' ? 'Double Stitch' : custom.stitchingStyle === 'STD' ? 'Single Stitch' : custom.stitchingStyle}</span>}
+                          {custom?.fitType && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-900/30 text-purple-400">{custom.fitType} Fit</span>}
+                        </div>
+                      ) : null;
+                    })()}
+                    {order.type === 'FULL_CUSTOM' && sizes && Object.keys(sizes).filter(k => k !== 'specialNote' && sizes[k]).length > 0 && (
+                      <div>
+                        <span className="text-[9px] font-black text-gray-500 uppercase">Measurements</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {Object.entries(sizes).filter(([k, v]) => v && k !== 'specialNote').map(([k, v]) => (
+                            <span key={k} className="text-[9px] font-bold text-gray-400 bg-gray-900 px-1.5 py-0.5 rounded">{k}: {v}</span>
+                          ))}
+                        </div>
+                        {sizes.specialNote && <p className="text-[9px] text-yellow-500 italic mt-1">{sizes.specialNote}</p>}
+                      </div>
+                    )}
+                    {custom && !custom.skipEngraving && (custom.engravingType || custom.nameSpelling || custom.articleNames?.length > 0 || custom.logos?.length > 0 || custom.designNotes || custom.stitchingStyle || custom.fitType || custom.nameColor || custom.logoPlacement) && (
+                      <div className="border-t border-gray-800 pt-2 space-y-1">
+                        {(custom.engravingType || custom.nameSpelling || custom.articleNames?.length > 0) && (
+                          <div>
+                            <span className="text-[9px] font-black text-amber-500 uppercase">Engraving</span>
+                            {custom.engravingType && <span className="text-[9px] font-bold text-amber-400 ml-2">{custom.engravingType === 'direct' ? 'Direct Engraving' : 'Patch Engraving'}</span>}
+                            {custom.articleNames?.length > 0 ? custom.articleNames.map((n, ai) => (
+                              <p key={ai} className="text-[10px] text-white font-bold ml-2">L{ai + 1}: {n}</p>
+                            )) : custom.nameSpelling && <p className="text-[10px] text-white font-bold ml-2">{custom.nameSpelling}</p>}
+                          </div>
+                        )}
+                        {custom.logos?.length > 0 && (
+                          <div><span className="text-[9px] font-black text-amber-500 uppercase">Logos</span>{custom.logos.map((l, li) => (
+                            <p key={li} className="text-[10px] text-white font-bold ml-2">{l.name}{l.design ? ` — ${l.design}` : ''}</p>
+                          ))}</div>
+                        )}
+                        {custom.designNotes && <p className="text-[9px] text-yellow-500 italic">Note: {custom.designNotes}</p>}
+                        {(custom.nameColor || custom.logoPlacement) && (
+                          <div className="flex gap-1">
+                            {custom.nameColor && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-pink-900/30 text-pink-400">Color: {custom.nameColor}</span>}
+                            {custom.logoPlacement && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-teal-900/30 text-teal-400">Pos: {custom.logoPlacement}</span>}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* Customer & Order Info */}
+                <div className="border border-gray-800 rounded-xl p-2.5 grid grid-cols-2 gap-x-4 gap-y-1.5 text-[10px]">
+                  <div><span className="text-gray-500">Customer:</span> <span className="text-white font-bold">{order.customerName || '—'}</span></div>
+                  <div><span className="text-gray-500">Phone:</span> <span className="text-white font-bold">{order.customerPhone || '—'}</span></div>
+                  {order.address && <div className="col-span-2"><span className="text-gray-500">Address:</span> <span className="text-white font-bold">{order.address}</span></div>}
+                  {order.city && <div><span className="text-gray-500">City:</span> <span className="text-white font-bold">{order.city}</span></div>}
+                  <div><span className="text-gray-500">Order #:</span> <span className="text-white font-bold">{order.orderNumber || order.id?.slice(0, 8)}</span></div>
+                  <div><span className="text-gray-500">Order Type:</span> <span className="text-white font-bold">{order.type || 'STANDARD'}</span></div>
+                  <div><span className="text-gray-500">Priority:</span> <span className="text-white font-bold">{order.priority || 'NORMAL'}</span></div>
+                  <div><span className="text-gray-500">Source:</span> <span className="text-white font-bold">{order.outletName || order.source || '—'}</span></div>
+                  <div><span className="text-gray-500">Payment:</span> <span className="text-white font-bold">{order.paymentStatus === 'PAID' ? 'PAID' : parseFloat(order.advanceAmount || 0) > 0 ? `Advance: ₨${parseFloat(order.advanceAmount).toLocaleString()}` : 'COD'}</span></div>
+                  <div><span className="text-gray-500">Date:</span> <span className="text-white font-bold">{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : '—'}</span></div>
+                </div>
+              </div>
+            </div>
+          )}
           {/* Collapsible Job Sheet Summary */}
           <div className="mb-3 bg-gray-950/30 rounded-2xl border border-gray-800/50 overflow-hidden">
             <button
