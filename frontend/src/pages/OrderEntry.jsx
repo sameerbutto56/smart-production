@@ -2457,45 +2457,6 @@ const SmartOrderForm = () => {
                     </div>
                   )}
 
-                  {/* Custom Requirements */}
-                  {formData.type === 'FULL_CUSTOM' && (
-                  <div className="mt-6 theme-bg-subtle p-4 md:p-6 rounded-2xl border border-amber-500/20 bg-amber-500/5">
-                      <h3 className="text-sm font-black text-amber-400 uppercase mb-3 flex items-center gap-2">
-                        <span role="img" aria-label="source">🔗</span> Custom Requirements
-                      </h3>
-                      <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-4">Type your custom requirements — no inventory search needed</p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {[
-                          { key: 'fabricSourceProduct', label: 'Required Fabric' },
-                          { key: 'colorSourceProduct', label: 'Required Color' },
-                          { key: 'designSourceProduct', label: 'Required Design' },
-                          { key: 'sizeSourceProduct', label: 'Required Size Reference' },
-                        ].map(field => (
-                          <div key={field.key}>
-                            <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1 block">{field.label}</label>
-                            <input
-                              type="text"
-                              value={formData[field.key]}
-                              onChange={(e) => setFormData({...formData, [field.key]: e.target.value})}
-                              className="w-full theme-input rounded-xl py-2.5 px-3 text-xs font-bold"
-                              placeholder={field.label === 'Required Fabric' ? 'e.g. Similar to Cotton Polo Shirt' : field.label === 'Required Color' ? 'e.g. Black similar to Premium Hoodie' : field.label === 'Required Design' ? 'e.g. Same as Sports Jacket' : 'e.g. Size reference notes'}
-                            />
-                          </div>
-                        ))}
-                        <div>
-                          <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Additional Product Reference</label>
-                          <input
-                            type="text"
-                            value={formData.additionalProductRef}
-                            onChange={(e) => setFormData({...formData, additionalProductRef: e.target.value})}
-                            className="w-full theme-input rounded-xl py-2.5 px-3 text-xs font-bold"
-                            placeholder="Any other product reference or instruction"
-                          />
-                        </div>
-                    </div>
-                  </div>
-                  )}
-
                   <div className={`mt-6 md:mt-10 pt-6 md:pt-10 border-t theme-border flex flex-col sm:flex-row items-center justify-between gap-4 md:gap-8 ${useUrdu ? 'flex-row-reverse' : ''}`}>
                     <div className="space-y-1">
                       <h3 className={`text-xl font-black text-blue-400 flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-4'}`}>
