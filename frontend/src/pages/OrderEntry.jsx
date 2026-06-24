@@ -741,7 +741,7 @@ const SmartOrderForm = () => {
       if (!formData.customerPhone.trim()) return t('customerPhone') + ' ' + t('required');
     }
     if (activeTab === 'product') {
-      if (!formData.productType) return 'Please select a Product.';
+      if (!formData.productType && formData.type !== 'FULL_CUSTOM') return 'Please select a Product.';
     }
     if (activeTab === 'custom') {
       if (formData.type === 'FULL_CUSTOM' && !formData.stitchingStyle) return 'Please select a Stitch Pattern.';
