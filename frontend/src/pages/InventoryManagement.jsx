@@ -331,6 +331,7 @@ const InventoryManagement = () => {
             <Printer size={18} />
             <span className="hidden sm:inline text-sm">Print</span>
           </button>
+          {user?.role !== 'INVENTORY_VIEW' && (
           <button 
             onClick={() => handleOpenModal()}
             className="btn-solid-primary btn-xl"
@@ -338,6 +339,7 @@ const InventoryManagement = () => {
             <PlusCircle size={20} />
             <span>Add New</span>
           </button>
+          )}
         </div>
       </div>
 
@@ -455,6 +457,7 @@ const InventoryManagement = () => {
                     item.category === 'FABRIC' ? <Layers size={20} /> : <Palette size={20} />
                   )}
                 </div>
+                {user?.role !== 'INVENTORY_VIEW' && (
                 <div className="flex space-x-2 relative z-10">
                   <button onClick={(e) => { e.stopPropagation(); handleOpenModal(item); }} className="p-2.5 bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white rounded-xl transition-all">
                     <Edit2 size={16} />
@@ -463,6 +466,7 @@ const InventoryManagement = () => {
                     <Trash2 size={16} />
                   </button>
                 </div>
+                )}
               </div>
 
               <div className="space-y-1">
