@@ -47,6 +47,7 @@ import { useSearch } from '../context/SearchContext';
 import { useLanguage } from '../context/LanguageContext';
 import toast from 'react-hot-toast';
 import { PauseCircle, PlayCircle } from 'lucide-react';
+import BiSection from '../components/BiSection';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -54,6 +55,7 @@ const TOP_TABS = [
   { id: 'all_phases', label: 'All Phases', icon: LayoutDashboard },
   { id: 'edit_requests', label: 'Order Change Requests', icon: FileEdit },
   { id: 'recent_orders', label: 'Recent Orders', icon: History },
+  { id: 'bi', label: 'Business Intelligence', icon: BarChart3 },
   { id: 'analytics', label: 'Outlet Analytics', icon: StoreIcon },
   { id: 'settings', label: 'System Settings', icon: ShieldAlert },
 ];
@@ -838,7 +840,7 @@ const AdminDashboard = () => {
         <div className="flex items-center gap-1.5 min-w-max">
           {TOP_TABS.map((tab) => {
             const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
-            if ((tab.id === 'edit_requests' || tab.id === 'analytics' || tab.id === 'settings') && !isAdmin) return null;
+            if ((tab.id === 'edit_requests' || tab.id === 'bi' || tab.id === 'analytics' || tab.id === 'settings') && !isAdmin) return null;
             return (
               <button
                 key={tab.id}
@@ -1461,6 +1463,9 @@ const AdminDashboard = () => {
                 </div>
               </section>
             )}
+
+            {/* Business Intelligence Tab */}
+            {activeTab === 'bi' && <BiSection />}
 
             {/* Outlet Analytics Tab */}
             {activeTab === 'analytics' && (
