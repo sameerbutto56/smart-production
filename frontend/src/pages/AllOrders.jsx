@@ -142,6 +142,8 @@ const AllOrders = () => {
 
   const [showModal, setShowModal] = useState(false);
   const [printLang, setPrintLang] = useState('ur');
+  const [showPrintFilter, setShowPrintFilter] = useState(false);
+  const [printSections, setPrintSections] = useState({ measurements: true, engraving: true });
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [filterType, setFilterType] = useState('ALL');
   const [filterUrgent, setFilterUrgent] = useState(false);
@@ -824,6 +826,12 @@ const AllOrders = () => {
         };
 
         const sizes = (rawSizes && Object.keys(rawSizes).length > 0) ? rawSizes : (standardMeasurements[product?.size] || {});
+        const hasCustomData = isMultiItem
+          ? allItems.some(item => {
+              const c = item.customization || {};
+              return c.engravingType || c.nameSpelling || c.nameColor || c.logoPlacement || c.fitType || c.stitchingStyle || c.logos?.length > 0 || c.designNotes || c.designReference || c.articleNames?.length > 0;
+            })
+          : custom?.engravingType || custom?.nameSpelling || custom?.nameColor || custom?.logoPlacement || custom?.fitType || custom?.stitchingStyle || custom?.logos?.length > 0 || custom?.designNotes || custom?.designReference || custom?.articleNames?.length > 0;
         
         return (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8">
@@ -1152,7 +1160,7 @@ const AllOrders = () => {
                   </section>
                 )}
 
-                {selectedOrder.type !== 'STANDARD' && (
+                {selectedOrder.type !== 'STANDARD' && hasCustomData && (
                 <section>
                   <h4 className="text-xs md:text-sm font-black text-emerald-500 uppercase tracking-[0.3em] mb-6">
                     {isMultiItem ? '03. Per-Product Engraving' : '03. Engraving'}
@@ -1357,7 +1365,7 @@ const AllOrders = () => {
                     <option value="en">English</option>
                   </select>
                   <button
-                    onClick={() => printJobSheet(selectedOrder, user?.role, printLang)}
+                    onClick={() => { setPrintSections({ measurements: true, engraving: true }); setShowPrintFilter(true); }}
                     className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2"
                   >
                     <Download size={14} /> Print Job Sheet
@@ -1374,6 +1382,67 @@ const AllOrders = () => {
           </div>
         );
       })()}
+
+      {/* Print Filter Modal */}
+      {showPrintFilter && selectedOrder && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowPrintFilter(false)}></div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="relative theme-bg rounded-3xl border theme-border p-6 md:p-8 w-full max-w-md shadow-2xl"
+            >
+              <h3 className="text-lg font-black uppercase tracking-widest mb-6">Print Job Sheet Sections</h3>
+              <div className="space-y-4 mb-8">
+                <label className="flex items-center gap-3 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 cursor-not-allowed opacity-60">
+                  <input type="checkbox" checked={true} disabled className="w-5 h-5 accent-emerald-500" />
+                  <div>
+                    <p className="text-sm font-black text-emerald-400">Order & Product Details</p>
+                    <p className="text-xs text-gray-500">Customer info, order details, products</p>
+                  </div>
+                </label>
+                <label className="flex items-center gap-3 p-4 rounded-2xl theme-bg-subtle border theme-border cursor-pointer hover:border-emerald-500/40 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={printSections.measurements}
+                    onChange={(e) => setPrintSections(p => ({ ...p, measurements: e.target.checked }))}
+                    className="w-5 h-5 accent-emerald-500"
+                  />
+                  <div>
+                    <p className="text-sm font-black">Measurements</p>
+                    <p className="text-xs text-gray-500">Size, custom measurements, special note</p>
+                  </div>
+                </label>
+                <label className="flex items-center gap-3 p-4 rounded-2xl theme-bg-subtle border theme-border cursor-pointer hover:border-emerald-500/40 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={printSections.engraving}
+                    onChange={(e) => setPrintSections(p => ({ ...p, engraving: e.target.checked }))}
+                    className="w-5 h-5 accent-emerald-500"
+                  />
+                  <div>
+                    <p className="text-sm font-black">Engraving / Customization</p>
+                    <p className="text-xs text-gray-500">Engraving text, logos, design notes</p>
+                  </div>
+                </label>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => { printJobSheet(selectedOrder, user?.role, printLang, printSections); setShowPrintFilter(false); }}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-2xl text-sm font-black uppercase tracking-widest transition-all"
+                >
+                  Print
+                </button>
+                <button
+                  onClick={() => setShowPrintFilter(false)}
+                  className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-2xl text-sm font-black uppercase tracking-widest transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
     </div>
   );
 };

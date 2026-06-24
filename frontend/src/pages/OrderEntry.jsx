@@ -3018,49 +3018,6 @@ const SmartOrderForm = () => {
                   </div>
                 )}
 
-                {/* Reference Table */}
-                <div className="mt-8 md:mt-12 theme-bg-subtle p-4 md:p-8 rounded-2xl md:rounded-[3rem] border theme-border overflow-x-auto">
-                  <h4 className="text-lg font-black text-emerald-400 uppercase tracking-wider mb-4 text-center">Size Chart Reference (inches)</h4>
-                  <table className="w-full text-sm text-center">
-                    <thead>
-                      <tr className="border-b border-gray-700">
-                        <th className="py-2 px-3 font-black text-gray-400">Size</th>
-                        <th className="py-2 px-3 font-black text-gray-400">Shoulder</th>
-                        <th className="py-2 px-3 font-black text-gray-400">Chest</th>
-                        {formData.gender === 'Female' && <th className="py-2 px-3 font-black text-gray-400">Waist</th>}
-                        <th className="py-2 px-3 font-black text-gray-400">Bottom</th>
-                        <th className="py-2 px-3 font-black text-gray-400">Shirt L.</th>
-                        {formData.gender === 'Female' && <th className="py-2 px-3 font-black text-gray-400">Hip</th>}
-                        <th className="py-2 px-3 font-black text-gray-400">Sleeve</th>
-                        <th className="py-2 px-3 font-black text-gray-400">Trouser L.</th>
-                        <th className="py-2 px-3 font-black text-gray-400">Trouser Bot.</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {Object.entries(getSizeChart()).map(([size, m]) => (
-                        <tr key={size} className={`border-b border-gray-800 ${formData.size === size ? 'bg-emerald-500/10 text-emerald-400' : 'text-gray-300'}`}>
-                          <td className="py-2 px-3 font-black">{size}</td>
-                          <td className="py-2 px-3">{m.shoulder}</td>
-                          <td className="py-2 px-3">{m.chest}</td>
-                          {formData.gender === 'Female' && <td className="py-2 px-3">{m.waist}</td>}
-                          <td className="py-2 px-3">{m.bottom}</td>
-                          <td className="py-2 px-3">{m.shirtLength}</td>
-                          {formData.gender === 'Female' && <td className="py-2 px-3">{m.hip}</td>}
-                          <td className="py-2 px-3">{m.sleeve}</td>
-                          <td className="py-2 px-3">{m.trouserLength}</td>
-                          <td className="py-2 px-3">{m.hips}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {formData.gender === 'Female' && (
-                    <div className="mt-4 space-y-2 text-xs text-gray-500 font-bold text-center">
-                      <p>3 Quarter Sleeves = 18 Inches</p>
-                      <p>Short Shirt Lengths: XS=28, S=28, M=28, L=30, XL=30, XXL=31</p>
-                    </div>
-                  )}
-                </div>
-
                 <div className="mt-8 md:mt-16 bg-emerald-500/5 border-2 border-emerald-500/10 rounded-2xl md:rounded-[3rem] p-6 md:p-10 flex flex-col md:flex-row items-center md:items-start gap-4 md:gap-8 shadow-inner">
                   <div className="p-6 bg-emerald-600 rounded-[2rem] shadow-2xl shadow-emerald-900/50 rotate-6">
                     <CheckCircle2 size={28} className="text-white" />

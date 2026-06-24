@@ -22,6 +22,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const [isDelayed, setIsDelayed] = useState(false);
   const [showFullSheet, setShowFullSheet] = useState(false);
   const [printLang, setPrintLang] = useState('ur');
+  const [showPrintFilter, setShowPrintFilter] = useState(false);
+  const [printSections, setPrintSections] = useState({ measurements: true, engraving: true });
   const [urgencyColor, setUrgencyColor] = useState('text-blue-400');
   const [deadlineStatus, setDeadlineStatus] = useState(''); // ON_TIME, APPROACHING, OVERDUE, COMPLETED
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
@@ -2477,7 +2479,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     <option value="en">English</option>
                   </select>
                   <button
-                    onClick={() => printJobSheet(order, userRole, printLang)}
+                    onClick={() => { setPrintSections({ measurements: true, engraving: true }); setShowPrintFilter(true); }}
                     className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2"
                   >
                     <Printer size={14} /> {t('Print Job Sheet')}
@@ -2490,6 +2492,67 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   </button>
                 </div>
               </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Print Filter Modal */}
+      {showPrintFilter && order && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowPrintFilter(false)}></div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="relative theme-bg rounded-3xl border theme-border p-6 md:p-8 w-full max-w-md shadow-2xl"
+          >
+            <h3 className="text-lg font-black uppercase tracking-widest mb-6">{t('Print Job Sheet Sections')}</h3>
+            <div className="space-y-4 mb-8">
+              <label className="flex items-center gap-3 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 cursor-not-allowed opacity-60">
+                <input type="checkbox" checked={true} disabled className="w-5 h-5 accent-emerald-500" />
+                <div>
+                  <p className="text-sm font-black text-emerald-400">{t('Order & Product Details')}</p>
+                  <p className="text-xs text-gray-500">{t('Customer info, order details, products')}</p>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 p-4 rounded-2xl theme-bg-subtle border theme-border cursor-pointer hover:border-emerald-500/40 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={printSections.measurements}
+                  onChange={(e) => setPrintSections(p => ({ ...p, measurements: e.target.checked }))}
+                  className="w-5 h-5 accent-emerald-500"
+                />
+                <div>
+                  <p className="text-sm font-black">{t('Measurements')}</p>
+                  <p className="text-xs text-gray-500">{t('Size, custom measurements, special note')}</p>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 p-4 rounded-2xl theme-bg-subtle border theme-border cursor-pointer hover:border-emerald-500/40 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={printSections.engraving}
+                  onChange={(e) => setPrintSections(p => ({ ...p, engraving: e.target.checked }))}
+                  className="w-5 h-5 accent-emerald-500"
+                />
+                <div>
+                  <p className="text-sm font-black">{t('Engraving / Customization')}</p>
+                  <p className="text-xs text-gray-500">{t('Engraving text, logos, design notes')}</p>
+                </div>
+              </label>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => { printJobSheet(order, userRole, printLang, printSections); setShowPrintFilter(false); }}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-2xl text-sm font-black uppercase tracking-widest transition-all"
+              >
+                {t('Print')}
+              </button>
+              <button
+                onClick={() => setShowPrintFilter(false)}
+                className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-2xl text-sm font-black uppercase tracking-widest transition-all"
+              >
+                {t('Cancel')}
+              </button>
             </div>
           </motion.div>
         </div>
