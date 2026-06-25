@@ -745,14 +745,6 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           win.document.write(`<p style="font-size:22px;font-style:italic;color:#000"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
         }
 
-        // Sleeve / Shirt Length
-        const slv = p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves ? p.femaleOptions.sleeves : null);
-        const slen = p.shirtLength || (p.gender === 'Female' && p.femaleOptions?.shirtLength ? p.femaleOptions.shirtLength : null);
-        const opts = [slv ? `${sec.sleeves}: ${slv && p.sleeveLength ? slDisplay(slv) : (femSlMap[slv] || slv)}` : null, slen ? `${sec.length}: ${slen && p.shirtLength ? shDisplay(slen) : (femShMap[slen] || slen)}` : null, (p.gender === 'Female' && p.femaleOptions?.dupatta) ? 'Dupatta' : null].filter(Boolean);
-        if (opts.length > 0) {
-          win.document.write(`<p style="font-size:20px;margin-top:4px;color:#000;font-weight:700">${opts.join(' | ')}</p>`);
-        }
-
         // Matching Cap
         const capQty = p.matchingCap ? (p.matchingCapQty || 0) : 0;
         if (capQty > 0) {
@@ -787,6 +779,13 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           win.document.write(`<div style="text-align:center;border:2px solid ${isSelected ? '#000' : '#ccc'};border-radius:6px;padding:6px 14px;background:${isSelected ? '#000' : '#fff'};color:${isSelected ? '#fff' : '#666'};font-size:18px;font-weight:800">${sz}</div>`);
         });
         win.document.write(`</div>`);
+        // Sleeve / Shirt Length
+        const slv = p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves ? p.femaleOptions.sleeves : null);
+        const slen = p.shirtLength || (p.gender === 'Female' && p.femaleOptions?.shirtLength ? p.femaleOptions.shirtLength : null);
+        const opts = [slv ? `${sec.sleeves}: ${slv && p.sleeveLength ? slDisplay(slv) : (femSlMap[slv] || slv)}` : null, slen ? `${sec.length}: ${slen && p.shirtLength ? shDisplay(slen) : (femShMap[slen] || slen)}` : null, (p.gender === 'Female' && p.femaleOptions?.dupatta) ? 'Dupatta' : null].filter(Boolean);
+        if (opts.length > 0) {
+          win.document.write(`<p style="font-size:20px;margin-top:6px;color:#000;font-weight:700">${opts.join(' | ')}</p>`);
+        }
         const ic = item.customization ? (typeof item.customization === 'string' ? JSON.parse(item.customization) : item.customization) : custom;
         const hasAttr = ic?.stitchingStyle || ic?.fitType || p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct || p.additionalProductRef;
         if (hasAttr) {
