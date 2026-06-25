@@ -179,7 +179,7 @@ const SmartOrderForm = () => {
     customSpecifications: '',
 
     // Engraving type
-    engravingType: 'direct',
+    engravingType: '',
     skipEngraving: false,
 
     // Customization
@@ -824,7 +824,7 @@ const SmartOrderForm = () => {
         designReference: formData.designReference,
         additionalFeatures: formData.additionalFeatures,
         logos: logoEntries,
-        engravingType: formData.engravingType || 'direct',
+        engravingType: formData.engravingType || '',
         skipEngraving: formData.skipEngraving || false
       },
       sizeData: formData.measurements,
@@ -890,7 +890,7 @@ const SmartOrderForm = () => {
       customDesign: '',
       customRequirements: '',
       customSpecifications: '',
-      engravingType: 'direct',
+      engravingType: '',
       skipEngraving: false
     }));
     setLogoEntries([{ name: '', design: '' }]);
@@ -925,7 +925,7 @@ const SmartOrderForm = () => {
       designSourceProduct: pd.designSourceProduct || '',
       sizeSourceProduct: pd.sizeSourceProduct || '',
       additionalProductRef: pd.additionalProductRef || '',
-      engravingType: cust.engravingType || 'direct',
+      engravingType: cust.engravingType || '',
       quantity: item.quantity || 1,
       totalPrice: '',
       logoCharges: item.logoCharges?.toString() || '',
