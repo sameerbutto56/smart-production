@@ -1181,9 +1181,9 @@ const SmartOrderForm = () => {
   const availableSizes = formData.productType && selectedProductVariants.length > 0
     ? [...new Set(selectedProductVariants.filter(v => v.size != null && v.size !== '').map(v => v.size))]
     : [];
-  // For CAPS, always include XS & C
-  const capsSizes = selectedProductCategory?.toUpperCase() === 'CAPS' && availableSizes.length > 0
-    ? [...new Set(['XS', ...availableSizes])]
+  // For CAPS, always include XS
+  const capsSizes = selectedProductCategory?.toUpperCase() === 'CAPS'
+    ? [...new Set(['XS', ...(availableSizes.length > 0 ? availableSizes : ['S', 'M', 'L', 'XL', '2XL'])])]
     : null;
 
   // Compute inventory-based unit price  
@@ -2281,59 +2281,51 @@ const SmartOrderForm = () => {
                 </div>
 
                 <div className={`lg:col-span-7 glass p-6 md:p-12 rounded-[2rem] md:rounded-[3.5rem] border theme-border shadow-2xl ${useUrdu ? 'text-right' : ''}`}>
-                  <div className={`flex flex-col sm:flex-row items-center justify-between mb-6 md:mb-10 gap-3 md:gap-6 ${useUrdu ? 'flex-row-reverse' : ''}`}>
-                    <div className="space-y-1">
-                      <h3 className={`text-2xl font-black text-purple-400 flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-4'}`}>
-                        <Palette size={28} />
-                        <span>{t('color')} & {t('size')}</span>
-                      </h3>
-                      <p className={`theme-text-muted text-xs md:text-sm font-bold uppercase tracking-widest ${useUrdu ? 'mr-11' : 'ml-11'}`}>Step 3: Visual scaling</p>
-                    </div>
-                {(!isAccessory(selectedProductCategory) || (isShoes(selectedProductCategory) && formData.productType)) && (
-                  <>
-
-                    <p className={`theme-text-muted text-xs md:text-sm font-bold uppercase tracking-widest ${useUrdu ? 'mr-11' : 'ml-11'}`}>Step 3: Visual scaling</p>
-                    <p className={`theme-text-muted text-[9px] uppercase tracking-[0.45em] font-black ${useUrdu ? 'mr-11' : 'ml-11'} mb-4`} suppressHydrationWarning>{useUrdu ? 'اپنی مطلوبہ جسامت منتخب کریں' : 'Choose your desired size'}</p>
-                    <div className={`flex flex-wrap items-center justify-center gap-1.5 ${useUrdu ? 'flex-row-reverse' : ''}`}>
-                      {(formData.size !== 'Standard' || !isAccessory(selectedProductCategory)) && (capsSizes || availableSizes).length > 0 ? (
-                        (capsSizes || availableSizes).map(s => (
-                          <button
-                            key={s}
-                            type="button"
-                            onClick={() => handleSizeSelect(s)}
-                            className={`w-14 h-14 rounded-xl font-black text-xs transition-all ${
-                              formData.size === s 
-                                ? 'bg-emerald-600 text-white shadow-lg scale-110' 
-                                : 'theme-bg theme-border text-gray-600 hover:text-white hover:bg-gray-800'
-                            }`}
-                          >
-                            {s}
-                          </button>
-                        ))
-                      ) : (
-                        <div className="text-center p-8 opacity-50 select-none">
-                          <p className="text-xs font-black uppercase tracking-widest text-gray-500">{useUrdu ? '?????? ??? ??? ??? ??? ????? ????' : 'Category uses Standard size'}</p>
+                    <div className={`flex flex-col sm:flex-row items-center justify-between mb-6 md:mb-10 gap-3 md:gap-6 ${useUrdu ? 'flex-row-reverse' : ''}`}>
+                      <div className="space-y-1">
+                        <h3 className={`text-2xl font-black text-purple-400 flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-4'}`}>
+                          <Palette size={28} />
+                          <span>{t('color')} & {t('size')}</span>
+                        </h3>
+                        <p className={`theme-text-muted text-xs md:text-sm font-bold uppercase tracking-widest ${useUrdu ? 'mr-11' : 'ml-11'}`}>Step 3: Visual scaling</p>
+                      </div>
+                      {(!isAccessory(selectedProductCategory) || (isShoes(selectedProductCategory) && formData.productType)) && (
+                        <div className={`flex flex-wrap gap-1.5 p-1.5 theme-bg rounded-xl border-2 theme-border ${useUrdu ? 'flex-row-reverse' : ''}`}>
+                          {((capsSizes || availableSizes).length > 0 ? (capsSizes || availableSizes) : ['XS', 'S', 'M', 'L', 'XL', '2XL']).map(s => (
+                            <button
+                              key={s}
+                              type="button"
+                              onClick={() => handleSizeSelect(s)}
+                              className={`font-black transition-all rounded-lg ${
+                                isShoes(selectedProductCategory)
+                                  ? 'px-3 py-1.5 text-[10px] leading-tight'
+                                  : 'w-14 h-14 text-xs'
+                              } ${
+                                formData.size === s 
+                                  ? 'bg-blue-600 text-white shadow-lg' 
+                                  : 'text-gray-600 hover:text-white'
+                              }`}
+                            >
+                              {s}
+                            </button>
+                          ))}
+                          {!isAccessory(selectedProductCategory) && formData.type === 'FULL_CUSTOM' && (
+                            <button
+                              type="button"
+                              onClick={() => handleSizeSelect('C')}
+                              className={`w-14 h-14 rounded-lg font-black text-xs transition-all ${
+                                formData.size === 'C' 
+                                  ? 'bg-amber-600 text-white shadow-lg' 
+                                  : 'text-gray-600 hover:text-white hover:bg-amber-800/30'
+                              }`}
+                            >
+                              C
+                            </button>
+                          )}
                         </div>
                       )}
-                      {!isAccessory(selectedProductCategory) && formData.type === 'FULL_CUSTOM' && (
-                        <button
-                          type="button"
-                          onClick={() => handleSizeSelect('C')}
-                          className={`w-14 h-14 rounded-xl font-black text-xs transition-all ${
-                            formData.size === 'C' 
-                              ? 'bg-amber-600 text-white shadow-lg scale-110' 
-                              : 'theme-bg theme-border text-amber-600/50 hover:text-white hover:bg-amber-800'
-                          }`}
-                        >
-                          C
-                        </button>
-                      )}
                     </div>
-                  </>
-                )}
-                  </div>
-                  
-                  {colors.length > 0 && (
+                    {colors.length > 0 && (
                     <>
                     <div className="relative mb-3 mt-2">
                       <Search className="absolute left-4 top-1/2 -translate-y-1/2 theme-text-muted" size={16} />
