@@ -822,9 +822,12 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           win.document.write(`<div style="text-align:center;border:2px solid ${isSelected ? '#000' : '#ccc'};border-radius:6px;padding:6px 14px;background:${isSelected ? '#000' : '#fff'};color:${isSelected ? '#fff' : '#666'};font-size:18px;font-weight:800">${sz}</div>`);
         });
         win.document.write(`</div>`);
-        const hasAttr = p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct || p.additionalProductRef;
+        const ic = item.customization ? (typeof item.customization === 'string' ? JSON.parse(item.customization) : item.customization) : custom;
+        const hasAttr = ic?.stitchingStyle || ic?.fitType || p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct || p.additionalProductRef;
         if (hasAttr) {
           win.document.write(`<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">`);
+          if (ic?.stitchingStyle) win.document.write(`<span style="font-size:16px;font-weight:700;padding:4px 10px;border-radius:4px;background:#dbeafe;color:#1e40af;border:1px solid #93c5fd">${isUrdu ? romanToUrdu(ic.stitchingStyle === 'DBL' ? 'Double Stitch' : 'Single Stitch') : (ic.stitchingStyle === 'DBL' ? 'Double Stitch' : 'Single Stitch')}</span>`);
+          if (ic?.fitType) win.document.write(`<span style="font-size:16px;font-weight:700;padding:4px 10px;border-radius:4px;background:#e0e7ff;color:#3730a3;border:1px solid #a5b4fc">${isUrdu ? romanToUrdu(ic.fitType + ' Fit') : ic.fitType + ' Fit'}</span>`);
           if (p.fabricSourceProduct) win.document.write(`<span style="font-size:16px;font-weight:700;padding:4px 10px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.fabricSource}: ${p.fabricSourceProduct}</span>`);
           if (p.colorSourceProduct) win.document.write(`<span style="font-size:16px;font-weight:700;padding:4px 10px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.colorSource}: ${p.colorSourceProduct}</span>`);
           if (p.designSourceProduct) win.document.write(`<span style="font-size:16px;font-weight:700;padding:4px 10px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.designSource}: ${p.designSourceProduct}</span>`);
