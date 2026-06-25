@@ -3557,8 +3557,7 @@ const SmartOrderForm = () => {
 
               {/* Customization & Measurements now shown per-item in the products table above */}
 
-              {/* Financial Summary - hidden for FULL_CUSTOM orders */}
-              {formData.type !== 'FULL_CUSTOM' && (
+              {/* Financial Summary */}
               <div className="bg-gray-950/50 p-4 md:p-6 rounded-[2rem] border border-gray-800/50 mb-6">
                 <h3 className="text-xs md:text-sm font-black text-emerald-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
                   ₨ {useUrdu ? 'مالیاتی خلاصہ' : 'Financial Summary'} <span className="text-[8px] text-gray-500 tracking-[0.3em]">CALCULATED / ADJUSTED</span>
@@ -3674,7 +3673,6 @@ const SmartOrderForm = () => {
                   <span className="font-black text-white">{memoCartTotalItems}</span>
                 </div>
                 </div>
-              )}
 
               {/* Action Buttons */}
               <div className="flex gap-3">
