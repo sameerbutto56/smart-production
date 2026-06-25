@@ -607,7 +607,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
 
   // ─── ORDER META BADGES ───
   win.document.write(`<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">`);
-  const _payLabel = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? 'PAID' : (parseFloat(order.advanceAmount || 0) > 0 ? `REMAINING COD: ₨${Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0)).toLocaleString()}` : 'CASH ON DELIVERY');
+  const _payLabel = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? 'PAID' : 'CASH ON DELIVERY';
   const _payColor = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? '#059669' : (parseFloat(order.advanceAmount || 0) > 0 ? '#d97706' : '#dc2626');
   [order.type, order.priority, order.outletName || order.source, _payLabel].filter(Boolean).forEach(label => {
     let color = '#6b7280';
@@ -615,7 +615,6 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     else if (label === 'SUPER_URGENT') color = '#dc2626';
     else if (label === 'URGENT') color = '#d97706';
     else if (label === 'OUTLET') color = '#7c3aed';
-    else if (label.startsWith('REMAINING COD')) color = '#d97706';
     else if (label === 'CASH ON DELIVERY') color = '#dc2626';
     win.document.write(`<span style="padding:3px 12px;border-radius:6px;font-size:20px;font-weight:700;text-transform:uppercase;background:${color}20;color:${color};border:2px solid ${color}40">${label}</span>`);
   });
