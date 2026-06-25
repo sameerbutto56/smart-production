@@ -633,11 +633,6 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   win.document.write(`<div class="section-title" style="font-size:26px">${sec.products}</div>`);
   if (isMultiItem) {
     const showCap = orderType !== 'STANDARD';
-    // Add attribute source headers if any item has them
-    const hasAttrSources = allItems.some(item => {
-      const p = item.productDetails || {};
-      return p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct || p.additionalProductRef;
-    });
     const headers = ['#', sec.product, sec.fabricColor, sec.sizeGender, sec.qty].concat(showCap ? [sec.cap] : []).concat(['Price']);
     win.document.write(`<table><thead><tr>${headers.map(h => '<th>' + h + '</th>').join('')}</tr></thead><tbody>`);
     allItems.forEach((item, idx) => {
@@ -645,18 +640,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       const capQty = showCap && p.matchingCap ? (p.matchingCapQty || 0) : (showCap && item.capCharges > 0 ? (p.femaleOptions?.cap || 0) : 0);
       win.document.write(`<tr>`);
       win.document.write(`<td style="font-weight:700">${idx + 1}</td>`);
-      win.document.write(`<td style="font-weight:700">${p.productType || '—'}`);
-      // Show attribute source badges inline
-      if (p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct || p.additionalProductRef) {
-        win.document.write(`<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px">`);
-        if (p.fabricSourceProduct) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">F:${p.fabricSourceProduct}</span>`);
-        if (p.colorSourceProduct) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">C:${p.colorSourceProduct}</span>`);
-        if (p.designSourceProduct) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">D:${p.designSourceProduct}</span>`);
-        if (p.sizeSourceProduct) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">S:${p.sizeSourceProduct}</span>`);
-        if (p.additionalProductRef) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">E:${p.additionalProductRef}</span>`);
-        win.document.write(`</div>`);
-      }
-      win.document.write(`</td>`);
+      win.document.write(`<td style="font-weight:700">${p.productType || '—'}</td>`);
       win.document.write(`<td>${[p.fabricType, p.color].filter(Boolean).join(' • ')}</td>`);
       const extras = [p.sleeveLength ? `${sec.sleeves}: ${slDisplay(p.sleeveLength)}` : null, p.shirtLength ? `${sec.length}: ${shDisplay(p.shirtLength)}` : null].filter(Boolean).join(' | ');
       win.document.write(`<td>${p.size || cap('Custom')} • ${p.gender || 'Male'}${extras ? ` • ${extras}` : ''}</td>`);
@@ -672,18 +656,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     const headers = [sec.product, 'Fabric', 'Color', 'Size', 'Gender', sec.qty].concat(showCap ? [sec.cap] : []).concat(['Price']);
     win.document.write(`<table><thead><tr>${headers.map(h => '<th>' + h + '</th>').join('')}</tr></thead><tbody>`);
     win.document.write(`<tr>`);
-    win.document.write(`<td style="font-weight:700">${firstProduct.productType || '—'}`);
-    // Show attribute source badges
-    if (firstProduct.fabricSourceProduct || firstProduct.colorSourceProduct || firstProduct.designSourceProduct || firstProduct.sizeSourceProduct || firstProduct.additionalProductRef) {
-      win.document.write(`<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px">`);
-      if (firstProduct.fabricSourceProduct) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">F:${firstProduct.fabricSourceProduct}</span>`);
-      if (firstProduct.colorSourceProduct) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">C:${firstProduct.colorSourceProduct}</span>`);
-      if (firstProduct.designSourceProduct) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">D:${firstProduct.designSourceProduct}</span>`);
-      if (firstProduct.sizeSourceProduct) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">S:${firstProduct.sizeSourceProduct}</span>`);
-      if (firstProduct.additionalProductRef) win.document.write(`<span style="font-size:14px;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:4px">E:${firstProduct.additionalProductRef}</span>`);
-      win.document.write(`</div>`);
-    }
-    win.document.write(`</td>`);
+    win.document.write(`<td style="font-weight:700">${firstProduct.productType || '—'}</td>`);
     win.document.write(`<td>${firstProduct.fabricType || '—'}</td>`);
     win.document.write(`<td>${firstProduct.color || '—'}</td>`);
     const extras = [firstProduct.sleeveLength ? `${sec.sleeves}: ${slDisplay(firstProduct.sleeveLength)}` : null, firstProduct.shirtLength ? `${sec.length}: ${shDisplay(firstProduct.shirtLength)}` : null].filter(Boolean).join(' | ');
@@ -701,7 +674,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     const hasAnyCustomization = brandingItems.some(item => {
       const c = item.customization ? (typeof item.customization === 'string' ? JSON.parse(item.customization) : item.customization) : custom;
       if (c?.skipEngraving) return false;
-      return c?.engravingType || c?.nameSpelling || c?.nameColor || c?.logoPlacement || c?.fitType || c?.stitchingStyle || c?.logos?.length > 0 || c?.designNotes || c?.articleNames?.length > 0;
+      return c?.engravingType || c?.nameSpelling || c?.nameColor || c?.logoPlacement || c?.logos?.length > 0 || c?.designNotes || c?.articleNames?.length > 0;
     });
     if (!hasAnyCustomization) { /* no customization data, skip engraving section */ }
     else {
@@ -711,11 +684,10 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
         const c = item.customization ? parseJSON(item.customization) : custom;
         const hasNames = c?.articleNames?.length > 0 || c?.nameSpelling;
         const hasLogos = c?.logos?.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).length > 0;
-        const hasSpecs = c?.stitchingStyle || c?.fitType || c?.nameColor || c?.logoPlacement || c?.engravingType;
+        const hasSpecs = c?.nameColor || c?.logoPlacement || c?.engravingType;
         const hasNotes = c?.designNotes;
-        const hasAttrSources = p?.fabricSourceProduct || p?.colorSourceProduct || p?.designSourceProduct || p?.sizeSourceProduct || p?.additionalProductRef;
 
-        if (!hasNames && !hasLogos && !hasSpecs && !hasNotes && !hasAttrSources) return;
+        if (!hasNames && !hasLogos && !hasSpecs && !hasNotes) return;
 
         win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px;page-break-inside:avoid">`);
         win.document.write(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding-bottom:6px;border-bottom:2px solid #eee">`);
@@ -747,18 +719,11 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
         }
 
         // Specs badges
-        if (hasSpecs || hasAttrSources) {
+        if (hasSpecs) {
           win.document.write(`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">`);
-          if (c.stitchingStyle) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#dbeafe;color:#1e40af">${isUrdu ? romanToUrdu(c.stitchingStyle === 'DBL' ? 'Double Stitch' : 'Single Stitch') : (c.stitchingStyle === 'DBL' ? 'Double Stitch' : 'Single Stitch')}</span>`);
-          if (c.fitType) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#e0e7ff;color:#3730a3">${isUrdu ? romanToUrdu(c.fitType + ' Fit') : c.fitType + ' Fit'}</span>`);
           if (c.nameColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fce7f3;color:#9d174d">${sec.color}: ${c.nameColor}</span>`);
           if (c.logoPlacement) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#ccfbf1;color:#0f766e">${sec.position}: ${c.logoPlacement}</span>`);
           if (c.logoColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#92400e">Logo: ${c.logoColor}</span>`);
-          if (p.fabricSourceProduct) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.fabricSource}: ${p.fabricSourceProduct}</span>`);
-          if (p.colorSourceProduct) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.colorSource}: ${p.colorSourceProduct}</span>`);
-          if (p.designSourceProduct) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.designSource}: ${p.designSourceProduct}</span>`);
-          if (p.sizeSourceProduct) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.sizeSource}: ${p.sizeSourceProduct}</span>`);
-          if (p.additionalProductRef) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">Extra: ${p.additionalProductRef}</span>`);
           win.document.write(`</div>`);
         }
 
