@@ -2286,7 +2286,7 @@ const SmartOrderForm = () => {
                     </div>
                     {(!isAccessory(selectedProductCategory) || (isShoes(selectedProductCategory) && formData.productType)) && (
                       <div className={`flex flex-wrap gap-1.5 p-1.5 theme-bg rounded-xl border-2 theme-border ${useUrdu ? 'flex-row-reverse' : ''}`}>
-                        {(availableSizes.length > 0 ? availableSizes : ['S', 'M', 'L', 'XL', '2XL']).map(s => (
+                        {(availableSizes.length > 0 ? availableSizes : ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'C']).map(s => (
                           <button
                             key={s}
                             type="button"
@@ -2383,7 +2383,7 @@ const SmartOrderForm = () => {
                   )}
 
                   {/* Sleeve Length & Shirt Length */}
-                  {formData.productType && (
+                  {(formData.productType || formData.type === 'FULL_CUSTOM') && (
                     <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="theme-bg-subtle p-4 md:p-5 rounded-2xl border theme-border">
                         <h3 className="text-sm font-black text-cyan-400 uppercase mb-3">Sleeve Length</h3>
@@ -2427,7 +2427,7 @@ const SmartOrderForm = () => {
                   )}
 
                   {/* Matching Cap */}
-                  {formData.productType && !isAccessory(selectedProductCategory) && (
+                  {(formData.productType || formData.type === 'FULL_CUSTOM') && !isAccessory(selectedProductCategory) && (
                     <div className="mt-6 theme-bg-subtle p-4 md:p-6 rounded-2xl border theme-border">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -2825,20 +2825,20 @@ const SmartOrderForm = () => {
                     )}
                   </div>
                   <div className={`flex p-1.5 theme-bg rounded-xl border-2 theme-border ${useUrdu ? 'flex-row-reverse' : ''}`}>
-                    {(availableSizes.length > 0 ? availableSizes : ['XS', 'S', 'M', 'L', 'XL', 'XXL']).map(s => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => handleSizeSelect(s)}
-                        className={`w-14 h-14 rounded-lg font-black text-xs transition-all ${
-                          formData.size === s 
-                            ? 'bg-emerald-600 text-white shadow-lg' 
-                            : 'text-gray-600 hover:text-white'
-                        }`}
-                      >
-                        {s}
-                      </button>
-                    ))}
+                      {(availableSizes.length > 0 ? availableSizes : ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'C']).map(s => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => handleSizeSelect(s)}
+                          className={`w-14 h-14 rounded-lg font-black text-xs transition-all ${
+                            formData.size === s 
+                              ? 'bg-emerald-600 text-white shadow-lg' 
+                              : 'text-gray-600 hover:text-white'
+                          }`}
+                        >
+                          {s}
+                        </button>
+                      ))}
                   </div>
                 </div>
 
