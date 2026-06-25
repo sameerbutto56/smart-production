@@ -768,16 +768,8 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
         const p = item.productDetails || {};
         const s = item.sizeData || {};
         const productSize = p.size || 'Custom';
-        const allSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'C'];
-        win.document.write(`<div style="margin-bottom:6px;page-break-inside:avoid">`);
-        if (isMultiItem) {
-          win.document.write(`<p style="font-size:20px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px">#${idx + 1} ${p.productType || ''}</p>`);
-        }
         win.document.write(`<div style="display:flex;gap:4px;flex-wrap:wrap">`);
-        allSizes.forEach(sz => {
-          const isSelected = sz === productSize || (sz === 'C' && productSize === 'Custom');
-          win.document.write(`<div style="text-align:center;border:2px solid ${isSelected ? '#000' : '#ccc'};border-radius:6px;padding:6px 14px;background:${isSelected ? '#000' : '#fff'};color:${isSelected ? '#fff' : '#666'};font-size:18px;font-weight:800">${sz}</div>`);
-        });
+        win.document.write(`<div style="text-align:center;border:2px solid #000;border-radius:6px;padding:6px 14px;background:#000;color:#fff;font-size:18px;font-weight:800">${productSize}</div>`);
         win.document.write(`</div>`);
         // Sleeve / Shirt Length
         const slv = p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves ? p.femaleOptions.sleeves : null);
