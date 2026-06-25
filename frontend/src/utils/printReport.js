@@ -674,7 +674,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     const hasAnyCustomization = brandingItems.some(item => {
       const c = item.customization ? (typeof item.customization === 'string' ? JSON.parse(item.customization) : item.customization) : custom;
       if (c?.skipEngraving) return false;
-      return c?.engravingType || c?.nameSpelling || c?.nameColor || c?.logoPlacement || c?.logos?.length > 0 || c?.designNotes || c?.articleNames?.length > 0;
+      return c?.engravingType || c?.nameSpelling?.trim() || c?.nameColor || c?.logoPlacement || c?.logos?.length > 0 || c?.designNotes || c?.articleNames?.filter(n => n?.trim())?.length > 0;
     });
     if (!hasAnyCustomization) { /* no customization data, skip engraving section */ }
     else {
@@ -682,7 +682,8 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       brandingItems.forEach((item, idx) => {
         const p = item.productDetails || {};
         const c = item.customization ? parseJSON(item.customization) : custom;
-        const hasNames = c?.articleNames?.length > 0 || c?.nameSpelling;
+        const filteredNames = c?.articleNames?.filter(n => n?.trim()) || [];
+        const hasNames = filteredNames.length > 0 || c?.nameSpelling?.trim();
         const hasLogos = c?.logos?.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).length > 0;
         const hasSpecs = c?.nameColor || c?.logoPlacement || c?.engravingType;
         const hasNotes = c?.designNotes;
@@ -708,8 +709,8 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
         if (hasNames) {
           win.document.write(`<div style="margin-bottom:6px">`);
           win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.nameLines}</p>`);
-          if (c.articleNames?.length > 0) {
-            c.articleNames.forEach((an, ai) => {
+          if (filteredNames.length > 0) {
+            filteredNames.forEach((an, ai) => {
               win.document.write(`<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span style="background:#7c3aed20;color:#7c3aed;font-size:18px;font-weight:800;padding:2px 6px;border-radius:3px">L${ai + 1}</span><span style="font-size:24px;font-weight:700">${an}</span></div>`);
             });
           } else {
