@@ -373,7 +373,7 @@ const createOrder = async (req, res) => {
     const brandingRates = await getBrandingRates();
     const hasLogo = !!(logoDesign || (items && items.some(i => i.logoDesign || i.customization?.logoDetails)));
     const hasNamePrinting = !!(parsedCustomization?.nameSpelling || (items && items.some(i => i.customization?.nameSpelling)));
-    const hasCustomization = !!(type === 'FULL_CUSTOM' || parsedCustomization?.stitchingStyle === 'DBL' || (items && items.some(i => i.customization?.stitchingStyle === 'DBL')));
+    const hasCustomization = !!(type === 'FULL_CUSTOM');
 
     const finalLogoCharges = parseFloat(req.body.logoCharges) || (hasLogo ? brandingRates.logoCharge : 0);
     const finalNamePrintingCharges = parseFloat(req.body.namePrintingCharges) || (hasNamePrinting ? brandingRates.namePrintingCharge : 0);

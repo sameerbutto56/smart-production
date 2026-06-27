@@ -463,10 +463,6 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       <p className="text-[9px] text-gray-500 font-black uppercase">Fit</p>
                       <p className="text-xs md:text-sm font-black text-white">{c?.fitType || 'REGULAR'}</p>
                     </div>
-                    <div className="bg-gray-950/50 p-2 rounded-lg">
-                      <p className="text-[9px] text-gray-500 font-black uppercase">Style</p>
-                      <p className="text-xs md:text-sm font-black text-white">{c?.stitchingStyle ? (c.stitchingStyle === 'DBL' ? 'Double' : 'Single') : 'STANDARD'}</p>
-                    </div>
                     {!c?.skipEngraving && c?.engravingType && (
                       <div className="bg-gray-950/50 p-2 rounded-lg">
                         <p className="text-[9px] text-gray-500 font-black uppercase">Engraving</p>
@@ -908,11 +904,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           {p.fabricType && <div><span className="text-gray-500">Fabric:</span> <span className="text-white font-bold">{p.fabricType}</span></div>}
                           {p.gender && <div><span className="text-gray-500">Gender:</span> <span className="text-white font-bold">{p.gender}</span></div>}
                         </div>
-                        {(slv || shl || ic?.stitchingStyle || ic?.fitType) && (
+                        {(slv || shl || ic?.fitType) && (
                           <div className="flex flex-wrap gap-1">
                             {slv && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-400">{slip[slv] || fsl[slv] || slv}</span>}
                             {shl && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-400">{shmp[shl] || fsh[shl] || shl}</span>}
-                            {ic?.stitchingStyle && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-900/30 text-purple-400">{ic.stitchingStyle === 'DBL' ? 'Double Stitch' : ic.stitchingStyle === 'STD' ? 'Single Stitch' : ic.stitchingStyle}</span>}
                             {ic?.fitType && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-900/30 text-purple-400">{ic.fitType} Fit</span>}
                           </div>
                         )}
@@ -970,12 +965,11 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       const fsh = { 'long':'Long','short':'Short' };
                       const slv = product?.sleeveLength || (product?.gender === 'Female' && product?.femaleOptions?.sleeves ? product.femaleOptions.sleeves : null);
                       const shl = product?.shirtLength || (product?.gender === 'Female' && product?.femaleOptions?.shirtLength ? product.femaleOptions.shirtLength : null);
-                      const hasCustom = slv || shl || custom?.stitchingStyle || custom?.fitType;
+                      const hasCustom = slv || shl || custom?.fitType;
                       return hasCustom ? (
                         <div className="flex flex-wrap gap-1">
                           {slv && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-400">{slip[slv] || fsl[slv] || slv}</span>}
                           {shl && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-400">{shmp[shl] || fsh[shl] || shl}</span>}
-                          {custom?.stitchingStyle && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-900/30 text-purple-400">{custom.stitchingStyle === 'DBL' ? 'Double Stitch' : custom.stitchingStyle === 'STD' ? 'Single Stitch' : custom.stitchingStyle}</span>}
                           {custom?.fitType && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-900/30 text-purple-400">{custom.fitType} Fit</span>}
                         </div>
                       ) : null;
@@ -2278,7 +2272,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                               const hasShirtLength = p.shirtLength || (p.femaleOptions?.shirtLength && p.femaleOptions.shirtLength !== 'long');
                               const hasArticleNames = itemCust?.articleNames && itemCust.articleNames.length > 0;
                               const hasLogos = itemCust?.logos && itemCust.logos.length > 0;
-                              const hasCust = hasArticleNames || hasLogos || itemCust?.nameSpelling || itemCust?.stitchingStyle || itemCust?.fitType;
+                              const hasCust = hasArticleNames || hasLogos || itemCust?.nameSpelling || itemCust?.fitType;
                               const isProdStage = currentStage?.stageName === 'PRODUCTION';
                               const isStoreRecv = currentStage?.stageName === 'STORE_RECEIVE';
                               const rows = [];
@@ -2400,11 +2394,6 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                             {p.sizeSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">{t('Size:')} {p.sizeSourceProduct}</span>}
                                             {p.additionalProductRef && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">{t('Extra:')} {p.additionalProductRef}</span>}
                                           </>
-                                        )}
-                                        {itemCust?.stitchingStyle && (
-                                          <span className="text-[10px] font-bold text-blue-400 bg-blue-500/10 px-2 py-1 rounded-md">
-                                            {itemCust.stitchingStyle === 'DBL' ? t('Double Stitch') : t('Single Stitch')}
-                                          </span>
                                         )}
                                         {itemCust?.fitType && (
                                           <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded-md">
@@ -2579,8 +2568,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       { l: t('Engraving Type'), v: custom?.engravingType === 'direct' ? t('Direct Engraving') : custom?.engravingType === 'patch' ? t('Patch Engraving') : null },
                       { l: t('Embroidery Color'), v: custom?.nameColor },
                       { l: t('Logo Location'), v: custom?.logoPlacement },
-                      { l: t('Fit Type'), v: custom?.fitType },
-                      { l: t('Stitching Style'), v: custom?.stitchingStyle ? (custom.stitchingStyle === 'DBL' ? 'Double' : 'Single') : null }
+                      { l: t('Fit Type'), v: custom?.fitType }
                     ].filter(i => i.v).map((item, i) => (
                       <div key={i} className="flex justify-between items-center p-4 bg-gray-950/30 rounded-2xl border border-gray-800/30">
                         <span className="text-xs md:text-sm text-gray-500 font-bold uppercase tracking-widest">{item.l}</span>

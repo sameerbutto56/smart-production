@@ -61,7 +61,6 @@ const URDU_LABELS = {
   embroideryColor: 'کڑھائی کا رنگ',
   placement: 'جگہ',
   stitching: 'سلائی کی تفصیلات',
-  stitchingStyle: 'سلائی کا اسٹائل',
   fitProfile: 'فٹ پروفائل',
   notes: 'خصوصی ہدایات (نوٹس)',
   measurements: 'پیمائش (انچ میں)',
@@ -196,8 +195,6 @@ const SmartOrderForm = () => {
     customizationPrice: '',
     deliveryCharges: '',
 
-    // Advanced Stitching
-    stitchingStyle: '',
     fitType: 'Regular',
     designNotes: '',
     designReference: '',
@@ -326,7 +323,6 @@ const SmartOrderForm = () => {
         logoCharges: '',
         namePrintingCharges: '',
         customizationPrice: '',
-        stitchingStyle: '',
         fitType: 'Regular',
         designNotes: '',
         designReference: '',
@@ -413,7 +409,6 @@ const SmartOrderForm = () => {
           logoCharges: found.logoCharges?.toString() || '',
           namePrintingCharges: found.namePrintingCharges?.toString() || '',
           customizationPrice: found.customizationPrice?.toString() || '',
-          stitchingStyle: '',
           fitType: 'Regular',
           designNotes: '',
           designReference: '',
@@ -479,8 +474,7 @@ const SmartOrderForm = () => {
                 nameColor: custItem.nameColor || '',
                 logoColor: custItem.logoColor || '',
                 logoPlacement: custItem.logoPlacement || '',
-                stitchingStyle: custItem.stitchingStyle || '',
-                fitType: custItem.fitType || 'Regular',
+              fitType: custItem.fitType || 'Regular',
                 designNotes: custItem.designNotes || '',
                 designReference: custItem.designReference || '',
                 additionalFeatures: custItem.additionalFeatures || []
@@ -532,7 +526,6 @@ const SmartOrderForm = () => {
               nameColor: custData.nameColor || '',
               logoColor: custData.logoColor || '',
               logoPlacement: custData.logoPlacement || '',
-              stitchingStyle: custData.stitchingStyle || '',
               fitType: custData.fitType || 'Regular',
               designNotes: custData.designNotes || '',
               designReference: custData.designReference || '',
@@ -669,7 +662,6 @@ const SmartOrderForm = () => {
         logoCharges: '',
         namePrintingCharges: '',
         customizationPrice: '',
-        stitchingStyle: '',
         fitType: 'Regular',
         designNotes: '',
         designReference: '',
@@ -731,9 +723,9 @@ const SmartOrderForm = () => {
     
     // 3. Customizations validation
     if (formData.type !== 'STANDARD') {
-      if (formData.type === 'FULL_CUSTOM' && !formData.stitchingStyle) return 'Please select a Stitch Pattern.';
       if (formData.type === 'FULL_CUSTOM' && !formData.fitType) return 'Please select a Fit Profile.';
       
+
         // 4. Tailoring measurements validation
       if (formData.type === 'FULL_CUSTOM' && !accessory && formData.size !== 'Custom') {
         const m = formData.measurements;
@@ -762,7 +754,6 @@ const SmartOrderForm = () => {
       if (!formData.productType && formData.type !== 'FULL_CUSTOM') return 'Please select a Product.';
     }
     if (activeTab === 'custom') {
-      if (formData.type === 'FULL_CUSTOM' && !formData.stitchingStyle) return 'Please select a Stitch Pattern.';
       if (formData.type === 'FULL_CUSTOM' && !formData.fitType) return 'Please select a Fit Profile.';
     }
     if (activeTab === 'sizes' && formData.type === 'FULL_CUSTOM' && !accessory && formData.size !== 'Custom' && isScrubsProduct(selectedProductCategory)) {
@@ -836,7 +827,6 @@ const SmartOrderForm = () => {
         nameColor: formData.nameColor,
         logoColor: formData.logoColor,
         logoPlacement: formData.logoPlacement,
-        stitchingStyle: formData.stitchingStyle,
         fitType: formData.fitType,
         designNotes: formData.designNotes,
         designReference: formData.designReference,
@@ -870,7 +860,6 @@ const SmartOrderForm = () => {
       nameColor: '',
       logoColor: '',
       logoPlacement: '',
-      stitchingStyle: '',
       fitType: 'Regular',
       designNotes: '',
       designReference: '',
@@ -955,7 +944,6 @@ const SmartOrderForm = () => {
       nameColor: cust.nameColor || '',
       logoColor: cust.logoColor || '',
       logoPlacement: cust.logoPlacement || '',
-      stitchingStyle: cust.stitchingStyle || '',
       fitType: cust.fitType || 'Regular',
       designNotes: cust.designNotes || '',
       designReference: cust.designReference || '',
@@ -1086,7 +1074,6 @@ const SmartOrderForm = () => {
         nameColor: '',
         logoColor: '',
         logoPlacement: '',
-        stitchingStyle: '',
         fitType: 'Regular',
         designNotes: '',
         designReference: '',
@@ -1525,13 +1512,12 @@ const SmartOrderForm = () => {
                             <span className="text-xs font-black text-red-400">₨{((parseFloat(item.totalPrice) || parseFloat(originalOrder.totalPrice) || 0) / (items.length || 1)).toLocaleString()}</span>
                           </div>
                           {/* Branding/Customization */}
-                          {(cust.nameSpelling || cust.stitchingStyle || originalOrder.logoDesign || cust.logos) && (
+                          {(cust.nameSpelling || originalOrder.logoDesign || cust.logos) && (
                             <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-red-500/10">
                               {cust.articleNames && cust.articleNames.map((an, ai) => (
                                 <span key={ai} className="text-[9px] font-bold text-purple-400 bg-purple-900/20 px-1.5 py-0.5 rounded">Name: {an}</span>
                               ))}
                               {!cust.articleNames && cust.nameSpelling && <span className="text-[9px] font-bold text-purple-400 bg-purple-900/20 px-1.5 py-0.5 rounded">Name: {cust.nameSpelling}</span>}
-                              {cust.stitchingStyle && <span className="text-[9px] font-bold text-blue-400 bg-blue-900/20 px-1.5 py-0.5 rounded">{cust.stitchingStyle === 'DBL' ? 'Double' : 'Single'} Stitch</span>}
                               {cust.fitType && <span className="text-[9px] font-bold text-indigo-400 bg-indigo-900/20 px-1.5 py-0.5 rounded">{cust.fitType} Fit</span>}
                               {originalOrder.logoDesign && <span className="text-[9px] font-bold text-amber-400 bg-amber-900/20 px-1.5 py-0.5 rounded">Has Logo</span>}
                               {cust.logos?.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).map((l, li) => (
@@ -1662,13 +1648,12 @@ const SmartOrderForm = () => {
                                   {[d.color, d.size].filter(Boolean).join(' / ') || '—'} {d.fabricType ? `• ${d.fabricType}` : ''}
                                 </p>
                                 {/* Branding tags */}
-                                {(cust.nameSpelling || cust.stitchingStyle || item.logoDesign || cust.logos) && (
+                                {(cust.nameSpelling || item.logoDesign || cust.logos) && (
                                   <div className="flex flex-wrap gap-1 mt-1.5">
                                     {cust.articleNames && cust.articleNames.map((an, ai) => (
                                       <span key={ai} className="text-[6px] font-bold text-purple-400 bg-purple-900/20 px-1 rounded">Name: {an}</span>
                                     ))}
                                     {!cust.articleNames && cust.nameSpelling && <span className="text-[6px] font-bold text-purple-400 bg-purple-900/20 px-1 rounded">Name: {cust.nameSpelling}</span>}
-                                    {cust.stitchingStyle && <span className="text-[6px] font-bold text-blue-400 bg-blue-900/20 px-1 rounded">{cust.stitchingStyle === 'DBL' ? 'Double' : 'Single'}</span>}
                                     {item.logoDesign && <span className="text-[6px] font-bold text-amber-400 bg-amber-900/20 px-1 rounded">Logo</span>}
                                     {cust.logos?.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).map((l, li) => (
                                       <span key={li} className="text-[6px] font-bold text-amber-400 bg-amber-900/20 px-1 rounded">{l.name || l.design}</span>
@@ -2697,75 +2682,7 @@ const SmartOrderForm = () => {
               </div>
               </div>
 
-              <div className={`glass p-6 md:p-12 rounded-[2rem] md:rounded-[3.5rem] border theme-border space-y-6 md:space-y-10 shadow-2xl ${useUrdu ? 'text-right' : ''}`}>
-                <div className={`flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-5'}`}>
-                  <div className="p-4 bg-blue-600 rounded-[1.5rem] shadow-xl shadow-blue-900/30">
-                    <Scissors className="text-white" size={28} />
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-black theme-text-primary">{t('stitching')}</h3>
-                    <p className="theme-text-muted text-xs md:text-sm font-black uppercase tracking-widest mt-1">Conveyor belt tailoring specs</p>
-                  </div>
-                </div>
 
-                <div className="space-y-4 md:space-y-8">
-                  <div className="space-y-3">
-                    <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-2">{useUrdu ? 'ڈیزائن ریفرنس' : 'Design Reference'}</label>
-                    <div className="relative group">
-                      <Palette className={`absolute ${useUrdu ? 'right-5' : 'left-5'} top-6 text-gray-600 group-focus-within:text-blue-500 transition-colors`} size={16} />
-                      <textarea
-                        rows="4"
-                        value={formData.designReference}
-                        onChange={(e) => setFormData({...formData, designReference: e.target.value})}
-                        className={`w-full theme-input rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all font-bold text-lg`}
-                        placeholder={useUrdu ? 'مثال: شرٹ کا ڈیزائن پینٹ پر لگائیں، یا کسی دوسرے کپڑے کا حوالہ دیں' : "Example: Match shirt design on trousers, or reference another order's pattern..."}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
-                    <div className="space-y-3">
-                      <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-2">{t('stitchingStyle')}</label>
-                      <div className={`flex p-2 theme-bg rounded-[1.5rem] border-2 theme-border h-[72px] ${useUrdu ? 'flex-row-reverse' : ''}`}>
-                        {['STD', 'DBL'].map(s => (
-                          <button
-                            key={s}
-                            type="button"
-                            onClick={() => setFormData({...formData, stitchingStyle: s})}
-                            className={`flex-1 rounded-xl text-xs md:text-sm font-black transition-all ${formData.stitchingStyle === s ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-600 hover:text-white'}`}
-                          >
-                            {s === 'STD' ? (useUrdu ? 'سنگل' : 'SINGLE') : (useUrdu ? 'ڈبل' : 'DOUBLE')}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="space-y-3">
-                      <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-2">{t('fitProfile')}</label>
-                      <div className={`flex p-2 theme-bg rounded-[1.5rem] border-2 theme-border h-[72px] ${useUrdu ? 'flex-row-reverse' : ''}`}>
-                        {['Slim', 'Regular'].map(f => (
-                          <button
-                            key={f}
-                            type="button"
-                            onClick={() => setFormData({...formData, fitType: f})}
-                            className={`flex-1 rounded-xl text-xs md:text-sm font-black transition-all ${formData.fitType === f ? 'bg-indigo-600 text-white shadow-xl' : 'text-gray-600 hover:text-white'}`}
-                          >
-                            {f.toUpperCase()}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-2">{t('notes')}</label>
-                    <textarea
-                      value={formData.designNotes}
-                      onChange={(e) => setFormData({...formData, designNotes: e.target.value})}
-                      className={`w-full theme-input rounded-[2rem] py-6 px-8 h-36 resize-none text-sm font-medium ${useUrdu ? 'text-right' : ''}`}
-                      placeholder={useUrdu ? 'خصوصی ہدایات یہاں درج کریں...' : "Add special requests for the production floor..."}
-                    />
-                  </div>
-                </div>
-              </div>
 
               {/* Optional Branding Charges Input */}
               <div className="lg:col-span-2 glass p-4 md:p-6 rounded-[2rem] border border-amber-500/20 bg-amber-500/5">
@@ -3436,7 +3353,7 @@ const SmartOrderForm = () => {
                   {cartItems.map((item, idx) => {
                     const pd = item.productDetails || {};
                     const cust = item.customization || {};
-                    const hasCust = cust.nameSpelling || cust.stitchingStyle || cust.fitType || cust.designNotes || item.logoName || item.logoDesign || cust.logos || cust.engravingType;
+                    const hasCust = cust.nameSpelling || cust.fitType || cust.designNotes || item.logoName || item.logoDesign || cust.logos || cust.engravingType;
                     const hasMeas = Object.values(item.sizeData || {}).some(v => v);
                     const isCustom = item.type === 'FULL_CUSTOM';
                     return (
@@ -3494,10 +3411,9 @@ const SmartOrderForm = () => {
                                   </div>
                                 )}
                                 {/* Branding Specs */}
-                                {(cust.stitchingStyle || cust.fitType || cust.nameColor || cust.logoColor || cust.logoPlacement || cust.engravingType) && (
+                                {(cust.fitType || cust.nameColor || cust.logoColor || cust.logoPlacement || cust.engravingType) && (
                                   <div className="flex flex-wrap gap-1.5">
                                     {cust.engravingType && <span className="text-[10px] font-black text-violet-400 bg-violet-900/30 px-2 py-0.5 rounded border border-violet-500/20">{cust.engravingType === 'direct' ? 'Direct Engraving' : 'Patch Engraving'}</span>}
-                                    {cust.stitchingStyle && <span className="text-[10px] font-black text-blue-400 bg-blue-900/30 px-2 py-0.5 rounded border border-blue-500/20">{cust.stitchingStyle === 'DBL' ? 'Double Stitch' : 'Single Stitch'}</span>}
                                     {cust.fitType && <span className="text-[10px] font-black text-indigo-400 bg-indigo-900/30 px-2 py-0.5 rounded border border-indigo-500/20">{cust.fitType} Fit</span>}
                                     {cust.nameColor && <span className="text-[10px] font-black text-rose-400 bg-rose-900/30 px-2 py-0.5 rounded border border-rose-500/20">Color: {cust.nameColor}</span>}
                                     {cust.logoColor && <span className="text-[10px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Logo: {cust.logoColor}</span>}
