@@ -688,6 +688,10 @@ const SmartOrderForm = () => {
   };
 
   const handleSizeSelect = useCallback((s) => {
+    if (s === 'Custom') {
+      setFormData(prev => ({ ...prev, size: s }));
+      return;
+    }
     setFormData(prev => {
       const chart = prev.gender === 'Female' ? WOMEN_SCRUBS_SIZE_CHART : MEN_SCRUBS_SIZE_CHART;
       const autoMeasurements = chart[s] || prev.measurements;
@@ -716,8 +720,8 @@ const SmartOrderForm = () => {
       if (formData.type === 'FULL_CUSTOM' && !formData.stitchingStyle) return 'Please select a Stitch Pattern.';
       if (formData.type === 'FULL_CUSTOM' && !formData.fitType) return 'Please select a Fit Profile.';
       
-      // 4. Tailoring measurements validation
-      if (formData.type === 'FULL_CUSTOM' && !accessory) {
+        // 4. Tailoring measurements validation
+      if (formData.type === 'FULL_CUSTOM' && !accessory && formData.size !== 'Custom') {
         const m = formData.measurements;
         const required = formData.gender === 'Female'
           ? ['shoulder', 'chest', 'waist', 'bottom', 'shirtLength', 'hip', 'sleeve', 'trouserLength', 'hips']
@@ -747,7 +751,7 @@ const SmartOrderForm = () => {
       if (formData.type === 'FULL_CUSTOM' && !formData.stitchingStyle) return 'Please select a Stitch Pattern.';
       if (formData.type === 'FULL_CUSTOM' && !formData.fitType) return 'Please select a Fit Profile.';
     }
-    if (activeTab === 'sizes' && formData.type === 'FULL_CUSTOM' && !accessory && isScrubsProduct(selectedProductCategory)) {
+    if (activeTab === 'sizes' && formData.type === 'FULL_CUSTOM' && !accessory && formData.size !== 'Custom' && isScrubsProduct(selectedProductCategory)) {
       const m = formData.measurements;
       const required = formData.gender === 'Female'
         ? ['shoulder', 'chest', 'waist', 'bottom', 'shirtLength', 'hip', 'sleeve', 'trouserLength', 'hips']
@@ -1172,7 +1176,10 @@ const SmartOrderForm = () => {
   const fabrics = formData.productType && selectedProduct
     ? (selectedProduct.fabric ? [selectedProduct.fabric] : [])
     : inventory.filter(i => i.category === 'FABRIC');
-  // Colors from variant color values
+  const defaultSizes = useMemo(() => {
+    const base = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'C'];
+    return formData.type === 'FULL_CUSTOM' ? [...base, 'Custom'] : base;
+  }, [formData.type]);
   const colors = formData.productType && selectedProductVariants.length > 0
     ? [...new Set(selectedProductVariants.filter(v => v.color != null && v.color !== '').map(v => v.color))]
     : [];
@@ -2298,7 +2305,7 @@ const SmartOrderForm = () => {
                     </div>
                     {(!isAccessory(selectedProductCategory) || (isShoes(selectedProductCategory) && formData.productType)) && (
                       <div className={`flex flex-wrap gap-1.5 p-1.5 theme-bg rounded-xl border-2 theme-border ${useUrdu ? 'flex-row-reverse' : ''}`}>
-                        {(availableSizes.length > 0 ? availableSizes : ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'C']).map(s => (
+                        {(availableSizes.length > 0 ? availableSizes : defaultSizes).map(s => (
                           <button
                             key={s}
                             type="button"
@@ -2837,7 +2844,7 @@ const SmartOrderForm = () => {
                     )}
                   </div>
                   <div className={`flex p-1.5 theme-bg rounded-xl border-2 theme-border ${useUrdu ? 'flex-row-reverse' : ''}`}>
-                      {(availableSizes.length > 0 ? availableSizes : ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'C']).map(s => (
+                      {(availableSizes.length > 0 ? availableSizes : defaultSizes).map(s => (
                         <button
                           key={s}
                           type="button"
