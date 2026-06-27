@@ -1585,6 +1585,17 @@ const SmartOrderForm = () => {
                       </div>
                     </div>
                     <div>
+                      <span className="text-gray-500 block mb-1">{useUrdu ? 'صنف' : 'Gender'}</span>
+                      <div className="flex gap-1">
+                        {['Male', 'Female'].map(g => (
+                          <button key={g} type="button" onClick={() => setFormData({...formData, gender: g})}
+                            className={`flex-1 py-2 rounded-lg text-[9px] font-black transition-all uppercase ${formData.gender === g ? 'bg-pink-600 text-white' : 'bg-gray-900 text-gray-600 hover:bg-gray-800'}`}>{g}</button>
+                        ))}
+                      </div>
+                    </div>
+                    </div>
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    <div>
                       <span className="text-gray-500 block mb-1">{useUrdu ? 'ایڈوانس رقم' : 'Advance Amount (₨)'}</span>
                       <input type="number" min="0" value={formData.advanceAmount || ''} placeholder="e.g. 2000"
                         onChange={e => setFormData({...formData, advanceAmount: e.target.value})}
@@ -1595,6 +1606,7 @@ const SmartOrderForm = () => {
                         </p>
                       )}
                     </div>
+                    <div />
                   </div>
                 </div>
 
