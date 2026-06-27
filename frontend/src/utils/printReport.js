@@ -127,14 +127,37 @@ const PRINT_CSS = `
  * Preserves numbers, codes, IDs
  * Pattern-based for natural Roman Urdu phrases
  */
+/** Custom phonetic dictionary — checked before patterns/dictionary */
+const customDict = {
+  // Colors (phonetic — not literal)
+  'purple': 'پرپل', 'black': 'بلیک', 'white': 'وائٹ', 'blue': 'بلیو',
+  'red': 'ریڈ', 'green': 'گرین', 'yellow': 'یلو', 'pink': 'پنک',
+  'orange': 'اورینج', 'golden': 'گولڈن', 'silver': 'سلور',
+  'grey': 'گرے', 'gray': 'گرے', 'brown': 'براؤن',
+  'maroon': 'میرون', 'cream': 'کریم', 'beige': 'بیج',
+  'navy': 'نیوی', 'mustard': 'مسٹرڈ',
+  // Production measurements (phonetic)
+  'bottom': 'باٹم', 'hip': 'ہپ', 'hips': 'ہپ',
+  'waist': 'ویسٹ', 'thigh': 'تھائی', 'thighs': 'تھائز',
+  'belt': 'بیلٹ', 'narrow': 'نیرو',
+  // Proper Urdu for specific terms
+  'chest': 'چھاتی',
+  'length': 'لمبائی', 'sleeve': 'آستین',
+  'shoulder': 'کندھا', 'neck': 'گردن',
+  'armhole': 'بغل', 'bicep': 'عضلہ',
+  'wrist': 'کلائی', 'inseam': 'ان سیون',
+  'outseam': 'آؤٹ سیون', 'calf': 'پنڈلی',
+  'ankle': 'ٹخنہ', 'mori': 'موڑی', 'ganda': 'گانڈا',
+  'trouser': 'پتلون',
+};
+
 function romanToUrdu(text) {
   try {
   if (!text) return '';
   if (/^[\d\s\-./#]+$/.test(text)) return text;
-  // English measurement terms – keep as-is
-  const keepEnglish = new Set(['hip', 'hips', 'bottom', 'thigh', 'inseam', 'outseam', 'calf', 'ankle', 'armhole', 'bicep', 'wrist', 'mori', 'ganda', 'neck']);
-  const txtLower = text.trim().toLowerCase();
-  if (keepEnglish.has(txtLower)) return text;
+  // Check custom phonetic dictionary first (exact match)
+  const ckey = text.trim().toLowerCase();
+  if (customDict[ckey]) return customDict[ckey];
 
   let result = text.trim();
 
@@ -162,14 +185,14 @@ function romanToUrdu(text) {
     { regex: /\b(safed|white)\s+color\b/gi, replace: 'سفید رنگ' },
     { regex: /\b(kala|kalaa|black)\s+color\b/gi, replace: 'سیاہ رنگ' },
     { regex: /\b(surkh?i?|red)\s+color\b/gi, replace: 'سرخ رنگ' },
-    { regex: /\b(grey|gray)\s+color\b/gi, replace: 'خاکستری رنگ' },
+    { regex: /\b(grey|gray)\s+color\b/gi, replace: 'گرے رنگ' },
     { regex: /\b(badami|skin)\s+color\b/gi, replace: 'بادامی رنگ' },
-    { regex: /\b(bottle green|bottle)\s+color\b/gi, replace: 'بوتل سبز' },
+    { regex: /\b(bottle green|bottle)\s+color\b/gi, replace: 'بوتل گرین' },
     { regex: /\b(navy|navy blue)\s+color\b/gi, replace: 'نیوی بلیو' },
     { regex: /\b(maroon)\s+color\b/gi, replace: 'میرون رنگ' },
-    { regex: /\b(golden|gold)\s+color\b/gi, replace: 'سنہری رنگ' },
-    { regex: /\b(silver)\s+color\b/gi, replace: 'چاندی رنگ' },
-    { regex: /\b(purple)\s+color\b/gi, replace: 'جامنی رنگ' },
+    { regex: /\b(golden|gold)\s+color\b/gi, replace: 'گولڈن رنگ' },
+    { regex: /\b(silver)\s+color\b/gi, replace: 'سلور رنگ' },
+    { regex: /\b(purple)\s+color\b/gi, replace: 'پرپل رنگ' },
 
     // "left/right [body part] [action]" patterns
     // "left sleeve logo" → "بائیں آستین پر لوگو"
@@ -229,24 +252,24 @@ function romanToUrdu(text) {
 
   // ─── DICTIONARY-BASED REPLACEMENT (industry-specific terms) ───
   const dictionary = {
-    // Colors (English & Roman Urdu)
-    'lal': 'لال', 'laal': 'لال', 'red': 'سرخ',
-    'neela': 'نیلا', 'neela': 'نیلا', 'nila': 'نیلا', 'blue': 'نیلا', 'navy blue': 'نیوی بلیو',
-    'hara': 'سبز', 'haara': 'سبز', 'green': 'سبز', 'bottle green': 'بوتل سبز',
-    'peela': 'پیلا', 'pila': 'پیلا', 'yellow': 'پیلا',
-    'narangi': 'نارنجی', 'orange': 'نارنجی',
-    'gulabi': 'گلابی', 'pink': 'گلابی',
-    'bhoora': 'بھورا', 'brown': 'بھورا',
-    'safed': 'سفید', 'white': 'سفید',
-    'kala': 'سیاہ', 'kalaa': 'سیاہ', 'black': 'سیاہ',
+    // Colors (English → phonetic; Roman Urdu → literal)
+    'lal': 'لال', 'laal': 'لال', 'red': 'ریڈ',
+    'neela': 'نیلا', 'nila': 'نیلا', 'blue': 'بلیو', 'navy blue': 'نیوی بلیو',
+    'hara': 'سبز', 'haara': 'سبز', 'green': 'گرین', 'bottle green': 'بوتل گرین',
+    'peela': 'پیلا', 'pila': 'پیلا', 'yellow': 'یلو',
+    'narangi': 'نارنجی', 'orange': 'اورینج',
+    'gulabi': 'گلابی', 'pink': 'پنک',
+    'bhoora': 'بھورا', 'brown': 'براؤن',
+    'safed': 'سفید', 'white': 'وائٹ',
+    'kala': 'سیاہ', 'kalaa': 'سیاہ', 'black': 'بلیک',
     'surkh': 'سرخ', 'surkhi': 'سرخ',
-    'golden': 'سنہری', 'gold': 'سنہری',
-    'silver': 'چاندی',
-    'grey': 'خاکستری', 'gray': 'خاکستری',
-    'purple': 'جامنی', 'jamni': 'جامنی',
+    'golden': 'گولڈن', 'gold': 'گولڈن',
+    'silver': 'سلور',
+    'grey': 'گرے', 'gray': 'گرے',
+    'purple': 'پرپل', 'jamni': 'جامنی',
     'maroon': 'میرون',
     'badami': 'بادامی', 'skin': 'بادامی',
-    'mustard': 'مصطردی', 'rust': 'زنگ آلود',
+    'mustard': 'مسٹرڈ',
     'khaki': 'خاکی',
     'indigo': 'انڈگو',
     'cream': 'کریم',
@@ -255,12 +278,12 @@ function romanToUrdu(text) {
     'turquoise': 'فیروزی',
 
     // Body parts (tailoring)
-    'chest': 'سینہ', 'seena': 'سینہ', 'sina': 'سینہ',
+    'chest': 'چھاتی', 'seena': 'سینہ', 'sina': 'سینہ',
     'shoulder': 'کندھا', 'kandha': 'کندھا',
-    'waist': 'کمر', 'kamar': 'کمر',
+    'waist': 'ویسٹ', 'kamar': 'کمر',
     'sleeve': 'آستین', 'bazu': 'آستین',
     'length': 'لمبائی',
-    'thigh': 'ران',
+    'thigh': 'تھائی',
     'neck': 'گردن', 'gardan': 'گردن',
     'gala': 'گلا',
     'armhole': 'بغل', 'baghal': 'بغل',
