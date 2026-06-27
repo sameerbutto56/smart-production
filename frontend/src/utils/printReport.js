@@ -559,9 +559,9 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const priceDisplay = (v) => showPrice ? currency(v) : '★ ★ ★';
 
   const slMap = { 'full':'Full Sleeve', 'half':'Half Sleeve', 'three-quarter':'3 Quarter Sleeve' };
-  const shMap = { 'long':'Full Length', 'short':'Short Length', 'regular':'Regular Length' };
+  const shMap = { 'long':'Long Length', 'short':'Short Length', 'regular':'Regular Length' };
   const femSlMap = { 'full':'Full Sleeve', 'half':'Half Sleeve', 'medium':'Medium Sleeve' };
-  const femShMap = { 'long':'Full Length', 'short':'Short Length' };
+  const femShMap = { 'long':'Long Length', 'short':'Short Length' };
   const slDisplay = (v) => v ? (slMap[v] || v) : '';
   const shDisplay = (v) => v ? (shMap[v] || v) : '';
   const sec = lang === 'en' ? enSection : urduSection;
