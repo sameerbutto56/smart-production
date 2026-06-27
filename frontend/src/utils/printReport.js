@@ -931,6 +931,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const shDisplay = (v) => v ? (shMap[v] || v) : '';
   const sec = lang === 'en' ? enSection : urduSection;
   const isUrdu = lang === 'ur';
+  const ru = (t) => isUrdu && t ? romanToUrdu(t) : t;
 
   const orderType = order.type || 'STANDARD';
   const title = `${sec.jobSheet} — ${order.orderNumber || order.id?.slice(0, 8)}`;
@@ -1005,7 +1006,6 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   }
 
   // ─── PRODUCTS TABLE ───
-  const ru = (t) => isUrdu && t ? romanToUrdu(t) : t;
   win.document.write(`<div class="section-title" style="font-size:26px">${sec.products}</div>`);
   if (isMultiItem) {
     const showCap = orderType !== 'STANDARD';
