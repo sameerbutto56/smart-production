@@ -623,7 +623,10 @@ const SmartOrderForm = () => {
         logoName: formData.logoName,
         logoCharges: totalLogoCharges,
         namePrintingCharges: totalNamePrintingCharges,
-        customizationPrice: totalCustomizationPrice
+        customizationPrice: totalCustomizationPrice,
+        shopifyOrderDate: formData.shopifyOrderDate || null,
+        deliveryCharges: parseFloat(formData.deliveryCharges) || 0,
+        instructionNotes: formData.instructionNotes || null
       };
 
       await api.post(`/api/orders/${editOrderId}/edit-request`,
