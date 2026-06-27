@@ -149,6 +149,9 @@ const customDict = {
   'outseam': 'آؤٹ سیون', 'calf': 'پنڈلی',
   'ankle': 'ٹخنہ', 'mori': 'موڑی', 'ganda': 'گانڈا',
   'trouser': 'پتلون',
+  // Product names
+  'sprinter': 'سپرانٹر',
+  'unisex': 'یونیسیکس',
 };
 
 function romanToUrdu(text) {
