@@ -152,6 +152,7 @@ const customDict = {
   // Product names
   'sprinter': 'سپرانٹر',
   'unisex': 'یونیسیکس',
+  'joggers': 'جوگرز',
 };
 
 function romanToUrdu(text) {
