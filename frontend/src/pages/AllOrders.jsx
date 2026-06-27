@@ -185,15 +185,13 @@ const AllOrders = () => {
     const debouncedFetch = debounce(fetchOrders, 300);
     fetchOrders();
 
-    const onOrderUpdated = (data) => {
-      if (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || data?.createdById === user?.id) {
-        debouncedFetch();
-      }
+    const onOrderUpdated = () => {
+      debouncedFetch();
     };
 
     const onNewOrder = (order) => {
+      debouncedFetch();
       if (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || order?.createdById === user?.id) {
-        debouncedFetch();
         toast(`New order created: #${order.orderNumber || order.id.substring(0,8)}`, { icon: '📦' });
       }
     };
@@ -217,6 +215,11 @@ const AllOrders = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       setOrders(Array.isArray(response.data) ? response.data : []);
+      // Sync selectedOrder with freshest data if modal is open
+      if (selectedOrder) {
+        const fresh = (Array.isArray(response.data) ? response.data : []).find(o => o.id === selectedOrder.id);
+        if (fresh) setSelectedOrder(fresh);
+      }
     } catch (error) {
       console.error('Error fetching orders:', error);
       toast.error('Failed to connect to production server');
