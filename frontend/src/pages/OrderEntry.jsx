@@ -1088,7 +1088,7 @@ const SmartOrderForm = () => {
           mori: '',
           ganda: ''
         },
-          gender: 'Male',
+        gender: found.gender || 'Male',
           femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
           matchingCap: false,
           matchingCapQty: 0,
@@ -1584,7 +1584,7 @@ const SmartOrderForm = () => {
                         ))}
                       </div>
                     </div>
-                    <div>
+                    <div className={hasChanged(originalOrder.gender, formData.gender) ? 'p-1 rounded-lg border border-amber-500/50 bg-amber-500/10' : ''}>
                       <span className="text-gray-500 block mb-1">{useUrdu ? 'صنف' : 'Gender'}</span>
                       <div className="flex gap-1">
                         {['Male', 'Female'].map(g => (
