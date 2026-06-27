@@ -55,8 +55,8 @@ const DispatchDashboard = () => {
     try { return typeof data === 'string' ? JSON.parse(data) : data; } catch (e) { return {}; }
   };
 
-  const slMap = { 'full':'Full Sleeve', 'half':'Half Sleeve', 'three-quarter':'3 Quarter Sleeve' };
-  const shMap = { 'long':'Full Length', 'short':'Short Length', 'regular':'Regular Length' };
+  const slMap = { 'full':'Full', 'half':'Half', 'three-quarter':'3 Quarter' };
+  const shMap = { 'long':'Long', 'short':'Short', 'regular':'Regular Length' };
   const slDisplay = (v) => v ? (slMap[v] || v) : '';
   const shDisplay = (v) => v ? (shMap[v] || v) : '';
 

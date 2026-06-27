@@ -478,13 +478,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         {(p?.sleeveLength || (female.sleeves && female.sleeves !== 'full')) && (
                           <div className="bg-gray-950/50 p-2 rounded-lg">
                             <p className="text-[9px] text-gray-500 font-black uppercase">Sleeves</p>
-                            <p className="text-xs md:text-sm font-black text-white">{p.sleeveLength ? ({'full':'Full Sleeve','half':'Half Sleeve','three-quarter':'3 Quarter Sleeve'}[p.sleeveLength] || p.sleeveLength) : ({'full':'Full Sleeve','half':'Half Sleeve','medium':'Medium Sleeve'}[female.sleeves] || female.sleeves || 'N/A')}</p>
+                            <p className="text-xs md:text-sm font-black text-white">{p.sleeveLength ? ({'full':'Full','half':'Half','three-quarter':'3 Quarter'}[p.sleeveLength] || p.sleeveLength) : ({'full':'Full','half':'Half','medium':'Medium'}[female.sleeves] || female.sleeves || 'N/A')}</p>
                           </div>
                         )}
                         {(p?.shirtLength || (female.shirtLength && female.shirtLength !== 'long')) && (
                           <div className="bg-gray-950/50 p-2 rounded-lg">
                             <p className="text-[9px] text-gray-500 font-black uppercase">Shirt L.</p>
-                            <p className="text-xs md:text-sm font-black text-white">{p.shirtLength ? ({'long':'Full Length','short':'Short Length','regular':'Regular Length'}[p.shirtLength] || p.shirtLength) : ({'long':'Full Length','short':'Short Length'}[female.shirtLength] || female.shirtLength || 'N/A')}</p>
+                            <p className="text-xs md:text-sm font-black text-white">{p.shirtLength ? ({'long':'Long','short':'Short','regular':'Regular'}[p.shirtLength] || p.shirtLength) : ({'long':'Long','short':'Short'}[female.shirtLength] || female.shirtLength || 'N/A')}</p>
                           </div>
                         )}
                       </>
@@ -498,7 +498,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     {p?.shirtLength && p?.gender !== 'Female' && (
                       <div className="bg-gray-950/50 p-2 rounded-lg">
                         <p className="text-[9px] text-gray-500 font-black uppercase">Shirt L.</p>
-                        <p className="text-xs md:text-sm font-black text-white">{p.shirtLength === 'long' ? 'Full' : p.shirtLength === 'regular' ? 'Regular' : 'Short'}</p>
+                        <p className="text-xs md:text-sm font-black text-white">{p.shirtLength === 'long' ? 'Long' : p.shirtLength === 'regular' ? 'Regular' : 'Short'}</p>
                       </div>
                     )}
                   </div>
@@ -889,10 +889,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     const p = item.productDetails || item;
                     const ic = item.customization ? parseJSON(item.customization) : custom;
                     const isz = item.sizeData ? parseJSON(item.sizeData) : sizes;
-                    const slip = { 'full':'Full Sleeve','half':'Half Sleeve','three-quarter':'3 Quarter Sleeve' };
-                    const shmp = { 'long':'Full Length','short':'Short Length','regular':'Regular Length' };
-                    const fsl = { 'full':'Full Sleeve','half':'Half Sleeve','medium':'Medium Sleeve' };
-                    const fsh = { 'long':'Full Length','short':'Short Length' };
+                    const slip = { 'full':'Full','half':'Half','three-quarter':'3 Quarter' };
+                    const shmp = { 'long':'Long','short':'Short','regular':'Regular' };
+                    const fsl = { 'full':'Full','half':'Half','medium':'Medium' };
+                    const fsh = { 'long':'Long','short':'Short' };
                     const slv = p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves ? p.femaleOptions.sleeves : null);
                     const shl = p.shirtLength || (p.gender === 'Female' && p.femaleOptions?.shirtLength ? p.femaleOptions.shirtLength : null);
                     return (
@@ -964,10 +964,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       <div><span className="text-gray-500">Type:</span> <span className="text-white font-bold">{order.type || 'STANDARD'}</span></div>
                     </div>
                     {(() => {
-                      const slip = { 'full':'Full Sleeve','half':'Half Sleeve','three-quarter':'3 Quarter Sleeve' };
-                      const shmp = { 'long':'Full Length','short':'Short Length','regular':'Regular Length' };
-                      const fsl = { 'full':'Full Sleeve','half':'Half Sleeve','medium':'Medium Sleeve' };
-                      const fsh = { 'long':'Full Length','short':'Short Length' };
+                      const slip = { 'full':'Full','half':'Half','three-quarter':'3 Quarter' };
+                      const shmp = { 'long':'Long','short':'Short','regular':'Regular' };
+                      const fsl = { 'full':'Full','half':'Half','medium':'Medium' };
+                      const fsh = { 'long':'Long','short':'Short' };
                       const slv = product?.sleeveLength || (product?.gender === 'Female' && product?.femaleOptions?.sleeves ? product.femaleOptions.sleeves : null);
                       const shl = product?.shirtLength || (product?.gender === 'Female' && product?.femaleOptions?.shirtLength ? product.femaleOptions.shirtLength : null);
                       const hasCustom = slv || shl || custom?.stitchingStyle || custom?.fitType;
@@ -2328,7 +2328,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                     </div>
                                     {(hasSleeves || hasShirtLength) && (
                                       <div className={`text-xs md:text-sm font-black mt-0.5 ${isRejected ? 'text-orange-300' : isCompleted ? 'text-emerald-300' : 'text-pink-400'}`}>
-                                        {hasSleeves && `${t('Sleeves')}: ${p.sleeveLength ? ({'full':'Full Sleeve','half':'Half Sleeve','three-quarter':'3 Quarter Sleeve'}[p.sleeveLength] || p.sleeveLength) : ({'full':'Full Sleeve','half':'Half Sleeve','medium':'Medium Sleeve'}[p.femaleOptions?.sleeves] || p.femaleOptions?.sleeves || '')}`} {hasShirtLength && `| ${t('Length')}: ${p.shirtLength ? ({'long':'Full Length','short':'Short Length','regular':'Regular Length'}[p.shirtLength] || p.shirtLength) : ({'long':'Full Length','short':'Short Length'}[p.femaleOptions?.shirtLength] || p.femaleOptions?.shirtLength || '')}`}
+                                        {hasSleeves && `${t('Sleeves')}: ${p.sleeveLength ? ({'full':'Full','half':'Half','three-quarter':'3 Quarter'}[p.sleeveLength] || p.sleeveLength) : ({'full':'Full','half':'Half','medium':'Medium'}[p.femaleOptions?.sleeves] || p.femaleOptions?.sleeves || '')}`} {hasShirtLength && `| ${t('Length')}: ${p.shirtLength ? ({'long':'Long','short':'Short','regular':'Regular'}[p.shirtLength] || p.shirtLength) : ({'long':'Long','short':'Short'}[p.femaleOptions?.shirtLength] || p.femaleOptions?.shirtLength || '')}`}
                                       </div>
                                     )}
                                   </td>
@@ -2445,8 +2445,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             { label: t('Size'), val: product?.size },
                             { label: t('Gender'), val: product?.gender },
                             ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
-                            ...(product?.sleeveLength ? [{ label: t('Sleeves'), val: product.sleeveLength === 'full' ? 'Full Sleeve' : product.sleeveLength === 'half' ? 'Half Sleeve' : product.sleeveLength === 'three-quarter' ? '3 Quarter Sleeve' : 'Quarter Sleeve' }] : []),
-                            ...(product?.shirtLength ? [{ label: t('Length'), val: product.shirtLength === 'long' ? 'Full Length' : product.shirtLength === 'regular' ? 'Regular Length' : 'Short Length' }] : []),
+                            ...(product?.sleeveLength ? [{ label: t('Sleeves'), val: product.sleeveLength === 'full' ? 'Full' : product.sleeveLength === 'half' ? 'Half' : product.sleeveLength === 'three-quarter' ? '3 Quarter' : 'Quarter' }] : []),
+                            ...(product?.shirtLength ? [{ label: t('Length'), val: product.shirtLength === 'long' ? 'Long' : product.shirtLength === 'regular' ? 'Regular' : 'Short' }] : []),
                             ...(product?.fabricSourceProduct ? [{ label: 'Fabric Required', val: product.fabricSourceProduct }] : []),
                             ...(product?.colorSourceProduct ? [{ label: 'Color Required', val: product.colorSourceProduct }] : []),
                             ...(product?.designSourceProduct ? [{ label: 'Design Required', val: product.designSourceProduct }] : []),
@@ -2523,13 +2523,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   {(product?.sleeveLength || (product?.gender === 'Female' && product?.femaleOptions?.sleeves)) && (
                     <div className="mt-3 flex justify-between items-center p-3 bg-gray-900 rounded-xl border border-pink-500/20">
                       <span className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter">{t('SLEEVES')}</span>
-                      <span className="text-sm font-black text-white uppercase">{product.sleeveLength ? ({'full':'Full Sleeve','half':'Half Sleeve','three-quarter':'3 Quarter Sleeve'}[product.sleeveLength] || product.sleeveLength) : ({'full':'Full Sleeve','half':'Half Sleeve','medium':'Medium Sleeve'}[product.femaleOptions?.sleeves] || product.femaleOptions?.sleeves || '—')}</span>
+                      <span className="text-sm font-black text-white uppercase">{product.sleeveLength ? ({'full':'Full','half':'Half','three-quarter':'3 Quarter'}[product.sleeveLength] || product.sleeveLength) : ({'full':'Full','half':'Half','medium':'Medium'}[product.femaleOptions?.sleeves] || product.femaleOptions?.sleeves || '—')}</span>
                     </div>
                   )}
                   {(product?.shirtLength || (product?.gender === 'Female' && product?.femaleOptions?.shirtLength)) && (
                     <div className="mt-2 flex justify-between items-center p-3 bg-gray-900 rounded-xl border border-pink-500/20">
                       <span className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter">{t('SHIRT LENGTH')}</span>
-                      <span className="text-sm font-black text-white uppercase">{product.shirtLength ? ({'long':'Full Length','short':'Short Length','regular':'Regular Length'}[product.shirtLength] || product.shirtLength) : ({'long':'Full Length','short':'Short Length'}[product.femaleOptions?.shirtLength] || product.femaleOptions?.shirtLength || '—')}</span>
+                      <span className="text-sm font-black text-white uppercase">{product.shirtLength ? ({'long':'Long','short':'Short','regular':'Regular'}[product.shirtLength] || product.shirtLength) : ({'long':'Long','short':'Short'}[product.femaleOptions?.shirtLength] || product.femaleOptions?.shirtLength || '—')}</span>
                     </div>
                   )}
                   {sizes?.specialNote && (

@@ -558,10 +558,10 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const showPrice = ['SUPER_ADMIN', 'ADMIN'].includes(userRole);
   const priceDisplay = (v) => showPrice ? currency(v) : '★ ★ ★';
 
-  const slMap = { 'full':'Full Sleeve', 'half':'Half Sleeve', 'three-quarter':'3 Quarter Sleeve' };
-  const shMap = { 'long':'Long Length', 'short':'Short Length', 'regular':'Regular Length' };
-  const femSlMap = { 'full':'Full Sleeve', 'half':'Half Sleeve', 'medium':'Medium Sleeve' };
-  const femShMap = { 'long':'Long Length', 'short':'Short Length' };
+  const slMap = { 'full':'Full', 'half':'Half', 'three-quarter':'3 Quarter' };
+  const shMap = { 'long':'Long', 'short':'Short', 'regular':'Regular' };
+  const femSlMap = { 'full':'Full', 'half':'Half', 'medium':'Medium' };
+  const femShMap = { 'long':'Long', 'short':'Short' };
   const slDisplay = (v) => v ? (slMap[v] || v) : '';
   const shDisplay = (v) => v ? (shMap[v] || v) : '';
   const sec = lang === 'en' ? enSection : urduSection;
