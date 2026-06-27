@@ -1710,29 +1710,28 @@ const SmartOrderForm = () => {
 
             {/* ---- PRICE CALCULATION BAR ---- */}
             <div className="glass rounded-[2rem] p-5 border-2 border-amber-500/20 bg-amber-500/5">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                <div>
-                  <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-1">{useUrdu ? 'اصل کل' : 'Original Total'}</p>
-                  <p className="text-lg font-black text-red-400">₨{parseFloat(originalOrder.totalPrice || 0).toLocaleString()}</p>
-                </div>
-                <div className="hidden md:block border-l border-amber-500/20" />
-                <div>
-                  <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-1">{useUrdu ? 'مجوزہ کل' : 'Updated Total'}</p>
-                  <p className="text-lg font-black text-emerald-400">₨{memoCartTotalPrice.toLocaleString()}</p>
-                </div>
-                <div className="hidden md:block border-l border-amber-500/20" />
-                <div>
-                  <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-1">{useUrdu ? 'فرق' : 'Difference'}</p>
-                  {(() => {
-                    const oldT = parseFloat(originalOrder.totalPrice) || 0;
-                    const newT = memoCartTotalPrice;
-                    const diff = newT - oldT;
+              <div className="text-center mb-4">
+                <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-1">{useUrdu ? 'اصل قیمت' : 'Actual Price'}</p>
+                <p className="text-2xl font-black text-red-400">₨{parseFloat(originalOrder.totalPrice || 0).toLocaleString()}</p>
+              </div>
+              <div className="border-t border-amber-500/10 pt-3">
+                <p className="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-2">{useUrdu ? 'دیگر چارجز' : 'Other Charges'}</p>
+                <div className="space-y-1.5">
+                  {cartItems.map((item, idx) => {
+                    const d = item.productDetails || {};
                     return (
-                      <p className={`text-lg font-black ${diff > 0 ? 'text-red-400' : diff < 0 ? 'text-emerald-400' : 'text-gray-500'}`}>
-                        {diff > 0 ? '+' : ''}{diff === 0 ? '₨0' : `₨${diff.toLocaleString()}`}
-                      </p>
+                      <div key={idx} className="flex justify-between items-center text-xs">
+                        <span className="font-semibold theme-text-muted truncate mr-2">
+                          {d.productType || 'Item'} × {item.quantity || 1}
+                        </span>
+                        <span className="font-black text-emerald-400 shrink-0">₨{(parseFloat(item.totalPrice) || 0).toLocaleString()}</span>
+                      </div>
                     );
-                  })()}
+                  })}
+                  <div className="border-t border-amber-500/10 pt-1.5 flex justify-between items-center text-xs">
+                    <span className="font-black text-gray-500 uppercase tracking-wider">{useUrdu ? 'کل' : 'Total'}</span>
+                    <span className="font-black text-emerald-400">₨{memoCartTotalPrice.toLocaleString()}</span>
+                  </div>
                 </div>
               </div>
             </div>
