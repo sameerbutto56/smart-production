@@ -56,7 +56,7 @@ const DispatchDashboard = () => {
   };
 
   const slMap = { 'full':'Full', 'half':'Half', 'three-quarter':'3 Quarter' };
-  const shMap = { 'long':'Long', 'short':'Short', 'regular':'Regular Length' };
+  const shMap = { 'long':'Long', 'short':'Short', 'regular':'Regular' };
   const slDisplay = (v) => v ? (slMap[v] || v) : '';
   const shDisplay = (v) => v ? (shMap[v] || v) : '';
 
