@@ -418,13 +418,24 @@ const SmartOrderForm = () => {
           designNotes: '',
           designReference: '',
           additionalFeatures: [],
-          measurements: {
-            chest: '', shoulder: '', length: '', sleeve: '', waist: '', hips: '',
-            shirtLength: '', trouserLength: '', bottom: '', thigh: '', mori: '', ganda: ''
-          },
-        gender: 'Male',
-        femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
-        shopifyOrderDate: found.shopifyOrderDate ? (() => { const d = new Date(found.shopifyOrderDate); return isNaN(d.getTime()) ? '' : d.toISOString().slice(0,16); })() : '',
+        measurements: {
+          chest: '', shoulder: '', length: '', sleeve: '', waist: '', hips: '',
+          shirtLength: '', trouserLength: '', bottom: '', thigh: '', mori: '', ganda: '', specialNote: ''
+        },
+        gender: found.gender || 'Male',
+          femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
+          matchingCap: false,
+          matchingCapQty: 0,
+          sleeveLength: '',
+          shirtLength: '',
+          instructionNotes: '',
+          shopifyOrderDate: found.shopifyOrderDate ? (() => { const d = new Date(found.shopifyOrderDate); return isNaN(d.getTime()) ? '' : d.toISOString().slice(0,16); })() : '',
+          adjProductPrice: '',
+          adjLogoCharges: '',
+          adjNamePrinting: '',
+          adjCustomization: '',
+          adjCapCharges: '',
+          adjDiscount: ''
         });
 
         // Parse and populate product items into cart
