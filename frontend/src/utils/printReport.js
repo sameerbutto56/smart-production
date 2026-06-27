@@ -1029,7 +1029,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       const capQty = showCap && p.matchingCap ? (p.matchingCapQty || 0) : (showCap && item.capCharges > 0 ? (p.femaleOptions?.cap || 0) : 0);
       win.document.write(`<tr>`);
       win.document.write(`<td style="font-weight:700">${idx + 1}</td>`);
-      win.document.write(`<td style="font-weight:700">${p.productType}</td>`);
+      win.document.write(`<td style="font-weight:700">${ru(p.productType)}</td>`);
       win.document.write(`<td>${[p.fabricType, ru(p.color)].filter(Boolean).join(' • ')}</td>`);
       const extras = [p.sleeveLength ? `${sec.sleeves}: ${slDisplay(p.sleeveLength)}` : null, p.shirtLength ? `${sec.length}: ${shDisplay(p.shirtLength)}` : null].filter(Boolean).join(' | ');
       win.document.write(`<td>${p.size || 'Custom'} • ${p.gender || 'Male'}${extras ? ` • ${extras}` : ''}</td>`);
@@ -1045,7 +1045,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     const headers = [sec.product, sec.fabric, sec.color, sec.size, sec.gender, sec.qty].concat(showCap ? [sec.cap] : []).concat([sec.price]);
     win.document.write(`<table><thead><tr>${headers.map(h => '<th>' + h + '</th>').join('')}</tr></thead><tbody>`);
     win.document.write(`<tr>`);
-    win.document.write(`<td style="font-weight:700">${firstProduct.productType}</td>`);
+    win.document.write(`<td style="font-weight:700">${ru(firstProduct.productType)}</td>`);
     win.document.write(`<td>${firstProduct.fabricType}</td>`);
     win.document.write(`<td>${ru(firstProduct.color)}</td>`);
     const extras = [firstProduct.sleeveLength ? `${sec.sleeves}: ${slDisplay(firstProduct.sleeveLength)}` : null, firstProduct.shirtLength ? `${sec.length}: ${shDisplay(firstProduct.shirtLength)}` : null].filter(Boolean).join(' | ');
