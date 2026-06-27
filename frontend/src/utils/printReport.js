@@ -128,8 +128,9 @@ const PRINT_CSS = `
  * Pattern-based for natural Roman Urdu phrases
  */
 function romanToUrdu(text) {
+  try {
   if (!text) return '';
-  if (/^[\d\s\-./#]+$/.test(text)) return text; // pure numbers/codes – skip
+  if (/^[\d\s\-./#]+$/.test(text)) return text;
 
   let result = text.trim();
 
@@ -548,6 +549,7 @@ function romanToUrdu(text) {
   result = result.replace(/\s+/g, ' ').trim();
 
   return result || text;
+  } catch (e) { return text; }
 }
 
 export function openPrintWindow(title, isRtl = false) {
@@ -956,10 +958,10 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   win.document.write(`<p style="font-size:20px;color:#000;margin-top:3px;font-weight:700">${isUrdu ? 'آرڈر' : 'Order'} ${order.orderNumber || order.id?.slice(0, 8)}</p>`);
   win.document.write(`</div>`);
   win.document.write(`<div style="text-align:right">`);
-  win.document.write(`<p style="font-size:22px;font-weight:900"${isUrdu ? ' class="urdu-text"' : ''}>${ru(order.customerName) || '—'}</p>`);
+  win.document.write(`<p style="font-size:22px;font-weight:900">${order.customerName || '—'}</p>`);
   win.document.write(`<p style="font-size:20px;color:#000;font-weight:600">${order.customerPhone || ''}</p>`);
-  if (order.address) win.document.write(`<p style="font-size:18px;color:#000"${isUrdu ? ' class="urdu-text"' : ''}>${ru(order.address)}</p>`);
-  if (order.city) win.document.write(`<p style="font-size:24px;font-weight:900;color:#000;background:#fef3c7;display:inline-block;padding:4px 14px;border-radius:6px;margin-top:4px;text-transform:uppercase">${isUrdu ? 'شہر:' : '📍 CITY:'} ${ru(order.city)}</p>`);
+  if (order.address) win.document.write(`<p style="font-size:18px;color:#000">${order.address}</p>`);
+  if (order.city) win.document.write(`<p style="font-size:24px;font-weight:900;color:#000;background:#fef3c7;display:inline-block;padding:4px 14px;border-radius:6px;margin-top:4px;text-transform:uppercase">${isUrdu ? '📍 شہر:' : '📍 CITY:'} ${order.city}</p>`);
   win.document.write(`</div></div>`);
 
   // ─── DATES ROW ───
@@ -1019,7 +1021,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       win.document.write(`<td style="font-weight:700">${ru(p.productType)}</td>`);
       win.document.write(`<td>${[ru(p.fabricType), ru(p.color)].filter(Boolean).join(' • ')}</td>`);
       const extras = [p.sleeveLength ? `${sec.sleeves}: ${slDisplay(p.sleeveLength)}` : null, p.shirtLength ? `${sec.length}: ${shDisplay(p.shirtLength)}` : null].filter(Boolean).join(' | ');
-      win.document.write(`<td>${ru(p.size || sec.custom)} • ${ru(p.gender || 'Male')}${extras ? ` • ${extras}` : ''}</td>`);
+      win.document.write(`<td>${p.size || 'Custom'} • ${p.gender || 'Male'}${extras ? ` • ${extras}` : ''}</td>`);
       win.document.write(`<td style="text-align:center;font-weight:700">${item.quantity || 1}</td>`);
       if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;color:#000">${capQty || '—'}</td>`);
       win.document.write(`<td style="text-align:right;font-weight:700">${priceDisplay(item.totalPrice)}</td>`);
@@ -1036,8 +1038,8 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     win.document.write(`<td>${ru(firstProduct.fabricType)}</td>`);
     win.document.write(`<td>${ru(firstProduct.color)}</td>`);
     const extras = [firstProduct.sleeveLength ? `${sec.sleeves}: ${slDisplay(firstProduct.sleeveLength)}` : null, firstProduct.shirtLength ? `${sec.length}: ${shDisplay(firstProduct.shirtLength)}` : null].filter(Boolean).join(' | ');
-    win.document.write(`<td>${ru(firstProduct.size || sec.custom)}</td>`);
-    win.document.write(`<td>${ru(firstProduct.gender || sec.male)}${extras ? ` ${extras}` : ''}</td>`);
+    win.document.write(`<td>${firstProduct.size || 'Custom'}</td>`);
+    win.document.write(`<td>${firstProduct.gender || 'Male'}${extras ? ` ${extras}` : ''}</td>`);
     win.document.write(`<td style="text-align:center;font-weight:700">${order.quantity || 1}</td>`);
     if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;color:#000">${capQty || '—'}</td>`);
     win.document.write(`<td style="text-align:right;font-weight:700">${priceDisplay(order.totalPrice)}</td>`);
