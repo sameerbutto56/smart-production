@@ -131,6 +131,10 @@ function romanToUrdu(text) {
   try {
   if (!text) return '';
   if (/^[\d\s\-./#]+$/.test(text)) return text;
+  // English measurement terms – keep as-is
+  const keepEnglish = new Set(['hip', 'hips', 'bottom', 'thigh', 'inseam', 'outseam', 'calf', 'ankle', 'armhole', 'bicep', 'wrist', 'mori', 'ganda', 'neck']);
+  const txtLower = text.trim().toLowerCase();
+  if (keepEnglish.has(txtLower)) return text;
 
   let result = text.trim();
 
@@ -254,8 +258,6 @@ function romanToUrdu(text) {
     'chest': 'سینہ', 'seena': 'سینہ', 'sina': 'سینہ',
     'shoulder': 'کندھا', 'kandha': 'کندھا',
     'waist': 'کمر', 'kamar': 'کمر',
-    'hip': 'کولہ', 'hips': 'کولہے',
-    'bottom': 'نیچے',
     'sleeve': 'آستین', 'bazu': 'آستین',
     'length': 'لمبائی',
     'thigh': 'ران',
@@ -779,11 +781,11 @@ function fmtDateTime(d) {
 
 /** Urdu labels for production sections */
 const urduSection = {
-  products: 'پروڈکٹس',
+  products: 'آرٹیکلز',
   engraving: 'اینگرونگ',
   measurements: 'پیمائش',
   instructionNotes: 'ہدایات (نوٹس)',
-  product: 'پروڈکٹ',
+  product: 'آرٹیکل',
   fabricColor: 'کپڑا اور رنگ',
   sizeGender: 'سائز اور جنس',
   qty: 'تعداد',
@@ -836,11 +838,11 @@ const urduSection = {
 
 /** English labels for production sections */
 const enSection = {
-  products: 'Products',
+  products: 'Articles',
   engraving: 'Engraving',
   measurements: 'Measurements',
   instructionNotes: 'Instruction Notes',
-  product: 'Product',
+  product: 'Article',
   fabricColor: 'Fabric & Color',
   sizeGender: 'Size & Gender',
   qty: 'Qty',
@@ -896,24 +898,10 @@ const urduLabels = {
   shoulder: 'کندھا',
   chest: 'سینہ',
   waist: 'کمر',
-  bottom: 'نیچے',
   shirtLength: 'قمیض کی لمبائی',
-  hip: 'کولہ',
   sleeve: 'آستین',
   trouserLength: 'پتلون کی لمبائی',
-  hips: 'کولہے',
-  thigh: 'ران',
-  mori: 'موڑی',
-  ganda: 'گانڈا',
-  neck: 'گردن',
-  armhole: 'بغل',
-  bicep: 'عضلہ',
-  wrist: 'کلائی',
-  length: 'لمبائی',
-  inseam: 'ان سیون',
-  outseam: 'آؤٹ سیون',
-  calf: 'پنڈلی',
-  ankle: 'ٹخنہ'
+  length: 'لمبائی'
 };
 
 /** Capitalize first letter */
@@ -1019,7 +1007,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       win.document.write(`<tr>`);
       win.document.write(`<td style="font-weight:700">${idx + 1}</td>`);
       win.document.write(`<td style="font-weight:700">${p.productType}</td>`);
-      win.document.write(`<td>${[p.fabricType, p.color].filter(Boolean).join(' • ')}</td>`);
+      win.document.write(`<td>${[p.fabricType, ru(p.color)].filter(Boolean).join(' • ')}</td>`);
       const extras = [p.sleeveLength ? `${sec.sleeves}: ${slDisplay(p.sleeveLength)}` : null, p.shirtLength ? `${sec.length}: ${shDisplay(p.shirtLength)}` : null].filter(Boolean).join(' | ');
       win.document.write(`<td>${p.size || 'Custom'} • ${p.gender || 'Male'}${extras ? ` • ${extras}` : ''}</td>`);
       win.document.write(`<td style="text-align:center;font-weight:700">${item.quantity || 1}</td>`);
@@ -1036,7 +1024,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     win.document.write(`<tr>`);
     win.document.write(`<td style="font-weight:700">${firstProduct.productType}</td>`);
     win.document.write(`<td>${firstProduct.fabricType}</td>`);
-    win.document.write(`<td>${firstProduct.color}</td>`);
+    win.document.write(`<td>${ru(firstProduct.color)}</td>`);
     const extras = [firstProduct.sleeveLength ? `${sec.sleeves}: ${slDisplay(firstProduct.sleeveLength)}` : null, firstProduct.shirtLength ? `${sec.length}: ${shDisplay(firstProduct.shirtLength)}` : null].filter(Boolean).join(' | ');
     win.document.write(`<td>${firstProduct.size || 'Custom'}</td>`);
     win.document.write(`<td>${firstProduct.gender || 'Male'}${extras ? ` ${extras}` : ''}</td>`);
