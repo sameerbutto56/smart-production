@@ -493,6 +493,13 @@ function romanToUrdu(text) {
     'online': 'آن لائن',
     'outlet': 'آؤٹ لیٹ',
 
+    // Product names
+    'sprinter': 'سپرانٹر',
+    'joggers': 'جوگرز',
+    'unisex': 'یونیسیکس',
+    'men': 'مین',
+    'women': 'ویمن',
+
     // Sizes
     'xs': 'ایکس ایس', 'small': 'چھوٹا', 's': 'ایس',
     'medium': 'درمیانہ', 'm': 'ایم',
