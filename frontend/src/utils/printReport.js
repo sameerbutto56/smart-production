@@ -153,6 +153,8 @@ const customDict = {
   'sprinter': 'سپرانٹر',
   'unisex': 'یونیسیکس',
   'joggers': 'جوگرز',
+  'men': 'مین',
+  'women': 'ویمن',
 };
 
 function romanToUrdu(text) {
