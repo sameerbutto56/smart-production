@@ -952,7 +952,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   win.document.write(`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;border-bottom:3px solid #111;padding-bottom:8px">`);
   win.document.write(`<div>`);
   win.document.write(`<h1 style="font-size:28px;font-weight:900;text-transform:uppercase;letter-spacing:-0.5px">${sec.jobSheet}</h1>`);
-  win.document.write(`<p style="font-size:20px;color:#000;margin-top:3px;font-weight:700">${isUrdu ? 'آرڈر#' : 'Order #'}${order.orderNumber || order.id?.slice(0, 8)}</p>`);
+  win.document.write(`<p style="font-size:20px;color:#000;margin-top:3px;font-weight:700">${isUrdu ? 'آرڈر' : 'Order'} ${order.orderNumber || order.id?.slice(0, 8)}</p>`);
   win.document.write(`</div>`);
   win.document.write(`<div style="text-align:right">`);
   win.document.write(`<p style="font-size:22px;font-weight:900"${isUrdu ? ' class="urdu-text"' : ''}>${ru(order.customerName) || '—'}</p>`);
