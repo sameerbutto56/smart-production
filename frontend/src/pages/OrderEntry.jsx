@@ -590,7 +590,7 @@ const SmartOrderForm = () => {
     setError('');
     try {
       const finalItems = cartItems.map(item => ({
-        productDetails: item.productDetails,
+        productDetails: { ...item.productDetails, gender: formData.gender },
         customization: item.customization || {},
         sizeData: item.sizeData || {},
         quantity: parseInt(item.quantity) || 1,
