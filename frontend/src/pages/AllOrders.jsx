@@ -925,7 +925,7 @@ const AllOrders = () => {
                                     {p.femaleOptions?.dupatta && (
                                       <span className="ml-2 bg-pink-500/20 text-pink-400 border border-pink-500/30 text-xs md:text-sm px-1.5 py-0.5 rounded font-black uppercase">Dupatta</span>
                                     )}
-                                    {(c.nameSpelling || c.articleNames?.length || c.fitType || c.logos?.length || hasMeasurements) && (
+                                    {(c.nameSpelling || c.articleNames?.length || c.fitType || c.logos?.length) && (
                                       <div className="mt-1.5 space-y-1.5 text-xs md:text-sm theme-text-secondary font-normal normal-case">
                                         {/* Name Lines */}
                                         {(c.articleNames?.length > 0 || c.nameSpelling) && (
@@ -974,7 +974,7 @@ const AllOrders = () => {
                                         {c.designNotes && (
                                           <div className="text-[10px] text-yellow-400 font-black bg-yellow-900/20 px-1.5 py-0.5 rounded italic leading-tight">📝 {c.designNotes}</div>
                                         )}
-                                        {hasMeasurements && (
+                                        {(c.nameSpelling || c.articleNames?.length || c.fitType || c.logos?.length) && hasMeasurements && (
                                           <div>
                                             <span className="font-bold theme-text-muted uppercase tracking-wider text-xs md:text-sm">Sizes:</span> {Object.entries(s).filter(([k, v]) => v && k !== 'specialNote').map(([k, v]) => `${k.toUpperCase()}:${v}"`).join(', ')}
                                           </div>
