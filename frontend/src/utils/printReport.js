@@ -153,6 +153,8 @@ const customDict = {
   'sprinter': 'سپرانٹر',
   'unisex': 'یونیسیکس',
   'joggers': 'جوگرز',
+  'ketamine': 'کیٹامین',
+  'katamine': 'کیٹامین',
   'men': 'مین',
   'women': 'ویمن',
 };
