@@ -912,10 +912,15 @@ const AllOrders = () => {
                             {allItems.map((item, idx) => {
                               const p = item.productDetails || {};
                               const c = item.customization || {};
-                              const s = item.sizeData || rawSizes || {};
+                              const perItemS = item.sizeData;
+                              const orderS = rawSizes;
+                              const chartS = standardMeasurements[p.size] || {};
+                              const s = (perItemS && Object.values(perItemS).some(v => v)) ? perItemS
+                                : (orderS && Object.values(orderS).some(v => v)) ? orderS
+                                : chartS;
                               const hasSleeves = p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves);
                               const hasShirtLength = p.shirtLength || (p.gender === 'Female' && p.femaleOptions?.shirtLength);
-                              const hasMeasurements = s && Object.values(s).some(v => v);
+                              const hasMeasurements = Object.keys(s).length > 0 && Object.values(s).some(v => v);
 
                               return (
                                 <tr key={idx} className="border-b theme-border last:border-0 hover:bg-white/5 font-bold">
