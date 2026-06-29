@@ -920,7 +920,8 @@ const AllOrders = () => {
                                 : chartS;
                               const hasSleeves = p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves);
                               const hasShirtLength = p.shirtLength || (p.gender === 'Female' && p.femaleOptions?.shirtLength);
-                              const hasMeasurements = Object.keys(s).length > 0 && Object.values(s).some(v => v);
+                              const hasSizeValues = Object.keys(s).length > 0 && Object.entries(s).some(([k, v]) => v && k !== 'specialNote');
+                              const hasSpecialNote = !!(s?.specialNote);
 
                               return (
                                 <tr key={idx} className="border-b theme-border last:border-0 hover:bg-white/5 font-bold">
@@ -981,12 +982,12 @@ const AllOrders = () => {
                                         )}
                                       </div>
                                     )}
-                                    {hasMeasurements && (
+                                    {hasSizeValues && (
                                       <div className="mt-1.5 text-xs md:text-sm theme-text-secondary font-normal normal-case">
                                         <span className="font-bold theme-text-muted uppercase tracking-wider text-xs md:text-sm">Sizes:</span> {Object.entries(s).filter(([k, v]) => v && k !== 'specialNote').map(([k, v]) => `${k.toUpperCase()}:${v}"`).join(', ')}
                                       </div>
                                     )}
-                                    {s?.specialNote && (
+                                    {hasSpecialNote && (
                                       <div className="mt-1 text-[10px] text-yellow-400 font-black bg-yellow-900/20 px-1.5 py-0.5 rounded italic leading-tight">📝 Special Note: {s.specialNote}</div>
                                     )}
                                   </td>

@@ -1175,7 +1175,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     const measItems = isMultiItem ? allItems : [{ productDetails: firstProduct, sizeData: sizes }];
     const hasAnyMeas = measItems.some(item => {
       const s = item.sizeData || {};
-      return Object.entries(s).some(([k, v]) => v && k !== 'specialNote');
+      return s.specialNote || Object.entries(s).some(([k, v]) => v && k !== 'specialNote');
     });
     if (hasAnyMeas) {
       win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
