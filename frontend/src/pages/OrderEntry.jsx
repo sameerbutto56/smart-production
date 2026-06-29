@@ -1113,7 +1113,7 @@ const SmartOrderForm = () => {
           mori: '',
           ganda: ''
         },
-        gender: found.gender || 'Male',
+        gender: 'Male',
           femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
           matchingCap: false,
           matchingCapQty: 0,
