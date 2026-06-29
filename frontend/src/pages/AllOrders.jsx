@@ -974,15 +974,15 @@ const AllOrders = () => {
                                         {c.designNotes && (
                                           <div className="text-[10px] text-yellow-400 font-black bg-yellow-900/20 px-1.5 py-0.5 rounded italic leading-tight">📝 {c.designNotes}</div>
                                         )}
-                                        {(c.nameSpelling || c.articleNames?.length || c.fitType || c.logos?.length) && hasMeasurements && (
-                                          <div>
-                                            <span className="font-bold theme-text-muted uppercase tracking-wider text-xs md:text-sm">Sizes:</span> {Object.entries(s).filter(([k, v]) => v && k !== 'specialNote').map(([k, v]) => `${k.toUpperCase()}:${v}"`).join(', ')}
-                                          </div>
-                                        )}
-                                        {s?.specialNote && (
-                                          <div className="mt-1 text-[10px] text-yellow-400 font-black bg-yellow-900/20 px-1.5 py-0.5 rounded italic leading-tight">📝 Special Note: {s.specialNote}</div>
-                                        )}
                                       </div>
+                                    )}
+                                    {hasMeasurements && (
+                                      <div className="mt-1.5 text-xs md:text-sm theme-text-secondary font-normal normal-case">
+                                        <span className="font-bold theme-text-muted uppercase tracking-wider text-xs md:text-sm">Sizes:</span> {Object.entries(s).filter(([k, v]) => v && k !== 'specialNote').map(([k, v]) => `${k.toUpperCase()}:${v}"`).join(', ')}
+                                      </div>
+                                    )}
+                                    {s?.specialNote && (
+                                      <div className="mt-1 text-[10px] text-yellow-400 font-black bg-yellow-900/20 px-1.5 py-0.5 rounded italic leading-tight">📝 Special Note: {s.specialNote}</div>
                                     )}
                                   </td>
                                   <td className="py-4 theme-text-secondary">
