@@ -97,6 +97,8 @@ const AdminDashboard = () => {
   const { searchTerm: contextSearch, setSearchTerm: setContextSearch } = useSearch();
   const [trackedOrder, setTrackedOrder] = useState(null);
   const [trackingError, setTrackingError] = useState('');
+  const [trackingTimeline, setTrackingTimeline] = useState([]);
+  const [trackingTimelineLoading, setTrackingTimelineLoading] = useState(false);
   const [systemPaused, setSystemPaused] = useState(false);
   const [showPauseModal, setShowPauseModal] = useState(false);
   const [pausePassword, setPausePassword] = useState('');
@@ -335,6 +337,18 @@ const AdminDashboard = () => {
     };
     fetchInventoryForProducts();
   }, [expandedEditRequest, editRequests]);
+
+  // Fetch timeline when tracking an order
+  useEffect(() => {
+    if (!trackedOrder?.id) { setTrackingTimeline([]); return; }
+    setTrackingTimelineLoading(true);
+    const token = sessionStorage.getItem('token');
+    axios.get(`${API_URL}/api/orders/${trackedOrder.id}/timeline`, {
+      headers: { Authorization: `Bearer ${token}` }
+    }).then(res => setTrackingTimeline(res.data))
+      .catch(() => setTrackingTimeline([]))
+      .finally(() => setTrackingTimelineLoading(false));
+  }, [trackedOrder?.id]);
 
   const handleApproveEditRequest = async () => {
     if (!reviewRequestData) return;
@@ -787,7 +801,7 @@ const AdminDashboard = () => {
         )}
       </div>
 
-      {/* Tracked Order Result */}
+      {/* Tracked Order Result — Full Timeline */}
       <AnimatePresence mode="wait">
         {trackingError && (
           <motion.div 
@@ -805,31 +819,193 @@ const AdminDashboard = () => {
             key={trackedOrder.id}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="theme-bg rounded-2xl p-6 theme-border"
+            className="theme-bg rounded-2xl p-4 md:p-6 theme-border"
           >
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center font-black text-xl shadow-xl">
-                  {trackedOrder.customerName.charAt(0)}
+            {/* Order Header */}
+            <div className="flex flex-wrap justify-between items-start gap-3 mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center font-black text-lg md:text-xl shadow-xl">
+                  {trackedOrder.customerName?.charAt(0) || '?'}
                 </div>
                 <div>
-                  <h4 className="text-lg font-black theme-text-primary">{trackedOrder.customerName}</h4>
-                  <p className="theme-text-muted font-bold uppercase tracking-widest text-xs md:text-sm">Order #{trackedOrder.orderNumber || trackedOrder.id.substring(0, 8)}</p>
+                  <h4 className="text-base md:text-lg font-black theme-text-primary">{trackedOrder.customerName}</h4>
+                  <p className="theme-text-muted font-bold uppercase tracking-widest text-[10px] md:text-xs">Order #{trackedOrder.orderNumber || trackedOrder.id.substring(0, 8)}</p>
                 </div>
               </div>
-              <div className="text-right">
-                <span className="bg-blue-500/10 text-blue-400 px-3 py-1.5 rounded-full text-xs md:text-sm font-black uppercase tracking-widest border border-blue-500/20">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`px-2.5 py-1 rounded-full text-[10px] md:text-xs font-black uppercase tracking-widest border ${
+                  trackedOrder.priority === 'SUPER_URGENT' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
+                  trackedOrder.priority === 'URGENT' ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' :
+                  'bg-gray-500/10 text-gray-400 border-gray-500/20'
+                }`}>{trackedOrder.priority || 'NORMAL'}</span>
+                <span className={`px-2.5 py-1 rounded-full text-[10px] md:text-xs font-black uppercase tracking-widest border ${
+                  trackedOrder.paymentStatus === 'PAID' || trackedOrder.paymentStatus === 'FULL_PAID' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+                  parseFloat(trackedOrder.advanceAmount || 0) > 0 ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' :
+                  'bg-red-500/20 text-red-400 border-red-500/30'
+                }`}>{trackedOrder.paymentStatus === 'PAID' || trackedOrder.paymentStatus === 'FULL_PAID' ? 'PAID' : parseFloat(trackedOrder.advanceAmount || 0) > 0 ? 'ADVANCE' : 'COD'}</span>
+                <span className="bg-blue-500/10 text-blue-400 px-2.5 py-1 rounded-full text-[10px] md:text-xs font-black uppercase tracking-widest border border-blue-500/20">
                   {trackedOrder.status.replace(/_/g, ' ')}
                 </span>
-                <p className="text-xs md:text-sm theme-text-muted font-black mt-1 uppercase tracking-widest">{trackedOrder.currentStage.replace(/_/g, ' ')} Phase</p>
               </div>
             </div>
 
+            {/* Progress Pipeline */}
+            {(() => {
+              const stages = ['ORDER_ENTRY','STORE','LOGO_DESIGN','PRODUCTION_ACCEPTANCE','PRODUCTION','STORE_RECEIVE','DISPATCH','OUT_FOR_DELIVERY','DELIVERED'];
+              const currentIdx = stages.indexOf(trackedOrder.currentStage);
+              return (
+                <div className="mb-4 overflow-x-auto no-scrollbar">
+                  <div className="flex gap-1 min-w-max">
+                    {stages.map((s, i) => {
+                      const isPast = i < currentIdx;
+                      const isCurrent = i === currentIdx;
+                      const isFuture = i > currentIdx;
+                      return (
+                        <div key={s} className="flex items-center gap-1">
+                          <div className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider whitespace-nowrap ${
+                            isPast ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                            isCurrent ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30 ring-2 ring-blue-500/40' :
+                            'bg-gray-800/50 text-gray-600 border border-gray-800'
+                          }`}>
+                            {isPast && <CheckCircle2 size={10} className="inline mr-1 -mt-0.5" />}
+                            {s.replace(/_/g, ' ')}
+                          </div>
+                          {i < stages.length - 1 && (
+                            <div className={`w-3 h-[2px] ${i < currentIdx ? 'bg-emerald-500/40' : 'bg-gray-800'}`} />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Full Timeline Entries */}
+            {trackingTimelineLoading ? (
+              <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-blue-400" /></div>
+            ) : trackingTimeline.length === 0 ? (
+              <div className="text-center py-8 text-gray-500 font-black uppercase tracking-widest text-xs">Loading timeline...</div>
+            ) : (
+              <div className="space-y-1 mb-4">
+                <h5 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3">Stage Timeline</h5>
+                {trackingTimeline
+                  .filter(e => e.type === 'stage')
+                  .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+                  .map((entry, idx, arr) => {
+                    const dotColor = entry.status === 'COMPLETED' ? 'bg-emerald-500' : entry.acceptedAt ? 'bg-blue-500' : 'bg-gray-500';
+                    const delay = entry.delay;
+                    const fmt = (d) => d ? new Date(d).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : null;
+                    return (
+                      <div key={entry.id || idx} className="relative pl-8 pb-3">
+                        {idx < arr.length - 1 && <div className="absolute left-[11px] top-3 bottom-0 w-[2px] bg-gray-800" />}
+                        <div className={`absolute left-0 top-1 w-[22px] h-[22px] rounded-full border-2 border-gray-900 flex items-center justify-center ${dotColor}`}>
+                          {entry.status === 'COMPLETED' ? <CheckCircle2 size={12} className="text-white" /> : entry.acceptedAt ? <Circle size={8} className="text-white fill-current" /> : <Circle size={8} className="text-white" />}
+                        </div>
+                        <div className="p-2.5 rounded-xl border border-gray-800 bg-gray-950/50">
+                          <div className="flex flex-wrap items-center justify-between gap-1">
+                            <span className={`text-[11px] font-black uppercase tracking-wider ${entry.status === 'COMPLETED' ? 'text-emerald-400' : entry.acceptedAt ? 'text-blue-400' : 'text-gray-400'}`}>
+                              {entry.stage.replace(/_/g, ' ')}
+                            </span>
+                            <span className={`text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                              entry.status === 'COMPLETED' ? 'text-emerald-400 bg-emerald-500/10' :
+                              entry.acceptedAt ? 'text-blue-400 bg-blue-500/10' :
+                              'text-gray-500 bg-gray-800/50'
+                            }`}>{entry.status.replace(/_/g, ' ')}</span>
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-gray-500 font-medium">
+                            <span>Received: {fmt(entry.receivedAt)}</span>
+                            {entry.acceptedAt && <span>Accepted: {fmt(entry.acceptedAt)}</span>}
+                            {entry.completedAt && <span>Completed: {fmt(entry.completedAt)}</span>}
+                            {delay !== null && (
+                              <span className={delay > 60 ? 'text-red-400' : delay > 0 ? 'text-yellow-400' : 'text-gray-600'}>
+                                Delay: {delay} min
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+
+            {/* Route transitions */}
+            {trackingTimeline.filter(e => e.type === 'route').length > 0 && (
+              <div className="mb-4">
+                <h5 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Routing History</h5>
+                <div className="space-y-1">
+                  {trackingTimeline
+                    .filter(e => e.type === 'route')
+                    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+                    .map((entry, idx) => (
+                      <div key={entry.id || idx} className="flex items-center gap-2 p-2 rounded-lg bg-amber-500/5 border border-amber-500/10">
+                        <Truck size={12} className="text-amber-400 shrink-0" />
+                        <span className="text-[10px] font-bold text-amber-400">{entry.from?.replace(/_/g, ' ')} → {entry.to?.replace(/_/g, ' ')}</span>
+                        <span className="text-[9px] text-gray-600">{new Date(entry.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                        {entry.actor && <span className="text-[9px] text-gray-700 ml-auto">by {entry.actor}</span>}
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* Products Summary */}
+            {(() => {
+              try {
+                const pd = typeof trackedOrder.productDetails === 'string' ? JSON.parse(trackedOrder.productDetails) : trackedOrder.productDetails;
+                const items = Array.isArray(pd) ? pd : (pd?.productType ? [pd] : []);
+                if (items.length === 0) return null;
+                return (
+                  <div className="mb-4">
+                    <h5 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Products</h5>
+                    <div className="space-y-1">
+                      {items.map((item, i) => (
+                        <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-gray-900/50 border border-gray-800">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Package size={12} className="text-purple-400 shrink-0" />
+                            <span className="text-[10px] font-bold text-white truncate">{item.productType || 'Item'} — {item.fabricType || 'STD'} / {item.color || '—'} / {item.size || '—'}</span>
+                          </div>
+                          <span className="text-[10px] font-black text-gray-400 shrink-0 ml-2">x{item.quantity || 1}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              } catch { return null; }
+            })()}
+
+            {/* Customer Info */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+              <div className="p-2 rounded-lg bg-gray-900/50 border border-gray-800">
+                <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Phone</p>
+                <p className="text-[10px] font-bold text-white">{trackedOrder.customerPhone || '—'}</p>
+              </div>
+              <div className="p-2 rounded-lg bg-gray-900/50 border border-gray-800">
+                <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest">City</p>
+                <p className="text-[10px] font-bold text-white">{trackedOrder.city || '—'}</p>
+              </div>
+              <div className="p-2 rounded-lg bg-gray-900/50 border border-gray-800">
+                <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Source</p>
+                <p className="text-[10px] font-bold text-white">{trackedOrder.source || '—'}</p>
+              </div>
+              <div className="p-2 rounded-lg bg-gray-900/50 border border-gray-800">
+                <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Total</p>
+                <p className="text-[10px] font-bold text-white">₨{parseFloat(trackedOrder.totalPrice || 0).toLocaleString()}</p>
+              </div>
+            </div>
+            {trackedOrder.address && (
+              <div className="p-2 rounded-lg bg-gray-900/50 border border-gray-800 mb-4">
+                <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Address</p>
+                <p className="text-[10px] font-bold text-white">{trackedOrder.address}</p>
+              </div>
+            )}
+
             <button
               onClick={() => navigate('/orders', { state: { searchTerm: trackedOrder.orderNumber } })}
-              className="w-full mt-3 btn-ghost py-3 text-xs md:text-sm"
+              className="w-full btn-ghost py-2.5 text-[10px] md:text-xs"
             >
-              View Full Detailed Job Sheet
+              View Full Detailed Job Sheet →
             </button>
           </motion.div>
         )}
