@@ -1092,21 +1092,21 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
             </AnimatePresence>
           </div>
 
-          {/* Collapsible Production Timeline */}
-          {order.stages?.some(s => s.status === 'COMPLETED') && (
+          {/* Collapsible Order Tracking (full timeline + routing) */}
+          {order.stages?.length > 0 && (
             <div className="mb-3 bg-gray-950/30 rounded-2xl border border-gray-800/50 overflow-hidden">
               <button
                 onClick={() => setShowProdHistory((prev) => !prev)}
                 className="w-full flex items-center justify-between p-3 md:p-4 hover:bg-gray-900/50 transition-colors"
               >
                 <div className="flex items-center gap-2">
-                  <div className="p-1.5 bg-emerald-500/10 rounded-lg">
-                    <History size={14} className="text-emerald-400" />
+                  <div className="p-1.5 bg-cyan-500/10 rounded-lg">
+                    <Clock size={14} className="text-cyan-400" />
                   </div>
-                  <span className="text-xs md:text-sm font-black text-gray-400 uppercase tracking-[0.15em]">{t('Production History')}</span>
+                  <span className="text-xs md:text-sm font-black text-gray-400 uppercase tracking-[0.15em]">{t('Order Tracking')}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[6px] text-gray-600 font-black">{order.stages.filter(s => s.status === 'COMPLETED').length} stages</span>
+                  <span className="text-[6px] text-gray-600 font-black">{order.stages.length} stages</span>
                   <motion.div animate={{ rotate: showProdHistory ? 180 : 0 }} transition={{ duration: 0.2 }}>
                     <ChevronRight size={12} className="text-gray-500" />
                   </motion.div>
@@ -1123,31 +1123,53 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   >
                     <div className="px-3 md:px-4 pb-3 md:pb-4">
                       <div className="space-y-1.5 relative">
-                        {order.stages
-                          .filter(s => s.status === 'COMPLETED')
-                          .sort((a, b) => new Date(a.completedAt) - new Date(b.completedAt))
-                          .map((s, idx) => (
-                            <div key={idx} className="flex items-start gap-2.5">
-                              <div className="flex flex-col items-center pt-0.5">
-                                <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></div>
-                                {idx !== order.stages.filter(s => s.status === 'COMPLETED').length - 1 && (
-                                  <div className="w-[1px] h-3.5 bg-gray-800"></div>
-                                )}
-                              </div>
-                              <div className="flex-1 flex flex-wrap justify-between items-center gap-1 min-w-0">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-tighter">
-                                    {s.stageName.replace(/_/g, ' ')}
-                                  </span>
-                                  <span className="text-[9px] text-yellow-500/60">→ {order.source === 'OUTLET' ? t('Branch') : t('Faisal')}</span>
+                        {[...order.stages]
+                          .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+                          .map((s, idx) => {
+                            const dotColor = s.status === 'COMPLETED' ? 'bg-emerald-500' : s.status === 'IN_PROGRESS' ? 'bg-blue-500' : 'bg-gray-500';
+                            const fmt = (d) => d ? new Date(d).toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
+                            const delay = s.startedAt ? Math.round((new Date(s.startedAt) - new Date(s.createdAt)) / 60000) : null;
+                            return (
+                              <div key={s.id || idx} className="flex items-start gap-2.5">
+                                <div className="flex flex-col items-center pt-0.5">
+                                  <div className={`w-2 h-2 rounded-full ${dotColor} flex-shrink-0`}></div>
+                                  {idx < order.stages.length - 1 && (
+                                    <div className="w-[1px] h-3.5 bg-gray-800"></div>
+                                  )}
                                 </div>
-                                <span className="text-xs text-gray-600 font-medium whitespace-nowrap">
-                                  {new Date(s.completedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} {new Date(s.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </span>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex flex-wrap justify-between items-center gap-1">
+                                    <span className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-tighter">
+                                      {s.stageName.replace(/_/g, ' ')}
+                                    </span>
+                                    <span className={`text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                                      s.status === 'COMPLETED' ? 'text-emerald-400 bg-emerald-500/10' :
+                                      s.status === 'IN_PROGRESS' ? 'text-blue-400 bg-blue-500/10' :
+                                      'text-gray-500 bg-gray-800/50'
+                                    }`}>{s.status.replace(/_/g, ' ')}</span>
+                                  </div>
+                                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-gray-600 font-medium">
+                                    <span>Received: {fmt(s.createdAt)}</span>
+                                    {s.startedAt && <span>Accepted: {fmt(s.startedAt)}</span>}
+                                    {s.completedAt && <span>Completed: {fmt(s.completedAt)}</span>}
+                                    {delay !== null && (
+                                      <span className={delay > 60 ? 'text-red-400' : delay > 0 ? 'text-yellow-400' : 'text-gray-500'}>
+                                        Delay: {delay} min
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                       </div>
+                      <button
+                        onClick={() => { setShowTimelineModal(true); }}
+                        className="mt-3 w-full py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-[10px] font-black text-cyan-400 uppercase tracking-widest transition-all flex items-center justify-center gap-1.5"
+                      >
+                        <Clock size={12} />
+                        View Full Timeline
+                      </button>
                     </div>
                   </motion.div>
                 )}
