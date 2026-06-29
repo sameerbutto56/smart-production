@@ -418,4 +418,246 @@ const updateAllocationStatus = async (req, res) => {
   }
 };
 
-module.exports = { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem, clearAllInventory, bulkUploadInventory, allocateInventory, getAllocations, getAllocationStats, searchInventory, updateAllocationStatus };
+// ====== CART-BASED ALLOCATION ======
+const createCartAllocation = async (req, res) => {
+  const { personName, items, notes } = req.body;
+  if (!personName || !personName.trim()) {
+    return res.status(400).json({ message: 'personName is required' });
+  }
+  if (!items || !items.length) {
+    return res.status(400).json({ message: 'At least one item is required' });
+  }
+
+  try {
+    // Validate all items first
+    for (const alloc of items) {
+      const { itemId, color: c, size: s, quantity: qty } = alloc;
+      if (!itemId || !qty || qty <= 0) {
+        return res.status(400).json({ message: 'Each item must have itemId and quantity > 0' });
+      }
+      const item = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
+      if (!item) return res.status(404).json({ message: `Item not found: ${itemId}` });
+
+      if (item.variants && Array.isArray(item.variants) && item.variants.length > 0) {
+        if (!c && !s) {
+          return res.status(400).json({ message: `color and/or size are required for ${item.name} (has variants)` });
+        }
+        const matchIdx = item.variants.findIndex(v =>
+          (!c || (v.color && v.color.toLowerCase() === c.toLowerCase())) &&
+          (!s || (v.size && v.size.toLowerCase() === s.toLowerCase()))
+        );
+        if (matchIdx < 0) {
+          return res.status(400).json({ message: `Variant not found for ${item.name}: ${c || ''} ${s || ''}`.trim() });
+        }
+      }
+    }
+
+    // Auto-generate display ID
+    const count = await prisma.allocationCart.count();
+    const displayId = `ALC-${String(count + 1).padStart(3, '0')}`;
+
+    // Create cart
+    const cart = await prisma.allocationCart.create({
+      data: {
+        displayId,
+        personName: personName.trim(),
+        notes: notes || '',
+        totalItems: items.length,
+        totalQuantity: items.reduce((s, i) => s + (parseInt(i.quantity) || 1), 0),
+        status: 'PENDING',
+        allocatedById: req.user?.id || null,
+        allocatedByName: req.user?.name || null,
+      }
+    });
+
+    // Create individual allocation records linked to cart
+    const allocations = [];
+    for (const alloc of items) {
+      const { itemId, color: c, size: s, quantity: qty } = alloc;
+      const item = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
+      let allocColor = c || item.color;
+      let allocSize = s || item.size;
+
+      if (item.variants && Array.isArray(item.variants) && item.variants.length > 0) {
+        const matchIdx = item.variants.findIndex(v =>
+          (!c || (v.color && v.color.toLowerCase() === c.toLowerCase())) &&
+          (!s || (v.size && v.size.toLowerCase() === s.toLowerCase()))
+        );
+        if (matchIdx >= 0) {
+          allocColor = item.variants[matchIdx].color || item.color;
+          allocSize = item.variants[matchIdx].size || item.size;
+        }
+      }
+
+      const allocation = await prisma.allocation.create({
+        data: {
+          cartId: cart.id,
+          personName: personName.trim(),
+          itemName: item.name,
+          itemCategory: item.category,
+          color: allocColor,
+          size: allocSize,
+          quantity: parseInt(qty),
+          notes: notes || '',
+          itemId: item.id,
+          allocatedById: req.user?.id || null,
+          allocatedByName: req.user?.name || null,
+          status: 'ACTIVE'
+        }
+      });
+      allocations.push(allocation);
+
+      await prisma.auditLog.create({
+        data: {
+          orderId: null,
+          action: 'INVENTORY_ALLOCATED',
+          details: `Cart ${displayId}: Allocated ${parseInt(qty)}x ${item.name} to ${personName.trim()}`,
+          performedBy: req.user.id
+        }
+      });
+    }
+
+    const created = await prisma.allocationCart.findUnique({
+      where: { id: cart.id },
+      include: { items: true }
+    });
+
+    res.status(201).json({ message: `Cart ${displayId} created with ${allocations.length} product(s)`, cart: created });
+  } catch (error) {
+    res.status(500).json({ message: 'Error creating cart allocation', error: error.message });
+  }
+};
+
+const getCarts = async (req, res) => {
+  try {
+    const { personName, status, page = 1, limit = 50 } = req.query;
+    const where = {};
+    if (personName) where.personName = { contains: personName, mode: 'insensitive' };
+    if (status) where.status = status;
+    const [records, total] = await Promise.all([
+      prisma.allocationCart.findMany({
+        where,
+        include: { items: true },
+        orderBy: { createdAt: 'desc' },
+        skip: (parseInt(page) - 1) * parseInt(limit),
+        take: parseInt(limit)
+      }),
+      prisma.allocationCart.count({ where })
+    ]);
+    res.json({ records, total });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching carts', error: error.message });
+  }
+};
+
+const updateCartStatus = async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  const validStatuses = ['APPROVED', 'REJECTED'];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ message: `Status must be one of: ${validStatuses.join(', ')}` });
+  }
+
+  try {
+    const cart = await prisma.allocationCart.findUnique({
+      where: { id },
+      include: { items: true }
+    });
+    if (!cart) return res.status(404).json({ message: 'Cart not found' });
+    if (cart.status !== 'PENDING') {
+      return res.status(400).json({ message: `Cart already ${cart.status.toLowerCase()}. Cannot modify.` });
+    }
+
+    if (status === 'APPROVED') {
+      // Deduct all items in a single transaction
+      await prisma.$transaction(async (tx) => {
+        for (const alloc of cart.items) {
+          const item = alloc.itemId ? await tx.inventoryItem.findUnique({ where: { id: alloc.itemId } }) : null;
+          if (!item) continue;
+
+          const deductQty = alloc.quantity;
+          if (item.variants && Array.isArray(item.variants) && item.variants.length > 0) {
+            let updatedVariants = [...item.variants];
+            const matchIdx = updatedVariants.findIndex(v =>
+              (!alloc.color || (v.color && v.color.toLowerCase() === alloc.color.toLowerCase())) &&
+              (!alloc.size || (v.size && v.size.toLowerCase() === alloc.size.toLowerCase()))
+            );
+            if (matchIdx < 0) {
+              throw new Error(`Variant not found for ${item.name}`);
+            }
+            const available = updatedVariants[matchIdx].stock || 0;
+            if (available < deductQty) {
+              throw new Error(`Insufficient stock for ${item.name}. Only ${available} of ${deductQty} available.`);
+            }
+            updatedVariants[matchIdx] = { ...updatedVariants[matchIdx], stock: available - deductQty };
+            const newTotal = updatedVariants.reduce((sum, v) => sum + (v.stock || 0), 0);
+            await tx.inventoryItem.update({
+              where: { id: item.id },
+              data: { variants: updatedVariants, stock: newTotal }
+            });
+          } else {
+            if ((item.stock || 0) < deductQty) {
+              throw new Error(`Insufficient stock for ${item.name}. Only ${item.stock} of ${deductQty} available.`);
+            }
+            await tx.inventoryItem.update({
+              where: { id: item.id },
+              data: { stock: { decrement: deductQty } }
+            });
+          }
+
+          await tx.allocation.update({
+            where: { id: alloc.id },
+            data: { status: 'ACCEPTED' }
+          });
+        }
+
+        await tx.allocationCart.update({
+          where: { id },
+          data: { status: 'APPROVED', approvedAt: new Date() }
+        });
+
+        await tx.auditLog.create({
+          data: {
+            orderId: null,
+            action: 'CART_APPROVED',
+            details: `Cart ${cart.displayId || id} approved. ${cart.items.length} product(s) to ${cart.personName}.`,
+            performedBy: req.user.id
+          }
+        });
+      });
+    } else {
+      // REJECTED — just update status
+      await prisma.$transaction(async (tx) => {
+        await tx.allocation.updateMany({
+          where: { cartId: id },
+          data: { status: 'REJECTED' }
+        });
+        await tx.allocationCart.update({
+          where: { id },
+          data: { status: 'REJECTED' }
+        });
+        await tx.auditLog.create({
+          data: {
+            orderId: null,
+            action: 'CART_REJECTED',
+            details: `Cart ${cart.displayId || id} rejected. ${cart.items.length} product(s) to ${cart.personName}.`,
+            performedBy: req.user.id
+          }
+        });
+      });
+    }
+
+    const updated = await prisma.allocationCart.findUnique({
+      where: { id },
+      include: { items: true }
+    });
+    res.json(updated);
+  } catch (error) {
+    if (error.message && (error.message.includes('Insufficient') || error.message.includes('not found'))) {
+      return res.status(400).json({ message: error.message });
+    }
+    res.status(500).json({ message: 'Error updating cart status', error: error.message });
+  }
+};
+
+module.exports = { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem, clearAllInventory, bulkUploadInventory, allocateInventory, getAllocations, getAllocationStats, searchInventory, updateAllocationStatus, createCartAllocation, getCarts, updateCartStatus };

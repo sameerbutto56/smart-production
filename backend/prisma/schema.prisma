@@ -242,6 +242,7 @@ model StockRequest {
 
 model Allocation {
   id        String   @id @default(uuid())
+  cartId    String?
   personName String
   itemName   String
   itemCategory String
@@ -255,10 +256,33 @@ model Allocation {
   status    String   @default("ACTIVE")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  cart      AllocationCart? @relation(fields: [cartId], references: [id])
 
   @@index([personName])
   @@index([createdAt])
   @@index([status])
+  @@index([allocatedById])
+  @@index([cartId])
+}
+
+model AllocationCart {
+  id              String      @id @default(uuid())
+  displayId       String?
+  personName      String
+  notes           String?
+  totalItems      Int         @default(0)
+  totalQuantity   Int         @default(0)
+  status          String      @default("PENDING")
+  allocatedById   String?
+  allocatedByName String?
+  approvedAt      DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  items           Allocation[]
+
+  @@index([personName])
+  @@index([status])
+  @@index([createdAt])
   @@index([allocatedById])
 }
 

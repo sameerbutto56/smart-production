@@ -1,5 +1,5 @@
 const express = require('express');
-const { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem, clearAllInventory, bulkUploadInventory, allocateInventory, getAllocations, getAllocationStats, searchInventory, updateAllocationStatus } = require('../controllers/inventory.controller');
+const { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem, clearAllInventory, bulkUploadInventory, allocateInventory, getAllocations, getAllocationStats, searchInventory, updateAllocationStatus, createCartAllocation, getCarts, updateCartStatus } = require('../controllers/inventory.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 const router = express.Router();
 const multer = require('multer');
@@ -12,6 +12,10 @@ router.post('/allocate', authenticate, authorize(['STORE', 'ADMIN', 'SUPER_ADMIN
 router.get('/allocations', authenticate, getAllocations);
 router.get('/allocations/stats', authenticate, getAllocationStats);
 router.patch('/allocations/:id/status', authenticate, authorize(['STORE', 'ADMIN', 'SUPER_ADMIN']), updateAllocationStatus);
+// Cart-based allocation
+router.post('/allocate-cart', authenticate, authorize(['STORE', 'ADMIN', 'SUPER_ADMIN']), createCartAllocation);
+router.get('/carts', authenticate, getCarts);
+router.patch('/carts/:id/status', authenticate, authorize(['STORE', 'ADMIN', 'SUPER_ADMIN']), updateCartStatus);
 router.get('/search', authenticate, searchInventory);
 router.put('/:id', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'FAISAL', 'STORE']), updateInventoryItem);
 router.delete('/:id', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'FAISAL', 'STORE']), deleteInventoryItem);

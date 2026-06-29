@@ -43,6 +43,13 @@ const WarehouseDashboard = () => {
   const [allocPage, setAllocPage] = useState(1);
   const [allocSearch, setAllocSearch] = useState('');
   const [allocLoading, setAllocLoading] = useState(false);
+  const [carts, setCarts] = useState([]);
+  const [cartsTotal, setCartsTotal] = useState(0);
+  const [cartsPage, setCartsPage] = useState(1);
+  const [cartsSearch, setCartsSearch] = useState('');
+  const [cartsStatusFilter, setCartsStatusFilter] = useState('');
+  const [cartsLoading, setCartsLoading] = useState(false);
+  const [expandedCart, setExpandedCart] = useState(null);
   const [productionInventory, setProductionInventory] = useState([]);
   const [prodCategoryFilter, setProdCategoryFilter] = useState('');
   const [unseenTasks, setUnseenTasks] = useState(null);
@@ -67,11 +74,12 @@ const WarehouseDashboard = () => {
     if (activeTab === 'allocation') {
       fetchAllocations();
       fetchAllocationStats();
+      fetchCarts();
     }
     if (activeTab === 'demands') {
       fetchDemands();
     }
-  }, [activeTab, allocPage, demandFilter]);
+  }, [activeTab, allocPage, cartsPage, demandFilter]);
 
   useEffect(() => {
     fetchData();
@@ -146,6 +154,36 @@ const WarehouseDashboard = () => {
       fetchAllocationStats();
     } catch (error) {
       console.error('Allocation status update error:', error.response?.status, error.response?.data);
+      toast.error(error.response?.data?.message || `Error ${error.response?.status || 'no response'}. Check console.`);
+    }
+  };
+
+  const fetchCarts = async () => {
+    setCartsLoading(true);
+    try {
+      const token = sessionStorage.getItem('token');
+      const params = { page: cartsPage, limit: 50 };
+      if (cartsSearch.trim()) params.personName = cartsSearch.trim();
+      if (cartsStatusFilter) params.status = cartsStatusFilter;
+      const res = await axios.get(`${API_URL}/api/inventory/carts`, { params, headers: { Authorization: `Bearer ${token}` } });
+      setCarts(res.data.records);
+      setCartsTotal(res.data.total);
+    } catch (error) {
+      console.error('Error fetching carts:', error);
+    }
+    setCartsLoading(false);
+  };
+
+  const handleCartStatus = async (id, status) => {
+    try {
+      const token = sessionStorage.getItem('token');
+      await axios.patch(`${API_URL}/api/inventory/carts/${id}/status`, { status }, { headers: { Authorization: `Bearer ${token}` } });
+      toast.success(`Cart ${status.toLowerCase()} successfully`);
+      fetchCarts();
+      fetchAllocationStats();
+      fetchData(true);
+    } catch (error) {
+      console.error('Cart status update error:', error.response?.status, error.response?.data);
       toast.error(error.response?.data?.message || `Error ${error.response?.status || 'no response'}. Check console.`);
     }
   };
@@ -287,7 +325,7 @@ const WarehouseDashboard = () => {
     setAllocationLoading(true);
     try {
       const token = sessionStorage.getItem('token');
-      await axios.post(`${API_URL}/api/inventory/allocate`, {
+      const res = await axios.post(`${API_URL}/api/inventory/allocate-cart`, {
         personName: personName.trim(),
         items: allocCartItems.map(i => ({
           itemId: i.productId,
@@ -297,7 +335,7 @@ const WarehouseDashboard = () => {
         })),
         notes: allocNotes,
       }, { headers: { Authorization: `Bearer ${token}` } });
-      toast.success('Products allocated successfully');
+      toast.success(res.data.message || 'Cart created successfully');
       setPersonName('');
       setAllocCartItems([]);
       setAllocNotes('');
@@ -306,8 +344,9 @@ const WarehouseDashboard = () => {
       fetchData(true);
       fetchAllocations();
       fetchAllocationStats();
+      fetchCarts();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Error allocating products');
+      toast.error(error.response?.data?.message || 'Error creating cart allocation');
     }
     setAllocationLoading(false);
   };
@@ -1238,98 +1277,134 @@ const WarehouseDashboard = () => {
                 </div>
               </div>
 
-              {/* Allocation History Cards */}
+              {/* Cart List — grouped allocation approval */}
               <div className="glass p-4 md:p-8 rounded-xl md:rounded-[2.5rem] border-2 theme-border">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                   <h3 className="font-black theme-text-primary uppercase tracking-wider text-sm flex items-center space-x-3">
-                    <Clock size={18} className="text-blue-400" />
-                    <span>Allocation History</span>
+                    <ShoppingCart size={18} className="text-amber-400" />
+                    <span>Allocation Carts</span>
                   </h3>
                   <div className="flex items-center space-x-3">
-                    <input type="text" placeholder="Search by person name..." value={allocSearch}
-                      onChange={(e) => setAllocSearch(e.target.value)}
+                    <select value={cartsStatusFilter} onChange={(e) => { setCartsStatusFilter(e.target.value); setCartsPage(1); }}
+                      className="theme-bg-subtle border-2 theme-border rounded-xl py-2 px-3 text-xs font-medium text-white outline-none">
+                      <option value="">All Status</option>
+                      <option value="PENDING">Pending</option>
+                      <option value="APPROVED">Approved</option>
+                      <option value="REJECTED">Rejected</option>
+                    </select>
+                    <input type="text" placeholder="Search by person name..." value={cartsSearch}
+                      onChange={(e) => setCartsSearch(e.target.value)}
                       className="theme-input rounded-xl py-2 px-4 focus:border-amber-500 outline-none text-xs font-medium theme-text-secondary w-48"
                     />
-                    <button onClick={() => { setAllocPage(1); fetchAllocations(); }}
+                    <button onClick={() => { setCartsPage(1); fetchCarts(); }}
                       className="bg-gray-800 hover:bg-gray-700 text-gray-300 font-black py-2 px-4 rounded-xl transition-all text-xs active:scale-95 border border-gray-700">
                       <Search size={14} className="inline" />
                     </button>
                   </div>
                 </div>
-                {allocLoading ? (
+                {cartsLoading ? (
                   <div className="py-12 flex justify-center"><RefreshCcw className="animate-spin text-blue-400" size={32} /></div>
-                ) : allocationRecords.length === 0 ? (
+                ) : carts.length === 0 ? (
                   <div className="text-center py-12">
-                    <Clock size={48} className="mx-auto text-gray-700 mb-4" />
-                    <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No allocation records yet</p>
+                    <ShoppingCart size={48} className="mx-auto text-gray-700 mb-4" />
+                    <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No allocation carts yet</p>
+                    <p className="text-[10px] theme-text-muted mt-2">Create a cart by selecting products and clicking Allocate</p>
                   </div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {allocationRecords.map(rec => {
-                        const statusColors = {
-                          ACTIVE: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-                          ACCEPTED: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-                          REJECTED: 'bg-red-500/20 text-red-400 border-red-500/30',
-                          COMPLETED: 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+                    <div className="space-y-3">
+                      {carts.map(cart => {
+                        const cartStatusColors = {
+                          PENDING: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+                          APPROVED: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+                          REJECTED: 'bg-red-500/20 text-red-400 border-red-500/30'
                         };
-                        const statusLabels = {
-                          ACTIVE: 'Active',
-                          ACCEPTED: 'Accepted',
-                          REJECTED: 'Rejected',
-                          COMPLETED: 'Completed'
-                        };
-                        const sc = statusColors[rec.status] || 'bg-gray-500/20 text-gray-400 border-gray-500/30';
+                        const cartStatusLabels = { PENDING: 'Pending', APPROVED: 'Approved', REJECTED: 'Rejected' };
+                        const sc = cartStatusColors[cart.status] || 'bg-gray-500/20 text-gray-400 border-gray-500/30';
+                        const isExpanded = expandedCart === cart.id;
                         return (
-                          <motion.div key={rec.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                            className="glass p-4 rounded-xl border-2 border-gray-900 hover:border-gray-700 transition-all">
-                            <div className="flex items-start justify-between mb-2">
-                              <div>
-                                <p className="font-black theme-text-primary text-sm">{rec.personName}</p>
-                                <p className="text-xs theme-text-muted font-bold">{rec.itemName}</p>
+                          <motion.div key={cart.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                            className="glass rounded-xl border-2 border-gray-900 hover:border-gray-700 transition-all overflow-hidden">
+                            <div className="p-4 cursor-pointer" onClick={() => setExpandedCart(isExpanded ? null : cart.id)}>
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center space-x-3 mb-1">
+                                    <span className="font-black theme-text-primary text-sm">{cart.displayId || cart.id.slice(0, 8)}</span>
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase border ${sc}`}>
+                                      {cartStatusLabels[cart.status] || cart.status}
+                                    </span>
+                                  </div>
+                                  <p className="font-bold theme-text-primary text-xs">{cart.personName}</p>
+                                </div>
+                                <div className="flex items-center space-x-4 text-xs theme-text-muted shrink-0">
+                                  <span className="font-bold">{cart.totalItems} products</span>
+                                  <span className="font-bold text-amber-400">{cart.totalQuantity} qty</span>
+                                </div>
                               </div>
-                              <div className="flex items-center space-x-2">
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase border ${sc}`}>
-                                  {statusLabels[rec.status] || rec.status || 'ACTIVE'}
-                                </span>
-                                <span className="text-lg font-black text-amber-400">{rec.quantity}</span>
-                              </div>
-                            </div>
-                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs theme-text-secondary">
-                              {rec.color && <span>Color: <span className="font-bold">{rec.color}</span></span>}
-                              {rec.size && <span>Size: <span className="font-bold">{rec.size}</span></span>}
-                            </div>
-                            {rec.notes && <p className="text-xs theme-text-muted mt-1 italic">{rec.notes}</p>}
-                            <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-800/50">
-                              <p className="text-[10px] theme-text-muted">{new Date(rec.createdAt).toLocaleString()}</p>
-                              <div className="flex space-x-1">
-                                {rec.allocatedByName && <p className="text-[10px] theme-text-muted">by {rec.allocatedByName}</p>}
-                                {rec.status === 'ACTIVE' && (
-                                  <>
-                                    <button onClick={() => updateAllocationStatus(rec.id, 'ACCEPTED')}
-                                      className="px-2 py-1 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-lg text-[10px] font-black transition-all">
-                                      Accept
+                              <div className="flex items-center justify-between mt-2">
+                                <div className="flex items-center space-x-3 text-[10px] theme-text-muted">
+                                  <span>{new Date(cart.createdAt).toLocaleString()}</span>
+                                  {cart.allocatedByName && <span>by {cart.allocatedByName}</span>}
+                                  {cart.approvedAt && <span>Approved: {new Date(cart.approvedAt).toLocaleString()}</span>}
+                                </div>
+                                {cart.status === 'PENDING' && (
+                                  <div className="flex space-x-2" onClick={(e) => e.stopPropagation()}>
+                                    <button onClick={() => handleCartStatus(cart.id, 'APPROVED')}
+                                      className="px-4 py-1.5 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-lg text-[10px] font-black transition-all flex items-center space-x-1">
+                                      <CheckCircle size={12} />
+                                      <span>Approve All</span>
                                     </button>
-                                    <button onClick={() => updateAllocationStatus(rec.id, 'REJECTED')}
-                                      className="px-2 py-1 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-lg text-[10px] font-black transition-all">
-                                      Reject
+                                    <button onClick={() => handleCartStatus(cart.id, 'REJECTED')}
+                                      className="px-4 py-1.5 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-lg text-[10px] font-black transition-all flex items-center space-x-1">
+                                      <XCircle size={12} />
+                                      <span>Reject All</span>
                                     </button>
-                                  </>
+                                  </div>
                                 )}
                               </div>
                             </div>
+                            {/* Expanded items */}
+                            {isExpanded && (
+                              <div className="border-t border-gray-800/50 px-4 py-3 space-y-2">
+                                <p className="text-[10px] font-black theme-text-muted uppercase tracking-wider mb-2">Cart Items</p>
+                                {cart.items.map((item, idx) => (
+                                  <div key={item.id} className="flex items-center justify-between py-1.5 px-3 theme-bg-subtle rounded-lg">
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs font-bold theme-text-primary truncate">{item.itemName}</p>
+                                      <div className="flex items-center space-x-3 text-[10px] theme-text-muted">
+                                        {item.color && <span>Color: {item.color}</span>}
+                                        {item.size && <span>Size: {item.size}</span>}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center space-x-3 shrink-0">
+                                      <span className="text-xs font-black text-amber-400">x{item.quantity}</span>
+                                      <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase border ${
+                                        item.status === 'ACCEPTED' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+                                        item.status === 'REJECTED' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
+                                        'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                                      }`}>
+                                        {item.status === 'ACCEPTED' ? 'Accepted' : item.status === 'REJECTED' ? 'Rejected' : 'Active'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))}
+                                {cart.notes && (
+                                  <p className="text-[10px] theme-text-muted italic mt-2 px-3">Notes: {cart.notes}</p>
+                                )}
+                              </div>
+                            )}
                           </motion.div>
                         );
                       })}
                     </div>
                     <div className="flex items-center justify-between mt-6">
-                      <p className="text-xs theme-text-muted font-bold">{allocTotal} total records</p>
+                      <p className="text-xs theme-text-muted font-bold">{cartsTotal} total carts</p>
                       <div className="flex space-x-2">
-                        <button disabled={allocPage <= 1} onClick={() => { setAllocPage(p => p - 1); }}
+                        <button disabled={cartsPage <= 1} onClick={() => { setCartsPage(p => p - 1); }}
                           className="px-4 py-2 bg-gray-800 rounded-xl text-xs font-black text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all">
                           Previous
                         </button>
-                        <button disabled={allocationRecords.length < 50} onClick={() => { setAllocPage(p => p + 1); }}
+                        <button disabled={carts.length < 50} onClick={() => { setCartsPage(p => p + 1); }}
                           className="px-4 py-2 bg-gray-800 rounded-xl text-xs font-black text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all">
                           Next
                         </button>

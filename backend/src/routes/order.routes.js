@@ -123,7 +123,7 @@ router.post('/:orderId/edit-request', authenticate, authorize(['FAISAL', 'ORDER_
 router.post('/:orderId/route', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), manualRouteOrder);
 
 // Bulk Routing (all authenticated workers)
-router.post('/bulk-route', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), bulkRouteOrders);
+router.post('/bulk-route', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), bulkRouteOrders);
 
 // Universal accept task (any authenticated user)
 router.post('/:orderId/accept-task', authenticate, acceptTask);
@@ -134,7 +134,7 @@ router.get('/:orderId/timeline', authenticate, getOrderTimeline);
 // Store Profile Routes
 router.post('/:orderId/accept-store', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), acceptStoreOrder);
 router.post('/:orderId/store-route', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), storeRouteOrder);
-router.post('/:orderId/return-to-store', authenticate, authorize(['LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'PRODUCTION', 'DISPATCH', 'MAIN_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), returnToStore);
+router.post('/:orderId/return-to-store', authenticate, authorize(['LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'DISPATCH', 'MAIN_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), returnToStore);
 router.get('/store-dashboard', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), getStoreDashboardOrders);
 
 // Seen/Unseen
