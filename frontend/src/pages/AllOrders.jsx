@@ -912,7 +912,7 @@ const AllOrders = () => {
                             {allItems.map((item, idx) => {
                               const p = item.productDetails || {};
                               const c = item.customization || {};
-                              const s = item.sizeData || {};
+                              const s = item.sizeData || rawSizes || {};
                               const hasSleeves = p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves);
                               const hasShirtLength = p.shirtLength || (p.gender === 'Female' && p.femaleOptions?.shirtLength);
                               const hasMeasurements = s && Object.values(s).some(v => v);
