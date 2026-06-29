@@ -5,6 +5,7 @@ import OrderCard from '../components/OrderCard';
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
 import { useLanguage } from '../context/LanguageContext';
+import { Navigate } from 'react-router-dom';
 import { Search, Filter, Loader2, Sparkles, AlertCircle, Activity, Clock, Target, History, X, Eye, CheckCircle, RefreshCcw } from 'lucide-react';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 import socket from '../socket';
@@ -15,6 +16,7 @@ const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'l
 
 const MyTasks = () => {
   const { user } = useAuth();
+  if (user?.role === 'INVENTORY_VIEW') return <Navigate to="/inventory" replace={true} />;
   const { t, LanguageToggle, isUrdu } = useLanguage();
   const hasTaskFilters = ['STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH', 'MAIN_EMPLOYEE'].includes(user?.role);
   const showProductionTab = ['STORE', 'STORE_EMPLOYEE'].includes(user?.role);
