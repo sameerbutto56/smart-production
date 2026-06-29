@@ -311,7 +311,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               transition={{ delay: idx * 0.1 }}
               className={`text-xs md:text-sm flex items-center justify-between p-2 rounded-lg border ${isRejected ? 'bg-red-900/10 border-red-500/30 border-l-2 border-l-red-500' : isCompleted ? 'bg-emerald-900/10 border-emerald-500/30 border-l-2 border-l-emerald-500' : 'bg-gray-900/30 border-gray-800/20'}`}
             >
-              <span className={`font-bold uppercase tracking-tighter ${isRejected ? 'text-orange-300' : isCompleted ? 'text-emerald-300' : 'text-gray-400'}`}>#{idx + 1} {p.productType || 'Item'}: {p.fabricType || 'STD'} / {p.color || '—'} / Size {p.size || '—'}</span>
+              <span className={`font-bold uppercase tracking-tighter ${isRejected ? 'text-orange-300' : isCompleted ? 'text-emerald-300' : 'text-gray-400'}`}>#{idx + 1} {p.productType || 'Item'}: {p.fabricType || 'STD'} / {p.color || '—'} / Size {p.size || '—'}{p.alteration && (p.alteration.trouserLength || p.alteration.shirtLength || p.alteration.sleeveLength) ? <span className="ml-1.5 text-amber-400 bg-amber-500/20 border border-amber-500/30 px-1 py-0.5 rounded text-[9px]">Alt: {[p.alteration.trouserLength && `Trouser ${p.alteration.trouserLength}"`, p.alteration.shirtLength && `Shirt ${p.alteration.shirtLength}"`, p.alteration.sleeveLength && `Sleeve ${p.alteration.sleeveLength}"`].filter(Boolean).join(' ')}</span> : ''}</span>
               {isStoreRole && (
                 <div className="flex gap-1 shrink-0 ml-2">
                   <button
@@ -340,7 +340,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
       const items = [
         { label: 'Fabric', val: product?.fabricType },
         { label: 'Color', val: product?.color },
-        { label: 'Base', val: product?.productType }
+        { label: 'Base', val: product?.productType },
+        ...(product?.alteration && (product.alteration.trouserLength || product.alteration.shirtLength || product.alteration.sleeveLength) ? [{ label: 'Alteration', val: [product.alteration.trouserLength && `Trouser ${product.alteration.trouserLength}"`, product.alteration.shirtLength && `Shirt ${product.alteration.shirtLength}"`, product.alteration.sleeveLength && `Sleeve ${product.alteration.sleeveLength}"`].filter(Boolean).join(' ') }] : [])
       ];
       const singleCompleted = productAvailability[0] === true;
       const singleRejected = productAvailability[0] === false;
@@ -436,13 +437,19 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   {[
                     { l: t('Fabric'), v: p?.fabricType },
                     { l: t('Color'), v: p?.color },
-                    { l: 'Size', v: p?.size }
+                    { l: 'Size', v: p?.size },
                   ].filter(m => m.v).map((m, mi) => (
                     <div key={mi} className="bg-blue-500/5 p-2 rounded-lg border border-blue-500/10 text-center">
                       <p className="text-[9px] text-blue-400 font-black uppercase">{m.l}</p>
                       <p className="text-xs md:text-sm font-black text-white truncate">{m.v}</p>
                     </div>
                   ))}
+                  {p?.alteration && (p.alteration.trouserLength || p.alteration.shirtLength || p.alteration.sleeveLength) && (
+                    <div className="bg-amber-500/10 p-2 rounded-lg border border-amber-500/30 text-center col-span-3">
+                      <p className="text-[9px] text-amber-400 font-black uppercase">Alteration</p>
+                      <p className="text-xs md:text-sm font-black text-amber-300">{[p.alteration.trouserLength && `Trouser ${p.alteration.trouserLength}"`, p.alteration.shirtLength && `Shirt ${p.alteration.shirtLength}"`, p.alteration.sleeveLength && `Sleeve ${p.alteration.sleeveLength}"`].filter(Boolean).join(' | ')}</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Custom Requirements */}
