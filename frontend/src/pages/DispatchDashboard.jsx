@@ -109,7 +109,6 @@ const DispatchDashboard = () => {
 
   const handleBookCourier = async (orderId) => {
     const option = selectedOption;
-    if (option.type === 'courier' && !trackingNumber.trim()) return;
     if (option.id === 'OTHER' && !otherCourierName.trim()) return;
     setSubmitting(true);
     try {
@@ -712,7 +711,7 @@ const DispatchDashboard = () => {
                 <button onClick={() => { setBookModal(null); setTrackingNumber(''); setEstimatedDelivery(''); setOtherCourierName(''); setSelectedOption(DISPATCH_OPTIONS[0]); }}
                   className="flex-1 py-3 bg-gray-800 text-gray-400 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-gray-700 transition-all">Cancel</button>
                 <button onClick={() => handleBookCourier(bookModal.id)}
-                  disabled={submitting || (selectedOption.type === 'courier' && !trackingNumber.trim()) || (selectedOption.id === 'OTHER' && !otherCourierName.trim())}
+                  disabled={submitting || (selectedOption.id === 'OTHER' && !otherCourierName.trim())}
                   className="flex-1 py-3 bg-purple-600 text-white rounded-xl font-black text-xs uppercase tracking-wider hover:bg-purple-500 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
                   {submitting ? <Loader2 className="animate-spin" size={16} /> : <Truck size={16} />}
                   {selectedOption.id === 'WALK_IN' ? 'Confirm Received' : selectedOption.id === 'ENAMELS' ? 'Assign Delivery' : 'Book Courier'}

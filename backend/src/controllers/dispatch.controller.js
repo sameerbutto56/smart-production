@@ -126,8 +126,8 @@ const bookCourier = async (req, res) => {
   const { orderId } = req.params;
   const { courierName, trackingNumber, estimatedDelivery } = req.body;
 
-  if (!courierName || !trackingNumber) {
-    return res.status(400).json({ message: 'Courier name and tracking number are required' });
+  if (!courierName) {
+    return res.status(400).json({ message: 'Courier name is required' });
   }
 
   try {
