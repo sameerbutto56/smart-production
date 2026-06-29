@@ -6,8 +6,8 @@ const router = express.Router();
 router.get('/dashboard', authenticate, getDispatchDashboard);
 router.get('/queue', authenticate, getDispatchQueue);
 router.post('/:orderId/request', authenticate, authorize(['SUPER_ADMIN', 'FAISAL', 'ADMIN', 'OUTLET']), requestCourierDispatch);
-router.post('/:orderId/book', authenticate, authorize(['SUPER_ADMIN', 'FAISAL', 'ADMIN']), bookCourier);
-router.put('/:orderId/status', authenticate, authorize(['SUPER_ADMIN', 'FAISAL', 'ADMIN', 'DELIVERY_BOY']), updateCourierStatus);
+router.post('/:orderId/book', authenticate, authorize(['SUPER_ADMIN', 'FAISAL', 'ADMIN', 'DISPATCH']), bookCourier);
+router.put('/:orderId/status', authenticate, authorize(['SUPER_ADMIN', 'FAISAL', 'ADMIN', 'DELIVERY_BOY', 'DISPATCH']), updateCourierStatus);
 router.get('/pickup', authenticate, authorize(['SUPER_ADMIN', 'FAISAL', 'ADMIN', 'OUTLET']), getPickupOrders);
 router.put('/:orderId/pickup', authenticate, authorize(['SUPER_ADMIN', 'FAISAL', 'ADMIN', 'OUTLET', 'ORDER_ENTRY']), markPickedUp);
 
