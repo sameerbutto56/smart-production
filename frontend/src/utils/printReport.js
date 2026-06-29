@@ -441,7 +441,7 @@ function romanToUrdu(text) {
     'advance': 'ایڈوانس',
     'remaining': 'باقی', 'baqi': 'باقی',
     'balance': 'بیلنس',
-    'free': 'مفت', 'muft': 'مفت',
+    'free': 'فری', 'muft': 'مفت',
     'delivery charges': 'ڈلیوری چارجز',
     'charges': 'چارجز',
 
@@ -487,6 +487,9 @@ function romanToUrdu(text) {
     'islamabad': 'اسلام آباد',
     'karachi': 'کراچی', 'khi': 'کراچی',
     'rawalpindi': 'راولپنڈی',
+    'lab coat': 'لب کوٹ',
+    'lab-coat': 'لب-کوٹ',
+    'wrinkle': 'رنکل',
     'faisalabad': 'فیصل آباد',
     'multan': 'ملتان',
     'gujranwala': 'گوجرانوالہ',
@@ -1125,10 +1128,10 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.nameLines}</p>`);
           if (filteredNames.length > 0) {
             filteredNames.forEach((an, ai) => {
-              win.document.write(`<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span style="background:#7c3aed20;color:#7c3aed;font-size:18px;font-weight:800;padding:2px 6px;border-radius:3px">L${ai + 1}</span><span style="font-size:24px;font-weight:700">${ru(an)}</span></div>`);
+              win.document.write(`<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span style="background:#7c3aed20;color:#7c3aed;font-size:18px;font-weight:800;padding:2px 6px;border-radius:3px">L${ai + 1}</span><span style="font-size:24px;font-weight:700">${an}</span></div>`);
             });
           } else {
-            win.document.write(`<div style="display:flex;align-items:center;gap:6px"><span style="background:#7c3aed20;color:#7c3aed;font-size:18px;font-weight:800;padding:2px 6px;border-radius:3px">L1</span><span style="font-size:24px;font-weight:700">${ru(c.nameSpelling)}</span></div>`);
+            win.document.write(`<div style="display:flex;align-items:center;gap:6px"><span style="background:#7c3aed20;color:#7c3aed;font-size:18px;font-weight:800;padding:2px 6px;border-radius:3px">L1</span><span style="font-size:24px;font-weight:700">${c.nameSpelling}</span></div>`);
           }
           win.document.write(`</div>`);
         }
@@ -1136,9 +1139,9 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
         // Specs badges
         if (hasSpecs) {
           win.document.write(`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">`);
-          if (c.nameColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fce7f3;color:#9d174d">${sec.color}: ${ru(c.nameColor)}</span>`);
-          if (c.logoPlacement) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#ccfbf1;color:#0f766e">${sec.position}: ${ru(c.logoPlacement)}</span>`);
-          if (c.logoColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#92400e">${isUrdu ? 'لوگو:' : 'Logo:'} ${ru(c.logoColor)}</span>`);
+          if (c.nameColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fce7f3;color:#9d174d">${sec.color}: ${c.nameColor}</span>`);
+          if (c.logoPlacement) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#ccfbf1;color:#0f766e">${sec.position}: ${c.logoPlacement}</span>`);
+          if (c.logoColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#92400e">${isUrdu ? 'لوگو:' : 'Logo:'} ${c.logoColor}</span>`);
           win.document.write(`</div>`);
         }
 
@@ -1147,14 +1150,14 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           win.document.write(`<div style="margin-bottom:6px">`);
           win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.logos}</p>`);
           c.logos.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).forEach((l, li) => {
-            win.document.write(`<div style="font-size:22px;font-weight:700;background:#fffbeb;padding:3px 8px;border-radius:4px;margin-bottom:2px;border:2px solid #fef3c7">${ru(l.name) || l.design}${l.name && l.design ? ` — ${ru(l.design)}` : ''}</div>`);
+            win.document.write(`<div style="font-size:22px;font-weight:700;background:#fffbeb;padding:3px 8px;border-radius:4px;margin-bottom:2px;border:2px solid #fef3c7">${l.name || l.design}${l.name && l.design ? ` — ${l.design}` : ''}</div>`);
           });
           win.document.write(`</div>`);
         }
 
         // Special Notes
         if (hasNotes) {
-          const notesDisplay = isUrdu ? romanToUrdu(c.designNotes) : c.designNotes;
+          const notesDisplay = c.designNotes;
           win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px">`);
           win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
           win.document.write(`<p style="font-size:22px;font-style:italic;color:#000"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
