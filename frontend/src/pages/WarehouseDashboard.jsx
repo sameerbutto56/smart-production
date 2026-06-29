@@ -1101,6 +1101,19 @@ const WarehouseDashboard = () => {
                                 const uniqSizes = [...new Set(vs.map(v => v.size).filter(Boolean))];
                                 const uniqColors = [...new Set(vs.map(v => v.color).filter(Boolean))];
 
+                                if (hasVariants && (!allocSelectedColor || !allocSelectedSize)) {
+                                  toast.error('Please select both color and size before adding to cart');
+                                  return;
+                                }
+                                if (hasVariants && uniqColors.length > 0 && !allocSelectedColor) {
+                                  toast.error('Please select a color');
+                                  return;
+                                }
+                                if (hasVariants && uniqSizes.length > 0 && !allocSelectedSize) {
+                                  toast.error('Please select a size');
+                                  return;
+                                }
+
                                 setAllocCartItems(prev => {
                                   const existing = prev.findIndex(i => i.productId === item.id && i.size === allocSelectedSize && i.color === allocSelectedColor);
                                   if (existing >= 0) {

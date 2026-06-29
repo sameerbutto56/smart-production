@@ -349,10 +349,18 @@ const updateAllocationStatus = async (req, res) => {
       await prisma.$transaction(async (tx) => {
         if (item.variants && Array.isArray(item.variants) && item.variants.length > 0) {
           let updatedVariants = [...item.variants];
-          const matchIdx = updatedVariants.findIndex(v =>
-            (!allocation.color || (v.color && v.color.toLowerCase() === allocation.color.toLowerCase())) &&
-            (!allocation.size || (v.size && v.size.toLowerCase() === allocation.size.toLowerCase()))
-          );
+          const matchIdx = (() => {
+            const withStock = updatedVariants.findIndex(v =>
+              (v.stock || 0) >= deductQty &&
+              (!allocation.color || (v.color && v.color.toLowerCase() === allocation.color.toLowerCase())) &&
+              (!allocation.size || (v.size && v.size.toLowerCase() === allocation.size.toLowerCase()))
+            );
+            if (withStock >= 0) return withStock;
+            return updatedVariants.findIndex(v =>
+              (!allocation.color || (v.color && v.color.toLowerCase() === allocation.color.toLowerCase())) &&
+              (!allocation.size || (v.size && v.size.toLowerCase() === allocation.size.toLowerCase()))
+            );
+          })();
           if (matchIdx < 0) {
             throw new Error(`Variant not found for ${item.name}`);
           }
@@ -442,10 +450,19 @@ const createCartAllocation = async (req, res) => {
         if (!c && !s) {
           return res.status(400).json({ message: `color and/or size are required for ${item.name} (has variants)` });
         }
-        const matchIdx = item.variants.findIndex(v =>
-          (!c || (v.color && v.color.toLowerCase() === c.toLowerCase())) &&
-          (!s || (v.size && v.size.toLowerCase() === s.toLowerCase()))
-        );
+        const matchIdx = (() => {
+          // prefer a variant with available stock
+          const withStock = item.variants.findIndex(v =>
+            (v.stock || 0) > 0 &&
+            (!c || (v.color && v.color.toLowerCase() === c.toLowerCase())) &&
+            (!s || (v.size && v.size.toLowerCase() === s.toLowerCase()))
+          );
+          if (withStock >= 0) return withStock;
+          return item.variants.findIndex(v =>
+            (!c || (v.color && v.color.toLowerCase() === c.toLowerCase())) &&
+            (!s || (v.size && v.size.toLowerCase() === s.toLowerCase()))
+          );
+        })();
         if (matchIdx < 0) {
           return res.status(400).json({ message: `Variant not found for ${item.name}: ${c || ''} ${s || ''}`.trim() });
         }
@@ -479,10 +496,18 @@ const createCartAllocation = async (req, res) => {
       let allocSize = s || item.size;
 
       if (item.variants && Array.isArray(item.variants) && item.variants.length > 0) {
-        const matchIdx = item.variants.findIndex(v =>
-          (!c || (v.color && v.color.toLowerCase() === c.toLowerCase())) &&
-          (!s || (v.size && v.size.toLowerCase() === s.toLowerCase()))
-        );
+        const matchIdx = (() => {
+          const withStock = item.variants.findIndex(v =>
+            (v.stock || 0) > 0 &&
+            (!c || (v.color && v.color.toLowerCase() === c.toLowerCase())) &&
+            (!s || (v.size && v.size.toLowerCase() === s.toLowerCase()))
+          );
+          if (withStock >= 0) return withStock;
+          return item.variants.findIndex(v =>
+            (!c || (v.color && v.color.toLowerCase() === c.toLowerCase())) &&
+            (!s || (v.size && v.size.toLowerCase() === s.toLowerCase()))
+          );
+        })();
         if (matchIdx >= 0) {
           allocColor = item.variants[matchIdx].color || item.color;
           allocSize = item.variants[matchIdx].size || item.size;
@@ -579,10 +604,18 @@ const updateCartStatus = async (req, res) => {
         const deductQty = alloc.quantity;
         if (item.variants && Array.isArray(item.variants) && item.variants.length > 0) {
           let updatedVariants = [...item.variants];
-          const matchIdx = updatedVariants.findIndex(v =>
-            (!alloc.color || (v.color && v.color.toLowerCase() === alloc.color.toLowerCase())) &&
-            (!alloc.size || (v.size && v.size.toLowerCase() === alloc.size.toLowerCase()))
-          );
+          const matchIdx = (() => {
+            const withStock = updatedVariants.findIndex(v =>
+              (v.stock || 0) >= deductQty &&
+              (!alloc.color || (v.color && v.color.toLowerCase() === alloc.color.toLowerCase())) &&
+              (!alloc.size || (v.size && v.size.toLowerCase() === alloc.size.toLowerCase()))
+            );
+            if (withStock >= 0) return withStock;
+            return updatedVariants.findIndex(v =>
+              (!alloc.color || (v.color && v.color.toLowerCase() === alloc.color.toLowerCase())) &&
+              (!alloc.size || (v.size && v.size.toLowerCase() === alloc.size.toLowerCase()))
+            );
+          })();
           if (matchIdx < 0) throw new Error(`Variant not found for ${item.name}`);
           const available = updatedVariants[matchIdx].stock || 0;
           if (available < deductQty) throw new Error(`Insufficient stock for ${item.name}. Only ${available} of ${deductQty} available.`);
