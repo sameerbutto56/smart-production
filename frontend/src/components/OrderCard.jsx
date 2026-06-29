@@ -1731,8 +1731,20 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     {(() => {
                       const inventoryAdded = localInventoryAdded || order.auditLogs?.some(l => l.action === 'INVENTORY_ADDED');
                       return (
-                        <div className="grid grid-cols-2 gap-2">
-                          {!inventoryAdded ? (
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap gap-1">
+                            {['LOGO_DESIGN','PRODUCTION_ACCEPTANCE','PRODUCTION','WORKERS','DISPATCH','OUT_FOR_DELIVERY','ORDER_ENTRY'].map(dest => (
+                              <button key={dest} onClick={() => setStoreRouteDest(dest)}
+                                className={`px-2 py-1 rounded-lg text-[9px] font-black border transition-all ${
+                                  storeRouteDest === dest
+                                    ? 'border-amber-500 bg-amber-500/20 text-amber-300'
+                                    : 'border-gray-700 text-gray-400 hover:border-gray-500'
+                                }`}>
+                                {dest.replace(/_/g, ' ')}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
                             <button
                               onClick={async () => {
                                 try {
@@ -1746,46 +1758,33 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                   alert('Failed: ' + (err.response?.data?.message || err.message));
                                 }
                               }}
-                              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-blue-900/20"
+                              className={`py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg ${inventoryAdded ? 'bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 cursor-not-allowed' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-blue-900/20'}`}
+                              disabled={inventoryAdded}
                             >
                               <Package size={14} />
-                              <span>Add to Inventory</span>
-                              <span className="text-[6px] md:text-[9px] text-blue-200 tracking-widest">→ UPDATE STOCK</span>
+                              <span>{inventoryAdded ? 'Inventory Added ✓' : 'Add to Inventory'}</span>
+                              {!inventoryAdded && <span className="text-[6px] md:text-[9px] text-blue-200 tracking-widest">→ UPDATE STOCK</span>}
                             </button>
-                          ) : (
-                            <div className="col-span-2 space-y-2">
-                              <div className="flex flex-wrap gap-1">
-                                {['LOGO_DESIGN','PRODUCTION_ACCEPTANCE','PRODUCTION','WORKERS','DISPATCH','OUT_FOR_DELIVERY','ORDER_ENTRY'].map(dest => (
-                                  <button key={dest} onClick={() => setStoreRouteDest(dest)}
-                                    className={`px-2 py-1 rounded-lg text-[9px] font-black border transition-all ${
-                                      storeRouteDest === dest
-                                        ? 'border-amber-500 bg-amber-500/20 text-amber-300'
-                                        : 'border-gray-700 text-gray-400 hover:border-gray-500'
-                                    }`}>
-                                    {dest.replace(/_/g, ' ')}
-                                  </button>
-                                ))}
-                              </div>
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    const token = sessionStorage.getItem('token');
-                                    await axios.post(`${API_URL}/api/orders/${order.id}/route`, { destinationStage: storeRouteDest, remarks: 'Inventory added, routing from Store' }, { headers: { Authorization: `Bearer ${token}` } });
-                                    toast.success(`Sent to ${storeRouteDest.replace(/_/g, ' ')}`);
-                                  } catch (err) {
-                                    alert('Failed: ' + (err.response?.data?.message || err.message));
-                                  }
-                                }}
-                                className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 active:scale-95 shadow-lg shadow-emerald-900/20"
-                              >
-                                <Truck size={14} />
-                                <span>Route to {storeRouteDest.replace(/_/g, ' ')}</span>
-                              </button>
-                            </div>
-                          )}
+                            <button
+                              onClick={async () => {
+                                if (!storeRouteDest) { alert('Select a destination first'); return; }
+                                try {
+                                  const token = sessionStorage.getItem('token');
+                                  await axios.post(`${API_URL}/api/orders/${order.id}/route`, { destinationStage: storeRouteDest, remarks: inventoryAdded ? 'Inventory added, routing from Store' : 'Routing from Store (no inventory update)' }, { headers: { Authorization: `Bearer ${token}` } });
+                                  toast.success(`Sent to ${storeRouteDest.replace(/_/g, ' ')}`);
+                                } catch (err) {
+                                  alert('Failed: ' + (err.response?.data?.message || err.message));
+                                }
+                              }}
+                              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-emerald-900/20"
+                            >
+                              <Truck size={14} />
+                              <span>Route to {storeRouteDest.replace(/_/g, ' ') || '...'}</span>
+                            </button>
+                          </div>
                           <button
                             onClick={() => setShowProblemModal(true)}
-                            className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-lg shadow-red-900/20"
+                            className="w-full bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 active:scale-95 shadow-lg shadow-red-900/20"
                           >
                             <AlertCircle size={14} />
                             <span>Report Problem</span>
