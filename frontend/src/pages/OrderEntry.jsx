@@ -697,11 +697,6 @@ const SmartOrderForm = () => {
     setIsSubmitting(false);
   };
 
-  const isScrubsProduct = (productType) => {
-    const pt = (productType || formData.productType || '').toLowerCase();
-    return pt.includes('scrub') || pt.includes('uniform') || pt === '';
-  };
-
   const getSizeChart = () => {
     return formData.gender === 'Female' ? WOMEN_SCRUBS_SIZE_CHART : MEN_SCRUBS_SIZE_CHART;
   };
@@ -723,8 +718,6 @@ const SmartOrderForm = () => {
   }, []);
 
   const validateProductConfig = () => {
-    const accessory = isAccessory(selectedProductCategory);
-    
     // 1. Basic validation (customer details must be present)
     if (!isOutlet && !formData.orderNumber.trim()) return t('orderNo') + ' ' + t('required');
     if (!formData.customerName.trim()) return t('customerName') + ' ' + t('required');
@@ -737,18 +730,6 @@ const SmartOrderForm = () => {
     // 3. Customizations validation
     if (formData.type !== 'STANDARD') {
       if (formData.type === 'FULL_CUSTOM' && !formData.fitType) return 'Please select a Fit Profile.';
-      
-
-        // 4. Tailoring measurements validation
-      if (formData.type === 'FULL_CUSTOM' && !accessory && formData.size !== 'Custom') {
-        const m = formData.measurements;
-        const required = formData.gender === 'Female'
-          ? ['shoulder', 'chest', 'waist', 'bottom', 'shirtLength', 'hip', 'sleeve', 'trouserLength', 'hips']
-          : ['shoulder', 'chest', 'bottom', 'shirtLength', 'sleeve', 'trouserLength', 'hips'];
-        if (required.some(f => !m[f])) {
-          return 'All precise measurements are required for custom tailoring.';
-        }
-      }
     }
     
     return null;
@@ -756,7 +737,6 @@ const SmartOrderForm = () => {
 
   const validateCurrentTab = () => {
     setError('');
-    const accessory = isAccessory(selectedProductCategory);
     
     if (activeTab === 'basic') {
       if (!isOutlet && !formData.orderNumber.trim()) return t('orderNo') + ' ' + t('required');
@@ -768,15 +748,6 @@ const SmartOrderForm = () => {
     }
     if (activeTab === 'custom') {
       if (formData.type === 'FULL_CUSTOM' && !formData.fitType) return 'Please select a Fit Profile.';
-    }
-    if (activeTab === 'sizes' && formData.type === 'FULL_CUSTOM' && !accessory && formData.size !== 'Custom' && isScrubsProduct(selectedProductCategory)) {
-      const m = formData.measurements;
-      const required = formData.gender === 'Female'
-        ? ['shoulder', 'chest', 'waist', 'bottom', 'shirtLength', 'hip', 'sleeve', 'trouserLength', 'hips']
-        : ['shoulder', 'chest', 'bottom', 'shirtLength', 'sleeve', 'trouserLength', 'hips'];
-      if (required.some(f => !m[f])) {
-        return 'All precise measurements are required for custom tailoring.';
-      }
     }
     return null;
   };
