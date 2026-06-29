@@ -46,6 +46,7 @@ const AuthRedirectHandler = () => {
   if (role === 'PRODUCTION') return <Navigate to="/tasks" replace={true} />;
   if (role === 'DELIVERY_BOY') return <Navigate to="/delivery" replace={true} />;
   if (role === 'STORE') return <Navigate to="/warehouse" replace={true} />;
+  if (role === 'INVENTORY_VIEW') return <Navigate to="/inventory" replace={true} />;
   
   return <Navigate to="/tasks" replace={true} />;
 };
