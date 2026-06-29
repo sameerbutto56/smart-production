@@ -152,6 +152,7 @@ const SmartOrderForm = () => {
     matchingCapQty: 0,
     sleeveLength: '',
     shirtLength: '',
+    alteration: { trouserLength: '', shirtLength: '', sleeveLength: '' },
     instructionNotes: '',
     shopifyOrderDate: '',
 
@@ -462,12 +463,18 @@ const SmartOrderForm = () => {
               namePrintingCharges: parseFloat(item.namePrintingCharges) || 0,
               customizationPrice: parseFloat(item.customizationPrice) || 0,
               productDetails: {
+                ...pdItem,
                 productType: pdItem.productType || '',
                 fabricType: pdItem.fabricType || '',
                 color: pdItem.color || '',
                 size: pdItem.size || '',
                 gender: pdItem.gender || 'Male',
-                femaleOptions: pdItem.femaleOptions || null
+                femaleOptions: pdItem.femaleOptions || null,
+                sleeveLength: pdItem.sleeveLength || '',
+                shirtLength: pdItem.shirtLength || '',
+                matchingCap: pdItem.matchingCap || false,
+                matchingCapQty: pdItem.matchingCapQty || 0,
+                alteration: pdItem.alteration || { trouserLength: '', shirtLength: '', sleeveLength: '' }
               },
               customization: {
                 nameSpelling: custItem.nameSpelling || '',
@@ -514,12 +521,18 @@ const SmartOrderForm = () => {
             namePrintingCharges: parseFloat(found.namePrintingCharges) || 0,
             customizationPrice: parseFloat(found.customizationPrice) || 0,
             productDetails: {
+              ...pd,
               productType: pd.productType || '',
               fabricType: pd.fabricType || '',
               color: pd.color || '',
               size: pd.size || '',
               gender: pd.gender || 'Male',
-              femaleOptions: pd.femaleOptions || null
+              femaleOptions: pd.femaleOptions || null,
+              sleeveLength: pd.sleeveLength || '',
+              shirtLength: pd.shirtLength || '',
+              matchingCap: pd.matchingCap || false,
+              matchingCapQty: pd.matchingCapQty || 0,
+              alteration: pd.alteration || { trouserLength: '', shirtLength: '', sleeveLength: '' }
             },
             customization: {
               nameSpelling: custData.nameSpelling || '',
@@ -819,7 +832,12 @@ const SmartOrderForm = () => {
         sizeSourceProduct: formData.sizeSourceProduct,
         additionalProductRef: formData.additionalProductRef || formData.customRequirements,
         customMaterial: formData.customMaterial,
-        customSpecifications: formData.customSpecifications
+        customSpecifications: formData.customSpecifications,
+        alteration: formData.alteration ? {
+          trouserLength: formData.alteration.trouserLength || '',
+          shirtLength: formData.alteration.shirtLength || '',
+          sleeveLength: formData.alteration.sleeveLength || ''
+        } : { trouserLength: '', shirtLength: '', sleeveLength: '' }
       },
       customization: {
         nameSpelling: articleNameEntries.filter(Boolean).join(', '),
@@ -885,6 +903,7 @@ const SmartOrderForm = () => {
       matchingCapQty: 0,
       sleeveLength: '',
       shirtLength: '',
+      alteration: { trouserLength: '', shirtLength: '', sleeveLength: '' },
       fabricSourceProduct: '',
       colorSourceProduct: '',
       designSourceProduct: '',
@@ -927,6 +946,7 @@ const SmartOrderForm = () => {
       matchingCapQty: pd.matchingCapQty || 0,
       sleeveLength: pd.sleeveLength || '',
       shirtLength: pd.shirtLength || '',
+      alteration: pd.alteration || { trouserLength: '', shirtLength: '', sleeveLength: '' },
       fabricSourceProduct: pd.fabricSourceProduct || '',
       colorSourceProduct: pd.colorSourceProduct || '',
       designSourceProduct: pd.designSourceProduct || '',
@@ -2443,6 +2463,33 @@ const SmartOrderForm = () => {
                     </div>
                   )}
 
+                  {/* Alteration (STANDARD & READY_LOGO only) */}
+                  {(formData.productType || formData.type === 'FULL_CUSTOM') && (formData.type === 'STANDARD' || formData.type === 'READY_LOGO') && (
+                    <div className={`mt-6 p-4 md:p-6 rounded-2xl border transition-all ${
+                      formData.alteration?.trouserLength || formData.alteration?.shirtLength || formData.alteration?.sleeveLength
+                        ? 'bg-amber-500/10 border-amber-500/40 shadow-[0_0_20px_rgba(251,191,36,0.15)]'
+                        : 'theme-bg-subtle theme-border'
+                    }`}>
+                      <h3 className={`text-lg font-black uppercase mb-4 ${formData.alteration?.trouserLength || formData.alteration?.shirtLength || formData.alteration?.sleeveLength ? 'text-amber-300' : 'text-amber-400'}`}>Alteration</h3>
+                      <div className="grid grid-cols-3 gap-3">
+                        {[
+                          { key: 'trouserLength', label: 'Trouser Length' },
+                          { key: 'shirtLength', label: 'Shirt Length' },
+                          { key: 'sleeveLength', label: 'Sleeve Length' },
+                        ].map(a => (
+                          <div key={a.key}>
+                            <label className="text-xs font-bold text-gray-500 uppercase block mb-1">{a.label}</label>
+                            <div className="flex items-center gap-1">
+                              <button type="button" onClick={() => setFormData({...formData, alteration: {...formData.alteration, [a.key]: String(parseFloat(formData.alteration?.[a.key] || 0) - 0.5)}})} className="w-8 h-8 rounded-lg bg-gray-800 text-white font-black text-sm hover:bg-gray-700">−</button>
+                              <input type="text" value={formData.alteration?.[a.key] || ''} onChange={(e) => setFormData({...formData, alteration: {...formData.alteration, [a.key]: e.target.value}})} className="w-full text-center bg-transparent border-b-2 border-gray-700 text-white font-black text-lg outline-none" placeholder="inches" />
+                              <button type="button" onClick={() => setFormData({...formData, alteration: {...formData.alteration, [a.key]: String(parseFloat(formData.alteration?.[a.key] || 0) + 0.5)}})} className="w-8 h-8 rounded-lg bg-gray-800 text-white font-black text-sm hover:bg-gray-700">+</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Matching Cap */}
                   {(formData.productType || formData.type === 'FULL_CUSTOM') && !isAccessory(selectedProductCategory) && (
                     <div className="mt-6 theme-bg-subtle p-4 md:p-6 rounded-2xl border theme-border">
@@ -3233,6 +3280,15 @@ const SmartOrderForm = () => {
                         {item.logoCharges > 0 && <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">Logo Fee: ₨{item.logoCharges}</span>}
                         {item.namePrintingCharges > 0 && <span className="text-[9px] font-black text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">Name: ₨{item.namePrintingCharges}</span>}
                         {item.customizationPrice > 0 && <span className="text-[9px] font-black text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded">Custom: ₨{item.customizationPrice}</span>}
+                        {item.productDetails?.alteration && (item.productDetails.alteration.trouserLength || item.productDetails.alteration.shirtLength || item.productDetails.alteration.sleeveLength) && (
+                          <span className="text-[9px] font-black text-amber-400 bg-amber-500/20 border border-amber-500/30 px-1.5 py-0.5 rounded">
+                            Alt: {[
+                              item.productDetails.alteration.trouserLength && `Trouser ${item.productDetails.alteration.trouserLength}"`,
+                              item.productDetails.alteration.shirtLength && `Shirt ${item.productDetails.alteration.shirtLength}"`,
+                              item.productDetails.alteration.sleeveLength && `Sleeve ${item.productDetails.alteration.sleeveLength}"`,
+                            ].filter(Boolean).join(' ')}
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
@@ -3371,6 +3427,15 @@ const SmartOrderForm = () => {
                               {pd.sleeveLength && <span className="text-xs font-black text-pink-400 bg-pink-900/20 px-1.5 py-0.5 rounded">{pd.sleeveLength === 'full' ? 'Full' : pd.sleeveLength === 'half' ? 'Half' : pd.sleeveLength === 'three-quarter' ? '3 Quarter' : 'Quarter'}</span>}
                               {pd.shirtLength && <span className="text-xs font-black text-pink-400 bg-pink-900/20 px-1.5 py-0.5 rounded">{pd.shirtLength === 'long' ? 'Long' : pd.shirtLength === 'short' ? 'Short' : 'Regular'}</span>}
                               {item.capCharges > 0 && <span className="text-xs font-black text-rose-400">×{pd.matchingCapQty || 0} Matching Cap</span>}
+                              {pd.alteration && (pd.alteration.trouserLength || pd.alteration.shirtLength || pd.alteration.sleeveLength) && (
+                                <span className="text-xs font-black text-amber-400 bg-amber-500/20 border border-amber-500/30 px-1.5 py-0.5 rounded">
+                                  Alt: {[
+                                    pd.alteration.trouserLength && `Trouser ${pd.alteration.trouserLength}"`,
+                                    pd.alteration.shirtLength && `Shirt ${pd.alteration.shirtLength}"`,
+                                    pd.alteration.sleeveLength && `Sleeve ${pd.alteration.sleeveLength}"`,
+                                  ].filter(Boolean).join(' ')}
+                                </span>
+                              )}
                               <span className="text-xs md:text-sm font-black text-blue-400">×{item.quantity || 1}</span>
                             </div>
                             {/* Custom Requirements */}

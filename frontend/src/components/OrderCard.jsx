@@ -2323,6 +2323,16 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                     {(hasSleeves || hasShirtLength) && (
                                       <div className={`text-xs md:text-sm font-black mt-0.5 ${isRejected ? 'text-orange-300' : isCompleted ? 'text-emerald-300' : 'text-pink-400'}`}>
                                         {hasSleeves && `${t('Sleeves')}: ${p.sleeveLength ? ({'full':'Full','half':'Half','three-quarter':'3 Quarter'}[p.sleeveLength] || p.sleeveLength) : ({'full':'Full','half':'Half','medium':'Medium'}[p.femaleOptions?.sleeves] || p.femaleOptions?.sleeves || '')}`} {hasShirtLength && `| ${t('Length')}: ${p.shirtLength ? ({'long':'Long','short':'Short','regular':'Regular'}[p.shirtLength] || p.shirtLength) : ({'long':'Long','short':'Short'}[p.femaleOptions?.shirtLength] || p.femaleOptions?.shirtLength || '')}`}
+                                        {p.alteration && (p.alteration.trouserLength || p.alteration.shirtLength || p.alteration.sleeveLength) && (
+                                          <span className="ml-1 text-amber-400 bg-amber-500/20 border border-amber-500/30 px-1.5 py-0.5 rounded text-[9px]">
+                                            Alt: {[p.alteration.trouserLength && `Trouser ${p.alteration.trouserLength}"`, p.alteration.shirtLength && `Shirt ${p.alteration.shirtLength}"`, p.alteration.sleeveLength && `Sleeve ${p.alteration.sleeveLength}"`].filter(Boolean).join(' ')}
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+                                    {!hasSleeves && !hasShirtLength && p.alteration && (p.alteration.trouserLength || p.alteration.shirtLength || p.alteration.sleeveLength) && (
+                                      <div className="text-xs md:text-sm font-black mt-0.5 text-amber-400 bg-amber-500/20 border border-amber-500/30 px-1.5 py-0.5 rounded inline-block">
+                                        Alt: {[p.alteration.trouserLength && `Trouser ${p.alteration.trouserLength}"`, p.alteration.shirtLength && `Shirt ${p.alteration.shirtLength}"`, p.alteration.sleeveLength && `Sleeve ${p.alteration.sleeveLength}"`].filter(Boolean).join(' ')}
                                       </div>
                                     )}
                                   </td>
@@ -2519,6 +2529,31 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     <div className="mt-2 flex justify-between items-center p-3 bg-gray-900 rounded-xl border border-pink-500/20">
                       <span className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter">{t('SHIRT LENGTH')}</span>
                       <span className="text-sm font-black text-white uppercase">{product.shirtLength ? ({'long':'Long','short':'Short','regular':'Regular'}[product.shirtLength] || product.shirtLength) : ({'long':'Long','short':'Short'}[product.femaleOptions?.shirtLength] || product.femaleOptions?.shirtLength || '—')}</span>
+                    </div>
+                  )}
+                  {product?.alteration && (product.alteration.trouserLength || product.alteration.shirtLength || product.alteration.sleeveLength) && (
+                    <div className="mt-3 bg-amber-500/10 border border-amber-500/30 rounded-xl p-4">
+                      <p className="text-xs font-black text-amber-400 uppercase tracking-wider mb-2">Alteration</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {product.alteration.trouserLength ? (
+                          <div className="text-center p-2 bg-gray-900 rounded-lg border border-amber-500/20">
+                            <span className="text-[9px] text-amber-500 font-black uppercase block">Trouser</span>
+                            <span className="text-sm font-black text-amber-400">{product.alteration.trouserLength}"</span>
+                          </div>
+                        ) : null}
+                        {product.alteration.shirtLength ? (
+                          <div className="text-center p-2 bg-gray-900 rounded-lg border border-amber-500/20">
+                            <span className="text-[9px] text-amber-500 font-black uppercase block">Shirt</span>
+                            <span className="text-sm font-black text-amber-400">{product.alteration.shirtLength}"</span>
+                          </div>
+                        ) : null}
+                        {product.alteration.sleeveLength ? (
+                          <div className="text-center p-2 bg-gray-900 rounded-lg border border-amber-500/20">
+                            <span className="text-[9px] text-amber-500 font-black uppercase block">Sleeve</span>
+                            <span className="text-sm font-black text-amber-400">{product.alteration.sleeveLength}"</span>
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                   )}
                   {sizes?.specialNote && (
