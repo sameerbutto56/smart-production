@@ -3060,6 +3060,20 @@ const acceptTask = async (req, res) => {
       `Task accepted at ${pendingStage.stageName} by ${req.user.name} (Delay: ${Math.round((acceptedAt - new Date(pendingStage.createdAt)) / 60000)} min)`,
       req.user.id);
 
+    // Auto-assign to PRODUCTION_OUT users when PRODUCTION_IN accepts
+    if (req.user.role === 'PRODUCTION_IN') {
+      const outUsers = await prisma.user.findMany({ where: { role: 'PRODUCTION_OUT' }, select: { id: true } });
+      if (outUsers.length > 0) {
+        const seenData = outUsers.map(u => ({
+          userId: u.id,
+          orderId,
+          stageName: order.currentStage,
+          seenAt: acceptedAt
+        }));
+        await prisma.seenTask.createMany({ data: seenData, skipDuplicates: true });
+      }
+    }
+
     const io = req.app.get('io');
     if (io) {
       io.emit('order-updated', { orderId });
