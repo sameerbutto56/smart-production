@@ -320,7 +320,6 @@ const WarehouseDashboard = () => {
       const vs = p?.variants || [];
       const uniqSizes = [...new Set(vs.map(v => v.size).filter(Boolean))];
       const uniqColors = [...new Set(vs.map(v => v.color).filter(Boolean))];
-      if (vs.length > 0 && uniqSizes.length > 0 && uniqColors.length > 0 && (!item.color || !item.size)) { toast.error('Select color and size for all items'); return; }
     }
     setAllocationLoading(true);
     try {
@@ -1101,10 +1100,7 @@ const WarehouseDashboard = () => {
                                 const vs = item.variants || [];
                                 const uniqSizes = [...new Set(vs.map(v => v.size).filter(Boolean))];
                                 const uniqColors = [...new Set(vs.map(v => v.color).filter(Boolean))];
-                                if (vs.length > 0 && uniqSizes.length > 0 && uniqColors.length > 0 && (!allocSelectedSize || !allocSelectedColor)) {
-                                  toast.error('Select size and color first');
-                                  return;
-                                }
+
                                 setAllocCartItems(prev => {
                                   const existing = prev.findIndex(i => i.productId === item.id && i.size === allocSelectedSize && i.color === allocSelectedColor);
                                   if (existing >= 0) {
