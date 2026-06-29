@@ -569,82 +569,51 @@ const updateCartStatus = async (req, res) => {
     }
 
     if (status === 'APPROVED') {
-      // Deduct all items in a single transaction
-      await prisma.$transaction(async (tx) => {
-        for (const alloc of cart.items) {
-          const item = alloc.itemId ? await tx.inventoryItem.findUnique({ where: { id: alloc.itemId } }) : null;
-          if (!item) continue;
+      // Pre-validate all items upfront
+      const updates = [];
+      for (const alloc of cart.items) {
+        if (!alloc.itemId) continue;
+        const item = await prisma.inventoryItem.findUnique({ where: { id: alloc.itemId } });
+        if (!item) throw new Error(`Inventory item not found for allocation ${alloc.id}`);
 
-          const deductQty = alloc.quantity;
-          if (item.variants && Array.isArray(item.variants) && item.variants.length > 0) {
-            let updatedVariants = [...item.variants];
-            const matchIdx = updatedVariants.findIndex(v =>
-              (!alloc.color || (v.color && v.color.toLowerCase() === alloc.color.toLowerCase())) &&
-              (!alloc.size || (v.size && v.size.toLowerCase() === alloc.size.toLowerCase()))
-            );
-            if (matchIdx < 0) {
-              throw new Error(`Variant not found for ${item.name}`);
-            }
-            const available = updatedVariants[matchIdx].stock || 0;
-            if (available < deductQty) {
-              throw new Error(`Insufficient stock for ${item.name}. Only ${available} of ${deductQty} available.`);
-            }
-            updatedVariants[matchIdx] = { ...updatedVariants[matchIdx], stock: available - deductQty };
-            const newTotal = updatedVariants.reduce((sum, v) => sum + (v.stock || 0), 0);
-            await tx.inventoryItem.update({
-              where: { id: item.id },
-              data: { variants: updatedVariants, stock: newTotal }
-            });
-          } else {
-            if ((item.stock || 0) < deductQty) {
-              throw new Error(`Insufficient stock for ${item.name}. Only ${item.stock} of ${deductQty} available.`);
-            }
-            await tx.inventoryItem.update({
-              where: { id: item.id },
-              data: { stock: { decrement: deductQty } }
-            });
-          }
-
-          await tx.allocation.update({
-            where: { id: alloc.id },
-            data: { status: 'ACCEPTED' }
-          });
+        const deductQty = alloc.quantity;
+        if (item.variants && Array.isArray(item.variants) && item.variants.length > 0) {
+          let updatedVariants = [...item.variants];
+          const matchIdx = updatedVariants.findIndex(v =>
+            (!alloc.color || (v.color && v.color.toLowerCase() === alloc.color.toLowerCase())) &&
+            (!alloc.size || (v.size && v.size.toLowerCase() === alloc.size.toLowerCase()))
+          );
+          if (matchIdx < 0) throw new Error(`Variant not found for ${item.name}`);
+          const available = updatedVariants[matchIdx].stock || 0;
+          if (available < deductQty) throw new Error(`Insufficient stock for ${item.name}. Only ${available} of ${deductQty} available.`);
+          updatedVariants[matchIdx] = { ...updatedVariants[matchIdx], stock: available - deductQty };
+          const newTotal = updatedVariants.reduce((sum, v) => sum + (v.stock || 0), 0);
+          updates.push(
+            prisma.inventoryItem.update({ where: { id: item.id }, data: { variants: updatedVariants, stock: newTotal } }),
+            prisma.allocation.update({ where: { id: alloc.id }, data: { status: 'ACCEPTED' } })
+          );
+        } else {
+          if ((item.stock || 0) < deductQty) throw new Error(`Insufficient stock for ${item.name}. Only ${item.stock} of ${deductQty} available.`);
+          updates.push(
+            prisma.inventoryItem.update({ where: { id: item.id }, data: { stock: { decrement: deductQty } } }),
+            prisma.allocation.update({ where: { id: alloc.id }, data: { status: 'ACCEPTED' } })
+          );
         }
+      }
 
-        await tx.allocationCart.update({
-          where: { id },
-          data: { status: 'APPROVED', approvedAt: new Date() }
-        });
+      updates.push(
+        prisma.allocationCart.update({ where: { id }, data: { status: 'APPROVED', approvedAt: new Date() } }),
+        prisma.auditLog.create({ data: { orderId: null, action: 'CART_APPROVED', details: `Cart ${cart.displayId || id} approved. ${cart.items.length} product(s) to ${cart.personName}.`, performedBy: req.user.id } })
+      );
 
-        await tx.auditLog.create({
-          data: {
-            orderId: null,
-            action: 'CART_APPROVED',
-            details: `Cart ${cart.displayId || id} approved. ${cart.items.length} product(s) to ${cart.personName}.`,
-            performedBy: req.user.id
-          }
-        });
-      });
+      await prisma.$transaction(updates);
     } else {
       // REJECTED — just update status
-      await prisma.$transaction(async (tx) => {
-        await tx.allocation.updateMany({
-          where: { cartId: id },
-          data: { status: 'REJECTED' }
-        });
-        await tx.allocationCart.update({
-          where: { id },
-          data: { status: 'REJECTED' }
-        });
-        await tx.auditLog.create({
-          data: {
-            orderId: null,
-            action: 'CART_REJECTED',
-            details: `Cart ${cart.displayId || id} rejected. ${cart.items.length} product(s) to ${cart.personName}.`,
-            performedBy: req.user.id
-          }
-        });
-      });
+      await prisma.$transaction([
+        prisma.allocation.updateMany({ where: { cartId: id }, data: { status: 'REJECTED' } }),
+        prisma.allocationCart.update({ where: { id }, data: { status: 'REJECTED' } }),
+        prisma.auditLog.create({ data: { orderId: null, action: 'CART_REJECTED', details: `Cart ${cart.displayId || id} rejected. ${cart.items.length} product(s) to ${cart.personName}.`, performedBy: req.user.id } })
+      ]);
     }
 
     const updated = await prisma.allocationCart.findUnique({
