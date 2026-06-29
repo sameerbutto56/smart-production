@@ -144,6 +144,8 @@ const customDict = {
   'dark gray': 'ڈارک گرے',
   'silver grey': 'سلور گرے',
   'silver gray': 'سلور گرے',
+  'sage': 'سیج',
+  'sage green': 'سیج گرین',
   'olive green': 'اولیو گرین',
   'ivy green': 'آئیوی گرین',
   'sea green': 'سی گرین',
