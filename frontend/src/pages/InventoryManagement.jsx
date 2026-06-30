@@ -295,14 +295,45 @@ const InventoryManagement = () => {
 
   return user?.role === 'INVENTORY_VIEW' ? (
     <div className="space-y-4 md:space-y-8 pb-20 px-4">
-      {/* Catalog Grid only */}
+      {/* Search Bar */}
+      <div className="relative">
+        <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search by name, color, size..."
+          className="w-full theme-input rounded-2xl py-3.5 pl-12 pr-10 text-sm font-bold border-2 border-gray-700 focus:border-emerald-500/50 transition-all"
+        />
+        {searchTerm && (
+          <button
+            onClick={() => setSearchTerm('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition-all"
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
+      {(searchTerm || categoryFilter !== 'ALL') && (
+        <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
+          <Search size={12} />
+          <span>{filteredItems.length} result{filteredItems.length !== 1 ? 's' : ''}
+            {searchTerm && <> for "<span className="text-white">{searchTerm}</span>"</>}
+          </span>
+          <button onClick={() => { setSearchTerm(''); setCategoryFilter('ALL'); }} className="ml-2 text-xs md:text-sm text-gray-500 hover:text-white underline">clear</button>
+        </div>
+      )}
+      {/* Catalog Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {loading ? (
           <div className="col-span-full py-12 flex justify-center"><RefreshCcw className="animate-spin text-blue-400" size={32} /></div>
         ) : filteredItems.length === 0 ? (
-          <div className="col-span-full text-center py-16">
-            <Package size={48} className="mx-auto text-gray-700 mb-4" />
-            <p className="theme-text-muted font-black text-xs">No products found</p>
+          <div className="col-span-full py-16 flex flex-col items-center justify-center space-y-3 text-center">
+            <div className="p-4 bg-gray-800 rounded-2xl">
+              <Search size={32} className="text-gray-600" />
+            </div>
+            <p className="text-gray-400 font-black text-sm">No items found{searchTerm && <> matching "<span className="text-white">{searchTerm}</span>"</>}</p>
+            {searchTerm && <button onClick={() => setSearchTerm('')} className="text-xs font-bold text-emerald-400 hover:text-emerald-300 underline">Clear search</button>}
           </div>
         ) : groupedItems.map(group => [
           <div key={`header-${group.letter}`} className="col-span-full">
