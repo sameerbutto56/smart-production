@@ -69,6 +69,7 @@ model Order {
   dispatchStatus  String       @default("PENDING")
   deliveryType    String?
   deliveredAt     DateTime?
+  returnedAt      DateTime?
   refundStatus    String       @default("NONE")           // NONE, REQUESTED, PROCESSING, REFUNDED, PARTIAL
   refundReason    String?
   refundNote      String?

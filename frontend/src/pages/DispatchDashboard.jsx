@@ -158,13 +158,11 @@ const DispatchDashboard = () => {
   const handleUpdateStatus = async (orderId, dispatchStatus) => {
     setStatusLoading(orderId);
     try {
-        await api.post(`/api/orders/${orderId}/dispatch`,
-          { dispatchMethod: 'ENAMELS' }
-        );
-      toast.success(`Status updated to ${dispatchStatus}`, { duration: 2000 });
+      await api.put(`/api/dispatch/${orderId}/status`, { dispatchStatus });
+      toast.success(`Order ${dispatchStatus === 'DELIVERED' ? 'Delivered' : dispatchStatus === 'RETURNED' ? 'Returned' : `marked ${dispatchStatus}`}`, { duration: 2000 });
       fetchDashboard();
     } catch (err) {
-      alert('Failed to update: ' + (err.response?.data?.error || err.message));
+      alert('Failed: ' + (err.response?.data?.error || err.message));
     } finally {
       setStatusLoading(null);
     }
@@ -498,31 +496,44 @@ const DispatchDashboard = () => {
                   )
                 ) : (
                   <>
-                    {(!order.dispatchStatus || order.dispatchStatus === 'PENDING' || order.dispatchStatus === 'COURIER_REQUIRED') ? (
-                      <button onClick={() => setBookModal(order)}
-                        disabled={statusLoading === order.id}
-                        className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50">
-                        {statusLoading === order.id ? <LoadingSpinner size={12} /> : <><Truck size={14} /> Dispatch</>}
-                      </button>
-                    ) : order.dispatchStatus === 'BOOKED' ? (
-                      <button onClick={() => handleUpdateStatus(order.id, 'DISPATCHED')}
-                        disabled={statusLoading === order.id}
-                        className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all disabled:opacity-50">
-                        {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Mark Dispatched'}
-                      </button>
-                    ) : order.dispatchStatus === 'DISPATCHED' ? (
-                      <button onClick={() => handleUpdateStatus(order.id, 'IN_TRANSIT')}
-                        disabled={statusLoading === order.id}
-                        className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all disabled:opacity-50">
-                        {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Mark In Transit'}
-                      </button>
-                    ) : order.dispatchStatus === 'IN_TRANSIT' ? (
-                      <button onClick={() => handleUpdateStatus(order.id, 'DELIVERED')}
-                        disabled={statusLoading === order.id}
-                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all disabled:opacity-50">
-                        {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Mark Delivered'}
-                      </button>
-                    ) : null}
+                    {order.dispatchStatus === 'RETURNED' ? (
+                      <span className="px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/30">RETURNED</span>
+                    ) : (!order.dispatchStatus || order.dispatchStatus === 'PENDING' || order.dispatchStatus === 'COURIER_REQUIRED') ? (
+                      <>
+                        <button onClick={() => setBookModal(order)}
+                          disabled={statusLoading === order.id}
+                          className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50">
+                          {statusLoading === order.id ? <LoadingSpinner size={12} /> : <><Truck size={14} /> Dispatch</>}
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        {order.dispatchStatus === 'BOOKED' && (
+                          <button onClick={() => handleUpdateStatus(order.id, 'DISPATCHED')}
+                            disabled={statusLoading === order.id}
+                            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all disabled:opacity-50">
+                            {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Mark Dispatched'}
+                          </button>
+                        )}
+                        {order.dispatchStatus === 'DISPATCHED' && (
+                          <button onClick={() => handleUpdateStatus(order.id, 'IN_TRANSIT')}
+                            disabled={statusLoading === order.id}
+                            className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all disabled:opacity-50">
+                            {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Mark In Transit'}
+                          </button>
+                        )}
+                        <button onClick={() => handleUpdateStatus(order.id, 'DELIVERED')}
+                          disabled={statusLoading === order.id}
+                          className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all disabled:opacity-50">
+                          {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Deliver ✓'}
+                        </button>
+                        <button onClick={() => { if (window.confirm('Return this order?')) handleUpdateStatus(order.id, 'RETURNED') }}
+                          disabled={statusLoading === order.id}
+                          className="px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all disabled:opacity-50">
+                          {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Return ✗'}
+                        </button>
+                      </>
+                    )}
                   </>
                 )
               )))}
@@ -569,26 +580,37 @@ const DispatchDashboard = () => {
 
                 return renderOrderCard(order, (
                   <>
-                    {order.dispatchStatus === 'BOOKED' && isDispatchAdmin && (
-                      <button onClick={() => handleUpdateStatus(order.id, 'DISPATCHED')}
-                        disabled={statusLoading === order.id}
-                        className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all disabled:opacity-50">
-                        {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Mark Dispatched'}
-                      </button>
-                    )}
-                    {order.dispatchStatus === 'DISPATCHED' && isDispatchAdmin && (
-                      <button onClick={() => handleUpdateStatus(order.id, 'IN_TRANSIT')}
-                        disabled={statusLoading === order.id}
-                        className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all disabled:opacity-50">
-                        {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Mark In Transit'}
-                      </button>
-                    )}
-                    {order.dispatchStatus === 'IN_TRANSIT' && isDispatchAdmin && (
-                      <button onClick={() => handleUpdateStatus(order.id, 'DELIVERED')}
-                        disabled={statusLoading === order.id}
-                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all disabled:opacity-50">
-                        {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Mark Delivered'}
-                      </button>
+                    {order.dispatchStatus === 'RETURNED' ? (
+                      <span className="px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/30">RETURNED</span>
+                    ) : order.currentStage === 'COMPLETED' ? (
+                      <span className="px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">DELIVERED</span>
+                    ) : (
+                      <>
+                        {order.dispatchStatus === 'BOOKED' && isDispatchAdmin && (
+                          <button onClick={() => handleUpdateStatus(order.id, 'DISPATCHED')}
+                            disabled={statusLoading === order.id}
+                            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all disabled:opacity-50">
+                            {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Mark Dispatched'}
+                          </button>
+                        )}
+                        {order.dispatchStatus === 'DISPATCHED' && isDispatchAdmin && (
+                          <button onClick={() => handleUpdateStatus(order.id, 'IN_TRANSIT')}
+                            disabled={statusLoading === order.id}
+                            className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all disabled:opacity-50">
+                            {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Mark In Transit'}
+                          </button>
+                        )}
+                        <button onClick={() => handleUpdateStatus(order.id, 'DELIVERED')}
+                          disabled={statusLoading === order.id}
+                          className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all disabled:opacity-50">
+                          {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Deliver ✓'}
+                        </button>
+                        <button onClick={() => { if (window.confirm('Return this order?')) handleUpdateStatus(order.id, 'RETURNED') }}
+                          disabled={statusLoading === order.id}
+                          className="px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all disabled:opacity-50">
+                          {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Return ✗'}
+                        </button>
+                      </>
                     )}
                     {canMarkPickup && (
                       <button onClick={() => {

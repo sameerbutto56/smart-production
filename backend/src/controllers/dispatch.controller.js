@@ -186,7 +186,7 @@ const updateCourierStatus = async (req, res) => {
   const { orderId } = req.params;
   const { dispatchStatus } = req.body;
 
-  const validStatuses = ['DISPATCHED', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED'];
+  const validStatuses = ['DISPATCHED', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED', 'RETURNED'];
   if (!validStatuses.includes(dispatchStatus)) {
     return res.status(400).json({ message: `Invalid status. Must be: ${validStatuses.join(', ')}` });
   }
@@ -206,6 +206,11 @@ const updateCourierStatus = async (req, res) => {
     if (dispatchStatus === 'DELIVERED' || dispatchStatus === 'COMPLETED') {
       updateData.currentStage = 'COMPLETED';
       updateData.status = 'COMPLETED';
+    }
+    if (dispatchStatus === 'RETURNED') {
+      const now = new Date();
+      existingDetails.returnedAt = now.toISOString();
+      updateData.returnedAt = now;
     }
 
     if (dispatchStatus === 'DISPATCHED') {
