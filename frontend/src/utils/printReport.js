@@ -1442,8 +1442,5 @@ export function printDispatchSheet(order) {
     win.document.write(`</div>`);
   }
 
-  win.document.write('</body></html>');
-  win.document.close();
-  win.focus();
-  setTimeout(() => { win.print(); }, 200);
+  closePrintWindow(win);
 }
