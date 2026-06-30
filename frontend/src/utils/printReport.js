@@ -1332,7 +1332,9 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
 }
 
 export function printDispatchSheet(order) {
-  const win = openPrintWindow('Dispatch Sheet — ' + (order.orderNumber || order.id?.slice(0, 8)));
+  const title = 'Dispatch Sheet — ' + (order.orderNumber || order.id?.slice(0, 8));
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>${PRINT_CSS}</style></head><body>`);
 
   // ─── ENAMELS LOGO ───
   win.document.write(`<div style="text-align:center;margin-bottom:12px;padding-bottom:8px;border-bottom:4px solid #000">`);
@@ -1440,5 +1442,8 @@ export function printDispatchSheet(order) {
     win.document.write(`</div>`);
   }
 
-  closePrintWindow(win);
+  win.document.write('</body></html>');
+  win.document.close();
+  win.focus();
+  setTimeout(() => { win.print(); }, 200);
 }
