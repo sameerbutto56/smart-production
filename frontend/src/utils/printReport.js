@@ -1330,3 +1330,115 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
 
   closePrintWindow(win, isUrdu);
 }
+
+export function printDispatchSheet(order) {
+  const win = openPrintWindow('Dispatch Sheet — ' + (order.orderNumber || order.id?.slice(0, 8)));
+
+  // ─── ENAMELS LOGO ───
+  win.document.write(`<div style="text-align:center;margin-bottom:12px;padding-bottom:8px;border-bottom:4px solid #000">`);
+  win.document.write(`<h1 style="font-size:42px;font-weight:900;letter-spacing:4px;text-transform:uppercase;color:#000;margin:0">ENAMELS</h1>`);
+  win.document.write(`<p style="font-size:18px;font-weight:800;color:#000;text-transform:uppercase;letter-spacing:2px;margin-top:2px">DISPATCH SHEET</p>`);
+  win.document.write(`</div>`);
+
+  // ─── ORDER NUMBER ───
+  win.document.write(`<div style="text-align:center;margin-bottom:10px">`);
+  win.document.write(`<h2 style="font-size:36px;font-weight:900;text-transform:uppercase;color:#000;letter-spacing:1px">Order #${order.orderNumber || order.id?.slice(0, 8)}</h2>`);
+  win.document.write(`</div>`);
+
+  // ─── CUSTOMER DETAILS ───
+  win.document.write(`<div style="border:2px solid #000;border-radius:8px;padding:10px 14px;margin-bottom:12px">`);
+  win.document.write(`<p style="font-size:22px;font-weight:900;color:#000;margin-bottom:4px">${order.customerName || '—'}</p>`);
+  win.document.write(`<p style="font-size:18px;font-weight:600;color:#000;margin-bottom:2px">${order.customerPhone || ''}</p>`);
+  if (order.address) win.document.write(`<p style="font-size:16px;color:#000;margin-bottom:2px">${order.address}</p>`);
+  if (order.city) win.document.write(`<p style="font-size:20px;font-weight:900;color:#000;background:#fef3c7;display:inline-block;padding:4px 14px;border-radius:6px;margin-top:4px;text-transform:uppercase">CITY: ${order.city}</p>`);
+  win.document.write(`</div>`);
+
+  // ─── ORDER META ───
+  win.document.write(`<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">`);
+  const payLabel = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? 'PAID' : 'COD';
+  [order.type, order.priority, order.outletName || order.source, payLabel].filter(Boolean).forEach(label => {
+    let color = '#6b7280';
+    if (label === 'PAID') color = '#059669';
+    else if (label === 'SUPER_URGENT') color = '#dc2626';
+    else if (label === 'URGENT') color = '#d97706';
+    else if (label === 'CASH ON DELIVERY' || label === 'COD') color = '#dc2626';
+    else if (label === 'FULL_CUSTOM') color = '#059669';
+    if (label === 'CASH ON DELIVERY') label = 'COD';
+    win.document.write(`<span style="padding:3px 12px;border-radius:6px;font-size:18px;font-weight:700;text-transform:uppercase;background:${color}20;color:${color};border:2px solid ${color}40">${label}</span>`);
+  });
+  win.document.write(`</div>`);
+
+  // ─── PRODUCTS TABLE ───
+  win.document.write(`<div class="section-title" style="font-size:24px;margin-top:4px">Products</div>`);
+  const rawPd = parseJSON(order.productDetails);
+  const allItems = Array.isArray(rawPd) ? rawPd : null;
+  const firstProduct = allItems ? (allItems[0]?.productDetails || allItems[0] || {}) : (rawPd || {});
+  const isMultiItem = allItems && allItems.length > 0;
+
+  if (isMultiItem) {
+    win.document.write(`<table><thead><tr><th>#</th><th>Product</th><th>Color / Size</th><th style="text-align:center">Qty</th><th style="text-align:right">Price</th></tr></thead><tbody>`);
+    allItems.forEach((item, idx) => {
+      const p = item.productDetails || {};
+      const slMap = { 'full':'Full', 'half':'Half', 'three-quarter':'3 Quarter' };
+      const shMap = { 'long':'Long', 'short':'Short', 'regular':'Regular' };
+      const extras = [p.sleeveLength ? `Sleeve: ${slMap[p.sleeveLength] || p.sleeveLength}` : null, p.shirtLength ? `Length: ${shMap[p.shirtLength] || p.shirtLength}` : null].filter(Boolean).join(' | ');
+      win.document.write(`<tr>`);
+      win.document.write(`<td style="font-weight:700">${idx + 1}</td>`);
+      win.document.write(`<td style="font-weight:700">${p.productType || '—'}</td>`);
+      win.document.write(`<td>${[p.fabricType, p.color, p.size, p.gender].filter(Boolean).join(' • ')}${extras ? ` • ${extras}` : ''}</td>`);
+      win.document.write(`<td style="text-align:center;font-weight:700">${item.quantity || 1}</td>`);
+      win.document.write(`<td style="text-align:right;font-weight:700">${currency(item.totalPrice)}</td>`);
+      win.document.write(`</tr>`);
+    });
+    win.document.write(`</tbody></table>`);
+  } else {
+    win.document.write(`<table><thead><tr><th>Product</th><th>Color / Size</th><th style="text-align:center">Qty</th><th style="text-align:right">Price</th></tr></thead><tbody>`);
+    win.document.write(`<tr>`);
+    win.document.write(`<td style="font-weight:700">${firstProduct.productType || '—'}</td>`);
+    win.document.write(`<td>${[firstProduct.fabricType, firstProduct.color, firstProduct.size, firstProduct.gender].filter(Boolean).join(' • ')}</td>`);
+    win.document.write(`<td style="text-align:center;font-weight:700">${order.quantity || 1}</td>`);
+    win.document.write(`<td style="text-align:right;font-weight:700">${currency(order.totalPrice)}</td>`);
+    win.document.write(`</tr></tbody></table>`);
+  }
+
+  // ─── FINANCIAL SUMMARY ───
+  win.document.write(`<div class="section-title" style="font-size:24px;margin-top:8px">Financial Summary</div>`);
+  win.document.write(`<div style="border:2px solid #ccc;border-radius:8px;padding:10px 14px">`);
+  win.document.write(summaryRow('Total Price', currency(order.totalPrice)));
+  if (parseFloat(order.deliveryCharges || 0) > 0) {
+    win.document.write(summaryRow('Delivery Charges', currency(order.deliveryCharges)));
+  }
+  if (parseFloat(order.discount || 0) > 0) {
+    win.document.write(summaryRow('Discount', `-${currency(order.discount)}`));
+  }
+  if (parseFloat(order.advanceAmount || 0) > 0) {
+    win.document.write(summaryRow('Advance Paid', `-${currency(order.advanceAmount)}`));
+  }
+  win.document.write(`<div style="display:flex;justify-content:space-between;padding:8px 0 0;border-top:3px solid #000;margin-top:6px;font-size:22px">`);
+  win.document.write(`<span style="font-weight:900">Grand Total</span>`);
+  win.document.write(`<span style="font-weight:900">${currency(order.totalPrice)}</span>`);
+  win.document.write(`</div>`);
+  if (order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID') {
+    win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;background:#05966920;border:2px solid #059669;border-radius:6px;font-size:20px;font-weight:900;color:#059669">PAID ✓</div>`);
+  } else if (parseFloat(order.advanceAmount || 0) > 0) {
+    win.document.write(`<div style="display:flex;justify-content:space-between;margin-top:8px;padding:6px 10px;background:#d9770620;border:2px solid #d97706;border-radius:6px;font-size:18px;font-weight:700">`);
+    win.document.write(`<span style="color:#d97706">Advance Received: ${currency(order.advanceAmount)}</span>`);
+    win.document.write(`<span style="color:#d97706">Remaining: ${currency(parseFloat(order.totalPrice) - parseFloat(order.advanceAmount || 0))}</span>`);
+    win.document.write(`</div>`);
+  } else {
+    win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;background:#dc262620;border:2px solid #dc2626;border-radius:6px;font-size:20px;font-weight:900;color:#dc2626">CASH ON DELIVERY</div>`);
+  }
+  win.document.write(`</div>`);
+
+  // ─── DISPATCH METHOD ───
+  if (order.deliveryMethod) {
+    win.document.write(`<div style="margin-top:10px;padding:8px 14px;background:#7c3aed20;border:2px solid #7c3aed;border-radius:8px;text-align:center">`);
+    win.document.write(`<span style="font-size:20px;font-weight:900;color:#7c3aed;text-transform:uppercase">Dispatch Method: ${order.deliveryMethod}</span>`);
+    if (order.trackingNumber) {
+      win.document.write(`<p style="font-size:18px;font-weight:700;color:#000;margin-top:4px">Tracking: ${order.trackingNumber}</p>`);
+    }
+    win.document.write(`</div>`);
+  }
+
+  closePrintWindow(win);
+}

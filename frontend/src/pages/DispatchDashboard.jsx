@@ -6,7 +6,8 @@ import toast from 'react-hot-toast';
 import { PageLoader, LoadingSpinner } from '../components/LoadingSpinner';
 import socket from '../socket';
 import { debounce } from '../utils/debounce';
-import { Truck, Package, Eye, Send, Search, Loader2, Clock, Phone, MapPin, ExternalLink, CheckCircle2, X } from 'lucide-react';
+import { printDispatchSheet } from '../utils/printReport';
+import { Truck, Package, Eye, Send, Search, Loader2, Clock, Phone, MapPin, ExternalLink, CheckCircle2, X, Printer } from 'lucide-react';
 
 const DISPATCH_OPTIONS = [
   { id: 'ENAMELS', label: 'Enamels Delivery', type: 'dispatch', desc: 'Assign to Enamels delivery team' },
@@ -283,6 +284,10 @@ const DispatchDashboard = () => {
           </div>
           <div className="flex flex-col gap-2 md:items-end shrink-0">
             <div className="flex gap-2 flex-wrap">
+              <button onClick={(e) => { e.stopPropagation(); printDispatchSheet(order); }}
+                className="p-2.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-xl transition-all" title="Print Dispatch Sheet">
+                <Printer size={16} />
+              </button>
               {actions}
             </div>
           </div>
