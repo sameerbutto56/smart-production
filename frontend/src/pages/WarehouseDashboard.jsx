@@ -1101,7 +1101,7 @@ const WarehouseDashboard = () => {
                                 const uniqSizes = [...new Set(vs.map(v => v.size).filter(Boolean))];
                                 const uniqColors = [...new Set(vs.map(v => v.color).filter(Boolean))];
 
-                                if (hasVariants && (!allocSelectedColor || !allocSelectedSize)) {
+                                if (hasVariants && uniqColors.length > 0 && uniqSizes.length > 0 && (!allocSelectedColor || !allocSelectedSize)) {
                                   toast.error('Please select both color and size before adding to cart');
                                   return;
                                 }
@@ -1379,7 +1379,7 @@ const WarehouseDashboard = () => {
                                 {cart.items.map((item, idx) => (
                                   <div key={item.id} className="flex items-center justify-between py-1.5 px-3 theme-bg-subtle rounded-lg">
                                     <div className="flex-1 min-w-0">
-                                      <p className="text-xs font-bold theme-text-primary truncate">{item.itemName}</p>
+                                      <p className="text-xs font-bold theme-text-primary">{item.itemName}</p>
                                       <div className="flex items-center space-x-3 text-[10px] theme-text-muted">
                                         {item.color && <span>Color: {item.color}</span>}
                                         {item.size && <span>Size: {item.size}</span>}
