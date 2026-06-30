@@ -1033,7 +1033,7 @@ const WarehouseDashboard = () => {
                                             {allocSelectedColor === c && <CheckCircle2 size={16} className={textClass + ' drop-shadow-lg'} />}
                                           </div>
                                           <div className="py-1 px-1 theme-bg text-center">
-                                            <p className={`text-[9px] font-bold truncate ${allocSelectedColor === c ? 'text-amber-300' : 'theme-text-primary'}`}>{c}</p>
+                                            <p className={`text-[9px] font-bold break-words leading-tight ${allocSelectedColor === c ? 'text-amber-300' : 'theme-text-primary'}`}>{c}</p>
                                             <p className="text-[8px] font-bold theme-text-muted">{stockForColor} left</p>
                                           </div>
                                         </button>
@@ -1254,7 +1254,7 @@ const WarehouseDashboard = () => {
                       <tbody>
                         {allocationStats.map(stat => (
                           <tr key={stat.personName} className="border-b border-gray-800/50 text-sm">
-                            <td className="py-3 pr-4 font-bold theme-text-primary">{stat.personName}</td>
+                            <td className="py-3 pr-4 font-bold theme-text-primary whitespace-nowrap" title={stat.personName}>{stat.personName}</td>
                             <td className="py-3 pr-4"><span className="font-black text-amber-400">{stat.timesTaken}x</span></td>
                             <td className="py-3 pr-4"><span className="font-black text-emerald-400">{stat.totalItems}</span></td>
                             <td className="py-3 text-xs theme-text-secondary">{new Date(stat.lastTaken).toLocaleDateString()}</td>
@@ -1343,7 +1343,7 @@ const WarehouseDashboard = () => {
                                       {cartStatusLabels[cart.status] || cart.status}
                                     </span>
                                   </div>
-                                  <p className="font-bold theme-text-primary text-xs">{cart.personName}</p>
+                                  <p className="font-bold theme-text-primary text-xs break-words" title={cart.personName}>{cart.personName}</p>
                                 </div>
                                 <div className="flex items-center space-x-4 text-xs theme-text-muted shrink-0">
                                   <span className="font-bold">{cart.totalItems} products</span>
