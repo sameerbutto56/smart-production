@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
-import { Package, Search, ChevronDown, ChevronUp, RefreshCw, Warehouse } from 'lucide-react';
+import { Package, Search, ChevronDown, ChevronUp, RefreshCw, Warehouse, Plus, X, CheckCircle2, Upload, Layers, Hash, Minus, PlusCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
@@ -11,6 +11,15 @@ const OutletPOSInventory = () => {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    category: 'SCRUBS',
+    fabric: '',
+    imageUrl: '',
+    variants: [{ color: '', size: '', price: 0 }]
+  });
 
   const fetchData = async () => {
     setLoading(true);
@@ -31,6 +40,56 @@ const OutletPOSInventory = () => {
     return true;
   });
 
+  /* ─── Product Form handlers ─── */
+  const addVariant = () => {
+    setFormData(prev => ({
+      ...prev,
+      variants: [...prev.variants, { color: '', size: '', price: 0 }]
+    }));
+  };
+
+  const removeVariant = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      variants: prev.variants.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateVariant = (index, field, value) => {
+    setFormData(prev => {
+      const updated = [...prev.variants];
+      updated[index] = { ...updated[index], [field]: value };
+      return { ...prev, variants: updated };
+    });
+  };
+
+  const handleOpenModal = () => {
+    setFormData({ name: '', category: 'SCRUBS', fabric: '', imageUrl: '', variants: [{ color: '', size: '', price: 0 }] });
+    setIsModalOpen(true);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const payload = {
+        name: formData.name,
+        category: formData.category,
+        fabric: formData.fabric || undefined,
+        imageUrl: formData.imageUrl || undefined,
+        variants: formData.variants.filter(v => v.color || v.size || v.price > 0)
+          .map(v => ({ ...v, stock: 0 /* stock always 0 in POS */ }))
+      };
+      await api.post('/api/pos/products', payload);
+      toast.success('Product added to POS catalog');
+      setIsModalOpen(false);
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to create product');
+    }
+    setSubmitting(false);
+  };
+
   return (
     <div className="space-y-6 pb-20 px-4">
       {/* Header */}
@@ -38,12 +97,17 @@ const OutletPOSInventory = () => {
         <div>
           <h1 className="text-2xl font-black text-white">Outlet POS Inventory</h1>
           <p className="text-sm font-bold text-gray-400">
-            Products are auto-available from warehouse &bull; Stock arrives via Store approval workflow
+            Products auto-available from warehouse &bull; Stock arrives via Store approval workflow
           </p>
         </div>
-        <button onClick={fetchData} disabled={loading} className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white font-black px-4 py-3 rounded-xl text-sm">
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={handleOpenModal} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black px-4 py-3 rounded-xl text-sm">
+            <PlusCircle size={16} />Add Product
+          </button>
+          <button onClick={fetchData} disabled={loading} className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white font-black px-4 py-3 rounded-xl text-sm">
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />Refresh
+          </button>
+        </div>
       </div>
 
       {/* Categories filter */}
@@ -82,7 +146,7 @@ const OutletPOSInventory = () => {
                     {item.imageUrl ? <img src={item.imageUrl} className="w-10 h-10 rounded-lg object-cover" /> : <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center"><Package size={18} className="text-gray-500" /></div>}
                     <div className="text-left">
                       <p className="text-sm font-bold text-white">{item.name}</p>
-                      <p className="text-[10px] text-gray-500 font-bold">{item.category} &bull; {formatCurrency(item.price)}</p>
+                      <p className="text-[10px] text-gray-500 font-bold">{item.category}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -99,7 +163,8 @@ const OutletPOSInventory = () => {
                       <div key={v.id} className="flex items-center gap-2 bg-gray-800/50 rounded-lg px-3 py-2 text-xs">
                         <span className="font-bold text-gray-300 min-w-[80px]">{[v.color, v.size].filter(Boolean).join(' • ') || 'Default'}</span>
                         <span className="text-[10px] font-mono text-gray-500 flex-1">{v.barcode}</span>
-                        <span className={`font-bold ${v.stock > 0 ? 'text-emerald-400' : 'text-red-400'}`}>{v.stock}</span>
+                        <span className="font-bold text-emerald-400">{v.price ? formatCurrency(v.price) : '-'}</span>
+                        <span className={`font-bold ml-2 ${v.stock > 0 ? 'text-emerald-400' : 'text-red-400'}`}>{v.stock}</span>
                       </div>
                     ))}
                   </div>
@@ -114,6 +179,106 @@ const OutletPOSInventory = () => {
               <p className="text-[10px] mt-1">All warehouse products are automatically available. Stock arrives via approved demand requests.</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ─── Add Product Modal ─── */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+          <div className="bg-gray-900 max-w-xl w-full max-h-[90vh] overflow-y-auto p-6 rounded-[2rem] border-2 border-gray-700 shadow-[0_50px_100px_rgba(0,0,0,0.5)]">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-xl font-black text-white uppercase tracking-tighter">Add Product</h2>
+                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">POS Catalog Entry</p>
+              </div>
+              <button onClick={() => setIsModalOpen(false)} className="p-3 bg-gray-800 text-gray-500 hover:text-white rounded-2xl transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Name */}
+              <div className="space-y-2">
+                <label className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Product Name</label>
+                <input type="text" required value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl py-4 px-6 font-bold text-white placeholder-gray-500 outline-none focus:border-blue-500 transition-all"
+                  placeholder="e.g. Ultra-Flex Scrub Top" />
+              </div>
+
+              {/* Category + Fabric */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Category</label>
+                  <select value={formData.category}
+                    onChange={(e) => setFormData({...formData, category: e.target.value})}
+                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl py-4 px-4 font-bold text-white uppercase outline-none focus:border-blue-500 transition-all">
+                    {['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS', 'FABRIC', 'SHOES', 'CLOGS', 'LABCOAT', 'ACCESSORIES'].map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Fabric</label>
+                  <input type="text" value={formData.fabric}
+                    onChange={(e) => setFormData({...formData, fabric: e.target.value})}
+                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl py-4 px-4 font-bold text-white placeholder-gray-500 outline-none focus:border-blue-500 transition-all"
+                    placeholder="Cotton Blend" />
+                </div>
+              </div>
+
+              {/* Variants */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Variants (Color × Size × Price)</label>
+                  <button type="button" onClick={addVariant}
+                    className="p-2 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white rounded-xl transition-all">
+                    <Plus size={16} />
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {formData.variants.map((v, vi) => (
+                    <div key={vi} className="grid grid-cols-12 gap-2 items-center bg-gray-800/50 rounded-xl p-3 border border-gray-700/50">
+                      <div className="col-span-4">
+                        <input type="text" value={v.color} placeholder="Color"
+                          onChange={(e) => updateVariant(vi, 'color', e.target.value)}
+                          className="w-full bg-gray-900 border border-gray-700 rounded-lg py-2.5 px-3 text-xs font-bold text-white placeholder-gray-500 outline-none focus:border-blue-500" />
+                      </div>
+                      <div className="col-span-3">
+                        <input type="text" value={v.size} placeholder="Size"
+                          onChange={(e) => updateVariant(vi, 'size', e.target.value)}
+                          className="w-full bg-gray-900 border border-gray-700 rounded-lg py-2.5 px-3 text-xs font-bold text-white placeholder-gray-500 outline-none focus:border-blue-500" />
+                      </div>
+                      <div className="col-span-3">
+                        <input type="number" min="0" step="0.01" value={v.price} placeholder="Price"
+                          onChange={(e) => updateVariant(vi, 'price', parseFloat(e.target.value) || 0)}
+                          className="w-full bg-gray-900 border border-gray-700 rounded-lg py-2.5 px-3 text-xs font-bold text-white outline-none focus:border-blue-500" />
+                      </div>
+                      <div className="col-span-2 flex justify-end">
+                        <button type="button" onClick={() => removeVariant(vi)}
+                          className="p-2 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-lg transition-all disabled:opacity-20"
+                          disabled={formData.variants.length <= 1}>
+                          <Minus size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button type="button" onClick={addVariant}
+                  className="w-full py-3 border-2 border-dashed border-gray-700 rounded-xl text-xs font-black text-gray-500 uppercase tracking-widest hover:border-emerald-500/40 hover:text-emerald-500 transition-all flex items-center justify-center gap-2">
+                  <Plus size={14} /> Add Variant
+                </button>
+              </div>
+
+              {/* Submit */}
+              <button type="submit" disabled={submitting}
+                className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black py-4 rounded-xl transition-all flex items-center justify-center gap-3 active:scale-95">
+                {submitting ? <RefreshCw size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}
+                <span>{submitting ? 'Creating...' : 'Add to POS Catalog'}</span>
+              </button>
+              <p className="text-[10px] text-gray-500 text-center font-bold">Stock is always 0 &bull; Stock arrives via demand request approval workflow</p>
+            </form>
+          </div>
         </div>
       )}
     </div>

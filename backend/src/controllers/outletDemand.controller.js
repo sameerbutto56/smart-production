@@ -1,5 +1,17 @@
 const prisma = require('../prisma');
 
+const generateTransferNumber = (() => {
+  let counter = 0;
+  const startDate = new Date().toISOString().slice(0, 10);
+  return () => {
+    counter++;
+    const d = new Date();
+    const dayKey = d.toISOString().slice(0, 10);
+    if (dayKey !== startDate) { counter = 1; }
+    return `TRF-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(counter).padStart(5, '0')}`;
+  };
+})();
+
 const createDemandRequest = async (req, res) => {
   try {
     const { items, notes } = req.body;
@@ -16,6 +28,7 @@ const createDemandRequest = async (req, res) => {
         outletId: req.user.id,
         outletName,
         items: items.map(i => ({
+          inventoryItemId: i.inventoryItemId || null,
           productName: i.productName,
           size: i.size || '',
           color: i.color || '',
@@ -23,7 +36,8 @@ const createDemandRequest = async (req, res) => {
           approvedQty: 0
         })),
         notes: notes || '',
-        status: 'PENDING'
+        status: 'PENDING',
+        transferNumber: generateTransferNumber()
       }
     });
     res.status(201).json(demand);
@@ -166,6 +180,43 @@ const getDemandStats = async (req, res) => {
   }
 };
 
+const generateBarcode = (itemId, size, color, attempt = 0) => {
+  const prefix = 'POS';
+  const raw = itemId.replace(/-/g, '').slice(0, 8);
+  const base = ((parseInt(raw, 16) || 0) + (size ? size.charCodeAt(0) : 0) + (color ? color.charCodeAt(0) : 0)).toString(36).toUpperCase().slice(0, 6);
+  const suf = `${size ? size[0] || 'X' : 'X'}${color ? color[0] || 'X' : 'X'}`;
+  return `${prefix}${base}${suf}${attempt > 0 ? attempt : ''}`;
+};
+
+const deductWarehouseStock = async (inventoryItemId, color, size, qty) => {
+  const inv = await prisma.inventoryItem.findUnique({ where: { id: inventoryItemId } });
+  if (!inv) return false;
+
+  if (Array.isArray(inv.variants) && inv.variants.length > 0) {
+    // Find matching variant in variants JSON
+    const variants = inv.variants.map(v => {
+      if (v.color === (color || null) && v.size === (size || null)) {
+        return { ...v, stock: Math.max(0, (v.stock || 0) - qty) };
+      }
+      return v;
+    });
+    await prisma.inventoryItem.update({
+      where: { id: inventoryItemId },
+      data: {
+        variants,
+        stock: { decrement: qty } // also decrement total stock
+      }
+    });
+  } else {
+    // Simple stock field
+    await prisma.inventoryItem.update({
+      where: { id: inventoryItemId },
+      data: { stock: { decrement: qty } }
+    });
+  }
+  return true;
+};
+
 const acceptDemandRequest = async (req, res) => {
   try {
     const { id } = req.params;
@@ -183,35 +234,35 @@ const acceptDemandRequest = async (req, res) => {
 
     for (const it of items) {
       if (!it.approvedQty || it.approvedQty <= 0) continue;
-      // Find the inventory item by product name
-      const invItems = await prisma.inventoryItem.findMany({
-        where: { name: { contains: it.productName, mode: 'insensitive' } },
-        include: { outletVariants: true }
-      });
-      if (invItems.length === 0) {
+
+      // Find inventory item — prefer direct ID match, fallback to name
+      let inv = null;
+      if (it.inventoryItemId) {
+        inv = await prisma.inventoryItem.findUnique({
+          where: { id: it.inventoryItemId },
+          include: { outletVariants: true }
+        });
+      }
+      if (!inv) {
+        const invItems = await prisma.inventoryItem.findMany({
+          where: { name: { contains: it.productName, mode: 'insensitive' } },
+          include: { outletVariants: true }
+        });
+        inv = invItems[0] || null;
+      }
+      if (!inv) {
         results.push({ productName: it.productName, status: 'SKIPPED', reason: 'No warehouse product found' });
         continue;
       }
-      const inv = invItems[0];
 
       // Find or create the matching OutletVariant
       let ov = inv.outletVariants.find(o => o.color === (it.color || null) && o.size === (it.size || null));
       if (!ov) {
-        let barcode = generateBarcode(inv.id, it.size, it.color);
-        let attempt = 0;
-        // Need generateBarcode from pos.controller — redefine locally
-        const genBarcode = (itemId, size, color, attempt = 0) => {
-          const prefix = 'POS';
-          const raw = itemId.replace(/-/g, '').slice(0, 8);
-          const base = ((parseInt(raw, 16) || 0) + (size ? size.charCodeAt(0) : 0) + (color ? color.charCodeAt(0) : 0)).toString(36).toUpperCase().slice(0, 6);
-          const suf = `${size ? size[0] || 'X' : 'X'}${color ? color[0] || 'X' : 'X'}`;
-          return `${prefix}${base}${suf}${attempt > 0 ? attempt : ''}`;
-        };
-        let bc = genBarcode(inv.id, it.size, it.color);
+        let bc = generateBarcode(inv.id, it.size, it.color);
         let a = 0;
         while (await prisma.outletVariant.findUnique({ where: { barcode: bc } })) {
           a++;
-          bc = genBarcode(inv.id, it.size, it.color, a);
+          bc = generateBarcode(inv.id, it.size, it.color, a);
         }
         ov = await prisma.outletVariant.create({
           data: {
@@ -220,36 +271,46 @@ const acceptDemandRequest = async (req, res) => {
             size: it.size || null,
             barcode: bc,
             stock: parseInt(it.approvedQty) || 0,
+            price: null,
             isActive: true
           }
         });
-        results.push({ productName: it.productName, color: it.color, size: it.size, status: 'CREATED', qty: it.approvedQty });
       } else {
         // Add stock to existing variant
         await prisma.outletVariant.update({
           where: { id: ov.id },
           data: { stock: { increment: parseInt(it.approvedQty) || 0 } }
         });
-        results.push({ productName: it.productName, color: it.color, size: it.size, status: 'UPDATED', qty: it.approvedQty });
       }
+
+      // Deduct from warehouse inventory
+      await deductWarehouseStock(inv.id, it.color || null, it.size || null, parseInt(it.approvedQty) || 0);
+
+      results.push({
+        productName: it.productName,
+        color: it.color,
+        size: it.size,
+        status: ov ? 'ACCEPTED' : 'CREATED',
+        qty: it.approvedQty
+      });
     }
 
     // Mark demand as accepted
     await prisma.outletDemandRequest.update({
       where: { id },
-      data: { acceptedAt: new Date() }
+      data: { acceptedAt: new Date(), acceptedById: req.user.id }
     });
 
     await prisma.auditLog.create({
       data: {
         orderId: null,
         action: 'DEMAND_REQUEST_ACCEPTED',
-        details: `Demand request ${id} from ${existing.outletName} accepted by outlet — ${results.length} items processed`,
+        details: `Demand request ${id} (${existing.transferNumber || ''}) from ${existing.outletName} accepted — ${results.length} items processed, warehouse deducted`,
         performedBy: req.user.id
       }
     });
 
-    res.json({ message: 'Demand accepted and stock added to outlet inventory', results });
+    res.json({ message: 'Demand accepted. Outlet stock added, warehouse deducted.', results });
   } catch (error) {
     res.status(500).json({ message: 'Error accepting demand request', error: error.message });
   }

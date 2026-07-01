@@ -406,6 +406,7 @@ model RoutingHistory {
 
 model OutletDemandRequest {
   id              String    @id @default(uuid())
+  transferNumber  String?   @unique
   outletId        String
   outletName      String
   status          String    @default("PENDING")
@@ -417,11 +418,13 @@ model OutletDemandRequest {
   approvedAt      DateTime?
   approvedById    String?
   acceptedAt      DateTime?
+  acceptedById    String?
 
   @@index([outletId])
   @@index([status])
   @@index([outletName])
   @@index([createdAt])
+  @@index([transferNumber])
 }
 
 model Client {

@@ -35,6 +35,7 @@ const ensureOutletVariants = async (item) => {
           size: vd.size || null,
           barcode,
           stock: 0,
+          price: vd.price || null,
           isActive: true
         }
       });
@@ -88,6 +89,7 @@ const getPosInventory = async (req, res) => {
             size: vd.size || null,
             barcode,
             stock: 0,
+            price: vd.price || null,
             isActive: true
           });
         }
@@ -169,6 +171,7 @@ const getProducts = async (req, res) => {
               size: vd.size || null,
               barcode,
               stock: 0,
+              price: vd.price || null,
               isActive: true
             }
           });
@@ -423,6 +426,79 @@ const getReturns = async (req, res) => {
   }
 };
 
+/* ─── Create a new product from POS (product master + OutletVariants, stock always 0) ─── */
+const createPosProduct = async (req, res) => {
+  try {
+    const { name, category, fabric, imageUrl, variants } = req.body;
+    if (!name || !category) {
+      return res.status(400).json({ message: 'Product name and category are required' });
+    }
+
+    const item = await prisma.inventoryItem.create({
+      data: {
+        name,
+        category,
+        fabric: fabric || null,
+        imageUrl: imageUrl || null,
+        stock: 0,
+        price: null,
+        variants: variants || null
+      }
+    });
+
+    // Auto-create OutletVariants with price copied from each variant def
+    if (variants && Array.isArray(variants) && variants.length > 0) {
+      for (const vd of variants) {
+        let barcode = generateBarcode(item.id, vd.size, vd.color);
+        let attempt = 0;
+        while (await prisma.outletVariant.findUnique({ where: { barcode } })) {
+          attempt++;
+          barcode = generateBarcode(item.id, vd.size, vd.color, attempt);
+        }
+        await prisma.outletVariant.create({
+          data: {
+            inventoryItemId: item.id,
+            color: vd.color || null,
+            size: vd.size || null,
+            barcode,
+            stock: 0,
+            price: vd.price || null,
+            isActive: true
+          }
+        });
+      }
+    } else {
+      // Single variant if no variants array
+      let barcode = generateBarcode(item.id, null, null);
+      let attempt = 0;
+      while (await prisma.outletVariant.findUnique({ where: { barcode } })) {
+        attempt++;
+        barcode = generateBarcode(item.id, null, null, attempt);
+      }
+      await prisma.outletVariant.create({
+        data: {
+          inventoryItemId: item.id,
+          color: null,
+          size: null,
+          barcode,
+          stock: 0,
+          price: null,
+          isActive: true
+        }
+      });
+    }
+
+    const itemWithVariants = await prisma.inventoryItem.findUnique({
+      where: { id: item.id },
+      include: { outletVariants: true }
+    });
+
+    res.status(201).json(itemWithVariants);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to create product', error: error.message });
+  }
+};
+
 /* ─── Barcode lookup ─── */
 const lookupBarcode = async (req, res) => {
   try {
@@ -456,5 +532,6 @@ module.exports = {
   updateVariantStock, updateVariantPrice,
   createSale, getSales, getSalesDashboard,
   createReturn, getReturns,
-  lookupBarcode
+  lookupBarcode,
+  createPosProduct
 };

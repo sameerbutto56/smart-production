@@ -150,6 +150,7 @@ const OutletStockRequest = () => {
       const token = sessionStorage.getItem('token');
       await axios.post(`${API_URL}/api/demand`, {
         items: cartItems.map(i => ({
+          inventoryItemId: i.productId || null,
           productName: i.productName,
           size: i.size,
           color: i.color,
