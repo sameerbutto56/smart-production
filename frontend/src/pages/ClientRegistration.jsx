@@ -36,30 +36,33 @@ const ClientRegistration = () => {
   const [customMeasurements, setCustomMeasurements] = useState({});
 
   const MEASUREMENT_FIELDS = [
-    { key: 'height', label: 'Height' },
-    { key: 'shoulder', label: 'Shoulder' },
-    { key: 'chest', label: 'Chest' },
+    { key: 'shirtLength', label: 'Shirt Length' },
     { key: 'waist', label: 'Waist' },
-    { key: 'hips', label: 'Hips' },
-    { key: 'neck', label: 'Neck / Collar' },
-    { key: 'frontNeck', label: 'Front Neck' },
-    { key: 'backNeck', label: 'Back Neck' },
-    { key: 'shirtLength', label: 'Shirt / Kameez Length' },
-    { key: 'blazerLength', label: 'Blazer Length' },
-    { key: 'sleeveLength', label: 'Sleeve Length' },
-    { key: 'armHole', label: 'Arm Hole' },
-    { key: 'sleeveOpening', label: 'Sleeve Opening' },
-    { key: 'wrist', label: 'Wrist' },
-    { key: 'pantLength', label: 'Pant / Shalwar Length' },
+    { key: 'shoulder', label: 'Shoulder' },
+    { key: 'length', label: 'Length' },
+    { key: 'sleeve', label: 'Sleeve' },
+    { key: 'bottomWidth', label: 'Bottom Width (Pancha)' },
+    { key: 'mori', label: 'Mori (Leg Opening)' },
     { key: 'thigh', label: 'Thigh' },
-    { key: 'bottom', label: 'Bottom / Paicha' },
-    { key: 'inseam', label: 'Inseam' },
-    { key: 'outseam', label: 'Outseam' },
+    { key: 'chest', label: 'Chest' },
+    { key: 'bottomZeer', label: 'Bottom / Hem (Zeer)' },
+    { key: 'bottom', label: 'Bottom' },
   ];
+
+  const [extraMeasurements, setExtraMeasurements] = useState([]);
+
+  const addExtraMeasurement = () => setExtraMeasurements([...extraMeasurements, { name: '', value: '' }]);
+  const removeExtraMeasurement = (i) => setExtraMeasurements(extraMeasurements.filter((_, idx) => idx !== i));
+  const updateExtraMeasurement = (i, field, val) => {
+    const copy = [...extraMeasurements];
+    copy[i] = { ...copy[i], [field]: val };
+    setExtraMeasurements(copy);
+  };
 
   const resetForm = () => {
     setForm({ name: '', gender: 'Male', phone: '', permanentAddress: '', measurementChart: '', sizeDetails: '' });
     setCustomMeasurements({});
+    setExtraMeasurements([]);
     setAdditionalPhones([]);
     setDeliveryAddresses([]);
     setSelectedClient(null);
@@ -95,8 +98,8 @@ const ClientRegistration = () => {
     if (!form.name || !form.phone) return alert('Name and phone are required');
     setSaving(true);
     try {
-      const sizeDetailsValue = form.measurementChart === 'Custom Measurements' && Object.keys(customMeasurements).length > 0
-        ? JSON.stringify(customMeasurements)
+      const sizeDetailsValue = form.measurementChart === 'Custom Measurements' && (Object.keys(customMeasurements).length > 0 || extraMeasurements.length > 0)
+        ? JSON.stringify({ ...customMeasurements, _extra: extraMeasurements.filter(e => e.name && e.value) })
         : form.sizeDetails;
       const payload = {
         ...form,
@@ -171,9 +174,15 @@ const ClientRegistration = () => {
       sizeDetails: client.sizeDetails || ''
     });
     if (client.sizeDetails && typeof client.sizeDetails === 'string' && client.sizeDetails.startsWith('{')) {
-      try { setCustomMeasurements(JSON.parse(client.sizeDetails)); } catch (e) { setCustomMeasurements({}); }
+      try {
+        const parsed = JSON.parse(client.sizeDetails);
+        const { _extra, ...rest } = parsed;
+        setCustomMeasurements(rest);
+        setExtraMeasurements(Array.isArray(_extra) ? _extra : []);
+      } catch (e) { setCustomMeasurements({}); setExtraMeasurements([]); }
     } else {
       setCustomMeasurements({});
+      setExtraMeasurements([]);
     }
     setAdditionalPhones(client.additionalPhones || []);
     setDeliveryAddresses(client.deliveryAddresses || []);
@@ -314,7 +323,7 @@ const ClientRegistration = () => {
                 <label className="text-xs font-bold theme-text-secondary block mb-1">Measurement Chart</label>
                 <select name="measurementChart" value={form.measurementChart} onChange={(e) => {
                   handleChange(e);
-                  if (e.target.value !== 'Custom Measurements') setCustomMeasurements({});
+                  if (e.target.value !== 'Custom Measurements') { setCustomMeasurements({}); setExtraMeasurements([]); }
                 }}
                   className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white focus:border-blue-500 outline-none">
                   <option value="">Select chart...</option>
@@ -341,7 +350,7 @@ const ClientRegistration = () => {
 
             {form.measurementChart === 'Custom Measurements' && (
               <div className="border-t-2 border-gray-700 pt-4 mt-2">
-                <p className="text-xs font-black theme-text-primary uppercase tracking-widest mb-4">Custom Measurements (inches)</p>
+                <p className="text-xs font-black theme-text-primary uppercase tracking-widest mb-4">Make Your Own Size (inches)</p>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                   {MEASUREMENT_FIELDS.map(field => (
                     <div key={field.key}>
@@ -351,6 +360,26 @@ const ClientRegistration = () => {
                         placeholder="in" />
                     </div>
                   ))}
+                </div>
+
+                {/* Extra Measurements */}
+                <div className="border-t border-gray-700 pt-4 mt-6">
+                  <p className="text-xs font-bold theme-text-secondary mb-3">Additional Measurements</p>
+                  <div className="space-y-2">
+                    {extraMeasurements.map((em, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <input value={em.name} onChange={(e) => updateExtraMeasurement(i, 'name', e.target.value)}
+                          className="flex-1 bg-gray-900 border-2 border-gray-700 rounded-xl px-3 py-2.5 text-sm font-bold text-white placeholder-gray-600 focus:border-blue-500 outline-none"
+                          placeholder="Measurement name" />
+                        <input value={em.value} onChange={(e) => updateExtraMeasurement(i, 'value', e.target.value)}
+                          className="w-24 bg-gray-900 border-2 border-gray-700 rounded-xl px-3 py-2.5 text-sm font-bold text-white placeholder-gray-600 focus:border-blue-500 outline-none"
+                          placeholder="in" />
+                        <button type="button" onClick={() => removeExtraMeasurement(i)} className="p-2.5 bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white rounded-xl"><X size={14} /></button>
+                      </div>
+                    ))}
+                  </div>
+                  <button type="button" onClick={addExtraMeasurement}
+                    className="mt-2 text-xs font-black text-blue-400 hover:text-blue-300 flex items-center gap-1"><Plus size={12} />Add More</button>
                 </div>
               </div>
             )}
@@ -423,7 +452,16 @@ const ClientRegistration = () => {
                     {client.sizeDetails && typeof client.sizeDetails === 'string' && client.sizeDetails.startsWith('{') ? (
                       <div className="mt-2"><span className="text-sm font-bold text-gray-500">Measurements:</span>
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1 mt-1">
-                          {(() => { try { return Object.entries(JSON.parse(client.sizeDetails)).filter(([,v]) => v).map(([k, v]) => <p key={k} className="text-xs font-bold text-gray-400"><span className="text-gray-600 capitalize">{k.replace(/([A-Z])/g, ' $1')}:</span> {v}"</p>); } catch (e) { return <p className="text-xs text-gray-500">{client.sizeDetails}</p>; } })()}
+                          {(() => { try {
+                            const parsed = JSON.parse(client.sizeDetails);
+                            const { _extra, ...rest } = parsed;
+                            const entries = Object.entries(rest).filter(([,v]) => v);
+                            const extras = Array.isArray(_extra) ? _extra.filter(e => e.name && e.value) : [];
+                            return <>
+                              {entries.map(([k, v]) => <p key={k} className="text-xs font-bold text-gray-400"><span className="text-gray-600 capitalize">{k.replace(/([A-Z])/g, ' $1')}:</span> {v}"</p>)}
+                              {extras.map((e, i) => <p key={`e${i}`} className="text-xs font-bold text-gray-400"><span className="text-gray-600">{e.name}:</span> {e.value}"</p>)}
+                            </>;
+                          } catch (e) { return <p className="text-xs text-gray-500">{client.sizeDetails}</p>; } })()}
                         </div>
                       </div>
                     ) : client.sizeDetails ? (
