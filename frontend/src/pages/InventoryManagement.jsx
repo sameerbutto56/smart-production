@@ -317,17 +317,17 @@ const InventoryManagement = () => {
     const barcode = generateBarcode(item.id, variant.size, variant.color);
     const formatCurr = (n) => `₨${(n || 0).toLocaleString()}`;
 
-    // Generate barcode at balanced resolution for 2×1 label
+    // Generate high-pixel barcode (thick bars, large canvas)
     const bc = document.createElement('canvas');
-    bc.width = 1200;
-    bc.height = 220;
+    bc.width = 2400;
+    bc.height = 360;
     JsBarcode(bc, barcode, {
       format: 'CODE128',
-      width: 8,
-      height: 140,
+      width: 16,
+      height: 240,
       displayValue: true,
-      fontSize: 28,
-      margin: 8,
+      fontSize: 52,
+      margin: 12,
       background: '#ffffff',
       lineColor: '#000000'
     });
@@ -339,11 +339,11 @@ const InventoryManagement = () => {
       @page { margin: 0; }
       body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
       .labels { display: flex; flex-wrap: wrap; }
-      .label { width: 2in; height: 1in; display: flex; flex-direction: column; align-items: center; text-align: center; page-break-inside: avoid; box-sizing: border-box; padding: 1.5mm 2mm; border: none; }
-      .label .name { font-size: 11px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 1.8in; line-height: 1.1; }
-      .label .detail { font-size: 8px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 1.8in; line-height: 1.1; }
-      .label .price { font-size: 14px; font-weight: bold; line-height: 1.1; margin-top: 0.5mm; }
-      .label img { width: 1.75in; height: auto; }
+      .label { width: 2in; height: 1in; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; page-break-inside: avoid; box-sizing: border-box; padding: 1mm; border: none; }
+      .label .name { font-size: 10px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 1.8in; }
+      .label .detail { font-size: 7px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 1.8in; }
+      .label .price { font-size: 13px; font-weight: bold; }
+      .label img { width: 1.8in; height: auto; }
     </style></head><body><div class="labels">
       ${Array(count).fill(`<div class="label">
         <div class="name">${productName}</div>
