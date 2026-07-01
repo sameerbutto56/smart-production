@@ -565,8 +565,19 @@ const getOrders = async (req, res) => {
         { status: { in: ['COMPLETED', 'OUT_FOR_DELIVERY'] } }
       ];
       // Optionally filter by deliveryType (e.g., ENAMELS, TCS, POST_EX)
+      // Also match deliveryMethod as fallback for orders dispatched before deliveryType was added
       if (req.query.deliveryType) {
-        where.deliveryType = req.query.deliveryType;
+        const dt = req.query.deliveryType;
+        // Build the delivery method string that would have been stored for this type
+        const methodMap = { 'ENAMELS': 'Enamels Delivery', 'TCS': 'TCS', 'POST_EX': 'PostEx' };
+        const methodStr = methodMap[dt];
+        if (methodStr) {
+          where.AND = [
+            { OR: [{ deliveryType: dt }, { deliveryMethod: methodStr }] }
+          ];
+        } else {
+          where.deliveryType = dt;
+        }
       }
     } else {
       // Default: If no status specified, load active orders + the 100 most recent completed orders to keep payload tiny!
