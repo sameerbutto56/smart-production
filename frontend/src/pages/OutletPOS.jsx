@@ -20,6 +20,7 @@ const OutletPOS = () => {
   const [selectedColor, setSelectedColor] = useState('');
   const [selectedQty, setSelectedQty] = useState(1);
   const [discountPct, setDiscountPct] = useState(0);
+  const [orderNumber, setOrderNumber] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [showCheckout, setShowCheckout] = useState(false);
@@ -162,13 +163,15 @@ const OutletPOS = () => {
         alterationCharges: altCharges,
         extraCharges: 0,
         discountPercent: discountPct,
-        paymentMethod
+        paymentMethod,
+        receiptNumber: orderNumber || undefined
       });
       setLastSale(res.data);
       setShowCheckout(true);
       setCart([]);
       setDiscountPct(0);
       setCustomerName('');
+      setOrderNumber('');
       fetchData();
       toast.success('Sale completed!');
     } catch (err) {
@@ -431,6 +434,8 @@ const OutletPOS = () => {
               <span className="text-[10px] text-gray-500">% Disc: -{formatCurrency(discountAmount)}</span>
             </div>
             <input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Customer name (optional)"
+              className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
+            <input value={orderNumber} onChange={e => setOrderNumber(e.target.value)} placeholder="Order # (leave blank for auto-generate)"
               className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
             <div className="flex items-center justify-between text-sm font-black text-white border-t border-gray-700 pt-2">
               <span>Grand Total</span>

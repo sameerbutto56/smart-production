@@ -356,11 +356,11 @@ const updateVariant = async (req, res) => {
 /* ─── Sales ─── */
 const createSale = async (req, res) => {
   try {
-    const { items, customerName, alterationCharges, extraCharges, discountPercent, paymentMethod } = req.body;
+    const { items, customerName, alterationCharges, extraCharges, discountPercent, paymentMethod, receiptNumber: manualReceipt } = req.body;
     if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'At least one item is required' });
 
     const outletName = req.user?.name || 'Outlet';
-    const receiptNumber = generateReceiptNumber();
+    const receiptNumber = manualReceipt || generateReceiptNumber();
     let subtotal = 0;
     let totalAlt = parseFloat(alterationCharges || 0);
     let totalExtra = parseFloat(extraCharges || 0);
