@@ -26,6 +26,8 @@ const ProductionDashboard = lazy(() => import('./pages/ProductionDashboard'));
 const RefundManagement = lazy(() => import('./pages/RefundManagement'));
 const UnifiedAnalytics = lazy(() => import('./pages/UnifiedAnalytics'));
 const ClientRegistration = lazy(() => import('./pages/ClientRegistration'));
+const OutletPOS = lazy(() => import('./pages/OutletPOS'));
+const OutletPOSInventory = lazy(() => import('./pages/OutletPOSInventory'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -101,6 +103,8 @@ function App() {
                   <Route path="production" element={<ProductionDashboard />} />
                   <Route path="refund-management" element={<RefundManagement />} />
                   <Route path="clients" element={<ClientRegistration />} />
+                  <Route path="pos" element={<OutletPOS />} />
+                  <Route path="pos-inventory" element={<OutletPOSInventory />} />
                 </Route>
               </Routes>
             </Router>
