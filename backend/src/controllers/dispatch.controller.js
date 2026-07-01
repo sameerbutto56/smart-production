@@ -142,12 +142,20 @@ const bookCourier = async (req, res) => {
       status: 'BOOKED'
     };
 
+    const deliveryTypeMap = {
+      'Enamels Delivery': 'ENAMELS',
+      'TCS': 'TCS',
+      'PostEx': 'POST_EX',
+    };
+    const mappedDeliveryType = deliveryTypeMap[courierName] || null;
+
     await prisma.order.update({
       where: { id: orderId },
       data: {
         trackingNumber,
         courierDetails,
         deliveryMethod: courierName,
+        deliveryType: mappedDeliveryType,
         dispatchStatus: 'BOOKED'
       }
     });
@@ -175,6 +183,29 @@ const bookCourier = async (req, res) => {
       where: { id: orderId },
       data: { currentStage: 'OUT_FOR_DELIVERY' }
     });
+
+    // Routing history + SeenTask for delivery users
+    if (mappedDeliveryType === 'ENAMELS') {
+      const recipientUsers = await prisma.user.findMany({
+        where: { role: { in: ['OUT_FOR_DELIVERY', 'DELIVERY_BOY'] } },
+        select: { id: true }
+      });
+      await prisma.routingHistory.create({
+        data: {
+          orderId,
+          sentByUserId: req.user.id,
+          sentToStage: 'OUT_FOR_DELIVERY',
+          sentToUserIds: JSON.stringify(recipientUsers.map(u => u.id)),
+          previousStage: 'DISPATCH',
+          newStage: 'OUT_FOR_DELIVERY',
+          remarks: `Dispatched via Enamels Delivery. Tracking: ${trackingNumber || 'N/A'}`,
+          createdAt: new Date()
+        }
+      }).catch(() => {});
+      await prisma.seenTask.deleteMany({
+        where: { userId: { in: recipientUsers.map(u => u.id) }, orderId, stageName: 'OUT_FOR_DELIVERY' }
+      }).catch(() => {});
+    }
 
     res.json({ message: `Courier booked: ${courierName}`, trackingNumber });
   } catch (error) {
