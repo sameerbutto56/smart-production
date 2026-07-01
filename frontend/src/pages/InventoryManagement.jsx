@@ -317,17 +317,17 @@ const InventoryManagement = () => {
     const barcode = generateBarcode(item.id, variant.size, variant.color);
     const formatCurr = (n) => `₨${(n || 0).toLocaleString()}`;
 
-    // Generate ultra high-res barcode — canvas is large so bars print crisp at 2in
+    // Generate barcode at balanced resolution for 2×1 label
     const bc = document.createElement('canvas');
-    bc.width = 3600;
-    bc.height = 1200;
+    bc.width = 1200;
+    bc.height = 220;
     JsBarcode(bc, barcode, {
       format: 'CODE128',
-      width: 24,
-      height: 700,
+      width: 8,
+      height: 140,
       displayValue: true,
-      fontSize: 160,
-      margin: 40,
+      fontSize: 28,
+      margin: 8,
       background: '#ffffff',
       lineColor: '#000000'
     });
@@ -339,15 +339,15 @@ const InventoryManagement = () => {
       @page { margin: 0; }
       body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
       .labels { display: flex; flex-wrap: wrap; }
-      .label { width: 2in; height: 1in; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; page-break-inside: avoid; box-sizing: border-box; padding: 1.5mm; border: none; }
-      .label .name { font-size: 11px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 1.8in; }
-      .label .detail { font-size: 9px; color: #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 1.8in; }
-      .label .price { font-size: 14px; font-weight: bold; }
-      .label img { width: 1.75in; height: 0.6in; }
+      .label { width: 2in; height: 1in; display: flex; flex-direction: column; align-items: center; text-align: center; page-break-inside: avoid; box-sizing: border-box; padding: 1.5mm 2mm; border: none; }
+      .label .name { font-size: 11px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 1.8in; line-height: 1.1; }
+      .label .detail { font-size: 8px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 1.8in; line-height: 1.1; }
+      .label .price { font-size: 14px; font-weight: bold; line-height: 1.1; margin-top: 0.5mm; }
+      .label img { width: 1.75in; height: auto; }
     </style></head><body><div class="labels">
       ${Array(count).fill(`<div class="label">
         <div class="name">${productName}</div>
-        <div class="detail">${[variant.color, variant.size].filter(Boolean).join(' / ') || ''}</div>
+        <div class="detail">${barcode}${(variant.color || variant.size) ? ' — ' + [variant.color, variant.size].filter(Boolean).join(' / ') : ''}</div>
         <img src="${dataUrl}" />
         <div class="price">${formatCurr(variant.price || item.price || 0)}</div>
       </div>`).join('')}

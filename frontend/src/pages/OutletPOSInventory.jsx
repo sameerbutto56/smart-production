@@ -200,8 +200,9 @@ const OutletPOSInventory = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     <button onClick={(e) => { e.stopPropagation(); handleOpenEdit(item); }}
-                      className="p-1.5 hover:bg-gray-800 rounded-lg transition-colors">
-                      <Pencil size={13} className="text-gray-500 hover:text-blue-400" />
+                      className="flex items-center gap-1 px-3 py-2 bg-gray-800 hover:bg-blue-600 rounded-lg transition-colors">
+                      <Pencil size={12} className="text-white" />
+                      <span className="text-[10px] font-bold text-white">Edit</span>
                     </button>
                     <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${totalStock > 0 ? 'bg-emerald-900/30 text-emerald-400' : 'bg-gray-800 text-gray-500'}`}>
                       Stock: {totalStock}
