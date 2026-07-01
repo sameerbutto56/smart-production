@@ -38,7 +38,7 @@ const OutletPOSInventory = () => {
       toast.success(`${item.name} added to POS inventory with barcodes`);
       fetchData();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to add to POS');
+      toast.error(err.response?.data?.message || err.message || 'Failed to add to POS');
     }
   };
 

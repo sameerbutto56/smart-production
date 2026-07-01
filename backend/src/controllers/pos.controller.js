@@ -1,10 +1,11 @@
 const prisma = require('../prisma');
 
-const generateBarcode = (itemId, size, color) => {
+const generateBarcode = (itemId, size, color, attempt = 0) => {
   const prefix = 'POS';
   const raw = itemId.replace(/-/g, '').slice(0, 8);
-  const hash = ((parseInt(raw, 16) || 0) + (size ? size.charCodeAt(0) : 0) + (color ? color.charCodeAt(0) : 0)).toString(36).toUpperCase().slice(0, 6);
-  return `${prefix}${hash}${size ? size[0] || 'X' : 'X'}${color ? color[0] || 'X' : 'X'}`;
+  const base = ((parseInt(raw, 16) || 0) + (size ? size.charCodeAt(0) : 0) + (color ? color.charCodeAt(0) : 0)).toString(36).toUpperCase().slice(0, 6);
+  const suf = `${size ? size[0] || 'X' : 'X'}${color ? color[0] || 'X' : 'X'}`;
+  return `${prefix}${base}${suf}${attempt > 0 ? attempt : ''}`;
 };
 
 const generateReceiptNumber = (() => {
@@ -91,7 +92,12 @@ const addToPosInventory = async (req, res) => {
           ov = await prisma.outletVariant.update({ where: { id: ov.id }, data: { isActive: true } });
         }
       } else {
-        const barcode = generateBarcode(item.id, vd.size, vd.color);
+        let barcode = generateBarcode(item.id, vd.size, vd.color);
+        let attempt = 0;
+        while (await prisma.outletVariant.findUnique({ where: { barcode } })) {
+          attempt++;
+          barcode = generateBarcode(item.id, vd.size, vd.color, attempt);
+        }
         ov = await prisma.outletVariant.create({
           data: {
             inventoryItemId: item.id,
@@ -108,7 +114,7 @@ const addToPosInventory = async (req, res) => {
 
     res.json({ message: 'Product added to POS inventory', variantsCreated: created.length });
   } catch (error) {
-    res.status(500).json({ message: 'Failed to add to POS inventory', error: error.message });
+    res.status(500).json({ message: `Failed to add to POS inventory: ${error.message}` });
   }
 };
 
