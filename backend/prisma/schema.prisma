@@ -454,6 +454,7 @@ model OutletVariant {
   barcode         String   @unique
   stock           Int      @default(0)
   price           Float?
+  isActive        Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   saleItems       PosSaleItem[]
@@ -462,6 +463,7 @@ model OutletVariant {
   @@index([inventoryItemId])
   @@index([barcode])
   @@index([size, color])
+  @@index([isActive])
 }
 
 model PosSale {
