@@ -3,6 +3,7 @@ const {
   getPosInventory,
   getProducts,
   updateVariantStock, updateVariantPrice,
+  createVariant, deleteVariant, updateVariant,
   createSale, getSales, getSalesDashboard,
   createReturn, getReturns,
   lookupBarcode,
@@ -24,6 +25,9 @@ router.patch('/products/:id', authenticate, updateProduct);
 // Variants (outlet-specific stock/price)
 router.put('/variants/:id/stock', authenticate, updateVariantStock);
 router.put('/variants/:id/price', authenticate, updateVariantPrice);
+router.put('/variants/:id', authenticate, updateVariant);
+router.post('/products/:productId/variants', authenticate, createVariant);
+router.delete('/variants/:id', authenticate, deleteVariant);
 
 // Sales
 router.post('/sales', authenticate, createSale);

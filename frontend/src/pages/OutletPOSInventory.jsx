@@ -73,6 +73,7 @@ const OutletPOSInventory = () => {
   const [editItem, setEditItem] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', category: '', fabric: '', imageUrl: '' });
   const [editVariants, setEditVariants] = useState([]);
+  const [removedVariantIds, setRemovedVariantIds] = useState([]);
   const [editSubmitting, setEditSubmitting] = useState(false);
 
   const handleOpenEdit = (item) => {
@@ -84,18 +85,39 @@ const OutletPOSInventory = () => {
       imageUrl: item.imageUrl || ''
     });
     setEditVariants((item.outletVariants || []).map(v => ({
+      _key: v.id,
       id: v.id,
-      color: v.color,
-      size: v.size,
+      color: v.color || '',
+      size: v.size || '',
       barcode: v.barcode,
-      stock: v.stock,
+      stock: v.stock || 0,
       price: v.price || 0
     })));
+    setRemovedVariantIds([]);
     setEditModalOpen(true);
   };
 
-  const handleEditPrice = (variantId, value) => {
-    setEditVariants(prev => prev.map(v => v.id === variantId ? { ...v, price: parseFloat(value) || 0 } : v));
+  const handleEditVariantChange = (key, field, value) => {
+    setEditVariants(prev => prev.map(v => v._key === key ? { ...v, [field]: value } : v));
+  };
+
+  const handleEditAddVariant = () => {
+    const newKey = `new_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    setEditVariants(prev => [...prev, {
+      _key: newKey,
+      id: null,
+      color: '',
+      size: '',
+      barcode: '',
+      stock: 0,
+      price: 0
+    }]);
+  };
+
+  const handleEditRemoveVariant = (key) => {
+    const variant = editVariants.find(v => v._key === key);
+    if (variant.id) setRemovedVariantIds(prev => [...prev, variant.id]);
+    setEditVariants(prev => prev.filter(v => v._key !== key));
   };
 
   const handleEditSave = async () => {
@@ -103,10 +125,40 @@ const OutletPOSInventory = () => {
     setEditSubmitting(true);
     try {
       await api.patch(`/api/pos/products/${editItem.id}`, editForm);
-      const priceUpdates = editVariants.map(v =>
-        api.put(`/api/pos/variants/${v.id}/price`, { price: v.price })
+
+      // Update existing variants
+      const existing = editVariants.filter(v => v.id);
+      await Promise.all(
+        existing.map(v =>
+          api.put(`/api/pos/variants/${v.id}`, {
+            color: v.color || null,
+            size: v.size || null,
+            stock: v.stock,
+            price: v.price
+          })
+        )
       );
-      await Promise.all(priceUpdates);
+
+      // Create new variants
+      const news = editVariants.filter(v => !v.id);
+      await Promise.all(
+        news.map(v =>
+          api.post(`/api/pos/products/${editItem.id}/variants`, {
+            color: v.color || null,
+            size: v.size || null,
+            stock: v.stock,
+            price: v.price
+          })
+        )
+      );
+
+      // Delete removed variants
+      await Promise.all(
+        removedVariantIds.map(id =>
+          api.delete(`/api/pos/variants/${id}`)
+        )
+      );
+
       toast.success('Product updated');
       setEditModalOpen(false);
       setEditItem(null);
@@ -378,22 +430,52 @@ const OutletPOSInventory = () => {
 
               {/* Variants */}
               <div className="space-y-2">
-                <label className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Variants — Price</label>
-                <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Variants (Color × Size × Price × Stock)</label>
+                  <button type="button" onClick={handleEditAddVariant}
+                    className="p-2 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white rounded-xl transition-all">
+                    <Plus size={16} />
+                  </button>
+                </div>
+                <div className="space-y-1.5 max-h-[350px] overflow-y-auto">
                   {editVariants.map(v => (
-                    <div key={v.id} className="flex items-center gap-2 bg-gray-800/50 rounded-xl px-3 py-2 border border-gray-700/50">
-                      <span className="text-xs font-bold text-gray-300 min-w-[80px] truncate">{[v.color, v.size].filter(Boolean).join(' • ') || 'Default'}</span>
-                      <span className="text-[10px] font-mono text-gray-600 flex-1 truncate">{v.barcode}</span>
-                      <span className="text-[10px] font-bold text-gray-500">{v.stock} in stock</span>
-                      <div className="relative w-24">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500 font-bold">₨</span>
-                        <input type="number" min="0" step="0.01" value={v.price}
-                          onChange={(e) => handleEditPrice(v.id, e.target.value)}
-                          className="w-full bg-gray-900 border border-gray-700 rounded-lg py-1.5 pl-5 pr-2 text-xs font-bold text-white outline-none focus:border-blue-500" />
+                    <div key={v._key} className="grid grid-cols-12 gap-1.5 items-center bg-gray-800/50 rounded-xl px-2 py-2 border border-gray-700/50">
+                      <div className="col-span-3">
+                        <input type="text" value={v.color} placeholder="Color"
+                          onChange={(e) => handleEditVariantChange(v._key, 'color', e.target.value)}
+                          className="w-full bg-gray-900 border border-gray-700 rounded-lg py-1.5 px-2 text-[10px] font-bold text-white placeholder-gray-600 outline-none focus:border-blue-500" />
+                      </div>
+                      <div className="col-span-2">
+                        <input type="text" value={v.size} placeholder="Size"
+                          onChange={(e) => handleEditVariantChange(v._key, 'size', e.target.value)}
+                          className="w-full bg-gray-900 border border-gray-700 rounded-lg py-1.5 px-2 text-[10px] font-bold text-white placeholder-gray-600 outline-none focus:border-blue-500" />
+                      </div>
+                      <div className="col-span-3">
+                        <div className="relative">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500 font-bold">₨</span>
+                          <input type="number" min="0" step="0.01" value={v.price}
+                            onChange={(e) => handleEditVariantChange(v._key, 'price', parseFloat(e.target.value) || 0)}
+                            className="w-full bg-gray-900 border border-gray-700 rounded-lg py-1.5 pl-5 pr-2 text-[10px] font-bold text-white outline-none focus:border-blue-500" />
+                        </div>
+                      </div>
+                      <div className="col-span-2">
+                        <input type="number" min="0" value={v.stock}
+                          onChange={(e) => handleEditVariantChange(v._key, 'stock', parseInt(e.target.value) || 0)}
+                          className="w-full bg-gray-900 border border-gray-700 rounded-lg py-1.5 px-2 text-[10px] font-bold text-white outline-none focus:border-blue-500 text-center" />
+                      </div>
+                      <div className="col-span-2 flex justify-end">
+                        <button type="button" onClick={() => handleEditRemoveVariant(v._key)}
+                          className="p-1.5 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-lg transition-all">
+                          <Minus size={12} />
+                        </button>
                       </div>
                     </div>
                   ))}
                 </div>
+                <button type="button" onClick={handleEditAddVariant}
+                  className="w-full py-2 border-2 border-dashed border-gray-700 rounded-xl text-[10px] font-black text-gray-500 uppercase tracking-widest hover:border-emerald-500/40 hover:text-emerald-500 transition-all flex items-center justify-center gap-2">
+                  <Plus size={12} /> Add Variant
+                </button>
               </div>
 
               {/* Save */}

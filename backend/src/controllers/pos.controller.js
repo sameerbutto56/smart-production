@@ -263,6 +263,73 @@ const updateVariantPrice = async (req, res) => {
   }
 };
 
+const createVariant = async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const { color, size, stock, price } = req.body;
+    const item = await prisma.inventoryItem.findUnique({ where: { id: productId } });
+    if (!item) return res.status(404).json({ message: 'Product not found' });
+
+    let barcode = generateBarcode(productId, size, color);
+    let attempt = 0;
+    while (await prisma.outletVariant.findUnique({ where: { barcode } })) {
+      attempt++;
+      barcode = generateBarcode(productId, size, color, attempt);
+    }
+
+    const variant = await prisma.outletVariant.create({
+      data: {
+        inventoryItemId: productId,
+        color: color || null,
+        size: size || null,
+        barcode,
+        stock: parseInt(stock || 0),
+        price: price !== null && price !== '' ? parseFloat(price) : null
+      }
+    });
+    res.json(variant);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to create variant', error: error.message });
+  }
+};
+
+const deleteVariant = async (req, res) => {
+  try {
+    const saleCount = await prisma.posSaleItem.count({ where: { outletVariantId: req.params.id } });
+    const returnCount = await prisma.posReturn.count({ where: { outletVariantId: req.params.id } });
+    if (saleCount > 0 || returnCount > 0) {
+      // Has transaction history — zero stock instead of delete
+      await prisma.outletVariant.update({
+        where: { id: req.params.id },
+        data: { stock: 0 }
+      });
+      return res.json({ message: 'Variant has transaction history, stock set to 0' });
+    }
+    await prisma.outletVariant.delete({ where: { id: req.params.id } });
+    res.json({ message: 'Variant deleted' });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to delete variant', error: error.message });
+  }
+};
+
+const updateVariant = async (req, res) => {
+  try {
+    const { color, size, stock, price } = req.body;
+    const data = {};
+    if (color !== undefined) data.color = color || null;
+    if (size !== undefined) data.size = size || null;
+    if (stock !== undefined) data.stock = parseInt(stock);
+    if (price !== undefined) data.price = price !== '' ? parseFloat(price) : null;
+    const variant = await prisma.outletVariant.update({
+      where: { id: req.params.id },
+      data
+    });
+    res.json(variant);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to update variant', error: error.message });
+  }
+};
+
 /* ─── Sales ─── */
 const createSale = async (req, res) => {
   try {
@@ -561,6 +628,7 @@ module.exports = {
   getPosInventory,
   getProducts,
   updateVariantStock, updateVariantPrice,
+  createVariant, deleteVariant, updateVariant,
   createSale, getSales, getSalesDashboard,
   createReturn, getReturns,
   lookupBarcode,
