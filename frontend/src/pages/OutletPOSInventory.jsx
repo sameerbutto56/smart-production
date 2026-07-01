@@ -21,10 +21,10 @@ const OutletPOSInventory = () => {
     variants: [{ color: '', size: '', price: 0 }]
   });
 
-  const fetchData = async () => {
+  const fetchData = async (skipCache = false) => {
     setLoading(true);
     try {
-      const res = await api.get('/api/pos/inventory');
+      const res = await api.get(`/api/pos/inventory${skipCache ? '?skipCache=true' : ''}`);
       setItems(res.data);
     } catch { toast.error('Failed to load POS inventory'); }
     setLoading(false);
@@ -205,7 +205,7 @@ const OutletPOSInventory = () => {
           <button onClick={handleOpenModal} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black px-4 py-3 rounded-xl text-sm">
             <PlusCircle size={16} />Add Product
           </button>
-          <button onClick={fetchData} disabled={loading} className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white font-black px-4 py-3 rounded-xl text-sm">
+          <button onClick={() => fetchData(true)} disabled={loading} className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white font-black px-4 py-3 rounded-xl text-sm">
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />Refresh
           </button>
         </div>

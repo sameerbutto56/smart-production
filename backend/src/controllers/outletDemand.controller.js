@@ -1,4 +1,5 @@
 const prisma = require('../prisma');
+const cache = require('../utils/cache');
 
 const generateTransferNumber = (() => {
   let counter = 0;
@@ -320,6 +321,8 @@ const acceptDemandRequest = async (req, res) => {
       }
     });
 
+    cache.del('pos:inventory');
+    cache.del('pos:products');
     res.json({ message: 'Demand accepted. Outlet stock added, warehouse deducted.', results });
   } catch (error) {
     res.status(500).json({ message: 'Error accepting demand request', error: error.message });

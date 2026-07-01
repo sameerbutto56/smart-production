@@ -1,4 +1,6 @@
 const prisma = require('../prisma');
+const cache = require('../utils/cache');
+const CACHE_KEY_PREFIX = 'pos:';
 
 const djb2 = (s) => {
   if (!s) return 0;
@@ -71,6 +73,13 @@ const generateReceiptNumber = (() => {
 /* ─── POS Inventory — read-only view of all warehouse products with outlet stock ─── */
 const getPosInventory = async (req, res) => {
   try {
+    const skip = req.query.skipCache === 'true';
+    const cacheKey = `${CACHE_KEY_PREFIX}inventory`;
+    if (!skip) {
+      const cached = cache.get(cacheKey);
+      if (cached) return res.json(cached);
+    }
+
     const items = await prisma.inventoryItem.findMany({
       include: { outletVariants: true },
       orderBy: { name: 'asc' }
@@ -144,6 +153,7 @@ const getPosInventory = async (req, res) => {
       };
     });
 
+    cache.set(cacheKey, result);
     res.json(result);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch POS inventory', error: error.message });
@@ -155,6 +165,13 @@ const getPosInventory = async (req, res) => {
 /* ─── Products for Outlet POS (auto-created from warehouse) ─── */
 const getProducts = async (req, res) => {
   try {
+    const skip = req.query.skipCache === 'true';
+    const cacheKey = `${CACHE_KEY_PREFIX}products`;
+    if (!skip) {
+      const cached = cache.get(cacheKey);
+      if (cached) return res.json(cached);
+    }
+
     // Auto-create OutletVariants for all warehouse products
     const allItems = await prisma.inventoryItem.findMany({
       include: { outletVariants: true },
@@ -230,6 +247,7 @@ const getProducts = async (req, res) => {
       sizes: [...g.sizes]
     }));
 
+    cache.set(cacheKey, products);
     res.json(products);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch products', error: error.message });
@@ -244,6 +262,7 @@ const updateVariantStock = async (req, res) => {
       where: { id: req.params.id },
       data: { stock: parseInt(stock || 0) }
     });
+    cache.delPattern(CACHE_KEY_PREFIX);
     res.json(variant);
   } catch (error) {
     res.status(500).json({ message: 'Failed to update stock', error: error.message });
@@ -257,6 +276,7 @@ const updateVariantPrice = async (req, res) => {
       where: { id: req.params.id },
       data: { price: price !== null && price !== '' ? parseFloat(price) : null }
     });
+    cache.delPattern(CACHE_KEY_PREFIX);
     res.json(variant);
   } catch (error) {
     res.status(500).json({ message: 'Failed to update variant price', error: error.message });
@@ -287,6 +307,7 @@ const createVariant = async (req, res) => {
         price: price !== null && price !== '' ? parseFloat(price) : null
       }
     });
+    cache.delPattern(CACHE_KEY_PREFIX);
     res.json(variant);
   } catch (error) {
     res.status(500).json({ message: 'Failed to create variant', error: error.message });
@@ -298,14 +319,15 @@ const deleteVariant = async (req, res) => {
     const saleCount = await prisma.posSaleItem.count({ where: { outletVariantId: req.params.id } });
     const returnCount = await prisma.posReturn.count({ where: { outletVariantId: req.params.id } });
     if (saleCount > 0 || returnCount > 0) {
-      // Has transaction history — zero stock instead of delete
       await prisma.outletVariant.update({
         where: { id: req.params.id },
         data: { stock: 0 }
       });
+      cache.delPattern(CACHE_KEY_PREFIX);
       return res.json({ message: 'Variant has transaction history, stock set to 0' });
     }
     await prisma.outletVariant.delete({ where: { id: req.params.id } });
+    cache.delPattern(CACHE_KEY_PREFIX);
     res.json({ message: 'Variant deleted' });
   } catch (error) {
     res.status(500).json({ message: 'Failed to delete variant', error: error.message });
@@ -324,6 +346,7 @@ const updateVariant = async (req, res) => {
       where: { id: req.params.id },
       data
     });
+    cache.delPattern(CACHE_KEY_PREFIX);
     res.json(variant);
   } catch (error) {
     res.status(500).json({ message: 'Failed to update variant', error: error.message });
@@ -396,6 +419,7 @@ const createSale = async (req, res) => {
       });
     });
 
+    cache.delPattern(CACHE_KEY_PREFIX);
     res.status(201).json(sale);
   } catch (error) {
     res.status(500).json({ message: 'Failed to create sale', error: error.message });
@@ -478,6 +502,7 @@ const createReturn = async (req, res) => {
       });
     });
 
+    cache.delPattern(CACHE_KEY_PREFIX);
     res.status(201).json(ret);
   } catch (error) {
     res.status(500).json({ message: 'Failed to process return', error: error.message });
@@ -573,6 +598,7 @@ const createPosProduct = async (req, res) => {
       include: { outletVariants: true }
     });
 
+    cache.delPattern(CACHE_KEY_PREFIX);
     res.status(201).json(itemWithVariants);
   } catch (error) {
     res.status(500).json({ message: 'Failed to create product', error: error.message });
@@ -618,6 +644,7 @@ const updateProduct = async (req, res) => {
       where: { id: req.params.id },
       data
     });
+    cache.delPattern(CACHE_KEY_PREFIX);
     res.json(updated);
   } catch (error) {
     res.status(500).json({ message: 'Failed to update product', error: error.message });
