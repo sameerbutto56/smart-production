@@ -1,7 +1,6 @@
 const express = require('express');
 const {
-  getCategories, createCategory, deleteCategory,
-  getProducts, createProduct, updateProduct, deleteProduct,
+  getProducts,
   updateVariantStock, updateVariantPrice,
   createSale, getSales, getSalesDashboard,
   createReturn, getReturns,
@@ -11,18 +10,10 @@ const { authenticate, authorize } = require('../middleware/auth.middleware');
 
 const router = express.Router();
 
-// Categories
-router.get('/categories', authenticate, getCategories);
-router.post('/categories', authenticate, createCategory);
-router.delete('/categories/:id', authenticate, deleteCategory);
-
-// Products
+// Products (read-only from warehouse InventoryItem)
 router.get('/products', authenticate, getProducts);
-router.post('/products', authenticate, createProduct);
-router.put('/products/:id', authenticate, updateProduct);
-router.delete('/products/:id', authenticate, deleteProduct);
 
-// Variants
+// Variants (outlet-specific stock/price)
 router.put('/variants/:id/stock', authenticate, updateVariantStock);
 router.put('/variants/:id/price', authenticate, updateVariantPrice);
 

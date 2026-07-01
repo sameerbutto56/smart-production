@@ -215,7 +215,8 @@ model InventoryItem {
   metadata  String?
   variants  Json?    // Array of {color, size, stock, price}
   createdAt DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  updatedAt DateTime @updatedAt
+  outletVariants OutletVariant[]
 
   @@index([name])
   @@index([category])
@@ -444,50 +445,21 @@ model Client {
   @@index([isActive])
 }
 
-model PosCategory {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  products  PosProduct[]
+model OutletVariant {
+  id              String   @id @default(uuid())
+  inventoryItemId String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  color           String?
+  size            String?
+  barcode         String   @unique
+  stock           Int      @default(0)
+  price           Float?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  saleItems       PosSaleItem[]
+  returns         PosReturn[]
 
-  @@index([name])
-}
-
-model PosProduct {
-  id          String   @id @default(uuid())
-  name        String
-  categoryId  String?
-  category    PosCategory? @relation(fields: [categoryId], references: [id])
-  description String?
-  price       Float    @default(0)
-  imageUrl    String?
-  hasSizes    Boolean  @default(true)
-  hasColors   Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  variants    PosProductVariant[]
-  saleItems   PosSaleItem[]
-
-  @@index([name])
-  @@index([categoryId])
-}
-
-model PosProductVariant {
-  id        String  @id @default(uuid())
-  productId String
-  product   PosProduct @relation(fields: [productId], references: [id])
-  size      String?
-  color     String?
-  barcode   String  @unique
-  stock     Int     @default(0)
-  price     Float?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  saleItems PosSaleItem[]
-  returns   PosReturn[]
-
-  @@index([productId])
+  @@index([inventoryItemId])
   @@index([barcode])
   @@index([size, color])
 }
@@ -519,10 +491,8 @@ model PosSaleItem {
   id                String   @id @default(uuid())
   saleId            String
   sale              PosSale  @relation(fields: [saleId], references: [id])
-  productId         String
-  product           PosProduct @relation(fields: [productId], references: [id])
-  variantId         String?
-  variant           PosProductVariant? @relation(fields: [variantId], references: [id])
+  outletVariantId   String
+  outletVariant     OutletVariant @relation(fields: [outletVariantId], references: [id])
   productName       String
   size              String?
   color             String?
@@ -532,22 +502,21 @@ model PosSaleItem {
   lineTotal         Float    @default(0)
 
   @@index([saleId])
-  @@index([productId])
-  @@index([variantId])
+  @@index([outletVariantId])
 }
 
 model PosReturn {
-  id          String   @id @default(uuid())
-  saleId      String
-  sale        PosSale  @relation(fields: [saleId], references: [id])
-  variantId   String
-  variant     PosProductVariant @relation(fields: [variantId], references: [id])
-  reason      String?
-  quantity    Int      @default(1)
-  refundAmount Float   @default(0)
-  createdAt   DateTime @default(now())
+  id              String   @id @default(uuid())
+  saleId          String?
+  sale            PosSale? @relation(fields: [saleId], references: [id])
+  outletVariantId String
+  outletVariant   OutletVariant @relation(fields: [outletVariantId], references: [id])
+  reason          String?
+  quantity        Int      @default(1)
+  refundAmount    Float    @default(0)
+  createdAt       DateTime @default(now())
 
   @@index([saleId])
-  @@index([variantId])
+  @@index([outletVariantId])
   @@index([createdAt])
 }

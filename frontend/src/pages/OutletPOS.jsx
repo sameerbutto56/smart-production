@@ -12,7 +12,6 @@ const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 const OutletPOS = () => {
   const { user } = useAuth();
   const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
   const [activeCategory, setActiveCategory] = useState('');
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState([]);
@@ -31,20 +30,17 @@ const OutletPOS = () => {
   const [sales, setSales] = useState([]);
   const [returns, setReturns] = useState([]);
   const [barcodeInput, setBarcodeInput] = useState('');
-  const [alterationOptions, setAlterationOptions] = useState({});
   const barcodeRef = useRef(null);
 
   const fetchData = async () => {
     try {
-      const [p, c, d, s, r] = await Promise.all([
+      const [p, d, s, r] = await Promise.all([
         api.get('/api/pos/products'),
-        api.get('/api/pos/categories'),
         api.get('/api/pos/sales/dashboard'),
         api.get('/api/pos/sales'),
         api.get('/api/pos/returns')
       ]);
       setProducts(p.data);
-      setCategories(c.data);
       setDashboard(d.data);
       setSales(s.data);
       setReturns(r.data);
@@ -53,9 +49,14 @@ const OutletPOS = () => {
 
   useEffect(() => { fetchData(); }, []);
 
+  const categories = useMemo(() => {
+    const cats = [...new Set(products.map(p => p.category).filter(Boolean))];
+    return cats.sort();
+  }, [products]);
+
   const filtered = useMemo(() => {
     let p = products;
-    if (activeCategory) p = p.filter(x => x.category?.name === activeCategory);
+    if (activeCategory) p = p.filter(x => x.category === activeCategory);
     if (search) p = p.filter(x => x.name.toLowerCase().includes(search.toLowerCase()));
     return p;
   }, [products, activeCategory, search]);
@@ -87,28 +88,28 @@ const OutletPOS = () => {
         setCart(cart.map(i => i.variantId === v.id ? { ...i, qty: i.qty + 1 } : i));
       } else {
         setCart([...cart, {
-          variantId: v.id, productId: v.product.id, productName: v.product.name,
-          size: v.size, color: v.color, unitPrice: v.price || v.product.price || 0,
+          variantId: v.id, productName: v.productName,
+          size: v.size, color: v.color, unitPrice: v.price || 0,
           qty: 1, alterationAmount: 0, alterationLabel: ''
         }]);
       }
-      toast.success(`${v.product.name} added via barcode`);
+      toast.success(`${v.productName} added via barcode`);
     } catch { toast.error('Barcode not found'); }
   };
 
   const handleAddToCart = (product) => {
-    const hasColors = product.hasColors && product.variants?.some(v => v.color);
-    const hasSizes = product.hasSizes && product.variants?.some(v => v.size);
+    const hasColors = product.colors?.length > 0;
+    const hasSizes = product.sizes?.length > 0;
     if (hasColors || hasSizes) {
       setShowConfig(product);
       setSelectedSize('');
       setSelectedColor('');
       setSelectedQty(1);
     } else {
-      const v = product.variants?.[0];
+      const v = product.outletVariants?.[0];
       if (!v) return toast.error('No variant available');
       setCart([...cart, {
-        variantId: v.id, productId: product.id, productName: product.name,
+        variantId: v.id, productName: product.name,
         size: null, color: null, unitPrice: v.price || product.price || 0,
         qty: 1, alterationAmount: 0, alterationLabel: ''
       }]);
@@ -118,18 +119,18 @@ const OutletPOS = () => {
 
   const confirmConfig = () => {
     const product = showConfig;
-    const hasColors = product.hasColors && product.variants?.some(v => v.color);
-    const hasSizes = product.hasSizes && product.variants?.some(v => v.size);
+    const hasColors = product.colors?.length > 0;
+    const hasSizes = product.sizes?.length > 0;
     if (hasColors && !selectedColor) return toast.error('Please select a color');
     if (hasSizes && !selectedSize) return toast.error('Please select a size');
     if (selectedQty < 1) return toast.error('Quantity must be at least 1');
-    const variant = product.variants.find(v =>
+    const variant = product.outletVariants.find(v =>
       (!hasColors || v.color === selectedColor) &&
       (!hasSizes || v.size === selectedSize)
     );
     if (!variant) return toast.error('Variant not found');
     setCart([...cart, {
-      variantId: variant.id, productId: product.id, productName: product.name,
+      variantId: variant.id, productName: product.name,
       size: variant.size, color: variant.color, unitPrice: variant.price || product.price || 0,
       qty: selectedQty, alterationAmount: 0, alterationLabel: ''
     }]);
@@ -288,7 +289,7 @@ const OutletPOS = () => {
               <div key={s.id} className="flex items-center justify-between bg-gray-800/50 rounded-xl px-3 py-2">
                 <div>
                   <p className="text-xs font-bold text-white">{s.receiptNumber}</p>
-                  <p className="text-[10px] text-gray-500">{new Date(s.createdAt).toLocaleString()} • {s.items?.length || 0} items</p>
+                  <p className="text-[10px] text-gray-500">{new Date(s.createdAt).toLocaleString()} &bull; {s.items?.length || 0} items</p>
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-black text-emerald-400">{formatCurrency(s.grandTotal)}</p>
@@ -305,8 +306,8 @@ const OutletPOS = () => {
             {returns.map(r => (
               <div key={r.id} className="flex items-center justify-between bg-red-900/10 rounded-xl px-3 py-2 border border-red-900/20">
                 <div>
-                  <p className="text-xs font-bold text-white">{r.variant?.product?.name || 'Unknown'} {r.variant?.color && `(${r.variant.color})`}</p>
-                  <p className="text-[10px] text-gray-500">Qty: {r.quantity} • {new Date(r.createdAt).toLocaleString()}</p>
+                  <p className="text-xs font-bold text-white">{r._variant?.product?.name || 'Unknown'} {r._variant?.color && `(${r._variant.color})`}</p>
+                  <p className="text-[10px] text-gray-500">Qty: {r.quantity} &bull; {new Date(r.createdAt).toLocaleString()}</p>
                 </div>
                 <p className="text-xs font-bold text-red-400">-{formatCurrency(r.refundAmount)}</p>
               </div>
@@ -344,16 +345,16 @@ const OutletPOS = () => {
       <div className="flex flex-1 overflow-hidden">
         {/* Product Grid */}
         <div className="flex-1 overflow-y-auto p-3">
-          {/* Categories */}
+          {/* Categories (from warehouse) */}
           <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1 flex-shrink-0">
             <button onClick={() => setActiveCategory('')}
               className={`text-[10px] font-black px-3 py-1.5 rounded-lg whitespace-nowrap uppercase tracking-wider ${!activeCategory ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
               All
             </button>
             {categories.map(c => (
-              <button key={c.id} onClick={() => setActiveCategory(c.name)}
-                className={`text-[10px] font-black px-3 py-1.5 rounded-lg whitespace-nowrap uppercase tracking-wider ${activeCategory === c.name ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
-                {c.name}
+              <button key={c} onClick={() => setActiveCategory(c)}
+                className={`text-[10px] font-black px-3 py-1.5 rounded-lg whitespace-nowrap uppercase tracking-wider ${activeCategory === c ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
+                {c}
               </button>
             ))}
           </div>
@@ -361,7 +362,7 @@ const OutletPOS = () => {
           {/* Products */}
           <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
             {filtered.map(p => {
-              const totalStock = p.variants?.reduce((s, v) => s + v.stock, 0) || 0;
+              const totalStock = p.outletVariants?.reduce((s, v) => s + v.stock, 0) || 0;
               return (
                 <button key={p.id} onClick={() => handleAddToCart(p)}
                   className="glass bg-gray-800/80 rounded-xl border-2 border-gray-700/50 p-2 text-left hover:border-blue-500/50 transition-all active:scale-95">
@@ -374,7 +375,7 @@ const OutletPOS = () => {
                   )}
                   <p className="text-[10px] font-bold text-white leading-tight line-clamp-2">{p.name}</p>
                   <p className="text-xs font-black text-emerald-400 mt-0.5">{formatCurrency(p.price)}</p>
-                  <p className="text-[8px] text-gray-600 font-bold">{p.variants?.length || 0} variants • Stock: {totalStock}</p>
+                  <p className="text-[8px] text-gray-600 font-bold">{p.outletVariants?.length || 0} variants &bull; Stock: {totalStock}</p>
                 </button>
               );
             })}
@@ -396,7 +397,7 @@ const OutletPOS = () => {
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-bold text-white">{item.productName}</p>
-                    <p className="text-[10px] text-gray-400">{[item.color, item.size].filter(Boolean).join(' • ') || 'Standard'}</p>
+                    <p className="text-[10px] text-gray-400">{[item.color, item.size].filter(Boolean).join(' \u2022 ') || 'Standard'}</p>
                     <p className="text-xs font-black text-emerald-400 mt-0.5">{formatCurrency(item.unitPrice)} each</p>
                   </div>
                   <button onClick={() => removeCartItem(i)} className="text-gray-600 hover:text-red-400 ml-1"><X size={14} /></button>
@@ -482,22 +483,22 @@ const OutletPOS = () => {
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => setShowConfig(null)}>
           <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-black text-white mb-4">{showConfig.name}</h3>
-            {showConfig.hasColors && showConfig.variants?.some(v => v.color) && (
+            {showConfig.colors?.length > 0 && (
               <div className="mb-3">
                 <label className="text-xs font-bold text-gray-400 block mb-1">Color</label>
                 <div className="flex flex-wrap gap-1.5">
-                  {[...new Set(showConfig.variants.map(v => v.color).filter(Boolean))].map(c => (
+                  {showConfig.colors.map(c => (
                     <button key={c} onClick={() => setSelectedColor(c)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${selectedColor === c ? 'border-blue-500 bg-blue-600/20 text-white' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>{c}</button>
                   ))}
                 </div>
               </div>
             )}
-            {showConfig.hasSizes && showConfig.variants?.some(v => v.size) && (
+            {showConfig.sizes?.length > 0 && (
               <div className="mb-3">
                 <label className="text-xs font-bold text-gray-400 block mb-1">Size</label>
                 <div className="flex flex-wrap gap-1.5">
-                  {[...new Set(showConfig.variants.map(v => v.size).filter(Boolean))].map(s => (
+                  {showConfig.sizes.map(s => (
                     <button key={s} onClick={() => setSelectedSize(s)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${selectedSize === s ? 'border-blue-500 bg-blue-600/20 text-white' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>{s}</button>
                   ))}
@@ -513,7 +514,7 @@ const OutletPOS = () => {
               </div>
             </div>
             <button onClick={confirmConfig} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl text-sm">
-              Add to Cart • {formatCurrency((showConfig.price || 0) * selectedQty)}
+              Add to Cart &bull; {formatCurrency((showConfig.price || 0) * selectedQty)}
             </button>
           </div>
         </div>

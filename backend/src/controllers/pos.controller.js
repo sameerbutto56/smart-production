@@ -1,118 +1,93 @@
 const prisma = require('../prisma');
 
-const generateBarcode = (productId, size, color) => {
+const generateBarcode = (itemId, size, color) => {
   const prefix = 'POS';
-  const hash = ((parseInt(productId.replace(/-/g, '').slice(0, 8), 16) || 0) + (size ? size.charCodeAt(0) : 0) + (color ? color.charCodeAt(0) : 0)).toString(36).toUpperCase().slice(0, 6);
+  const raw = itemId.replace(/-/g, '').slice(0, 8);
+  const hash = ((parseInt(raw, 16) || 0) + (size ? size.charCodeAt(0) : 0) + (color ? color.charCodeAt(0) : 0)).toString(36).toUpperCase().slice(0, 6);
   return `${prefix}${hash}${size ? size[0] || 'X' : 'X'}${color ? color[0] || 'X' : 'X'}`;
 };
 
 const generateReceiptNumber = (() => {
   let counter = 0;
-  return () => { counter++; const d = new Date(); return `RCP-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(counter).padStart(5, '0')}`; };
+  const startDate = new Date().toISOString().slice(0, 10);
+  return () => {
+    counter++;
+    const d = new Date();
+    const dayKey = d.toISOString().slice(0, 10);
+    if (dayKey !== startDate) { counter = 1; }
+    return `RCP-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(counter).padStart(5, '0')}`;
+  };
 })();
 
-/* ─── Categories ─── */
-const getCategories = async (req, res) => {
-  try {
-    const cats = await prisma.posCategory.findMany({ orderBy: { name: 'asc' } });
-    res.json(cats);
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch categories', error: error.message });
-  }
-};
-
-const createCategory = async (req, res) => {
-  try {
-    const { name } = req.body;
-    if (!name) return res.status(400).json({ message: 'Category name is required' });
-    const cat = await prisma.posCategory.create({ data: { name } });
-    res.status(201).json(cat);
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to create category', error: error.message });
-  }
-};
-
-const deleteCategory = async (req, res) => {
-  try {
-    await prisma.posCategory.delete({ where: { id: req.params.id } });
-    res.json({ message: 'Category deleted' });
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to delete category', error: error.message });
-  }
-};
-
-/* ─── Products ─── */
+/* ─── Products (read from warehouse InventoryItem, auto-create OutletVariants) ─── */
 const getProducts = async (req, res) => {
   try {
-    const products = await prisma.posProduct.findMany({
-      include: { variants: true, category: true },
+    const items = await prisma.inventoryItem.findMany({
+      include: { outletVariants: true },
       orderBy: { name: 'asc' }
     });
+
+    const products = [];
+    for (const item of items) {
+      let variantDefs = [];
+      if (Array.isArray(item.variants) && item.variants.length > 0) {
+        variantDefs = item.variants;
+      } else {
+        variantDefs = [{ color: item.color || null, size: item.size || null, stock: item.stock, price: item.price }];
+      }
+
+      const outletVariants = [];
+      for (const vd of variantDefs) {
+        let ov = item.outletVariants.find(o => o.color === (vd.color || null) && o.size === (vd.size || null));
+        if (!ov) {
+          const barcode = generateBarcode(item.id, vd.size, vd.color);
+          ov = await prisma.outletVariant.create({
+            data: {
+              inventoryItemId: item.id,
+              color: vd.color || null,
+              size: vd.size || null,
+              barcode,
+              stock: 0,
+              price: null
+            }
+          });
+        }
+        outletVariants.push(ov);
+      }
+
+      const colors = [...new Set(variantDefs.map(v => v.color).filter(Boolean))];
+      const sizes = [...new Set(variantDefs.map(v => v.size).filter(Boolean))];
+
+      products.push({
+        id: item.id,
+        name: item.name,
+        category: item.category,
+        price: item.price || 0,
+        imageUrl: item.imageUrl,
+        colors,
+        sizes,
+        outletVariants: outletVariants.map(ov => ({
+          id: ov.id,
+          color: ov.color,
+          size: ov.size,
+          barcode: ov.barcode,
+          stock: ov.stock,
+          price: ov.price
+        }))
+      });
+    }
+
     res.json(products);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch products', error: error.message });
   }
 };
 
-const createProduct = async (req, res) => {
-  try {
-    const { name, categoryId, description, price, imageUrl, hasSizes, hasColors, colors, sizes } = req.body;
-    if (!name) return res.status(400).json({ message: 'Product name is required' });
-    const product = await prisma.posProduct.create({
-      data: { name, categoryId: categoryId || null, description, price: parseFloat(price || 0), imageUrl, hasSizes: hasSizes !== false, hasColors: hasColors !== false }
-    });
-    const variantData = [];
-    const colorArr = Array.isArray(colors) && colors.length ? colors : (hasColors !== false ? [null] : [null]);
-    const sizeArr = Array.isArray(sizes) && sizes.length ? sizes : (hasSizes !== false ? [null] : [null]);
-    for (const c of colorArr) {
-      for (const s of sizeArr) {
-        const barcode = generateBarcode(product.id, s, c);
-        variantData.push({ productId: product.id, size: s || null, color: c || null, barcode, stock: 0, price: null });
-      }
-    }
-    if (variantData.length > 0) {
-      await prisma.posProductVariant.createMany({ data: variantData });
-    }
-    const full = await prisma.posProduct.findUnique({ where: { id: product.id }, include: { variants: true, category: true } });
-    res.status(201).json(full);
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to create product', error: error.message });
-  }
-};
-
-const updateProduct = async (req, res) => {
-  try {
-    const { name, categoryId, description, price, imageUrl, hasSizes, hasColors } = req.body;
-    const data = {};
-    if (name !== undefined) data.name = name;
-    if (categoryId !== undefined) data.categoryId = categoryId || null;
-    if (description !== undefined) data.description = description;
-    if (price !== undefined) data.price = parseFloat(price);
-    if (imageUrl !== undefined) data.imageUrl = imageUrl;
-    if (hasSizes !== undefined) data.hasSizes = hasSizes;
-    if (hasColors !== undefined) data.hasColors = hasColors;
-    const product = await prisma.posProduct.update({ where: { id: req.params.id }, data, include: { variants: true, category: true } });
-    res.json(product);
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to update product', error: error.message });
-  }
-};
-
-const deleteProduct = async (req, res) => {
-  try {
-    await prisma.posProductVariant.deleteMany({ where: { productId: req.params.id } });
-    await prisma.posProduct.delete({ where: { id: req.params.id } });
-    res.json({ message: 'Product deleted' });
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to delete product', error: error.message });
-  }
-};
-
-/* ─── Variants / Stock ─── */
+/* ─── Variants / Stock (outlet-specific) ─── */
 const updateVariantStock = async (req, res) => {
   try {
     const { stock } = req.body;
-    const variant = await prisma.posProductVariant.update({
+    const variant = await prisma.outletVariant.update({
       where: { id: req.params.id },
       data: { stock: parseInt(stock || 0) }
     });
@@ -125,7 +100,7 @@ const updateVariantStock = async (req, res) => {
 const updateVariantPrice = async (req, res) => {
   try {
     const { price } = req.body;
-    const variant = await prisma.posProductVariant.update({
+    const variant = await prisma.outletVariant.update({
       where: { id: req.params.id },
       data: { price: price !== null && price !== '' ? parseFloat(price) : null }
     });
@@ -150,21 +125,20 @@ const createSale = async (req, res) => {
 
     for (const item of items) {
       if (!item.variantId) return res.status(400).json({ message: 'Each item must have a variantId' });
-      const variant = await prisma.posProductVariant.findUnique({ where: { id: item.variantId }, include: { product: true } });
-      if (!variant) return res.status(400).json({ message: `Variant ${item.variantId} not found` });
-      if (variant.stock < (item.quantity || 1)) return res.status(400).json({ message: `Insufficient stock for ${variant.product.name} (${variant.color || ''} ${variant.size || ''}). Available: ${variant.stock}` });
-      const unitPrice = item.unitPrice || variant.price || variant.product.price || 0;
+      const ov = await prisma.outletVariant.findUnique({ where: { id: item.variantId }, include: { inventoryItem: true } });
+      if (!ov) return res.status(400).json({ message: `Variant ${item.variantId} not found` });
+      if (ov.stock < (item.quantity || 1)) return res.status(400).json({ message: `Insufficient stock for ${ov.inventoryItem.name} (${ov.color || ''} ${ov.size || ''}). Available: ${ov.stock}` });
+      const unitPrice = item.unitPrice || ov.price || ov.inventoryItem.price || 0;
       const qty = item.quantity || 1;
       const lineTotal = unitPrice * qty;
       const itemAlt = parseFloat(item.alterationCharges || 0) * qty;
       subtotal += lineTotal;
       totalAlt += itemAlt;
       saleItems.push({
-        productId: variant.productId,
-        variantId: variant.id,
-        productName: variant.product.name,
-        size: variant.size,
-        color: variant.color,
+        outletVariantId: ov.id,
+        productName: ov.inventoryItem.name,
+        size: ov.size,
+        color: ov.color,
         quantity: qty,
         unitPrice,
         alterationCharges: itemAlt,
@@ -178,8 +152,8 @@ const createSale = async (req, res) => {
 
     const sale = await prisma.$transaction(async (tx) => {
       for (const si of saleItems) {
-        await tx.posProductVariant.update({
-          where: { id: si.variantId },
+        await tx.outletVariant.update({
+          where: { id: si.outletVariantId },
           data: { stock: { decrement: si.quantity } }
         });
       }
@@ -265,22 +239,18 @@ const getSalesDashboard = async (req, res) => {
 /* ─── Returns ─── */
 const createReturn = async (req, res) => {
   try {
-    const { saleItemId, variantId, reason, quantity } = req.body;
+    const { variantId, reason, quantity } = req.body;
     if (!variantId || !quantity) return res.status(400).json({ message: 'variantId and quantity are required' });
 
-    const variant = await prisma.posProductVariant.findUnique({ where: { id: variantId } });
-    if (!variant) return res.status(400).json({ message: 'Variant not found' });
-
-    const saleItem = saleItemId ? await prisma.posSaleItem.findUnique({ where: { id: saleItemId } }) : null;
-    const sale = saleItem ? await prisma.posSale.findUnique({ where: { id: saleItem.saleId } }) : null;
-    const refundAmount = saleItem ? (saleItem.unitPrice + (saleItem.alterationCharges / saleItem.quantity)) * parseInt(quantity) : 0;
+    const ov = await prisma.outletVariant.findUnique({ where: { id: variantId }, include: { inventoryItem: true } });
+    if (!ov) return res.status(400).json({ message: 'Variant not found' });
+    const refundAmount = (ov.price || ov.inventoryItem.price || 0) * parseInt(quantity);
 
     const ret = await prisma.$transaction(async (tx) => {
-      await tx.posProductVariant.update({ where: { id: variantId }, data: { stock: { increment: parseInt(quantity) } } });
+      await tx.outletVariant.update({ where: { id: variantId }, data: { stock: { increment: parseInt(quantity) } } });
       return tx.posReturn.create({
         data: {
-          saleId: saleItem?.saleId || null,
-          variantId,
+          outletVariantId: variantId,
           reason: reason || null,
           quantity: parseInt(quantity),
           refundAmount
@@ -297,11 +267,21 @@ const createReturn = async (req, res) => {
 const getReturns = async (req, res) => {
   try {
     const returns = await prisma.posReturn.findMany({
-      include: { variant: { include: { product: true } }, sale: true },
+      include: { outletVariant: { include: { inventoryItem: true } }, sale: true },
       orderBy: { createdAt: 'desc' },
       take: 100
     });
-    res.json(returns);
+    const mapped = returns.map(r => ({
+      ...r,
+      variant: null,
+      _variant: {
+        product: r.outletVariant?.inventoryItem ? { name: r.outletVariant.inventoryItem.name } : null,
+        color: r.outletVariant?.color,
+        size: r.outletVariant?.size,
+        barcode: r.outletVariant?.barcode
+      }
+    }));
+    res.json(mapped);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch returns', error: error.message });
   }
@@ -311,20 +291,31 @@ const getReturns = async (req, res) => {
 const lookupBarcode = async (req, res) => {
   try {
     const { barcode } = req.params;
-    const variant = await prisma.posProductVariant.findUnique({
+    const ov = await prisma.outletVariant.findUnique({
       where: { barcode },
-      include: { product: { include: { category: true } } }
+      include: { inventoryItem: true }
     });
-    if (!variant) return res.status(404).json({ message: 'Barcode not found' });
-    res.json(variant);
+    if (!ov) return res.status(404).json({ message: 'Barcode not found' });
+    res.json({
+      id: ov.id,
+      inventoryItemId: ov.inventoryItemId,
+      productName: ov.inventoryItem.name,
+      category: ov.inventoryItem.category,
+      imageUrl: ov.inventoryItem.imageUrl,
+      color: ov.color,
+      size: ov.size,
+      barcode: ov.barcode,
+      stock: ov.stock,
+      price: ov.price || ov.inventoryItem.price || 0,
+      product: { id: ov.inventoryItem.id, name: ov.inventoryItem.name, price: ov.inventoryItem.price || 0 }
+    });
   } catch (error) {
     res.status(500).json({ message: 'Failed to lookup barcode', error: error.message });
   }
 };
 
 module.exports = {
-  getCategories, createCategory, deleteCategory,
-  getProducts, createProduct, updateProduct, deleteProduct,
+  getProducts,
   updateVariantStock, updateVariantPrice,
   createSale, getSales, getSalesDashboard,
   createReturn, getReturns,
