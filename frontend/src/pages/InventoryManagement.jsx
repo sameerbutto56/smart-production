@@ -291,12 +291,22 @@ const InventoryManagement = () => {
   };
 
   /* ─── Barcode generation & printing (Store Inventory only) ─── */
+  const djb2 = (s) => {
+    if (!s) return 0;
+    let hash = 5381;
+    for (let i = 0; i < s.length; i++) {
+      hash = ((hash << 5) + hash) + s.charCodeAt(i);
+      hash = hash & hash;
+    }
+    return Math.abs(hash);
+  };
   const generateBarcode = (itemId, size, color, attempt = 0) => {
     const prefix = 'POS';
     const raw = itemId.replace(/-/g, '').slice(0, 8);
-    const base = ((parseInt(raw, 16) || 0) + (size ? size.charCodeAt(0) : 0) + (color ? color.charCodeAt(0) : 0)).toString(36).toUpperCase().slice(0, 6);
-    const suf = `${size ? size[0] || 'X' : 'X'}${color ? color[0] || 'X' : 'X'}`;
-    return `${prefix}${base}${suf}${attempt > 0 ? attempt : ''}`;
+    const variantStr = `${size || ''}|${color || ''}|${attempt}`;
+    const fullHash = djb2(variantStr);
+    const base = ((parseInt(raw, 16) || 0) + fullHash).toString(36).toUpperCase().slice(0, 8);
+    return `${prefix}${base}`;
   };
 
   const printBarcodeFromStore = (item, variant, productName) => {
@@ -306,20 +316,29 @@ const InventoryManagement = () => {
 
     const barcode = generateBarcode(item.id, variant.size, variant.color);
     const canvas = document.createElement('canvas');
-    JsBarcode(canvas, barcode, { format: 'CODE128', width: 1.5, height: 30, displayValue: true, fontSize: 10 });
+    canvas.width = 600;
+    canvas.height = 200;
+    JsBarcode(canvas, barcode, {
+      format: 'CODE128',
+      width: 3,
+      height: 120,
+      displayValue: true,
+      fontSize: 28,
+      margin: 15
+    });
     const dataUrl = canvas.toDataURL('image/png');
 
     const formatCurr = (n) => `₨${(n || 0).toLocaleString()}`;
     const w = window.open('', '_blank');
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Barcode Labels</title><style>
-      @page { margin: 0; }
+      @page { margin: 0; size: 2in 1in; }
       body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
       .labels { display: flex; flex-wrap: wrap; }
-      .label { width: 50mm; height: 30mm; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; page-break-inside: avoid; box-sizing: border-box; padding: 2px; border: 0.5px dashed #ccc; }
-      .label .name { font-size: 8px; font-weight: bold; }
-      .label .detail { font-size: 7px; color: #555; }
-      .label .price { font-size: 9px; font-weight: bold; margin-top: 1px; }
-      img { max-width: 46mm; }
+      .label { width: 2in; height: 1in; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; page-break-inside: avoid; box-sizing: border-box; padding: 2mm; border: none; }
+      .label .name { font-size: 11px; font-weight: bold; margin-bottom: 1mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 1.8in; }
+      .label .detail { font-size: 9px; color: #555; margin-bottom: 1mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 1.8in; }
+      .label .price { font-size: 14px; font-weight: bold; margin-top: 0.5mm; }
+      img { max-width: 1.7in; height: auto; }
     </style></head><body><div class="labels">
       ${Array(count).fill(`<div class="label">
         <div class="name">${productName}</div>

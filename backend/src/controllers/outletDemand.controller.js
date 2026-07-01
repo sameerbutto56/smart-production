@@ -180,12 +180,22 @@ const getDemandStats = async (req, res) => {
   }
 };
 
+const djb2 = (s) => {
+  if (!s) return 0;
+  let hash = 5381;
+  for (let i = 0; i < s.length; i++) {
+    hash = ((hash << 5) + hash) + s.charCodeAt(i);
+    hash = hash & hash;
+  }
+  return Math.abs(hash);
+};
 const generateBarcode = (itemId, size, color, attempt = 0) => {
   const prefix = 'POS';
   const raw = itemId.replace(/-/g, '').slice(0, 8);
-  const base = ((parseInt(raw, 16) || 0) + (size ? size.charCodeAt(0) : 0) + (color ? color.charCodeAt(0) : 0)).toString(36).toUpperCase().slice(0, 6);
-  const suf = `${size ? size[0] || 'X' : 'X'}${color ? color[0] || 'X' : 'X'}`;
-  return `${prefix}${base}${suf}${attempt > 0 ? attempt : ''}`;
+  const variantStr = `${size || ''}|${color || ''}|${attempt}`;
+  const fullHash = djb2(variantStr);
+  const base = ((parseInt(raw, 16) || 0) + fullHash).toString(36).toUpperCase().slice(0, 8);
+  return `${prefix}${base}`;
 };
 
 const deductWarehouseStock = async (inventoryItemId, color, size, qty) => {

@@ -1,11 +1,22 @@
 const prisma = require('../prisma');
 
+const djb2 = (s) => {
+  if (!s) return 0;
+  let hash = 5381;
+  for (let i = 0; i < s.length; i++) {
+    hash = ((hash << 5) + hash) + s.charCodeAt(i);
+    hash = hash & hash;
+  }
+  return Math.abs(hash);
+};
+
 const generateBarcode = (itemId, size, color, attempt = 0) => {
   const prefix = 'POS';
   const raw = itemId.replace(/-/g, '').slice(0, 8);
-  const base = ((parseInt(raw, 16) || 0) + (size ? size.charCodeAt(0) : 0) + (color ? color.charCodeAt(0) : 0)).toString(36).toUpperCase().slice(0, 6);
-  const suf = `${size ? size[0] || 'X' : 'X'}${color ? color[0] || 'X' : 'X'}`;
-  return `${prefix}${base}${suf}${attempt > 0 ? attempt : ''}`;
+  const variantStr = `${size || ''}|${color || ''}|${attempt}`;
+  const fullHash = djb2(variantStr);
+  const base = ((parseInt(raw, 16) || 0) + fullHash).toString(36).toUpperCase().slice(0, 8);
+  return `${prefix}${base}`;
 };
 
 /* ─── Helper: ensure OutletVariants exist for a warehouse item ─── */
@@ -22,12 +33,12 @@ const ensureOutletVariants = async (item) => {
   for (const vd of variantDefs) {
     let ov = existing.find(o => o.color === (vd.color || null) && o.size === (vd.size || null));
     if (!ov) {
-      let barcode = generateBarcode(item.id, vd.size, vd.color);
-      let attempt = 0;
-      while (await prisma.outletVariant.findUnique({ where: { barcode } })) {
-        attempt++;
-        barcode = generateBarcode(item.id, vd.size, vd.color, attempt);
-      }
+          let barcode = generateBarcode(item.id, vd.size, vd.color);
+          let attempt = 0;
+          while (await prisma.outletVariant.findUnique({ where: { barcode } }) || missing.some(m => m.barcode === barcode)) {
+            attempt++;
+            barcode = generateBarcode(item.id, vd.size, vd.color, attempt);
+          }
       ov = await prisma.outletVariant.create({
         data: {
           inventoryItemId: item.id,
@@ -95,7 +106,9 @@ const getPosInventory = async (req, res) => {
         }
       }
       if (missing.length > 0) {
-        await prisma.outletVariant.createMany({ data: missing });
+        for (const md of missing) {
+          await prisma.outletVariant.create({ data: md });
+        }
         // Re-fetch to include new variants
         item.outletVariants = await prisma.outletVariant.findMany({ where: { inventoryItemId: item.id } });
       }
