@@ -6,7 +6,8 @@ const {
   createSale, getSales, getSalesDashboard,
   createReturn, getReturns,
   lookupBarcode,
-  createPosProduct
+  createPosProduct,
+  updateProduct
 } = require('../controllers/pos.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 
@@ -18,6 +19,7 @@ router.get('/inventory', authenticate, getPosInventory);
 // Products for Outlet POS (only active in POS inventory)
 router.get('/products', authenticate, getProducts);
 router.post('/products', authenticate, createPosProduct);
+router.patch('/products/:id', authenticate, updateProduct);
 
 // Variants (outlet-specific stock/price)
 router.put('/variants/:id/stock', authenticate, updateVariantStock);

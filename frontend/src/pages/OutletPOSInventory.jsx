@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
-import { Package, Search, ChevronDown, ChevronUp, RefreshCw, Warehouse, Plus, X, CheckCircle2, Upload, Layers, Hash, Minus, PlusCircle } from 'lucide-react';
+import { Package, Search, ChevronDown, ChevronUp, RefreshCw, Warehouse, Plus, X, CheckCircle2, Upload, Layers, Hash, Minus, PlusCircle, Pencil } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
@@ -66,6 +66,55 @@ const OutletPOSInventory = () => {
   const handleOpenModal = () => {
     setFormData({ name: '', category: 'SCRUBS', fabric: '', imageUrl: '', variants: [{ color: '', size: '', price: 0 }] });
     setIsModalOpen(true);
+  };
+
+  /* ─── Edit Product ─── */
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+  const [editForm, setEditForm] = useState({ name: '', category: '', fabric: '', imageUrl: '' });
+  const [editVariants, setEditVariants] = useState([]);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+
+  const handleOpenEdit = (item) => {
+    setEditItem(item);
+    setEditForm({
+      name: item.name || '',
+      category: item.category || '',
+      fabric: item.fabric || '',
+      imageUrl: item.imageUrl || ''
+    });
+    setEditVariants((item.outletVariants || []).map(v => ({
+      id: v.id,
+      color: v.color,
+      size: v.size,
+      barcode: v.barcode,
+      stock: v.stock,
+      price: v.price || 0
+    })));
+    setEditModalOpen(true);
+  };
+
+  const handleEditPrice = (variantId, value) => {
+    setEditVariants(prev => prev.map(v => v.id === variantId ? { ...v, price: parseFloat(value) || 0 } : v));
+  };
+
+  const handleEditSave = async () => {
+    if (!editItem) return;
+    setEditSubmitting(true);
+    try {
+      await api.patch(`/api/pos/products/${editItem.id}`, editForm);
+      const priceUpdates = editVariants.map(v =>
+        api.put(`/api/pos/variants/${v.id}/price`, { price: v.price })
+      );
+      await Promise.all(priceUpdates);
+      toast.success('Product updated');
+      setEditModalOpen(false);
+      setEditItem(null);
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to update product');
+    }
+    setEditSubmitting(false);
   };
 
   const handleSubmit = async (e) => {
@@ -150,6 +199,10 @@ const OutletPOSInventory = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    <button onClick={(e) => { e.stopPropagation(); handleOpenEdit(item); }}
+                      className="p-1.5 hover:bg-gray-800 rounded-lg transition-colors">
+                      <Pencil size={13} className="text-gray-500 hover:text-blue-400" />
+                    </button>
                     <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${totalStock > 0 ? 'bg-emerald-900/30 text-emerald-400' : 'bg-gray-800 text-gray-500'}`}>
                       Stock: {totalStock}
                     </span>
@@ -278,6 +331,77 @@ const OutletPOSInventory = () => {
               </button>
               <p className="text-[10px] text-gray-500 text-center font-bold">Stock is always 0 &bull; Stock arrives via demand request approval workflow</p>
             </form>
+          </div>
+        </div>
+      )}
+      {/* ─── Edit Product Modal ─── */}
+      {editModalOpen && editItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+          <div className="bg-gray-900 max-w-xl w-full max-h-[90vh] overflow-y-auto p-6 rounded-[2rem] border-2 border-gray-700 shadow-[0_50px_100px_rgba(0,0,0,0.5)]">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-xl font-black text-white uppercase tracking-tighter">Edit Product</h2>
+                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">{editItem.name}</p>
+              </div>
+              <button onClick={() => { setEditModalOpen(false); setEditItem(null); }} className="p-3 bg-gray-800 text-gray-500 hover:text-white rounded-2xl transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Product Details */}
+              <div className="space-y-3">
+                <label className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Product Details</label>
+                <div className="space-y-2">
+                  <input type="text" value={editForm.name}
+                    onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl py-3 px-4 font-bold text-white placeholder-gray-500 outline-none focus:border-blue-500 transition-all"
+                    placeholder="Product Name" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <select value={editForm.category}
+                      onChange={(e) => setEditForm({...editForm, category: e.target.value})}
+                      className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl py-3 px-3 font-bold text-white uppercase outline-none focus:border-blue-500 transition-all">
+                      {['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS', 'FABRIC', 'SHOES', 'CLOGS', 'LABCOAT', 'ACCESSORIES'].map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                    <input type="text" value={editForm.fabric} placeholder="Fabric"
+                      onChange={(e) => setEditForm({...editForm, fabric: e.target.value})}
+                      className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl py-3 px-3 font-bold text-white placeholder-gray-500 outline-none focus:border-blue-500 transition-all" />
+                  </div>
+                  <input type="text" value={editForm.imageUrl} placeholder="Image URL"
+                    onChange={(e) => setEditForm({...editForm, imageUrl: e.target.value})}
+                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl py-3 px-4 font-bold text-white placeholder-gray-500 outline-none focus:border-blue-500 transition-all" />
+                </div>
+              </div>
+
+              {/* Variants */}
+              <div className="space-y-2">
+                <label className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Variants — Price</label>
+                <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
+                  {editVariants.map(v => (
+                    <div key={v.id} className="flex items-center gap-2 bg-gray-800/50 rounded-xl px-3 py-2 border border-gray-700/50">
+                      <span className="text-xs font-bold text-gray-300 min-w-[80px] truncate">{[v.color, v.size].filter(Boolean).join(' • ') || 'Default'}</span>
+                      <span className="text-[10px] font-mono text-gray-600 flex-1 truncate">{v.barcode}</span>
+                      <span className="text-[10px] font-bold text-gray-500">{v.stock} in stock</span>
+                      <div className="relative w-24">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500 font-bold">₨</span>
+                        <input type="number" min="0" step="0.01" value={v.price}
+                          onChange={(e) => handleEditPrice(v.id, e.target.value)}
+                          className="w-full bg-gray-900 border border-gray-700 rounded-lg py-1.5 pl-5 pr-2 text-xs font-bold text-white outline-none focus:border-blue-500" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Save */}
+              <button onClick={handleEditSave} disabled={editSubmitting}
+                className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black py-4 rounded-xl transition-all flex items-center justify-center gap-3 active:scale-95">
+                {editSubmitting ? <RefreshCw size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}
+                <span>{editSubmitting ? 'Saving...' : 'Save Changes'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

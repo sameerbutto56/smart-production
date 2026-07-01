@@ -315,30 +315,35 @@ const InventoryManagement = () => {
     if (!count || count < 1) return;
 
     const barcode = generateBarcode(item.id, variant.size, variant.color);
-    const canvas = document.createElement('canvas');
-    canvas.width = 600;
-    canvas.height = 200;
-    JsBarcode(canvas, barcode, {
-      format: 'CODE128',
-      width: 3,
-      height: 120,
-      displayValue: true,
-      fontSize: 28,
-      margin: 15
-    });
-    const dataUrl = canvas.toDataURL('image/png');
-
     const formatCurr = (n) => `₨${(n || 0).toLocaleString()}`;
+
+    // Generate ultra high-res barcode — canvas is large so bars print crisp at 2in
+    const bc = document.createElement('canvas');
+    bc.width = 3600;
+    bc.height = 1200;
+    JsBarcode(bc, barcode, {
+      format: 'CODE128',
+      width: 24,
+      height: 700,
+      displayValue: true,
+      fontSize: 160,
+      margin: 40,
+      background: '#ffffff',
+      lineColor: '#000000'
+    });
+    const dataUrl = bc.toDataURL('image/png');
+
     const w = window.open('', '_blank');
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Barcode Labels</title><style>
-      @page { margin: 0; size: 2in 1in; }
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Barcode Labels</title>
+<style>
+      @page { margin: 0; }
       body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
       .labels { display: flex; flex-wrap: wrap; }
-      .label { width: 2in; height: 1in; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; page-break-inside: avoid; box-sizing: border-box; padding: 2mm; border: none; }
-      .label .name { font-size: 11px; font-weight: bold; margin-bottom: 1mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 1.8in; }
-      .label .detail { font-size: 9px; color: #555; margin-bottom: 1mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 1.8in; }
-      .label .price { font-size: 14px; font-weight: bold; margin-top: 0.5mm; }
-      img { max-width: 1.7in; height: auto; }
+      .label { width: 2in; height: 1in; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; page-break-inside: avoid; box-sizing: border-box; padding: 1.5mm; border: none; }
+      .label .name { font-size: 11px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 1.8in; }
+      .label .detail { font-size: 9px; color: #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 1.8in; }
+      .label .price { font-size: 14px; font-weight: bold; }
+      .label img { width: 1.75in; height: 0.6in; }
     </style></head><body><div class="labels">
       ${Array(count).fill(`<div class="label">
         <div class="name">${productName}</div>

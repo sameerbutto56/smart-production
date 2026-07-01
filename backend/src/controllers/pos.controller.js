@@ -539,6 +539,24 @@ const lookupBarcode = async (req, res) => {
   }
 };
 
+const updateProduct = async (req, res) => {
+  try {
+    const { name, category, fabric, imageUrl } = req.body;
+    const data = {};
+    if (name !== undefined) data.name = name;
+    if (category !== undefined) data.category = category;
+    if (fabric !== undefined) data.fabric = fabric;
+    if (imageUrl !== undefined) data.imageUrl = imageUrl;
+    const updated = await prisma.inventoryItem.update({
+      where: { id: req.params.id },
+      data
+    });
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to update product', error: error.message });
+  }
+};
+
 module.exports = {
   getPosInventory,
   getProducts,
@@ -546,5 +564,6 @@ module.exports = {
   createSale, getSales, getSalesDashboard,
   createReturn, getReturns,
   lookupBarcode,
-  createPosProduct
+  createPosProduct,
+  updateProduct
 };
