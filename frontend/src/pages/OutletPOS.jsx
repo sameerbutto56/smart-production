@@ -219,31 +219,6 @@ const OutletPOS = () => {
     setTimeout(() => { w.print(); }, 200);
   };
 
-  /* ─── Barcode Print ─── */
-  const printBarcode = (variant, productName) => {
-    const canvas = document.createElement('canvas');
-    JsBarcode(canvas, variant.barcode, { format: 'CODE128', width: 1.5, height: 30, displayValue: true, fontSize: 10 });
-    const dataUrl = canvas.toDataURL('image/png');
-    const w = window.open('', '_blank');
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Barcode</title><style>
-      @page { margin: 0; size: 50mm 30mm; }
-      body { margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; width: 50mm; height: 30mm; font-family: Arial, sans-serif; }
-      .label { text-align: center; padding: 2px; }
-      .label .name { font-size: 9px; font-weight: bold; margin-bottom: 1px; }
-      .label .detail { font-size: 7px; color: #555; margin-bottom: 2px; }
-      .label .price { font-size: 10px; font-weight: bold; margin-top: 1px; }
-      img { max-width: 48mm; }
-    </style></head><body><div class="label">
-      <div class="name">${productName}</div>
-      <div class="detail">${[variant.color, variant.size].filter(Boolean).join(' / ') || ''}</div>
-      <img src="${dataUrl}" />
-      <div class="price">${formatCurrency(variant.price || 0)}</div>
-    </div></body></html>`);
-    w.document.close();
-    w.focus();
-    setTimeout(() => { w.print(); }, 300);
-  };
-
   /* ─── Return ─── */
   const handleReturn = async (variantId) => {
     const qty = prompt('Return quantity:');

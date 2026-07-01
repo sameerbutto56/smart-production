@@ -1,6 +1,6 @@
 const express = require('express');
 const {
-  getPosInventory, addToPosInventory, removeFromPosInventory,
+  getPosInventory,
   getProducts,
   updateVariantStock, updateVariantPrice,
   createSale, getSales, getSalesDashboard,
@@ -11,10 +11,8 @@ const { authenticate, authorize } = require('../middleware/auth.middleware');
 
 const router = express.Router();
 
-// POS Inventory management (Store Profile) — manage which products are active
+// POS Inventory — read-only view of all warehouse products with outlet stock
 router.get('/inventory', authenticate, getPosInventory);
-router.post('/inventory/add/:itemId', authenticate, addToPosInventory);
-router.delete('/inventory/remove/:itemId', authenticate, removeFromPosInventory);
 
 // Products for Outlet POS (only active in POS inventory)
 router.get('/products', authenticate, getProducts);

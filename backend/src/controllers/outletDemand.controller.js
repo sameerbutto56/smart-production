@@ -166,4 +166,93 @@ const getDemandStats = async (req, res) => {
   }
 };
 
-module.exports = { createDemandRequest, getMyDemandRequests, getAllDemandRequests, approveDemandRequest, getInventoryForOutlet, getDemandStats };
+const acceptDemandRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await prisma.outletDemandRequest.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ message: 'Demand request not found' });
+    if (existing.status !== 'APPROVED' && existing.status !== 'PARTIALLY_APPROVED') {
+      return res.status(400).json({ message: `Cannot accept a ${existing.status.toLowerCase()} request. Only approved/partially approved requests can be accepted.` });
+    }
+    if (existing.acceptedAt) {
+      return res.status(400).json({ message: 'Already accepted. Cannot accept again.' });
+    }
+
+    const items = typeof existing.items === 'string' ? JSON.parse(existing.items) : existing.items;
+    const results = [];
+
+    for (const it of items) {
+      if (!it.approvedQty || it.approvedQty <= 0) continue;
+      // Find the inventory item by product name
+      const invItems = await prisma.inventoryItem.findMany({
+        where: { name: { contains: it.productName, mode: 'insensitive' } },
+        include: { outletVariants: true }
+      });
+      if (invItems.length === 0) {
+        results.push({ productName: it.productName, status: 'SKIPPED', reason: 'No warehouse product found' });
+        continue;
+      }
+      const inv = invItems[0];
+
+      // Find or create the matching OutletVariant
+      let ov = inv.outletVariants.find(o => o.color === (it.color || null) && o.size === (it.size || null));
+      if (!ov) {
+        let barcode = generateBarcode(inv.id, it.size, it.color);
+        let attempt = 0;
+        // Need generateBarcode from pos.controller — redefine locally
+        const genBarcode = (itemId, size, color, attempt = 0) => {
+          const prefix = 'POS';
+          const raw = itemId.replace(/-/g, '').slice(0, 8);
+          const base = ((parseInt(raw, 16) || 0) + (size ? size.charCodeAt(0) : 0) + (color ? color.charCodeAt(0) : 0)).toString(36).toUpperCase().slice(0, 6);
+          const suf = `${size ? size[0] || 'X' : 'X'}${color ? color[0] || 'X' : 'X'}`;
+          return `${prefix}${base}${suf}${attempt > 0 ? attempt : ''}`;
+        };
+        let bc = genBarcode(inv.id, it.size, it.color);
+        let a = 0;
+        while (await prisma.outletVariant.findUnique({ where: { barcode: bc } })) {
+          a++;
+          bc = genBarcode(inv.id, it.size, it.color, a);
+        }
+        ov = await prisma.outletVariant.create({
+          data: {
+            inventoryItemId: inv.id,
+            color: it.color || null,
+            size: it.size || null,
+            barcode: bc,
+            stock: parseInt(it.approvedQty) || 0,
+            isActive: true
+          }
+        });
+        results.push({ productName: it.productName, color: it.color, size: it.size, status: 'CREATED', qty: it.approvedQty });
+      } else {
+        // Add stock to existing variant
+        await prisma.outletVariant.update({
+          where: { id: ov.id },
+          data: { stock: { increment: parseInt(it.approvedQty) || 0 } }
+        });
+        results.push({ productName: it.productName, color: it.color, size: it.size, status: 'UPDATED', qty: it.approvedQty });
+      }
+    }
+
+    // Mark demand as accepted
+    await prisma.outletDemandRequest.update({
+      where: { id },
+      data: { acceptedAt: new Date() }
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        orderId: null,
+        action: 'DEMAND_REQUEST_ACCEPTED',
+        details: `Demand request ${id} from ${existing.outletName} accepted by outlet — ${results.length} items processed`,
+        performedBy: req.user.id
+      }
+    });
+
+    res.json({ message: 'Demand accepted and stock added to outlet inventory', results });
+  } catch (error) {
+    res.status(500).json({ message: 'Error accepting demand request', error: error.message });
+  }
+};
+
+module.exports = { createDemandRequest, getMyDemandRequests, getAllDemandRequests, approveDemandRequest, acceptDemandRequest, getInventoryForOutlet, getDemandStats };

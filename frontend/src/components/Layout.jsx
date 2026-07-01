@@ -64,7 +64,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     { name: 'Refund Management', path: '/refund-management', icon: RotateCcw, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'DELIVERY_BOY'] },
     { name: 'Client Registration', path: '/clients', icon: UserPlus, roles: ['SUPER_ADMIN', 'OUTLET'] },
     { name: 'POS', path: '/pos', icon: ShoppingCart, roles: ['OUTLET', 'SUPER_ADMIN', 'ADMIN'] },
-    { name: 'POS Inventory', path: '/pos-inventory', icon: Package, roles: ['STORE', 'SUPER_ADMIN', 'ADMIN'] },
+    { name: 'POS Inventory', path: '/pos-inventory', icon: Package, roles: ['OUTLET', 'STORE', 'SUPER_ADMIN', 'ADMIN'] },
 
   ];
   

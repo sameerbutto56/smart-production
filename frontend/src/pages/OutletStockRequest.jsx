@@ -3,7 +3,7 @@ import axios from 'axios';
 import {
   ShoppingCart, Package, Building2, CheckCircle2, XCircle, AlertTriangle,
   RefreshCcw, Search, Clock, Plus, Minus, Send, Eye, ClipboardList,
-  Warehouse, FileText, Trash2, Filter
+  Warehouse, FileText, Trash2, Filter, Download
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
@@ -27,7 +27,26 @@ const OutletStockRequest = () => {
   const [cartItems, setCartItems] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [acceptingId, setAcceptingId] = useState(null);
   const [requestNotes, setRequestNotes] = useState('');
+
+  const acceptRequest = async (reqId) => {
+    if (!window.confirm('Accept this approved request? Stock will be added to Outlet POS inventory.')) return;
+    setAcceptingId(reqId);
+    try {
+      const token = sessionStorage.getItem('token');
+      await axios.put(`${API_URL}/api/demand/${reqId}/accept`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.success('Request accepted! Stock added to outlet inventory.');
+      // Refresh requests
+      const reqRes = await axios.get(`${API_URL}/api/demand/my`, { headers: { Authorization: `Bearer ${token}` } });
+      setMyRequests(reqRes.data);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to accept request');
+    }
+    setAcceptingId(null);
+  };
 
   // --- My Requests State ---
   const [myRequests, setMyRequests] = useState([]);
@@ -455,6 +474,23 @@ const OutletStockRequest = () => {
                               <div className="mt-3 p-3 theme-bg-subtle rounded-xl border theme-border">
                                 <p className="text-[10px] font-black theme-text-muted uppercase tracking-wider">Store Notes</p>
                                 <p className="text-xs theme-text-primary font-medium mt-0.5">{req.storeNotes}</p>
+                              </div>
+                            )}
+                            {/* Accept button for approved/partially approved requests */}
+                            {(req.status === 'APPROVED' || req.status === 'PARTIALLY_APPROVED') && !req.acceptedAt && (
+                              <div className="mt-3 flex justify-end">
+                                <button onClick={() => acceptRequest(req.id)} disabled={acceptingId === req.id}
+                                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-xs rounded-xl transition-all flex items-center space-x-2 active:scale-95">
+                                  {acceptingId === req.id ? <RefreshCcw size={14} className="animate-spin" /> : <Download size={14} />}
+                                  <span>{acceptingId === req.id ? 'Accepting...' : 'Accept & Add to POS Stock'}</span>
+                                </button>
+                              </div>
+                            )}
+                            {req.acceptedAt && (
+                              <div className="mt-3 flex justify-end">
+                                <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                                  ✓ Accepted {new Date(req.acceptedAt).toLocaleDateString()}
+                                </span>
                               </div>
                             )}
                           </motion.div>

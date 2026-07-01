@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import JsBarcode from 'jsbarcode';
 import Button from '../components/Button';
 import {
   Plus,
@@ -289,6 +290,49 @@ const InventoryManagement = () => {
     }
   };
 
+  /* ─── Barcode generation & printing (Store Inventory only) ─── */
+  const generateBarcode = (itemId, size, color, attempt = 0) => {
+    const prefix = 'POS';
+    const raw = itemId.replace(/-/g, '').slice(0, 8);
+    const base = ((parseInt(raw, 16) || 0) + (size ? size.charCodeAt(0) : 0) + (color ? color.charCodeAt(0) : 0)).toString(36).toUpperCase().slice(0, 6);
+    const suf = `${size ? size[0] || 'X' : 'X'}${color ? color[0] || 'X' : 'X'}`;
+    return `${prefix}${base}${suf}${attempt > 0 ? attempt : ''}`;
+  };
+
+  const printBarcodeFromStore = (item, variant, productName) => {
+    const qty = prompt(`How many barcode labels for "${productName}" ${[variant.color, variant.size].filter(Boolean).join(' / ')}?`, '1');
+    const count = parseInt(qty);
+    if (!count || count < 1) return;
+
+    const barcode = generateBarcode(item.id, variant.size, variant.color);
+    const canvas = document.createElement('canvas');
+    JsBarcode(canvas, barcode, { format: 'CODE128', width: 1.5, height: 30, displayValue: true, fontSize: 10 });
+    const dataUrl = canvas.toDataURL('image/png');
+
+    const formatCurr = (n) => `₨${(n || 0).toLocaleString()}`;
+    const w = window.open('', '_blank');
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Barcode Labels</title><style>
+      @page { margin: 0; }
+      body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+      .labels { display: flex; flex-wrap: wrap; }
+      .label { width: 50mm; height: 30mm; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; page-break-inside: avoid; box-sizing: border-box; padding: 2px; border: 0.5px dashed #ccc; }
+      .label .name { font-size: 8px; font-weight: bold; }
+      .label .detail { font-size: 7px; color: #555; }
+      .label .price { font-size: 9px; font-weight: bold; margin-top: 1px; }
+      img { max-width: 46mm; }
+    </style></head><body><div class="labels">
+      ${Array(count).fill(`<div class="label">
+        <div class="name">${productName}</div>
+        <div class="detail">${[variant.color, variant.size].filter(Boolean).join(' / ') || ''}</div>
+        <img src="${dataUrl}" />
+        <div class="price">${formatCurr(variant.price || item.price || 0)}</div>
+      </div>`).join('')}
+    </div></body></html>`);
+    w.document.close();
+    w.focus();
+    setTimeout(() => { w.print(); }, 300);
+  };
+
   const uniqueCategories = [...new Set(items.map(item => item.category?.toUpperCase()).filter(Boolean))];
   const defaultCategories = ['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS', 'FABRIC', 'SHOES', 'CLOGS', 'LABCOAT'];
   const allCategories = [...new Set([...defaultCategories, ...uniqueCategories])];
@@ -386,6 +430,15 @@ const InventoryManagement = () => {
                   </div>
                 ) : null;
               })()}
+              {/* Print barcode for first variant only (INVENTORY_VIEW) */}
+              <div className="mt-3 flex justify-end">
+                <button onClick={() => {
+                  const v = item.variants?.[0] || item;
+                  printBarcodeFromStore(item, v, item.name);
+                }} className="text-[10px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-all">
+                  <Printer size={12} /> Print Barcode
+                </button>
+              </div>
             </motion.div>
           ))
         ]).flat()}
@@ -587,7 +640,11 @@ const InventoryManagement = () => {
                           {[v.color, v.size].filter(Boolean).join(' • ')}
                         </span>
                       </div>
-                      <div className="flex items-center space-x-4">
+                      <div className="flex items-center space-x-3">
+                        <button onClick={(e) => { e.stopPropagation(); printBarcodeFromStore(item, v, item.name); }}
+                          className="p-1.5 bg-gray-800 hover:bg-gray-700 text-blue-400 hover:text-blue-300 rounded-lg transition-all" title="Print barcode">
+                          <Printer size={12} />
+                        </button>
                         <span className="text-sm font-black theme-text-primary">{v.stock}</span>
                         {v.price > 0 && <span className="text-xs md:text-sm font-bold text-emerald-500">₨{v.price}</span>}
                       </div>
@@ -603,15 +660,29 @@ const InventoryManagement = () => {
                   )}
                 </div>
               ) : (
-                <div className="mt-6 flex items-center justify-between theme-bg-subtle rounded-xl px-4 py-2.5 theme-border">
-                  <span className="text-xs font-bold theme-text-secondary">
-                    {[item.color, item.size].filter(Boolean).join(' • ') || 'Standard'}
-                  </span>
-                  <div className="flex items-center space-x-4">
-                    <span className="text-sm font-black theme-text-primary">{item.stock}</span>
-                    {item.price > 0 && <span className="text-xs md:text-sm font-bold text-emerald-500">₨{item.price}</span>}
+                <>
+                  <div className="mt-6 flex items-center justify-between theme-bg-subtle rounded-xl px-4 py-2.5 theme-border">
+                    <span className="text-xs font-bold theme-text-secondary">
+                      {[item.color, item.size].filter(Boolean).join(' • ') || 'Standard'}
+                    </span>
+                    <div className="flex items-center space-x-4">
+                      <button onClick={(e) => { e.stopPropagation(); printBarcodeFromStore(item, item, item.name); }}
+                        className="p-1.5 bg-gray-800 hover:bg-gray-700 text-blue-400 hover:text-blue-300 rounded-lg transition-all" title="Print barcode">
+                        <Printer size={12} />
+                      </button>
+                      <span className="text-sm font-black theme-text-primary">{item.stock}</span>
+                      {item.price > 0 && <span className="text-xs md:text-sm font-bold text-emerald-500">₨{item.price}</span>}
+                    </div>
                   </div>
-                </div>
+                  {user?.role === 'INVENTORY_VIEW' && (
+                    <div className="mt-3 flex justify-end">
+                      <button onClick={(e) => { e.stopPropagation(); printBarcodeFromStore(item, item, item.name); }}
+                        className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-blue-400 hover:text-blue-300 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1">
+                        <Printer size={12} /> Print Barcode
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
 
               <div className="mt-6 flex items-end justify-between">

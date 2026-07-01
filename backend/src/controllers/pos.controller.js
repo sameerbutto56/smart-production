@@ -8,6 +8,42 @@ const generateBarcode = (itemId, size, color, attempt = 0) => {
   return `${prefix}${base}${suf}${attempt > 0 ? attempt : ''}`;
 };
 
+/* ─── Helper: ensure OutletVariants exist for a warehouse item ─── */
+const ensureOutletVariants = async (item) => {
+  if (!item) return [];
+  let variantDefs = [];
+  if (Array.isArray(item.variants) && item.variants.length > 0) {
+    variantDefs = item.variants;
+  } else {
+    variantDefs = [{ color: item.color || null, size: item.size || null, stock: item.stock, price: item.price }];
+  }
+  const existing = await prisma.outletVariant.findMany({ where: { inventoryItemId: item.id } });
+  const created = [];
+  for (const vd of variantDefs) {
+    let ov = existing.find(o => o.color === (vd.color || null) && o.size === (vd.size || null));
+    if (!ov) {
+      let barcode = generateBarcode(item.id, vd.size, vd.color);
+      let attempt = 0;
+      while (await prisma.outletVariant.findUnique({ where: { barcode } })) {
+        attempt++;
+        barcode = generateBarcode(item.id, vd.size, vd.color, attempt);
+      }
+      ov = await prisma.outletVariant.create({
+        data: {
+          inventoryItemId: item.id,
+          color: vd.color || null,
+          size: vd.size || null,
+          barcode,
+          stock: 0,
+          isActive: true
+        }
+      });
+      created.push(ov);
+    }
+  }
+  return created;
+};
+
 const generateReceiptNumber = (() => {
   let counter = 0;
   const startDate = new Date().toISOString().slice(0, 10);
@@ -20,13 +56,48 @@ const generateReceiptNumber = (() => {
   };
 })();
 
-/* ─── POS Inventory (Store Profile) — manage which products are active in POS ─── */
+/* ─── POS Inventory — read-only view of all warehouse products with outlet stock ─── */
 const getPosInventory = async (req, res) => {
   try {
     const items = await prisma.inventoryItem.findMany({
       include: { outletVariants: true },
       orderBy: { name: 'asc' }
     });
+
+    // Auto-create missing OutletVariants
+    for (const item of items) {
+      const missing = [];
+      let variantDefs = [];
+      if (Array.isArray(item.variants) && item.variants.length > 0) {
+        variantDefs = item.variants;
+      } else {
+        variantDefs = [{ color: item.color || null, size: item.size || null, stock: item.stock, price: item.price }];
+      }
+      for (const vd of variantDefs) {
+        const exists = item.outletVariants.some(ov => ov.color === (vd.color || null) && ov.size === (vd.size || null));
+        if (!exists) {
+          let barcode = generateBarcode(item.id, vd.size, vd.color);
+          let attempt = 0;
+          while (await prisma.outletVariant.findUnique({ where: { barcode } })) {
+            attempt++;
+            barcode = generateBarcode(item.id, vd.size, vd.color, attempt);
+          }
+          missing.push({
+            inventoryItemId: item.id,
+            color: vd.color || null,
+            size: vd.size || null,
+            barcode,
+            stock: 0,
+            isActive: true
+          });
+        }
+      }
+      if (missing.length > 0) {
+        await prisma.outletVariant.createMany({ data: missing });
+        // Re-fetch to include new variants
+        item.outletVariants = await prisma.outletVariant.findMany({ where: { inventoryItemId: item.id } });
+      }
+    }
 
     const result = items.map(item => {
       let variantDefs = [];
@@ -38,9 +109,6 @@ const getPosInventory = async (req, res) => {
 
       const colors = [...new Set(variantDefs.map(v => v.color).filter(Boolean))];
       const sizes = [...new Set(variantDefs.map(v => v.size).filter(Boolean))];
-      const totalVariants = variantDefs.length;
-      const activeVariants = item.outletVariants.filter(ov => ov.isActive).length;
-      const isActive = activeVariants > 0;
 
       return {
         id: item.id,
@@ -50,17 +118,13 @@ const getPosInventory = async (req, res) => {
         imageUrl: item.imageUrl,
         colors,
         sizes,
-        variantCount: totalVariants,
-        activeVariantCount: activeVariants,
-        isActive,
         outletVariants: item.outletVariants.map(ov => ({
           id: ov.id,
           color: ov.color,
           size: ov.size,
           barcode: ov.barcode,
           stock: ov.stock,
-          price: ov.price,
-          isActive: ov.isActive
+          price: ov.price
         }))
       };
     });
@@ -71,75 +135,54 @@ const getPosInventory = async (req, res) => {
   }
 };
 
-const addToPosInventory = async (req, res) => {
-  try {
-    const { itemId } = req.params;
-    const item = await prisma.inventoryItem.findUnique({ where: { id: itemId }, include: { outletVariants: true } });
-    if (!item) return res.status(404).json({ message: 'Product not found in warehouse' });
+/* ─── (removed) addToPosInventory / removeFromPosInventory — now auto-created ─── */
 
-    let variantDefs = [];
-    if (Array.isArray(item.variants) && item.variants.length > 0) {
-      variantDefs = item.variants;
-    } else {
-      variantDefs = [{ color: item.color || null, size: item.size || null, stock: item.stock, price: item.price }];
-    }
-
-    const created = [];
-    for (const vd of variantDefs) {
-      let ov = item.outletVariants.find(o => o.color === (vd.color || null) && o.size === (vd.size || null));
-      if (ov) {
-        if (!ov.isActive) {
-          ov = await prisma.outletVariant.update({ where: { id: ov.id }, data: { isActive: true } });
-        }
-      } else {
-        let barcode = generateBarcode(item.id, vd.size, vd.color);
-        let attempt = 0;
-        while (await prisma.outletVariant.findUnique({ where: { barcode } })) {
-          attempt++;
-          barcode = generateBarcode(item.id, vd.size, vd.color, attempt);
-        }
-        ov = await prisma.outletVariant.create({
-          data: {
-            inventoryItemId: item.id,
-            color: vd.color || null,
-            size: vd.size || null,
-            barcode,
-            stock: 0,
-            isActive: true
-          }
-        });
-      }
-      created.push(ov);
-    }
-
-    res.json({ message: 'Product added to POS inventory', variantsCreated: created.length });
-  } catch (error) {
-    res.status(500).json({ message: `Failed to add to POS inventory: ${error.message}` });
-  }
-};
-
-const removeFromPosInventory = async (req, res) => {
-  try {
-    await prisma.outletVariant.updateMany({
-      where: { inventoryItemId: req.params.itemId },
-      data: { isActive: false }
-    });
-    res.json({ message: 'Product removed from POS inventory' });
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to remove from POS inventory', error: error.message });
-  }
-};
-
-/* ─── Products for Outlet POS (only active) ─── */
+/* ─── Products for Outlet POS (auto-created from warehouse) ─── */
 const getProducts = async (req, res) => {
   try {
-    const activeVariants = await prisma.outletVariant.findMany({
-      where: { isActive: true },
+    // Auto-create OutletVariants for all warehouse products
+    const allItems = await prisma.inventoryItem.findMany({
+      include: { outletVariants: true },
+      orderBy: { name: 'asc' }
+    });
+
+    for (const item of allItems) {
+      let variantDefs = [];
+      if (Array.isArray(item.variants) && item.variants.length > 0) {
+        variantDefs = item.variants;
+      } else {
+        variantDefs = [{ color: item.color || null, size: item.size || null, stock: item.stock, price: item.price }];
+      }
+      for (const vd of variantDefs) {
+        const exists = item.outletVariants.some(ov => ov.color === (vd.color || null) && ov.size === (vd.size || null));
+        if (!exists) {
+          let barcode = generateBarcode(item.id, vd.size, vd.color);
+          let attempt = 0;
+          while (await prisma.outletVariant.findUnique({ where: { barcode } })) {
+            attempt++;
+            barcode = generateBarcode(item.id, vd.size, vd.color, attempt);
+          }
+          await prisma.outletVariant.create({
+            data: {
+              inventoryItemId: item.id,
+              color: vd.color || null,
+              size: vd.size || null,
+              barcode,
+              stock: 0,
+              isActive: true
+            }
+          });
+        }
+      }
+    }
+
+    // Re-fetch all variants with inventory items
+    const allVariants = await prisma.outletVariant.findMany({
       include: { inventoryItem: true }
     });
 
     const grouped = {};
-    for (const ov of activeVariants) {
+    for (const ov of allVariants) {
       const item = ov.inventoryItem;
       if (!grouped[item.id]) {
         grouped[item.id] = {
@@ -389,7 +432,6 @@ const lookupBarcode = async (req, res) => {
       include: { inventoryItem: true }
     });
     if (!ov) return res.status(404).json({ message: 'Barcode not found' });
-    if (!ov.isActive) return res.status(404).json({ message: 'Barcode not found (product not in POS inventory)' });
     res.json({
       id: ov.id,
       inventoryItemId: ov.inventoryItemId,
@@ -409,7 +451,7 @@ const lookupBarcode = async (req, res) => {
 };
 
 module.exports = {
-  getPosInventory, addToPosInventory, removeFromPosInventory,
+  getPosInventory,
   getProducts,
   updateVariantStock, updateVariantPrice,
   createSale, getSales, getSalesDashboard,

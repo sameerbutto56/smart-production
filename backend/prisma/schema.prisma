@@ -416,6 +416,7 @@ model OutletDemandRequest {
   updatedAt       DateTime  @updatedAt
   approvedAt      DateTime?
   approvedById    String?
+  acceptedAt      DateTime?
 
   @@index([outletId])
   @@index([status])

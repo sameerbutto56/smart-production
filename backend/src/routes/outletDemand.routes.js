@@ -1,5 +1,5 @@
 const express = require('express');
-const { createDemandRequest, getMyDemandRequests, getAllDemandRequests, approveDemandRequest, getInventoryForOutlet, getDemandStats } = require('../controllers/outletDemand.controller');
+const { createDemandRequest, getMyDemandRequests, getAllDemandRequests, approveDemandRequest, acceptDemandRequest, getInventoryForOutlet, getDemandStats } = require('../controllers/outletDemand.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 const router = express.Router();
 
@@ -9,5 +9,6 @@ router.get('/all', authenticate, authorize(['STORE', 'ADMIN', 'SUPER_ADMIN']), g
 router.get('/stats', authenticate, authorize(['STORE', 'ADMIN', 'SUPER_ADMIN']), getDemandStats);
 router.get('/inventory', authenticate, authorize(['OUTLET', 'STORE', 'ADMIN', 'SUPER_ADMIN']), getInventoryForOutlet);
 router.put('/:id/approve', authenticate, authorize(['STORE', 'ADMIN', 'SUPER_ADMIN']), approveDemandRequest);
+router.put('/:id/accept', authenticate, authorize(['OUTLET', 'STORE', 'ADMIN', 'SUPER_ADMIN']), acceptDemandRequest);
 
 module.exports = router;
