@@ -2,6 +2,8 @@ const prisma = require('../prisma');
 const cache = require('../utils/cache');
 const CACHE_KEY_PREFIX = 'pos:';
 
+const getOutletName = (req) => req.query.outlet || (req.user?.role === 'OUTLET' ? req.user?.name : null);
+
 const djb2 = (s) => {
   if (!s) return 0;
   let hash = 5381;
@@ -22,7 +24,7 @@ const generateBarcode = (itemId, size, color, attempt = 0) => {
 };
 
 /* ─── Helper: ensure OutletVariants exist for a warehouse item ─── */
-const ensureOutletVariants = async (item) => {
+const ensureOutletVariants = async (item, outletName) => {
   if (!item) return [];
   let variantDefs = [];
   if (Array.isArray(item.variants) && item.variants.length > 0) {
@@ -30,20 +32,21 @@ const ensureOutletVariants = async (item) => {
   } else {
     variantDefs = [{ color: item.color || null, size: item.size || null, stock: item.stock, price: item.price }];
   }
-  const existing = await prisma.outletVariant.findMany({ where: { inventoryItemId: item.id } });
+  const existing = await prisma.outletVariant.findMany({ where: { inventoryItemId: item.id, outletName } });
   const created = [];
   for (const vd of variantDefs) {
     let ov = existing.find(o => o.color === (vd.color || null) && o.size === (vd.size || null));
     if (!ov) {
-          let barcode = generateBarcode(item.id, vd.size, vd.color);
-          let attempt = 0;
-          while (await prisma.outletVariant.findUnique({ where: { barcode } }) || missing.some(m => m.barcode === barcode)) {
-            attempt++;
-            barcode = generateBarcode(item.id, vd.size, vd.color, attempt);
-          }
+      let barcode = generateBarcode(item.id, vd.size, vd.color);
+      let attempt = 0;
+      while (await prisma.outletVariant.findFirst({ where: { barcode, outletName } })) {
+        attempt++;
+        barcode = generateBarcode(item.id, vd.size, vd.color, attempt);
+      }
       ov = await prisma.outletVariant.create({
         data: {
           inventoryItemId: item.id,
+          outletName,
           color: vd.color || null,
           size: vd.size || null,
           barcode,
@@ -73,53 +76,56 @@ const generateReceiptNumber = (() => {
 /* ─── POS Inventory — read-only view of all warehouse products with outlet stock ─── */
 const getPosInventory = async (req, res) => {
   try {
+    const outlet = getOutletName(req);
     const skip = req.query.skipCache === 'true';
-    const cacheKey = `${CACHE_KEY_PREFIX}inventory`;
+    const cacheKey = `${CACHE_KEY_PREFIX}inventory:${outlet || 'all'}`;
     if (!skip) {
       const cached = cache.get(cacheKey);
       if (cached) return res.json(cached);
     }
 
     const items = await prisma.inventoryItem.findMany({
-      include: { outletVariants: true },
+      include: { outletVariants: outlet ? { where: { outletName: outlet } } : true },
       orderBy: { name: 'asc' }
     });
 
-    // Auto-create missing OutletVariants
-    for (const item of items) {
-      const missing = [];
-      let variantDefs = [];
-      if (Array.isArray(item.variants) && item.variants.length > 0) {
-        variantDefs = item.variants;
-      } else {
-        variantDefs = [{ color: item.color || null, size: item.size || null, stock: item.stock, price: item.price }];
-      }
-      for (const vd of variantDefs) {
-        const exists = item.outletVariants.some(ov => ov.color === (vd.color || null) && ov.size === (vd.size || null));
-        if (!exists) {
-          let barcode = generateBarcode(item.id, vd.size, vd.color);
-          let attempt = 0;
-          while (await prisma.outletVariant.findUnique({ where: { barcode } })) {
-            attempt++;
-            barcode = generateBarcode(item.id, vd.size, vd.color, attempt);
+    // Auto-create missing OutletVariants (only for specific outlet)
+    if (outlet) {
+      for (const item of items) {
+        const missing = [];
+        let variantDefs = [];
+        if (Array.isArray(item.variants) && item.variants.length > 0) {
+          variantDefs = item.variants;
+        } else {
+          variantDefs = [{ color: item.color || null, size: item.size || null, stock: item.stock, price: item.price }];
+        }
+        for (const vd of variantDefs) {
+          const exists = item.outletVariants.some(ov => ov.color === (vd.color || null) && ov.size === (vd.size || null));
+          if (!exists) {
+            let barcode = generateBarcode(item.id, vd.size, vd.color);
+            let attempt = 0;
+            while (await prisma.outletVariant.findFirst({ where: { barcode, outletName: outlet } })) {
+              attempt++;
+              barcode = generateBarcode(item.id, vd.size, vd.color, attempt);
+            }
+            missing.push({
+              inventoryItemId: item.id,
+              outletName: outlet,
+              color: vd.color || null,
+              size: vd.size || null,
+              barcode,
+              stock: 0,
+              price: vd.price || null,
+              isActive: true
+            });
           }
-          missing.push({
-            inventoryItemId: item.id,
-            color: vd.color || null,
-            size: vd.size || null,
-            barcode,
-            stock: 0,
-            price: vd.price || null,
-            isActive: true
-          });
         }
-      }
-      if (missing.length > 0) {
-        for (const md of missing) {
-          await prisma.outletVariant.create({ data: md });
+        if (missing.length > 0) {
+          for (const md of missing) {
+            await prisma.outletVariant.create({ data: md });
+          }
+          item.outletVariants = await prisma.outletVariant.findMany({ where: { inventoryItemId: item.id, outletName: outlet } });
         }
-        // Re-fetch to include new variants
-        item.outletVariants = await prisma.outletVariant.findMany({ where: { inventoryItemId: item.id } });
       }
     }
 
@@ -133,6 +139,7 @@ const getPosInventory = async (req, res) => {
 
       const colors = [...new Set(variantDefs.map(v => v.color).filter(Boolean))];
       const sizes = [...new Set(variantDefs.map(v => v.size).filter(Boolean))];
+      const vars = Array.isArray(item.outletVariants) ? item.outletVariants : [];
 
       return {
         id: item.id,
@@ -142,75 +149,80 @@ const getPosInventory = async (req, res) => {
         imageUrl: item.imageUrl,
         colors,
         sizes,
-        outletVariants: item.outletVariants.map(ov => ({
+        outletName: outlet || null,
+        outletVariants: vars.map(ov => ({
           id: ov.id,
           color: ov.color,
           size: ov.size,
           barcode: ov.barcode,
           stock: ov.stock,
-          price: ov.price
+          price: ov.price,
+          outletName: ov.outletName
         }))
       };
     });
 
-    cache.set(cacheKey, result);
+    cache.set(cacheKey, result, cache.POS_TTL);
     res.json(result);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch POS inventory', error: error.message });
   }
 };
 
-/* ─── (removed) addToPosInventory / removeFromPosInventory — now auto-created ─── */
-
 /* ─── Products for Outlet POS (auto-created from warehouse) ─── */
 const getProducts = async (req, res) => {
   try {
+    const outlet = getOutletName(req);
     const skip = req.query.skipCache === 'true';
-    const cacheKey = `${CACHE_KEY_PREFIX}products`;
+    const cacheKey = `${CACHE_KEY_PREFIX}products:${outlet || 'all'}`;
     if (!skip) {
       const cached = cache.get(cacheKey);
       if (cached) return res.json(cached);
     }
 
-    // Auto-create OutletVariants for all warehouse products
     const allItems = await prisma.inventoryItem.findMany({
-      include: { outletVariants: true },
+      include: { outletVariants: outlet ? { where: { outletName: outlet } } : true },
       orderBy: { name: 'asc' }
     });
 
-    for (const item of allItems) {
-      let variantDefs = [];
-      if (Array.isArray(item.variants) && item.variants.length > 0) {
-        variantDefs = item.variants;
-      } else {
-        variantDefs = [{ color: item.color || null, size: item.size || null, stock: item.stock, price: item.price }];
-      }
-      for (const vd of variantDefs) {
-        const exists = item.outletVariants.some(ov => ov.color === (vd.color || null) && ov.size === (vd.size || null));
-        if (!exists) {
-          let barcode = generateBarcode(item.id, vd.size, vd.color);
-          let attempt = 0;
-          while (await prisma.outletVariant.findUnique({ where: { barcode } })) {
-            attempt++;
-            barcode = generateBarcode(item.id, vd.size, vd.color, attempt);
-          }
-          await prisma.outletVariant.create({
-            data: {
-              inventoryItemId: item.id,
-              color: vd.color || null,
-              size: vd.size || null,
-              barcode,
-              stock: 0,
-              price: vd.price || null,
-              isActive: true
+    // Auto-create variants for this outlet if needed
+    if (outlet) {
+      for (const item of allItems) {
+        let variantDefs = [];
+        if (Array.isArray(item.variants) && item.variants.length > 0) {
+          variantDefs = item.variants;
+        } else {
+          variantDefs = [{ color: item.color || null, size: item.size || null, stock: item.stock, price: item.price }];
+        }
+        for (const vd of variantDefs) {
+          const exists = item.outletVariants.some(ov => ov.color === (vd.color || null) && ov.size === (vd.size || null));
+          if (!exists) {
+            let barcode = generateBarcode(item.id, vd.size, vd.color);
+            let attempt = 0;
+            while (await prisma.outletVariant.findFirst({ where: { barcode, outletName: outlet } })) {
+              attempt++;
+              barcode = generateBarcode(item.id, vd.size, vd.color, attempt);
             }
-          });
+            await prisma.outletVariant.create({
+              data: {
+                inventoryItemId: item.id,
+                outletName: outlet,
+                color: vd.color || null,
+                size: vd.size || null,
+                barcode,
+                stock: 0,
+                price: vd.price || null,
+                isActive: true
+              }
+            });
+          }
         }
       }
     }
 
     // Re-fetch all variants with inventory items
     const allVariants = await prisma.outletVariant.findMany({
+      where: outlet ? { outletName: outlet } : {},
       include: { inventoryItem: true }
     });
 
@@ -247,7 +259,7 @@ const getProducts = async (req, res) => {
       sizes: [...g.sizes]
     }));
 
-    cache.set(cacheKey, products);
+    cache.set(cacheKey, products, cache.POS_TTL);
     res.json(products);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch products', error: error.message });
@@ -286,13 +298,14 @@ const updateVariantPrice = async (req, res) => {
 const createVariant = async (req, res) => {
   try {
     const { productId } = req.params;
+    const outlet = getOutletName(req);
     const { color, size, stock, price } = req.body;
     const item = await prisma.inventoryItem.findUnique({ where: { id: productId } });
     if (!item) return res.status(404).json({ message: 'Product not found' });
 
     let barcode = generateBarcode(productId, size, color);
     let attempt = 0;
-    while (await prisma.outletVariant.findUnique({ where: { barcode } })) {
+    while (await prisma.outletVariant.findFirst({ where: { barcode, outletName: outlet } })) {
       attempt++;
       barcode = generateBarcode(productId, size, color, attempt);
     }
@@ -300,6 +313,7 @@ const createVariant = async (req, res) => {
     const variant = await prisma.outletVariant.create({
       data: {
         inventoryItemId: productId,
+        outletName: outlet || 'Johar Town',
         color: color || null,
         size: size || null,
         barcode,
@@ -316,6 +330,8 @@ const createVariant = async (req, res) => {
 
 const deleteVariant = async (req, res) => {
   try {
+    const variant = await prisma.outletVariant.findUnique({ where: { id: req.params.id } });
+    if (!variant) return res.status(404).json({ message: 'Variant not found' });
     const saleCount = await prisma.posSaleItem.count({ where: { outletVariantId: req.params.id } });
     const returnCount = await prisma.posReturn.count({ where: { outletVariantId: req.params.id } });
     if (saleCount > 0 || returnCount > 0) {
@@ -336,6 +352,7 @@ const deleteVariant = async (req, res) => {
 
 const updateVariant = async (req, res) => {
   try {
+    const outlet = getOutletName(req);
     const { color, size, stock, price } = req.body;
     const data = {};
     if (color !== undefined) data.color = color || null;
@@ -368,8 +385,11 @@ const createSale = async (req, res) => {
 
     for (const item of items) {
       if (!item.variantId) return res.status(400).json({ message: 'Each item must have a variantId' });
-      const ov = await prisma.outletVariant.findUnique({ where: { id: item.variantId }, include: { inventoryItem: true } });
-      if (!ov) return res.status(400).json({ message: `Variant ${item.variantId} not found` });
+      const ov = await prisma.outletVariant.findFirst({
+        where: { id: item.variantId, outletName },
+        include: { inventoryItem: true }
+      });
+      if (!ov) return res.status(400).json({ message: `Variant ${item.variantId} not found for outlet ${outletName}` });
       if (ov.stock < (item.quantity || 1)) return res.status(400).json({ message: `Insufficient stock for ${ov.inventoryItem.name} (${ov.color || ''} ${ov.size || ''}). Available: ${ov.stock}` });
       const unitPrice = item.unitPrice || ov.price || ov.inventoryItem.price || 0;
       const qty = item.quantity || 1;
@@ -428,7 +448,16 @@ const createSale = async (req, res) => {
 
 const getSales = async (req, res) => {
   try {
+    const outlet = getOutletName(req);
     const { range } = req.query;
+    const skip = req.query.skipCache === 'true';
+    const cacheKey = `${CACHE_KEY_PREFIX}sales:${outlet || 'all'}:${range || 'all'}`;
+
+    if (!skip) {
+      const cached = cache.get(cacheKey);
+      if (cached) return res.json(cached);
+    }
+
     const now = new Date();
     let dateFilter = {};
     if (range === 'today') { const s = new Date(now); s.setHours(0, 0, 0, 0); dateFilter = { createdAt: { gte: s } }; }
@@ -437,11 +466,16 @@ const getSales = async (req, res) => {
     else if (range === 'month') { const s = new Date(now); s.setMonth(s.getMonth() - 1); s.setHours(0, 0, 0, 0); dateFilter = { createdAt: { gte: s } }; }
     else if (range === 'year') { const s = new Date(now); s.setFullYear(s.getFullYear() - 1); s.setHours(0, 0, 0, 0); dateFilter = { createdAt: { gte: s } }; }
 
+    const where = { ...dateFilter };
+    if (outlet) where.outletName = outlet;
+
     const sales = await prisma.posSale.findMany({
-      where: dateFilter,
+      where,
       include: { items: true, returns: true },
       orderBy: { createdAt: 'desc' }
     });
+
+    cache.set(cacheKey, sales, cache.DASHBOARD_TTL);
     res.json(sales);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch sales', error: error.message });
@@ -450,6 +484,15 @@ const getSales = async (req, res) => {
 
 const getSalesDashboard = async (req, res) => {
   try {
+    const outlet = getOutletName(req);
+    const skip = req.query.skipCache === 'true';
+    const cacheKey = `${CACHE_KEY_PREFIX}dashboard:${outlet || 'all'}`;
+
+    if (!skip) {
+      const cached = cache.get(cacheKey);
+      if (cached) return res.json(cached);
+    }
+
     const now = new Date();
     const startToday = new Date(now); startToday.setHours(0, 0, 0, 0);
     const startYesterday = new Date(now); startYesterday.setDate(startYesterday.getDate() - 1); startYesterday.setHours(0, 0, 0, 0);
@@ -458,23 +501,28 @@ const getSalesDashboard = async (req, res) => {
     const startMonth = new Date(now); startMonth.setMonth(startMonth.getMonth() - 1); startMonth.setHours(0, 0, 0, 0);
     const startYear = new Date(now); startYear.setFullYear(startYear.getFullYear() - 1); startYear.setHours(0, 0, 0, 0);
 
+    const outletFilter = outlet ? { outletName: outlet } : {};
+
     const [today, yesterday, week, month, year, all] = await Promise.all([
-      prisma.posSale.aggregate({ where: { createdAt: { gte: startToday } }, _sum: { grandTotal: true }, _count: true }),
-      prisma.posSale.aggregate({ where: { createdAt: { gte: startYesterday, lte: endYesterday } }, _sum: { grandTotal: true }, _count: true }),
-      prisma.posSale.aggregate({ where: { createdAt: { gte: startWeek } }, _sum: { grandTotal: true }, _count: true }),
-      prisma.posSale.aggregate({ where: { createdAt: { gte: startMonth } }, _sum: { grandTotal: true }, _count: true }),
-      prisma.posSale.aggregate({ where: { createdAt: { gte: startYear } }, _sum: { grandTotal: true }, _count: true }),
-      prisma.posSale.aggregate({ _sum: { grandTotal: true }, _count: true }),
+      prisma.posSale.aggregate({ where: { ...outletFilter, createdAt: { gte: startToday } }, _sum: { grandTotal: true }, _count: true }),
+      prisma.posSale.aggregate({ where: { ...outletFilter, createdAt: { gte: startYesterday, lte: endYesterday } }, _sum: { grandTotal: true }, _count: true }),
+      prisma.posSale.aggregate({ where: { ...outletFilter, createdAt: { gte: startWeek } }, _sum: { grandTotal: true }, _count: true }),
+      prisma.posSale.aggregate({ where: { ...outletFilter, createdAt: { gte: startMonth } }, _sum: { grandTotal: true }, _count: true }),
+      prisma.posSale.aggregate({ where: { ...outletFilter, createdAt: { gte: startYear } }, _sum: { grandTotal: true }, _count: true }),
+      prisma.posSale.aggregate({ where: outletFilter, _sum: { grandTotal: true }, _count: true }),
     ]);
 
-    res.json({
+    const result = {
       todaySales: today._sum.grandTotal || 0, todayOrders: today._count,
       yesterdaySales: yesterday._sum.grandTotal || 0, yesterdayOrders: yesterday._count,
       weekSales: week._sum.grandTotal || 0, weekOrders: week._count,
       monthSales: month._sum.grandTotal || 0, monthOrders: month._count,
       yearSales: year._sum.grandTotal || 0, yearOrders: year._count,
       totalSales: all._sum.grandTotal || 0, totalOrders: all._count
-    });
+    };
+
+    cache.set(cacheKey, result, cache.DASHBOARD_TTL);
+    res.json(result);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch dashboard', error: error.message });
   }
@@ -484,6 +532,7 @@ const getSalesDashboard = async (req, res) => {
 const createReturn = async (req, res) => {
   try {
     const { variantId, reason, quantity } = req.body;
+    const outlet = getOutletName(req);
     if (!variantId || !quantity) return res.status(400).json({ message: 'variantId and quantity are required' });
 
     const ov = await prisma.outletVariant.findUnique({ where: { id: variantId }, include: { inventoryItem: true } });
@@ -495,6 +544,7 @@ const createReturn = async (req, res) => {
       return tx.posReturn.create({
         data: {
           outletVariantId: variantId,
+          outletName: outlet || 'Johar Town',
           reason: reason || null,
           quantity: parseInt(quantity),
           refundAmount
@@ -511,7 +561,18 @@ const createReturn = async (req, res) => {
 
 const getReturns = async (req, res) => {
   try {
+    const outlet = getOutletName(req);
+    const skip = req.query.skipCache === 'true';
+    const cacheKey = `${CACHE_KEY_PREFIX}returns:${outlet || 'all'}`;
+
+    if (!skip) {
+      const cached = cache.get(cacheKey);
+      if (cached) return res.json(cached);
+    }
+
+    const where = outlet ? { outletName: outlet } : {};
     const returns = await prisma.posReturn.findMany({
+      where,
       include: { outletVariant: { include: { inventoryItem: true } }, sale: true },
       orderBy: { createdAt: 'desc' },
       take: 100
@@ -525,13 +586,17 @@ const getReturns = async (req, res) => {
         barcode: r.outletVariant?.barcode
       }
     }));
+
+    cache.set(cacheKey, mapped, cache.DASHBOARD_TTL);
     res.json(mapped);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch returns', error: error.message });
   }
 };
 
-/* ─── Create a new product from POS (product master + OutletVariants, stock always 0) ─── */
+/* ─── Create a new product from POS (product master + OutletVariants for all outlets, stock always 0) ─── */
+const OUTLETS = ['Johar Town', 'Jail Road'];
+
 const createPosProduct = async (req, res) => {
   try {
     const { name, category, fabric, imageUrl, variants } = req.body;
@@ -551,46 +616,52 @@ const createPosProduct = async (req, res) => {
       }
     });
 
-    // Auto-create OutletVariants with price copied from each variant def
+    // Auto-create OutletVariants for each outlet
     if (variants && Array.isArray(variants) && variants.length > 0) {
       for (const vd of variants) {
-        let barcode = generateBarcode(item.id, vd.size, vd.color);
+        for (const outletName of OUTLETS) {
+          let barcode = generateBarcode(item.id, vd.size, vd.color);
+          let attempt = 0;
+          while (await prisma.outletVariant.findFirst({ where: { barcode, outletName } })) {
+            attempt++;
+            barcode = generateBarcode(item.id, vd.size, vd.color, attempt);
+          }
+          await prisma.outletVariant.create({
+            data: {
+              inventoryItemId: item.id,
+              outletName,
+              color: vd.color || null,
+              size: vd.size || null,
+              barcode,
+              stock: 0,
+              price: vd.price || null,
+              isActive: true
+            }
+          });
+        }
+      }
+    } else {
+      // Single variant if no variants array
+      for (const outletName of OUTLETS) {
+        let barcode = generateBarcode(item.id, null, null);
         let attempt = 0;
-        while (await prisma.outletVariant.findUnique({ where: { barcode } })) {
+        while (await prisma.outletVariant.findFirst({ where: { barcode, outletName } })) {
           attempt++;
-          barcode = generateBarcode(item.id, vd.size, vd.color, attempt);
+          barcode = generateBarcode(item.id, null, null, attempt);
         }
         await prisma.outletVariant.create({
           data: {
             inventoryItemId: item.id,
-            color: vd.color || null,
-            size: vd.size || null,
+            outletName,
+            color: null,
+            size: null,
             barcode,
             stock: 0,
-            price: vd.price || null,
+            price: null,
             isActive: true
           }
         });
       }
-    } else {
-      // Single variant if no variants array
-      let barcode = generateBarcode(item.id, null, null);
-      let attempt = 0;
-      while (await prisma.outletVariant.findUnique({ where: { barcode } })) {
-        attempt++;
-        barcode = generateBarcode(item.id, null, null, attempt);
-      }
-      await prisma.outletVariant.create({
-        data: {
-          inventoryItemId: item.id,
-          color: null,
-          size: null,
-          barcode,
-          stock: 0,
-          price: null,
-          isActive: true
-        }
-      });
     }
 
     const itemWithVariants = await prisma.inventoryItem.findUnique({
@@ -609,12 +680,19 @@ const createPosProduct = async (req, res) => {
 const lookupBarcode = async (req, res) => {
   try {
     const { barcode } = req.params;
-    const ov = await prisma.outletVariant.findUnique({
-      where: { barcode },
+    const outlet = getOutletName(req);
+    const cacheKey = `${CACHE_KEY_PREFIX}barcode:${outlet || 'all'}:${barcode}`;
+
+    const cached = cache.get(cacheKey);
+    if (cached) return res.json(cached);
+
+    const ov = await prisma.outletVariant.findFirst({
+      where: { barcode, ...(outlet ? { outletName: outlet } : {}) },
       include: { inventoryItem: true }
     });
     if (!ov) return res.status(404).json({ message: 'Barcode not found' });
-    res.json({
+
+    const result = {
       id: ov.id,
       inventoryItemId: ov.inventoryItemId,
       productName: ov.inventoryItem.name,
@@ -626,7 +704,10 @@ const lookupBarcode = async (req, res) => {
       stock: ov.stock,
       price: ov.price || ov.inventoryItem.price || 0,
       product: { id: ov.inventoryItem.id, name: ov.inventoryItem.name, price: ov.inventoryItem.price || 0 }
-    });
+    };
+
+    cache.set(cacheKey, result, cache.BARCODE_TTL);
+    res.json(result);
   } catch (error) {
     res.status(500).json({ message: 'Failed to lookup barcode', error: error.message });
   }

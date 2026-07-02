@@ -11,44 +11,99 @@ const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 
 const OutletPOS = () => {
   const { user } = useAuth();
-  const [products, setProducts] = useState([]);
-  const [activeCategory, setActiveCategory] = useState('');
+  const [products, setProducts] = useState(() => {
+    try {
+      const cached = localStorage.getItem('pos_products');
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
+  const [activeCategory, setActiveCategory] = useState(() => localStorage.getItem('pos_active_category') || '');
   const [search, setSearch] = useState('');
-  const [cart, setCart] = useState([]);
+  const [cart, setCart] = useState(() => {
+    try {
+      const cached = localStorage.getItem('pos_cart');
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
   const [showConfig, setShowConfig] = useState(null);
   const [selectedSize, setSelectedSize] = useState('');
   const [selectedColor, setSelectedColor] = useState('');
   const [selectedQty, setSelectedQty] = useState(1);
-  const [discountPct, setDiscountPct] = useState(0);
+  const [discountPct, setDiscountPct] = useState(() => {
+    const val = localStorage.getItem('pos_discount_pct');
+    return val ? parseFloat(val) : 0;
+  });
   const [orderNumber, setOrderNumber] = useState('');
-  const [customerName, setCustomerName] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('CASH');
+  const [customerName, setCustomerName] = useState(() => localStorage.getItem('pos_customer_name') || '');
+  const [paymentMethod, setPaymentMethod] = useState(() => localStorage.getItem('pos_payment_method') || 'CASH');
   const [showCheckout, setShowCheckout] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [lastSale, setLastSale] = useState(null);
   const [tab, setTab] = useState('pos');
-  const [dashboard, setDashboard] = useState(null);
-  const [sales, setSales] = useState([]);
-  const [returns, setReturns] = useState([]);
+  const [dashboard, setDashboard] = useState(() => {
+    try {
+      const cached = localStorage.getItem('pos_dashboard');
+      return cached ? JSON.parse(cached) : null;
+    } catch { return null; }
+  });
+  const [sales, setSales] = useState(() => {
+    try {
+      const cached = localStorage.getItem('pos_sales');
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
+  const [returns, setReturns] = useState(() => {
+    try {
+      const cached = localStorage.getItem('pos_returns');
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
   const [barcodeInput, setBarcodeInput] = useState('');
   const barcodeRef = useRef(null);
 
-  const fetchData = async () => {
+  const fetchData = async (skipCache = false) => {
     try {
       const [p, d, s, r] = await Promise.all([
-        api.get('/api/pos/products'),
-        api.get('/api/pos/sales/dashboard'),
-        api.get('/api/pos/sales'),
-        api.get('/api/pos/returns')
+        api.get(`/api/pos/products${skipCache ? '?skipCache=true' : ''}`),
+        api.get(`/api/pos/sales/dashboard${skipCache ? '?skipCache=true' : ''}`),
+        api.get(`/api/pos/sales${skipCache ? '?skipCache=true' : ''}`),
+        api.get(`/api/pos/returns${skipCache ? '?skipCache=true' : ''}`)
       ]);
       setProducts(p.data);
       setDashboard(d.data);
       setSales(s.data);
       setReturns(r.data);
+      localStorage.setItem('pos_products', JSON.stringify(p.data));
+      localStorage.setItem('pos_dashboard', JSON.stringify(d.data));
+      localStorage.setItem('pos_sales', JSON.stringify(s.data));
+      localStorage.setItem('pos_returns', JSON.stringify(r.data));
     } catch { toast.error('Failed to load data'); }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  // Persist states to local storage on changes
+  useEffect(() => {
+    localStorage.setItem('pos_cart', JSON.stringify(cart));
+  }, [cart]);
+
+  useEffect(() => {
+    localStorage.setItem('pos_discount_pct', discountPct.toString());
+  }, [discountPct]);
+
+  useEffect(() => {
+    localStorage.setItem('pos_customer_name', customerName);
+  }, [customerName]);
+
+  useEffect(() => {
+    localStorage.setItem('pos_payment_method', paymentMethod);
+  }, [paymentMethod]);
+
+  useEffect(() => {
+    localStorage.setItem('pos_active_category', activeCategory);
+  }, [activeCategory]);
 
   const categories = useMemo(() => {
     const cats = [...new Set(products.map(p => p.category).filter(Boolean))];

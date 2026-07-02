@@ -316,45 +316,68 @@ const InventoryManagement = () => {
 
     const barcode = generateBarcode(item.id, variant.size, variant.color);
     const formatCurr = (n) => `₨${(n || 0).toLocaleString()}`;
+    const sizeInfo = [variant.color, variant.size].filter(Boolean).join(' / ');
 
-    // Generate high-pixel barcode (thick bars, large canvas)
-    const bc = document.createElement('canvas');
-    bc.width = 2400;
-    bc.height = 360;
-    JsBarcode(bc, barcode, {
+    // Generate vector barcode SVG — perfect at any DPI, no pixelation
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    JsBarcode(svg, barcode, {
       format: 'CODE128',
-      width: 16,
-      height: 240,
-      displayValue: true,
-      fontSize: 52,
-      margin: 12,
+      width: 1.8,
+      height: 80,
+      displayValue: false,
+      margin: 0,
       background: '#ffffff',
-      lineColor: '#000000'
+      lineColor: '#000000',
     });
-    const dataUrl = bc.toDataURL('image/png');
+    // Add viewBox for zero-loss scaling; remove fixed size
+    const sw = svg.getAttribute('width');
+    const sh = svg.getAttribute('height');
+    svg.setAttribute('viewBox', `0 0 ${sw} ${sh}`);
+    svg.removeAttribute('width');
+    svg.removeAttribute('height');
+    const svgString = new XMLSerializer().serializeToString(svg);
 
-    const w = window.open('', '_blank');
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Barcode Labels</title>
+    const pw = window.open('', '_blank');
+    pw.document.write(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Barcode Labels</title>
 <style>
-      @page { margin: 0; }
-      body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
-      .labels { display: flex; flex-wrap: wrap; }
-      .label { width: 2in; height: 1in; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; page-break-inside: avoid; box-sizing: border-box; padding: 1mm; border: none; }
-      .label .name { font-size: 10px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 1.8in; }
-      .label .detail { font-size: 7px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 1.8in; }
-      .label .price { font-size: 13px; font-weight: bold; }
-      .label img { width: 1.8in; height: auto; }
-    </style></head><body><div class="labels">
-      ${Array(count).fill(`<div class="label">
-        <div class="name">${productName}</div>
-        <div class="detail">${barcode}${(variant.color || variant.size) ? ' — ' + [variant.color, variant.size].filter(Boolean).join(' / ') : ''}</div>
-        <img src="${dataUrl}" />
-        <div class="price">${formatCurr(variant.price || item.price || 0)}</div>
-      </div>`).join('')}
-    </div></body></html>`);
-    w.document.close();
-    w.focus();
-    setTimeout(() => { w.print(); }, 300);
+  @page { margin: 0; }
+  body { margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background: #fff; }
+  .labels { display: flex; flex-wrap: wrap; }
+  .label {
+    width: 55mm; height: 33mm;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; page-break-inside: avoid;
+    background: #fff; color: #000;
+    padding: 1.5mm 3mm; box-sizing: border-box;
+  }
+  .label .name  { font-size: 8pt; font-weight: bold; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .label .sku   { font-size: 6.5pt; color: #444; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .label .bcwrap { width: 100%; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0.5mm 0; }
+  .label .bcwrap svg { width: 100%; height: auto; display: block; }
+  .label .bctext { font-size: 6.5pt; font-family: 'Courier New', monospace; color: #000; line-height: 1.15; letter-spacing: 0.3px; }
+  .label .price { font-size: 10pt; font-weight: bold; line-height: 1.15; }
+</style>
+</head>
+<body>
+<div class="labels">
+  ${Array(count).fill(`<div class="label">
+    <div class="name">${productName}</div>
+    <div class="sku">${barcode}${sizeInfo ? ' · ' + sizeInfo : ''}</div>
+    <div class="bcwrap">${svgString}</div>
+    <div class="bctext">${barcode}</div>
+    <div class="price">${formatCurr(variant.price || item.price || 0)}</div>
+  </div>`).join('')}
+</div>
+</body>
+</html>`);
+    pw.document.close();
+    pw.focus();
+    setTimeout(() => { pw.print(); }, 500);
   };
 
   const uniqueCategories = [...new Set(items.map(item => item.category?.toUpperCase()).filter(Boolean))];
