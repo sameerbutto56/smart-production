@@ -86,7 +86,7 @@ const WarehouseDashboard = () => {
     { fetcher: () => api.get('/api/production/inventory').then(r => r.data), ttl: 60 * 1000 }
   );
   // Cache-first: tasks tab
-  const { data: tasksData, refresh: refreshTasks } = useCache(
+  const { data: tasksData, loading: storeLoading, refresh: refreshTasks } = useCache(
     activeTab === 'tasks' ? `warehouse:tasks:${sourceFilter}` : null,
     {
       fetcher: async () => {
