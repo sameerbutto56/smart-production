@@ -10,6 +10,8 @@ export default function useCache(key, { fetcher, ttl = DEFAULT_TTL, staleWhileRe
   const [error, setError] = useState(null);
   const mountRef = useRef(true);
   const keyRef = useRef(key);
+  const fetcherRef = useRef(fetcher);
+  fetcherRef.current = fetcher;
 
   const load = useCallback(async (skipCache = false) => {
     const currentKey = keyRef.current;
@@ -39,10 +41,11 @@ export default function useCache(key, { fetcher, ttl = DEFAULT_TTL, staleWhileRe
     }
 
     // 3. Fetch from API
-    if (!fetcher) { setLoading(false); return; }
+    const fn = fetcherRef.current;
+    if (!fn) { setLoading(false); return; }
     try {
       setLoading(true);
-      const freshData = await fetcher();
+      const freshData = await fn();
       if (!mountRef.current) return;
       setData(freshData);
       setError(null);
@@ -55,7 +58,7 @@ export default function useCache(key, { fetcher, ttl = DEFAULT_TTL, staleWhileRe
     } finally {
       if (mountRef.current) setLoading(false);
     }
-  }, [fetcher, ttl, staleWhileRevalidate]);
+  }, [ttl, staleWhileRevalidate]);
 
   useEffect(() => {
     mountRef.current = true;
