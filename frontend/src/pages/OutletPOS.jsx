@@ -33,6 +33,10 @@ const OutletPOS = () => {
     const val = localStorage.getItem('pos_discount_pct');
     return val ? parseFloat(val) : 0;
   });
+  const [discountFixed, setDiscountFixed] = useState(() => {
+    const val = localStorage.getItem('pos_discount_fixed');
+    return val ? parseFloat(val) : 0;
+  });
   const [orderNumber, setOrderNumber] = useState('');
   const [customerName, setCustomerName] = useState(() => localStorage.getItem('pos_customer_name') || '');
   const [paymentMethod, setPaymentMethod] = useState(() => localStorage.getItem('pos_payment_method') || 'CASH');
@@ -60,6 +64,11 @@ const OutletPOS = () => {
   });
   const [barcodeInput, setBarcodeInput] = useState('');
   const barcodeRef = useRef(null);
+  const [returnTab, setReturnTab] = useState('scan');
+  const [returnBarcodeInput, setReturnBarcodeInput] = useState('');
+  const [returnCart, setReturnCart] = useState([]);
+  const [returnReason, setReturnReason] = useState('Customer return');
+  const [returnLoading, setReturnLoading] = useState(false);
 
   const fetchData = async (skipCache = false) => {
     try {
@@ -94,6 +103,10 @@ const OutletPOS = () => {
   }, [discountPct]);
 
   useEffect(() => {
+    localStorage.setItem('pos_discount_fixed', discountFixed.toString());
+  }, [discountFixed]);
+
+  useEffect(() => {
     localStorage.setItem('pos_customer_name', customerName);
   }, [customerName]);
 
@@ -119,7 +132,7 @@ const OutletPOS = () => {
 
   const subtotal = useMemo(() => cart.reduce((s, i) => s + i.unitPrice * i.qty, 0), [cart]);
   const altCharges = useMemo(() => cart.reduce((s, i) => s + (i.alterationAmount || 0), 0), [cart]);
-  const discountAmount = ((subtotal + altCharges) * discountPct) / 100;
+  const discountAmount = ((subtotal + altCharges) * discountPct) / 100 + discountFixed;
   const grandTotal = subtotal + altCharges - discountAmount;
 
   /* ─── Barcode Scan ─── */
@@ -218,6 +231,7 @@ const OutletPOS = () => {
         alterationCharges: altCharges,
         extraCharges: 0,
         discountPercent: discountPct,
+        discountFixed: discountFixed,
         paymentMethod,
         receiptNumber: orderNumber || undefined
       });
@@ -225,6 +239,7 @@ const OutletPOS = () => {
       setShowCheckout(true);
       setCart([]);
       setDiscountPct(0);
+      setDiscountFixed(0);
       setCustomerName('');
       setOrderNumber('');
       fetchData();
@@ -267,7 +282,7 @@ const OutletPOS = () => {
     w.document.write(`<table><tr><td>Subtotal</td><td class="right">${formatCurrency(sale.subtotal)}</td></tr>`);
     if (sale.alterationCharges > 0) w.document.write(`<tr><td>Alteration</td><td class="right">${formatCurrency(sale.alterationCharges)}</td></tr>`);
     if (sale.extraCharges > 0) w.document.write(`<tr><td>Extra Charges</td><td class="right">${formatCurrency(sale.extraCharges)}</td></tr>`);
-    if (sale.discountPercent > 0) w.document.write(`<tr><td>Discount (${sale.discountPercent}%)</td><td class="right">-${formatCurrency(sale.discountAmount)}</td></tr>`);
+    if (sale.discountPercent > 0 || sale.discountAmount > 0) w.document.write(`<tr><td>Discount${sale.discountPercent > 0 ? ` (${sale.discountPercent}%)` : ''}</td><td class="right">-${formatCurrency(sale.discountAmount)}</td></tr>`);
     w.document.write(`<tr class="total-row"><td>Grand Total</td><td class="right">${formatCurrency(sale.grandTotal)}</td></tr>`);
     w.document.write(`<tr><td>Payment: ${sale.paymentMethod}</td><td></td></tr></table>`);
     w.document.write('<hr><div class="footer"><p>Thank you for your purchase!</p><p>Visit us again</p></div>');
@@ -289,6 +304,189 @@ const OutletPOS = () => {
       toast.error(err.response?.data?.message || 'Return failed');
     }
   };
+
+  /* ─── Return by Barcode ─── */
+  const handleReturnBarcodeLookup = async (code) => {
+    if (!code) return;
+    try {
+      const res = await api.get(`/api/pos/barcode/${code}`);
+      const v = res.data;
+      if (v.stock <= 0) return toast.error('No stock to return');
+      const existing = returnCart.find(i => i.variantId === v.id);
+      if (existing) {
+        setReturnCart(returnCart.map(i => i.variantId === v.id ? { ...i, qty: i.qty + 1 } : i));
+      } else {
+        setReturnCart([...returnCart, {
+          variantId: v.id, productName: v.productName, color: v.color, size: v.size,
+          barcode: v.barcode, unitPrice: v.price, qty: 1, maxQty: v.stock
+        }]);
+      }
+      toast.success(`${v.productName} added to return cart`);
+    } catch { toast.error('Barcode not found'); }
+    setReturnBarcodeInput('');
+  };
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === 'Enter' && returnBarcodeInput && tab === 'returns') {
+        handleReturnBarcodeLookup(returnBarcodeInput);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [returnBarcodeInput, tab]);
+
+  const processReturns = async () => {
+    if (returnCart.length === 0) return;
+    setReturnLoading(true);
+    try {
+      for (const item of returnCart) {
+        await api.post('/api/pos/returns', { variantId: item.variantId, quantity: item.qty, reason: returnReason });
+      }
+      toast.success(`${returnCart.reduce((s, i) => s + i.qty, 0)} item(s) returned successfully`);
+      setReturnCart([]);
+      setReturnReason('Customer return');
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Return failed');
+    }
+    setReturnLoading(false);
+  };
+
+  if (tab === 'returns') {
+    return (
+      <div className="space-y-4 pb-20 px-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-black text-white flex items-center gap-2"><RotateCcw size={24} />Returns</h1>
+          <div className="flex gap-2">
+            <button onClick={() => setReturnTab('scan')} className={`text-xs font-bold px-3 py-1.5 rounded-xl ${returnTab === 'scan' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'}`}>Scan Barcode</button>
+            <button onClick={() => setReturnTab('sales')} className={`text-xs font-bold px-3 py-1.5 rounded-xl ${returnTab === 'sales' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'}`}>From Sales</button>
+            <button onClick={() => setReturnTab('history')} className={`text-xs font-bold px-3 py-1.5 rounded-xl ${returnTab === 'history' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'}`}>History</button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="space-y-3">
+            {returnTab === 'scan' && (
+              <div className="glass p-4 rounded-2xl border-2 border-gray-700">
+                <h2 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Scan Barcode to Return</h2>
+                <div className="relative">
+                  <Barcode size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                  <input value={returnBarcodeInput} onChange={e => setReturnBarcodeInput(e.target.value)}
+                    placeholder="Scan barcode..." autoFocus
+                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl pl-9 pr-3 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-red-500 outline-none" />
+                </div>
+                <p className="text-[10px] text-gray-600 mt-2">Scan a product barcode to add it to the return cart</p>
+              </div>
+            )}
+
+            {returnTab === 'sales' && (
+              <div className="glass p-4 rounded-2xl border-2 border-gray-700">
+                <h2 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Recent Sales</h2>
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {sales.slice(0, 30).map(s => (
+                    <div key={s.id} className="bg-gray-800/50 rounded-xl p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs font-bold text-white">{s.receiptNumber}</p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-gray-500">{formatCurrency(s.grandTotal)}</span>
+                          <button onClick={() => {
+                            s.items.forEach(item => {
+                              const existing = returnCart.find(i => i.productName === item.productName && i.color === item.color && i.size === item.size);
+                              if (existing) {
+                                setReturnCart(returnCart.map(i => i.productName === item.productName && i.color === item.color && i.size === item.size ? { ...i, qty: i.qty + 1 } : i));
+                              } else {
+                                setReturnCart([...returnCart, {
+                                  variantId: item.outletVariantId, productName: item.productName,
+                                  color: item.color, size: item.size, barcode: '',
+                                  unitPrice: item.unitPrice, qty: 1, maxQty: 99
+                                }]);
+                              }
+                            });
+                            setReturnTab('scan');
+                            toast.success('Sale items added to return cart');
+                          }} className="text-[10px] font-bold text-red-400 hover:text-red-300 bg-gray-800 px-2 py-1 rounded-lg">Return All</button>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {(s.items || []).map((item, idx) => (
+                          <span key={idx} className="text-[9px] text-gray-500 bg-gray-900 px-1.5 py-0.5 rounded">
+                            {item.productName} {item.color ? `(${item.color})` : ''} x{item.quantity}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {sales.length === 0 && <p className="text-center text-gray-500 py-4 font-bold">No sales yet</p>}
+                </div>
+              </div>
+            )}
+
+            {returnTab === 'history' && (
+              <div className="glass p-4 rounded-2xl border-2 border-gray-700">
+                <h2 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Return History</h2>
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {returns.map(r => (
+                    <div key={r.id} className="flex items-center justify-between bg-red-900/10 rounded-xl px-3 py-2 border border-red-900/20">
+                      <div>
+                        <p className="text-xs font-bold text-white">{r._variant?.product?.name || 'Unknown'} {r._variant?.color && `(${r._variant.color})`}</p>
+                        <p className="text-[10px] text-gray-500">Qty: {r.quantity} &bull; {new Date(r.createdAt).toLocaleString()}</p>
+                      </div>
+                      <p className="text-xs font-bold text-red-400">-{formatCurrency(r.refundAmount)}</p>
+                    </div>
+                  ))}
+                  {returns.length === 0 && <p className="text-center text-gray-500 font-bold py-4">No returns</p>}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="glass p-4 rounded-2xl border-2 border-gray-700">
+            <h2 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Return Cart ({returnCart.reduce((s, i) => s + i.qty, 0)} items)</h2>
+            <div className="space-y-2 max-h-60 overflow-y-auto mb-3">
+              {returnCart.map((item, i) => (
+                <div key={i} className="flex items-center gap-2 bg-gray-800/60 rounded-xl px-3 py-2 border border-gray-700/50">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-white truncate">{item.productName}</p>
+                    <p className="text-[9px] text-gray-500">{[item.color, item.size].filter(Boolean).join(' • ') || 'Standard'}</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => {
+                      const copy = [...returnCart];
+                      if (copy[i].qty <= 1) { copy.splice(i, 1); } else { copy[i].qty--; }
+                      setReturnCart(copy);
+                    }} className="p-0.5 text-gray-500 hover:text-white"><Minus size={10} /></button>
+                    <span className="text-xs font-bold text-white min-w-[16px] text-center">{item.qty}</span>
+                    <button onClick={() => {
+                      const copy = [...returnCart];
+                      if (copy[i].qty < copy[i].maxQty) copy[i].qty++;
+                      setReturnCart(copy);
+                    }} className="p-0.5 text-gray-500 hover:text-white"><Plus size={10} /></button>
+                  </div>
+                  <p className="text-xs font-bold text-red-400 min-w-[60px] text-right">-{formatCurrency(item.unitPrice * item.qty)}</p>
+                  <button onClick={() => setReturnCart(returnCart.filter((_, idx) => idx !== i))} className="text-gray-600 hover:text-red-400"><X size={12} /></button>
+                </div>
+              ))}
+              {returnCart.length === 0 && <p className="text-center text-gray-500 py-4 text-xs font-bold">No items to return</p>}
+            </div>
+            <div className="mb-3">
+              <label className="text-xs font-bold text-gray-400 block mb-1">Return Reason</label>
+              <input value={returnReason} onChange={e => setReturnReason(e.target.value)}
+                className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-red-500 outline-none" />
+            </div>
+            <div className="flex items-center justify-between text-sm mb-3">
+              <span className="text-gray-400 font-bold">Total Refund</span>
+              <span className="text-lg font-black text-red-400">-{formatCurrency(returnCart.reduce((s, i) => s + i.unitPrice * i.qty, 0))}</span>
+            </div>
+            <button onClick={processReturns} disabled={returnCart.length === 0 || returnLoading}
+              className="w-full bg-red-600 hover:bg-red-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-black py-3 rounded-xl text-sm">
+              {returnLoading ? 'Processing...' : `Process ${returnCart.reduce((s, i) => s + i.qty, 0)} Return(s)`}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (tab === 'dashboard') {
     return (
@@ -334,9 +532,9 @@ const OutletPOS = () => {
           </div>
         </div>
         <div className="glass p-4 rounded-2xl border-2 border-gray-700">
-          <h2 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Returns</h2>
+          <h2 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Recent Returns</h2>
           <div className="space-y-2 max-h-60 overflow-y-auto">
-            {returns.map(r => (
+            {returns.slice(0, 10).map(r => (
               <div key={r.id} className="flex items-center justify-between bg-red-900/10 rounded-xl px-3 py-2 border border-red-900/20">
                 <div>
                   <p className="text-xs font-bold text-white">{r._variant?.product?.name || 'Unknown'} {r._variant?.color && `(${r._variant.color})`}</p>
@@ -356,7 +554,9 @@ const OutletPOS = () => {
     <div className="h-[calc(100vh-80px)] flex flex-col">
       {/* Top Bar */}
       <div className="flex items-center gap-3 px-4 py-2 bg-gray-900 border-b-2 border-gray-800 flex-shrink-0">
-        <button onClick={() => setTab('dashboard')} className="text-xs font-bold text-gray-400 hover:text-white bg-gray-800 px-3 py-2 rounded-xl"><BarChart3 size={14} className="inline mr-1" />Dashboard</button>
+        <button onClick={() => setTab('pos')} className={`text-xs font-bold px-3 py-2 rounded-xl ${tab === 'pos' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}><ShoppingCart size={14} className="inline mr-1" />POS</button>
+        <button onClick={() => setTab('dashboard')} className={`text-xs font-bold px-3 py-2 rounded-xl ${tab === 'dashboard' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}><BarChart3 size={14} className="inline mr-1" />Dashboard</button>
+        <button onClick={() => setTab('returns')} className={`text-xs font-bold px-3 py-2 rounded-xl ${tab === 'returns' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}><RotateCcw size={14} className="inline mr-1" />Returns</button>
         <div className="relative flex-1 max-w-md">
           <Barcode size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input ref={barcodeRef} value={barcodeInput} onChange={e => setBarcodeInput(e.target.value)} placeholder="Scan barcode..."
@@ -486,7 +686,10 @@ const OutletPOS = () => {
               <Percent size={12} className="text-blue-400" />
               <input type="number" value={discountPct} onChange={e => setDiscountPct(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
                 className="w-16 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs font-bold text-white text-center focus:border-blue-500 outline-none" min="0" max="100" />
-              <span className="text-[10px] text-gray-500">% Disc: -{formatCurrency(discountAmount)}</span>
+              <span className="text-[10px] text-gray-500">%</span>
+              <input type="number" value={discountFixed} onChange={e => setDiscountFixed(Math.max(0, parseFloat(e.target.value) || 0))}
+                className="w-16 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs font-bold text-white text-center focus:border-blue-500 outline-none" min="0" />
+              <span className="text-[10px] text-gray-500">Fixed: -{formatCurrency(discountAmount)}</span>
             </div>
             <input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Customer name (optional)"
               className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
@@ -502,11 +705,8 @@ const OutletPOS = () => {
             </button>
             <div className="flex gap-2">
               <button onClick={() => setTab('dashboard')} className="flex-1 text-[10px] font-bold text-gray-500 hover:text-white bg-gray-800 py-2 rounded-xl text-center">Dashboard</button>
-              <button onClick={() => {
-                const vid = prompt('Enter variant ID to return:');
-                if (vid) handleReturn(vid);
-              }} className="flex-1 text-[10px] font-bold text-red-400 hover:text-red-300 bg-gray-800 py-2 rounded-xl text-center flex items-center justify-center gap-1">
-                <RotateCcw size={12} />Return
+              <button onClick={() => setTab('returns')} className="flex-1 text-[10px] font-bold text-red-400 hover:text-red-300 bg-gray-800 py-2 rounded-xl text-center flex items-center justify-center gap-1">
+                <RotateCcw size={12} />Returns
               </button>
             </div>
           </div>

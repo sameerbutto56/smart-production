@@ -24,6 +24,7 @@ import {
   RotateCcw,
   UserPlus,
   ShoppingCart,
+  ArrowRightLeft,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import socket from '../socket';
@@ -65,6 +66,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     { name: 'Client Registration', path: '/clients', icon: UserPlus, roles: ['SUPER_ADMIN', 'OUTLET'] },
     { name: 'POS', path: '/pos', icon: ShoppingCart, roles: ['OUTLET', 'SUPER_ADMIN', 'ADMIN'] },
     { name: 'POS Inventory', path: '/pos-inventory', icon: Package, roles: ['OUTLET', 'STORE', 'SUPER_ADMIN', 'ADMIN'] },
+    { name: 'Transfers', path: '/transfers', icon: ArrowRightLeft, roles: ['OUTLET', 'STORE', 'SUPER_ADMIN', 'ADMIN'] },
 
   ];
   
@@ -78,7 +80,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     // 2. Extra safety for Outlets - explicitly remove History
     if (userRole === 'OUTLET') {
       if (item.name === 'History (Admin)' || item.name === 'History') return false;
-      return ['Order Entry', 'All Orders', 'Control Center', 'Delivery Sheet', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory'].includes(item.name);
+      return ['Order Entry', 'All Orders', 'Control Center', 'Delivery Sheet', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Transfers'].includes(item.name);
     }
     
     // 3. Explicit Restriction for Delivery Boy

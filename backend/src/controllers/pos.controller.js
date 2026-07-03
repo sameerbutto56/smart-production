@@ -373,7 +373,7 @@ const updateVariant = async (req, res) => {
 /* ─── Sales ─── */
 const createSale = async (req, res) => {
   try {
-    const { items, customerName, alterationCharges, extraCharges, discountPercent, paymentMethod, receiptNumber: manualReceipt } = req.body;
+    const { items, customerName, alterationCharges, extraCharges, discountPercent, discountFixed, paymentMethod, receiptNumber: manualReceipt } = req.body;
     if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'At least one item is required' });
 
     const outletName = req.user?.name || 'Outlet';
@@ -410,7 +410,8 @@ const createSale = async (req, res) => {
     }
 
     const discountPct = parseFloat(discountPercent || 0);
-    const discountAmount = ((subtotal + totalAlt + totalExtra) * discountPct) / 100;
+    const discountFixedVal = parseFloat(discountFixed || 0);
+    const discountAmount = ((subtotal + totalAlt + totalExtra) * discountPct) / 100 + discountFixedVal;
     const grandTotal = subtotal + totalAlt + totalExtra - discountAmount;
 
     const sale = await prisma.$transaction(async (tx) => {

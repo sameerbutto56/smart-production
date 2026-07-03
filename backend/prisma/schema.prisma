@@ -464,6 +464,7 @@ model OutletVariant {
   updatedAt       DateTime @updatedAt
   saleItems       PosSaleItem[]
   returns         PosReturn[]
+  transferItems   OutletTransferItem[]
 
   @@unique([barcode, outletName])
   @@index([inventoryItemId])
@@ -529,4 +530,44 @@ model PosReturn {
   @@index([outletVariantId])
   @@index([outletName])
   @@index([createdAt])
+}
+
+model OutletTransfer {
+  id              String   @id @default(uuid())
+  transferNumber  String   @unique
+  fromOutlet      String
+  toOutlet        String
+  status          String   @default("PENDING")
+  totalItems      Int      @default(0)
+  notes           String?
+  requestedById   String?
+  requestedByName String?
+  approvedById    String?
+  approvedAt      DateTime?
+  completedById   String?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  items           OutletTransferItem[]
+
+  @@index([fromOutlet])
+  @@index([toOutlet])
+  @@index([status])
+}
+
+model OutletTransferItem {
+  id              String   @id @default(uuid())
+  transferId      String
+  transfer        OutletTransfer @relation(fields: [transferId], references: [id])
+  outletVariantId String
+  outletVariant   OutletVariant @relation(fields: [outletVariantId], references: [id])
+  productName     String
+  color           String?
+  size            String?
+  barcode         String
+  quantity        Int      @default(1)
+  unitPrice       Float?
+
+  @@index([transferId])
+  @@index([outletVariantId])
 }
