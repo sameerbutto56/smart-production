@@ -142,6 +142,11 @@
 ## Next Steps
 - (none)
 
+## Notes
+- `useCache` stale-while-revalidate bug fixed (Jul 3): When cached IndexedDB data exists and `staleWhileRevalidate=true`, loading now immediately becomes `false` so stale data is shown while revalidating in background. Previously loading stayed `true` the entire time, causing blank screen until API responded. Also fixed bug where `loading` never became `false` on cold loads with `staleWhileRevalidate=true`.
+- Transfer `createTransfer` (Jul 3): Now auto-creates destination `OutletVariant` when transferring to an outlet that doesn't have one yet. Previously stock was deducted from source but silently lost if no destination variant existed. Uses `generateBarcode` exported from `pos.controller.js`.
+- Barcode print (Jul 3): Changed JsBarcode from `width:2.2, height:28, margin:0` to `width:1.8, height:48, margin:12` — adds critical quiet zone (12px each side ≈ 10× X-dimension) for scanner readability. Removed viewBox stretching; SVG keeps natural dimensions with `max-width/max-height` CSS. Removed unused `sizeInfo` variable.
+
 ## Critical Context
 - Latest commit includes: P1 foundation — centralized API client (21 files migrated), fixed WebSocket, event normalizer, IndexedDB wrapper, useCache hook, sync queue.
 - Build passes with 0 errors.

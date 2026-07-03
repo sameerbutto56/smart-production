@@ -1,5 +1,6 @@
 const prisma = require('../prisma');
 const cache = require('../utils/cache');
+const { generateBarcode } = require('./pos.controller');
 
 const OUTLETS = ['Johar Town', 'Jail Road', 'Abbottabad'];
 
@@ -69,6 +70,26 @@ const createTransfer = async (req, res) => {
           await tx.outletVariant.update({
             where: { id: ti.destVariant.id },
             data: { stock: { increment: ti.quantity } }
+          });
+        } else {
+          // Auto-create destination variant if it doesn't exist
+          let barcode = ti.barcode;
+          let attempt = 0;
+          while (await tx.outletVariant.findFirst({ where: { barcode, outletName: toOutlet } })) {
+            attempt++;
+            barcode = generateBarcode(ti.inventoryItemId, ti.size, ti.color, attempt);
+          }
+          await tx.outletVariant.create({
+            data: {
+              inventoryItemId: ti.inventoryItemId,
+              outletName: toOutlet,
+              color: ti.color || null,
+              size: ti.size || null,
+              barcode,
+              stock: ti.quantity,
+              price: ti.unitPrice || null,
+              isActive: true
+            }
           });
         }
       }

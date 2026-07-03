@@ -299,32 +299,19 @@ const InventoryManagement = () => {
 
     const barcode = generateBarcode(item.id, variant.size, variant.color);
     const formatCurr = (n) => `₨${(n || 0).toLocaleString()}`;
-    const sizeInfo = [variant.color, variant.size].filter(Boolean).join(' / ');
 
-    // Generate vector barcode SVG — perfect at any DPI, no pixelation
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     JsBarcode(svg, barcode, {
       format: 'CODE128',
-      width: 2,
-      height: 60,
+      width: 1.8,
+      height: 48,
       displayValue: false,
-      margin: 0,
+      margin: 12,
       background: '#ffffff',
       lineColor: '#000000',
     });
-    // Add viewBox for zero-loss scaling; remove fixed size so CSS controls dimensions
-    const sw = svg.getAttribute('width');
-    const sh = svg.getAttribute('height');
-    svg.setAttribute('viewBox', `0 0 ${sw} ${sh}`);
-    svg.removeAttribute('width');
-    svg.removeAttribute('height');
     const svgString = new XMLSerializer().serializeToString(svg);
 
-    // Label dimensions (per retail barcode spec):
-    //   Width: 55mm, Height: 33mm
-    //   Barcode area: ~21mm height (within 20-25mm spec)
-    //   Quiet zone: 3mm on each side
-    //   Barcode bars: pure black on white for max scanner contrast
     const pw = window.open('', '_blank');
     pw.document.write(`<!DOCTYPE html>
 <html>
@@ -332,25 +319,23 @@ const InventoryManagement = () => {
 <meta charset="utf-8">
 <title>Barcode Labels</title>
 <style>
-  @page { margin: 0; size: 55mm 33mm; }
+  @page { margin: 0; size: 50.8mm 25.4mm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .label {
-    width: 55mm; height: 33mm;
-    padding: 2mm 3mm 1.5mm;
+    width: 50.8mm; height: 25.4mm;
+    padding: 1.5mm 1.5mm 1mm;
     display: flex; flex-direction: column;
     align-items: center; text-align: center;
     page-break-after: always; page-break-inside: avoid;
     background: #fff; color: #000;
+    overflow: hidden;
   }
-  .label .name { width: 100%; font-size: 7.5pt; font-weight: bold; text-transform: uppercase; line-height: 1.2; word-break: break-word; overflow-wrap: break-word; }
-  .label .sku  { width: 100%; font-size: 6pt; color: #555; font-family: monospace; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-  .label .bcwrap { width: 100%; height: 16mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  .label .bcwrap svg { width: 100%; height: 100%; display: block; }
-
-  .label .bottom { width: 100%; display: flex; justify-content: space-between; align-items: baseline; border-top: 0.5px solid #ccc; padding-top: 0.3mm; margin-top: auto; }
-  .label .bctext { font-size: 7pt; font-family: 'Courier New', monospace; font-weight: bold; color: #000; letter-spacing: 0.3px; }
+  .label .name { width: 100%; font-size: 8pt; font-weight: bold; text-transform: uppercase; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .label .bcwrap { width: 100%; display: flex; align-items: center; justify-content: center; flex: 1 1 auto; min-height: 0; padding: 0.5mm 0; }
+  .label .bcwrap svg { display: block; max-width: 100%; max-height: 100%; }
+  .label .bctext { font-size: 6pt; font-family: 'Courier New', monospace; font-weight: bold; color: #000; text-align: center; letter-spacing: 0.2px; line-height: 1.1; }
+  .label .bottom { width: 100%; display: flex; justify-content: flex-end; }
   .label .price  { font-size: 9pt; font-weight: 900; color: #000; }
 </style>
 </head>
@@ -358,12 +343,9 @@ const InventoryManagement = () => {
   ${Array(count).fill(null).map(() => `
   <div class="label">
     <div class="name">${productName}</div>
-    <div class="sku">${sizeInfo || 'STANDARD'}</div>
     <div class="bcwrap">${svgString}</div>
-    <div class="bottom">
-      <span class="bctext">${barcode}</span>
-      <span class="price">${formatCurr(variant.price || item.price || 0)}</span>
-    </div>
+    <div class="bctext">${barcode}</div>
+    <div class="bottom"><span class="price">${formatCurr(variant.price || item.price || 0)}</span></div>
   </div>`).join('')}
 </body>
 </html>`);

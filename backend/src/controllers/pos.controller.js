@@ -705,5 +705,6 @@ module.exports = {
   createReturn, getReturns,
   lookupBarcode,
   createPosProduct,
-  updateProduct
+  updateProduct,
+  generateBarcode
 };
