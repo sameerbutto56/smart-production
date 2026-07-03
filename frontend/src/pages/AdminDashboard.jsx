@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import api from '../services/api';
+import useCache from '../hooks/useCache';
 import { 
   BarChart3, 
   Users, 

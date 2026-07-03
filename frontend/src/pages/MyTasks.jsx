@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import api from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import OrderCard from '../components/OrderCard';
+import useCache from '../hooks/useCache';
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
 import { useLanguage } from '../context/LanguageContext';
