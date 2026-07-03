@@ -203,7 +203,7 @@ const OutletPOSInventory = () => {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-white">Outlet POS Inventory</h1>
+          <h1 className="text-2xl font-black text-white">Outlet POS Inventory <span className="text-blue-400 text-base">[{selectedOutlet}]</span></h1>
           <p className="text-sm font-bold text-gray-400">
             {isOutlet ? 'View-only inventory (contact Store for changes)' : 'Manage all outlet inventories'}
           </p>
@@ -279,7 +279,7 @@ const OutletPOSInventory = () => {
                     {item.imageUrl ? <img src={item.imageUrl} className="w-10 h-10 rounded-lg object-cover" /> : <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center"><Package size={18} className="text-gray-500" /></div>}
                     <div className="text-left">
                       <p className="text-sm font-bold text-white">{item.name}</p>
-                      <p className="text-[10px] text-gray-500 font-bold">{item.category}</p>
+                      <p className="text-[10px] text-gray-500 font-bold">{item.category} {item.outletName && <span className="text-blue-400 ml-1">[{item.outletName}]</span>}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -305,6 +305,7 @@ const OutletPOSInventory = () => {
                         <span className="text-[10px] font-mono text-gray-500 flex-1">{v.barcode}</span>
                         <span className="font-bold text-emerald-400">{v.price ? formatCurrency(v.price) : '-'}</span>
                         <span className={`font-bold ml-2 ${v.stock > 0 ? 'text-emerald-400' : 'text-red-400'}`}>{v.stock}</span>
+                        {v.outletName && <span className="text-[9px] text-blue-400 font-bold ml-1 uppercase">{v.outletName}</span>}
                       </div>
                     ))}
                   </div>
