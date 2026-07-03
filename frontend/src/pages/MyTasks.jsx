@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import OrderCard from '../components/OrderCard';
 import { useAuth } from '../context/AuthContext';
@@ -12,8 +12,6 @@ import socket from '../socket';
 import toast from 'react-hot-toast';
 import DispatchDashboard from './DispatchDashboard';
 
-const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
-
 const MyTasks = () => {
   const { user } = useAuth();
   if (user?.role === 'INVENTORY_VIEW') return <Navigate to="/inventory" replace={true} />;
@@ -22,11 +20,7 @@ const MyTasks = () => {
   const showProductionTab = ['STORE', 'STORE_EMPLOYEE'].includes(user?.role);
   const isProductionIn = user?.role === 'PRODUCTION_IN';
   const isProductionOut = user?.role === 'PRODUCTION_OUT';
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [taskFilter, setTaskFilter] = useState(isProductionOut ? 'assigned' : 'unseen');
-  const [unseenData, setUnseenData] = useState(null);
-  const [productionData, setProductionData] = useState(null);
   const { searchTerm: contextSearch, setSearchTerm: setContextSearch } = useSearch();
   const [searchTerm, setSearchTerm] = useState(contextSearch);
   const [routingHistory, setRoutingHistory] = useState([]);
@@ -34,6 +28,24 @@ const MyTasks = () => {
   const [selectedOrderIds, setSelectedOrderIds] = useState(new Set());
   const [bulkDestination, setBulkDestination] = useState('');
   const [bulkRouting, setBulkRouting] = useState(false);
+
+  // Cache-first: unseen tasks (hasTaskFilters users)
+  const { data: unseenData = null, loading: unseenLoading, refresh: refreshUnseen } = useCache(
+    hasTaskFilters ? `my-tasks:unseen:${user?.role}` : null,
+    { fetcher: () => api.get('/api/orders/unseen-tasks').then(r => r.data), ttl: 60 * 1000 }
+  );
+  // Cache-first: production returned (STORE only)
+  const { data: productionData = null, refresh: refreshProduction } = useCache(
+    showProductionTab ? 'my-tasks:production-returned' : null,
+    { fetcher: () => api.get('/api/orders/production-returned').then(r => r.data), ttl: 60 * 1000 }
+  );
+  // Cache-first: active orders (non-task-filter users)
+  const { data: fetchedOrders = [], loading: ordersLoading, refresh: refreshOrders } = useCache(
+    !hasTaskFilters ? 'my-tasks:active' : null,
+    { fetcher: () => api.get('/api/orders?status=active').then(r => Array.isArray(r.data) ? r.data : (r.data?.orders || [])), ttl: 60 * 1000 }
+  );
+  const orders = hasTaskFilters ? [] : fetchedOrders;
+  const loading = hasTaskFilters ? unseenLoading : ordersLoading;
 
   const toggleOrderSelection = (orderId) => {
     setSelectedOrderIds(prev => {
@@ -47,16 +59,15 @@ const MyTasks = () => {
     if (!bulkDestination || selectedOrderIds.size === 0) return;
     setBulkRouting(true);
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.post(`${API_URL}/api/orders/bulk-route`, {
+      await api.post('/api/orders/bulk-route', {
         orderIds: Array.from(selectedOrderIds),
         destinationStage: bulkDestination,
         remarks: 'Bulk routed from MyTasks'
-      }, { headers: { Authorization: `Bearer ${token}` } });
+      });
       toast.success(`Routed ${selectedOrderIds.size} order(s) to ${bulkDestination.replace(/_/g, ' ')}`);
       setSelectedOrderIds(new Set());
       setBulkDestination('');
-      fetchTasks();
+      refreshTasks();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Bulk route failed');
     } finally {
@@ -98,23 +109,25 @@ const MyTasks = () => {
 
   const fetchRoutingHistory = async () => {
     try {
-      const token = sessionStorage.getItem('token');
-      const res = await axios.get(`${API_URL}/api/orders/routing-history`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await api.get('/api/orders/routing-history');
       setRoutingHistory(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error('Error fetching routing history:', err);
     }
   };
 
+  const refreshTasks = () => {
+    if (hasTaskFilters) {
+      refreshUnseen();
+      if (showProductionTab) refreshProduction();
+    } else {
+      refreshOrders();
+    }
+  };
   const taskTimerRef = useRef(null);
   const queueTaskRefresh = () => {
     if (taskTimerRef.current) clearTimeout(taskTimerRef.current);
-    taskTimerRef.current = setTimeout(() => {
-      taskTimerRef.current = null;
-      fetchTasks(true);
-    }, 100);
+    taskTimerRef.current = setTimeout(refreshTasks, 100);
   };
 
   useEffect(() => {
@@ -147,47 +160,22 @@ const MyTasks = () => {
     };
   }, [queueTaskRefresh]);
 
-  // Initial data load
-  useEffect(() => { fetchTasks(); }, []);
+  // Refresh unseen + production on mount
+  useEffect(() => { refreshTasks(); }, []);
 
-  // Polling fallback every 120 seconds (silent)
+  // Polling fallback every 120 seconds
   useEffect(() => {
-    const pollInterval = setInterval(() => { fetchTasks(true); }, 120000);
+    const pollInterval = setInterval(() => refreshTasks(), 120000);
     return () => clearInterval(pollInterval);
   }, []);
 
-  const fetchUnseenTasks = async () => {
-    try {
-      const token = sessionStorage.getItem('token');
-      if (!token) return;
-      const res = await axios.get(`${API_URL}/api/orders/unseen-tasks`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setUnseenData(res.data);
-    } catch (e) {
-      console.error('Failed to fetch unseen tasks:', e);
-    }
-  };
+  const fetchUnseenTasks = () => refreshUnseen();
 
-  const fetchProductionTasks = async () => {
-    try {
-      const token = sessionStorage.getItem('token');
-      if (!token) return;
-      const res = await axios.get(`${API_URL}/api/orders/production-returned`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setProductionData(res.data);
-    } catch (e) {
-      console.error('Failed to fetch production tasks:', e);
-    }
-  };
+  const fetchProductionTasks = () => refreshProduction();
 
   const handleMarkSeen = async (orderId) => {
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.post(`${API_URL}/api/orders/${orderId}/mark-seen`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.post(`/api/orders/${orderId}/mark-seen`);
       fetchUnseenTasks();
       fetchProductionTasks();
     } catch (e) {
@@ -195,38 +183,11 @@ const MyTasks = () => {
     }
   };
 
-  const fetchTasks = async (silent = false) => {
-    if (hasTaskFilters) {
-      if (!silent) setLoading(true);
-      const fetches = [fetchUnseenTasks()];
-      if (showProductionTab) fetches.push(fetchProductionTasks());
-      await Promise.all(fetches);
-      if (!silent) setLoading(false);
-    } else {
-      try {
-        const token = sessionStorage.getItem('token');
-        const res = await axios.get(`${API_URL}/api/orders?status=active`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setOrders(Array.isArray(res.data) ? res.data : (res.data?.orders || []));
-      } catch (error) {
-        console.error('Error fetching tasks:', error);
-        toast.error('Failed to load tasks');
-      } finally {
-        setLoading(false);
-      }
-    }
-    setSelectedOrderIds(new Set());
-  };
-
   const handleAction = async (orderId, stageId, action, payload = {}) => {
     try {
-      const token = sessionStorage.getItem('token');
-      const endpoint = `${API_URL}/api/orders/${orderId}/stages/${stageId}/${action}`;
-      await axios.put(endpoint, payload, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      fetchTasks();
+      const endpoint = `/api/orders/${orderId}/stages/${stageId}/${action}`;
+      await api.put(endpoint, payload);
+      refreshTasks();
     } catch (error) {
       console.error(`Error performing ${action}:`, error);
       alert(error.response?.data?.error || error.response?.data?.message || 'Action failed');

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import {
   BarChart3, TrendingUp, DollarSign, RefreshCcw, ChevronRight, X, Search,
   ShoppingCart, CheckCircle2, RotateCcw, Clock, Filter, Calendar,
@@ -11,7 +11,6 @@ import {
 } from 'recharts';
 import { PageLoader } from '../components/LoadingSpinner';
 
-const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 const CHART_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
 const PIE_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
@@ -149,16 +148,13 @@ const UnifiedAnalytics = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const token = sessionStorage.getItem('token');
       const dr = getDateRange();
       const params = new URLSearchParams({ ...dr });
       if (paymentMethod !== 'all') params.set('paymentMethod', paymentMethod);
       if (statusFilter !== 'all') params.set('status', statusFilter);
       if (cityFilter) params.set('city', cityFilter);
       if (deliveryStatus !== 'all') params.set('deliveryStatus', deliveryStatus);
-      const res = await axios.get(`${API_URL}/api/analytics/source/${source}?${params}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await api.get(`/api/analytics/source/${source}?${params}`);
       setData(res.data);
     } catch { setData(null); }
     setLoading(false);
@@ -168,15 +164,12 @@ const UnifiedAnalytics = () => {
 
   const fetchOrders = async (type, label) => {
     try {
-      const token = sessionStorage.getItem('token');
       const dr = getDateRange();
       const params = new URLSearchParams({ ...dr, type, limit: '100' });
       if (paymentMethod !== 'all') params.set('paymentMethod', paymentMethod);
       if (statusFilter !== 'all') params.set('status', statusFilter);
       if (cityFilter) params.set('city', cityFilter);
-      const res = await axios.get(`${API_URL}/api/analytics/source/${source}/orders?${params}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await api.get(`/api/analytics/source/${source}/orders?${params}`);
       setOrderList(res.data);
       setOrderListTitle(label);
     } catch { setOrderList([]); setOrderListTitle(label); }

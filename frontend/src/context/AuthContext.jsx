@@ -1,9 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, useMemo, useCallback } from 'react';
-import axios from 'axios';
 import api from '../services/api';
 import socket from '../socket';
-
-const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
 const AuthContext = createContext();
 
@@ -21,7 +18,6 @@ export const AuthProvider = ({ children }) => {
     if (token && savedUser) {
       const saved = JSON.parse(savedUser);
       setUser(saved);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       joinRoleRoom(saved.role);
     }
     setLoading(false);
@@ -33,7 +29,6 @@ export const AuthProvider = ({ children }) => {
       const { token, user } = response.data;
       sessionStorage.setItem('token', token);
       sessionStorage.setItem('user', JSON.stringify(user));
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       setUser(user);
       joinRoleRoom(user.role);
       return { success: true };
@@ -45,7 +40,6 @@ export const AuthProvider = ({ children }) => {
   const logout = useCallback(() => {
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('user');
-    delete axios.defaults.headers.common['Authorization'];
     setUser(null);
   }, []);
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../services/api';
+import useCache from '../hooks/useCache';
 import {
   Package, ShoppingCart, CheckCircle2, XCircle, AlertTriangle,
   RefreshCcw, Search, Clock, Truck, Building2, PlusCircle,
@@ -24,12 +25,9 @@ const CATEGORIES = ['CAPS', 'SHIRTS', 'JACKETS', 'PANTS', 'ACCESSORIES', 'GENERA
 const WarehouseDashboard = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [inventory, setInventory] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [personName, setPersonName] = useState('');
   const [allocationLoading, setAllocationLoading] = useState(false);
-  // Selection-based allocation (Order Entry style)
   const [allocCartItems, setAllocCartItems] = useState([]);
   const [allocProdSearch, setAllocProdSearch] = useState('');
   const [allocSelectedProduct, setAllocSelectedProduct] = useState(null);
@@ -50,13 +48,9 @@ const WarehouseDashboard = () => {
   const [cartsStatusFilter, setCartsStatusFilter] = useState('');
   const [cartsLoading, setCartsLoading] = useState(false);
   const [expandedCart, setExpandedCart] = useState(null);
-  const [productionInventory, setProductionInventory] = useState([]);
   const [prodCategoryFilter, setProdCategoryFilter] = useState('');
   const [unseenTasks, setUnseenTasks] = useState(null);
-  const [productionTasks, setProductionTasks] = useState(null);
   const [tasksSubTab, setTasksSubTab] = useState('incoming');
-  const [storeDashboard, setStoreDashboard] = useState(null);
-  const [storeLoading, setStoreLoading] = useState(false);
   const [sourceFilter, setSourceFilter] = useState('ALL');
   const [routingModal, setRoutingModal] = useState(null);
   const [routeDestination, setRouteDestination] = useState('LOGO_DESIGN');
@@ -81,41 +75,43 @@ const WarehouseDashboard = () => {
     }
   }, [activeTab, allocPage, cartsPage, demandFilter]);
 
-  useEffect(() => {
-    fetchData();
-  }, [activeTab]);
-
-  const fetchData = async (silent = false) => {
-    if (!silent) setLoading(true);
-    const token = sessionStorage.getItem('token');
-    try {
-      if (activeTab === 'dashboard' || activeTab === 'allocation' || activeTab === 'inventory') {
-        const res = await axios.get(`${API_URL}/api/inventory`, { headers: { Authorization: `Bearer ${token}` } });
-        setInventory(res.data);
-      } else if (activeTab === 'production') {
-        const invRes = await axios.get(`${API_URL}/api/production/inventory`, { headers: { Authorization: `Bearer ${token}` } });
-        setProductionInventory(invRes.data);
-      } else if (activeTab === 'tasks') {
+  // Cache-first: inventory tab
+  const { data: inventory = [], loading, refresh: refreshInventory } = useCache(
+    activeTab === 'dashboard' || activeTab === 'allocation' || activeTab === 'inventory' ? 'warehouse:inventory' : null,
+    { fetcher: () => api.get('/api/inventory').then(r => r.data), ttl: 60 * 1000 }
+  );
+  // Cache-first: production tab
+  const { data: productionInventory = [], refresh: refreshProduction } = useCache(
+    activeTab === 'production' ? 'warehouse:production-inventory' : null,
+    { fetcher: () => api.get('/api/production/inventory').then(r => r.data), ttl: 60 * 1000 }
+  );
+  // Cache-first: tasks tab
+  const { data: tasksData, refresh: refreshTasks } = useCache(
+    activeTab === 'tasks' ? `warehouse:tasks:${sourceFilter}` : null,
+    {
+      fetcher: async () => {
         const results = await Promise.allSettled([
-          axios.get(`${API_URL}/api/orders/store-dashboard`, { params: { limit: 250, source: sourceFilter !== 'ALL' ? sourceFilter : undefined }, headers: { Authorization: `Bearer ${token}` } }),
-          axios.get(`${API_URL}/api/orders/production-returned`, { headers: { Authorization: `Bearer ${token}` } })
+          api.get('/api/orders/store-dashboard', { params: { limit: 250, source: sourceFilter !== 'ALL' ? sourceFilter : undefined } }),
+          api.get('/api/orders/production-returned')
         ]);
-        if (results[0].status === 'fulfilled') setStoreDashboard(results[0].value.data);
-        if (results[1].status === 'fulfilled') setProductionTasks(results[1].value.data);
-      }
-    } catch (error) {
-      if (!silent) console.error('Error fetching data:', error);
+        return {
+          storeDashboard: results[0].status === 'fulfilled' ? results[0].value.data : null,
+          productionTasks: results[1].status === 'fulfilled' ? results[1].value.data : null,
+        };
+      },
+      ttl: 60 * 1000,
     }
-    if (!silent) setLoading(false);
-  };
+  );
+  const storeDashboard = tasksData?.storeDashboard || null;
+  const productionTasks = tasksData?.productionTasks || null;
 
   const fetchAllocations = async () => {
     setAllocLoading(true);
     try {
-      const token = sessionStorage.getItem('token');
+
       const params = { page: allocPage, limit: 50 };
       if (allocSearch.trim()) params.personName = allocSearch.trim();
-      const res = await axios.get(`${API_URL}/api/inventory/allocations`, { params, headers: { Authorization: `Bearer ${token}` } });
+      const res = await api.get('/api/inventory/allocations', { params });
       setAllocationRecords(res.data.records);
       setAllocTotal(res.data.total);
     } catch (error) {
@@ -128,8 +124,8 @@ const WarehouseDashboard = () => {
 
   const fetchAllocationStats = async () => {
     try {
-      const token = sessionStorage.getItem('token');
-      const res = await axios.get(`${API_URL}/api/inventory/allocations/stats`, { headers: { Authorization: `Bearer ${token}` } });
+
+      const res = await api.get('/api/inventory/allocations/stats');
       const data = res.data;
       // New format: { perPerson: [...], todayTotal, activeTotal, totalAllocated, recent }
       if (data.perPerson) {
@@ -147,8 +143,8 @@ const WarehouseDashboard = () => {
 
   const updateAllocationStatus = async (id, status) => {
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.patch(`${API_URL}/api/inventory/allocations/${id}/status`, { status }, { headers: { Authorization: `Bearer ${token}` } });
+
+      await api.patch(`/api/inventory/allocations/${id}/status`, { status });
       toast.success(`Allocation marked as ${status}`);
       fetchAllocations();
       fetchAllocationStats();
@@ -161,11 +157,11 @@ const WarehouseDashboard = () => {
   const fetchCarts = async () => {
     setCartsLoading(true);
     try {
-      const token = sessionStorage.getItem('token');
+
       const params = { page: cartsPage, limit: 50 };
       if (cartsSearch.trim()) params.personName = cartsSearch.trim();
       if (cartsStatusFilter) params.status = cartsStatusFilter;
-      const res = await axios.get(`${API_URL}/api/inventory/carts`, { params, headers: { Authorization: `Bearer ${token}` } });
+      const res = await api.get('/api/inventory/carts', { params });
       setCarts(res.data.records);
       setCartsTotal(res.data.total);
     } catch (error) {
@@ -176,12 +172,12 @@ const WarehouseDashboard = () => {
 
   const handleCartStatus = async (id, status) => {
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.patch(`${API_URL}/api/inventory/carts/${id}/status`, { status }, { headers: { Authorization: `Bearer ${token}` } });
+
+      await api.patch(`/api/inventory/carts/${id}/status`, { status });
       toast.success(`Cart ${status.toLowerCase()} successfully`);
       fetchCarts();
       fetchAllocationStats();
-      fetchData(true);
+      refreshActiveTab();
     } catch (error) {
       console.error('Cart status update error:', error.response?.status, error.response?.data);
       toast.error(error.response?.data?.message || `Error ${error.response?.status || 'no response'}. Check console.`);
@@ -191,13 +187,13 @@ const WarehouseDashboard = () => {
   const fetchDemands = async () => {
     setDemandLoading(true);
     try {
-      const token = sessionStorage.getItem('token');
+
       const params = {};
       if (demandFilter) params.status = demandFilter;
       if (demandSearch.trim()) params.outletName = demandSearch.trim();
       const [allRes, statsRes] = await Promise.allSettled([
-        axios.get(`${API_URL}/api/demand/all`, { params, headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${API_URL}/api/demand/stats`, { headers: { Authorization: `Bearer ${token}` } })
+        api.get('/api/demand/all', { params }),
+        api.get('/api/demand/stats')
       ]);
       if (allRes.status === 'fulfilled') setDemandRequests(allRes.value.data);
       if (statsRes.status === 'fulfilled') setDemandStats(statsRes.value.data);
@@ -209,10 +205,9 @@ const WarehouseDashboard = () => {
 
   const handleDemandApprove = async (id, status, items) => {
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.put(`${API_URL}/api/demand/${id}/approve`,
-        { status, items, storeNotes: '' },
-        { headers: { Authorization: `Bearer ${token}` } }
+
+      await api.put(`/api/demand/${id}/approve`,
+        { status, items, storeNotes: '' }
       );
       toast.success(`Demand request ${status.toLowerCase()}`);
       setDemandApproveModal(null);
@@ -224,41 +219,21 @@ const WarehouseDashboard = () => {
 
   const fetchUnseenTasks = async () => {
     try {
-      const token = sessionStorage.getItem('token');
-      if (!token) return;
-      const res = await axios.get(`${API_URL}/api/orders/unseen-tasks`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await api.get('/api/orders/unseen-tasks');
       setUnseenTasks(res.data);
     } catch (e) {
       console.error('Failed to fetch unseen tasks:', e);
     }
   };
 
-  const fetchStoreDashboard = async () => {
-    setStoreLoading(true);
-    try {
-      const token = sessionStorage.getItem('token');
-      if (!token) return;
-      const params = { limit: 250 };
-      if (sourceFilter !== 'ALL') params.source = sourceFilter;
-      const res = await axios.get(`${API_URL}/api/orders/store-dashboard`, {
-        params,
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setStoreDashboard(res.data);
-    } catch (e) {
-      console.error('Failed to fetch store dashboard:', e);
-    }
-    setStoreLoading(false);
+  const fetchStoreDashboard = () => {
+    refreshTasks();
   };
 
   const handleAcceptOrder = async (orderId) => {
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.post(`${API_URL}/api/orders/${orderId}/accept-store`, {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+
+      await api.post(`/api/orders/${orderId}/accept-store`);
       toast.success('Order accepted at Store');
       fetchStoreDashboard();
     } catch (e) {
@@ -270,10 +245,9 @@ const WarehouseDashboard = () => {
     if (!routingModal) return;
     setRouteLoading(true);
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.post(`${API_URL}/api/orders/${routingModal.id}/store-route`,
-        { destinationStage: routeDestination, remarks: routeRemarks },
-        { headers: { Authorization: `Bearer ${token}` } }
+
+      await api.post(`/api/orders/${routingModal.id}/store-route`,
+        { destinationStage: routeDestination, remarks: routeRemarks }
       );
       toast.success(`Order routed to ${routeDestination.replace(/_/g, ' ')}`);
       setRoutingModal(null);
@@ -286,25 +260,14 @@ const WarehouseDashboard = () => {
     setRouteLoading(false);
   };
 
-  const fetchProductionTasks = async () => {
-    try {
-      const token = sessionStorage.getItem('token');
-      if (!token) return;
-      const res = await axios.get(`${API_URL}/api/orders/production-returned`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setProductionTasks(res.data);
-    } catch (e) {
-      console.error('Failed to fetch production tasks:', e);
-    }
+  const fetchProductionTasks = () => {
+    refreshTasks();
   };
 
   const handleMarkSeen = async (orderId) => {
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.post(`${API_URL}/api/orders/${orderId}/mark-seen`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+
+      await api.post(`/api/orders/${orderId}/mark-seen`);
       fetchUnseenTasks();
       fetchProductionTasks();
     } catch (e) {
@@ -323,8 +286,8 @@ const WarehouseDashboard = () => {
     }
     setAllocationLoading(true);
     try {
-      const token = sessionStorage.getItem('token');
-      const res = await axios.post(`${API_URL}/api/inventory/allocate-cart`, {
+
+      const res = await api.post('/api/inventory/allocate-cart', {
         personName: personName.trim(),
         items: allocCartItems.map(i => ({
           itemId: i.productId,
@@ -333,14 +296,14 @@ const WarehouseDashboard = () => {
           quantity: i.qty
         })),
         notes: allocNotes,
-      }, { headers: { Authorization: `Bearer ${token}` } });
+      });
       toast.success(res.data.message || 'Cart created successfully');
       setPersonName('');
       setAllocCartItems([]);
       setAllocNotes('');
       setAllocProdSearch('');
       setAllocSelectedProduct(null);
-      fetchData(true);
+      refreshActiveTab();
       fetchAllocations();
       fetchAllocationStats();
       fetchCarts();
@@ -357,7 +320,12 @@ const WarehouseDashboard = () => {
     document.addEventListener('visibilitychange', handler);
     return () => document.removeEventListener('visibilitychange', handler);
   }, []);
-  usePolling(() => { if (pageVisible) fetchData(true); }, 60000);
+  const refreshActiveTab = () => {
+    if (activeTab === 'dashboard' || activeTab === 'allocation' || activeTab === 'inventory') refreshInventory();
+    else if (activeTab === 'production') refreshProduction();
+    else if (activeTab === 'tasks') refreshTasks();
+  };
+  usePolling(() => { if (pageVisible) refreshActiveTab(); }, 60000);
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -399,7 +367,7 @@ const WarehouseDashboard = () => {
             <p className="theme-text-secondary text-sm font-medium uppercase tracking-widest">Store & Inventory Management</p>
           </div>
         </div>
-        <button onClick={fetchData} className="bg-gray-800 hover:bg-gray-700 text-gray-300 font-black py-3 px-6 rounded-2xl transition-all flex items-center space-x-3 active:scale-95 border border-gray-700">
+        <button onClick={refreshActiveTab} className="bg-gray-800 hover:bg-gray-700 text-gray-300 font-black py-3 px-6 rounded-2xl transition-all flex items-center space-x-3 active:scale-95 border border-gray-700">
           <RefreshCcw size={16} />
           <span>Refresh</span>
         </button>

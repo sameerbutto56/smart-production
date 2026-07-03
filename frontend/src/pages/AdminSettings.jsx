@@ -1,81 +1,45 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, AlertTriangle, CheckCircle2, BarChart3, TrendingUp, Loader2, Save, Gauge, Target, Users, Palette, Check, KeyRound } from 'lucide-react';
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
+import { Clock, AlertTriangle, CheckCircle2, BarChart3, TrendingUp, Loader2, Save, Gauge, Target, Palette, Check, KeyRound } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
-import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
-
-const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
+import { PageLoader } from '../components/LoadingSpinner';
+import useCache from '../hooks/useCache';
+import api from '../services/api';
 
 const STAGES = ['STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY'];
 
 const AdminSettings = () => {
-  const { themeId, currentTheme, changeTheme, setGlobalThemeId, THEMES, isUsingPersonal } = useTheme();
-  const [deadlineConfig, setDeadlineConfig] = useState(null);
-  const [performance, setPerformance] = useState(null);
+  const { themeId, currentTheme, setGlobalThemeId, THEMES, isUsingPersonal } = useTheme();
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [activeSection, setActiveSection] = useState('deadlines');
-  const [loading, setLoading] = useState(true);
-  const [users, setUsers] = useState([]);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [passwordChanging, setPasswordChanging] = useState(false);
   const [passwordMsg, setPasswordMsg] = useState('');
 
-  useEffect(() => {
-    fetchSettings();
-    fetchPerformance();
-    fetchUsers();
-  }, []);
-
-  const fetchUsers = async () => {
-    try {
-      const token = sessionStorage.getItem('token');
-      const res = await axios.get(`${API_URL}/api/users`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setUsers(res.data);
-    } catch (err) {
-      console.error('Failed to fetch users:', err);
-    }
-  };
-
-  const fetchSettings = async () => {
-    try {
-      const token = sessionStorage.getItem('token');
-      const res = await axios.get(`${API_URL}/api/admin/deadline-config`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setDeadlineConfig(res.data);
-    } catch (err) {
-      console.error('Failed to fetch settings:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchPerformance = async () => {
-    try {
-      const token = sessionStorage.getItem('token');
-      const res = await axios.get(`${API_URL}/api/admin/performance`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setPerformance(res.data);
-    } catch (err) {
-      console.error('Failed to fetch performance:', err);
-    }
-  };
+  // Cache-first data
+  const { data: deadlineConfig, mutate: setDeadlineConfig, loading: settingsLoading } = useCache('admin:deadline-config', {
+    fetcher: () => api.get('/api/admin/deadline-config').then(r => r.data),
+    ttl: 300 * 1000,
+  });
+  const { data: performance, refresh: refreshPerformance } = useCache('admin:performance', {
+    fetcher: () => api.get('/api/admin/performance').then(r => r.data),
+    ttl: 300 * 1000,
+  });
+  const { data: users = [], loading: usersLoading } = useCache('admin:users', {
+    fetcher: () => api.get('/api/users').then(r => r.data),
+    ttl: 300 * 1000,
+  });
+  const loading = settingsLoading;
 
   const saveDeadlineConfig = async () => {
     setSaving(true);
     setMessage('');
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.put(`${API_URL}/api/admin/deadline-config`,
-        { stageDurations: deadlineConfig.stageDurations, slaMultipliers: deadlineConfig.slaMultipliers },
-        { headers: { Authorization: `Bearer ${token}` } }
+      await api.put('/api/admin/deadline-config',
+        { stageDurations: deadlineConfig.stageDurations, slaMultipliers: deadlineConfig.slaMultipliers }
       );
       setMessage('Deadline configuration saved.');
       setTimeout(() => setMessage(''), 3000);
@@ -93,10 +57,8 @@ const AdminSettings = () => {
     setPasswordChanging(true);
     setPasswordMsg('');
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.put(`${API_URL}/api/admin/change-password`,
-        { userId: selectedUserId, newPassword, adminPassword },
-        { headers: { Authorization: `Bearer ${token}` } }
+      await api.put('/api/admin/change-password',
+        { userId: selectedUserId, newPassword, adminPassword }
       );
       setPasswordMsg('Password changed successfully');
       setNewPassword('');
@@ -379,7 +341,7 @@ const AdminSettings = () => {
               )}
 
               <button
-                onClick={fetchPerformance}
+                onClick={refreshPerformance}
                 className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-gray-400 rounded-xl text-xs font-black hover:text-white transition-all border border-gray-800"
               >
                 <TrendingUp size={14} /> Refresh Analytics

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import { Link, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -229,7 +229,6 @@ const Layout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { user } = useAuth();
-  const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
   const [systemPaused, setSystemPaused] = useState(false);
 
   useEffect(() => {
@@ -241,11 +240,7 @@ const Layout = () => {
   useEffect(() => {
     const checkPause = async () => {
       try {
-        const token = sessionStorage.getItem('token');
-        if (!token) return;
-        const res = await axios.get(`${API_URL}/api/admin/pause-status`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const res = await api.get('/api/admin/pause-status');
         setSystemPaused(res.data.paused);
       } catch { /* ignore */ }
     };

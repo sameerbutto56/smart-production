@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Search, Plus, User, Phone, MapPin, Ruler, X, Save, Trash2, Edit2, ChevronDown, ChevronUp, Building2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 const GENDERS = ['Male', 'Female', 'Other'];
 const MEASUREMENT_CHARTS = ['Standard Size Chart', 'Plus Size Chart', 'Custom Measurements'];
 const OUTLETS = ['Johar Town', 'Jail Road', 'Abbottabad'];
@@ -68,9 +67,6 @@ const ClientRegistration = () => {
     setSelectedClient(null);
   };
 
-  const token = () => sessionStorage.getItem('token');
-  const headers = () => ({ Authorization: `Bearer ${token()}` });
-
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleMeasurementChange = (key, val) => {
@@ -109,12 +105,12 @@ const ClientRegistration = () => {
         outletName: selectedClient ? selectedClient.outletName : (isAdmin ? form.outletName : outletName)
       };
       if (selectedClient) {
-        const res = await axios.put(`${API_URL}/api/clients/${selectedClient.id}`, payload, { headers: headers() });
+        const res = await api.put(`/api/clients/${selectedClient.id}`, payload);
         setClients(clients.map(c => c.id === res.data.id ? res.data : c));
         setSelectedClient(res.data);
         alert('Client updated successfully');
       } else {
-        const res = await axios.post(`${API_URL}/api/clients`, payload, { headers: headers() });
+        const res = await api.post('/api/clients', payload);
         setClients([res.data, ...clients]);
         resetForm();
         alert('Client registered successfully');
@@ -131,7 +127,7 @@ const ClientRegistration = () => {
     try {
       const params = { q: searchQuery };
       if (!isAdmin && outletName) params.outlet = outletName;
-      const res = await axios.get(`${API_URL}/api/clients/search`, { params, headers: headers() });
+      const res = await api.get('/api/clients/search', { params });
       setSearchResults(res.data);
     } catch (err) {
       console.error('Search error:', err);
@@ -143,7 +139,7 @@ const ClientRegistration = () => {
     try {
       const params = {};
       if (!isAdmin && outletName) params.outlet = outletName;
-      const res = await axios.get(`${API_URL}/api/clients`, { params, headers: headers() });
+      const res = await api.get('/api/clients', { params });
       setClients(res.data);
     } catch (err) {
       console.error('Error loading clients:', err);
@@ -192,7 +188,7 @@ const ClientRegistration = () => {
   const deactivateClient = async (id) => {
     if (!window.confirm('Deactivate this client?')) return;
     try {
-      await axios.delete(`${API_URL}/api/clients/${id}`, { headers: headers() });
+      await api.delete(`/api/clients/${id}`);
       setClients(clients.filter(c => c.id !== id));
     } catch (err) {
       alert('Error deactivating client');

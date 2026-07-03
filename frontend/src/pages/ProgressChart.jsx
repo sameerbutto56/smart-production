@@ -1,34 +1,26 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect, useMemo } from 'react';
+import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { debounce } from '../utils/debounce';
 import { 
-  BarChart3, 
   Clock, 
   AlertCircle, 
-  TrendingUp, 
   Activity,
   Layers,
   Zap,
-  CheckCircle2,
   LogOut,
   Printer
 } from 'lucide-react';
 import socket from '../socket';
 import { useLanguage } from '../context/LanguageContext';
-import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
-
-const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
+import { PageLoader } from '../components/LoadingSpinner';
+import useCache from '../hooks/useCache';
+import api from '../services/api';
 
 const ProgressChart = () => {
-  const [orders, setOrders] = useState([]);
-  const [stats, setStats] = useState({});
-  const [analytics, setAnalytics] = useState(null);
-  const { t, LanguageToggle, isUrdu } = useLanguage();
+  const { t, LanguageToggle } = useLanguage();
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [dataLoading, setDataLoading] = useState(true);
 
   const navigate = useNavigate();
   const { logout } = useAuth();
@@ -38,46 +30,46 @@ const ProgressChart = () => {
     navigate('/login');
   };
 
-  const pipeline = ['STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
+  const pipeline = useMemo(() => ['STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'], []);
 
-  useEffect(() => {
-    const debouncedFetch = debounce(fetchData, 300);
-    fetchData();
-    const clock = setInterval(() => setCurrentTime(new Date()), 1000);
-    
-    socket.on('order-updated', debouncedFetch);
-    socket.on('new-order', debouncedFetch);
-
-    return () => {
-      clearInterval(clock);
-      socket.off('order-updated', debouncedFetch);
-      socket.off('new-order', debouncedFetch);
-    };
-  }, []);
-
-  const fetchData = async () => {
-    try {
-      const token = sessionStorage.getItem('token');
+  // Cache-first: orders + analytics (combined)
+  const { data: progressData, loading: progressLoading, refresh } = useCache('progress:all', {
+    fetcher: async () => {
       const [ordersRes, analyticsRes] = await Promise.all([
-        axios.get(`${API_URL}/api/orders`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${API_URL}/api/orders/analytics`, { headers: { Authorization: `Bearer ${token}` } })
+        api.get('/api/orders'),
+        api.get('/api/orders/analytics')
       ]);
-      
-      const data = ordersRes.data;
-      setOrders(data);
-      setAnalytics(analyticsRes.data);
+      return { orders: ordersRes.data, analytics: analyticsRes.data };
+    },
+    ttl: 30 * 1000,
+  });
+  const orders = progressData?.orders ?? [];
+  const analytics = progressData?.analytics ?? null;
 
-      const stageStats = {};
-      pipeline.forEach(stage => {
-        stageStats[stage] = data.filter(o => o.currentStage === stage && o.status !== 'COMPLETED').length;
-      });
-      setStats(stageStats);
-    } catch (error) {
-      console.error('Error fetching analytics:', error);
-    } finally {
-      setDataLoading(false);
-    }
-  };
+  const stageStats = useMemo(() => {
+    const s = {};
+    pipeline.forEach(stage => {
+      s[stage] = orders.filter(o => o.currentStage === stage && o.status !== 'COMPLETED').length;
+    });
+    return s;
+  }, [orders, pipeline]);
+
+  // Socket re-fetch
+  useEffect(() => {
+    const debouncedRefresh = debounce(refresh, 300);
+    socket.on('order-updated', debouncedRefresh);
+    socket.on('new-order', debouncedRefresh);
+    return () => {
+      socket.off('order-updated', debouncedRefresh);
+      socket.off('new-order', debouncedRefresh);
+    };
+  }, [refresh]);
+
+  // Clock
+  useEffect(() => {
+    const clock = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(clock);
+  }, []);
 
   const urgentOrders = orders.filter(o => {
     if (o.status === 'COMPLETED' || o.status === 'OUT_FOR_DELIVERY') return false;
@@ -86,7 +78,7 @@ const ProgressChart = () => {
     return diff < 7200000; // Increased to 2 hours for big screen visibility
   }).sort((a, b) => new Date(a.stages?.[0]?.deadlineAt) - new Date(b.stages?.[0]?.deadlineAt));
 
-  if (dataLoading) return <PageLoader text="Loading Production Chart..." />;
+  if (progressLoading) return <PageLoader text="Loading Production Chart..." />;
 
   return (
     <div className="min-h-screen lg:h-screen bg-black text-white p-4 lg:p-6 font-sans overflow-y-auto lg:overflow-hidden flex flex-col">
@@ -159,12 +151,12 @@ const ProgressChart = () => {
               <div key={stage}>
                 <div className="flex justify-between items-end mb-1">
                   <span className="text-xs font-black text-gray-500 uppercase tracking-tighter">{stage.replace('_', ' ')}</span>
-                  <span className="text-lg font-black">{stats[stage] || 0}</span>
+                  <span className="text-lg font-black">{stageStats[stage] || 0}</span>
                 </div>
                 <div className="h-1.5 bg-gray-900 rounded-full overflow-hidden">
                   <motion.div 
                     initial={{ width: 0 }}
-                    animate={{ width: `${Math.min(((stats[stage] || 0) / 10) * 100, 100)}%` }}
+                    animate={{ width: `${Math.min(((stageStats[stage] || 0) / 10) * 100, 100)}%` }}
                     className={`h-full bg-blue-600`}
                   />
                 </div>

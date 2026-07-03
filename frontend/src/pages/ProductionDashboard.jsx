@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect } from 'react';
+import api from '../services/api';
 import {
   TrendingUp, DollarSign, Package, BarChart3, RefreshCcw,
   Factory, Globe, Building2, Clock, Calendar, Filter,
@@ -8,9 +8,9 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
+import useCache from '../hooks/useCache';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 
-const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 const COLORS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899'];
 
 const TABS = ['dashboard', 'records', 'inventory'];
@@ -18,11 +18,6 @@ const TABS = ['dashboard', 'records', 'inventory'];
 const ProductionDashboard = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [loading, setLoading] = useState(true);
-  const [dashboard, setDashboard] = useState(null);
-  const [records, setRecords] = useState([]);
-  const [inventory, setInventory] = useState([]);
-  const [recordsTotal, setRecordsTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -34,10 +29,9 @@ const ProductionDashboard = () => {
   const [submitting, setSubmitting] = useState(false);
   const [dateFilter, setDateFilter] = useState('all');
 
-  const fetchData = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    const token = sessionStorage.getItem('token');
-    try {
+  const cacheKey = `production:dashboard:${dateFilter}:${page}`;
+  const { data, loading, refresh } = useCache(cacheKey, {
+    fetcher: async () => {
       let startDate, endDate;
       const now = new Date();
       if (dateFilter === 'today') { startDate = new Date(now.setHours(0,0,0,0)).toISOString(); endDate = new Date().toISOString(); }
@@ -49,22 +43,23 @@ const ProductionDashboard = () => {
       if (endDate) params.endDate = endDate;
 
       const [dashRes, recRes, invRes] = await Promise.all([
-        axios.get(`${API_URL}/api/production/dashboard`, { params: startDate ? { startDate, endDate } : {}, headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${API_URL}/api/production/records`, { params, headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${API_URL}/api/production/inventory`, { headers: { Authorization: `Bearer ${token}` } })
+        api.get('/api/production/dashboard', { params: startDate ? { startDate, endDate } : {} }),
+        api.get('/api/production/records', { params }),
+        api.get('/api/production/inventory')
       ]);
-      setDashboard(dashRes.data);
-      setRecords(recRes.data.records);
-      setRecordsTotal(recRes.data.total);
-      setInventory(invRes.data);
-    } catch (error) {
-      if (!silent) toast.error('Error fetching production data');
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }, [page, dateFilter]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
+      return {
+        dashboard: dashRes.data,
+        records: recRes.data.records,
+        recordsTotal: recRes.data.total,
+        inventory: invRes.data,
+      };
+    },
+    ttl: 60 * 1000,
+  });
+  const dashboard = data?.dashboard || null;
+  const records = data?.records || [];
+  const inventory = data?.inventory || [];
+  const recordsTotal = data?.recordsTotal || 0;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -73,7 +68,6 @@ const ProductionDashboard = () => {
       return;
     }
     setSubmitting(true);
-    const token = sessionStorage.getItem('token');
     try {
       const payload = {
         productName: formData.productName.trim(),
@@ -86,16 +80,16 @@ const ProductionDashboard = () => {
         productionDate: formData.productionDate || undefined
       };
       if (editingRecord) {
-        await axios.put(`${API_URL}/api/production/records/${editingRecord.id}`, payload, { headers: { Authorization: `Bearer ${token}` } });
+        await api.put(`/api/production/records/${editingRecord.id}`, payload);
         toast.success('Production record updated');
       } else {
-        await axios.post(`${API_URL}/api/production/records`, payload, { headers: { Authorization: `Bearer ${token}` } });
+        await api.post('/api/production/records', payload);
         toast.success('Production record created');
       }
       setShowForm(false);
       setEditingRecord(null);
       setFormData({ productName: '', quantity: 1, rawMaterialCost: '', productionCost: '', sellingValue: '', source: 'OUTLET', notes: '', productionDate: '' });
-      fetchData(true);
+      refresh();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Error saving record');
     }
@@ -119,11 +113,10 @@ const ProductionDashboard = () => {
 
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this production record?')) return;
-    const token = sessionStorage.getItem('token');
     try {
-      await axios.delete(`${API_URL}/api/production/records/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      await api.delete(`/api/production/records/${id}`);
       toast.success('Record deleted');
-      fetchData(true);
+      refresh();
     } catch (error) {
       toast.error('Error deleting record');
     }
@@ -155,7 +148,7 @@ const ProductionDashboard = () => {
             <option value="week">Last 7 Days</option>
             <option value="month">Last 30 Days</option>
           </select>
-          <button onClick={() => fetchData()} className="bg-gray-800 hover:bg-gray-700 text-gray-300 font-black py-2.5 px-5 rounded-xl transition-all flex items-center space-x-2 active:scale-95 border border-gray-700 text-xs">
+          <button onClick={refresh} className="bg-gray-800 hover:bg-gray-700 text-gray-300 font-black py-2.5 px-5 rounded-xl transition-all flex items-center space-x-2 active:scale-95 border border-gray-700 text-xs">
             <RefreshCcw size={14} />
             <span>Refresh</span>
           </button>

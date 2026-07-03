@@ -99,6 +99,16 @@
 - **Batch variant auto-creation in `getPosInventory`**: Replaced per-variant `create` loop with single `createMany` call + one refetch (eliminates N+1 DB roundtrips during product creation).
 - **Extracted delivery/refund controller**: Moved `updateDeliveryStatus`, `acceptDelivery`, `getDeliveryHistory`, `refundOrder`, `getRefundQueue`, `processRefund` into `order-delivery.controller.js`. Updated `order.controller.js` to export shared helpers (`isSystemPaused`, `createAuditLog`, `calculateAndRecordRevenue`, `reverseInventoryForRefund`). Updated `order.routes.js` imports accordingly.
 
+### P1 — Cache-First Foundation (current)
+- **Centralized API client**: Migrated all 21 frontend files from raw `axios` to the centralized `api` service (`src/services/api.js`). Eliminated duplicate `sessionStorage.getItem('token')` and `Authorization` header patterns. Affected files: AllOrders, AdminDashboard, DeliveryDashboard, DeliverySheet, MyTasks, WarehouseDashboard, ProductionDashboard, UnifiedAnalytics, OutletStockRequest, History, ProgressChart, EditRequestDashboard, RefundManagement, InventoryManagement, DeletedOrders, ClientRegistration, AdminSettings, OrderCard, Layout, BiSection, AuthContext.
+- **Fixed WebSocket in production**: Rewrote `src/socket.js` — uses WebSocket only when explicitly configured (`VITE_WS_URL`) or running locally; falls back to stub on Vercel. Auth token sent on connect. Reconnection with exponential backoff (5 attempts).
+- **Event normalizer**: Created `src/utils/normalizeEvents.js` — handles varying `order-updated` payload shapes (`{order}`, `{orderId}`, partial updates, deletes) into consistent format.
+- **IndexedDB wrapper**: Created `src/utils/db.js` — `getItem`/`setItem`/`removeItem` with TTL expiry + hot in-memory cache layer for instant reads. Uses `idb-keyval` under the hood.
+- **`useCache` hook**: Created `src/hooks/useCache.js` — cache-first data fetching: hot memory → IndexedDB → API revalidation. Exposes `refresh()`, `mutate()`, `invalidate()`. Stale-while-revalidate pattern.
+- **Sync queue**: Created `src/utils/syncQueue.js` — persistent IndexedDB queue for write operations. Exports `enqueue()`, `getQueueStatus()`, `retryFailed()`. Exponential backoff (max 5 retries). Auto-processes in background.
+- **No backend files modified** — zero impact on inventory or production data.
+- **Build passes with 0 errors**.
+
 ## Performance Optimizations (Jun 20)
 ### Backend
 - **Composite DB indexes**: Added indexes on `orderNumber`, `currentStage`, `outletName`, `createdAt`, `paymentStatus`, `dispatchStatus` in Prisma schema → pushed to DB.
@@ -133,7 +143,7 @@
 - (none)
 
 ## Critical Context
-- Latest commit includes: Fix 504 timeout on Transfers page, fix transfers load failure. [Commit 0a6d653]
+- Latest commit includes: P1 foundation — centralized API client (21 files migrated), fixed WebSocket, event normalizer, IndexedDB wrapper, useCache hook, sync queue.
 - Build passes with 0 errors.
 - `isAccessory` uses substring matching (`catUpper.includes('COAT')`).
 - `calculateAndRecordRevenue` at line 2482 of `order.controller.js` is idempotent.

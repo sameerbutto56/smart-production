@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
+import React, { useState, useMemo } from 'react';
+import api from '../services/api';
+import useCache from '../hooks/useCache';
 import * as XLSX from 'xlsx';
 import { 
   History as HistoryIcon, 
@@ -22,15 +23,15 @@ import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../comp
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 
-const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
-
 const History = () => {
   const { user } = useAuth();
   const { isUrdu, LanguageToggle } = useLanguage();
   const useUrdu = isUrdu;
   const isAdmin = ['SUPER_ADMIN', 'FAISAL'].includes(user?.role);
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: orders = [], loading } = useCache('orders:history', {
+    fetcher: () => api.get('/api/orders?status=completed').then(r => Array.isArray(r.data) ? r.data : []),
+    ttl: 120 * 1000,
+  });
   const [selectedAuditLog, setSelectedAuditLog] = useState(null);
   const [isClearing, setIsClearing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -67,24 +68,6 @@ const History = () => {
       individualView: 'Individual View'
     };
     return isUrdu ? urdu[key] : english[key];
-  };
-
-  useEffect(() => {
-    fetchHistory();
-  }, []);
-
-  const fetchHistory = async () => {
-    try {
-      const token = sessionStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/api/orders?status=completed`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setOrders(Array.isArray(response.data) ? response.data : []);
-    } catch (error) {
-      console.error('Error fetching history:', error);
-    } finally {
-      setLoading(false);
-    }
   };
 
   const filteredOrders = orders.filter(o => {

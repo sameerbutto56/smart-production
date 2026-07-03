@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import api from '../services/api';
 import { 
   Printer, 
   Calendar, 
@@ -21,50 +21,25 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { PageLoader, LoadingSpinner, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 import { printDeliveryReport } from '../utils/printReport';
+import useCache from '../hooks/useCache';
 import toast from 'react-hot-toast';
-
-const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
 const DeliverySheet = () => {
   const { user } = useAuth();
   const { isUrdu } = useLanguage();
   const navigate = useNavigate();
 
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: orders = [], loading, refresh } = useCache('orders:sheet', {
+    fetcher: async () => {
+      const res = await api.get('/api/orders?limit=all', { timeout: 15000 });
+      return Array.isArray(res.data) ? res.data : [];
+    },
+    ttl: 60 * 1000,
+  });
   const [actionLoading, setActionLoading] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [searchTerm, setSearchTerm] = useState('');
   const [deliveryMethodFilter, setDeliveryMethodFilter] = useState('ALL');
-
-  useEffect(() => {
-    fetchOrders();
-  }, []);
-
-  const fetchOrders = async (retries = 2) => {
-    setLoading(true);
-    for (let attempt = 0; attempt <= retries; attempt++) {
-      try {
-        const token = sessionStorage.getItem('token');
-        const response = await axios.get(`${API_URL}/api/orders?limit=all`, {
-          headers: { Authorization: `Bearer ${token}` },
-          timeout: 15000
-        });
-        setOrders(Array.isArray(response.data) ? response.data : []);
-        setLoading(false);
-        return;
-      } catch (error) {
-        console.error('Error fetching orders:', error.response?.data || error);
-        if (attempt < retries) {
-          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
-          continue;
-        }
-        const errorMsg = error.response?.data?.error || error.message;
-        toast.error(`Failed to load orders: ${errorMsg}`);
-        setLoading(false);
-      }
-    }
-  };
 
   const getStageDate = (order) => {
     // Find when it went OUT_FOR_DELIVERY or DELIVERED
@@ -473,9 +448,9 @@ const DeliverySheet = () => {
                                 if (!window.confirm('Mark this order as Complete?')) return;
                                 setActionLoading(order.id);
                                 try {
-                                  await axios.put(`${API_URL}/api/orders/${order.id}/delivery`, { deliveryStatus: 'DELIVERED', remarks: 'Order completed' }, { headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` } });
+                                  await api.put(`/api/orders/${order.id}/delivery`, { deliveryStatus: 'DELIVERED', remarks: 'Order completed' });
                                   toast.success('Order completed');
-                                  fetchOrders();
+                                  refresh();
                                 } catch (err) { toast.error(err.response?.data?.message || err.message); }
                                 finally { setActionLoading(null); }
                               }}
@@ -491,9 +466,9 @@ const DeliverySheet = () => {
                                 if (!reason) return;
                                 setActionLoading(order.id);
                                 try {
-                                  await axios.post(`${API_URL}/api/orders/${order.id}/refund`, { reason }, { headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` } });
+                                  await api.post(`/api/orders/${order.id}/refund`, { reason });
                                   toast.success('Order returned');
-                                  fetchOrders();
+                                  refresh();
                                 } catch (err) { toast.error(err.response?.data?.message || err.message); }
                                 finally { setActionLoading(null); }
                               }}

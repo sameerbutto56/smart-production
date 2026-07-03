@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import axios from 'axios';
+import api from '../services/api';
 import toast from 'react-hot-toast';
 import socket from '../socket';
 import { debounce } from '../utils/debounce';
+import useCache from '../hooks/useCache';
 import {
   Truck, CheckCircle2, PhoneOff, Phone,
   RefreshCw, ClipboardList, Search, AlertCircle, Calendar,
@@ -14,8 +15,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
 import { PageLoader, LoadingSpinner, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 import { printDeliveryReport } from '../utils/printReport';
-
-const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 const MAX_ATTEMPTS = 3;
 
 /* ─── Attempt History Panel ─── */
@@ -373,10 +372,7 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
 const DeliveryDashboard = () => {
   const { user } = useAuth();
   const { t, LanguageToggle, isUrdu } = useLanguage();
-  const token = sessionStorage.getItem('token');
 
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
   const [acceptLoading, setAcceptLoading] = useState(null);
   const [search, setSearch] = useState('');
@@ -386,56 +382,39 @@ const DeliveryDashboard = () => {
   const [paymentMethods, setPaymentMethods] = useState({});
   const [halfPayments, setHalfPayments] = useState({});
 
-  const fetchOrders = useCallback(async (retries = 2) => {
-    setLoading(true);
-    for (let attempt = 0; attempt <= retries; attempt++) {
-      try {
-        const dt = user?.name?.toLowerCase().includes('enamels') ? 'ENAMELS' : '';
-        const params = `status=delivery${dt ? `&deliveryType=${dt}` : ''}`;
-        const res = await axios.get(`${API_URL}/api/orders?${params}`, {
-          headers: { Authorization: `Bearer ${token}` },
-          timeout: 15000
-        });
-        const relevant = res.data.filter(o =>
-          o.currentStage === 'OUT_FOR_DELIVERY' ||
-          o.currentStage === 'DELIVERED' ||
-          o.status === 'COMPLETED'
-        );
-        setOrders(relevant);
-        setLoading(false);
-        return;
-      } catch {
-        if (attempt < retries) {
-          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
-          continue;
-        }
-        toast.error('Failed to load orders');
-        setLoading(false);
-      }
-    }
-  }, [token]);
+  const dt = user?.name?.toLowerCase().includes('enamels') ? 'ENAMELS' : '';
+  const cacheKey = `orders:delivery:${dt || 'default'}`;
+  const { data: orders = [], loading, refresh } = useCache(cacheKey, {
+    fetcher: async () => {
+      const params = `status=delivery${dt ? `&deliveryType=${dt}` : ''}`;
+      const res = await api.get(`/api/orders?${params}`, { timeout: 15000 });
+      return res.data.filter(o =>
+        o.currentStage === 'OUT_FOR_DELIVERY' ||
+        o.currentStage === 'DELIVERED' ||
+        o.status === 'COMPLETED'
+      );
+    },
+    ttl: 60 * 1000,
+  });
 
   useEffect(() => {
-    const debouncedFetch = debounce(fetchOrders, 300);
-    fetchOrders();
-    socket.on('order-updated', debouncedFetch);
-    socket.on('new-order', debouncedFetch);
-    socket.on('stage-accepted', debouncedFetch);
+    const debouncedRefresh = debounce(refresh, 300);
+    socket.on('order-updated', debouncedRefresh);
+    socket.on('new-order', debouncedRefresh);
+    socket.on('stage-accepted', debouncedRefresh);
     return () => {
-      socket.off('order-updated', debouncedFetch);
-      socket.off('new-order', debouncedFetch);
-      socket.off('stage-accepted');
+      socket.off('order-updated', debouncedRefresh);
+      socket.off('new-order', debouncedRefresh);
+      socket.off('stage-accepted', debouncedRefresh);
     };
-  }, [fetchOrders]);
+  }, [refresh]);
 
   const handleAccept = async (orderId) => {
     try {
       setAcceptLoading(orderId);
-      await axios.put(`${API_URL}/api/orders/${orderId}/accept-delivery`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.put(`/api/orders/${orderId}/accept-delivery`);
       toast.success('Order accepted!');
-      fetchOrders();
+      refresh();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Accept failed');
     } finally {
@@ -447,11 +426,9 @@ const DeliveryDashboard = () => {
     try {
       setActionLoading(orderId);
       if (deliveryStatus === 'RETURN') {
-        await axios.post(`${API_URL}/api/orders/${orderId}/refund`, { reason: remarks || 'Returned by delivery boy' }, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        await api.post(`/api/orders/${orderId}/refund`, { reason: remarks || 'Returned by delivery boy' });
         toast.success('Order returned — moved to Refund Management');
-        fetchOrders();
+        refresh();
         return;
       }
       const body = { deliveryStatus, remarks, paymentMethod };
@@ -459,8 +436,7 @@ const DeliveryDashboard = () => {
         body.cashAmount = cashAmount || 0;
         body.onlineAmount = onlineAmount || 0;
       }
-      await axios.put(`${API_URL}/api/orders/${orderId}/delivery`, body, {
-        headers: { Authorization: `Bearer ${token}` },
+      await api.put(`/api/orders/${orderId}/delivery`, body, {
         timeout: 10000
       });
       if (deliveryStatus === 'DELIVERED') {
@@ -468,7 +444,7 @@ const DeliveryDashboard = () => {
       } else {
         toast('⚠️ No Response logged', { duration: 3000 });
       }
-      fetchOrders();
+      refresh();
     } catch {
       toast.error('Update failed. Try again.');
     } finally {
@@ -532,7 +508,7 @@ const DeliveryDashboard = () => {
             <Printer size={18} />
           </button>
           <button
-            onClick={fetchOrders}
+            onClick={refresh}
             className="w-11 h-11 flex items-center justify-center theme-bg border theme-border rounded-2xl theme-text-secondary hover:text-white active:scale-90 transition-all"
           >
             <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />

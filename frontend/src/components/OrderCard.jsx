@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Clock, CheckCircle, ChevronRight, AlertCircle, ClipboardList, Check, X, RefreshCcw, MessageSquare, History, Target, Trash2, Truck, Users, Phone, ShieldAlert, RotateCcw, Lock, Package, AlertTriangle, Printer } from 'lucide-react';
-import axios from 'axios';
+import api from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import Button from './Button';
 import { LoadingSpinner } from './LoadingSpinner';
 import { printJobSheet } from '../utils/printReport';
 import toast from 'react-hot-toast';
-
-const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
 const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSeen, selected, onToggleSelect }) => {
   const { t, isUrdu, LanguageToggle } = useLanguage();
@@ -99,14 +97,11 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
 
   const handleProductAvailabilityToggle = useCallback(async (idx, isAvailable) => {
     try {
-      const token = sessionStorage.getItem('token');
       // Optimistically update local state
       setProductAvailability(prev => ({ ...prev, [idx]: isAvailable }));
 
-      await axios.patch(`${API_URL}/api/orders/${order.id}/product-availability`, {
+      await api.patch(`/api/orders/${order.id}/product-availability`, {
         productAvailability: { [idx]: isAvailable }
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
 
       toast.success(isAvailable ? 'Item Completed' : 'Item Rejected');
@@ -205,10 +200,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   useEffect(() => {
     if (!showTimelineModal || !order?.id) return;
     setTimelineLoading(true);
-    const token = sessionStorage.getItem('token');
-    axios.get(`${API_URL}/api/orders/${order.id}/timeline`, {
-      headers: { Authorization: `Bearer ${token}` }
-    }).then(res => setTimelineData(res.data))
+    api.get(`/api/orders/${order.id}/timeline`).then(res => setTimelineData(res.data))
       .catch(() => toast.error('Failed to load timeline'))
       .finally(() => setTimelineLoading(false));
   }, [showTimelineModal, order?.id]);
@@ -216,10 +208,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const handleInventoryCheck = useCallback(() => {
     if (!currentStage || invCheck) return;
     setInvCheckLoading(true);
-    const token = sessionStorage.getItem('token');
-    axios.get(`${API_URL}/api/orders/${order.id}/inventory-check`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
+    api.get(`/api/orders/${order.id}/inventory-check`)
       .then(res => setInvCheck(res.data))
       .catch(err => console.error('Error checking inventory:', err))
       .finally(() => setInvCheckLoading(false));
@@ -631,12 +620,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
 
   const handleHoldAction = async (resume = false) => {
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.put(`${API_URL}/api/orders/${order.id}/hold`, { 
+      await api.put(`/api/orders/${order.id}/hold`, { 
         reason: holdReason,
         resume
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       setShowHoldDialog(false);
       setHoldReason('');
@@ -800,9 +786,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   onClick={(e) => {
                     e.stopPropagation();
                     if (window.confirm(`⚠ PERMANENTLY DELETE this order?\n\nOrder #${order.orderNumber || order.id.substring(0, 8)}\nCustomer: ${order.customerName}\n\nThis will restore inventory and create an audit record. THIS CANNOT BE UNDONE.`)) {
-                      axios.delete(`${API_URL}/api/orders/${order.id}`, {
-                        headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
-                      }).then(() => {
+                      api.delete(`/api/orders/${order.id}`).then(() => {
                         toast.success('Order deleted permanently. Inventory restored.');
                         // Parent component will refresh via socket event
                       }).catch(err => {
@@ -1182,10 +1166,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               <button
                 onClick={() => withActionLoading('accept', async () => {
                   try {
-                    const token = sessionStorage.getItem('token');
-                    await axios.post(`${API_URL}/api/orders/${order.id}/accept-task`, {}, {
-                      headers: { Authorization: `Bearer ${token}` }
-                    });
+                                  await api.post(`/api/orders/${order.id}/accept-task`, {});
                     if (onMarkSeen) await onMarkSeen();
                     toast.success('Task accepted!');
                   } catch (err) {
@@ -1240,11 +1221,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       return;
                     }
                     try {
-                      const token = sessionStorage.getItem('token');
-                      await axios.post(`${API_URL}/api/orders/${order.id}/route`, {
+                                      await api.post(`/api/orders/${order.id}/route`, {
                         destinationStage: nextStage,
                         remarks: `Routed by ${userRole} via Move To dropdown`
-                      }, { headers: { Authorization: `Bearer ${token}` } });
+                      });
                       toast.success(`Order moved to ${nextStage.replace(/_/g, ' ')}`);
                       if (onMarkSeen) onMarkSeen();
                     } catch (err) {
@@ -1350,11 +1330,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                       const valid = ['STORE', 'WORKERS', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'];
                                       if (valid.includes(destUpper)) {
                                         try {
-                                          const token = sessionStorage.getItem('token');
-                                          await axios.post(`${API_URL}/api/orders/${order.id}/route`, {
+                                                                              await api.post(`/api/orders/${order.id}/route`, {
                                             destinationStage: destUpper,
                                             remarks: `Manual route from OrderCard by ${userRole}`
-                                          }, { headers: { Authorization: `Bearer ${token}` } });
+                                          });
                                           toast.success(`Order routed to ${destUpper.replace(/_/g, ' ')}`);
                                         } catch (err) {
                                           alert('Route failed: ' + (err.response?.data?.message || err.message));
@@ -1380,10 +1359,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                 onClick={async () => {
                                   setShowMoreActions(false);
                                   try {
-                                    const token = sessionStorage.getItem('token');
-                                    const res = await axios.get(`${API_URL}/api/orders/${order.id}/routing-history`, {
-                                      headers: { Authorization: `Bearer ${token}` }
-                                    });
+                                                                   const res = await api.get(`/api/orders/${order.id}/routing-history`);
                                     const history = res.data;
                                     const historyStr = history.map((h, i) =>
                                       `${i + 1}. ${h.previousStage} → ${h.newStage} by ${h.sentBy || 'System'} (${new Date(h.createdAt).toLocaleString()})${h.remarks ? ': ' + h.remarks : ''}`
@@ -1403,9 +1379,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                   onClick={() => {
                                     setShowMoreActions(false);
                                     if (window.confirm(`⚠ PERMANENTLY DELETE this order?\n\nOrder #${order.orderNumber || order.id.substring(0, 8)}\nCustomer: ${order.customerName}\n\nThis will restore inventory and create an audit record. THIS CANNOT BE UNDONE.`)) {
-                                      axios.delete(`${API_URL}/api/orders/${order.id}`, {
-                                        headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
-                                      }).then(() => {
+                                      api.delete(`/api/orders/${order.id}`).then(() => {
                                         toast.success('Order deleted permanently. Inventory restored.');
                                       }).catch(err => {
                                         alert(err.response?.data?.message || 'Failed to delete order');
@@ -1664,11 +1638,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     <button
                       onClick={async () => {
                         try {
-                          const token = sessionStorage.getItem('token');
-                          await axios.post(`${API_URL}/api/orders/${order.id}/route`, {
+                                              await api.post(`/api/orders/${order.id}/route`, {
                             destinationStage: 'PRODUCTION',
                             remarks: 'Accepted by Production'
-                          }, { headers: { Authorization: `Bearer ${token}` } });
+                          });
                           toast.success('Order accepted for production');
                           if (onMarkSeen) onMarkSeen();
                         } catch (err) {
@@ -1770,10 +1743,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             <button
                               onClick={async () => {
                                 try {
-                                  const token = sessionStorage.getItem('token');
-                                  await axios.post(`${API_URL}/api/orders/${order.id}/add-to-inventory`, {}, {
-                                    headers: { Authorization: `Bearer ${token}` }
-                                  });
+                                                              await api.post(`/api/orders/${order.id}/add-to-inventory`, {});
                                   setLocalInventoryAdded(true);
                                   toast.success('Inventory updated!');
                                 } catch (err) {
@@ -1791,8 +1761,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                               onClick={async () => {
                                 if (!storeRouteDest) { alert('Select a destination first'); return; }
                                 try {
-                                  const token = sessionStorage.getItem('token');
-                                  await axios.post(`${API_URL}/api/orders/${order.id}/route`, { destinationStage: storeRouteDest, remarks: inventoryAdded ? 'Inventory added, routing from Store' : 'Routing from Store (no inventory update)' }, { headers: { Authorization: `Bearer ${token}` } });
+                                                              await api.post(`/api/orders/${order.id}/route`, { destinationStage: storeRouteDest, remarks: inventoryAdded ? 'Inventory added, routing from Store' : 'Routing from Store (no inventory update)' });
                                   toast.success(`Sent to ${storeRouteDest.replace(/_/g, ' ')}`);
                                 } catch (err) {
                                   alert('Failed: ' + (err.response?.data?.message || err.message));
@@ -1847,11 +1816,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           onClick={async () => {
                             if (!nextStage) return alert('Please select delivery method');
                             try {
-                              const token = sessionStorage.getItem('token');
-                              await axios.post(`${API_URL}/api/orders/${order.id}/dispatch`, {
+                                                      await api.post(`/api/orders/${order.id}/dispatch`, {
                                 deliveryMethod: nextStage,
                                 trackingUrl: trackingUrl || undefined
-                              }, { headers: { Authorization: `Bearer ${token}` } });
+                              });
                               toast.success(`Dispatched via ${nextStage}`);
                               setNextStage('');
                               setTrackingUrl('');
@@ -1898,8 +1866,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                               onClick={async () => {
                                 if (!window.confirm('Mark as DELIVERED?')) return;
                                 try {
-                                  const token = sessionStorage.getItem('token');
-                                  await axios.put(`${API_URL}/api/orders/${order.id}/dispatch-status`, { dispatchStatus: 'DELIVERED' }, { headers: { Authorization: `Bearer ${token}` } });
+                                                              await api.put(`/api/orders/${order.id}/dispatch-status`, { dispatchStatus: 'DELIVERED' });
                                   toast.success('Marked as Delivered');
                                 } catch (err) {
                                   alert('Failed: ' + (err.response?.data?.message || err.message));
@@ -1914,8 +1881,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                               onClick={async () => {
                                 if (!window.confirm('Mark as RETURNED?')) return;
                                 try {
-                                  const token = sessionStorage.getItem('token');
-                                  await axios.put(`${API_URL}/api/orders/${order.id}/dispatch-status`, { dispatchStatus: 'RETURNED' }, { headers: { Authorization: `Bearer ${token}` } });
+                                                              await api.put(`/api/orders/${order.id}/dispatch-status`, { dispatchStatus: 'RETURNED' });
                                   toast.success('Marked as Returned');
                                 } catch (err) {
                                   alert('Failed: ' + (err.response?.data?.message || err.message));
@@ -2003,10 +1969,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     <button
                       onClick={async () => {
                         try {
-                          const token = sessionStorage.getItem('token');
-                          const res = await axios.get(`${API_URL}/api/orders/${order.id}/routing-history`, {
-                            headers: { Authorization: `Bearer ${token}` }
-                          });
+                                               const res = await api.get(`/api/orders/${order.id}/routing-history`);
                           const history = res.data;
                           const prodFiltered = history.filter(h =>
                             h.previousStage === 'PRODUCTION' || h.newStage === 'PRODUCTION' ||
@@ -2035,11 +1998,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           <button
                             onClick={() => {
                               if (window.confirm('Confirm delivery complete? This will mark order as COMPLETED.')) {
-                                axios.put(`${API_URL}/api/orders/${order.id}/delivery`, {
+                                api.put(`/api/orders/${order.id}/delivery`, {
                                   deliveryStatus: 'DELIVERED',
                                   remarks: 'Delivered successfully'
-                                }, {
-                                  headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
                                 }).then(() => { toast.success('Marked as DELIVERED'); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
                               }
                             }}
@@ -2052,11 +2013,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             onClick={() => {
                               const reason = prompt('Reason for failure?');
                               if (reason !== null) {
-                                axios.put(`${API_URL}/api/orders/${order.id}/delivery`, {
+                                api.put(`/api/orders/${order.id}/delivery`, {
                                   deliveryStatus: 'FAILED',
                                   remarks: reason || 'Delivery failed'
-                                }, {
-                                  headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
                                 }).then(() => { toast.success('Marked as FAILED'); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
                               }
                             }}
@@ -2068,12 +2027,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           <button
                             onClick={() => {
                               const date = prompt('Reschedule to date? (YYYY-MM-DD) or leave blank for tomorrow');
-                              axios.put(`${API_URL}/api/orders/${order.id}/delivery`, {
-                                deliveryStatus: 'RESCHEDULED',
-                                remarks: date ? `Rescheduled to ${date}` : 'Rescheduled to next day'
-                              }, {
-                                headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
-                              }).then(() => { toast.success('Delivery rescheduled'); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
+                              api.put(`/api/orders/${order.id}/delivery`, {
+                                  deliveryStatus: 'RESCHEDULED',
+                                  remarks: date ? `Rescheduled to ${date}` : 'Rescheduled to next day'
+                                }).then(() => { toast.success('Delivery rescheduled'); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
                             }}
                             className="bg-amber-600/10 hover:bg-amber-600 text-amber-500 hover:text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all border border-amber-500/20 active:scale-95"
                           >
@@ -2085,11 +2042,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           onClick={async () => {
                             if (window.confirm('Request refund for this order?')) {
                               try {
-                                const token = sessionStorage.getItem('token');
-                                const reason = prompt('Reason for refund:') || 'Not specified';
-                                await axios.post(`${API_URL}/api/orders/${order.id}/refund`, { reason }, {
-                                  headers: { Authorization: `Bearer ${token}` }
-                                });
+                                                          const reason = prompt('Reason for refund:') || 'Not specified';
+                                await api.post(`/api/orders/${order.id}/refund`, { reason });
                                 toast.success('Refund requested — moved to Refund Management');
                               } catch (err) {
                                 alert('Refund failed: ' + (err.response?.data?.message || err.message));
@@ -2991,9 +2945,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 disabled={!cancelReason.trim()}
                 onClick={async () => {
                   try {
-                    await axios.put(`${API_URL}/api/orders/${order.id}/cancel`, { reason: cancelReason }, {
-                      headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
-                    });
+                    await api.put(`/api/orders/${order.id}/cancel`, { reason: cancelReason });
                     setShowCancelDialog(false);
                     setCancelReason('');
                   } catch (error) {
@@ -3117,9 +3069,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     const body = { action: forceAction, reason: forceReason };
                     if (forceAction === 'FORCE_MOVE') body.stageName = forceStage;
                     if (forceAction === 'EXTEND_DEADLINE') body.hours = parseFloat(forceHours);
-                    await axios.post(`${API_URL}/api/orders/${order.id}/force`, body, {
-                      headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
-                    });
+                    await api.post(`/api/orders/${order.id}/force`, body);
                     setShowForceModal(false);
                     setForceAction('FORCE_MOVE');
                     setForceStage('');
@@ -3231,13 +3181,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   onClick={async () => {
                     setPaymentLoading(true);
                     try {
-                      const token = sessionStorage.getItem('token');
-                      await axios.put(`${API_URL}/api/orders/${order.id}/payment`, {
+                                      await api.put(`/api/orders/${order.id}/payment`, {
                         paidAmount: parseFloat(paymentAmount),
                         paymentMethod,
                         paymentStatus: 'ADVANCE_PAID'
-                      }, {
-                        headers: { Authorization: `Bearer ${token}` }
                       });
                       setShowPaymentModal(false);
                       toast.success('Payment recorded successfully');

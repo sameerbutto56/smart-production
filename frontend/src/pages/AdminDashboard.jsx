@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import { 
   BarChart3, 
   Users, 
@@ -49,8 +49,6 @@ import toast from 'react-hot-toast';
 import { PauseCircle, PlayCircle } from 'lucide-react';
 import BiSection from '../components/BiSection';
 
-const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
-
 const TOP_TABS = [
   { id: 'all_phases', label: 'All Phases', icon: LayoutDashboard },
   { id: 'edit_requests', label: 'Order Change Requests', icon: FileEdit },
@@ -83,13 +81,6 @@ const AdminDashboard = () => {
   const { t, LanguageToggle, isUrdu } = useLanguage();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(null);
-  const [stats, setStats] = useState({
-    totalOrders: 0,
-    urgentOrders: 0,
-    delayedOrders: 0,
-    completedToday: 0
-  });
-  const [allOrders, setAllOrders] = useState([]);
   const [showClearModal, setShowClearModal] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [isClearing, setIsClearing] = useState(false);
@@ -99,13 +90,10 @@ const AdminDashboard = () => {
   const [trackingError, setTrackingError] = useState('');
   const [trackingTimeline, setTrackingTimeline] = useState([]);
   const [trackingTimelineLoading, setTrackingTimelineLoading] = useState(false);
-  const [systemPaused, setSystemPaused] = useState(false);
   const [showPauseModal, setShowPauseModal] = useState(false);
   const [pausePassword, setPausePassword] = useState('');
   const [pausing, setPausing] = useState(false);
 
-  const [editRequests, setEditRequests] = useState([]);
-  const [editRequestsLoading, setEditRequestsLoading] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewRequestData, setReviewRequestData] = useState(null);
   const [reviewAction, setReviewAction] = useState('');
@@ -115,22 +103,68 @@ const AdminDashboard = () => {
   const [inventorySearchResults, setInventorySearchResults] = useState({});
   const [inventorySearchLoading, setInventorySearchLoading] = useState(false);
 
-  const [analytics, setAnalytics] = useState(null);
   const [filterStage, setFilterStage] = useState('ALL');
   const [storeSubTab, setStoreSubTab] = useState('unseen');
-  const [storeUnseenData, setStoreUnseenData] = useState(null);
-  const [storeProductionData, setStoreProductionData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [fetchingError, setFetchingError] = useState(false);
   const [outletFilter, setOutletFilter] = useState('');
   const [outletDateRange, setOutletDateRange] = useState('month');
   const [outletCustomFrom, setOutletCustomFrom] = useState('');
   const [outletCustomTo, setOutletCustomTo] = useState('');
-  const [outletAnalytics, setOutletAnalytics] = useState(null);
-  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [outletCustomNonce, setOutletCustomNonce] = useState(0);
   const [selectedOrderIds, setSelectedOrderIds] = useState(new Set());
   const [bulkDestination, setBulkDestination] = useState('');
   const [bulkRouting, setBulkRouting] = useState(false);
+
+  const dashboardRefreshRef = useRef();
+  const analyticsRefreshRef = useRef();
+  const pauseRefreshRef = useRef();
+  const unseenRefreshRef = useRef();
+  const prodReturnedRefreshRef = useRef();
+  const editRequestsRefreshRef = useRef();
+
+  const { data: allOrders = [], loading: ordersLoading, error: ordersError, refresh: refreshDashboard } = useCache('admin:dashboard:orders', { fetcher: () => api.get('/api/orders').then(r => Array.isArray(r.data) ? r.data : []), ttl: 60000 });
+  const { data: analytics, refresh: refreshAnalytics } = useCache('admin:dashboard:analytics', { fetcher: () => api.get('/api/orders/analytics').then(r => r.data), ttl: 60000 });
+  const { data: systemPaused = false, refresh: refreshPause } = useCache('admin:pause-status', { fetcher: () => api.get('/api/admin/pause-status').then(r => r.data.paused), ttl: 300000 });
+  const { data: storeUnseenData, refresh: refreshUnseen } = useCache('admin:store-unseen', { fetcher: () => api.get('/api/orders/unseen-tasks').then(r => r.data), ttl: 30000 });
+  const { data: storeProductionData, refresh: refreshProdReturned } = useCache('admin:store-production', { fetcher: () => api.get('/api/orders/production-returned').then(r => r.data), ttl: 30000 });
+  const { data: editRequestsData, loading: editRequestsLoading, refresh: refreshEditRequests } = useCache('admin:edit-requests', { fetcher: () => api.get('/api/edit-requests', { params: { status: 'PENDING' } }).then(r => Array.isArray(r.data) ? r.data : []), ttl: 30000 });
+  const editRequests = Array.isArray(editRequestsData) ? editRequestsData : [];
+
+  const outletAnalyticsKey = outletDateRange !== 'custom'
+    ? `admin:outlet-analytics:${outletFilter}:${outletDateRange}`
+    : `admin:outlet-analytics:${outletFilter}:custom:${outletCustomFrom}:${outletCustomTo}:${outletCustomNonce}`;
+  const { data: outletAnalytics, loading: outletAnalyticsLoading, refresh: refreshOutletAnalytics } = useCache(outletAnalyticsKey, { fetcher: () => {
+    const params = {};
+    if (outletFilter) params.outletName = outletFilter;
+    const now = new Date();
+    if (outletDateRange === 'week') {
+      const weekAgo = new Date(now); weekAgo.setDate(weekAgo.getDate() - 7);
+      params.dateFrom = weekAgo.toISOString();
+    } else if (outletDateRange === 'month') {
+      const monthAgo = new Date(now); monthAgo.setMonth(monthAgo.getMonth() - 1);
+      params.dateFrom = monthAgo.toISOString();
+    } else if (outletDateRange === 'custom') {
+      if (outletCustomFrom) params.dateFrom = new Date(outletCustomFrom).toISOString();
+      if (outletCustomTo) params.dateTo = new Date(outletCustomTo).toISOString();
+    }
+    return api.get('/api/orders/outlet-analytics', { params }).then(r => r.data);
+  }, ttl: 60000 });
+
+  const stats = useMemo(() => ({
+    totalOrders: allOrders.length,
+    urgentOrders: allOrders.filter(o => o?.urgent).length,
+    delayedOrders: 0,
+    completedToday: allOrders.filter(o => o?.status === 'COMPLETED').length
+  }), [allOrders]);
+
+  const loading = ordersLoading;
+  const fetchingError = !!ordersError;
+
+  dashboardRefreshRef.current = refreshDashboard;
+  analyticsRefreshRef.current = refreshAnalytics;
+  pauseRefreshRef.current = refreshPause;
+  unseenRefreshRef.current = refreshUnseen;
+  prodReturnedRefreshRef.current = refreshProdReturned;
+  editRequestsRefreshRef.current = refreshEditRequests;
 
   const queueRefreshRef = useRef();
 
@@ -188,114 +222,13 @@ const AdminDashboard = () => {
     };
   }, []);
 
-  // Initial data load
-  useEffect(() => {
-    fetchDashboardData();
-    fetchAnalytics();
-    fetchPauseStatus();
-    fetchStoreUnseenTasks();
-    fetchStoreProductionData();
-  }, []);
-
-  // Polling fallback every 30 seconds (reduced from 15s)
-  useEffect(() => {
-    const pollInterval = setInterval(() => {
-      fetchDashboardData();
-      fetchAnalytics();
-      fetchStoreUnseenTasks();
-      fetchStoreProductionData();
-    }, 30000);
-    return () => clearInterval(pollInterval);
-  }, []);
-
-  const fetchAnalytics = async () => {
-    try {
-      const token = sessionStorage.getItem('token');
-      if (!token) return;
-      const response = await axios.get(`${API_URL}/api/orders/analytics`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setAnalytics(response.data);
-    } catch (error) {
-      console.error('Error fetching analytics:', error);
-    }
-  };
-
-  const fetchPauseStatus = async () => {
-    try {
-      const token = sessionStorage.getItem('token');
-      if (!token) return;
-      const res = await axios.get(`${API_URL}/api/admin/pause-status`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setSystemPaused(res.data.paused);
-    } catch (error) {
-      console.error('Error fetching pause status:', error);
-    }
-  };
-
-  const fetchOutletAnalytics = async (outlet, range) => {
-    setAnalyticsLoading(true);
-    try {
-      const token = sessionStorage.getItem('token');
-      if (!token) return;
-      const params = {};
-      if (outlet) params.outletName = outlet;
-      const now = new Date();
-      if (range === 'week') {
-        const weekAgo = new Date(now);
-        weekAgo.setDate(weekAgo.getDate() - 7);
-        params.dateFrom = weekAgo.toISOString();
-      } else if (range === 'month') {
-        const monthAgo = new Date(now);
-        monthAgo.setMonth(monthAgo.getMonth() - 1);
-        params.dateFrom = monthAgo.toISOString();
-      } else if (range === 'custom') {
-        if (outletCustomFrom) params.dateFrom = new Date(outletCustomFrom).toISOString();
-        if (outletCustomTo) params.dateTo = new Date(outletCustomTo).toISOString();
-      }
-      const res = await axios.get(`${API_URL}/api/orders/outlet-analytics`, {
-        params,
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setOutletAnalytics(res.data);
-    } catch (error) {
-      console.error('Error fetching outlet analytics:', error);
-    } finally {
-      setAnalyticsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (outletDateRange !== 'custom') {
-      fetchOutletAnalytics(outletFilter, outletDateRange);
-    }
-  }, [outletFilter, outletDateRange]);
-
-  const fetchEditRequests = async () => {
-    setEditRequestsLoading(true);
-    try {
-      const token = sessionStorage.getItem('token');
-      if (!token) return;
-      const res = await axios.get(`${API_URL}/api/edit-requests`, {
-        params: { status: 'PENDING' },
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setEditRequests(Array.isArray(res.data) ? res.data : []);
-    } catch (err) {
-      console.error('Error fetching edit requests:', err);
-    } finally {
-      setEditRequestsLoading(false);
-    }
-  };
-
   useEffect(() => {
     if (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') {
-      fetchEditRequests();
+      editRequestsRefreshRef.current?.();
     }
     socket.on('global-alert', () => {
       if (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') {
-        fetchEditRequests();
+        editRequestsRefreshRef.current?.();
       }
     });
     return () => {
@@ -320,14 +253,11 @@ const AdminDashboard = () => {
     if (productTypes.length === 0) return;
     const fetchInventoryForProducts = async () => {
       setInventorySearchLoading(true);
-      const token = sessionStorage.getItem('token');
-      if (!token) { setInventorySearchLoading(false); return; }
       const results = {};
       for (const name of productTypes) {
         try {
-          const res = await axios.get(`${API_URL}/api/inventory/search`, {
-            params: { name },
-            headers: { Authorization: `Bearer ${token}` }
+          const res = await api.get('/api/inventory/search', {
+            params: { name }
           });
           results[name] = Array.isArray(res.data) ? res.data : [];
         } catch { results[name] = []; }
@@ -342,10 +272,7 @@ const AdminDashboard = () => {
   useEffect(() => {
     if (!trackedOrder?.id) { setTrackingTimeline([]); return; }
     setTrackingTimelineLoading(true);
-    const token = sessionStorage.getItem('token');
-    axios.get(`${API_URL}/api/orders/${trackedOrder.id}/timeline`, {
-      headers: { Authorization: `Bearer ${token}` }
-    }).then(res => setTrackingTimeline(res.data))
+    api.get(`/api/orders/${trackedOrder.id}/timeline`).then(res => setTrackingTimeline(res.data))
       .catch(() => setTrackingTimeline([]))
       .finally(() => setTrackingTimelineLoading(false));
   }, [trackedOrder?.id]);
@@ -354,16 +281,14 @@ const AdminDashboard = () => {
     if (!reviewRequestData) return;
     setReviewSubmitting(true);
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.put(`${API_URL}/api/edit-requests/${reviewRequestData.id}/approve`,
-        { adminRemarks: reviewRemarks },
-        { headers: { Authorization: `Bearer ${token}` } }
+      await api.put(`/api/edit-requests/${reviewRequestData.id}/approve`,
+        { adminRemarks: reviewRemarks }
       );
       setShowReviewModal(false);
       setReviewRequestData(null);
       setReviewRemarks('');
-      fetchEditRequests();
-      fetchDashboardData();
+      editRequestsRefreshRef.current?.();
+      dashboardRefreshRef.current?.();
       toast.success('Edit request approved');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to approve edit request');
@@ -375,15 +300,13 @@ const AdminDashboard = () => {
     if (!reviewRequestData) return;
     setReviewSubmitting(true);
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.put(`${API_URL}/api/edit-requests/${reviewRequestData.id}/reject`,
-        { adminRemarks: reviewRemarks },
-        { headers: { Authorization: `Bearer ${token}` } }
+      await api.put(`/api/edit-requests/${reviewRequestData.id}/reject`,
+        { adminRemarks: reviewRemarks }
       );
       setShowReviewModal(false);
       setReviewRequestData(null);
       setReviewRemarks('');
-      fetchEditRequests();
+      editRequestsRefreshRef.current?.();
       toast.success('Edit request rejected');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to reject edit request');
@@ -395,15 +318,13 @@ const AdminDashboard = () => {
     e.preventDefault();
     setPausing(true);
     try {
-      const token = sessionStorage.getItem('token');
-      const res = await axios.post(`${API_URL}/api/admin/pause`,
-        { password: pausePassword },
-        { headers: { Authorization: `Bearer ${token}` } }
+      const res = await api.post('/api/admin/pause',
+        { password: pausePassword }
       );
-      setSystemPaused(res.data.paused);
       setShowPauseModal(false);
       setPausePassword('');
       toast.success(res.data.message);
+      pauseRefreshRef.current?.();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to toggle pause');
     }
@@ -414,51 +335,18 @@ const AdminDashboard = () => {
     setContextSearch(val);
   };
 
-  const fetchDashboardData = async () => {
-    setLoading(true);
-    setFetchingError(false);
-    try {
-      const token = sessionStorage.getItem('token');
-      if (!token) {
-        navigate('/login');
-        return;
-      }
-      const response = await axios.get(`${API_URL}/api/orders`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const orders = Array.isArray(response.data) ? response.data : [];
-      
-      setAllOrders(orders);
-      setStats({
-        totalOrders: orders.length,
-        urgentOrders: orders.filter(o => o?.urgent).length,
-        delayedOrders: 0,
-        completedToday: orders.filter(o => o?.status === 'COMPLETED').length
-      });
-
-      if (trackedOrder) {
-        const updated = orders.find(o => o.id === trackedOrder.id);
-        if (updated) setTrackedOrder(updated);
-      }
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      setFetchingError(true);
-      if (error.response?.status === 401) {
-        navigate('/login');
-      }
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (trackedOrder && allOrders.length > 0) {
+      const updated = allOrders.find(o => o.id === trackedOrder.id);
+      if (updated) setTrackedOrder(updated);
     }
-  };
+  }, [allOrders, trackedOrder?.id]);
 
   const markAsSeen = async (orderId) => {
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.post(`${API_URL}/api/orders/${orderId}/mark-seen`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      fetchStoreUnseenTasks();
-      fetchStoreProductionData();
+      await api.post(`/api/orders/${orderId}/mark-seen`);
+      unseenRefreshRef.current?.();
+      prodReturnedRefreshRef.current?.();
     } catch (error) {
       console.error('Error marking as seen:', error);
       alert(error.response?.data?.error || 'Failed to mark as seen');
@@ -467,15 +355,12 @@ const AdminDashboard = () => {
 
   const handleAction = async (orderId, stageId, action, payload = {}) => {
     try {
-      const token = sessionStorage.getItem('token');
-      const endpoint = `${API_URL}/api/orders/${orderId}/stages/${stageId}/${action}`;
-      await axios.put(endpoint, payload, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      fetchDashboardData();
-      fetchAnalytics();
-      fetchStoreUnseenTasks();
-      fetchStoreProductionData();
+      const endpoint = `/api/orders/${orderId}/stages/${stageId}/${action}`;
+      await api.put(endpoint, payload);
+      dashboardRefreshRef.current?.();
+      analyticsRefreshRef.current?.();
+      unseenRefreshRef.current?.();
+      prodReturnedRefreshRef.current?.();
     } catch (error) {
       console.error(`Error performing ${action}:`, error);
       alert(error.response?.data?.message || 'Action failed');
@@ -502,20 +387,17 @@ const AdminDashboard = () => {
     if (!bulkDestination || selectedOrderIds.size === 0) return;
     setBulkRouting(true);
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.post(`${API_URL}/api/orders/bulk-route`, {
+      await api.post('/api/orders/bulk-route', {
         orderIds: Array.from(selectedOrderIds),
         destinationStage: bulkDestination,
         remarks: `Bulk routed from ${filterStage}`
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       alert(`Routed ${selectedOrderIds.size} order(s) to ${bulkDestination.replace(/_/g, ' ')}`);
       setSelectedOrderIds(new Set());
       setBulkDestination('');
-      fetchDashboardData();
-      fetchStoreUnseenTasks();
-      fetchStoreProductionData();
+      dashboardRefreshRef.current?.();
+      unseenRefreshRef.current?.();
+      prodReturnedRefreshRef.current?.();
     } catch (err) {
       alert(err.response?.data?.message || 'Bulk route failed');
     } finally {
@@ -529,16 +411,14 @@ const AdminDashboard = () => {
     setError('');
     
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.post(`${API_URL}/api/admin/clear-data`, 
-        { password: adminPassword },
-        { headers: { Authorization: `Bearer ${token}` } }
+      await api.post('/api/admin/clear-data', 
+        { password: adminPassword }
       );
       
       setShowClearModal(false);
       setAdminPassword('');
       alert('System data cleared successfully.');
-      fetchDashboardData();
+      dashboardRefreshRef.current?.();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to clear data');
     } finally {
@@ -595,41 +475,15 @@ const AdminDashboard = () => {
     })
   , [allOrders, contextSearch]);
 
-  const fetchStoreUnseenTasks = async () => {
-    try {
-      const token = sessionStorage.getItem('token');
-      if (!token) return;
-      const res = await axios.get(`${API_URL}/api/orders/unseen-tasks`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setStoreUnseenData(res.data);
-    } catch (e) {
-      console.error('Failed to fetch store unseen tasks:', e);
-    }
-  };
-
-  const fetchStoreProductionData = async () => {
-    try {
-      const token = sessionStorage.getItem('token');
-      if (!token) return;
-      const res = await axios.get(`${API_URL}/api/orders/production-returned`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setStoreProductionData(res.data);
-    } catch (e) {
-      console.error('Failed to fetch store production data:', e);
-    }
-  };
-
   const refreshTimerRef = useRef(null);
   const queueRefresh = () => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     refreshTimerRef.current = setTimeout(() => {
       refreshTimerRef.current = null;
-      fetchDashboardData();
-      fetchAnalytics();
-      fetchStoreUnseenTasks();
-      fetchStoreProductionData();
+      dashboardRefreshRef.current?.();
+      analyticsRefreshRef.current?.();
+      unseenRefreshRef.current?.();
+      prodReturnedRefreshRef.current?.();
     }, 100);
   };
   queueRefreshRef.current = queueRefresh;
@@ -669,7 +523,7 @@ const AdminDashboard = () => {
           <p className="theme-text-muted mt-2 font-bold">The production server is currently unreachable.</p>
         </div>
         <button 
-          onClick={fetchDashboardData}
+          onClick={() => dashboardRefreshRef.current?.()}
           className="btn-solid-primary btn-lg"
         >
           Re-Initialize
@@ -1023,7 +877,7 @@ const AdminDashboard = () => {
                 onClick={() => {
                   setActiveTab(prev => prev === tab.id ? null : tab.id);
                   if (tab.id === 'all_phases') setFilterStage('ALL');
-                  if (tab.id === 'edit_requests') fetchEditRequests();
+                  if (tab.id === 'edit_requests') editRequestsRefreshRef.current?.();
                 }}
                 className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all whitespace-nowrap ${
                   activeTab === tab.id
@@ -1309,7 +1163,7 @@ const AdminDashboard = () => {
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                       Live
                     </span>
-                    <button onClick={fetchEditRequests} className="btn-ghost btn-sm">
+                    <button onClick={() => editRequestsRefreshRef.current?.()} className="btn-ghost btn-sm">
                       <RotateCcw size={14} /> Refresh
                     </button>
                   </div>
@@ -1705,7 +1559,7 @@ const AdminDashboard = () => {
                       <input type="date" value={outletCustomTo} onChange={(e) => setOutletCustomTo(e.target.value)}
                         className="bg-gray-950 border-2 border-gray-800 rounded-xl py-2 px-3 text-xs font-bold text-white outline-none focus:border-purple-500" />
                       <button
-                        onClick={() => fetchOutletAnalytics(outletFilter, 'custom')}
+                        onClick={() => setOutletCustomNonce(n => n + 1)}
                         className="px-4 py-2 bg-purple-600 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-widest hover:bg-purple-500 transition-all"
                       >
                         Apply

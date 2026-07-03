@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
-import axios from 'axios';
+import api from '../services/api';
 import { debounce } from '../utils/debounce';
+import useCache, { setCache } from '../hooks/useCache';
 import { 
   Package, 
   Search, 
@@ -30,12 +31,12 @@ import toast from 'react-hot-toast';
 import OrderCard from '../components/OrderCard';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 
-const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
-
 const AllOrders = () => {
   const { user } = useAuth();
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: orders = [], loading, refresh } = useCache('orders:all', {
+    fetcher: () => api.get('/api/orders').then(r => Array.isArray(r.data) ? r.data : []),
+    ttl: 60 * 1000,
+  });
   const { searchTerm: contextSearch, setSearchTerm: setContextSearch } = useSearch();
   const [searchTerm, setSearchTerm] = useState(contextSearch);
 
@@ -49,6 +50,14 @@ const AllOrders = () => {
   };
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [productAvailability, setProductAvailability] = useState({});
+
+  // Sync selectedOrder with freshest cache data when orders refresh
+  useEffect(() => {
+    if (selectedOrder && orders.length > 0) {
+      const fresh = orders.find(o => o.id === selectedOrder.id);
+      if (fresh) setSelectedOrder(fresh);
+    }
+  }, [orders]);
 
   useEffect(() => {
     if (selectedOrder?.productDetails) {
@@ -70,14 +79,11 @@ const AllOrders = () => {
   const handleProductAvailabilityToggle = async (idx, isAvailable) => {
     if (!selectedOrder) return;
     try {
-      const token = sessionStorage.getItem('token');
       // Optimistically update local state
       setProductAvailability(prev => ({ ...prev, [idx]: isAvailable }));
 
-      await axios.patch(`${API_URL}/api/orders/${selectedOrder.id}/product-availability`, {
+      await api.patch(`/api/orders/${selectedOrder.id}/product-availability`, {
         productAvailability: { [idx]: isAvailable }
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
 
       // Update selectedOrder details locally so print uses correct details
@@ -98,8 +104,8 @@ const AllOrders = () => {
         }
       });
 
-      // Also update the orders array so it reflects the change on the dashboard
-      setOrders(prevOrders => prevOrders.map(o => {
+      // Optimistically update cache so dashboard reflects the change immediately
+      setCache('orders:all', orders.map(o => {
         if (o.id === selectedOrder.id) {
           try {
             const pd = typeof o.productDetails === 'string' ? JSON.parse(o.productDetails) : o.productDetails;
@@ -182,15 +188,12 @@ const AllOrders = () => {
       if (location.state.filterUrgent !== undefined) setFilterUrgent(location.state.filterUrgent);
       if (location.state.searchTerm) setSearchTerm(location.state.searchTerm);
     }
-    const debouncedFetch = debounce(fetchOrders, 300);
-    fetchOrders();
 
-    const onOrderUpdated = () => {
-      debouncedFetch();
-    };
+    const debouncedRefresh = debounce(refresh, 300);
 
+    const onOrderUpdated = () => { debouncedRefresh(); };
     const onNewOrder = (order) => {
-      debouncedFetch();
+      debouncedRefresh();
       if (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || order?.createdById === user?.id) {
         toast(`New order created: #${order.orderNumber || order.id.substring(0,8)}`, { icon: '📦' });
       }
@@ -198,43 +201,19 @@ const AllOrders = () => {
 
     socket.on('order-updated', onOrderUpdated);
     socket.on('new-order', onNewOrder);
-    socket.on('stage-accepted', debouncedFetch);
+    socket.on('stage-accepted', debouncedRefresh);
 
     return () => {
       socket.off('order-updated', onOrderUpdated);
       socket.off('new-order', onNewOrder);
-      socket.off('stage-accepted', debouncedFetch);
+      socket.off('stage-accepted', debouncedRefresh);
     };
   }, [location.state]);
 
-  const fetchOrders = async () => {
-    setLoading(true);
-    try {
-      const token = sessionStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/api/orders`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setOrders(Array.isArray(response.data) ? response.data : []);
-      // Sync selectedOrder with freshest data if modal is open
-      if (selectedOrder) {
-        const fresh = (Array.isArray(response.data) ? response.data : []).find(o => o.id === selectedOrder.id);
-        if (fresh) setSelectedOrder(fresh);
-      }
-    } catch (error) {
-      console.error('Error fetching orders:', error);
-      toast.error('Failed to connect to production server');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleSendForDelivery = async (orderId) => {
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.put(`${API_URL}/api/orders/${orderId}/send-for-delivery`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      fetchOrders();
+      await api.put(`/api/orders/${orderId}/send-for-delivery`);
+      refresh();
     } catch (error) {
       console.error('Error sending for delivery:', error);
       toast.error('Failed to send for delivery');
@@ -242,15 +221,12 @@ const AllOrders = () => {
   };
 
   const handleDeleteOrder = async (orderId) => {
-    if (!window.confirm('Are you sure you want to PERMANENTLY DELETE this order? This action cannot be undone.')) return;
+    if (!window.confirm('Are you sure you want to PERMANENTLY DELETE this order? This action cannot be deleted.')) return;
     
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.delete(`${API_URL}/api/orders/${orderId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.delete(`/api/orders/${orderId}`);
       toast.success('Order deleted permanently');
-      fetchOrders();
+      refresh();
     } catch (error) {
       console.error('Error deleting order:', error);
       toast.error('Failed to delete order');

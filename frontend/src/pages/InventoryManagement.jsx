@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import JsBarcode from 'jsbarcode';
 import Button from '../components/Button';
 import {
@@ -30,8 +30,6 @@ import { Navigate } from 'react-router-dom';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 import { usePolling } from '../hooks/usePolling';
 import { printInventoryReport } from '../utils/printReport';
-
-const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
 const LOW_STOCK_LIMIT = 5;
 
@@ -69,10 +67,7 @@ const InventoryManagement = () => {
   usePolling(async () => {
     if (authLoading || !user) return;
     try {
-      const token = sessionStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/api/inventory`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get('/api/inventory');
       setItems(response.data);
     } catch (error) {}
   }, 15000);
@@ -93,7 +88,7 @@ const InventoryManagement = () => {
     formDataUpload.append('image', file);
 
     try {
-      const response = await axios.post(`${API_URL}/api/upload`, formDataUpload, {
+      const response = await api.post('/api/upload', formDataUpload, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       setFormData(prev => ({ ...prev, imageUrl: response.data.url }));
@@ -126,10 +121,7 @@ const InventoryManagement = () => {
   const fetchInventory = async () => {
     setLoading(true);
     try {
-      const token = sessionStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/api/inventory`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get('/api/inventory');
       setItems(response.data);
     } catch (error) {
       console.error('Error fetching inventory:', error);
@@ -159,8 +151,6 @@ const InventoryManagement = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const token = sessionStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
       const payload = {
         name: formData.name,
         category: formData.category,
@@ -169,9 +159,9 @@ const InventoryManagement = () => {
         variants: formData.variants.filter(v => v.color || v.size || parseInt(v.stock) > 0)
       };
       if (editingItem) {
-        await axios.put(`${API_URL}/api/inventory/${editingItem.id}`, payload, { headers });
+        await api.put(`/api/inventory/${editingItem.id}`, payload);
       } else {
-        await axios.post(`${API_URL}/api/inventory`, payload, { headers });
+        await api.post('/api/inventory', payload);
       }
       fetchInventory();
       setIsModalOpen(false);
@@ -253,10 +243,7 @@ const InventoryManagement = () => {
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this item?')) return;
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.delete(`${API_URL}/api/inventory/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.delete(`/api/inventory/${id}`);
       fetchInventory();
     } catch (error) {
       console.error('Error deleting inventory item:', error);
@@ -272,12 +259,8 @@ const InventoryManagement = () => {
 
     try {
       setLoading(true);
-      const token = sessionStorage.getItem('token');
-      const response = await axios.post(`${API_URL}/api/inventory/bulk-upload`, uploadData, {
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data'
-        }
+      const response = await api.post('/api/inventory/bulk-upload', uploadData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
       alert(`Success! Imported ${response.data.count} items.`);
       fetchInventory();

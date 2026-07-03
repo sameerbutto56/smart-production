@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect } from 'react';
+import api from '../services/api';
 import { debounce } from '../utils/debounce';
+import useCache from '../hooks/useCache';
 import {
   FileEdit, RotateCcw, Loader2, CheckCircle2, ThumbsUp, ThumbsDown,
   ChevronDown, Package, X, Clock, Search, AlertTriangle,
@@ -14,8 +15,6 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 
-const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
-
 const STAGE_ORDER = ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'COMPLETED', 'DELIVERED'];
 const STAGE_LABELS = {
   ORDER_ENTRY: 'Order Entry', STORE: 'Store', LOGO_DESIGN: 'Logo Design',
@@ -27,9 +26,16 @@ const EditRequestDashboard = () => {
   const { user } = useAuth();
   const { t } = useLanguage();
 
-  const [allRequests, setAllRequests] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [stats, setStats] = useState({ total: 0, byStatus: {}, bySource: {} });
+  const { data, loading, refresh } = useCache('edit-requests:all', {
+    fetcher: async () => {
+      const res = await api.get('/api/edit-requests?stats=true');
+      return { stats: res.data, requests: Array.isArray(res.data.requests) ? res.data.requests : [] };
+    },
+    ttl: 60 * 1000,
+  });
+  const stats = data?.stats || { total: 0, byStatus: {}, bySource: {} };
+  const allRequests = data?.requests || [];
+
   const [activeTab, setActiveTab] = useState('ALL');
   const [expandedId, setExpandedId] = useState(null);
   const [inventoryResults, setInventoryResults] = useState({});
@@ -41,29 +47,11 @@ const EditRequestDashboard = () => {
   const [reviewRemarks, setReviewRemarks] = useState('');
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
 
-  const fetchRequests = useCallback(async () => {
-    setLoading(true);
-    try {
-      const token = sessionStorage.getItem('token');
-      if (!token) return;
-      const res = await axios.get(`${API_URL}/api/edit-requests?stats=true`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setStats(res.data);
-      setAllRequests(Array.isArray(res.data.requests) ? res.data.requests : []);
-    } catch (err) {
-      console.error('Error fetching edit requests:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    const debouncedFetch = debounce(fetchRequests, 300);
-    fetchRequests();
-    socket.on('global-alert', debouncedFetch);
-    return () => socket.off('global-alert', debouncedFetch);
-  }, [fetchRequests]);
+    const debouncedRefresh = debounce(refresh, 300);
+    socket.on('global-alert', debouncedRefresh);
+    return () => socket.off('global-alert', debouncedRefresh);
+  }, [refresh]);
 
   useEffect(() => {
     if (!expandedId) return;
@@ -82,13 +70,11 @@ const EditRequestDashboard = () => {
     if (productTypes.length === 0) return;
     const doFetch = async () => {
       setInventoryLoading(true);
-      const token = sessionStorage.getItem('token');
-      if (!token) { setInventoryLoading(false); return; }
       const results = {};
       for (const name of productTypes) {
         try {
-          const res = await axios.get(`${API_URL}/api/inventory/search`, {
-            params: { name }, headers: { Authorization: `Bearer ${token}` }
+          const res = await api.get('/api/inventory/search', {
+            params: { name }
           });
           results[name] = Array.isArray(res.data) ? res.data : [];
         } catch { results[name] = []; }
@@ -103,15 +89,13 @@ const EditRequestDashboard = () => {
     if (!reviewData) return;
     setReviewSubmitting(true);
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.put(`${API_URL}/api/edit-requests/${reviewData.id}/approve`,
-        { adminRemarks: reviewRemarks },
-        { headers: { Authorization: `Bearer ${token}` } }
+      await api.put(`/api/edit-requests/${reviewData.id}/approve`,
+        { adminRemarks: reviewRemarks }
       );
       setShowReviewModal(false);
       setReviewData(null);
       setReviewRemarks('');
-      fetchRequests();
+      refresh();
       toast.success('Edit request approved');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to approve');
@@ -123,15 +107,13 @@ const EditRequestDashboard = () => {
     if (!reviewData) return;
     setReviewSubmitting(true);
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.put(`${API_URL}/api/edit-requests/${reviewData.id}/reject`,
-        { adminRemarks: reviewRemarks },
-        { headers: { Authorization: `Bearer ${token}` } }
+      await api.put(`/api/edit-requests/${reviewData.id}/reject`,
+        { adminRemarks: reviewRemarks }
       );
       setShowReviewModal(false);
       setReviewData(null);
       setReviewRemarks('');
-      fetchRequests();
+      refresh();
       toast.success('Edit request rejected');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to reject');
@@ -217,7 +199,7 @@ const EditRequestDashboard = () => {
             </p>
           </div>
         </div>
-        <button onClick={fetchRequests} className="btn-ghost btn-sm">
+        <button onClick={refresh} className="btn-ghost btn-sm">
           <RotateCcw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
         </button>
       </div>

@@ -403,6 +403,7 @@ const createSale = async (req, res) => {
     });
 
     cache.delPattern(CACHE_KEY_PREFIX);
+    if (req.app.get('io')) req.app.get('io').emit('inventory-updated', { source: 'pos', outletName, saleId: sale.id });
     res.status(201).json(sale);
   } catch (error) {
     res.status(500).json({ message: 'Failed to create sale', error: error.message });

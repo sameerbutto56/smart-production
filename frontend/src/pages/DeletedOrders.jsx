@@ -1,37 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Trash2, Search, CalendarDays, User, Store, Package, ArrowUpRight } from 'lucide-react';
+import { Trash2, Search, CalendarDays, User, Store, Package } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import toast from 'react-hot-toast';
-import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
-
-const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
+import { PageLoader } from '../components/LoadingSpinner';
+import useCache from '../hooks/useCache';
+import api from '../services/api';
 
 const DeletedOrders = () => {
-  const { t, isUrdu } = useLanguage();
-  const [records, setRecords] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { isUrdu } = useLanguage();
   const [search, setSearch] = useState('');
-
-  const fetchRecords = async () => {
-    setLoading(true);
-    try {
-      const token = sessionStorage.getItem('token');
-      const res = await axios.get(`${API_URL}/api/orders/deleted-orders`, {
-        params: { limit: 'all' },
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setRecords(Array.isArray(res.data) ? res.data : []);
-    } catch (err) {
-      console.error('Error fetching deleted orders:', err);
-      toast.error('Failed to load deleted orders');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { fetchRecords(); }, []);
+  const { data: records = [], loading } = useCache('orders:deleted', {
+    fetcher: () => api.get('/api/orders/deleted-orders', { params: { limit: 'all' } }).then(r => Array.isArray(r.data) ? r.data : []),
+    ttl: 120 * 1000,
+  });
 
   const filtered = records.filter(r =>
     !search || 

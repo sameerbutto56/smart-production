@@ -1,109 +1,69 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import React, { useState } from 'react';
+import api from '../services/api';
 import {
-  ShoppingCart, Package, Building2, CheckCircle2, XCircle, AlertTriangle,
-  RefreshCcw, Search, Clock, Plus, Minus, Send, Eye, ClipboardList,
-  Warehouse, FileText, Trash2, Filter, Download
+  ShoppingCart, Package, Building2,
+  RefreshCcw, Search, Plus, Minus, Send, ClipboardList,
+  Warehouse, Trash2, Download
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import { PageLoader } from '../components/LoadingSpinner';
-import { usePolling } from '../hooks/usePolling';
-
-const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
+import useCache from '../hooks/useCache';
 
 const OutletStockRequest = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('demand');
-  const [loading, setLoading] = useState(true);
 
   const outletName = user?.name?.toLowerCase().includes('johar') ? 'Johar Town' :
     user?.name?.toLowerCase().includes('jail') ? 'Jail Road' :
     user?.name?.toLowerCase().includes('abbottabad') ? 'Abbottabad' : (user?.name || 'Outlet');
 
+  // Cache-first: warehouse inventory for demand tab
+  const { data: inventory = [], loading, refresh: refreshInventory } = useCache(
+    activeTab === 'demand' ? 'outlet:demand:inventory' : null,
+    { fetcher: () => api.get('/api/inventory').then(r => r.data), ttl: 30 * 1000 }
+  );
+  // Cache-first: my requests
+  const { data: myRequests = [], loading: reqsLoading, refresh: refreshRequests } = useCache(
+    activeTab === 'requests' ? 'outlet:demand:my-requests' : null,
+    { fetcher: () => api.get('/api/demand/my').then(r => r.data), ttl: 30 * 1000 }
+  );
+  // Cache-first: catalog
+  const { data: outletInventory = [], loading: invLoading, refresh: refreshCatalog } = useCache(
+    activeTab === 'inventory' ? 'outlet:demand:catalog' : null,
+    { fetcher: () => api.get('/api/demand/inventory').then(r => r.data), ttl: 30 * 1000 }
+  );
+
   // --- Demand Request State ---
-  const [inventory, setInventory] = useState([]);
   const [cartItems, setCartItems] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [acceptingId, setAcceptingId] = useState(null);
   const [requestNotes, setRequestNotes] = useState('');
+  // Per-product selection state (size/color chosen by user, not from server)
+  const [productSelections, setProductSelections] = useState({});
+
+  const setProductSelection = (productId, field, value) => {
+    setProductSelections(prev => ({ ...prev, [productId]: { ...(prev[productId] || {}), [field]: value } }));
+  };
 
   const acceptRequest = async (reqId) => {
     if (!window.confirm('Accept this approved request? Stock will be added to Outlet POS inventory.')) return;
     setAcceptingId(reqId);
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.put(`${API_URL}/api/demand/${reqId}/accept`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.put(`/api/demand/${reqId}/accept`, {});
       toast.success('Request accepted! Stock added to outlet inventory.');
-      // Refresh requests
-      const reqRes = await axios.get(`${API_URL}/api/demand/my`, { headers: { Authorization: `Bearer ${token}` } });
-      setMyRequests(reqRes.data);
+      refreshRequests();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to accept request');
     }
     setAcceptingId(null);
   };
 
-  // --- My Requests State ---
-  const [myRequests, setMyRequests] = useState([]);
-  const [reqsLoading, setReqsLoading] = useState(false);
-
   // --- Inventory Visibility State ---
-  const [outletInventory, setOutletInventory] = useState([]);
   const [invSearch, setInvSearch] = useState('');
-  const [invLoading, setInvLoading] = useState(false);
   const [invCategory, setInvCategory] = useState('');
-
-  useEffect(() => {
-    fetchData();
-  }, [activeTab]);
-
-  const pollData = useCallback(async () => {
-    const token = sessionStorage.getItem('token');
-    try {
-      if (activeTab === 'demand') {
-        const invRes = await axios.get(`${API_URL}/api/inventory`, { headers: { Authorization: `Bearer ${token}` } });
-        setInventory(invRes.data);
-      } else if (activeTab === 'requests') {
-        const reqRes = await axios.get(`${API_URL}/api/demand/my`, { headers: { Authorization: `Bearer ${token}` } });
-        setMyRequests(reqRes.data);
-      } else if (activeTab === 'inventory') {
-        const invRes = await axios.get(`${API_URL}/api/demand/inventory`, { headers: { Authorization: `Bearer ${token}` } });
-        setOutletInventory(invRes.data);
-      }
-    } catch (error) {}
-  }, [activeTab]);
-
-  usePolling(pollData, 15000);
-
-  const fetchData = async () => {
-    setLoading(true);
-    const token = sessionStorage.getItem('token');
-    try {
-      if (activeTab === 'demand') {
-        const invRes = await axios.get(`${API_URL}/api/inventory`, { headers: { Authorization: `Bearer ${token}` } });
-        setInventory(invRes.data);
-      } else if (activeTab === 'requests') {
-        setReqsLoading(true);
-        const reqRes = await axios.get(`${API_URL}/api/demand/my`, { headers: { Authorization: `Bearer ${token}` } });
-        setMyRequests(reqRes.data);
-        setReqsLoading(false);
-      } else if (activeTab === 'inventory') {
-        setInvLoading(true);
-        const invRes = await axios.get(`${API_URL}/api/demand/inventory`, { headers: { Authorization: `Bearer ${token}` } });
-        setOutletInventory(invRes.data);
-        setInvLoading(false);
-      }
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      toast.error('Failed to load data');
-    }
-    setLoading(false);
-  };
 
   // --- Demand Request Handlers ---
   const addToCart = (item) => {
@@ -111,18 +71,19 @@ const OutletStockRequest = () => {
     const hasVariants = variants.length > 0;
     const sizes = hasVariants ? [...new Set(variants.map(v => v.size).filter(Boolean))] : (item.size ? [item.size] : []);
     const colors = hasVariants ? [...new Set(variants.map(v => v.color).filter(Boolean))] : (item.color ? [item.color] : []);
+    const sel = productSelections[item.id] || {};
     setCartItems(prev => {
-      const existing = prev.find(i => i.productId === item.id && i.size === item.selectedSize && i.color === item.selectedColor);
+      const existing = prev.find(i => i.productId === item.id && i.size === sel.size && i.color === sel.color);
       if (existing) {
-        return prev.map(i => i.productId === item.id && i.size === item.selectedSize && i.color === item.selectedColor
+        return prev.map(i => i.productId === item.id && i.size === sel.size && i.color === sel.color
           ? { ...i, qty: i.qty + 1 } : i);
       }
       return [...prev, {
         productId: item.id,
         productName: item.name,
         category: item.category,
-        size: item.selectedSize || (sizes[0] || ''),
-        color: item.selectedColor || (colors[0] || ''),
+        size: sel.size || (sizes[0] || ''),
+        color: sel.color || (colors[0] || ''),
         qty: 1,
         availableSizes: sizes,
         availableColors: colors
@@ -147,8 +108,7 @@ const OutletStockRequest = () => {
     }
     setSubmitting(true);
     try {
-      const token = sessionStorage.getItem('token');
-      await axios.post(`${API_URL}/api/demand`, {
+      await api.post('/api/demand', {
         items: cartItems.map(i => ({
           inventoryItemId: i.productId || null,
           productName: i.productName,
@@ -157,7 +117,7 @@ const OutletStockRequest = () => {
           requestedQty: i.qty
         })),
         notes: requestNotes
-      }, { headers: { Authorization: `Bearer ${token}` } });
+      });
       toast.success('Demand request submitted to Store');
       setCartItems([]);
       setRequestNotes('');
@@ -214,7 +174,7 @@ const OutletStockRequest = () => {
             <p className="theme-text-secondary text-sm font-medium uppercase tracking-widest">Outlet Portal</p>
           </div>
         </div>
-        <button onClick={fetchData} className="theme-bg-subtle hover:bg-gray-700 theme-text-primary font-black py-3 px-6 rounded-2xl transition-all flex items-center space-x-3 active:scale-95 border theme-border">
+        <button onClick={() => { refreshInventory(); refreshRequests(); refreshCatalog(); }} className="theme-bg-subtle hover:bg-gray-700 theme-text-primary font-black py-3 px-6 rounded-2xl transition-all flex items-center space-x-3 active:scale-95 border theme-border">
           <RefreshCcw size={16} />
           <span>Refresh</span>
         </button>
@@ -247,6 +207,10 @@ const OutletStockRequest = () => {
 
       {loading && activeTab === 'demand' ? (
         <PageLoader text="Loading..." />
+      ) : reqsLoading && activeTab === 'requests' ? (
+        <div className="py-12 flex justify-center"><RefreshCcw className="animate-spin text-blue-400" size={32} /></div>
+      ) : invLoading && activeTab === 'inventory' ? (
+        <div className="py-12 flex justify-center"><RefreshCcw className="animate-spin text-blue-400" size={32} /></div>
       ) : (
         <>
           {/* ======= Demand Request Tab ======= */}
@@ -277,24 +241,14 @@ const OutletStockRequest = () => {
                         </div>
                         <div className="grid grid-cols-2 gap-2">
                           {sizes.length > 0 && (
-                            <select value={item.selectedSize || ''} onChange={(e) => {
-                              const updated = [...inventory];
-                              const idx = updated.findIndex(x => x.id === item.id);
-                              if (idx >= 0) updated[idx] = { ...updated[idx], selectedSize: e.target.value };
-                              setInventory(updated);
-                            }}
+                            <select value={productSelections[item.id]?.size || ''} onChange={(e) => setProductSelection(item.id, 'size', e.target.value)}
                               className="theme-bg-subtle border-2 theme-border rounded-lg py-1.5 px-2 text-xs font-medium text-white outline-none">
                               <option value="">Size</option>
                               {sizes.map(s => <option key={s} value={s}>{s}</option>)}
                             </select>
                           )}
                           {colors.length > 0 && (
-                            <select value={item.selectedColor || ''} onChange={(e) => {
-                              const updated = [...inventory];
-                              const idx = updated.findIndex(x => x.id === item.id);
-                              if (idx >= 0) updated[idx] = { ...updated[idx], selectedColor: e.target.value };
-                              setInventory(updated);
-                            }}
+                            <select value={productSelections[item.id]?.color || ''} onChange={(e) => setProductSelection(item.id, 'color', e.target.value)}
                               className="theme-bg-subtle border-2 theme-border rounded-lg py-1.5 px-2 text-xs font-medium text-white outline-none">
                               <option value="">Color</option>
                               {colors.map(c => <option key={c} value={c}>{c}</option>)}

@@ -3,6 +3,7 @@ import api from '../services/api';
 import { Package, Search, ChevronDown, ChevronUp, RefreshCw, Warehouse, Plus, X, CheckCircle2, Upload, Layers, Hash, Minus, PlusCircle, Pencil, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
+import useCache from '../hooks/useCache';
 
 const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 const ALL_OUTLETS = ['Johar Town', 'Jail Road', 'Abbottabad'];
@@ -17,11 +18,9 @@ const OutletPOSInventory = () => {
     return 'Johar Town';
   })();
   const [selectedOutlet, setSelectedOutlet] = useState(defaultOutlet);
-  const [items, setItems] = useState([]);
   const [expandedId, setExpandedId] = useState(null);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('');
-  const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -35,17 +34,10 @@ const OutletPOSInventory = () => {
   const isOutlet = user?.role === 'OUTLET';
   const isReadOnly = isOutlet;
 
-  const fetchData = async (skipCache = false) => {
-    setLoading(true);
-    try {
-      const params = skipCache ? `?outlet=${selectedOutlet}&skipCache=true` : `?outlet=${selectedOutlet}`;
-      const res = await api.get(`/api/pos/inventory${params}`);
-      setItems(res.data);
-    } catch { toast.error('Failed to load POS inventory'); }
-    setLoading(false);
-  };
-
-  useEffect(() => { fetchData(); }, [selectedOutlet]);
+  const { data: items = [], loading, refresh } = useCache(`pos:inventory:${selectedOutlet}`, {
+    fetcher: () => api.get(`/api/pos/inventory?outlet=${selectedOutlet}`).then(r => r.data),
+    ttl: 60 * 1000,
+  });
 
   const categories = [...new Set(items.map(i => i.category).filter(Boolean))].sort();
 
@@ -177,7 +169,7 @@ const OutletPOSInventory = () => {
       toast.success('Product updated');
       setEditModalOpen(false);
       setEditItem(null);
-      fetchData();
+      refresh();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to update product');
     }
@@ -199,7 +191,7 @@ const OutletPOSInventory = () => {
       await api.post('/api/pos/products', payload);
       toast.success('Product added to POS catalog');
       setIsModalOpen(false);
-      fetchData();
+      refresh();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to create product');
     }
@@ -222,7 +214,7 @@ const OutletPOSInventory = () => {
               <PlusCircle size={16} />Add Product
             </button>
           )}
-          <button onClick={() => fetchData(true)} disabled={loading} className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white font-black px-4 py-3 rounded-xl text-sm">
+          <button onClick={refresh} disabled={loading} className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white font-black px-4 py-3 rounded-xl text-sm">
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />Refresh
           </button>
         </div>

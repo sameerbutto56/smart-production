@@ -1,54 +1,37 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import axios from 'axios';
+import React, { useEffect, useState } from 'react';
+import api from '../services/api';
 import toast from 'react-hot-toast';
 import socket from '../socket';
 import { debounce } from '../utils/debounce';
+import useCache from '../hooks/useCache';
 import { useAuth } from '../context/AuthContext';
 import { ArrowLeft, RefreshCw, Search, RotateCcw, CheckCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 
-const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
-
 const RefundManagement = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const token = sessionStorage.getItem('token');
 
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: orders = [], loading, refresh } = useCache('orders:refund-queue', {
+    fetcher: () => api.get('/api/orders/refund-queue').then(r => r.data || []),
+    ttl: 60 * 1000,
+  });
   const [search, setSearch] = useState('');
   const [refundTab, setRefundTab] = useState('ACTIVE');
 
-  const fetchRefundQueue = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await axios.get(`${API_URL}/api/orders/refund-queue`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setOrders(res.data || []);
-    } catch {
-      toast.error('Failed to load refund queue');
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
-
   useEffect(() => {
-    const debouncedFetch = debounce(fetchRefundQueue, 300);
-    fetchRefundQueue();
-    socket.on('order-updated', debouncedFetch);
-    return () => { socket.off('order-updated', debouncedFetch); };
-  }, [fetchRefundQueue]);
+    const debouncedRefresh = debounce(refresh, 300);
+    socket.on('order-updated', debouncedRefresh);
+    return () => { socket.off('order-updated', debouncedRefresh); };
+  }, [refresh]);
 
   const processRefund = async (orderId, action) => {
     try {
       const note = action === 'PROCESSING' ? prompt('Refund processing notes:') || 'Processing' : '';
-      await axios.post(`${API_URL}/api/orders/${orderId}/process-refund`, { action, note }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.post(`/api/orders/${orderId}/process-refund`, { action, note });
       toast.success(`Refund ${action === 'PROCESSING' ? 'marked as PROCESSING' : 'marked as REFUNDED'}`);
-      fetchRefundQueue();
+      refresh();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Action failed');
     }
@@ -83,7 +66,7 @@ const RefundManagement = () => {
             <p className="text-xs md:text-sm theme-text-muted font-bold mt-0.5">{orders.length} refund requests</p>
           </div>
         </div>
-        <button onClick={fetchRefundQueue} className="w-11 h-11 flex items-center justify-center theme-bg border theme-border rounded-2xl theme-text-secondary hover:text-white active:scale-90 transition-all">
+        <button onClick={refresh} className="w-11 h-11 flex items-center justify-center theme-bg border theme-border rounded-2xl theme-text-secondary hover:text-white active:scale-90 transition-all">
           <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
         </button>
       </div>

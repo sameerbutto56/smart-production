@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { PageLoader, LoadingSpinner } from '../components/LoadingSpinner';
 import socket from '../socket';
 import { debounce } from '../utils/debounce';
+import useCache from '../hooks/useCache';
 import { printDispatchSheet } from '../utils/printReport';
 import { Truck, Package, Eye, Send, Search, Loader2, Clock, Phone, MapPin, ExternalLink, CheckCircle2, X, Printer } from 'lucide-react';
 
@@ -27,9 +28,12 @@ const DispatchDashboard = () => {
   const { user } = useAuth();
   const isOutlet = user?.role === 'OUTLET';
   const isDispatchAdmin = ['SUPER_ADMIN', 'FAISAL', 'ADMIN'].includes(user?.role || '');
+  const { data: rawData, loading, refresh } = useCache('dispatch:dashboard', {
+    fetcher: () => api.get('/api/dispatch/dashboard').then(r => r.data),
+    ttl: 60 * 1000,
+  });
+  const data = rawData || { unseen: [], active: [], allOrders: [], counts: { unseen: 0, active: 0, all: 0 } };
   const [activeTab, setActiveTab] = useState('unseen');
-  const [data, setData] = useState({ unseen: [], active: [], allOrders: [], counts: { unseen: 0, active: 0, all: 0 } });
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [cityFilter, setCityFilter] = useState('');
   const [methodFilter, setMethodFilter] = useState('');
@@ -61,46 +65,33 @@ const DispatchDashboard = () => {
   const slDisplay = (v) => v ? (slMap[v] || v) : '';
   const shDisplay = (v) => v ? (shMap[v] || v) : '';
 
-  const fetchDashboard = async () => {
-    setLoading(true);
-    try {
-      const res = await api.get('/api/dispatch/dashboard');
-      setData(res.data);
-    } catch (err) {
-      console.error('Failed to fetch dispatch dashboard:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchDashboard();
-    const interval = setInterval(fetchDashboard, 15000);
+    const interval = setInterval(refresh, 15000);
     return () => clearInterval(interval);
-  }, []);
+  }, [refresh]);
 
   useEffect(() => {
     const handleStageAccepted = () => {
       if (queueRefreshRef.current) clearTimeout(queueRefreshRef.current);
-      queueRefreshRef.current = setTimeout(fetchDashboard, 500);
+      queueRefreshRef.current = setTimeout(refresh, 500);
     };
-    const debouncedFetch = debounce(fetchDashboard, 300);
+    const debouncedRefresh = debounce(refresh, 300);
     socket.on('stage-accepted', handleStageAccepted);
-    socket.on('dispatch-request', debouncedFetch);
-    socket.on('order-updated', debouncedFetch);
+    socket.on('dispatch-request', debouncedRefresh);
+    socket.on('order-updated', debouncedRefresh);
     return () => {
       socket.off('stage-accepted', handleStageAccepted);
-      socket.off('dispatch-request', debouncedFetch);
-      socket.off('order-updated', debouncedFetch);
+      socket.off('dispatch-request', debouncedRefresh);
+      socket.off('order-updated', debouncedRefresh);
     };
-  }, []);
+  }, [refresh]);
 
   const handleAcceptTask = async (orderId) => {
     setAcceptLoading(orderId);
     try {
       await api.post(`/api/orders/${orderId}/accept-task`, {});
       toast.success('Task accepted!', { duration: 2000 });
-      fetchDashboard();
+      refresh();
     } catch (err) {
       toast.error('Failed to accept task: ' + (err.response?.data?.error || err.message));
     } finally {
@@ -129,7 +120,7 @@ const DispatchDashboard = () => {
       setOtherCourierName('');
       setSelectedOption(DISPATCH_OPTIONS[0]);
       toast.success(option.id === 'WALK_IN' ? 'Order marked as received by customer!' : option.id === 'ENAMELS' ? 'Assigned to Enamels Delivery!' : 'Courier booked successfully!', { duration: 3000 });
-      fetchDashboard();
+      refresh();
     } catch (err) {
       alert('Failed: ' + (err.response?.data?.error || err.message));
     }
@@ -148,7 +139,7 @@ const DispatchDashboard = () => {
       setDestinationCity('');
       setNotes('');
       toast.success('Courier dispatch requested! Dispatch department notified.', { duration: 4000 });
-      fetchDashboard();
+      refresh();
     } catch (err) {
       alert('Failed to request courier: ' + (err.response?.data?.error || err.message));
     }
@@ -160,7 +151,7 @@ const DispatchDashboard = () => {
     try {
       await api.put(`/api/dispatch/${orderId}/status`, { dispatchStatus });
       toast.success(`Order ${dispatchStatus === 'DELIVERED' ? 'Delivered' : dispatchStatus === 'RETURNED' ? 'Returned' : `marked ${dispatchStatus}`}`, { duration: 2000 });
-      fetchDashboard();
+      refresh();
     } catch (err) {
       alert('Failed: ' + (err.response?.data?.error || err.message));
     } finally {
@@ -173,7 +164,7 @@ const DispatchDashboard = () => {
     try {
       await api.put(`/api/dispatch/${orderId}/pickup`, {});
       toast.success('Order marked as picked up!', { duration: 2000 });
-      fetchDashboard();
+      refresh();
     } catch (err) {
       alert('Failed to mark picked up: ' + (err.response?.data?.error || err.message));
     } finally {

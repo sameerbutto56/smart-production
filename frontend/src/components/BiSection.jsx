@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import {
   TrendingUp, DollarSign, Package, Layers, ShoppingCart, Store,
   Truck, Archive, AlertTriangle, BarChart3, PieChart, Activity,
@@ -9,12 +9,6 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart as RePieChart, Pie, Cell, LineChart, Line, CartesianGrid, Legend
 } from 'recharts';
-
-const API_URL = import.meta.env.VITE_API_URL || (
-  window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'http://localhost:5000'
-    : window.location.origin
-);
 
 const DATE_PRESETS = [
   { key: 'all', label: 'All Time' },
@@ -61,7 +55,7 @@ const BiSection = () => {
         if (to) params.endDate = new Date(to).toISOString();
       }
       if (src && src !== 'all') params.source = src;
-      const res = await axios.get(`${API_URL}/api/bi/dashboard`, { params, headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` } });
+      const res = await api.get('/api/bi/dashboard', { params });
       setData(res.data);
     } catch (err) {
       console.error('BI fetch error:', err);

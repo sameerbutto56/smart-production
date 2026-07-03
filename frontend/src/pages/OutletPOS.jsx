@@ -1,9 +1,14 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Search, ShoppingCart, Plus, Minus, X, Trash2, Printer, Barcode, Percent, RotateCcw, CreditCard, DollarSign, Package, Tag, Grid3X3, List, ChevronDown, ChevronUp, AlertCircle, BarChart3 } from 'lucide-react';
+import { Search, ShoppingCart, Plus, Minus, X, Trash2, Printer, Barcode, Percent, RotateCcw, CreditCard, DollarSign, Package, Tag, Grid3X3, List, ChevronDown, ChevronUp, AlertCircle, BarChart3, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import JsBarcode from 'jsbarcode';
+import useCache, { invalidateKey } from '../hooks/useCache';
+import { enqueue } from '../utils/syncQueue';
+import { normalizeInventoryEvent } from '../utils/normalizeEvents';
+import socket from '../socket';
+import { debounce } from '../utils/debounce';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -11,12 +16,23 @@ const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 
 const OutletPOS = () => {
   const { user } = useAuth();
-  const [products, setProducts] = useState(() => {
-    try {
-      const cached = localStorage.getItem('pos_products');
-      return cached ? JSON.parse(cached) : [];
-    } catch { return []; }
+  const { data: products = [], loading: productsLoading, refresh: refreshProducts } = useCache('pos:products', {
+    fetcher: () => api.get('/api/pos/products').then(r => r.data),
+    ttl: 5 * 60 * 1000,
   });
+  const { data: dashboard = null, loading: dashboardLoading, refresh: refreshDashboard } = useCache('pos:dashboard', {
+    fetcher: () => api.get('/api/pos/sales/dashboard').then(r => r.data),
+    ttl: 60 * 1000,
+  });
+  const { data: sales = [], loading: salesLoading, refresh: refreshSales } = useCache('pos:sales', {
+    fetcher: () => api.get('/api/pos/sales').then(r => r.data),
+    ttl: 5 * 60 * 1000,
+  });
+  const { data: returns = [], loading: returnsLoading, refresh: refreshReturns } = useCache('pos:returns', {
+    fetcher: () => api.get('/api/pos/returns').then(r => r.data),
+    ttl: 5 * 60 * 1000,
+  });
+
   const [activeCategory, setActiveCategory] = useState(() => localStorage.getItem('pos_active_category') || '');
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState(() => {
@@ -44,24 +60,6 @@ const OutletPOS = () => {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [lastSale, setLastSale] = useState(null);
   const [tab, setTab] = useState('pos');
-  const [dashboard, setDashboard] = useState(() => {
-    try {
-      const cached = localStorage.getItem('pos_dashboard');
-      return cached ? JSON.parse(cached) : null;
-    } catch { return null; }
-  });
-  const [sales, setSales] = useState(() => {
-    try {
-      const cached = localStorage.getItem('pos_sales');
-      return cached ? JSON.parse(cached) : [];
-    } catch { return []; }
-  });
-  const [returns, setReturns] = useState(() => {
-    try {
-      const cached = localStorage.getItem('pos_returns');
-      return cached ? JSON.parse(cached) : [];
-    } catch { return []; }
-  });
   const [barcodeInput, setBarcodeInput] = useState('');
   const barcodeRef = useRef(null);
   const [returnTab, setReturnTab] = useState('scan');
@@ -70,53 +68,20 @@ const OutletPOS = () => {
   const [returnReason, setReturnReason] = useState('Customer return');
   const [returnLoading, setReturnLoading] = useState(false);
 
-  const fetchData = async (skipCache = false) => {
-    try {
-      const [p, d, s, r] = await Promise.all([
-        api.get(`/api/pos/products${skipCache ? '?skipCache=true' : ''}`),
-        api.get(`/api/pos/sales/dashboard${skipCache ? '?skipCache=true' : ''}`),
-        api.get(`/api/pos/sales${skipCache ? '?skipCache=true' : ''}`),
-        api.get(`/api/pos/returns${skipCache ? '?skipCache=true' : ''}`)
-      ]);
-      setProducts(p.data);
-      setDashboard(d.data);
-      setSales(s.data);
-      setReturns(r.data);
-      localStorage.setItem('pos_products', JSON.stringify(p.data));
-      localStorage.setItem('pos_dashboard', JSON.stringify(d.data));
-      localStorage.setItem('pos_sales', JSON.stringify(s.data));
-      localStorage.setItem('pos_returns', JSON.stringify(r.data));
-    } catch { toast.error('Failed to load data'); }
-  };
+  // Persist ephemeral state to localStorage
+  useEffect(() => { localStorage.setItem('pos_cart', JSON.stringify(cart)); }, [cart]);
+  useEffect(() => { localStorage.setItem('pos_discount_pct', discountPct.toString()); }, [discountPct]);
+  useEffect(() => { localStorage.setItem('pos_discount_fixed', discountFixed.toString()); }, [discountFixed]);
+  useEffect(() => { localStorage.setItem('pos_customer_name', customerName); }, [customerName]);
+  useEffect(() => { localStorage.setItem('pos_payment_method', paymentMethod); }, [paymentMethod]);
+  useEffect(() => { localStorage.setItem('pos_active_category', activeCategory); }, [activeCategory]);
 
+  // Socket listener for inventory updates — invalidate products cache
   useEffect(() => {
-    fetchData();
+    const handleInventoryUpdate = debounce(() => { invalidateKey('pos:products'); }, 500);
+    socket.on('inventory-updated', handleInventoryUpdate);
+    return () => { socket.off('inventory-updated', handleInventoryUpdate); };
   }, []);
-
-  // Persist states to local storage on changes
-  useEffect(() => {
-    localStorage.setItem('pos_cart', JSON.stringify(cart));
-  }, [cart]);
-
-  useEffect(() => {
-    localStorage.setItem('pos_discount_pct', discountPct.toString());
-  }, [discountPct]);
-
-  useEffect(() => {
-    localStorage.setItem('pos_discount_fixed', discountFixed.toString());
-  }, [discountFixed]);
-
-  useEffect(() => {
-    localStorage.setItem('pos_customer_name', customerName);
-  }, [customerName]);
-
-  useEffect(() => {
-    localStorage.setItem('pos_payment_method', paymentMethod);
-  }, [paymentMethod]);
-
-  useEffect(() => {
-    localStorage.setItem('pos_active_category', activeCategory);
-  }, [activeCategory]);
 
   const categories = useMemo(() => {
     const cats = [...new Set(products.map(p => p.category).filter(Boolean))];
@@ -237,21 +202,22 @@ const OutletPOS = () => {
     setCart(copy);
   };
 
-  /* ─── Checkout ─── */
-  const handleCheckout = async () => {
+  /* ─── Checkout (try fast path, fallback to sync queue) ─── */
+  const handleCheckout = useCallback(async () => {
     if (cart.length === 0) return;
+    const payload = {
+      items: cart.map(i => ({ variantId: i.variantId, quantity: i.qty, unitPrice: i.unitPrice, alterationCharges: i.alterationAmount })),
+      customerName: customerName || null,
+      alterationCharges: altCharges,
+      extraCharges: 0,
+      discountPercent: discountPct,
+      discountFixed: discountFixed,
+      paymentMethod,
+      receiptNumber: orderNumber || undefined
+    };
     setCheckoutLoading(true);
     try {
-      const res = await api.post('/api/pos/sales', {
-        items: cart.map(i => ({ variantId: i.variantId, quantity: i.qty, unitPrice: i.unitPrice, alterationCharges: i.alterationAmount })),
-        customerName: customerName || null,
-        alterationCharges: altCharges,
-        extraCharges: 0,
-        discountPercent: discountPct,
-        discountFixed: discountFixed,
-        paymentMethod,
-        receiptNumber: orderNumber || undefined
-      });
+      const res = await api.post('/api/pos/sales', payload);
       setLastSale(res.data);
       setShowCheckout(true);
       setCart([]);
@@ -259,13 +225,18 @@ const OutletPOS = () => {
       setDiscountFixed(0);
       setCustomerName('');
       setOrderNumber('');
-      fetchData();
+      refreshProducts();
+      refreshDashboard();
+      refreshSales();
+      refreshReturns();
       toast.success('Sale completed!');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Checkout failed');
+      // Offline fallback — enqueue for later sync
+      toast.error('Checkout failed, queueing for retry...');
+      await enqueue('sale', 'create', payload);
     }
     setCheckoutLoading(false);
-  };
+  }, [cart, customerName, altCharges, discountPct, discountFixed, paymentMethod, orderNumber, refreshProducts, refreshDashboard, refreshSales, refreshReturns]);
 
   /* ─── Receipt Print ─── */
   const printReceipt = (sale) => {
@@ -316,7 +287,10 @@ const OutletPOS = () => {
     try {
       await api.post('/api/pos/returns', { variantId, quantity: parseInt(qty), reason: 'Customer return' });
       toast.success('Return processed, stock updated');
-      fetchData();
+      refreshProducts();
+      refreshDashboard();
+      refreshSales();
+      refreshReturns();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Return failed');
     }
@@ -361,7 +335,10 @@ const OutletPOS = () => {
       toast.success(`${returnCart.reduce((s, i) => s + i.qty, 0)} item(s) returned successfully`);
       setReturnCart([]);
       setReturnReason('Customer return');
-      fetchData();
+      refreshProducts();
+      refreshDashboard();
+      refreshSales();
+      refreshReturns();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Return failed');
     }
@@ -572,6 +549,7 @@ const OutletPOS = () => {
         <button onClick={() => setTab('pos')} className={`text-xs font-bold px-3 py-2 rounded-xl ${tab === 'pos' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}><ShoppingCart size={14} className="inline mr-1" />POS</button>
         <button onClick={() => setTab('dashboard')} className={`text-xs font-bold px-3 py-2 rounded-xl ${tab === 'dashboard' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}><BarChart3 size={14} className="inline mr-1" />Dashboard</button>
         <button onClick={() => setTab('returns')} className={`text-xs font-bold px-3 py-2 rounded-xl ${tab === 'returns' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}><RotateCcw size={14} className="inline mr-1" />Returns</button>
+        <button onClick={() => { invalidateKey('pos:products'); invalidateKey('pos:dashboard'); invalidateKey('pos:sales'); invalidateKey('pos:returns'); }} className="text-xs font-bold px-2 py-2 rounded-xl bg-gray-800 text-gray-400 hover:text-white" title="Refresh data"><RefreshCw size={14} className={`inline ${productsLoading ? 'animate-spin' : ''}`} /></button>
         <div className="relative flex-1 max-w-md">
           <Barcode size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input ref={barcodeRef} value={barcodeInput} onChange={e => setBarcodeInput(e.target.value)} placeholder="Scan barcode..."
@@ -608,6 +586,12 @@ const OutletPOS = () => {
           </div>
 
           {/* Products */}
+          {productsLoading && filtered.length === 0 ? (
+            <div className="flex items-center justify-center h-64 text-gray-600">
+              <RefreshCw size={24} className="animate-spin mr-2" />
+              <span className="font-bold">Loading products...</span>
+            </div>
+          ) : (
           <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
             {filtered.map(p => {
               const totalStock = p.outletVariants?.reduce((s, v) => s + v.stock, 0) || 0;
@@ -628,6 +612,7 @@ const OutletPOS = () => {
               );
             })}
           </div>
+          )}
         </div>
 
         {/* Cart */}
