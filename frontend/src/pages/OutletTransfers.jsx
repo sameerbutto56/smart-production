@@ -19,6 +19,7 @@ const statusStyles = {
 const OutletTransfers = () => {
   const { user } = useAuth();
   const userOutlet = user?.role === 'OUTLET' ? user?.name : null;
+  const canCreateTransfer = user?.role === 'OUTLET' || user?.role === 'STORE' || user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
 
   const [transfers, setTransfers] = useState(() => {
     try { return JSON.parse(localStorage.getItem('pos_transfers') || '[]'); } catch { return []; }
@@ -160,7 +161,7 @@ const OutletTransfers = () => {
         <h1 className="text-2xl font-black text-white flex items-center gap-2"><ArrowRightLeft size={24} />Outlet Transfers</h1>
         <div className="flex gap-2">
           <button onClick={() => setTab('list')} className={`px-4 py-2 rounded-xl text-xs font-black ${tab === 'list' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400'}`}>History</button>
-          {userOutlet && <button onClick={() => setTab('new')} className={`px-4 py-2 rounded-xl text-xs font-black ${tab === 'new' ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-400'}`}>New Transfer</button>}
+          {canCreateTransfer && <button onClick={() => setTab('new')} className={`px-4 py-2 rounded-xl text-xs font-black ${tab === 'new' ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-400'}`}>New Transfer</button>}
         </div>
       </div>
 
