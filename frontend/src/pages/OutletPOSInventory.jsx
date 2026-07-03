@@ -1,11 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
-import { Package, Search, ChevronDown, ChevronUp, RefreshCw, Warehouse, Plus, X, CheckCircle2, Upload, Layers, Hash, Minus, PlusCircle, Pencil } from 'lucide-react';
+import { Package, Search, ChevronDown, ChevronUp, RefreshCw, Warehouse, Plus, X, CheckCircle2, Upload, Layers, Hash, Minus, PlusCircle, Pencil, Eye, EyeOff } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
 const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
+const ALL_OUTLETS = ['Johar Town', 'Jail Road', 'Abbottabad'];
 
 const OutletPOSInventory = () => {
+  const { user } = useAuth();
+  const defaultOutlet = (() => {
+    if (user?.role !== 'OUTLET') return 'Johar Town';
+    const n = (user?.name || '').toLowerCase();
+    if (n.includes('jail')) return 'Jail Road';
+    if (n.includes('abbottabad')) return 'Abbottabad';
+    return 'Johar Town';
+  })();
+  const [selectedOutlet, setSelectedOutlet] = useState(defaultOutlet);
   const [items, setItems] = useState([]);
   const [expandedId, setExpandedId] = useState(null);
   const [search, setSearch] = useState('');
@@ -21,16 +32,20 @@ const OutletPOSInventory = () => {
     variants: [{ color: '', size: '', price: 0 }]
   });
 
+  const isOutlet = user?.role === 'OUTLET';
+  const isReadOnly = isOutlet && selectedOutlet !== defaultOutlet;
+
   const fetchData = async (skipCache = false) => {
     setLoading(true);
     try {
-      const res = await api.get(`/api/pos/inventory${skipCache ? '?skipCache=true' : ''}`);
+      const params = skipCache ? `?outlet=${selectedOutlet}&skipCache=true` : `?outlet=${selectedOutlet}`;
+      const res = await api.get(`/api/pos/inventory${params}`);
       setItems(res.data);
     } catch { toast.error('Failed to load POS inventory'); }
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [selectedOutlet]);
 
   const categories = [...new Set(items.map(i => i.category).filter(Boolean))].sort();
 
@@ -194,22 +209,50 @@ const OutletPOSInventory = () => {
   return (
     <div className="space-y-6 pb-20 px-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-white">Outlet POS Inventory</h1>
           <p className="text-sm font-bold text-gray-400">
-            Products auto-available from warehouse &bull; Stock arrives via Store approval workflow
+            {isOutlet
+              ? (isReadOnly ? 'Viewing other outlet inventory (read-only)' : 'Manage your outlet inventory')
+              : 'Manage all outlet inventories'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={handleOpenModal} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black px-4 py-3 rounded-xl text-sm">
-            <PlusCircle size={16} />Add Product
-          </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {!isReadOnly && (
+            <button onClick={handleOpenModal} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black px-4 py-3 rounded-xl text-sm">
+              <PlusCircle size={16} />Add Product
+            </button>
+          )}
           <button onClick={() => fetchData(true)} disabled={loading} className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white font-black px-4 py-3 rounded-xl text-sm">
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />Refresh
           </button>
         </div>
       </div>
+
+      {/* Outlet selector tabs */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1">
+        {ALL_OUTLETS.map(outlet => {
+          const isOwn = isOutlet && outlet === defaultOutlet;
+          const isActive = outlet === selectedOutlet;
+          return (
+            <button key={outlet} onClick={() => setSelectedOutlet(outlet)}
+              className={`text-[10px] font-black px-3 py-1.5 rounded-lg whitespace-nowrap uppercase tracking-wider transition-all ${
+                isActive
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-800 text-gray-400 hover:text-white'
+              }`}>
+              {outlet}{isOwn ? ' (Mine)' : isReadOnly && isActive ? ' (View)' : ''}
+            </button>
+          );
+        })}
+      </div>
+      {isReadOnly && (
+        <div className="flex items-center gap-2 bg-amber-900/20 border border-amber-700/30 rounded-xl px-4 py-2">
+          <Eye size={14} className="text-amber-400 shrink-0" />
+          <span className="text-[11px] font-bold text-amber-400">Read-only view — You cannot add, edit, or modify {selectedOutlet}'s inventory</span>
+        </div>
+      )}
 
       {/* Categories filter */}
       <div className="flex gap-1.5 overflow-x-auto pb-1">
@@ -251,11 +294,13 @@ const OutletPOSInventory = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button onClick={(e) => { e.stopPropagation(); handleOpenEdit(item); }}
-                      className="flex items-center gap-1 px-3 py-2 bg-gray-800 hover:bg-blue-600 rounded-lg transition-colors">
-                      <Pencil size={12} className="text-white" />
-                      <span className="text-[10px] font-bold text-white">Edit</span>
-                    </button>
+                    {!isReadOnly && (
+                      <button onClick={(e) => { e.stopPropagation(); handleOpenEdit(item); }}
+                        className="flex items-center gap-1 px-3 py-2 bg-gray-800 hover:bg-blue-600 rounded-lg transition-colors">
+                        <Pencil size={12} className="text-white" />
+                        <span className="text-[10px] font-bold text-white">Edit</span>
+                      </button>
+                    )}
                     <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${totalStock > 0 ? 'bg-emerald-900/30 text-emerald-400' : 'bg-gray-800 text-gray-500'}`}>
                       Stock: {totalStock}
                     </span>

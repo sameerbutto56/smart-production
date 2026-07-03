@@ -266,18 +266,23 @@ const acceptDemandRequest = async (req, res) => {
         continue;
       }
 
-      // Find or create the matching OutletVariant
-      let ov = inv.outletVariants.find(o => o.color === (it.color || null) && o.size === (it.size || null));
+      // Find or create the matching OutletVariant for THIS outlet only
+      let ov = inv.outletVariants.find(o =>
+        o.outletName === existing.outletName &&
+        o.color === (it.color || null) &&
+        o.size === (it.size || null)
+      );
       if (!ov) {
         let bc = generateBarcode(inv.id, it.size, it.color);
         let a = 0;
-        while (await prisma.outletVariant.findUnique({ where: { barcode: bc } })) {
+        while (await prisma.outletVariant.findFirst({ where: { barcode: bc, outletName: existing.outletName } })) {
           a++;
           bc = generateBarcode(inv.id, it.size, it.color, a);
         }
         ov = await prisma.outletVariant.create({
           data: {
             inventoryItemId: inv.id,
+            outletName: existing.outletName,
             color: it.color || null,
             size: it.size || null,
             barcode: bc,
@@ -287,7 +292,7 @@ const acceptDemandRequest = async (req, res) => {
           }
         });
       } else {
-        // Add stock to existing variant
+        // Add stock to existing variant (same outlet)
         await prisma.outletVariant.update({
           where: { id: ov.id },
           data: { stock: { increment: parseInt(it.approvedQty) || 0 } }
@@ -321,8 +326,7 @@ const acceptDemandRequest = async (req, res) => {
       }
     });
 
-    cache.del('pos:inventory');
-    cache.del('pos:products');
+    cache.delPattern('pos:');
     res.json({ message: 'Demand accepted. Outlet stock added, warehouse deducted.', results });
   } catch (error) {
     res.status(500).json({ message: 'Error accepting demand request', error: error.message });

@@ -595,7 +595,7 @@ const getReturns = async (req, res) => {
 };
 
 /* ─── Create a new product from POS (product master + OutletVariants for all outlets, stock always 0) ─── */
-const OUTLETS = ['Johar Town', 'Jail Road'];
+const OUTLETS = ['Johar Town', 'Jail Road', 'Abbottabad'];
 
 const createPosProduct = async (req, res) => {
   try {
