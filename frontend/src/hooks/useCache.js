@@ -5,7 +5,7 @@ import api from '../services/api';
 const DEFAULT_TTL = 5 * 60 * 1000;
 
 export default function useCache(key, { fetcher, ttl = DEFAULT_TTL, staleWhileRevalidate = true } = {}) {
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const mountRef = useRef(true);
@@ -29,10 +29,12 @@ export default function useCache(key, { fetcher, ttl = DEFAULT_TTL, staleWhileRe
       const cached = await getItem(currentKey);
       if (cached !== null) {
         setData(cached);
-        setLoading(false);
         setError(null);
-        if (!staleWhileRevalidate) return;
-        // Continue to revalidate in background
+        if (!staleWhileRevalidate) {
+          setLoading(false);
+          return;
+        }
+        // keep loading=true while revalidating
       }
     }
 
@@ -56,6 +58,7 @@ export default function useCache(key, { fetcher, ttl = DEFAULT_TTL, staleWhileRe
   }, [fetcher, ttl, staleWhileRevalidate]);
 
   useEffect(() => {
+    mountRef.current = true;
     keyRef.current = key;
     load();
     return () => { mountRef.current = false; };
