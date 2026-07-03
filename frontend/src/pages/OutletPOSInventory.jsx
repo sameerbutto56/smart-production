@@ -33,7 +33,7 @@ const OutletPOSInventory = () => {
   });
 
   const isOutlet = user?.role === 'OUTLET';
-  const isReadOnly = isOutlet && selectedOutlet !== defaultOutlet;
+  const isReadOnly = isOutlet;
 
   const fetchData = async (skipCache = false) => {
     setLoading(true);
@@ -213,9 +213,7 @@ const OutletPOSInventory = () => {
         <div>
           <h1 className="text-2xl font-black text-white">Outlet POS Inventory</h1>
           <p className="text-sm font-bold text-gray-400">
-            {isOutlet
-              ? (isReadOnly ? 'Viewing other outlet inventory (read-only)' : 'Manage your outlet inventory')
-              : 'Manage all outlet inventories'}
+            {isOutlet ? 'View-only inventory (contact Store for changes)' : 'Manage all outlet inventories'}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -233,7 +231,6 @@ const OutletPOSInventory = () => {
       {/* Outlet selector tabs */}
       <div className="flex gap-1.5 overflow-x-auto pb-1">
         {ALL_OUTLETS.map(outlet => {
-          const isOwn = isOutlet && outlet === defaultOutlet;
           const isActive = outlet === selectedOutlet;
           return (
             <button key={outlet} onClick={() => setSelectedOutlet(outlet)}
@@ -242,15 +239,15 @@ const OutletPOSInventory = () => {
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-800 text-gray-400 hover:text-white'
               }`}>
-              {outlet}{isOwn ? ' (Mine)' : isReadOnly && isActive ? ' (View)' : ''}
+              {outlet}
             </button>
           );
         })}
       </div>
-      {isReadOnly && (
+      {isOutlet && (
         <div className="flex items-center gap-2 bg-amber-900/20 border border-amber-700/30 rounded-xl px-4 py-2">
           <Eye size={14} className="text-amber-400 shrink-0" />
-          <span className="text-[11px] font-bold text-amber-400">Read-only view — You cannot add, edit, or modify {selectedOutlet}'s inventory</span>
+          <span className="text-[11px] font-bold text-amber-400">View only — You cannot add, edit, or modify inventory. Contact Store for changes.</span>
         </div>
       )}
 
