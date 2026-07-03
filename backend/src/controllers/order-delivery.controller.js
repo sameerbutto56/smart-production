@@ -2,7 +2,7 @@ const prisma = require('../prisma');
 const {
   isSystemPaused, createAuditLog, calculateAndRecordRevenue,
   reverseInventoryForRefund
-} = require('./order.controller');
+} = require('./order-helpers');
 
 const updateDeliveryStatus = async (req, res) => {
   const { orderId } = req.params;

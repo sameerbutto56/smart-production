@@ -1,0 +1,206 @@
+const prisma = require('../prisma');
+
+// In-memory cache for frequently accessed settings
+const cache = {
+  systemPaused: { value: false, expiresAt: 0 },
+  stageDurations: { value: null, expiresAt: 0 },
+};
+
+const CACHE_TTL = 30000; // 30 seconds
+
+const isSystemPaused = async () => {
+  if (Date.now() < cache.systemPaused.expiresAt) return cache.systemPaused.value;
+  try {
+    const setting = await prisma.systemSetting.findUnique({ where: { key: 'SYSTEM_PAUSED' } });
+    cache.systemPaused = { value: setting ? setting.value === 'true' : false, expiresAt: Date.now() + CACHE_TTL };
+    return cache.systemPaused.value;
+  } catch { return false; }
+};
+
+const createAuditLog = async (orderId, action, details, userId) => {
+  try {
+    if (!userId) {
+      console.warn('Audit Log: No userId provided for action:', action);
+      return;
+    }
+    await prisma.auditLog.create({
+      data: {
+        orderId,
+        action,
+        details,
+        performedBy: userId,
+        timestamp: new Date()
+      }
+    });
+  } catch (error) {
+    console.error('Audit Log Error:', error);
+  }
+};
+
+const classifyOrderItems = async (order, itemList = null) => {
+  let parsedDetails;
+  try {
+    parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+  } catch {
+    return { inventoryItems: [], productionItems: [] };
+  }
+  const items = itemList || (Array.isArray(parsedDetails) ? parsedDetails : (parsedDetails?.productType ? [parsedDetails] : []));
+
+  const inventoryItems = [];
+  const productionItems = [];
+
+  // Batch-fetch all inventory items in a single query
+  const productTypes = items.map(item => (item.productDetails || item)?.productType).filter(Boolean);
+  const uniqueTypes = [...new Set(productTypes)];
+  const allInvItems = uniqueTypes.length > 0
+    ? await prisma.inventoryItem.findMany({
+        where: {
+          category: { not: 'FABRIC' },
+          OR: uniqueTypes.map(name => ({ name: { contains: name, mode: 'insensitive' } }))
+        },
+        select: { id: true, name: true, stock: true, variants: true, category: true }
+      })
+    : [];
+
+  for (const item of items) {
+    const pd = item.productDetails || item;
+    const productType = pd?.productType;
+    if (!productType) continue;
+
+    const quantity = item.quantity || 1;
+    const invItem = allInvItems.find(inv => inv.name.toLowerCase().includes(productType.toLowerCase()));
+
+    if (invItem) {
+      inventoryItems.push({ productType, quantity, color: pd.color, size: pd.size, inventoryItem: invItem });
+    } else {
+      productionItems.push({ productType, quantity, color: pd.color, size: pd.size });
+    }
+  }
+
+  return { inventoryItems, productionItems };
+};
+
+const reverseInventoryForRefund = async (order, userId) => {
+  let parsedDetails;
+  try {
+    parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+  } catch { return; }
+  if (!parsedDetails) return;
+
+  const { inventoryItems, productionItems } = await classifyOrderItems(order);
+
+  // Reverse production items — remove from inventory (they were added via addOrderToInventory)
+  for (const prod of productionItems) {
+    const qty = prod.quantity || 1;
+    const inventoryItem = prod.inventoryItem || await prisma.inventoryItem.findFirst({
+      where: { name: { contains: prod.productType, mode: 'insensitive' } }
+    });
+    if (!inventoryItem) continue;
+
+    if (inventoryItem.variants && Array.isArray(inventoryItem.variants)) {
+      let updatedVariants = [...inventoryItem.variants];
+      const matchIdx = updatedVariants.findIndex(v =>
+        (!prod.color || (v.color && v.color.toLowerCase() === prod.color.toLowerCase())) &&
+        (!prod.size || (v.size && v.size.toLowerCase() === prod.size.toLowerCase()))
+      );
+      if (matchIdx >= 0) {
+        updatedVariants[matchIdx] = { ...updatedVariants[matchIdx], stock: Math.max(0, (updatedVariants[matchIdx].stock || 0) - qty) };
+      }
+      const newTotalStock = updatedVariants.reduce((s, v) => s + (v.stock || 0), 0);
+      await prisma.inventoryItem.update({
+        where: { id: inventoryItem.id },
+        data: { variants: updatedVariants, stock: newTotalStock }
+      });
+    } else {
+      await prisma.inventoryItem.update({
+        where: { id: inventoryItem.id },
+        data: { stock: { decrement: Math.min(qty, inventoryItem.stock) } }
+      });
+    }
+  }
+
+  // Reverse inventory items — add back to stock (they were deducted via deductInventoryItems)
+  for (const prod of inventoryItems) {
+    const qty = prod.quantity || 1;
+    const inventoryItem = prod.inventoryItem;
+    if (!inventoryItem) continue;
+
+    if (inventoryItem.variants && Array.isArray(inventoryItem.variants)) {
+      let updatedVariants = [...inventoryItem.variants];
+      const matchIdx = updatedVariants.findIndex(v =>
+        (!prod.color || (v.color && v.color.toLowerCase() === prod.color.toLowerCase())) &&
+        (!prod.size || (v.size && v.size.toLowerCase() === prod.size.toLowerCase()))
+      );
+      if (matchIdx >= 0) {
+        updatedVariants[matchIdx] = { ...updatedVariants[matchIdx], stock: (updatedVariants[matchIdx].stock || 0) + qty };
+      } else {
+        updatedVariants.push({ color: prod.color || '', size: prod.size || '', stock: qty, price: 0 });
+      }
+      const newTotalStock = updatedVariants.reduce((s, v) => s + (v.stock || 0), 0);
+      await prisma.inventoryItem.update({
+        where: { id: inventoryItem.id },
+        data: { variants: updatedVariants, stock: newTotalStock }
+      });
+    } else {
+      await prisma.inventoryItem.update({
+        where: { id: inventoryItem.id },
+        data: { stock: { increment: qty } }
+      });
+    }
+  }
+
+  // Clean up production records
+  await prisma.productionRecord.deleteMany({ where: { orderId: order.id } }).catch(() => {});
+
+  const reversed = [
+    ...productionItems.map(p => `${p.productType} x${p.quantity} (removed)`),
+    ...inventoryItems.map(p => `${p.productType} x${p.quantity} (restored)`)
+  ];
+  if (reversed.length > 0) {
+    await createAuditLog(order.id, 'INVENTORY_REVERSED', `Inventory reversed for refund: ${reversed.join(', ')}`, userId);
+  }
+};
+
+const calculateAndRecordRevenue = async (order) => {
+  try {
+    const productCost = order.productCost || 0;
+    const logoCharges = order.logoCharges || 0;
+    const namePrintingCharges = order.namePrintingCharges || 0;
+    const customizationCharges = order.customizationPrice || 0;
+    const productionCost = order.productionCost || 0;
+    const totalCost = productCost + logoCharges + namePrintingCharges + customizationCharges + productionCost;
+    const totalRevenue = order.totalPrice || 0;
+    const totalProfit = totalRevenue - totalCost;
+
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { grossProfit: totalProfit, netProfit: totalProfit - (logoCharges + namePrintingCharges + customizationCharges) }
+    });
+
+    // Only create revenue record if one doesn't already exist for this order (prevents duplicates for prepaid orders)
+    const existingRecord = await prisma.revenueRecord.findFirst({ where: { orderId: order.id } });
+    if (!existingRecord) {
+      await prisma.revenueRecord.create({
+      data: {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        orderType: order.type,
+        source: order.source === 'INTERNAL' || order.source === 'ONLINE' ? 'ONLINE' : 'OUTLET',
+        outletName: order.outletName,
+        orderAmount: totalRevenue,
+        productCost,
+        logoCharges,
+        namePrintingCharges,
+        customizationCharges,
+        productionCost,
+        totalRevenue,
+        totalProfit
+      }
+    });
+    }
+  } catch (err) {
+    console.error('Revenue calculation error:', err);
+  }
+};
+
+module.exports = { cache, CACHE_TTL, isSystemPaused, createAuditLog, classifyOrderItems, reverseInventoryForRefund, calculateAndRecordRevenue };
