@@ -329,14 +329,19 @@ const InventoryManagement = () => {
       background: '#ffffff',
       lineColor: '#000000',
     });
-    // Add viewBox for zero-loss scaling
+    // Add viewBox for zero-loss scaling; remove fixed size so CSS controls dimensions
     const sw = svg.getAttribute('width');
     const sh = svg.getAttribute('height');
     svg.setAttribute('viewBox', `0 0 ${sw} ${sh}`);
-    svg.setAttribute('width', '100%');
-    svg.setAttribute('height', '100%');
+    svg.removeAttribute('width');
+    svg.removeAttribute('height');
     const svgString = new XMLSerializer().serializeToString(svg);
 
+    // Label dimensions (per retail barcode spec):
+    //   Width: 55mm, Height: 33mm
+    //   Barcode area: ~21mm height (within 20-25mm spec)
+    //   Quiet zone: 3mm on each side
+    //   Barcode bars: pure black on white for max scanner contrast
     const pw = window.open('', '_blank');
     pw.document.write(`<!DOCTYPE html>
 <html>
@@ -345,49 +350,38 @@ const InventoryManagement = () => {
 <title>Barcode Labels</title>
 <style>
   @page { margin: 0; size: 55mm 33mm; }
-  * { box-sizing: border-box; }
-  body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .labels { width: 55mm; height: 33mm; overflow: hidden; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .label {
     width: 55mm; height: 33mm;
-    padding: 3mm 4mm;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    align-items: center;
-    text-align: center;
-    page-break-after: always;
-    page-break-inside: avoid;
-    background: #fff;
-    color: #000;
+    padding: 2.5mm 3mm 2mm;
+    display: flex; flex-direction: column;
+    align-items: center; text-align: center;
+    page-break-after: always; page-break-inside: avoid;
+    background: #fff; color: #000;
   }
-  .label-top { width: 100%; text-align: center; }
-  .label .name { font-size: 8.5pt; font-weight: bold; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0 0 1px 0; text-transform: uppercase; }
-  .label .sku { font-size: 7pt; color: #555; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; font-family: monospace; }
-  
-  .label .bcwrap { width: 100%; height: 14mm; display: flex; align-items: center; justify-content: center; margin: 1mm 0; }
-  .label .bcwrap svg { max-width: 100%; max-height: 100%; display: block; margin: 0 auto; }
-  
-  .label-bottom { width: 100%; display: flex; justify-content: space-between; align-items: center; padding-top: 1px; border-top: 0.5px dashed #ccc; }
-  .label .bctext { font-size: 7.5pt; font-family: monospace; font-weight: bold; color: #000; letter-spacing: 0.5px; }
-  .label .price { font-size: 9.5pt; font-weight: 900; color: #000; }
+  .label .name { width: 100%; font-size: 8pt; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; line-height: 1.15; }
+  .label .sku  { width: 100%; font-size: 6.5pt; color: #555; font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.15; }
+
+  .label .bcwrap { width: 100%; height: 20mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .label .bcwrap svg { width: 100%; height: 100%; display: block; }
+
+  .label .bottom { width: 100%; display: flex; justify-content: space-between; align-items: baseline; border-top: 0.5px solid #ccc; padding-top: 0.8mm; margin-top: auto; }
+  .label .bctext { font-size: 7pt; font-family: 'Courier New', monospace; font-weight: bold; color: #000; letter-spacing: 0.3px; }
+  .label .price  { font-size: 9pt; font-weight: 900; color: #000; }
 </style>
 </head>
 <body>
-<div class="labels">
   ${Array(count).fill(null).map(() => `
   <div class="label">
-    <div class="label-top">
-      <div class="name">${productName}</div>
-      <div class="sku">${sizeInfo ? sizeInfo : 'STANDARD'}</div>
-    </div>
+    <div class="name">${productName}</div>
+    <div class="sku">${sizeInfo || 'STANDARD'}</div>
     <div class="bcwrap">${svgString}</div>
-    <div class="label-bottom">
-      <div class="bctext">${barcode}</div>
-      <div class="price">${formatCurr(variant.price || item.price || 0)}</div>
+    <div class="bottom">
+      <span class="bctext">${barcode}</span>
+      <span class="price">${formatCurr(variant.price || item.price || 0)}</span>
     </div>
   </div>`).join('')}
-</div>
 </body>
 </html>`);
     pw.document.close();
