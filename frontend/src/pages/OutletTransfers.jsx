@@ -39,16 +39,18 @@ const OutletTransfers = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [t, inv] = await Promise.all([
-        api.get('/api/transfers'),
-        api.get('/api/pos/products')
-      ]);
+      const t = await api.get('/api/transfers');
       setTransfers(t.data);
-      setInventory(inv.data);
       localStorage.setItem('pos_transfers', JSON.stringify(t.data));
+    } catch (e) {
+      toast.error(`Failed to load transfers: ${e.response?.data?.message || e.message}`);
+    }
+    try {
+      const inv = await api.get('/api/pos/products?skipCache=true');
+      setInventory(inv.data);
       localStorage.setItem('pos_products', JSON.stringify(inv.data));
-    } catch {
-      toast.error('Failed to load data');
+    } catch (e) {
+      toast.error(`Failed to load products: ${e.response?.data?.message || e.message}`);
     }
     setLoading(false);
   };

@@ -4,6 +4,11 @@ const CACHE_KEY_PREFIX = 'pos:';
 
 const getOutletName = (req) => req.query.outlet || (req.user?.role === 'OUTLET' ? req.user?.name : null);
 
+const parseItemVariants = (item) => {
+  const raw = typeof item.variants === 'string' ? JSON.parse(item.variants) : item.variants;
+  return Array.isArray(raw) && raw.length > 0 ? raw : null;
+};
+
 const djb2 = (s) => {
   if (!s) return 0;
   let hash = 5381;
@@ -93,12 +98,7 @@ const getPosInventory = async (req, res) => {
     if (outlet) {
       for (const item of items) {
         const missing = [];
-        let variantDefs = [];
-        if (Array.isArray(item.variants) && item.variants.length > 0) {
-          variantDefs = item.variants;
-        } else {
-          variantDefs = [{ color: item.color || null, size: item.size || null, stock: item.stock, price: item.price }];
-        }
+        let variantDefs = parseItemVariants(item) || [{ color: item.color || null, size: item.size || null, stock: item.stock, price: item.price }];
         for (const vd of variantDefs) {
           const exists = item.outletVariants.some(ov => ov.color === (vd.color || null) && ov.size === (vd.size || null));
           if (!exists) {
@@ -130,12 +130,7 @@ const getPosInventory = async (req, res) => {
     }
 
     const result = items.map(item => {
-      let variantDefs = [];
-      if (Array.isArray(item.variants) && item.variants.length > 0) {
-        variantDefs = item.variants;
-      } else {
-        variantDefs = [{ color: item.color || null, size: item.size || null, stock: item.stock, price: item.price }];
-      }
+      let variantDefs = parseItemVariants(item) || [{ color: item.color || null, size: item.size || null, stock: item.stock, price: item.price }];
 
       const colors = [...new Set(variantDefs.map(v => v.color).filter(Boolean))];
       const sizes = [...new Set(variantDefs.map(v => v.size).filter(Boolean))];
@@ -188,12 +183,7 @@ const getProducts = async (req, res) => {
     // Auto-create variants for this outlet if needed
     if (outlet) {
       for (const item of allItems) {
-        let variantDefs = [];
-        if (Array.isArray(item.variants) && item.variants.length > 0) {
-          variantDefs = item.variants;
-        } else {
-          variantDefs = [{ color: item.color || null, size: item.size || null, stock: item.stock, price: item.price }];
-        }
+        let variantDefs = parseItemVariants(item) || [{ color: item.color || null, size: item.size || null, stock: item.stock, price: item.price }];
         for (const vd of variantDefs) {
           const exists = item.outletVariants.some(ov => ov.color === (vd.color || null) && ov.size === (vd.size || null));
           if (!exists) {
@@ -229,6 +219,7 @@ const getProducts = async (req, res) => {
     const grouped = {};
     for (const ov of allVariants) {
       const item = ov.inventoryItem;
+      if (!item) continue;
       if (!grouped[item.id]) {
         grouped[item.id] = {
           id: item.id,
