@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { SearchProvider } from './context/SearchContext';
 import { LanguageProvider } from './context/LanguageContext';
 import Layout from './components/Layout';
+import ErrorBoundary from './components/ErrorBoundary';
 import { ThemeProvider } from './context/ThemeContext';
 
 // All pages lazy-loaded — each becomes its own chunk
@@ -62,6 +63,7 @@ function App() {
           <SearchProvider>
             <Toaster position="top-right" toastOptions={{ className: 'glass text-white font-black', style: { background: '#111827', border: '1px solid #1f2937' } }} />
             <Router>
+              <ErrorBoundary>
               <Routes>
                 <Route path="/login" element={
                   <Suspense fallback={<div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>}>
@@ -109,6 +111,7 @@ function App() {
                   <Route path="transfers" element={<OutletTransfers />} />
                 </Route>
               </Routes>
+              </ErrorBoundary>
             </Router>
           </SearchProvider>
         </LanguageProvider>

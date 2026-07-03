@@ -17,7 +17,8 @@ export default function useCache(key, { fetcher, ttl = DEFAULT_TTL, staleWhileRe
     const currentKey = keyRef.current;
     if (!currentKey) { setLoading(false); return; }
 
-    // Try to serve cached data first (instant or near-instant)
+    let hadCachedData = false;
+
     if (!skipCache) {
       // 1. Hot cache (memory)
       const hot = getHot(currentKey);
@@ -31,6 +32,7 @@ export default function useCache(key, { fetcher, ttl = DEFAULT_TTL, staleWhileRe
       // 2. IndexedDB
       const cached = await getItem(currentKey);
       if (cached !== null) {
+        hadCachedData = true;
         setData(cached);
         setError(null);
         if (staleWhileRevalidate) {
@@ -45,7 +47,6 @@ export default function useCache(key, { fetcher, ttl = DEFAULT_TTL, staleWhileRe
     // 3. Fetch fresh from API (revalidation or cold load)
     const fn = fetcherRef.current;
     if (!fn) { setLoading(false); return; }
-    const hadCachedData = !skipCache && getHot(currentKey) === null && await getItem(currentKey).then(c => c !== null).catch(() => false);
     if (!hadCachedData) setLoading(true);
     try {
       const freshData = await fn();
