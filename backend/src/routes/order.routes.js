@@ -12,7 +12,6 @@ const {
   deleteOrder,
   getDeletedOrders,
   checkDeletedOrder,
-  updateDeliveryStatus,
   holdOrder,
   sendForDelivery,
   updateOrderPriority,
@@ -30,19 +29,22 @@ const {
   storeRouteOrder,
   returnToStore,
   getStoreDashboardOrders,
-  refundOrder,
-  getRefundQueue,
-  processRefund,
   bulkRouteOrders,
   dispatchOrder,
   updateDispatchStatus,
-  acceptDelivery,
-  getDeliveryHistory,
   acceptTask,
   getOrderTimeline,
   getOutletAnalytics,
   updateProductAvailability
 } = require('../controllers/order.controller');
+const {
+  updateDeliveryStatus,
+  acceptDelivery,
+  getDeliveryHistory,
+  refundOrder,
+  getRefundQueue,
+  processRefund
+} = require('../controllers/order-delivery.controller');
 const { createEditRequest } = require('../controllers/editRequest.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 const router = express.Router();

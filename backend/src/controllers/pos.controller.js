@@ -94,21 +94,21 @@ const getPosInventory = async (req, res) => {
       orderBy: { name: 'asc' }
     });
 
-    // Auto-create missing OutletVariants (only for specific outlet)
+    // Auto-create missing OutletVariants (batch single createMany)
     if (outlet) {
+      const allMissing = [];
       for (const item of items) {
-        const missing = [];
         let variantDefs = parseItemVariants(item) || [{ color: item.color || null, size: item.size || null, stock: item.stock, price: item.price }];
         for (const vd of variantDefs) {
           const exists = item.outletVariants.some(ov => ov.color === (vd.color || null) && ov.size === (vd.size || null));
           if (!exists) {
             let barcode = generateBarcode(item.id, vd.size, vd.color);
             let attempt = 0;
-            while (await prisma.outletVariant.findFirst({ where: { barcode, outletName: outlet } })) {
+            while (allMissing.some(m => m.barcode === barcode) || await prisma.outletVariant.findFirst({ where: { barcode, outletName: outlet } })) {
               attempt++;
               barcode = generateBarcode(item.id, vd.size, vd.color, attempt);
             }
-            missing.push({
+            allMissing.push({
               inventoryItemId: item.id,
               outletName: outlet,
               color: vd.color || null,
@@ -120,11 +120,12 @@ const getPosInventory = async (req, res) => {
             });
           }
         }
-        if (missing.length > 0) {
-          for (const md of missing) {
-            await prisma.outletVariant.create({ data: md });
-          }
-          item.outletVariants = await prisma.outletVariant.findMany({ where: { inventoryItemId: item.id, outletName: outlet } });
+      }
+      if (allMissing.length > 0) {
+        await prisma.outletVariant.createMany({ data: allMissing });
+        const allVariants = await prisma.outletVariant.findMany({ where: { outletName: outlet } });
+        for (const item of items) {
+          item.outletVariants = allVariants.filter(ov => ov.inventoryItemId === item.id);
         }
       }
     }

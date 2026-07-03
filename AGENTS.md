@@ -81,8 +81,6 @@
 - **Per-product availability toggles, backend classification, expanded toggles to Job Sheet** — all rolled out in prior session.
 - **Routing System Fix**: Added route validation (`destinationStage` must be in `validAllStages`) in `manualRouteOrder` and `requestStageCompletion` — returns clear error message `"Cannot route order. Destination route X does not exist. Please configure the workflow route first."`. Previously no validation existed, routing to invalid stages would silently create orphan stages with no recipients.
 - **WORKERS stage**: Added as a valid routing destination across the entire system — `validAllStages`, `validateStageTransition`, `getRolesForStage` (mapped to `PRODUCTION` role), `getRolesForStageBasedOnRole`, `getStageDurations`, `AUTO_TRANSITION_STAGES`, analytics `stageOrder`. Frontend routing UIs updated: OrderCard STORE dropdown, STORE_RECEIVE buttons, admin Move To, prompt-based routing, WarehouseDashboard quick-route buttons + modal, MyTasks bulk routing, AdminDashboard bulk routing.
-
-### Done (current session)
 - **SVG vector barcode printing**: Replaced canvas PNG with JsBarcode SVG rendering — vector format scales perfectly at any DPI. Added viewBox for zero-loss scaling. Label dimensions: 55mm × 33mm with 20mm barcode height (meets 20-25mm spec). Pure black bars on white background for max scanner contrast.
 - **Fixed `acceptDemandRequest` outlet bug**: OutletVariant create/update now sets `outletName: existing.outletName` — stock no longer always lands in Johar Town. Variant find filters by `outletName` too, preventing cross-outlet stock corruption. Barcode collision check uses `findFirst({where:{barcode,outletName}})`.
 - **Fixed `createPosProduct` OUTLETS**: Added `'Abbottabad'` to the hardcoded array (was `['Johar Town', 'Jail Road']`).
@@ -95,6 +93,11 @@
 - **Clean avail payload**: STORE routing payload only includes explicitly `true`/`false` items.
 - **All status badges updated**: OrderCard, AllOrders everywhere.
 - **Build passes with 0 errors**.
+- **Fixed 504 timeout on Transfers page**: Removed redundant auto-creation loop from `getProducts` (variants already created by `getPosInventory`). [Commit 0a6d653]
+- **Fixed transfers load failure**: Added `parseItemVariants()` helper for JSON string `variants` field, null guard for orphaned `OutletVariant` records (null `inventoryItem`), split `Promise.all` for per-endpoint error messages. [Commit 39268f9]
+- **`onDelete: Cascade` on OutletVariant.inventoryItem**: Prisma schema updated — deleting an InventoryItem now auto-removes all OutletVariants referencing it (eliminates orphan OV errors on product delete).
+- **Batch variant auto-creation in `getPosInventory`**: Replaced per-variant `create` loop with single `createMany` call + one refetch (eliminates N+1 DB roundtrips during product creation).
+- **Extracted delivery/refund controller**: Moved `updateDeliveryStatus`, `acceptDelivery`, `getDeliveryHistory`, `refundOrder`, `getRefundQueue`, `processRefund` into `order-delivery.controller.js`. Updated `order.controller.js` to export shared helpers (`isSystemPaused`, `createAuditLog`, `calculateAndRecordRevenue`, `reverseInventoryForRefund`). Updated `order.routes.js` imports accordingly.
 
 ## Performance Optimizations (Jun 20)
 ### Backend
@@ -130,7 +133,7 @@
 - (none)
 
 ## Critical Context
-- Latest commit includes: Routing System Fix (route validation, WORKERS stage), Full Sheet Urdu translations, inventory dropdown + search bar, Vercel MIME config fix.
+- Latest commit includes: Fix 504 timeout on Transfers page, fix transfers load failure. [Commit 0a6d653]
 - Build passes with 0 errors.
 - `isAccessory` uses substring matching (`catUpper.includes('COAT')`).
 - `calculateAndRecordRevenue` at line 2482 of `order.controller.js` is idempotent.

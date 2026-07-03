@@ -452,7 +452,7 @@ model Client {
 model OutletVariant {
   id              String   @id @default(uuid())
   inventoryItemId String
-  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
   outletName      String   @default("Johar Town")
   color           String?
   size            String?
