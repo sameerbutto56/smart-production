@@ -47,6 +47,7 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
   res.json({ url: fileUrl });
 });
 
+const { errorHandler } = require('./middleware/error.middleware');
 const authRoutes = require('./routes/auth.routes');
 const orderRoutes = require('./routes/order.routes');
 const inventoryRoutes = require('./routes/inventory.routes');
@@ -80,6 +81,9 @@ app.use('/api/clients', clientRoutes);
 app.use('/api/bi', biRoutes);
 app.use('/api/pos', posRoutes);
 app.use('/api/transfers', transferRoutes);
+
+// Global error handler (must be last)
+app.use(errorHandler);
 
 // Safe Socket.io stub for serverless environments (overridden in server.js)
 const safeIo = {
