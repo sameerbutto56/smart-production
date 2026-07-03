@@ -354,19 +354,19 @@ const InventoryManagement = () => {
   body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .label {
     width: 55mm; height: 33mm;
-    padding: 2.5mm 3mm 2mm;
+    padding: 2mm 3mm 1.5mm;
     display: flex; flex-direction: column;
     align-items: center; text-align: center;
     page-break-after: always; page-break-inside: avoid;
     background: #fff; color: #000;
   }
-  .label .name { width: 100%; font-size: 8pt; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; line-height: 1.15; }
-  .label .sku  { width: 100%; font-size: 6.5pt; color: #555; font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.15; }
+  .label .name { width: 100%; font-size: 7.5pt; font-weight: bold; text-transform: uppercase; line-height: 1.2; word-break: break-word; overflow-wrap: break-word; }
+  .label .sku  { width: 100%; font-size: 6pt; color: #555; font-family: monospace; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-  .label .bcwrap { width: 100%; height: 20mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .label .bcwrap { width: 100%; height: 16mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .label .bcwrap svg { width: 100%; height: 100%; display: block; }
 
-  .label .bottom { width: 100%; display: flex; justify-content: space-between; align-items: baseline; border-top: 0.5px solid #ccc; padding-top: 0.8mm; margin-top: auto; }
+  .label .bottom { width: 100%; display: flex; justify-content: space-between; align-items: baseline; border-top: 0.5px solid #ccc; padding-top: 0.3mm; margin-top: auto; }
   .label .bctext { font-size: 7pt; font-family: 'Courier New', monospace; font-weight: bold; color: #000; letter-spacing: 0.3px; }
   .label .price  { font-size: 9pt; font-weight: 900; color: #000; }
 </style>
