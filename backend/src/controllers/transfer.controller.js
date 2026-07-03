@@ -14,8 +14,8 @@ const generateTransferNumber = (() => {
 
 const createTransfer = async (req, res) => {
   try {
-    const { toOutlet, items, notes } = req.body;
-    const fromOutlet = req.user?.role === 'OUTLET' ? req.user?.name : null;
+    const { toOutlet, items, notes, fromOutlet: bodyFromOutlet } = req.body;
+    const fromOutlet = req.user?.role === 'OUTLET' ? req.user?.name : (bodyFromOutlet || null);
     if (!fromOutlet) return res.status(400).json({ message: 'Source outlet not determined' });
     if (!toOutlet || !OUTLETS.includes(toOutlet)) return res.status(400).json({ message: 'Invalid destination outlet' });
     if (fromOutlet === toOutlet) return res.status(400).json({ message: 'Source and destination cannot be the same' });

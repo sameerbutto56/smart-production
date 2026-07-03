@@ -20,6 +20,7 @@ const OutletTransfers = () => {
   const { user } = useAuth();
   const userOutlet = user?.role === 'OUTLET' ? user?.name : null;
   const canCreateTransfer = user?.role === 'OUTLET' || user?.role === 'STORE' || user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const isMultiOutlet = !userOutlet && canCreateTransfer;
 
   const [transfers, setTransfers] = useState(() => {
     try { return JSON.parse(localStorage.getItem('pos_transfers') || '[]'); } catch { return []; }
@@ -31,6 +32,7 @@ const OutletTransfers = () => {
   const [tab, setTab] = useState('list');
 
   const [destOutlet, setDestOutlet] = useState('');
+  const [fromOutlet, setFromOutlet] = useState(isMultiOutlet ? '' : (userOutlet || ''));
   const [notes, setNotes] = useState('');
   const [transferItems, setTransferItems] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -46,17 +48,25 @@ const OutletTransfers = () => {
     } catch (e) {
       toast.error(`Failed to load transfers: ${e.response?.data?.message || e.message}`);
     }
+    setLoading(false);
+  };
+
+  const fetchInventory = async (outlet) => {
+    if (!outlet) return;
     try {
-      const inv = await api.get('/api/pos/products?skipCache=true');
+      const inv = await api.get(`/api/pos/products?skipCache=true&outlet=${encodeURIComponent(outlet)}`);
       setInventory(inv.data);
       localStorage.setItem('pos_products', JSON.stringify(inv.data));
     } catch (e) {
       toast.error(`Failed to load products: ${e.response?.data?.message || e.message}`);
     }
-    setLoading(false);
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  useEffect(() => {
+    if (tab === 'new' && fromOutlet) fetchInventory(fromOutlet);
+  }, [tab, fromOutlet]);
 
   const filteredInventory = useMemo(() => {
     let items = inventory;
@@ -95,6 +105,7 @@ const OutletTransfers = () => {
     setSubmitting(true);
     try {
       await api.post('/api/transfers', {
+        fromOutlet,
         toOutlet: destOutlet,
         items: transferItems.map(t => ({ variantId: t.variantId, quantity: t.qty })),
         notes: notes || null
@@ -232,11 +243,20 @@ const OutletTransfers = () => {
           <div className="bg-gray-900 border-2 border-gray-800 rounded-2xl p-4">
             <h2 className="text-sm font-black text-white mb-3 flex items-center gap-2"><Building2 size={16} />New Transfer</h2>
             <div className="space-y-3">
+              {isMultiOutlet && (
+                <div>
+                  <label className="text-xs font-bold text-gray-400 block mb-1">From Outlet</label>
+                  <select value={fromOutlet} onChange={e => setFromOutlet(e.target.value)} className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:border-blue-500 outline-none">
+                    <option value="">Select source outlet...</option>
+                    {OUTLETS.filter(o => o !== destOutlet).map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="text-xs font-bold text-gray-400 block mb-1">Destination Outlet</label>
                 <select value={destOutlet} onChange={e => setDestOutlet(e.target.value)} className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:border-blue-500 outline-none">
                   <option value="">Select outlet...</option>
-                  {availableOutlets.map(o => <option key={o} value={o}>{o}</option>)}
+                  {availableOutlets.filter(o => o !== fromOutlet).map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
               <div>
@@ -273,7 +293,7 @@ const OutletTransfers = () => {
           </div>
 
           <div className="bg-gray-900 border-2 border-gray-800 rounded-2xl p-4">
-            <h2 className="text-sm font-black text-white mb-3 flex items-center gap-2"><Package size={16} />Your Inventory</h2>
+            <h2 className="text-sm font-black text-white mb-3 flex items-center gap-2"><Package size={16} />{fromOutlet ? `${fromOutlet} Inventory` : 'Select source outlet'}</h2>
             <div className="relative mb-3">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
               <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search products..."
