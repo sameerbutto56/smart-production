@@ -4,7 +4,7 @@
  */
 const store = {};
 const DEFAULT_TTL = 5 * 60 * 1000; // 5 minutes
-const POS_TTL = 10 * 60 * 1000;    // 10 minutes for product catalog (changes rarely)
+const POS_TTL = 2 * 60 * 1000;     // 2 minutes for product catalog
 const DASHBOARD_TTL = 30 * 1000;    // 30 seconds for dashboard stats (changes on every sale)
 const BARCODE_TTL = 15 * 60 * 1000; // 15 minutes for barcode lookups (very stable data)
 

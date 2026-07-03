@@ -36,7 +36,7 @@ const OutletPOSInventory = () => {
 
   const { data: items = [], loading, refresh } = useCache(`pos:inventory:${selectedOutlet}`, {
     fetcher: () => api.get(`/api/pos/inventory?outlet=${selectedOutlet}`).then(r => r.data),
-    ttl: 60 * 1000,
+    ttl: 30 * 1000,
   });
 
   const categories = [...new Set(items.map(i => i.category).filter(Boolean))].sort();

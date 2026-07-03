@@ -66,6 +66,10 @@ export default function useCache(key, { fetcher, ttl = DEFAULT_TTL, staleWhileRe
   useEffect(() => {
     mountRef.current = true;
     keyRef.current = key;
+    if (key !== undefined && key !== null) {
+      setData(undefined);
+      setLoading(true);
+    }
     load();
     return () => { mountRef.current = false; };
   }, [key, load]);
