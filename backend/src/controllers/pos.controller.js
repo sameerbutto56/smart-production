@@ -180,36 +180,6 @@ const getProducts = async (req, res) => {
       orderBy: { name: 'asc' }
     });
 
-    // Auto-create variants for this outlet if needed
-    if (outlet) {
-      for (const item of allItems) {
-        let variantDefs = parseItemVariants(item) || [{ color: item.color || null, size: item.size || null, stock: item.stock, price: item.price }];
-        for (const vd of variantDefs) {
-          const exists = item.outletVariants.some(ov => ov.color === (vd.color || null) && ov.size === (vd.size || null));
-          if (!exists) {
-            let barcode = generateBarcode(item.id, vd.size, vd.color);
-            let attempt = 0;
-            while (await prisma.outletVariant.findFirst({ where: { barcode, outletName: outlet } })) {
-              attempt++;
-              barcode = generateBarcode(item.id, vd.size, vd.color, attempt);
-            }
-            await prisma.outletVariant.create({
-              data: {
-                inventoryItemId: item.id,
-                outletName: outlet,
-                color: vd.color || null,
-                size: vd.size || null,
-                barcode,
-                stock: 0,
-                price: vd.price || null,
-                isActive: true
-              }
-            });
-          }
-        }
-      }
-    }
-
     // Re-fetch all variants with inventory items
     const allVariants = await prisma.outletVariant.findMany({
       where: outlet ? { outletName: outlet } : {},
