@@ -83,6 +83,11 @@
 - **WORKERS stage**: Added as a valid routing destination across the entire system — `validAllStages`, `validateStageTransition`, `getRolesForStage` (mapped to `PRODUCTION` role), `getRolesForStageBasedOnRole`, `getStageDurations`, `AUTO_TRANSITION_STAGES`, analytics `stageOrder`. Frontend routing UIs updated: OrderCard STORE dropdown, STORE_RECEIVE buttons, admin Move To, prompt-based routing, WarehouseDashboard quick-route buttons + modal, MyTasks bulk routing, AdminDashboard bulk routing.
 
 ### Done (current session)
+- **SVG vector barcode printing**: Replaced canvas PNG with JsBarcode SVG rendering — vector format scales perfectly at any DPI. Added viewBox for zero-loss scaling. Label dimensions: 55mm × 33mm with 20mm barcode height (meets 20-25mm spec). Pure black bars on white background for max scanner contrast.
+- **Fixed `acceptDemandRequest` outlet bug**: OutletVariant create/update now sets `outletName: existing.outletName` — stock no longer always lands in Johar Town. Variant find filters by `outletName` too, preventing cross-outlet stock corruption. Barcode collision check uses `findFirst({where:{barcode,outletName}})`.
+- **Fixed `createPosProduct` OUTLETS**: Added `'Abbottabad'` to the hardcoded array (was `['Johar Town', 'Jail Road']`).
+- **Fixed cache invalidation**: Changed `cache.del('pos:inventory')` to `cache.delPattern('pos:')` so per-outlet cached responses are cleared.
+- **Added outlet selector in OutletPOSInventory.jsx**: Three tabs (Johar Town/Jail Road/Abbottabad) let users switch between outlet inventories. STORE/ADMIN sees all with full CRUD. OUTLET role sees own outlet (full CRUD) + other outlets (read-only — Edit/Add buttons hidden). Amber "Read-only view" banner when viewing another outlet.
 - **Per-item Three Status system**: `inventoryDeducted: true` field in productDetails. `updateProductAvailability` now deducts inventory immediately on ✓ click. ✓ → `availabilityStatus: 'available'` + locked (no further toggling). ✗ → `availabilityStatus: 'not_available'` (no deduction).
 - **Three visual states**: Default `undefined` → ⏳ Pending (gray badge), `true` → ✓ Completed (green badge), `false` → ✗ Rejected (red badge). Initialization from DB uses strict `=== 'available'` / `=== 'not_available'` checks.
 - **Toggle protection**: ✓ button disabled+locked when Completed. Hover styles for pending items; Completed shows permanent green with `cursor-not-allowed`.
@@ -138,6 +143,10 @@
 - **WORKERS stage**: Added to `validAllStages`, `getRolesForStage` (→ `PRODUCTION` role), `validateStageTransition` (from all stages), `getStageDurations`, `AUTO_TRANSITION_STAGES`, analytics `stageOrder`. NOT in `NEXT_STAGES` (manual-only route, not auto-advance).
 
 ## Relevant Files
+- `frontend/src/pages/InventoryManagement.jsx`: `printBarcodeFromStore` — SVG vector barcode printing (55×33mm label, 20mm bars, viewBox scaling, JsBarcode SVG output)
+- `backend/src/controllers/outletDemand.controller.js`: `acceptDemandRequest` — fixed `outletName` propagation, barcode collision check with per-outlet `findFirst`, cache invalidation with `delPattern('pos:')`
+- `backend/src/controllers/pos.controller.js`: `createPosProduct` — `OUTLETS` array now includes `'Abbottabad'` (was missing)
+- `frontend/src/pages/OutletPOSInventory.jsx`: three-outlet tab selector, read-only cross-outlet mode (OUTLET role), full CRUD for own outlet/STORE/ADMIN
 - `frontend/src/components/OrderCard.jsx`: per-product availability toggles (STORE stage), per-product PRODUCTION/STORE rendering
 - `backend/src/controllers/order.controller.js`: deliveryCharges, paymentStatus, advanceAmount, idempotent revenue recording, deliveryType filter, per-product availability (`requestStageCompletion`, `approveStageCompletion`, `classifyOrderItems`)
 - `backend/src/controllers/editRequest.controller.js`: instructionNotes, shopifyOrderDate field mapping
