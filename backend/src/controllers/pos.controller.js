@@ -94,23 +94,30 @@ const getPosInventory = async (req, res) => {
       orderBy: { name: 'asc' }
     });
 
-    // Auto-create missing OutletVariants (batch single createMany)
-    if (outlet) {
-      const allMissing = [];
+    // Auto-create missing OutletVariants for ALL outlets (so products appear everywhere)
+    const outletsToEnsure = outlet ? [...new Set([outlet, ...OUTLETS])] : OUTLETS;
+    for (const oName of outletsToEnsure) {
+      const existingMap = new Map();
+      const existingVariants = await prisma.outletVariant.findMany({ where: { outletName: oName } });
+      for (const ev of existingVariants) {
+        const key = `${ev.color || ''}|${ev.size || ''}|${ev.inventoryItemId}`;
+        existingMap.set(key, ev);
+      }
+      const toCreate = [];
       for (const item of items) {
         let variantDefs = parseItemVariants(item) || [{ color: item.color || null, size: item.size || null, stock: item.stock, price: item.price }];
         for (const vd of variantDefs) {
-          const exists = item.outletVariants.some(ov => ov.color === (vd.color || null) && ov.size === (vd.size || null));
-          if (!exists) {
+          const key = `${vd.color || ''}|${vd.size || ''}|${item.id}`;
+          if (!existingMap.has(key)) {
             let barcode = generateBarcode(item.id, vd.size, vd.color);
             let attempt = 0;
-            while (allMissing.some(m => m.barcode === barcode) || await prisma.outletVariant.findFirst({ where: { barcode, outletName: outlet } })) {
+            while (toCreate.some(c => c.barcode === barcode) || await prisma.outletVariant.findFirst({ where: { barcode, outletName: oName } })) {
               attempt++;
               barcode = generateBarcode(item.id, vd.size, vd.color, attempt);
             }
-            allMissing.push({
+            toCreate.push({
               inventoryItemId: item.id,
-              outletName: outlet,
+              outletName: oName,
               color: vd.color || null,
               size: vd.size || null,
               barcode,
@@ -121,12 +128,15 @@ const getPosInventory = async (req, res) => {
           }
         }
       }
-      if (allMissing.length > 0) {
-        await prisma.outletVariant.createMany({ data: allMissing });
-        const allVariants = await prisma.outletVariant.findMany({ where: { outletName: outlet } });
-        for (const item of items) {
-          item.outletVariants = allVariants.filter(ov => ov.inventoryItemId === item.id);
-        }
+      if (toCreate.length > 0) {
+        await prisma.outletVariant.createMany({ data: toCreate });
+      }
+    }
+    // Re-fetch variants for the requested outlet
+    if (outlet) {
+      const allVariants = await prisma.outletVariant.findMany({ where: { outletName: outlet } });
+      for (const item of items) {
+        item.outletVariants = allVariants.filter(ov => ov.inventoryItemId === item.id);
       }
     }
 
