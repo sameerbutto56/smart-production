@@ -130,6 +130,25 @@ const OutletPOS = () => {
     return p;
   }, [products, activeCategory, search]);
 
+  const barcodeMap = useMemo(() => {
+    const map = new Map();
+    for (const p of products) {
+      for (const v of (p.outletVariants || [])) {
+        if (v.barcode) {
+          map.set(v.barcode, {
+            id: v.id,
+            productName: p.name,
+            color: v.color,
+            size: v.size,
+            stock: v.stock,
+            price: v.price || p.price || 0
+          });
+        }
+      }
+    }
+    return map;
+  }, [products]);
+
   const subtotal = useMemo(() => cart.reduce((s, i) => s + i.unitPrice * i.qty, 0), [cart]);
   const altCharges = useMemo(() => cart.reduce((s, i) => s + (i.alterationAmount || 0), 0), [cart]);
   const discountAmount = ((subtotal + altCharges) * discountPct) / 100 + discountFixed;
@@ -147,23 +166,21 @@ const OutletPOS = () => {
     return () => window.removeEventListener('keydown', handler);
   }, [barcodeInput]);
 
-  const handleBarcodeLookup = async (code) => {
+  const handleBarcodeLookup = (code) => {
     if (!code) return;
-    try {
-      const res = await api.get(`/api/pos/barcode/${code}`);
-      const v = res.data;
-      const existing = cart.find(i => i.variantId === v.id);
-      if (existing) {
-        setCart(cart.map(i => i.variantId === v.id ? { ...i, qty: i.qty + 1 } : i));
-      } else {
-        setCart([...cart, {
-          variantId: v.id, productName: v.productName,
-          size: v.size, color: v.color, unitPrice: v.price || 0,
-          qty: 1, alterationAmount: 0, alterationLabel: ''
-        }]);
-      }
-      toast.success(`${v.productName} added via barcode`);
-    } catch { toast.error('Barcode not found'); }
+    const v = barcodeMap.get(code);
+    if (!v) return toast.error('Barcode not found');
+    const existing = cart.find(i => i.variantId === v.id);
+    if (existing) {
+      setCart(cart.map(i => i.variantId === v.id ? { ...i, qty: i.qty + 1 } : i));
+    } else {
+      setCart([...cart, {
+        variantId: v.id, productName: v.productName,
+        size: v.size, color: v.color, unitPrice: v.price || 0,
+        qty: 1, alterationAmount: 0, alterationLabel: ''
+      }]);
+    }
+    toast.success(`${v.productName} added via barcode`);
   };
 
   const handleAddToCart = (product) => {
@@ -306,23 +323,21 @@ const OutletPOS = () => {
   };
 
   /* ─── Return by Barcode ─── */
-  const handleReturnBarcodeLookup = async (code) => {
+  const handleReturnBarcodeLookup = (code) => {
     if (!code) return;
-    try {
-      const res = await api.get(`/api/pos/barcode/${code}`);
-      const v = res.data;
-      if (v.stock <= 0) return toast.error('No stock to return');
-      const existing = returnCart.find(i => i.variantId === v.id);
-      if (existing) {
-        setReturnCart(returnCart.map(i => i.variantId === v.id ? { ...i, qty: i.qty + 1 } : i));
-      } else {
-        setReturnCart([...returnCart, {
-          variantId: v.id, productName: v.productName, color: v.color, size: v.size,
-          barcode: v.barcode, unitPrice: v.price, qty: 1, maxQty: v.stock
-        }]);
-      }
-      toast.success(`${v.productName} added to return cart`);
-    } catch { toast.error('Barcode not found'); }
+    const v = barcodeMap.get(code);
+    if (!v) return toast.error('Barcode not found');
+    if (v.stock <= 0) return toast.error('No stock to return');
+    const existing = returnCart.find(i => i.variantId === v.id);
+    if (existing) {
+      setReturnCart(returnCart.map(i => i.variantId === v.id ? { ...i, qty: i.qty + 1 } : i));
+    } else {
+      setReturnCart([...returnCart, {
+        variantId: v.id, productName: v.productName, color: v.color, size: v.size,
+        barcode: code, unitPrice: v.price, qty: 1, maxQty: v.stock
+      }]);
+    }
+    toast.success(`${v.productName} added to return cart`);
     setReturnBarcodeInput('');
   };
 

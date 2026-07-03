@@ -20,9 +20,13 @@ const OutletTransfers = () => {
   const { user } = useAuth();
   const userOutlet = user?.role === 'OUTLET' ? user?.name : null;
 
-  const [transfers, setTransfers] = useState([]);
-  const [inventory, setInventory] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [transfers, setTransfers] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('pos_transfers') || '[]'); } catch { return []; }
+  });
+  const [inventory, setInventory] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('pos_products') || '[]'); } catch { return []; }
+  });
+  const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState('list');
 
   const [destOutlet, setDestOutlet] = useState('');
@@ -35,13 +39,14 @@ const OutletTransfers = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const query = userOutlet ? '' : '?status=COMPLETED';
       const [t, inv] = await Promise.all([
-        api.get(`/api/transfers${query}`),
-        api.get(`/api/pos/inventory${query}`)
+        api.get('/api/transfers'),
+        api.get('/api/pos/products')
       ]);
       setTransfers(t.data);
       setInventory(inv.data);
+      localStorage.setItem('pos_transfers', JSON.stringify(t.data));
+      localStorage.setItem('pos_products', JSON.stringify(inv.data));
     } catch {
       toast.error('Failed to load data');
     }
@@ -276,14 +281,20 @@ const OutletTransfers = () => {
                 <div key={p.id} className="bg-gray-800/40 rounded-xl p-2.5 border border-gray-800">
                   <p className="text-xs font-bold text-white">{p.name}</p>
                   <div className="flex flex-wrap gap-1 mt-1.5">
-                    {(p.outletVariants || []).filter(v => v.stock > 0).map(v => (
-                      <button key={v.id} onClick={() => addTransferItem(p, v)}
-                        className={`text-[9px] font-bold px-2 py-0.5 rounded-lg border ${transferItems.some(t => t.variantId === v.id) ? 'bg-emerald-600/20 border-emerald-500/30 text-emerald-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'}`}>
-                        {[v.color, v.size].filter(Boolean).join(' / ') || 'Standard'} ({v.stock})
-                      </button>
-                    ))}
-                    {(!p.outletVariants || p.outletVariants.filter(v => v.stock > 0).length === 0) && (
-                      <span className="text-[9px] text-gray-600 italic">No stock available</span>
+                    {(p.outletVariants || []).length === 0 ? (
+                      <span className="text-[9px] text-gray-600 italic">No variants</span>
+                    ) : (
+                      p.outletVariants.map(v => (
+                        <button key={v.id}
+                          onClick={() => v.stock > 0 ? addTransferItem(p, v) : null}
+                          disabled={v.stock <= 0}
+                          className={`text-[9px] font-bold px-2 py-0.5 rounded-lg border ${
+                            v.stock <= 0 ? 'bg-gray-900/50 border-gray-800 text-gray-700 cursor-not-allowed' :
+                            transferItems.some(t => t.variantId === v.id) ? 'bg-emerald-600/20 border-emerald-500/30 text-emerald-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'
+                          }`}>
+                          {[v.color, v.size].filter(Boolean).join(' / ') || 'Standard'} ({v.stock})
+                        </button>
+                      ))
                     )}
                   </div>
                 </div>
