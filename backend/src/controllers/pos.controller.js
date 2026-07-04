@@ -973,6 +973,7 @@ const initializeInventory = async (req, res) => {
   }
 };
 
+// Trigger Vercel redeploy
 module.exports = {
   getPosInventory,
   getProducts,
@@ -986,3 +987,4 @@ module.exports = {
   generateBarcode,
   initializeInventory
 };
+
