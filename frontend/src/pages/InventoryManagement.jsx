@@ -637,7 +637,7 @@ const InventoryManagement = () => {
             accept=".xlsx,.xls" 
             className="hidden" 
           />
-          {user?.role !== 'INVENTORY_VIEW' && ['SUPER_ADMIN', 'ADMIN', 'STORE'].includes(userRole) && (
+          {user?.role !== 'INVENTORY_VIEW' && ['STORE'].includes(userRole) && (
             <>
               <div className="flex items-center gap-1.5 bg-gray-800 border border-gray-700 px-3.5 py-3 rounded-2xl">
                 <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Target:</span>
