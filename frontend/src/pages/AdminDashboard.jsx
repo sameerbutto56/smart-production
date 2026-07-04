@@ -1,23 +1,23 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import api from '../services/api';
 import useCache from '../hooks/useCache';
-import { 
-  BarChart3, 
-  Users, 
-  Clock, 
-  AlertTriangle, 
+import {
+  BarChart3,
+  Users,
+  Clock,
+  AlertTriangle,
   AlertCircle,
-  ArrowUpRight, 
-  Trash2, 
-  Lock, 
-  ShieldAlert, 
-  X, 
-  ClipboardList, 
-  MapPin, 
-  Search, 
-  CheckCircle2, 
-  Package, 
-  Truck, 
+  ArrowUpRight,
+  Trash2,
+  Lock,
+  ShieldAlert,
+  X,
+  ClipboardList,
+  MapPin,
+  Search,
+  CheckCircle2,
+  Package,
+  Truck,
   Circle,
   Loader2,
   BellRing,
@@ -34,7 +34,15 @@ import {
   ThumbsDown,
   ChevronDown,
   History,
-  LayoutDashboard
+  LayoutDashboard,
+  Warehouse,
+  Gift,
+  FileText,
+  RefreshCcw,
+  Plus,
+  Minus,
+  XCircle,
+  CheckCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -52,6 +60,7 @@ import BiSection from '../components/BiSection';
 
 const TOP_TABS = [
   { id: 'all_phases', label: 'All Phases', icon: LayoutDashboard },
+  { id: 'warehouse', label: 'Warehouse', icon: Package },
   { id: 'edit_requests', label: 'Order Change Requests', icon: FileEdit },
   { id: 'recent_orders', label: 'Recent Orders', icon: History },
   { id: 'bi', label: 'Business Intelligence', icon: BarChart3 },
@@ -510,6 +519,41 @@ const AdminDashboard = () => {
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
       .slice(0, 20);
   }, [allOrders]);
+
+  // Warehouse dashboard data
+  const { data: warehouseInventory = [], loading: warehouseLoading } = useCache(
+    activeTab === 'warehouse' ? 'admin:warehouse:inventory' : null,
+    { fetcher: () => api.get('/api/inventory').then(r => r.data), ttl: 60000 }
+  );
+  const [warehouseAllocSummary, setWarehouseAllocSummary] = useState({ todayTotal: 0, activeTotal: 0, totalAllocated: 0 });
+  const [warehouseRecentAllocs, setWarehouseRecentAllocs] = useState([]);
+  const [warehousePendingCarts, setWarehousePendingCarts] = useState([]);
+
+  useEffect(() => {
+    if (activeTab !== 'warehouse') return;
+    api.get('/api/inventory/allocations/stats').then(r => {
+      const d = r.data;
+      if (d.perPerson) setWarehouseAllocSummary({ todayTotal: d.todayTotal || 0, activeTotal: d.activeTotal || 0, totalAllocated: d.totalAllocated || 0 });
+      else setWarehouseAllocSummary({ todayTotal: 0, activeTotal: 0, totalAllocated: 0 });
+    }).catch(() => {});
+    api.get('/api/inventory/allocations', { params: { page: 1, limit: 10 } }).then(r => setWarehouseRecentAllocs(r.data.records || [])).catch(() => {});
+    api.get('/api/inventory/carts', { params: { status: 'PENDING', page: 1, limit: 10 } }).then(r => setWarehousePendingCarts(r.data.records || [])).catch(() => {});
+  }, [activeTab]);
+
+  const whTotalStock = warehouseInventory.reduce((s, i) => s + i.stock, 0);
+  const whLowStock = warehouseInventory.filter(i => i.stock > 0 && i.stock <= 5);
+  const whOutOfStock = warehouseInventory.filter(i => i.stock === 0);
+
+  const handleWarehouseCartStatus = async (id, status) => {
+    try {
+      await api.patch(`/api/inventory/carts/${id}/status`, { status });
+      toast.success(`Cart ${status.toLowerCase()} successfully`);
+      const res = await api.get('/api/inventory/carts', { params: { status: 'PENDING', page: 1, limit: 10 } });
+      setWarehousePendingCarts(res.data.records || []);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Error updating cart');
+    }
+  };
 
   if (loading && allOrders.length === 0) {
     return <PageLoader text="Syncing Production Hub..." />;
@@ -1142,6 +1186,164 @@ const AdminDashboard = () => {
                   </div>
                 )}
               </>
+            )}
+
+            {/* Warehouse Tab */}
+            {activeTab === 'warehouse' && (
+              <div className="space-y-6">
+                <div className="flex items-center space-x-4">
+                  <div className="p-3 bg-amber-500/10 rounded-2xl">
+                    <Warehouse className="text-amber-400" size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">Warehouse</h2>
+                    <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">Inventory & Allocation Overview</p>
+                  </div>
+                </div>
+
+                {warehouseLoading ? (
+                  <div className="py-16 flex justify-center"><Loader2 className="animate-spin text-blue-400" size={32} /></div>
+                ) : (
+                  <>
+                    {/* Stats */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div className="glass p-5 rounded-2xl border-2 theme-border">
+                        <div className="flex items-center justify-between mb-2">
+                          <Package className="text-blue-400" size={20} />
+                          <span className="text-xs font-black theme-text-muted uppercase tracking-widest">Total</span>
+                        </div>
+                        <p className="text-3xl font-black theme-text-primary">{whTotalStock}</p>
+                        <p className="text-xs font-bold theme-text-muted mt-1">Units in Stock</p>
+                      </div>
+                      <div className="glass p-5 rounded-2xl border-2 theme-border">
+                        <div className="flex items-center justify-between mb-2">
+                          <AlertTriangle className="text-red-400" size={20} />
+                          <span className="text-xs font-black theme-text-muted uppercase tracking-widest">Low</span>
+                        </div>
+                        <p className="text-3xl font-black text-red-400">{whLowStock.length}</p>
+                        <p className="text-xs font-bold theme-text-muted mt-1">Low Stock Items</p>
+                      </div>
+                      <div className="glass p-5 rounded-2xl border-2 theme-border">
+                        <div className="flex items-center justify-between mb-2">
+                          <XCircle className="text-gray-400" size={20} />
+                          <span className="text-xs font-black theme-text-muted uppercase tracking-widest">Out</span>
+                        </div>
+                        <p className="text-3xl font-black text-gray-400">{whOutOfStock.length}</p>
+                        <p className="text-xs font-bold theme-text-muted mt-1">Out of Stock</p>
+                      </div>
+                      <div className="glass p-5 rounded-2xl border-2 theme-border">
+                        <div className="flex items-center justify-between mb-2">
+                          <Gift className="text-amber-400" size={20} />
+                          <span className="text-xs font-black theme-text-muted uppercase tracking-widest">Today</span>
+                        </div>
+                        <p className="text-3xl font-black text-amber-400">{warehouseAllocSummary.todayTotal}</p>
+                        <p className="text-xs font-bold theme-text-muted mt-1">Today's Allocations</p>
+                      </div>
+                    </div>
+
+                    {/* Low Stock Alert */}
+                    {whLowStock.length > 0 && (
+                      <div className="glass p-5 rounded-2xl border-2 border-red-500/20">
+                        <div className="flex items-center space-x-3 mb-4">
+                          <AlertTriangle className="text-red-400" size={18} />
+                          <h3 className="font-black theme-text-primary uppercase tracking-wider text-sm">Low Stock Alert</h3>
+                        </div>
+                        <div className="space-y-2">
+                          {whLowStock.slice(0, 5).map(item => (
+                            <div key={item.id} className="flex items-center justify-between p-3 bg-red-500/5 rounded-xl border border-red-500/10">
+                              <div>
+                                <p className="font-bold theme-text-primary text-sm">{item.name}</p>
+                                <p className="text-xs theme-text-muted font-bold uppercase">{item.category}</p>
+                              </div>
+                              <p className="font-black text-red-400">{item.stock}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Allocation Summary */}
+                    <div className="glass p-5 rounded-2xl border-2 theme-border">
+                      <div className="flex items-center space-x-3 mb-4">
+                        <Gift className="text-amber-400" size={18} />
+                        <h3 className="font-black theme-text-primary uppercase tracking-wider text-sm">Allocation Summary</h3>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <div className="p-3 theme-bg-subtle rounded-xl border theme-border">
+                          <p className="text-[10px] font-black theme-text-muted uppercase tracking-widest">Active</p>
+                          <p className="text-xl font-black text-amber-400 mt-1">{warehouseAllocSummary.activeTotal}</p>
+                        </div>
+                        <div className="p-3 theme-bg-subtle rounded-xl border theme-border">
+                          <p className="text-[10px] font-black theme-text-muted uppercase tracking-widest">Total Allocated</p>
+                          <p className="text-xl font-black text-emerald-400 mt-1">{warehouseAllocSummary.totalAllocated}</p>
+                        </div>
+                        <div className="p-3 theme-bg-subtle rounded-xl border theme-border">
+                          <p className="text-[10px] font-black theme-text-muted uppercase tracking-widest">Pending Carts</p>
+                          <p className="text-xl font-black text-yellow-400 mt-1">{warehousePendingCarts.length}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Recent Allocations */}
+                    <div className="glass p-5 rounded-2xl border-2 theme-border">
+                      <div className="flex items-center space-x-3 mb-4">
+                        <FileText className="text-amber-400" size={18} />
+                        <h3 className="font-black theme-text-primary uppercase tracking-wider text-sm">Recent Allocations</h3>
+                      </div>
+                      {warehouseRecentAllocs.length === 0 ? (
+                        <p className="text-xs theme-text-muted font-bold text-center py-6">No allocation records</p>
+                      ) : (
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                          {warehouseRecentAllocs.map(rec => (
+                            <div key={rec.id} className="flex items-center justify-between p-3 theme-bg-subtle rounded-xl border theme-border">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-bold theme-text-primary text-xs">{rec.personName}</p>
+                                <p className="text-[10px] theme-text-muted">{new Date(rec.createdAt).toLocaleString()}</p>
+                              </div>
+                              <p className="font-black text-amber-400 text-xs shrink-0 ml-3">{rec.totalQuantity || 0} qty</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Pending Carts */}
+                    {warehousePendingCarts.length > 0 && (
+                      <div className="glass p-5 rounded-2xl border-2 border-yellow-500/20">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center space-x-3">
+                            <ShoppingCart className="text-yellow-400" size={18} />
+                            <h3 className="font-black theme-text-primary uppercase tracking-wider text-sm">Pending Carts</h3>
+                          </div>
+                          <span className="text-xs font-bold text-yellow-400">{warehousePendingCarts.length} awaiting approval</span>
+                        </div>
+                        <div className="space-y-3">
+                          {warehousePendingCarts.map(cart => (
+                            <div key={cart.id} className="flex items-center justify-between p-3 theme-bg-subtle rounded-xl border border-yellow-500/20">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-bold theme-text-primary text-xs">{cart.personName}</p>
+                                <p className="text-[10px] theme-text-muted">{cart.totalItems} products · {cart.totalQuantity} qty</p>
+                              </div>
+                              <div className="flex space-x-2 shrink-0 ml-4">
+                                <button onClick={() => handleWarehouseCartStatus(cart.id, 'APPROVED')}
+                                  className="px-3 py-1.5 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-lg text-[10px] font-black transition-all flex items-center space-x-1">
+                                  <CheckCircle size={12} />
+                                  <span>Approve</span>
+                                </button>
+                                <button onClick={() => handleWarehouseCartStatus(cart.id, 'REJECTED')}
+                                  className="px-3 py-1.5 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-lg text-[10px] font-black transition-all flex items-center space-x-1">
+                                  <XCircle size={12} />
+                                  <span>Reject</span>
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             )}
 
             {/* Order Change Requests Tab */}

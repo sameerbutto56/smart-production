@@ -285,17 +285,21 @@ const WarehouseDashboard = () => {
   // Dashboard allocation state
   const [dashAllocDateFrom, setDashAllocDateFrom] = useState('');
   const [dashAllocDateTo, setDashAllocDateTo] = useState('');
+  const [dashAllocSearch, setDashAllocSearch] = useState('');
   const [dashAllocRecords, setDashAllocRecords] = useState([]);
   const [dashAllocLoading, setDashAllocLoading] = useState(false);
+  const [dashAllocExpanded, setDashAllocExpanded] = useState(null);
+  const [dashShowAll, setDashShowAll] = useState(false);
   const [dashPendingCarts, setDashPendingCarts] = useState([]);
   const [dashCartsLoading, setDashCartsLoading] = useState(false);
 
-  const fetchDashboardAllocations = async (from, to) => {
+  const fetchDashboardAllocations = async (from, to, search) => {
     setDashAllocLoading(true);
     try {
       const params = { page: 1, limit: 20 };
       if (from) params.from = from;
       if (to) params.to = to;
+      if (search) params.personName = search;
       const res = await api.get('/api/inventory/allocations', { params });
       setDashAllocRecords(res.data.records || []);
     } catch (error) {
@@ -317,14 +321,21 @@ const WarehouseDashboard = () => {
 
   useEffect(() => {
     if (activeTab === 'dashboard') {
-      fetchDashboardAllocations(dashAllocDateFrom, dashAllocDateTo);
+      fetchDashboardAllocations(dashAllocDateFrom, dashAllocDateTo, dashAllocSearch);
       fetchDashboardCarts();
       fetchAllocationStats();
     }
   }, [activeTab]);
 
   const handleDashDateFilter = () => {
-    fetchDashboardAllocations(dashAllocDateFrom, dashAllocDateTo);
+    fetchDashboardAllocations(dashAllocDateFrom, dashAllocDateTo, dashAllocSearch);
+  };
+
+  const handleDashFilterReset = () => {
+    setDashAllocDateFrom('');
+    setDashAllocDateTo('');
+    setDashAllocSearch('');
+    fetchDashboardAllocations('', '', '');
   };
 
   return (
@@ -473,21 +484,27 @@ const WarehouseDashboard = () => {
                     <FileText className="text-amber-400" size={20} />
                     <h2 className="font-black theme-text-primary uppercase tracking-wider text-sm">Allocation History</h2>
                   </div>
-                  <div className="flex items-center space-x-3">
-                    <div className="flex items-center space-x-2">
-                      <label className="text-[10px] font-black theme-text-muted uppercase tracking-widest">From</label>
-                      <input type="date" value={dashAllocDateFrom} onChange={(e) => setDashAllocDateFrom(e.target.value)}
-                        className="theme-input rounded-lg py-1.5 px-2 text-xs font-medium outline-none focus:border-amber-500" />
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <label className="text-[10px] font-black theme-text-muted uppercase tracking-widest">To</label>
-                      <input type="date" value={dashAllocDateTo} onChange={(e) => setDashAllocDateTo(e.target.value)}
-                        className="theme-input rounded-lg py-1.5 px-2 text-xs font-medium outline-none focus:border-amber-500" />
+                  <div className="flex items-center space-x-2">
+                    <input type="text" placeholder="Search by person..." value={dashAllocSearch}
+                      onChange={(e) => setDashAllocSearch(e.target.value)}
+                      className="theme-input rounded-lg py-1.5 px-3 text-xs font-medium outline-none focus:border-amber-500 w-36" />
+                    <div className="flex items-center space-x-1.5">
+                      <button onClick={() => { const d = new Date(); setDashAllocDateFrom(d.toISOString().split('T')[0]); setDashAllocDateTo(d.toISOString().split('T')[0]); }}
+                        className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-wider transition-all ${!dashAllocDateFrom && !dashAllocDateTo && !dashAllocSearch ? 'bg-amber-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>Daily</button>
+                      <button onClick={() => { const d = new Date(); const w = new Date(d); w.setDate(w.getDate() - 7); setDashAllocDateFrom(w.toISOString().split('T')[0]); setDashAllocDateTo(d.toISOString().split('T')[0]); }}
+                        className="px-2 py-1 rounded text-[9px] font-black uppercase tracking-wider bg-gray-800 text-gray-400 hover:bg-gray-700 transition-all">Weekly</button>
+                      <button onClick={() => { const d = new Date(); const m = new Date(d); m.setMonth(m.getMonth() - 1); setDashAllocDateFrom(m.toISOString().split('T')[0]); setDashAllocDateTo(d.toISOString().split('T')[0]); }}
+                        className="px-2 py-1 rounded text-[9px] font-black uppercase tracking-wider bg-gray-800 text-gray-400 hover:bg-gray-700 transition-all">Monthly</button>
                     </div>
                     <button onClick={handleDashDateFilter}
-                      className="bg-amber-600 hover:bg-amber-500 text-white font-black py-1.5 px-4 rounded-lg text-xs transition-all active:scale-95 flex items-center space-x-1.5">
+                      className="bg-amber-600 hover:bg-amber-500 text-white font-black py-1.5 px-3 rounded-lg text-xs transition-all active:scale-95 flex items-center space-x-1">
                       <Search size={12} />
                       <span>Filter</span>
+                    </button>
+                    <button onClick={handleDashFilterReset}
+                      className="bg-gray-800 hover:bg-gray-700 text-gray-400 font-black py-1.5 px-3 rounded-lg text-xs transition-all active:scale-95 border border-gray-700 flex items-center space-x-1">
+                      <RefreshCcw size={12} />
+                      <span>Reset</span>
                     </button>
                   </div>
                 </div>
@@ -499,27 +516,59 @@ const WarehouseDashboard = () => {
                     <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No allocation records found</p>
                   </div>
                 ) : (
-                  <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                    {dashAllocRecords.map(rec => (
-                      <div key={rec.id} className="flex items-center justify-between p-3 theme-bg-subtle rounded-xl border theme-border hover:border-amber-500/20 transition-all">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center space-x-2">
-                            <span className="font-bold theme-text-primary text-xs">{rec.personName}</span>
-                            <span className={`px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase border ${
-                              rec.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
-                              rec.status === 'ACTIVE' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
-                              'bg-amber-500/20 text-amber-400 border-amber-500/30'
-                            }`}>{rec.status || 'ACTIVE'}</span>
+                  <>
+                    <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                      {dashAllocRecords.slice(0, dashShowAll ? dashAllocRecords.length : 5).map(rec => {
+                        const isExpanded = dashAllocExpanded === rec.id;
+                        const items = rec.items || [];
+                        return (
+                          <div key={rec.id}>
+                            <div className="flex items-center justify-between p-3 theme-bg-subtle rounded-xl border theme-border hover:border-amber-500/20 transition-all cursor-pointer"
+                              onClick={() => setDashAllocExpanded(isExpanded ? null : rec.id)}>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center space-x-2">
+                                  <span className="font-bold theme-text-primary text-xs">{rec.personName}</span>
+                                  <span className={`px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase border ${
+                                    rec.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+                                    rec.status === 'ACTIVE' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
+                                    'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                                  }`}>{rec.status || 'ACTIVE'}</span>
+                                </div>
+                                <p className="text-[10px] theme-text-muted mt-0.5">{items.length || rec.itemCount || 0} items · {new Date(rec.createdAt).toLocaleString()}</p>
+                              </div>
+                              <div className="text-right shrink-0 ml-4">
+                                <p className="font-black text-amber-400 text-xs">{rec.totalQuantity || 0} qty</p>
+                                {rec.allocatedByName && <p className="text-[9px] theme-text-muted">{rec.allocatedByName}</p>}
+                              </div>
+                            </div>
+                            {isExpanded && items.length > 0 && (
+                              <div className="ml-4 mt-1 mb-2 p-3 bg-gray-900/50 rounded-xl border border-gray-800 space-y-1.5">
+                                <p className="text-[9px] font-black theme-text-muted uppercase tracking-wider mb-1.5">Products</p>
+                                {items.map((item, i) => (
+                                  <div key={i} className="flex items-center justify-between py-1 px-2 bg-gray-800/50 rounded-lg">
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs font-bold theme-text-primary">{item.itemName || item.productName || 'Product'}</p>
+                                      <div className="flex items-center space-x-3 text-[9px] theme-text-muted">
+                                        {item.color && <span>Color: {item.color}</span>}
+                                        {item.size && <span>Size: {item.size}</span>}
+                                      </div>
+                                    </div>
+                                    <span className="font-black text-amber-400 text-xs shrink-0 ml-2">x{item.quantity}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                          <p className="text-[10px] theme-text-muted mt-0.5">{rec.itemCount || rec.items?.length || 0} items · {new Date(rec.createdAt).toLocaleString()}</p>
-                        </div>
-                        <div className="text-right shrink-0 ml-4">
-                          <p className="font-black text-amber-400 text-xs">{rec.totalQuantity || 0} qty</p>
-                          {rec.allocatedByName && <p className="text-[9px] theme-text-muted">{rec.allocatedByName}</p>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                        );
+                      })}
+                    </div>
+                    {dashAllocRecords.length > 5 && (
+                      <button onClick={() => setDashShowAll(!dashShowAll)}
+                        className="w-full mt-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-xl text-xs font-black transition-all">
+                        {dashShowAll ? 'Show Less' : `Show All (${dashAllocRecords.length} records)`}
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
 
