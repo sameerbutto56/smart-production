@@ -296,6 +296,17 @@ const OutletPOSInventory = () => {
     }
   };
 
+  const handleDeleteProduct = async (group) => {
+    if (!window.confirm(`Delete ALL variants of "${group.name}" from ${group.outletName}?`)) return;
+    try {
+      const res = await api.delete(`/api/pos/products/${encodeURIComponent(group.name)}/variants?outlet=${encodeURIComponent(group.outletName)}`);
+      toast.success(res.data.message);
+      refresh();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to delete product');
+    }
+  };
+
   const [customCategory, setCustomCategory] = useState('');
   const [editCustomCategory, setEditCustomCategory] = useState('');
 
@@ -511,12 +522,22 @@ const OutletPOSInventory = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {!isReadOnly && group.variants.length === 1 && (
-                      <button onClick={(e) => { e.stopPropagation(); handleOpenEdit(group.variants[0]); }}
-                        className="flex items-center gap-1 px-3 py-2 bg-gray-800 hover:bg-blue-600 rounded-lg transition-colors">
-                        <Pencil size={12} className="text-white" />
-                        <span className="text-[10px] font-bold text-white">Edit</span>
-                      </button>
+                    {!isReadOnly && (
+                      <>
+                        {group.variants.length === 1 ? (
+                          <button onClick={(e) => { e.stopPropagation(); handleOpenEdit(group.variants[0]); }}
+                            className="flex items-center gap-1 px-3 py-2 bg-gray-800 hover:bg-blue-600 rounded-lg transition-colors">
+                            <Pencil size={12} className="text-white" />
+                            <span className="text-[10px] font-bold text-white">Edit</span>
+                          </button>
+                        ) : (
+                          <button onClick={(e) => { e.stopPropagation(); handleDeleteProduct(group); }}
+                            className="flex items-center gap-1 px-3 py-2 bg-gray-800 hover:bg-red-600 rounded-lg transition-colors">
+                            <Trash2 size={12} className="text-white" />
+                            <span className="text-[10px] font-bold text-white">Delete</span>
+                          </button>
+                        )}
+                      </>
                     )}
                     <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${totalStock > 0 ? 'bg-emerald-900/30 text-emerald-400' : 'bg-gray-800 text-gray-500'}`}>
                       Stock: {totalStock}

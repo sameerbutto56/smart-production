@@ -252,6 +252,37 @@ const deleteVariant = async (req, res) => {
   }
 };
 
+const deleteProductVariants = async (req, res) => {
+  try {
+    const { productName } = req.params;
+    const outlet = getOutletName(req);
+    if (!outlet) return res.status(400).json({ message: 'Outlet is required' });
+    const decodedName = decodeURIComponent(productName);
+
+    const items = await prisma.outletInventory.findMany({
+      where: { name: decodedName, outletName: outlet }
+    });
+    if (items.length === 0) return res.status(404).json({ message: 'Product not found in this outlet' });
+
+    let deleted = 0, zeroed = 0;
+    for (const item of items) {
+      const saleCount = await prisma.posSaleItem.count({ where: { outletVariantId: item.id } });
+      const returnCount = await prisma.posReturn.count({ where: { outletVariantId: item.id } });
+      if (saleCount > 0 || returnCount > 0) {
+        await prisma.outletInventory.update({ where: { id: item.id }, data: { stock: 0 } });
+        zeroed++;
+      } else {
+        await prisma.outletInventory.delete({ where: { id: item.id } });
+        deleted++;
+      }
+    }
+    cache.delPattern(CACHE_KEY_PREFIX);
+    res.json({ message: `Product removed. Deleted: ${deleted}, Zeroed (has history): ${zeroed}` });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to delete product variants', error: error.message });
+  }
+};
+
 const updateVariant = async (req, res) => {
   try {
     const { color, size, stock, price, name, category, fabric, imageUrl } = req.body;
@@ -821,7 +852,7 @@ module.exports = {
   getProducts,
   getVariant,
   updateVariantStock, updateVariantPrice,
-  createVariant, deleteVariant, updateVariant,
+  createVariant, deleteVariant, deleteProductVariants, updateVariant,
   createSale, getSales, getSalesDashboard,
   createReturn, getReturns,
   lookupBarcode,

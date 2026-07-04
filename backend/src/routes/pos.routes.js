@@ -4,7 +4,7 @@ const {
   getProducts,
   getVariant,
   updateVariantStock, updateVariantPrice,
-  createVariant, deleteVariant, updateVariant,
+  createVariant,   deleteVariant, deleteProductVariants, updateVariant,
   createSale, getSales, getSalesDashboard,
   createReturn, getReturns,
   lookupBarcode,
@@ -31,6 +31,7 @@ router.put('/variants/:id/price', authenticate, updateVariantPrice);
 router.put('/variants/:id', authenticate, updateVariant);
 router.post('/products/:productId/variants', authenticate, createVariant);
 router.delete('/variants/:id', authenticate, deleteVariant);
+router.delete('/products/:productName/variants', authenticate, deleteProductVariants);
 
 // Sales
 router.post('/sales', authenticate, createSale);
