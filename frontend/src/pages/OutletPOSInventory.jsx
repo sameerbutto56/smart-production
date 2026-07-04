@@ -35,7 +35,7 @@ const OutletPOSInventory = () => {
 
   const isOutlet = user?.role === 'OUTLET';
   const canInit = user?.role === 'STORE' || user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
-  const isReadOnly = isOutlet || selectedOutlet !== defaultOutlet;
+  const isReadOnly = !['STORE', 'ADMIN', 'SUPER_ADMIN'].includes(user?.role);
 
   const backupJsonRef = React.useRef(null);
   const backupExcelRef = React.useRef(null);
