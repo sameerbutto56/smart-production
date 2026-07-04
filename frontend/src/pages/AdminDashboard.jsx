@@ -107,7 +107,7 @@ const AdminDashboard = () => {
   const [filterStage, setFilterStage] = useState('ALL');
   const [storeSubTab, setStoreSubTab] = useState('unseen');
   const [outletFilter, setOutletFilter] = useState('');
-  const [outletDateRange, setOutletDateRange] = useState('month');
+  const [outletDateRange, setOutletDateRange] = useState('all');
   const [outletCustomFrom, setOutletCustomFrom] = useState('');
   const [outletCustomTo, setOutletCustomTo] = useState('');
   const [outletCustomNonce, setOutletCustomNonce] = useState(0);

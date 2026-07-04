@@ -10,7 +10,10 @@ const withTimeout = (promise, ms, fallback) => {
   return Promise.race([
     promise,
     new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), ms); })
-  ]).finally(() => clearTimeout(timer)).catch(() => fallback);
+  ]).finally(() => clearTimeout(timer)).catch((err) => {
+    console.error('[analytics] query timed out or failed:', err?.message);
+    return fallback;
+  });
 };
 
 const EMPTY_RESPONSE = {
@@ -25,8 +28,16 @@ const EMPTY_RESPONSE = {
 // Build WHERE clause for source filtering
 const buildSourceFilter = (sourceId) => {
   if (!sourceId || sourceId === 'all') return {};
-  if (sourceId === 'online') return { source: { in: ['ONLINE', 'INTERNAL'] } };
-  const name = sourceId.replace(/_/g, ' ').toUpperCase();
+  if (sourceId === 'online') {
+    // Online orders may be stored with source='ONLINE'/'INTERNAL' OR outletName containing 'ONLINE'
+    return {
+      OR: [
+        { source: { in: ['ONLINE', 'INTERNAL'] } },
+        { outletName: { contains: 'online', mode: 'insensitive' } }
+      ]
+    };
+  }
+  const name = sourceId.replace(/_/g, ' ');
   return { outletName: { contains: name, mode: 'insensitive' } };
 };
 
@@ -101,7 +112,7 @@ const getSourceAnalytics = async (req, res) => {
   const sourceId = req.params.sourceId || req.query.branch || 'all';
   const where = buildFilters(req.query, sourceId);
 
-  const result = await withTimeout(computeAnalytics(where), 8000, EMPTY_RESPONSE);
+  const result = await withTimeout(computeAnalytics(where), 15000, EMPTY_RESPONSE);
   res.json(result);
 };
 

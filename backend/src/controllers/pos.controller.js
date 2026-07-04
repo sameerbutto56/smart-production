@@ -7,8 +7,9 @@ const getOutletName = (req) => {
   if (req.user?.role === 'OUTLET') {
     name = req.user?.name || '';
   } else {
-    name = req.query.outlet || req.body.outlet || 'Johar Town';
+    name = req.query.outlet || req.body.outlet || '';
   }
+  if (!name) return null; // no outlet = all outlets (admin/store view)
   const n = name.toLowerCase();
   if (n.includes('johar')) return 'Johar Town';
   if (n.includes('jail')) return 'Jail Road';
