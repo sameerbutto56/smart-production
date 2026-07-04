@@ -131,15 +131,19 @@ const WarehouseDashboard = () => {
     }
   };
 
-  const fetchCarts = async () => {
+  const fetchCarts = async (overrides = {}) => {
     setCartsLoading(true);
     try {
-
-      const params = { page: cartsPage, limit: 50 };
-      if (cartsSearch.trim()) params.personName = cartsSearch.trim();
-      if (cartsStatusFilter) params.status = cartsStatusFilter;
-      if (cartsDateFrom) params.from = cartsDateFrom;
-      if (cartsDateTo) params.to = cartsDateTo;
+      const { from, to, status, search, page } = overrides;
+      const params = { page: page !== undefined ? page : cartsPage, limit: 50 };
+      const finalSearch = search !== undefined ? search : cartsSearch;
+      const finalStatus = status !== undefined ? status : cartsStatusFilter;
+      const finalFrom = from !== undefined ? from : cartsDateFrom;
+      const finalTo = to !== undefined ? to : cartsDateTo;
+      if (finalSearch.trim()) params.personName = finalSearch.trim();
+      if (finalStatus) params.status = finalStatus;
+      if (finalFrom) params.from = finalFrom;
+      if (finalTo) params.to = finalTo;
       const res = await api.get('/api/inventory/carts', { params });
       setCarts(res.data.records);
       setCartsTotal(res.data.total);
@@ -509,7 +513,7 @@ const WarehouseDashboard = () => {
                   </h3>
                   <div className="flex flex-col md:flex-row items-end md:items-center gap-2">
                     <div className="flex items-center space-x-2">
-                      <select value={cartsStatusFilter} onChange={(e) => { setCartsStatusFilter(e.target.value); setCartsPage(1); fetchCarts(); }}
+                      <select value={cartsStatusFilter} onChange={(e) => { const v = e.target.value; setCartsStatusFilter(v); setCartsPage(1); fetchCarts({ status: v, page: 1 }); }}
                         className="theme-bg-subtle border-2 theme-border rounded-xl py-2 px-3 text-xs font-medium text-white outline-none">
                         <option value="">All Status</option>
                         <option value="PENDING">Pending</option>
@@ -520,17 +524,17 @@ const WarehouseDashboard = () => {
                         onChange={(e) => setCartsSearch(e.target.value)}
                         className="theme-input rounded-xl py-2 px-4 focus:border-amber-500 outline-none text-xs font-medium theme-text-secondary w-36"
                       />
-                      <button onClick={() => { setCartsPage(1); fetchCarts(); }}
+                      <button onClick={() => { setCartsPage(1); fetchCarts({ search: cartsSearch, page: 1 }); }}
                         className="bg-gray-800 hover:bg-gray-700 text-gray-300 font-black py-2 px-3 rounded-xl transition-all text-xs active:scale-95 border border-gray-700">
                         <Search size={14} />
                       </button>
                     </div>
                     <div className="flex items-center space-x-1.5">
-                      <button onClick={() => { const d = new Date(); setCartsDateFrom(d.toISOString().split('T')[0]); setCartsDateTo(d.toISOString().split('T')[0]); setTimeout(() => { setCartsPage(1); fetchCarts(); }, 0); }}
+                      <button onClick={() => { const d = new Date(); const f = d.toISOString().split('T')[0]; setCartsDateFrom(f); setCartsDateTo(f); setCartsPage(1); fetchCarts({ from: f, to: f, page: 1 }); }}
                         className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-wider transition-all ${(!cartsDateFrom && !cartsDateTo) || (new Date(cartsDateFrom).toDateString() === new Date().toDateString() && new Date(cartsDateTo).toDateString() === new Date().toDateString()) ? 'bg-amber-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>Daily</button>
-                      <button onClick={() => { const d = new Date(); const w = new Date(d); w.setDate(w.getDate() - 7); setCartsDateFrom(w.toISOString().split('T')[0]); setCartsDateTo(d.toISOString().split('T')[0]); setTimeout(() => { setCartsPage(1); fetchCarts(); }, 0); }}
+                      <button onClick={() => { const d = new Date(); const w = new Date(d); w.setDate(w.getDate() - 7); const f = w.toISOString().split('T')[0]; const t = d.toISOString().split('T')[0]; setCartsDateFrom(f); setCartsDateTo(t); setCartsPage(1); fetchCarts({ from: f, to: t, page: 1 }); }}
                         className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-wider transition-all ${cartsDateFrom && cartsDateTo && new Date(cartsDateFrom) <= new Date(new Date().setDate(new Date().getDate() - 7)) && new Date(cartsDateTo).toDateString() === new Date().toDateString() ? 'bg-amber-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>Weekly</button>
-                      <button onClick={() => { const d = new Date(); const m = new Date(d); m.setMonth(m.getMonth() - 1); setCartsDateFrom(m.toISOString().split('T')[0]); setCartsDateTo(d.toISOString().split('T')[0]); setTimeout(() => { setCartsPage(1); fetchCarts(); }, 0); }}
+                      <button onClick={() => { const d = new Date(); const m = new Date(d); m.setMonth(m.getMonth() - 1); const f = m.toISOString().split('T')[0]; const t = d.toISOString().split('T')[0]; setCartsDateFrom(f); setCartsDateTo(t); setCartsPage(1); fetchCarts({ from: f, to: t, page: 1 }); }}
                         className="px-2 py-1 rounded text-[9px] font-black uppercase tracking-wider bg-gray-800 text-gray-400 hover:bg-gray-700 transition-all">Monthly</button>
                     </div>
                     <div className="flex items-center space-x-1.5">
@@ -541,9 +545,9 @@ const WarehouseDashboard = () => {
                       <input type="date" value={cartsDateTo}
                         onChange={(e) => setCartsDateTo(e.target.value)}
                         className="theme-input rounded-lg py-1.5 px-2 text-[10px] font-medium outline-none focus:border-amber-500 w-28" />
-                      <button onClick={() => { setCartsPage(1); fetchCarts(); }}
+                      <button onClick={() => { setCartsPage(1); fetchCarts({ from: cartsDateFrom, to: cartsDateTo, page: 1 }); }}
                         className="bg-amber-600 hover:bg-amber-500 text-white font-black py-1.5 px-3 rounded-lg text-xs transition-all active:scale-95">Filter</button>
-                      <button onClick={() => { setCartsDateFrom(''); setCartsDateTo(''); setCartsSearch(''); setCartsStatusFilter(''); setCartsPage(1); fetchCarts(); }}
+                      <button onClick={() => { setCartsDateFrom(''); setCartsDateTo(''); setCartsSearch(''); setCartsStatusFilter(''); setCartsPage(1); fetchCarts({ from: '', to: '', status: '', search: '', page: 1 }); }}
                         className="bg-gray-800 hover:bg-gray-700 text-gray-400 font-black py-1.5 px-3 rounded-lg text-xs transition-all active:scale-95 border border-gray-700">Reset</button>
                     </div>
                   </div>
@@ -645,11 +649,11 @@ const WarehouseDashboard = () => {
                     <div className="flex items-center justify-between mt-6">
                       <p className="text-xs theme-text-muted font-bold">{cartsTotal} total carts</p>
                       <div className="flex space-x-2">
-                        <button disabled={cartsPage <= 1} onClick={() => { setCartsPage(p => p - 1); setTimeout(fetchCarts, 0); }}
+                        <button disabled={cartsPage <= 1} onClick={() => { const n = cartsPage - 1; setCartsPage(n); fetchCarts({ page: n }); }}
                           className="px-4 py-2 bg-gray-800 rounded-xl text-xs font-black text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all">
                           Previous
                         </button>
-                        <button disabled={carts.length < 50} onClick={() => { setCartsPage(p => p + 1); setTimeout(fetchCarts, 0); }}
+                        <button disabled={carts.length < 50} onClick={() => { const n = cartsPage + 1; setCartsPage(n); fetchCarts({ page: n }); }}
                           className="px-4 py-2 bg-gray-800 rounded-xl text-xs font-black text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all">
                           Next
                         </button>
@@ -1215,11 +1219,11 @@ const WarehouseDashboard = () => {
                     <div className="flex items-center justify-between mt-6">
                       <p className="text-xs theme-text-muted font-bold">{cartsTotal} total carts</p>
                       <div className="flex space-x-2">
-                        <button disabled={cartsPage <= 1} onClick={() => { setCartsPage(p => p - 1); setTimeout(fetchCarts, 0); }}
+                        <button disabled={cartsPage <= 1} onClick={() => { const n = cartsPage - 1; setCartsPage(n); fetchCarts({ page: n }); }}
                           className="px-4 py-2 bg-gray-800 rounded-xl text-xs font-black text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all">
                           Previous
                         </button>
-                        <button disabled={carts.length < 50} onClick={() => { setCartsPage(p => p + 1); setTimeout(fetchCarts, 0); }}
+                        <button disabled={carts.length < 50} onClick={() => { const n = cartsPage + 1; setCartsPage(n); fetchCarts({ page: n }); }}
                           className="px-4 py-2 bg-gray-800 rounded-xl text-xs font-black text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all">
                           Next
                         </button>
