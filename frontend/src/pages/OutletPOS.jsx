@@ -126,6 +126,42 @@ const OutletPOS = () => {
     return p;
   }, [products, activeCategory, search]);
 
+  const groupedProducts = useMemo(() => {
+    const map = new Map();
+    for (const item of filtered) {
+      const key = `${item.name}||${item.category}||${item.outletName}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          outletName: item.outletName,
+          imageUrl: item.imageUrl,
+          fabric: item.fabric,
+          colors: [],
+          sizes: [],
+          variants: [],
+          totalStock: 0,
+          price: item.price || 0
+        });
+      }
+      const g = map.get(key);
+      g.variants.push(item);
+      g.totalStock += (item.stock || 0);
+      if (item.color) g.colors.push(item.color);
+      if (item.size) g.sizes.push(item.size);
+      const firstVariant = g.variants[0];
+      g.imageUrl = g.imageUrl || firstVariant.imageUrl;
+      g.fabric = g.fabric || firstVariant.fabric;
+      g.price = g.price || firstVariant.price || 0;
+    }
+    for (const g of map.values()) {
+      g.colors = [...new Set(g.colors)].sort();
+      g.sizes = [...new Set(g.sizes)].sort();
+    }
+    return Array.from(map.values());
+  }, [filtered]);
+
   const barcodeMap = useMemo(() => {
     const map = new Map();
     for (const p of products) {
@@ -823,24 +859,28 @@ const OutletPOS = () => {
             </div>
           ) : (
           <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
-            {filtered.map(p => (
-                <button key={p.id} onClick={() => handleAddToCart(p)}
+            {groupedProducts.map(g => {
+              const colorLabel = g.colors.length > 0 ? g.colors.join(', ') : null;
+              const sizeLabel = g.sizes.length > 0 ? g.sizes.join(', ') : null;
+              return (
+                <button key={g.id} onClick={() => handleAddToCart(g.variants.length === 1 ? g.variants[0] : g)}
                   className="glass bg-gray-800/80 rounded-xl border-2 border-gray-700/50 p-2 text-left hover:border-blue-500/50 transition-all active:scale-95">
-                  {p.imageUrl ? (
-                    <img src={p.imageUrl} className="w-full h-20 object-cover rounded-lg mb-1.5" />
+                  {g.imageUrl ? (
+                    <img src={g.imageUrl} className="w-full h-20 object-cover rounded-lg mb-1.5" />
                   ) : (
                     <div className="w-full h-20 bg-gray-800 rounded-lg mb-1.5 flex items-center justify-center">
                       <Package size={24} className="text-gray-600" />
                     </div>
                   )}
-                  <p className="text-[10px] font-bold text-white leading-tight line-clamp-2">{p.name}</p>
-                  {(p.color || p.size) && (
-                    <p className="text-[8px] text-gray-500 font-bold">{[p.color, p.size].filter(Boolean).join(' • ')}</p>
+                  <p className="text-[10px] font-bold text-white leading-tight line-clamp-2">{g.name}</p>
+                  {(colorLabel || sizeLabel) && (
+                    <p className="text-[8px] text-gray-500 font-bold">{[colorLabel, sizeLabel].filter(Boolean).join(' | ')}</p>
                   )}
-                  <p className="text-xs font-black text-emerald-400 mt-0.5">{formatCurrency(p.price)}</p>
-                  <p className="text-[8px] text-gray-600 font-bold">Stock: {p.stock}</p>
+                  <p className="text-xs font-black text-emerald-400 mt-0.5">{formatCurrency(g.price)}</p>
+                  <p className="text-[8px] text-gray-600 font-bold">Stock: {g.totalStock}</p>
                 </button>
-              ))}
+              );
+            })}
           </div>
           )}
         </div>
