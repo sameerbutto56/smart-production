@@ -29,7 +29,7 @@ const Login = () => {
   };
 
   return (
-    <div className="h-screen flex items-center justify-center px-4 relative overflow-hidden" style={{ background: 'var(--background, #030712)' }}>
+    <div className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 50%, #fdf2f8 100%)' }}>
       <div className="absolute top-6 right-6 z-50">
         <LanguageToggle />
       </div>
@@ -38,22 +38,21 @@ const Login = () => {
         <motion.div 
           animate={{ 
             scale: [1, 1.2, 1],
-            opacity: [0.1, 0.15, 0.1],
+            opacity: [0.06, 0.1, 0.06],
             rotate: [0, 90, 0]
           }}
           transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-          className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-blue-600 rounded-full blur-[150px]"
+          className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] rounded-full" style={{ background: 'radial-gradient(circle, #f43f5e 0%, transparent 70%)' }}
         />
         <motion.div 
           animate={{ 
             scale: [1.2, 1, 1.2],
-            opacity: [0.1, 0.15, 0.1],
+            opacity: [0.06, 0.1, 0.06],
             rotate: [0, -90, 0]
           }}
           transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-          className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] bg-emerald-600 rounded-full blur-[150px]"
+          className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] rounded-full" style={{ background: 'radial-gradient(circle, #06b6d4 0%, transparent 70%)' }}
         />
-        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-[0.02]"></div>
       </div>
 
       <motion.div 
@@ -62,26 +61,32 @@ const Login = () => {
         transition={{ duration: 0.8, ease: "easeOut" }}
         className="w-full max-w-md relative z-10"
       >
-        <div className="text-center mb-4">
+        <div className="text-center mb-8">
           <motion.div 
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: "spring", stiffness: 200, damping: 20 }}
-            className="w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-2xl shadow-blue-900/40 rotate-6"
+            className="w-16 h-16 mx-auto mb-4 flex items-center justify-center"
           >
-            <Sparkles className="text-white" size={24} />
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg" style={{ background: 'linear-gradient(135deg, #f43f5e, #06b6d4)' }}>
+              <Sparkles className="text-white" size={28} />
+            </div>
           </motion.div>
           
-          <h1 className="text-3xl md:text-4xl font-black theme-text-primary tracking-tighter uppercase italic leading-none mb-1">
-            ENAMELS<br/>
-            <span className="bg-gradient-to-r from-blue-400 via-indigo-400 to-emerald-400 bg-clip-text text-transparent">PRODUCTION</span>
+          <h1 className="text-4xl font-extrabold tracking-tight leading-none mb-1" style={{ fontFamily: "'Poppins', sans-serif" }}>
+            <span style={{ background: 'linear-gradient(135deg, #f43f5e, #06b6d4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Sameer Special</span>
           </h1>
-          <div className="h-0.5 w-12 bg-gradient-to-r from-blue-600 to-emerald-600 mx-auto rounded-full mb-2"></div>
-          <p className="theme-text-muted text-xs md:text-sm font-black uppercase tracking-[0.4em]">Enterprise Workflow Intelligence</p>
+          <div className="h-1 w-16 mx-auto rounded-full mb-3" style={{ background: 'linear-gradient(90deg, #f43f5e, #06b6d4)' }}></div>
+          <p className="text-sm font-semibold uppercase tracking-[0.3em]" style={{ color: '#94a3b8', fontFamily: "'Inter', sans-serif" }}>Enamels Production Management</p>
         </div>
 
-        <div className="glass p-6 md:p-8 rounded-[1.5rem] border theme-border shadow-2xl backdrop-blur-3xl relative overflow-hidden group">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50"></div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="bg-white p-6 md:p-8 rounded-2xl shadow-xl border relative" style={{ borderColor: '#f1f5f9' }}
+        >
+          <div className="absolute top-0 left-0 w-full h-1 rounded-t-2xl" style={{ background: 'linear-gradient(90deg, #f43f5e, #06b6d4)' }}></div>
           
           <AnimatePresence mode="wait">
             {error && (
@@ -89,46 +94,52 @@ const Login = () => {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="bg-red-500/15 border-2 border-red-500/30 text-red-300 p-4 rounded-xl text-sm font-black mb-4 flex items-center space-x-3"
+                className="p-4 rounded-xl text-sm font-semibold mb-4 flex items-center space-x-3" style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626' }}
               >
-                <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shrink-0" />
+                <div className="w-2 h-2 rounded-full shrink-0" style={{ background: '#ef4444' }} />
                 <span>{error}</span>
               </motion.div>
             )}
           </AnimatePresence>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-1.5">
-              <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-3">Authorized Identity</label>
-              <div className="relative group/input">
-                <Mail className="absolute left-5 top-1/2 -translate-y-1/2 theme-text-muted group-focus-within/input:text-blue-500 transition-colors" size={16} />
+              <label className="text-xs font-semibold uppercase tracking-widest ml-1" style={{ color: '#94a3b8', fontFamily: "'Inter', sans-serif" }}>Email</label>
+              <div className="relative group">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 transition-colors" size={16} style={{ color: '#94a3b8' }} />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full theme-input rounded-xl py-3.5 pl-14 pr-6 focus:outline-none focus:border-blue-500 transition-all text-white font-bold placeholder-gray-700 text-xs"
-                  placeholder={t('email')}
+                  className="w-full py-3 pl-11 pr-4 text-sm font-medium rounded-xl border-2 outline-none transition-all"
+                  style={{ background: '#ffffff', borderColor: '#e2e8f0', color: '#0f172a' }}
+                  placeholder="Enter your email"
+                  onFocus={(e) => e.target.style.borderColor = '#f43f5e'}
+                  onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
                   required
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-3">Access Encryption</label>
-              <div className="relative group/input">
-                <Lock className="absolute left-5 top-1/2 -translate-y-1/2 theme-text-muted group-focus-within/input:text-blue-500 transition-colors" size={16} />
+              <label className="text-xs font-semibold uppercase tracking-widest ml-1" style={{ color: '#94a3b8', fontFamily: "'Inter', sans-serif" }}>Password</label>
+              <div className="relative group">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 transition-colors" size={16} style={{ color: '#94a3b8' }} />
                 <input
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full theme-input rounded-xl py-3.5 pl-14 pr-12 focus:outline-none focus:border-blue-500 transition-all text-white font-bold placeholder-gray-700 text-xs"
-                  placeholder="••••••••••••"
+                  className="w-full py-3 pl-11 pr-12 text-sm font-medium rounded-xl border-2 outline-none transition-all"
+                  style={{ background: '#ffffff', borderColor: '#e2e8f0', color: '#0f172a' }}
+                  placeholder="Enter your password"
+                  onFocus={(e) => e.target.style.borderColor = '#f43f5e'}
+                  onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 theme-text-muted hover:text-gray-300 transition-colors focus:outline-none"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors focus:outline-none" style={{ color: '#94a3b8' }}
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
@@ -138,26 +149,27 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white font-black py-3.5 rounded-xl shadow-2xl shadow-blue-900/40 transition-all active:scale-95 flex items-center justify-center space-x-3 group/btn overflow-hidden relative mt-2"
+              className="w-full text-white font-bold py-3.5 rounded-xl transition-all active:scale-[0.98] flex items-center justify-center space-x-3 overflow-hidden relative mt-2 shadow-lg"
+              style={{ background: 'linear-gradient(135deg, #f43f5e, #e11d48)' }}
             >
               <div className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover/btn:translate-x-[100%] transition-transform duration-1000"></div>
               {loading ? (
                 <Loader2 className="animate-spin" size={18} />
               ) : (
                 <>
-                  <span className="uppercase tracking-[0.2em] text-xs md:text-sm">{t('Login')}</span>
-                  <ShieldCheck size={16} className="group-hover/btn:rotate-12 transition-transform" />
+                  <span className="font-semibold tracking-wide text-sm">Sign In</span>
+                  <ShieldCheck size={16} />
                 </>
               )}
             </button>
           </form>
-        </div>
+        </motion.div>
 
-        <div className="mt-4 text-center space-y-2">
-          <p className="text-xs theme-text-muted font-black uppercase tracking-[0.4em]">
-            Build v1.0.5-OUTLET (READY)
+        <div className="mt-6 text-center space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em]" style={{ color: '#94a3b8' }}>
+            Enamels Production Management System
           </p>
-          <p className="text-[9px] theme-text-muted font-bold uppercase tracking-widest">
+          <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: '#cbd5e1' }}>
             Ctrl + F5 to refresh if updates don't show
           </p>
         </div>

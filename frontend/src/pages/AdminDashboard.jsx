@@ -181,17 +181,17 @@ const AdminDashboard = () => {
     const onStageCompletionRequested = (data) => {
       queueRefreshRef.current?.();
       toast.custom((t) => (
-        <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-gray-900 shadow-2xl rounded-[1.5rem] pointer-events-auto flex ring-1 ring-emerald-500/50 border border-emerald-500/20 p-4`}>
+        <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full shadow-2xl rounded-2xl pointer-events-auto flex border p-4`} style={{ background: '#ffffff', borderColor: '#06b6d4' }}>
           <div className="flex-1 w-0 p-1">
             <div className="flex items-start">
               <div className="flex-shrink-0 pt-0.5">
-                <div className="h-10 w-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                <div className="h-10 w-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(6,182,212,0.1)', color: '#06b6d4' }}>
                   <ClipboardList size={16} />
                 </div>
               </div>
               <div className="ml-3 flex-1">
-                <p className="text-sm font-black text-white uppercase tracking-tight">New Approval Request</p>
-                <p className="mt-1 text-xs text-gray-400 font-bold uppercase tracking-widest">
+                <p className="text-sm font-bold uppercase tracking-tight" style={{ color: '#0f172a' }}>New Approval Request</p>
+                <p className="mt-1 text-xs font-semibold uppercase tracking-widest" style={{ color: '#64748b' }}>
                   {data.stage?.stageName?.replace('_', ' ')} completed for Order #{data.orderId?.substring(0, 8)}
                 </p>
               </div>
@@ -428,10 +428,10 @@ const AdminDashboard = () => {
   };
 
   const statCards = [
-    { title: 'Total Active Orders', value: stats.totalOrders, icon: BarChart3, color: 'text-blue-400', bg: 'bg-blue-400/10', path: '/orders' },
-    { title: 'Urgent Priority', value: stats.urgentOrders, icon: AlertTriangle, color: 'text-yellow-400', bg: 'bg-yellow-400/10', path: '/orders', state: { filterUrgent: true } },
-    { title: 'Delayed Stages', value: stats.delayedOrders, icon: Clock, color: 'text-red-400', bg: 'bg-red-400/10', path: '/orders', state: { filterUrgent: true } },
-    { title: 'Completed Today', value: stats.completedToday, icon: Users, color: 'text-emerald-400', bg: 'bg-emerald-400/10', path: '/orders', state: { filterStatus: 'COMPLETED' } },
+    { title: 'Total Active Orders', value: stats.totalOrders, icon: BarChart3, accent: '#f43f5e', bg: '#fef2f2' },
+    { title: 'Urgent Priority', value: stats.urgentOrders, icon: AlertTriangle, accent: '#f59e0b', bg: '#fffbeb' },
+    { title: 'Delayed Stages', value: stats.delayedOrders, icon: Clock, accent: '#ef4444', bg: '#fef2f2' },
+    { title: 'Completed Today', value: stats.completedToday, icon: TrendingUp, accent: '#10b981', bg: '#ecfdf5' },
   ];
 
   const deliverySetupQueue = useMemo(() => 
@@ -517,11 +517,11 @@ const AdminDashboard = () => {
 
   if (fetchingError && allOrders.length === 0) {
     return (
-      <div className="h-[80vh] flex flex-col items-center justify-center space-y-6 glass rounded-2xl md:rounded-[3rem] border-2 border-red-500/20">
+      <div className="h-[80vh] flex flex-col items-center justify-center space-y-6 rounded-2xl md:rounded-[3rem] border-2 p-10" style={{ background: '#ffffff', borderColor: 'rgba(239,68,68,0.2)' }}>
         <AlertTriangle className="text-red-500" size={64} />
         <div className="text-center">
-          <h2 className="text-2xl font-black theme-text-primary uppercase italic">Connection Fragmented</h2>
-          <p className="theme-text-muted mt-2 font-bold">The production server is currently unreachable.</p>
+          <h2 className="text-2xl font-bold uppercase italic" style={{ color: '#0f172a', fontFamily: "'Poppins', sans-serif" }}>Connection Fragmented</h2>
+          <p className="mt-2 font-semibold" style={{ color: '#64748b' }}>The production server is currently unreachable.</p>
         </div>
         <button 
           onClick={() => dashboardRefreshRef.current?.()}
@@ -538,24 +538,24 @@ const AdminDashboard = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl md:text-3xl font-black theme-text-primary tracking-tight">Control Center</h1>
-          <p className="theme-text-secondary font-bold uppercase tracking-widest text-xs md:text-sm mt-1">Production Approval Hub</p>
+          <h1 className="text-xl md:text-3xl font-bold tracking-tight" style={{ color: '#0f172a', fontFamily: "'Poppins', sans-serif" }}>Control Center</h1>
+          <p className="font-semibold uppercase tracking-widest text-xs md:text-sm mt-1" style={{ color: '#64748b' }}>Production Approval Hub</p>
         </div>
         <div className="flex items-center gap-4">
           {systemPaused && (
-            <div className="flex items-center gap-2 bg-red-500/20 border border-red-500/30 px-4 py-2.5 rounded-xl">
-              <PauseCircle className="text-red-400" size={18} />
-              <span className="text-red-400 font-black text-xs md:text-sm uppercase tracking-widest">System Paused</span>
+            <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl" style={{ background: '#fef2f2', border: '1px solid #fecaca' }}>
+              <PauseCircle className="text-red-500" size={18} />
+              <span className="font-bold text-xs md:text-sm uppercase tracking-widest" style={{ color: '#dc2626' }}>System Paused</span>
             </div>
           )}
           {user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' ? (<>
           <button
             onClick={() => setShowPauseModal(true)}
-            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-xs md:text-sm transition-all shadow-lg active:scale-95 ${
+            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold uppercase tracking-widest text-xs md:text-sm transition-all shadow-lg active:scale-95 ${
               systemPaused
-                ? 'bg-emerald-500/10 hover:bg-emerald-500 hover:text-white text-emerald-400 border border-emerald-500/20'
-                : 'bg-red-500/10 hover:bg-red-500 hover:text-white text-red-400 border border-red-500/20'
+                ? 'text-emerald-600 border' : 'text-red-600 border'
             }`}
+            style={systemPaused ? { background: '#ecfdf5', borderColor: '#a7f3d0' } : { background: '#fef2f2', borderColor: '#fecaca' }}
           >
             {systemPaused ? <PlayCircle size={16} /> : <PauseCircle size={16} />}
             <span>{systemPaused ? 'Resume System' : 'Pause System'}</span>
@@ -564,7 +564,8 @@ const AdminDashboard = () => {
             onClick={() => {
               alert('Notification Alert Broadcasted!');
             }}
-            className="flex items-center gap-2 bg-yellow-500/10 hover:bg-yellow-500 hover:text-white text-yellow-500 border border-yellow-500/20 px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-xs md:text-sm transition-all shadow-lg active:scale-95"
+            className="flex items-center gap-2 px-6 py-3 rounded-2xl font-bold uppercase tracking-widest text-xs md:text-sm transition-all shadow-lg active:scale-95 border"
+            style={{ background: '#fffbeb', borderColor: '#fde68a', color: '#d97706' }}
           >
             <BellRing size={16} />
             <span>Send Alert</span>
@@ -581,20 +582,22 @@ const AdminDashboard = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            onClick={() => stat.path && navigate(stat.path, { state: stat.state })}
-            className="glass p-6 rounded-[1.5rem] theme-border hover:border-blue-500/50 hover:scale-[1.02] transition-all group cursor-pointer active:scale-95"
+            className="kpi-card cursor-pointer active:scale-[0.98]"
+            onClick={() => { if (stat.path) navigate(stat.path, { state: stat.state }); }}
+            style={{ position: 'relative', overflow: 'hidden' }}
           >
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: `linear-gradient(90deg, ${stat.accent}, #06b6d4)`, opacity: 1 }} />
             <div className="flex justify-between items-start mb-4">
-              <div className={`p-3 rounded-xl ${stat.bg} group-hover:scale-110 transition-transform`}>
-                <stat.icon className={stat.color} size={22} />
+              <div className="kpi-icon" style={{ background: stat.bg, color: stat.accent }}>
+                <stat.icon size={18} />
               </div>
-              <span className="flex items-center text-emerald-400 text-xs md:text-sm font-black bg-emerald-400/10 px-2 py-1 rounded-full uppercase tracking-widest">
+              <span className="flex items-center text-xs font-bold px-2 py-1 rounded-full uppercase tracking-widest" style={{ background: '#ecfdf5', color: '#10b981' }}>
                 <ArrowUpRight size={10} className="mr-1" />
                 Live
               </span>
             </div>
-            <h3 className="theme-text-muted text-xs md:text-sm font-black uppercase tracking-[0.2em]">{stat.title}</h3>
-            <p className="text-xl md:text-3xl font-black theme-text-primary mt-1 tracking-tighter">{stat.value}</p>
+            <h3 className="kpi-label">{stat.title}</h3>
+            <p className="kpi-value mt-1" style={{ color: '#0f172a', fontFamily: "'Poppins', sans-serif" }}>{stat.value}</p>
           </motion.div>
         ))}
       </div>
@@ -602,7 +605,7 @@ const AdminDashboard = () => {
       {/* Search Bar (compact, always visible) */}
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2" size={16} style={{ color: '#94a3b8' }} />
           <input
             type="text"
             placeholder="Search order by number or customer..."
@@ -625,7 +628,8 @@ const AdminDashboard = () => {
                 }
               }
             }}
-            className="w-full theme-input rounded-xl py-3 pl-12 pr-4 text-sm font-bold"
+            className="w-full rounded-xl py-3 pl-12 pr-4 text-sm font-medium border-2 outline-none transition-all"
+            style={{ background: '#ffffff', borderColor: '#e2e8f0', color: '#0f172a' }}
           />
         </div>
         <button
@@ -645,12 +649,12 @@ const AdminDashboard = () => {
               setTrackingError('No order found with that ID or Name.');
             }
           }}
-          className="btn-solid-primary px-5 py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest"
+          className="btn-solid-primary px-5 py-3 rounded-xl text-xs md:text-sm font-bold uppercase tracking-widest"
         >
           Track
         </button>
         {trackedOrder && (
-          <button onClick={() => { setTrackedOrder(null); setTrackingError(''); }} className="text-gray-500 hover:text-white text-xs md:text-sm font-black uppercase tracking-widest">
+          <button onClick={() => { setTrackedOrder(null); setTrackingError(''); }} className="text-xs md:text-sm font-bold uppercase tracking-widest" style={{ color: '#64748b' }}>
             Clear
           </button>
         )}
@@ -663,7 +667,7 @@ const AdminDashboard = () => {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="text-center py-4 bg-red-500/5 rounded-2xl border border-red-500/10 text-red-400 font-bold text-xs md:text-sm"
+            className="text-center py-4 rounded-2xl border font-bold text-xs md:text-sm" style={{ background: '#fef2f2', borderColor: 'rgba(239,68,68,0.1)', color: '#ef4444' }}
           >
             {trackingError}
           </motion.div>
@@ -674,31 +678,31 @@ const AdminDashboard = () => {
             key={trackedOrder.id}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="theme-bg rounded-2xl p-4 md:p-6 theme-border"
+            className="rounded-2xl p-4 md:p-6 border" style={{ background: '#ffffff', borderColor: '#f1f5f9' }}
           >
             {/* Order Header */}
             <div className="flex flex-wrap justify-between items-start gap-3 mb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center font-black text-lg md:text-xl shadow-xl">
+                <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center font-bold text-lg md:text-xl shadow-lg text-white" style={{ background: 'linear-gradient(135deg, #f43f5e, #06b6d4)' }}>
                   {trackedOrder.customerName?.charAt(0) || '?'}
                 </div>
                 <div>
-                  <h4 className="text-base md:text-lg font-black theme-text-primary">{trackedOrder.customerName}</h4>
-                  <p className="theme-text-muted font-bold uppercase tracking-widest text-[10px] md:text-xs">Order #{trackedOrder.orderNumber || trackedOrder.id.substring(0, 8)}</p>
+                  <h4 className="text-base md:text-lg font-bold" style={{ color: '#0f172a', fontFamily: "'Poppins', sans-serif" }}>{trackedOrder.customerName}</h4>
+                  <p className="font-semibold uppercase tracking-widest text-[10px] md:text-xs" style={{ color: '#94a3b8' }}>Order #{trackedOrder.orderNumber || trackedOrder.id.substring(0, 8)}</p>
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className={`px-2.5 py-1 rounded-full text-[10px] md:text-xs font-black uppercase tracking-widest border ${
-                  trackedOrder.priority === 'SUPER_URGENT' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
-                  trackedOrder.priority === 'URGENT' ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' :
-                  'bg-gray-500/10 text-gray-400 border-gray-500/20'
+                <span className={`px-2.5 py-1 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-widest border ${
+                  trackedOrder.priority === 'SUPER_URGENT' ? 'badge-danger' :
+                  trackedOrder.priority === 'URGENT' ? 'badge-warning' :
+                  'badge-neutral'
                 }`}>{trackedOrder.priority || 'NORMAL'}</span>
-                <span className={`px-2.5 py-1 rounded-full text-[10px] md:text-xs font-black uppercase tracking-widest border ${
-                  trackedOrder.paymentStatus === 'PAID' || trackedOrder.paymentStatus === 'FULL_PAID' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
-                  parseFloat(trackedOrder.advanceAmount || 0) > 0 ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' :
-                  'bg-red-500/20 text-red-400 border-red-500/30'
+                <span className={`px-2.5 py-1 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-widest border ${
+                  trackedOrder.paymentStatus === 'PAID' || trackedOrder.paymentStatus === 'FULL_PAID' ? 'badge-success' :
+                  parseFloat(trackedOrder.advanceAmount || 0) > 0 ? 'badge-warning' :
+                  'badge-danger'
                 }`}>{trackedOrder.paymentStatus === 'PAID' || trackedOrder.paymentStatus === 'FULL_PAID' ? 'PAID' : parseFloat(trackedOrder.advanceAmount || 0) > 0 ? 'ADVANCE' : 'COD'}</span>
-                <span className="bg-blue-500/10 text-blue-400 px-2.5 py-1 rounded-full text-[10px] md:text-xs font-black uppercase tracking-widest border border-blue-500/20">
+                <span className="badge-info px-2.5 py-1 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-widest border">
                   {trackedOrder.status.replace(/_/g, ' ')}
                 </span>
               </div>
@@ -714,19 +718,18 @@ const AdminDashboard = () => {
                     {stages.map((s, i) => {
                       const isPast = i < currentIdx;
                       const isCurrent = i === currentIdx;
-                      const isFuture = i > currentIdx;
                       return (
                         <div key={s} className="flex items-center gap-1">
-                          <div className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider whitespace-nowrap ${
-                            isPast ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
-                            isCurrent ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30 ring-2 ring-blue-500/40' :
-                            'bg-gray-800/50 text-gray-600 border border-gray-800'
+                          <div className={`px-2 py-1 rounded-lg text-[8px] font-bold uppercase tracking-wider whitespace-nowrap border ${
+                            isPast ? 'badge-success' :
+                            isCurrent ? 'badge-primary border-2' :
+                            'badge-neutral'
                           }`}>
                             {isPast && <CheckCircle2 size={10} className="inline mr-1 -mt-0.5" />}
                             {s.replace(/_/g, ' ')}
                           </div>
                           {i < stages.length - 1 && (
-                            <div className={`w-3 h-[2px] ${i < currentIdx ? 'bg-emerald-500/40' : 'bg-gray-800'}`} />
+                            <div className={`w-3 h-[2px] ${i < currentIdx ? 'bg-emerald-400' : ''}`} style={{ background: i < currentIdx ? '#10b981' : '#e2e8f0' }} />
                           )}
                         </div>
                       );
@@ -738,42 +741,42 @@ const AdminDashboard = () => {
 
             {/* Full Timeline Entries */}
             {trackingTimelineLoading ? (
-              <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-blue-400" /></div>
+              <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin" style={{ color: '#f43f5e' }} /></div>
             ) : trackingTimeline.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 font-black uppercase tracking-widest text-xs">Loading timeline...</div>
+              <div className="text-center py-8 font-bold uppercase tracking-widest text-xs" style={{ color: '#94a3b8' }}>Loading timeline...</div>
             ) : (
               <div className="space-y-1 mb-4">
-                <h5 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3">Stage Timeline</h5>
+                <h5 className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: '#94a3b8' }}>Stage Timeline</h5>
                 {trackingTimeline
                   .filter(e => e.type === 'stage')
                   .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
                   .map((entry, idx, arr) => {
-                    const dotColor = entry.status === 'COMPLETED' ? 'bg-emerald-500' : entry.acceptedAt ? 'bg-blue-500' : 'bg-gray-500';
+                    const dotColor = entry.status === 'COMPLETED' ? '#10b981' : entry.acceptedAt ? '#f43f5e' : '#94a3b8';
                     const delay = entry.delay;
                     const fmt = (d) => d ? new Date(d).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : null;
                     return (
                       <div key={entry.id || idx} className="relative pl-8 pb-3">
-                        {idx < arr.length - 1 && <div className="absolute left-[11px] top-3 bottom-0 w-[2px] bg-gray-800" />}
-                        <div className={`absolute left-0 top-1 w-[22px] h-[22px] rounded-full border-2 border-gray-900 flex items-center justify-center ${dotColor}`}>
-                          {entry.status === 'COMPLETED' ? <CheckCircle2 size={12} className="text-white" /> : entry.acceptedAt ? <Circle size={8} className="text-white fill-current" /> : <Circle size={8} className="text-white" />}
+                        {idx < arr.length - 1 && <div className="absolute left-[11px] top-3 bottom-0 w-[2px]" style={{ background: '#e2e8f0' }} />}
+                        <div className={`absolute left-0 top-1 w-[22px] h-[22px] rounded-full border-2 flex items-center justify-center`} style={{ background: dotColor, borderColor: '#ffffff' }}>
+                          {entry.status === 'COMPLETED' ? <CheckCircle2 size={12} className="text-white" /> : <Circle size={8} className="text-white fill-current" />}
                         </div>
-                        <div className="p-2.5 rounded-xl border border-gray-800 bg-gray-950/50">
+                        <div className="p-2.5 rounded-xl border" style={{ background: '#f8fafc', borderColor: '#f1f5f9' }}>
                           <div className="flex flex-wrap items-center justify-between gap-1">
-                            <span className={`text-[11px] font-black uppercase tracking-wider ${entry.status === 'COMPLETED' ? 'text-emerald-400' : entry.acceptedAt ? 'text-blue-400' : 'text-gray-400'}`}>
+                            <span className={`text-[11px] font-bold uppercase tracking-wider ${entry.status === 'COMPLETED' ? 'text-emerald-600' : entry.acceptedAt ? 'text-rose-600' : 'text-slate-500'}`}>
                               {entry.stage.replace(/_/g, ' ')}
                             </span>
-                            <span className={`text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${
-                              entry.status === 'COMPLETED' ? 'text-emerald-400 bg-emerald-500/10' :
-                              entry.acceptedAt ? 'text-blue-400 bg-blue-500/10' :
-                              'text-gray-500 bg-gray-800/50'
+                            <span className={`text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                              entry.status === 'COMPLETED' ? 'badge-success' :
+                              entry.acceptedAt ? 'badge-primary' :
+                              'badge-neutral'
                             }`}>{entry.status.replace(/_/g, ' ')}</span>
                           </div>
-                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-gray-500 font-medium">
+                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] font-medium" style={{ color: '#94a3b8' }}>
                             <span>Received: {fmt(entry.receivedAt)}</span>
                             {entry.acceptedAt && <span>Accepted: {fmt(entry.acceptedAt)}</span>}
                             {entry.completedAt && <span>Completed: {fmt(entry.completedAt)}</span>}
                             {delay !== null && (
-                              <span className={delay > 60 ? 'text-red-400' : delay > 0 ? 'text-yellow-400' : 'text-gray-600'}>
+                              <span className={delay > 60 ? 'text-red-500' : delay > 0 ? 'text-amber-500' : ''}>
                                 Delay: {delay} min
                               </span>
                             )}
@@ -788,17 +791,17 @@ const AdminDashboard = () => {
             {/* Route transitions */}
             {trackingTimeline.filter(e => e.type === 'route').length > 0 && (
               <div className="mb-4">
-                <h5 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Routing History</h5>
+                <h5 className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: '#94a3b8' }}>Routing History</h5>
                 <div className="space-y-1">
                   {trackingTimeline
                     .filter(e => e.type === 'route')
                     .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
                     .map((entry, idx) => (
-                      <div key={entry.id || idx} className="flex items-center gap-2 p-2 rounded-lg bg-amber-500/5 border border-amber-500/10">
-                        <Truck size={12} className="text-amber-400 shrink-0" />
-                        <span className="text-[10px] font-bold text-amber-400">{entry.from?.replace(/_/g, ' ')} → {entry.to?.replace(/_/g, ' ')}</span>
-                        <span className="text-[9px] text-gray-600">{new Date(entry.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                        {entry.actor && <span className="text-[9px] text-gray-700 ml-auto">by {entry.actor}</span>}
+                      <div key={entry.id || idx} className="flex items-center gap-2 p-2 rounded-lg border" style={{ background: '#fffbeb', borderColor: 'rgba(245,158,11,0.1)' }}>
+                        <Truck size={12} className="text-amber-500 shrink-0" />
+                        <span className="text-[10px] font-bold text-amber-600">{entry.from?.replace(/_/g, ' ')} → {entry.to?.replace(/_/g, ' ')}</span>
+                        <span className="text-[9px]" style={{ color: '#94a3b8' }}>{new Date(entry.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                        {entry.actor && <span className="text-[9px] ml-auto" style={{ color: '#94a3b8' }}>by {entry.actor}</span>}
                       </div>
                     ))}
                 </div>
@@ -813,15 +816,15 @@ const AdminDashboard = () => {
                 if (items.length === 0) return null;
                 return (
                   <div className="mb-4">
-                    <h5 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Products</h5>
+                    <h5 className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: '#94a3b8' }}>Products</h5>
                     <div className="space-y-1">
                       {items.map((item, i) => (
-                        <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-gray-900/50 border border-gray-800">
+                        <div key={i} className="flex items-center justify-between p-2 rounded-lg border" style={{ background: '#f8fafc', borderColor: '#f1f5f9' }}>
                           <div className="flex items-center gap-2 min-w-0">
-                            <Package size={12} className="text-purple-400 shrink-0" />
-                            <span className="text-[10px] font-bold text-white truncate">{item.productType || 'Item'} — {item.fabricType || 'STD'} / {item.color || '—'} / {item.size || '—'}</span>
+                            <Package size={12} className="text-purple-500 shrink-0" />
+                            <span className="text-[10px] font-bold truncate" style={{ color: '#0f172a' }}>{item.productType || 'Item'} — {item.fabricType || 'STD'} / {item.color || '—'} / {item.size || '—'}</span>
                           </div>
-                          <span className="text-[10px] font-black text-gray-400 shrink-0 ml-2">x{item.quantity || 1}</span>
+                          <span className="text-[10px] font-bold shrink-0 ml-2" style={{ color: '#64748b' }}>x{item.quantity || 1}</span>
                         </div>
                       ))}
                     </div>
@@ -832,27 +835,27 @@ const AdminDashboard = () => {
 
             {/* Customer Info */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
-              <div className="p-2 rounded-lg bg-gray-900/50 border border-gray-800">
-                <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Phone</p>
-                <p className="text-[10px] font-bold text-white">{trackedOrder.customerPhone || '—'}</p>
+              <div className="p-2 rounded-lg border" style={{ background: '#f8fafc', borderColor: '#f1f5f9' }}>
+                <p className="text-[8px] font-bold uppercase tracking-widest" style={{ color: '#94a3b8' }}>Phone</p>
+                <p className="text-[10px] font-bold" style={{ color: '#0f172a' }}>{trackedOrder.customerPhone || '—'}</p>
               </div>
-              <div className="p-2 rounded-lg bg-gray-900/50 border border-gray-800">
-                <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest">City</p>
-                <p className="text-[10px] font-bold text-white">{trackedOrder.city || '—'}</p>
+              <div className="p-2 rounded-lg border" style={{ background: '#f8fafc', borderColor: '#f1f5f9' }}>
+                <p className="text-[8px] font-bold uppercase tracking-widest" style={{ color: '#94a3b8' }}>City</p>
+                <p className="text-[10px] font-bold" style={{ color: '#0f172a' }}>{trackedOrder.city || '—'}</p>
               </div>
-              <div className="p-2 rounded-lg bg-gray-900/50 border border-gray-800">
-                <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Source</p>
-                <p className="text-[10px] font-bold text-white">{trackedOrder.source || '—'}</p>
+              <div className="p-2 rounded-lg border" style={{ background: '#f8fafc', borderColor: '#f1f5f9' }}>
+                <p className="text-[8px] font-bold uppercase tracking-widest" style={{ color: '#94a3b8' }}>Source</p>
+                <p className="text-[10px] font-bold" style={{ color: '#0f172a' }}>{trackedOrder.source || '—'}</p>
               </div>
-              <div className="p-2 rounded-lg bg-gray-900/50 border border-gray-800">
-                <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Total</p>
-                <p className="text-[10px] font-bold text-white">₨{parseFloat(trackedOrder.totalPrice || 0).toLocaleString()}</p>
+              <div className="p-2 rounded-lg border" style={{ background: '#f8fafc', borderColor: '#f1f5f9' }}>
+                <p className="text-[8px] font-bold uppercase tracking-widest" style={{ color: '#94a3b8' }}>Total</p>
+                <p className="text-[10px] font-bold" style={{ color: '#0f172a' }}>₨{parseFloat(trackedOrder.totalPrice || 0).toLocaleString()}</p>
               </div>
             </div>
             {trackedOrder.address && (
-              <div className="p-2 rounded-lg bg-gray-900/50 border border-gray-800 mb-4">
-                <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Address</p>
-                <p className="text-[10px] font-bold text-white">{trackedOrder.address}</p>
+              <div className="p-2 rounded-lg border mb-4" style={{ background: '#f8fafc', borderColor: '#f1f5f9' }}>
+                <p className="text-[8px] font-bold uppercase tracking-widest" style={{ color: '#94a3b8' }}>Address</p>
+                <p className="text-[10px] font-bold" style={{ color: '#0f172a' }}>{trackedOrder.address}</p>
               </div>
             )}
 
@@ -867,7 +870,7 @@ const AdminDashboard = () => {
       </AnimatePresence>
 
       {/* Tab Bar */}
-      <div className="theme-bg-subtle p-2 rounded-[2rem] theme-border overflow-x-auto no-scrollbar">
+      <div className="p-2 rounded-2xl border overflow-x-auto no-scrollbar" style={{ background: '#f1f5f9', borderColor: '#e2e8f0' }}>
         <div className="flex items-center gap-1.5 min-w-max">
           {TOP_TABS.map((tab) => {
             const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
@@ -880,16 +883,17 @@ const AdminDashboard = () => {
                   if (tab.id === 'all_phases') setFilterStage('ALL');
                   if (tab.id === 'edit_requests') editRequestsRefreshRef.current?.();
                 }}
-                className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold uppercase tracking-widest transition-all whitespace-nowrap ${
                   activeTab === tab.id
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
-                    : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
+                    ? 'text-white shadow-lg'
+                    : 'hover:bg-white/50'
                 }`}
+                style={activeTab === tab.id ? { background: 'linear-gradient(135deg, #f43f5e, #e11d48)', boxShadow: '0 4px 15px rgba(244,63,94,0.25)' } : { color: '#64748b' }}
               >
                 <tab.icon size={13} />
                 {tab.label}
                 {tab.id === 'edit_requests' && editRequests.length > 0 && (
-                  <span className="ml-1 px-1.5 py-0.5 bg-amber-500 text-white rounded text-[9px] font-black">{editRequests.length}</span>
+                  <span className="ml-1 px-1.5 py-0.5 text-white rounded text-[9px] font-bold" style={{ background: '#f59e0b' }}>{editRequests.length}</span>
                 )}
               </button>
             );
@@ -911,15 +915,16 @@ const AdminDashboard = () => {
             {activeTab === 'all_phases' && (
               <>
                 {/* Pipeline Sub-Tab Bar */}
-                <div className="theme-bg-subtle p-2 rounded-[2rem] theme-border overflow-x-auto no-scrollbar">
+                <div className="p-2 rounded-2xl border overflow-x-auto no-scrollbar" style={{ background: '#f1f5f9', borderColor: '#e2e8f0' }}>
                   <div className="flex items-center gap-1.5 min-w-max">
                     <button
                       onClick={() => setFilterStage('ALL')}
-                      className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all ${
+                      className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold uppercase tracking-widest transition-all ${
                         filterStage === 'ALL'
-                          ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
-                          : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
+                          ? 'text-white shadow-lg'
+                          : 'hover:bg-white/50'
                       }`}
+                      style={filterStage === 'ALL' ? { background: 'linear-gradient(135deg, #f43f5e, #e11d48)', boxShadow: '0 4px 15px rgba(244,63,94,0.25)' } : { color: '#64748b' }}
                     >
                       <LayoutDashboard size={13} />
                       All ({activeOrdersCount})
@@ -930,15 +935,17 @@ const AdminDashboard = () => {
                         <button
                           key={stage.id}
                           onClick={() => setFilterStage(stage.id)}
-                          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold uppercase tracking-widest transition-all whitespace-nowrap ${
                             filterStage === stage.id
-                              ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
-                              : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
+                              ? 'text-white shadow-lg'
+                              : 'hover:bg-white/50'
                           }`}
+                          style={filterStage === stage.id ? { background: 'linear-gradient(135deg, #f43f5e, #e11d48)', boxShadow: '0 4px 15px rgba(244,63,94,0.25)' } : { color: '#64748b' }}
                         >
                           <stage.icon size={13} />
                           {stage.label}
-                          <span className="ml-0.5 px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded text-[9px] font-black">{count}</span>
+                          <span className="ml-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold" 
+                            style={filterStage === stage.id ? { background: 'rgba(255,255,255,0.2)', color: '#ffffff' } : { background: '#e2e8f0', color: '#64748b' }}>{count}</span>
                         </button>
                       );
                     })}
@@ -950,15 +957,15 @@ const AdminDashboard = () => {
                   <section className="space-y-6">
                     <div className="flex items-center justify-between mb-6">
                       <div className="flex items-center space-x-4">
-                        <div className="p-3 bg-blue-500/10 rounded-2xl">
-                          <Package className="text-blue-400" size={20} />
+                        <div className="p-3 rounded-2xl" style={{ background: '#fef2f2' }}>
+                          <Package className="text-rose-500" size={20} />
                         </div>
                         <div>
-                          <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">Store</h2>
-                          <p className="theme-text-muted text-xs md:text-sm font-bold uppercase tracking-widest">Orders currently in Store phase</p>
+                          <h2 className="text-2xl font-bold uppercase tracking-tight" style={{ color: '#0f172a', fontFamily: "'Poppins', sans-serif" }}>Store</h2>
+                          <p className="text-xs md:text-sm font-semibold uppercase tracking-widest" style={{ color: '#64748b' }}>Orders currently in Store phase</p>
                         </div>
                       </div>
-                      <button onClick={() => setFilterStage('ALL')} className="theme-text-muted hover:text-white transition-colors text-xs md:text-sm font-black uppercase tracking-widest flex items-center gap-2">
+                      <button onClick={() => setFilterStage('ALL')} className="text-xs md:text-sm font-bold uppercase tracking-widest flex items-center gap-2" style={{ color: '#94a3b8' }}>
                         <X size={14} /> Close
                       </button>
                     </div>
@@ -973,21 +980,21 @@ const AdminDashboard = () => {
                         const completed = storeOrders.filter(o => o.status === 'COMPLETED').length;
                         return (
                           <>
-                            <div className="theme-bg border theme-border rounded-2xl p-4 text-center">
-                              <p className="text-2xl font-black text-blue-400">{total}</p>
-                              <p className="text-xs md:text-sm font-bold theme-text-muted uppercase tracking-wider">Total</p>
+                            <div className="theme-card p-4 text-center rounded-2xl border">
+                              <p className="text-2xl font-bold" style={{ color: '#f43f5e' }}>{total}</p>
+                              <p className="text-xs md:text-sm font-semibold uppercase tracking-wider" style={{ color: '#64748b' }}>Total</p>
                             </div>
-                            <div className="theme-bg border theme-border rounded-2xl p-4 text-center">
-                              <p className="text-2xl font-black text-amber-400">{pending}</p>
-                              <p className="text-xs md:text-sm font-bold theme-text-muted uppercase tracking-wider">Pending</p>
+                            <div className="theme-card p-4 text-center rounded-2xl border">
+                              <p className="text-2xl font-bold" style={{ color: '#f59e0b' }}>{pending}</p>
+                              <p className="text-xs md:text-sm font-semibold uppercase tracking-wider" style={{ color: '#64748b' }}>Pending</p>
                             </div>
-                            <div className="theme-bg border theme-border rounded-2xl p-4 text-center">
-                              <p className="text-2xl font-black text-emerald-400">{inProgress}</p>
-                              <p className="text-xs md:text-sm font-bold theme-text-muted uppercase tracking-wider">In Progress</p>
+                            <div className="theme-card p-4 text-center rounded-2xl border">
+                              <p className="text-2xl font-bold" style={{ color: '#10b981' }}>{inProgress}</p>
+                              <p className="text-xs md:text-sm font-semibold uppercase tracking-wider" style={{ color: '#64748b' }}>In Progress</p>
                             </div>
-                            <div className="theme-bg border theme-border rounded-2xl p-4 text-center">
-                              <p className="text-2xl font-black text-gray-400">{completed}</p>
-                              <p className="text-xs md:text-sm font-bold theme-text-muted uppercase tracking-wider">Completed</p>
+                            <div className="theme-card p-4 text-center rounded-2xl border">
+                              <p className="text-2xl font-bold" style={{ color: '#64748b' }}>{completed}</p>
+                              <p className="text-xs md:text-sm font-semibold uppercase tracking-wider" style={{ color: '#64748b' }}>Completed</p>
                             </div>
                           </>
                         );
@@ -1002,9 +1009,9 @@ const AdminDashboard = () => {
                             <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} selected={selectedOrderIds.has(order.id)} onToggleSelect={toggleOrderSelection} />
                           ))
                         ) : (
-                          <div className="col-span-full py-6 md:py-20 text-center glass rounded-2xl md:rounded-[3rem] theme-border">
-                            <Package className="mx-auto theme-text-muted mb-4" size={48} />
-                            <h3 className="theme-text-muted font-black uppercase">No orders in Store</h3>
+                          <div className="col-span-full py-6 md:py-20 text-center rounded-2xl md:rounded-[3rem] border" style={{ background: '#ffffff', borderColor: '#f1f5f9' }}>
+                            <Package className="mx-auto mb-4" size={48} style={{ color: '#94a3b8' }} />
+                            <h3 className="font-bold uppercase" style={{ color: '#94a3b8' }}>No orders in Store</h3>
                           </div>
                         )}
                       </div>
@@ -1014,22 +1021,23 @@ const AdminDashboard = () => {
                   <section>
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                       <div className="flex items-center space-x-4">
-                        <div className="p-3 bg-amber-500/10 rounded-2xl">
-                          <ClipboardList className="text-amber-400" size={20} />
+                        <div className="p-3 rounded-2xl" style={{ background: '#fffbeb' }}>
+                          <ClipboardList className="text-amber-500" size={20} />
                         </div>
                         <div>
-                          <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">Delivery Setup</h2>
-                          <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">Orders at Dispatch awaiting delivery configuration</p>
+                          <h2 className="text-2xl font-bold uppercase tracking-tight" style={{ color: '#0f172a', fontFamily: "'Poppins', sans-serif" }}>Delivery Setup</h2>
+                          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#64748b' }}>Orders at Dispatch awaiting delivery configuration</p>
                         </div>
                       </div>
                       <div className="relative w-full md:w-auto min-w-[200px]">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2" size={16} style={{ color: '#94a3b8' }} />
                         <input
                           type="text"
                           placeholder="Search by ID or Name..."
                           value={contextSearch}
                           onChange={(e) => handleDashboardSearch(e.target.value)}
-                          className="w-full theme-input rounded-xl py-3 pl-12 pr-4 text-sm font-bold"
+                          className="w-full rounded-xl py-3 pl-12 pr-4 text-sm font-medium border-2 outline-none transition-all"
+                          style={{ background: '#ffffff', borderColor: '#e2e8f0', color: '#0f172a' }}
                         />
                       </div>
                     </div>
@@ -1040,12 +1048,12 @@ const AdminDashboard = () => {
                         ))}
                       </div>
                     ) : (
-                      <div className="glass p-4 md:p-16 rounded-2xl md:rounded-[3rem] border border-gray-800 text-center space-y-4">
-                        <div className="w-20 h-20 bg-gray-900 rounded-full flex items-center justify-center mx-auto border-2 border-gray-800">
-                          <CheckCircle2 className="text-gray-700" size={40} />
+                      <div className="p-4 md:p-16 rounded-2xl md:rounded-[3rem] border text-center space-y-4" style={{ background: '#ffffff', borderColor: '#f1f5f9' }}>
+                        <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto border-2" style={{ background: '#f8fafc', borderColor: '#e2e8f0' }}>
+                          <CheckCircle2 className="text-emerald-500" size={40} />
                         </div>
-                        <h3 className="text-xl font-black text-gray-500 uppercase">All delivered</h3>
-                        <p className="text-gray-600 text-sm font-bold max-w-xs mx-auto uppercase tracking-widest">No orders pending delivery configuration.</p>
+                        <h3 className="text-xl font-bold uppercase" style={{ color: '#94a3b8' }}>All delivered</h3>
+                        <p className="text-sm font-semibold max-w-xs mx-auto uppercase tracking-widest" style={{ color: '#94a3b8' }}>No orders pending delivery configuration.</p>
                       </div>
                     )}
                   </section>
@@ -1053,15 +1061,15 @@ const AdminDashboard = () => {
                   <section className="space-y-6">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4">
-                        <div className="p-3 bg-blue-500/10 rounded-2xl">
-                          <Package className="text-blue-400" size={20} />
+                        <div className="p-3 rounded-2xl" style={{ background: '#fef2f2' }}>
+                          <Package className="text-rose-500" size={20} />
                         </div>
                         <div>
-                          <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">{filterStage.replace(/_/g, ' ')} Orders</h2>
-                          <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">Active orders in this phase</p>
+                          <h2 className="text-2xl font-bold uppercase tracking-tight" style={{ color: '#0f172a', fontFamily: "'Poppins', sans-serif" }}>{filterStage.replace(/_/g, ' ')} Orders</h2>
+                          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#64748b' }}>Active orders in this phase</p>
                         </div>
                       </div>
-                      <button onClick={() => setFilterStage('ALL')} className="theme-text-muted hover:text-white transition-colors text-xs font-black uppercase tracking-widest flex items-center gap-2">
+                      <button onClick={() => setFilterStage('ALL')} className="text-xs font-bold uppercase tracking-widest flex items-center gap-2" style={{ color: '#94a3b8' }}>
                         <X size={14} /> Close
                       </button>
                     </div>
@@ -1071,9 +1079,9 @@ const AdminDashboard = () => {
                           <OrderCard key={order.id} order={order} userRole={user?.role} onUpdateStage={handleAction} selected={selectedOrderIds.has(order.id)} onToggleSelect={toggleOrderSelection} />
                         ))
                       ) : (
-                        <div className="col-span-full py-6 md:py-20 text-center glass rounded-2xl md:rounded-[3rem] theme-border">
-                          <Package className="mx-auto theme-text-muted mb-4" size={48} />
-                          <h3 className="theme-text-muted font-black uppercase">No orders in this phase</h3>
+                        <div className="col-span-full py-6 md:py-20 text-center rounded-2xl md:rounded-[3rem] border" style={{ background: '#ffffff', borderColor: '#f1f5f9' }}>
+                          <Package className="mx-auto mb-4" size={48} style={{ color: '#94a3b8' }} />
+                          <h3 className="font-bold uppercase" style={{ color: '#94a3b8' }}>No orders in this phase</h3>
                         </div>
                       )}
                     </div>
@@ -1085,12 +1093,12 @@ const AdminDashboard = () => {
                     {initiationQueue.length > 0 && (
                       <section className="mb-6 md:mb-12">
                         <div className="flex items-center space-x-4 mb-8">
-                          <div className="p-3 bg-blue-500/10 rounded-2xl">
-                            <Sparkles className="text-blue-400" size={20} />
+                          <div className="p-3 rounded-2xl" style={{ background: '#fef2f2' }}>
+                            <Sparkles className="text-rose-500" size={20} />
                           </div>
                           <div>
-                            <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">Initiation Queue</h2>
-                            <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">New orders waiting to start production</p>
+                            <h2 className="text-2xl font-bold uppercase tracking-tight" style={{ color: '#0f172a', fontFamily: "'Poppins', sans-serif" }}>Initiation Queue</h2>
+                            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#64748b' }}>New orders waiting to start production</p>
                           </div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
@@ -1107,20 +1115,20 @@ const AdminDashboard = () => {
                       return (
                         <section key={stage.id}>
                           <div className="flex items-center space-x-4 mb-6">
-                            <div className="p-3 bg-blue-500/10 rounded-2xl">
-                              <stage.icon className="text-blue-400" size={20} />
+                            <div className="p-3 rounded-2xl" style={{ background: '#fef2f2' }}>
+                              <stage.icon className="text-rose-500" size={20} />
                             </div>
                             <div className="flex-1">
                               <div className="flex items-center justify-between">
-                                <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">{stage.label}</h2>
+                                <h2 className="text-2xl font-bold uppercase tracking-tight" style={{ color: '#0f172a', fontFamily: "'Poppins', sans-serif" }}>{stage.label}</h2>
                                 <button
                                   onClick={() => setFilterStage(stage.id)}
-                                  className="text-xs font-black text-blue-400 hover:text-blue-300 uppercase tracking-widest transition-all px-3 py-1 rounded-lg hover:bg-blue-500/10"
+                                  className="text-xs font-bold uppercase tracking-widest transition-all px-3 py-1 rounded-lg" style={{ color: '#f43f5e' }}
                                 >
                                   View All ({stageOrders.length})
                                 </button>
                               </div>
-                              <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">Active orders in {stage.label}</p>
+                              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#64748b' }}>Active orders in {stage.label}</p>
                             </div>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8">
@@ -1133,10 +1141,10 @@ const AdminDashboard = () => {
                     })}
                     {/* Empty state when no orders at all */}
                     {initiationQueue.length === 0 && allOrders.filter(o => o.status !== 'COMPLETED').length === 0 && (
-                      <div className="py-16 text-center glass rounded-2xl md:rounded-[3rem] theme-border">
-                        <Package className="mx-auto theme-text-muted mb-4" size={48} />
-                        <h3 className="theme-text-muted font-black uppercase">No active orders</h3>
-                        <p className="text-gray-600 text-xs font-bold mt-2">All orders have been completed</p>
+                      <div className="py-16 text-center rounded-2xl md:rounded-[3rem] border" style={{ background: '#ffffff', borderColor: '#f1f5f9' }}>
+                        <Package className="mx-auto mb-4" size={48} style={{ color: '#94a3b8' }} />
+                        <h3 className="font-bold uppercase" style={{ color: '#94a3b8' }}>No active orders</h3>
+                        <p className="text-xs font-semibold mt-2" style={{ color: '#94a3b8' }}>All orders have been completed</p>
                       </div>
                     )}
                   </div>
@@ -1149,18 +1157,18 @@ const AdminDashboard = () => {
               <section className="space-y-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
-                    <div className="p-3 bg-amber-500/10 rounded-2xl">
-                      <FileEdit className="text-amber-400" size={20} />
+                    <div className="p-3 rounded-2xl" style={{ background: '#fffbeb' }}>
+                      <FileEdit className="text-amber-500" size={20} />
                     </div>
                     <div>
-                      <h2 className="text-xl md:text-2xl font-black theme-text-primary uppercase tracking-tight">Order Change Requests</h2>
-                      <p className="theme-text-muted text-xs md:text-sm font-black uppercase tracking-widest mt-0.5">
+                      <h2 className="text-xl md:text-2xl font-bold uppercase tracking-tight" style={{ color: '#0f172a', fontFamily: "'Poppins', sans-serif" }}>Order Change Requests</h2>
+                      <p className="text-xs md:text-sm font-bold uppercase tracking-widest mt-0.5" style={{ color: '#64748b' }}>
                         {editRequests.length} pending request{editRequests.length !== 1 ? 's' : ''} — Auto-refreshing
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="hidden sm:inline-flex items-center gap-2 text-xs md:text-sm font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20">
+                    <span className="hidden sm:inline-flex items-center gap-2 text-xs md:text-sm font-semibold px-3 py-1.5 rounded-full border" style={{ background: '#ecfdf5', borderColor: 'rgba(16,185,129,0.2)', color: '#10b981' }}>
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                       Live
                     </span>
@@ -1172,15 +1180,15 @@ const AdminDashboard = () => {
 
                 {editRequestsLoading ? (
                   <div className="flex items-center justify-center py-12">
-                    <Loader2 className="animate-spin text-amber-500" size={28} />
+                    <Loader2 className="animate-spin" size={28} style={{ color: '#f59e0b' }} />
                   </div>
                 ) : editRequests.length === 0 ? (
-                  <div className="glass rounded-2xl md:rounded-[2rem] p-8 md:p-12 border theme-border text-center space-y-4">
-                    <div className="w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center mx-auto border-2 border-gray-800">
-                      <CheckCircle2 className="text-gray-700" size={32} />
+                  <div className="rounded-2xl md:rounded-[2rem] p-8 md:p-12 border text-center space-y-4" style={{ background: '#ffffff', borderColor: '#f1f5f9' }}>
+                    <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto border-2" style={{ background: '#f8fafc', borderColor: '#e2e8f0' }}>
+                      <CheckCircle2 className="text-emerald-500" size={32} />
                     </div>
-                    <h3 className="text-lg font-black text-gray-500 uppercase">No Pending Requests</h3>
-                    <p className="text-gray-600 text-xs font-bold uppercase tracking-widest">All order change requests have been processed.</p>
+                    <h3 className="text-lg font-bold uppercase" style={{ color: '#94a3b8' }}>No Pending Requests</h3>
+                    <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#94a3b8' }}>All order change requests have been processed.</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
@@ -1224,9 +1232,8 @@ const AdminDashboard = () => {
                           layout
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className={`glass rounded-2xl border transition-all cursor-pointer ${
-                            isExpanded ? 'border-amber-500/40 shadow-lg shadow-amber-900/20' : 'theme-border hover:border-amber-500/30'
-                          }`}
+                          className="theme-card rounded-2xl border transition-all cursor-pointer"
+                          style={isExpanded ? { borderColor: 'rgba(245,158,11,0.4)', boxShadow: '0 10px 40px rgba(245,158,11,0.1)' } : {}}
                         >
                           <div
                             onClick={() => setExpandedEditRequest(isExpanded ? null : req.id)}
@@ -1234,30 +1241,30 @@ const AdminDashboard = () => {
                           >
                             <div className="flex items-start justify-between mb-3">
                               <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-400 font-black text-sm">
+                                <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm" style={{ background: '#fffbeb', color: '#f59e0b' }}>
                                   <FileEdit size={16} />
                                 </div>
                                 <div>
-                                  <p className="text-sm font-black theme-text-primary">#{order.orderNumber || order.id?.substring(0, 8) || 'N/A'}</p>
-                                  <p className="text-xs md:text-sm theme-text-muted font-bold">{order.customerName || 'Unknown'}</p>
+                                  <p className="text-sm font-bold" style={{ color: '#0f172a' }}>#{order.orderNumber || order.id?.substring(0, 8) || 'N/A'}</p>
+                                  <p className="text-xs md:text-sm font-semibold" style={{ color: '#64748b' }}>{order.customerName || 'Unknown'}</p>
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                <span className="px-2.5 py-1 bg-amber-500/15 text-amber-400 rounded-lg text-xs font-black uppercase tracking-wider">
+                                <span className="px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider badge-warning">
                                   {req.status}
                                 </span>
-                                <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} className="text-gray-600">
+                                <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} style={{ color: '#94a3b8' }}>
                                   <ChevronDown size={14} />
                                 </motion.div>
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-4 text-xs md:text-sm font-bold theme-text-muted">
+                            <div className="flex items-center gap-4 text-xs md:text-sm font-semibold" style={{ color: '#64748b' }}>
                               <span className="flex items-center gap-1.5">
                                 <span className={`w-1.5 h-1.5 rounded-full ${source === 'ONLINE ORDER' ? 'bg-blue-400' : 'bg-purple-400'}`} />
                                 {source}
                               </span>
-                              <span className="text-gray-700">|</span>
+                              <span style={{ color: '#cbd5e1' }}>|</span>
                               <span>{new Date(req.requestedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                             </div>
                           </div>
@@ -1270,83 +1277,83 @@ const AdminDashboard = () => {
                                 exit={{ height: 0, opacity: 0 }}
                                 className="overflow-hidden"
                               >
-                                <div className="px-5 pb-5 border-t theme-border pt-4 space-y-4">
+                                <div className="px-5 pb-5 border-t pt-4 space-y-4" style={{ borderColor: '#f1f5f9' }}>
                                   <div className="grid grid-cols-2 gap-3">
-                                    <div className="theme-bg rounded-xl p-3 border border-red-500/20">
-                                      <p className="text-xs font-black text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                        <span className="w-1 h-1 rounded-full bg-red-400" /> Old Item(s)
+                                    <div className="rounded-xl p-3 border" style={{ background: '#fef2f2', borderColor: 'rgba(239,68,68,0.2)' }}>
+                                      <p className="text-xs font-bold text-red-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                        <span className="w-1 h-1 rounded-full bg-red-500" /> Old Item(s)
                                       </p>
                                       {currentProducts.length > 0 ? currentProducts.map((p, i) => (
-                                        <div key={i} className="flex items-center gap-2 py-1.5 border-b border-red-500/10 last:border-0">
-                                          <span className="text-xs md:text-sm font-black text-red-400 w-4">{i + 1}.</span>
+                                        <div key={i} className="flex items-center gap-2 py-1.5 border-b last:border-0" style={{ borderColor: 'rgba(239,68,68,0.1)' }}>
+                                          <span className="text-xs md:text-sm font-bold text-red-500 w-4">{i + 1}.</span>
                                           <div>
-                                            <p className="text-xs font-bold theme-text-primary">{p.name}</p>
+                                            <p className="text-xs font-semibold" style={{ color: '#0f172a' }}>{p.name}</p>
                                             {(p.color || p.size) && (
-                                              <p className="text-xs font-medium theme-text-muted">
+                                              <p className="text-xs font-medium" style={{ color: '#64748b' }}>
                                                 {[p.color, p.size].filter(Boolean).join(' / ')} × {p.qty}
                                               </p>
                                             )}
                                           </div>
                                         </div>
-                                      )) : <p className="text-xs theme-text-muted italic">No items</p>}
+                                      )) : <p className="text-xs italic" style={{ color: '#94a3b8' }}>No items</p>}
                                     </div>
 
-                                    <div className="theme-bg rounded-xl p-3 border border-emerald-500/20">
-                                      <p className="text-xs font-black text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                        <span className="w-1 h-1 rounded-full bg-emerald-400" /> New Item(s)
+                                    <div className="rounded-xl p-3 border" style={{ background: '#ecfdf5', borderColor: 'rgba(16,185,129,0.2)' }}>
+                                      <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                        <span className="w-1 h-1 rounded-full bg-emerald-500" /> New Item(s)
                                       </p>
                                       {requestedProducts.length > 0 ? requestedProducts.map((p, i) => (
-                                        <div key={i} className="flex items-center gap-2 py-1.5 border-b border-emerald-500/10 last:border-0">
-                                          <span className="text-xs md:text-sm font-black text-emerald-400 w-4">{i + 1}.</span>
+                                        <div key={i} className="flex items-center gap-2 py-1.5 border-b last:border-0" style={{ borderColor: 'rgba(16,185,129,0.1)' }}>
+                                          <span className="text-xs md:text-sm font-bold text-emerald-600 w-4">{i + 1}.</span>
                                           <div>
-                                            <p className="text-xs font-bold theme-text-primary">{p.name}</p>
+                                            <p className="text-xs font-semibold" style={{ color: '#0f172a' }}>{p.name}</p>
                                             {(p.color || p.size) && (
-                                              <p className="text-xs font-medium theme-text-muted">
+                                              <p className="text-xs font-medium" style={{ color: '#64748b' }}>
                                                 {[p.color, p.size].filter(Boolean).join(' / ')} × {p.qty}
                                               </p>
                                             )}
                                           </div>
                                         </div>
-                                      )) : <p className="text-xs theme-text-muted italic">No items</p>}
+                                      )) : <p className="text-xs italic" style={{ color: '#94a3b8' }}>No items</p>}
                                     </div>
                                   </div>
 
-                                  <div className="bg-amber-500/5 border border-amber-500/15 rounded-xl p-3">
-                                    <p className="text-xs font-black text-amber-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                  <div className="rounded-xl p-3 border" style={{ background: '#fffbeb', borderColor: 'rgba(245,158,11,0.15)' }}>
+                                    <p className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                                       <RotateCcw size={10} /> Inventory Impact
                                     </p>
                                     <div className="space-y-1">
                                       {currentProducts.map((p, i) => (
-                                        <p key={i} className="text-xs font-bold text-green-400">
+                                        <p key={i} className="text-xs font-bold text-emerald-600">
                                           +{p.qty} {p.name} {p.color ? `(${p.color}` : ''}{p.color && p.size ? ' / ' : ''}{p.size ? `${p.size})` : ''} returned to stock
                                         </p>
                                       ))}
                                       {requestedProducts.map((p, i) => (
-                                        <p key={i} className="text-xs font-bold text-red-400">
+                                        <p key={i} className="text-xs font-bold text-red-500">
                                           -{p.qty} {p.name} {p.color ? `(${p.color}` : ''}{p.color && p.size ? ' / ' : ''}{p.size ? `${p.size})` : ''} deducted from stock
                                         </p>
                                       ))}
                                     </div>
                                   </div>
 
-                                  <div className="bg-indigo-500/5 border border-indigo-500/15 rounded-xl p-3">
-                                    <p className="text-xs font-black text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                  <div className="rounded-xl p-3 border" style={{ background: '#eef2ff', borderColor: 'rgba(99,102,241,0.15)' }}>
+                                    <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                                       <Package size={10} /> Inventory Availability
                                     </p>
                                     {inventorySearchLoading ? (
                                       <div className="flex items-center gap-2 py-2">
-                                        <Loader2 className="animate-spin text-indigo-400" size={12} />
-                                        <span className="text-xs font-bold theme-text-muted">Checking inventory...</span>
+                                        <Loader2 className="animate-spin" size={12} style={{ color: '#6366f1' }} />
+                                        <span className="text-xs font-semibold" style={{ color: '#64748b' }}>Checking inventory...</span>
                                       </div>
                                     ) : (
                                       <div className="space-y-2">
                                         {requestedProducts.map((p, i) => {
                                           const items = inventorySearchResults[p.name] || [];
                                           return (
-                                            <div key={i} className="theme-bg rounded-lg p-2 border theme-border">
-                                              <p className="text-xs font-black theme-text-primary mb-1.5 uppercase tracking-wider">{p.name}</p>
+                                            <div key={i} className="rounded-lg p-2 border" style={{ background: '#ffffff', borderColor: '#f1f5f9' }}>
+                                              <p className="text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: '#0f172a' }}>{p.name}</p>
                                               {items.length === 0 ? (
-                                                <p className="text-xs font-bold text-red-400 italic">No inventory records found</p>
+                                                <p className="text-xs font-bold text-red-500 italic">No inventory records found</p>
                                               ) : (
                                                 items.map((item, idx) => {
                                                   const v = item.variants && Array.isArray(item.variants) ? item.variants : [{ color: item.color || 'Default', size: item.size || 'Default', stock: item.stock || 0 }];
@@ -1354,13 +1361,13 @@ const AdminDashboard = () => {
                                                     <div key={idx} className="mb-1 last:mb-0">
                                                       {v.length === 1 && !item.variants ? (
                                                         <div className="flex items-center justify-between py-1">
-                                                          <span className="text-xs font-medium theme-text-secondary">
+                                                          <span className="text-xs font-medium" style={{ color: '#64748b' }}>
                                                             {[v[0].color, v[0].size].filter(Boolean).join(' / ')}
                                                           </span>
-                                                          <span className={`text-xs font-black px-1.5 py-0.5 rounded ${
-                                                            v[0].stock === 0 ? 'bg-red-500/15 text-red-400' :
-                                                            v[0].stock <= 5 ? 'bg-amber-500/15 text-amber-400' :
-                                                            'bg-emerald-500/15 text-emerald-400'
+                                                          <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
+                                                            v[0].stock === 0 ? 'badge-danger' :
+                                                            v[0].stock <= 5 ? 'badge-warning' :
+                                                            'badge-success'
                                                           }`}>
                                                             {v[0].stock} in stock
                                                           </span>
@@ -1369,13 +1376,13 @@ const AdminDashboard = () => {
                                                         <div className="space-y-0.5">
                                                           {v.map((variant, vi) => (
                                                             <div key={vi} className="flex items-center justify-between py-0.5">
-                                                              <span className="text-[9px] font-medium theme-text-secondary">
+                                                              <span className="text-[9px] font-medium" style={{ color: '#64748b' }}>
                                                                 {[variant.color, variant.size].filter(Boolean).join(' / ')}
                                                               </span>
                                                               <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                                                                (variant.stock || 0) === 0 ? 'bg-red-500/15 text-red-400' :
-                                                                (variant.stock || 0) <= 5 ? 'bg-amber-500/15 text-amber-400' :
-                                                                'bg-emerald-500/15 text-emerald-400'
+                                                                (variant.stock || 0) === 0 ? 'badge-danger' :
+                                                                (variant.stock || 0) <= 5 ? 'badge-warning' :
+                                                                'badge-success'
                                                               }`}>
                                                                 {variant.stock || 0} in stock
                                                               </span>
@@ -1395,13 +1402,13 @@ const AdminDashboard = () => {
                                   </div>
 
                                   {req.reason && (
-                                    <div className="theme-bg rounded-xl p-3 border theme-border">
-                                      <p className="text-xs font-black theme-text-muted uppercase tracking-wider mb-1">Reason</p>
-                                      <p className="text-xs md:text-sm font-medium italic theme-text-secondary">"{req.reason}"</p>
+                                    <div className="rounded-xl p-3 border" style={{ background: '#f8fafc', borderColor: '#f1f5f9' }}>
+                                      <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: '#64748b' }}>Reason</p>
+                                      <p className="text-xs md:text-sm font-medium italic" style={{ color: '#475569' }}>"{req.reason}"</p>
                                     </div>
                                   )}
 
-                                  <div className="flex items-center justify-between text-xs font-bold theme-text-muted">
+                                  <div className="flex items-center justify-between text-xs font-semibold" style={{ color: '#64748b' }}>
                                     <span>Requested by: {req.requestedBy?.name || 'Unknown'} ({req.requestedBy?.role || '?'})</span>
                                     <span>{new Date(req.requestedAt).toLocaleString()}</span>
                                   </div>
@@ -1409,13 +1416,15 @@ const AdminDashboard = () => {
                                   <div className="flex gap-3 pt-2">
                                     <button
                                       onClick={() => { setReviewRequestData(req); setReviewAction('approve'); setReviewRemarks(''); setShowReviewModal(true); }}
-                                      className="flex-1 py-3.5 bg-emerald-600 text-white rounded-xl font-black text-xs md:text-sm uppercase tracking-wider hover:bg-emerald-500 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30"
+                                      className="flex-1 py-3.5 text-white rounded-xl font-bold text-xs md:text-sm uppercase tracking-wider transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg"
+                                      style={{ background: 'linear-gradient(135deg, #10b981, #059669)', boxShadow: '0 4px 15px rgba(16,185,129,0.3)' }}
                                     >
                                       <ThumbsUp size={13} /> Approve
                                     </button>
                                     <button
                                       onClick={() => { setReviewRequestData(req); setReviewAction('reject'); setReviewRemarks(''); setShowReviewModal(true); }}
-                                      className="flex-1 py-3.5 bg-red-600 text-white rounded-xl font-black text-xs md:text-sm uppercase tracking-wider hover:bg-red-500 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-red-900/30"
+                                      className="flex-1 py-3.5 text-white rounded-xl font-bold text-xs md:text-sm uppercase tracking-wider transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg"
+                                      style={{ background: 'linear-gradient(135deg, #ef4444, #dc2626)', boxShadow: '0 4px 15px rgba(239,68,68,0.3)' }}
                                     >
                                       <ThumbsDown size={13} /> Reject
                                     </button>
@@ -1436,19 +1445,19 @@ const AdminDashboard = () => {
             {activeTab === 'recent_orders' && (
               <section>
                 <div className="flex items-center space-x-4 mb-6">
-                  <div className="p-3 bg-indigo-500/10 rounded-2xl">
-                    <History className="text-indigo-400" size={20} />
+                  <div className="p-3 rounded-2xl" style={{ background: '#eef2ff' }}>
+                    <History className="text-indigo-500" size={20} />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">Recent Orders</h2>
-                    <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">Latest 20 orders</p>
+                    <h2 className="text-2xl font-bold uppercase tracking-tight" style={{ color: '#0f172a', fontFamily: "'Poppins', sans-serif" }}>Recent Orders</h2>
+                    <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#64748b' }}>Latest 20 orders</p>
                   </div>
                 </div>
-                <div className="glass rounded-2xl p-5 border theme-border">
+                <div className="rounded-2xl p-5 border" style={{ background: '#ffffff', borderColor: '#f1f5f9' }}>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left">
+                    <table className="w-full text-left theme-table">
                       <thead>
-                        <tr className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest border-b border-gray-800">
+                        <tr className="text-xs md:text-sm font-bold uppercase tracking-widest" style={{ color: '#64748b' }}>
                           <th className="py-3 pr-4">Order</th>
                           <th className="py-3 pr-4">Customer</th>
                           <th className="py-3 pr-4">Source</th>
@@ -1460,32 +1469,32 @@ const AdminDashboard = () => {
                       </thead>
                       <tbody>
                         {recentOrdersList.map(o => (
-                          <tr key={o.id} className="border-b border-gray-800/50 text-sm hover:bg-gray-800/20 cursor-pointer" onClick={() => {
+                          <tr key={o.id} className="text-sm cursor-pointer" onClick={() => {
                             setTrackedOrder(o);
                             setActiveTab(null);
                           }}>
-                            <td className="py-3 pr-4 font-bold text-white">#{o.orderNumber || o.id.substring(0, 6)}</td>
-                            <td className="py-3 pr-4 text-gray-300">{o.customerName}</td>
-                            <td className="py-3 pr-4 text-gray-400 text-xs md:text-sm">{o.outletName || o.source || '—'}</td>
-                            <td className="py-3 pr-4 text-gray-400 text-xs md:text-sm font-bold uppercase">{o.currentStage?.replace(/_/g, ' ')}</td>
+                            <td className="py-3 pr-4 font-bold" style={{ color: '#0f172a' }}>#{o.orderNumber || o.id.substring(0, 6)}</td>
+                            <td className="py-3 pr-4" style={{ color: '#334155' }}>{o.customerName}</td>
+                            <td className="py-3 pr-4 text-xs md:text-sm" style={{ color: '#64748b' }}>{o.outletName || o.source || '—'}</td>
+                            <td className="py-3 pr-4 text-xs md:text-sm font-bold uppercase" style={{ color: '#64748b' }}>{o.currentStage?.replace(/_/g, ' ')}</td>
                             <td className="py-3 pr-4">
-                              <span className={`text-xs md:text-sm font-black px-2 py-1 rounded ${
-                                o.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' :
-                                o.status === 'IN_PROGRESS' ? 'bg-blue-500/20 text-blue-400' :
-                                o.status === 'PENDING' ? 'bg-yellow-500/20 text-yellow-400' :
-                                'bg-red-500/20 text-red-400'
+                              <span className={`text-xs md:text-sm font-bold px-2 py-1 rounded ${
+                                o.status === 'COMPLETED' ? 'badge-success' :
+                                o.status === 'IN_PROGRESS' ? 'badge-info' :
+                                o.status === 'PENDING' ? 'badge-warning' :
+                                'badge-danger'
                               }`}>{o.status}</span>
                               {(() => {
                                 const _p = o.paymentStatus === 'PAID' || o.paymentStatus === 'FULL_PAID';
                                 const _a = parseFloat(o.advanceAmount || 0) > 0;
                                 const _r = Math.max(0, (o.totalPrice || 0) - parseFloat(o.advanceAmount || 0));
-                                if (_p) return <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-emerald-500/20 text-emerald-400">PAID</span>;
-                                if (_a) return <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-orange-500/20 text-orange-400">REMAINING COD</span>;
-                                return <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-red-500/20 text-red-400">COD</span>;
+                                if (_p) return <span className="ml-1 text-xs font-bold px-2 py-1 rounded badge-success">PAID</span>;
+                                if (_a) return <span className="ml-1 text-xs font-bold px-2 py-1 rounded badge-warning">REMAINING COD</span>;
+                                return <span className="ml-1 text-xs font-bold px-2 py-1 rounded badge-danger">COD</span>;
                               })()}
                             </td>
-                            <td className="py-3 pr-4 text-right font-bold text-white">₨{o.totalPrice || 0}</td>
-                            <td className="py-3 pr-4 text-right font-bold text-gray-400 text-xs md:text-sm">{new Date(o.createdAt).toLocaleDateString()}</td>
+                            <td className="py-3 pr-4 text-right font-bold" style={{ color: '#0f172a' }}>₨{o.totalPrice || 0}</td>
+                            <td className="py-3 pr-4 text-right font-bold text-xs md:text-sm" style={{ color: '#64748b' }}>{new Date(o.createdAt).toLocaleDateString()}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1502,12 +1511,12 @@ const AdminDashboard = () => {
             {activeTab === 'analytics' && (
               <section className="space-y-6">
                 <div className="flex items-center space-x-4">
-                  <div className="p-3 bg-purple-500/10 rounded-2xl">
-                    <StoreIcon className="text-purple-400" size={20} />
+                  <div className="p-3 rounded-2xl" style={{ background: '#faf5ff' }}>
+                    <StoreIcon className="text-purple-600" size={20} />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-black text-white uppercase tracking-tight">Outlet Analytics</h2>
-                    <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Branch-wise performance &amp; revenue</p>
+                    <h2 className="text-2xl font-bold uppercase tracking-tight" style={{ color: '#0f172a', fontFamily: "'Poppins', sans-serif" }}>Outlet Analytics</h2>
+                    <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#64748b' }}>Branch-wise performance &amp; revenue</p>
                   </div>
                 </div>
 
@@ -1517,11 +1526,12 @@ const AdminDashboard = () => {
                     <button
                       key={b.value}
                       onClick={() => setOutletFilter(b.value)}
-                      className={`px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all ${
+                      className={`px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold uppercase tracking-widest transition-all ${
                         outletFilter === b.value
-                          ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/40'
-                          : 'bg-gray-900 text-gray-500 hover:text-gray-300 border border-gray-800'
+                          ? 'text-white shadow-lg'
+                          : 'border'
                       }`}
+                      style={outletFilter === b.value ? { background: 'linear-gradient(135deg, #a855f7, #7c3aed)', boxShadow: '0 4px 15px rgba(168,85,247,0.25)' } : { background: '#ffffff', borderColor: '#e2e8f0', color: '#64748b' }}
                     >
                       {b.label}
                     </button>
@@ -1537,31 +1547,36 @@ const AdminDashboard = () => {
                     <button
                       key={r.key}
                       onClick={() => setOutletDateRange(r.key)}
-                      className={`px-3 py-2 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all ${
-                        outletDateRange === r.key ? 'bg-purple-600 text-white' : 'bg-gray-900 text-gray-500 hover:text-gray-300'
+                      className={`px-3 py-2 rounded-xl text-xs md:text-sm font-bold uppercase tracking-widest transition-all ${
+                        outletDateRange === r.key ? 'text-white shadow-lg' : 'border'
                       }`}
+                      style={outletDateRange === r.key ? { background: 'linear-gradient(135deg, #a855f7, #7c3aed)', boxShadow: '0 4px 15px rgba(168,85,247,0.25)' } : { background: '#ffffff', borderColor: '#e2e8f0', color: '#64748b' }}
                     >
                       {r.label}
                     </button>
                   ))}
                   <button
                     onClick={() => setOutletDateRange('custom')}
-                    className={`px-3 py-2 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all flex items-center gap-1 ${
-                      outletDateRange === 'custom' ? 'bg-purple-600 text-white' : 'bg-gray-900 text-gray-500 hover:text-gray-300'
+                    className={`px-3 py-2 rounded-xl text-xs md:text-sm font-bold uppercase tracking-widest transition-all flex items-center gap-1 ${
+                      outletDateRange === 'custom' ? 'text-white shadow-lg' : 'border'
                     }`}
+                    style={outletDateRange === 'custom' ? { background: 'linear-gradient(135deg, #a855f7, #7c3aed)', boxShadow: '0 4px 15px rgba(168,85,247,0.25)' } : { background: '#ffffff', borderColor: '#e2e8f0', color: '#64748b' }}
                   >
                     <CalendarDays size={12} /> Custom
                   </button>
                   {outletDateRange === 'custom' && (
                     <div className="flex items-center gap-2">
                       <input type="date" value={outletCustomFrom} onChange={(e) => setOutletCustomFrom(e.target.value)}
-                        className="bg-gray-950 border-2 border-gray-800 rounded-xl py-2 px-3 text-xs font-bold text-white outline-none focus:border-purple-500" />
-                      <span className="text-gray-600 text-xs">—</span>
+                        className="rounded-xl py-2 px-3 text-xs font-bold outline-none border-2 transition-all"
+                        style={{ background: '#ffffff', borderColor: '#e2e8f0', color: '#0f172a' }} />
+                      <span className="text-xs" style={{ color: '#94a3b8' }}>—</span>
                       <input type="date" value={outletCustomTo} onChange={(e) => setOutletCustomTo(e.target.value)}
-                        className="bg-gray-950 border-2 border-gray-800 rounded-xl py-2 px-3 text-xs font-bold text-white outline-none focus:border-purple-500" />
+                        className="rounded-xl py-2 px-3 text-xs font-bold outline-none border-2 transition-all"
+                        style={{ background: '#ffffff', borderColor: '#e2e8f0', color: '#0f172a' }} />
                       <button
                         onClick={() => setOutletCustomNonce(n => n + 1)}
-                        className="px-4 py-2 bg-purple-600 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-widest hover:bg-purple-500 transition-all"
+                        className="px-4 py-2 text-white rounded-xl text-xs md:text-sm font-bold uppercase tracking-widest transition-all"
+                        style={{ background: 'linear-gradient(135deg, #a855f7, #7c3aed)' }}
                       >
                         Apply
                       </button>
@@ -1572,61 +1587,61 @@ const AdminDashboard = () => {
                 {/* Analytics Cards */}
                 {analyticsLoading ? (
                   <div className="flex items-center justify-center py-16">
-                    <Loader2 className="animate-spin text-purple-500" size={32} />
+                    <Loader2 className="animate-spin" size={32} style={{ color: '#a855f7' }} />
                   </div>
                 ) : outletAnalytics ? (
                   <div className="space-y-6">
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                      <div className="glass rounded-xl p-4 border border-gray-800">
-                        <p className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">Total Orders</p>
-                        <p className="text-2xl font-black text-white mt-1">{outletAnalytics.summary.totalOrders}</p>
+                      <div className="theme-card rounded-xl p-4 border">
+                        <p className="text-xs md:text-sm font-bold uppercase tracking-widest" style={{ color: '#64748b' }}>Total Orders</p>
+                        <p className="text-2xl font-bold mt-1" style={{ color: '#0f172a', fontFamily: "'Poppins', sans-serif" }}>{outletAnalytics.summary.totalOrders}</p>
                       </div>
-                      <div className="glass rounded-xl p-4 border border-gray-800">
-                        <p className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">Completed</p>
-                        <p className="text-2xl font-black text-emerald-400 mt-1">{outletAnalytics.summary.completedOrders}</p>
+                      <div className="theme-card rounded-xl p-4 border">
+                        <p className="text-xs md:text-sm font-bold uppercase tracking-widest" style={{ color: '#64748b' }}>Completed</p>
+                        <p className="text-2xl font-bold mt-1" style={{ color: '#10b981', fontFamily: "'Poppins', sans-serif" }}>{outletAnalytics.summary.completedOrders}</p>
                       </div>
-                      <div className="glass rounded-xl p-4 border border-gray-800">
-                        <p className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">In Progress</p>
-                        <p className="text-2xl font-black text-blue-400 mt-1">{outletAnalytics.summary.inProgressOrders}</p>
+                      <div className="theme-card rounded-xl p-4 border">
+                        <p className="text-xs md:text-sm font-bold uppercase tracking-widest" style={{ color: '#64748b' }}>In Progress</p>
+                        <p className="text-2xl font-bold mt-1" style={{ color: '#f43f5e', fontFamily: "'Poppins', sans-serif" }}>{outletAnalytics.summary.inProgressOrders}</p>
                       </div>
-                      <div className="glass rounded-xl p-4 border border-gray-800">
-                        <p className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">Pending</p>
-                        <p className="text-2xl font-black text-yellow-400 mt-1">{outletAnalytics.summary.pendingOrders}</p>
+                      <div className="theme-card rounded-xl p-4 border">
+                        <p className="text-xs md:text-sm font-bold uppercase tracking-widest" style={{ color: '#64748b' }}>Pending</p>
+                        <p className="text-2xl font-bold mt-1" style={{ color: '#f59e0b', fontFamily: "'Poppins', sans-serif" }}>{outletAnalytics.summary.pendingOrders}</p>
                       </div>
-                      <div className="glass rounded-xl p-4 border border-gray-800">
-                        <p className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">Cancelled</p>
-                        <p className="text-2xl font-black text-red-400 mt-1">{outletAnalytics.summary.cancelledOrders}</p>
+                      <div className="theme-card rounded-xl p-4 border">
+                        <p className="text-xs md:text-sm font-bold uppercase tracking-widest" style={{ color: '#64748b' }}>Cancelled</p>
+                        <p className="text-2xl font-bold mt-1" style={{ color: '#ef4444', fontFamily: "'Poppins', sans-serif" }}>{outletAnalytics.summary.cancelledOrders}</p>
                       </div>
-                      <div className="glass rounded-xl p-4 border border-gray-800">
-                        <p className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">Total Revenue</p>
-                        <p className="text-2xl font-black text-emerald-400 mt-1">₨{Number(outletAnalytics.summary.totalRevenue).toLocaleString()}</p>
+                      <div className="theme-card rounded-xl p-4 border">
+                        <p className="text-xs md:text-sm font-bold uppercase tracking-widest" style={{ color: '#64748b' }}>Total Revenue</p>
+                        <p className="text-2xl font-bold mt-1" style={{ color: '#10b981', fontFamily: "'Poppins', sans-serif" }}>₨{Number(outletAnalytics.summary.totalRevenue).toLocaleString()}</p>
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="glass rounded-xl p-5 border border-gray-800">
-                        <p className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
-                          <DollarSign size={12} className="text-emerald-400" /> Total Revenue
+                      <div className="theme-card rounded-xl p-5 border">
+                        <p className="text-xs md:text-sm font-bold uppercase tracking-widest flex items-center gap-2" style={{ color: '#64748b' }}>
+                          <DollarSign size={12} className="text-emerald-500" /> Total Revenue
                         </p>
-                        <p className="text-xl md:text-3xl font-black text-emerald-400 mt-2">₨{Number(outletAnalytics.summary.totalRevenue).toLocaleString()}</p>
-                        <p className="text-xs text-gray-600 font-bold uppercase tracking-widest mt-1">Completed &amp; Delivered Orders Only</p>
+                        <p className="text-xl md:text-3xl font-bold mt-2" style={{ color: '#10b981', fontFamily: "'Poppins', sans-serif" }}>₨{Number(outletAnalytics.summary.totalRevenue).toLocaleString()}</p>
+                        <p className="text-xs font-semibold uppercase tracking-widest mt-1" style={{ color: '#94a3b8' }}>Completed &amp; Delivered Orders Only</p>
                       </div>
-                      <div className="glass rounded-xl p-5 border border-gray-800">
-                        <p className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
-                          <ShoppingCart size={12} className="text-blue-400" /> Avg Order Value
+                      <div className="theme-card rounded-xl p-5 border">
+                        <p className="text-xs md:text-sm font-bold uppercase tracking-widest flex items-center gap-2" style={{ color: '#64748b' }}>
+                          <ShoppingCart size={12} className="text-rose-500" /> Avg Order Value
                         </p>
-                        <p className="text-xl md:text-3xl font-black text-blue-400 mt-2">₨{Number(outletAnalytics.summary.avgOrderValue).toFixed(2)}</p>
-                        <p className="text-xs text-gray-600 font-bold uppercase tracking-widest mt-1">Completed &amp; Delivered Orders Only</p>
+                        <p className="text-xl md:text-3xl font-bold mt-2" style={{ color: '#f43f5e', fontFamily: "'Poppins', sans-serif" }}>₨{Number(outletAnalytics.summary.avgOrderValue).toFixed(2)}</p>
+                        <p className="text-xs font-semibold uppercase tracking-widest mt-1" style={{ color: '#94a3b8' }}>Completed &amp; Delivered Orders Only</p>
                       </div>
                     </div>
 
                     {/* Recent Orders */}
                     {outletAnalytics.recentOrders?.length > 0 && (
-                      <div className="glass rounded-xl p-5 border border-gray-800">
-                        <p className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest mb-3">Recent Orders</p>
+                      <div className="theme-card rounded-xl p-5 border">
+                        <p className="text-xs md:text-sm font-bold uppercase tracking-widest mb-3" style={{ color: '#64748b' }}>Recent Orders</p>
                         <div className="overflow-x-auto">
-                          <table className="w-full text-left">
+                          <table className="w-full text-left theme-table">
                             <thead>
-                              <tr className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest border-b border-gray-800">
+                              <tr className="text-xs md:text-sm font-bold uppercase tracking-widest" style={{ color: '#64748b' }}>
                                 <th className="py-2 pr-4">Order</th>
                                 <th className="py-2 pr-4">Customer</th>
                                 <th className="py-2 pr-4">Outlet</th>
@@ -1636,27 +1651,27 @@ const AdminDashboard = () => {
                             </thead>
                             <tbody>
                               {outletAnalytics.recentOrders.map(o => (
-                                <tr key={o.id} className="border-b border-gray-800/50 text-sm">
-                                  <td className="py-2 pr-4 font-bold text-white">#{o.orderNumber || o.id.substring(0, 6)}</td>
-                                  <td className="py-2 pr-4 text-gray-300">{o.customerName}</td>
-                                  <td className="py-2 pr-4 text-gray-400 text-xs md:text-sm">{o.outletName || '—'}</td>
+                                <tr key={o.id} className="text-sm">
+                                  <td className="py-2 pr-4 font-bold" style={{ color: '#0f172a' }}>#{o.orderNumber || o.id.substring(0, 6)}</td>
+                                  <td className="py-2 pr-4" style={{ color: '#334155' }}>{o.customerName}</td>
+                                  <td className="py-2 pr-4 text-xs md:text-sm" style={{ color: '#64748b' }}>{o.outletName || '—'}</td>
                                   <td className="py-2 pr-4">
-                                    <span className={`text-xs md:text-sm font-black px-2 py-1 rounded ${
-                                      o.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' :
-                                      o.status === 'IN_PROGRESS' ? 'bg-blue-500/20 text-blue-400' :
-                                      o.status === 'PENDING' ? 'bg-yellow-500/20 text-yellow-400' :
-                                      'bg-red-500/20 text-red-400'
+                                    <span className={`text-xs md:text-sm font-bold px-2 py-1 rounded ${
+                                      o.status === 'COMPLETED' ? 'badge-success' :
+                                      o.status === 'IN_PROGRESS' ? 'badge-info' :
+                                      o.status === 'PENDING' ? 'badge-warning' :
+                                      'badge-danger'
                                     }`}>{o.status}</span>
                                     {(() => {
                                       const _p = o.paymentStatus === 'PAID' || o.paymentStatus === 'FULL_PAID';
                                       const _a = parseFloat(o.advanceAmount || 0) > 0;
                                       const _r = Math.max(0, (o.totalPrice || 0) - parseFloat(o.advanceAmount || 0));
-                                      if (_p) return <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-emerald-500/20 text-emerald-400">PAID</span>;
-                                      if (_a) return <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-orange-500/20 text-orange-400">REMAINING COD</span>;
-                                      return <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-red-500/20 text-red-400">COD</span>;
+                                      if (_p) return <span className="ml-1 text-xs font-bold px-2 py-1 rounded badge-success">PAID</span>;
+                                      if (_a) return <span className="ml-1 text-xs font-bold px-2 py-1 rounded badge-warning">REMAINING COD</span>;
+                                      return <span className="ml-1 text-xs font-bold px-2 py-1 rounded badge-danger">COD</span>;
                                     })()}
                                   </td>
-                                  <td className="py-2 pr-4 text-right font-bold text-white">₨{o.totalPrice || 0}</td>
+                                  <td className="py-2 pr-4 text-right font-bold" style={{ color: '#0f172a' }}>₨{o.totalPrice || 0}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -1678,33 +1693,33 @@ const AdminDashboard = () => {
       {/* Pause Modal */}
       <AnimatePresence>
         {showPauseModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ background: 'rgba(0,0,0,0.5)' }}>
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-              className="glass max-w-md w-full p-4 md:p-8 rounded-[2rem] border-2 border-gray-800 shadow-[0_50px_100px_rgba(0,0,0,0.5)]">
+              className="max-w-md w-full p-4 md:p-8 rounded-2xl border-2 shadow-xl" style={{ background: '#ffffff', borderColor: '#f1f5f9' }}>
               <div className="flex items-center gap-4 mb-6">
-                <div className={`p-3 rounded-xl ${systemPaused ? 'bg-emerald-500/10' : 'bg-red-500/10'}`}>
-                  {systemPaused ? <PlayCircle className="text-emerald-400" size={28} /> : <PauseCircle className="text-red-400" size={28} />}
+                <div className={`p-3 rounded-xl ${systemPaused ? 'bg-emerald-100' : 'bg-red-100'}`}>
+                  {systemPaused ? <PlayCircle className="text-emerald-600" size={28} /> : <PauseCircle className="text-red-600" size={28} />}
                 </div>
                 <div>
-                  <h2 className="text-2xl font-black text-white">{systemPaused ? 'Resume System' : 'Pause System'}</h2>
-                  <p className="text-gray-400 text-sm font-bold">{systemPaused ? 'Reactivate all production operations.' : 'Stop all production operations for holidays.'}</p>
+                  <h2 className="text-2xl font-bold" style={{ color: '#0f172a' }}>{systemPaused ? 'Resume System' : 'Pause System'}</h2>
+                  <p className="text-sm font-semibold" style={{ color: '#64748b' }}>{systemPaused ? 'Reactivate all production operations.' : 'Stop all production operations for holidays.'}</p>
                 </div>
               </div>
               <form onSubmit={handleTogglePause} className="space-y-4">
                 <div>
-                  <label className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">Confirm Password</label>
+                  <label className="text-xs md:text-sm font-bold uppercase tracking-widest" style={{ color: '#64748b' }}>Confirm Password</label>
                   <input type="password" value={pausePassword} onChange={(e) => setPausePassword(e.target.value)}
-                    className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-xl py-3 px-4 focus:border-red-500 outline-none font-black text-lg text-white mt-2"
+                    className="w-full rounded-xl py-3 px-4 outline-none border-2 transition-all font-bold text-lg mt-2"
+                    style={{ background: '#ffffff', borderColor: '#e2e8f0', color: '#0f172a' }}
                     placeholder="Enter your password" required />
                 </div>
-                <p className="text-xs text-gray-500 font-bold">Enter your admin password to {systemPaused ? 'resume' : 'pause'} the system.</p>
+                <p className="text-xs font-semibold" style={{ color: '#94a3b8' }}>Enter your admin password to {systemPaused ? 'resume' : 'pause'} the system.</p>
                 <div className="flex space-x-3">
                   <button type="button" onClick={() => { setShowPauseModal(false); setPausePassword(''); }}
-                    className="flex-1 py-3 bg-gray-800 text-gray-400 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-gray-700 transition-all">Cancel</button>
+                    className="flex-1 py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all" style={{ background: '#f1f5f9', color: '#64748b' }}>Cancel</button>
                   <button type="submit" disabled={pausing || !pausePassword}
-                    className={`flex-1 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center space-x-2 ${
-                      systemPaused ? 'bg-emerald-600 text-white hover:bg-emerald-500' : 'bg-red-600 text-white hover:bg-red-500'
-                    } disabled:opacity-50`}>
+                    className={`flex-1 py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center space-x-2 disabled:opacity-50 text-white`}
+                    style={systemPaused ? { background: 'linear-gradient(135deg, #10b981, #059669)' } : { background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}>
                     {pausing ? <Loader2 className="animate-spin" size={16} /> : systemPaused ? <PlayCircle size={16} /> : <PauseCircle size={16} />}
                     <span>{pausing ? 'Processing...' : systemPaused ? 'Resume System' : 'Pause System'}</span>
                   </button>
@@ -1718,37 +1733,38 @@ const AdminDashboard = () => {
       {/* Review Edit Request Modal */}
       <AnimatePresence>
         {showReviewModal && reviewRequestData && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-6" style={{ background: 'rgba(0,0,0,0.5)' }}>
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="glass max-w-md w-full p-4 md:p-8 rounded-[2rem] border-2 border-gray-800 shadow-[0_50px_100px_rgba(0,0,0,0.5)]"
+              className="max-w-md w-full p-4 md:p-8 rounded-2xl border-2 shadow-xl" style={{ background: '#ffffff', borderColor: '#f1f5f9' }}
             >
               <div className="flex items-center gap-4 mb-6">
-                <div className={`p-3 rounded-xl ${reviewAction === 'approve' ? 'bg-emerald-500/10' : 'bg-red-500/10'}`}>
-                  {reviewAction === 'approve' ? <ThumbsUp className="text-emerald-400" size={24} /> : <ThumbsDown className="text-red-400" size={24} />}
+                <div className={`p-3 rounded-xl ${reviewAction === 'approve' ? 'bg-emerald-100' : 'bg-red-100'}`}>
+                  {reviewAction === 'approve' ? <ThumbsUp className="text-emerald-600" size={24} /> : <ThumbsDown className="text-red-600" size={24} />}
                 </div>
                 <div>
-                  <h2 className="text-xl font-black text-white uppercase tracking-tight">{reviewAction === 'approve' ? 'Approve Edit' : 'Reject Edit'}</h2>
-                  <p className="text-gray-400 text-xs font-bold">Order #{reviewRequestData.order?.orderNumber || reviewRequestData.orderId?.substring(0, 8)}</p>
+                  <h2 className="text-xl font-bold uppercase tracking-tight" style={{ color: '#0f172a' }}>{reviewAction === 'approve' ? 'Approve Edit' : 'Reject Edit'}</h2>
+                  <p className="text-xs font-semibold" style={{ color: '#64748b' }}>Order #{reviewRequestData.order?.orderNumber || reviewRequestData.orderId?.substring(0, 8)}</p>
                 </div>
               </div>
 
               {reviewAction === 'approve' && (
-                <div className="theme-bg rounded-xl p-4 border theme-border mb-4">
-                  <p className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-2">⚠ Inventory will auto-adjust</p>
-                  <p className="text-xs md:text-sm font-medium theme-text-muted">The system will automatically restore stock for removed products and deduct stock for new products.</p>
+                <div className="rounded-xl p-4 border mb-4" style={{ background: '#fffbeb', borderColor: '#fde68a' }}>
+                  <p className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-2">⚠ Inventory will auto-adjust</p>
+                  <p className="text-xs md:text-sm font-medium" style={{ color: '#64748b' }}>The system will automatically restore stock for removed products and deduct stock for new products.</p>
                 </div>
               )}
 
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">Admin Remarks (Optional)</label>
+                  <label className="text-xs md:text-sm font-bold uppercase tracking-widest" style={{ color: '#64748b' }}>Admin Remarks (Optional)</label>
                   <textarea
                     value={reviewRemarks}
                     onChange={(e) => setReviewRemarks(e.target.value)}
-                    className="w-full bg-gray-950/50 border-2 border-gray-800 rounded-xl py-3 px-4 focus:border-gray-600 outline-none font-medium text-sm text-white mt-2 resize-none h-24"
+                    className="w-full rounded-xl py-3 px-4 outline-none border-2 transition-all font-medium text-sm resize-none h-24 mt-2"
+                    style={{ background: '#ffffff', borderColor: '#e2e8f0', color: '#0f172a' }}
                     placeholder="Add remarks or comments..."
                   />
                 </div>
@@ -1757,7 +1773,8 @@ const AdminDashboard = () => {
                     type="button"
                     onClick={() => { setShowReviewModal(false); setReviewRequestData(null); }}
                     disabled={reviewSubmitting}
-                    className="flex-1 py-3 bg-gray-800 text-gray-400 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-gray-700 transition-all disabled:opacity-50"
+                    className="flex-1 py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all disabled:opacity-50"
+                    style={{ background: '#f1f5f9', color: '#64748b' }}
                   >
                     Cancel
                   </button>
@@ -1765,11 +1782,8 @@ const AdminDashboard = () => {
                     type="button"
                     onClick={reviewAction === 'approve' ? handleApproveEditRequest : handleRejectEditRequest}
                     disabled={reviewSubmitting}
-                    className={`flex-1 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 disabled:opacity-50 ${
-                      reviewAction === 'approve'
-                        ? 'bg-emerald-600 text-white hover:bg-emerald-500'
-                        : 'bg-red-600 text-white hover:bg-red-500'
-                    }`}
+                    className={`flex-1 py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-white`}
+                    style={reviewAction === 'approve' ? { background: 'linear-gradient(135deg, #10b981, #059669)' } : { background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}
                   >
                     {reviewSubmitting ? <Loader2 className="animate-spin" size={14} /> : reviewAction === 'approve' ? <ThumbsUp size={14} /> : <ThumbsDown size={14} />}
                     <span>{reviewSubmitting ? 'Processing...' : reviewAction === 'approve' ? 'Confirm Approve' : 'Confirm Reject'}</span>
@@ -1788,20 +1802,21 @@ const AdminDashboard = () => {
             initial={{ y: 80, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 80, opacity: 0 }}
-            className="fixed bottom-0 left-0 right-0 z-50 theme-bg/95 backdrop-blur-xl border-t-2 theme-border px-4 py-4 md:px-6"
+            className="fixed bottom-0 left-0 right-0 z-50 border-t-2 px-4 py-4 md:px-6 action-bar"
           >
             <div className="max-w-6xl mx-auto flex items-center gap-3 flex-wrap">
               <button
                 onClick={() => setSelectedOrderIds(new Set())}
-                className="px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-xs font-black text-gray-400 transition-all"
+                className="px-3 py-2 rounded-xl text-xs font-bold transition-all" style={{ background: '#f1f5f9', color: '#64748b' }}
               >
                 Clear ({selectedOrderIds.size})
               </button>
-              <div className="h-6 w-px bg-gray-700/50" />
+              <div className="h-6 w-px" style={{ background: '#e2e8f0' }} />
               <select
                 value={bulkDestination}
                 onChange={e => setBulkDestination(e.target.value)}
-                className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-xs font-black text-white outline-none focus:border-blue-500 min-w-[130px]"
+                className="rounded-xl px-3 py-2 text-xs font-bold outline-none border-2 transition-all min-w-[130px]"
+                style={{ background: '#ffffff', borderColor: '#e2e8f0', color: '#0f172a' }}
               >
                 <option value="">Send to...</option>
                 <option value="STORE">Store</option>
@@ -1815,7 +1830,8 @@ const AdminDashboard = () => {
               <button
                 disabled={!bulkDestination || bulkRouting}
                 onClick={handleBulkRoute}
-                className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all"
+                className="flex items-center gap-2 px-5 py-2 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50"
+                style={{ background: 'linear-gradient(135deg, #f43f5e, #e11d48)' }}
               >
                 {bulkRouting ? <Loader2 className="animate-spin" size={14} /> : <ArrowUpRight size={14} />}
                 Send Selected ({selectedOrderIds.size})
