@@ -530,13 +530,12 @@ const OutletPOSInventory = () => {
                             <Pencil size={12} className="text-white" />
                             <span className="text-[10px] font-bold text-white">Edit</span>
                           </button>
-                        ) : (
-                          <button onClick={(e) => { e.stopPropagation(); handleDeleteProduct(group); }}
-                            className="flex items-center gap-1 px-3 py-2 bg-gray-800 hover:bg-red-600 rounded-lg transition-colors">
-                            <Trash2 size={12} className="text-white" />
-                            <span className="text-[10px] font-bold text-white">Delete</span>
-                          </button>
-                        )}
+                        ) : null}
+                        <button onClick={(e) => { e.stopPropagation(); handleDeleteProduct(group); }}
+                          className="flex items-center gap-1 px-3 py-2 bg-gray-800 hover:bg-red-600 rounded-lg transition-colors">
+                          <Trash2 size={12} className="text-white" />
+                          <span className="text-[10px] font-bold text-white">Delete</span>
+                        </button>
                       </>
                     )}
                     <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${totalStock > 0 ? 'bg-emerald-900/30 text-emerald-400' : 'bg-gray-800 text-gray-500'}`}>
