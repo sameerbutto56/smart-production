@@ -684,9 +684,8 @@ const exportBackup = async (req, res) => {
 
     if (outlet) {
       // Branch-specific backup
-      variants = await prisma.outletVariant.findMany({ where: { outletName: outlet } });
-      const itemIds = [...new Set(variants.map(v => v.inventoryItemId))];
-      items = await prisma.inventoryItem.findMany({ where: { id: { in: itemIds } } });
+      variants = await prisma.outletInventory.findMany({ where: { outletName: outlet } });
+      items = await prisma.inventoryItem.findMany();
       
       posSales = await prisma.posSale.findMany({ where: { outletName: outlet }, include: { items: true } });
       posSales.forEach(sale => {
@@ -702,7 +701,7 @@ const exportBackup = async (req, res) => {
     } else {
       // Legacy/Full backup
       items = await prisma.inventoryItem.findMany();
-      variants = await prisma.outletVariant.findMany();
+      variants = await prisma.outletInventory.findMany();
       posSales = await prisma.posSale.findMany({ include: { items: true } });
       posSales.forEach(sale => {
         if (sale.items) posSaleItems.push(...sale.items);
@@ -718,7 +717,7 @@ const exportBackup = async (req, res) => {
       timestamp: new Date().toISOString(),
       outletName: outlet || null,
       inventoryItems: items,
-      outletVariants: variants,
+      outletInventory: variants,
       posSales,
       posSaleItems,
       posReturns,
@@ -758,14 +757,14 @@ const importBackup = async (req, res) => {
       return res.status(400).json({ message: 'Backup file is required' });
     }
     const backupData = JSON.parse(req.file.buffer.toString());
-    if (!backupData.inventoryItems || !backupData.outletVariants) {
+    const outletVariants = backupData.outletInventory || backupData.outletVariants || [];
+    if (!backupData.inventoryItems || !outletVariants) {
       return res.status(400).json({ message: 'Invalid backup file structure' });
     }
 
     const { 
       outletName: backupOutlet,
       inventoryItems = [], 
-      outletVariants = [],
       posSales = [],
       posSaleItems = [],
       posReturns = [],
@@ -785,7 +784,7 @@ const importBackup = async (req, res) => {
         await tx.posReturn.deleteMany({ where: { outletName: outlet } });
         await tx.posSaleItem.deleteMany({ where: { saleId: { in: targetSaleIds } } });
         await tx.posSale.deleteMany({ where: { outletName: outlet } });
-        await tx.outletVariant.deleteMany({ where: { outletName: outlet } });
+        await tx.outletInventory.deleteMany({ where: { outletName: outlet } });
         await tx.client.deleteMany({ where: { outletName: outlet } });
         await tx.order.deleteMany({ where: { outletName: outlet } });
         
@@ -795,6 +794,12 @@ const importBackup = async (req, res) => {
         })).map(t => t.id);
         await tx.outletTransferItem.deleteMany({ where: { transferId: { in: transferIds } } });
         await tx.outletTransfer.deleteMany({ where: { id: { in: transferIds } } });
+
+        // Build lookup for inventory item details (support old backup format with inventoryItemId)
+        const itemLookup = {};
+        for (const item of inventoryItems) {
+          itemLookup[item.id] = item;
+        }
 
         // 2. Restore main items (upsert them to avoid duplicate ID errors if items exist in another branch)
         for (const item of inventoryItems) {
@@ -822,19 +827,21 @@ const importBackup = async (req, res) => {
 
         // 3. Restore branch variants
         for (const v of outletVariants) {
-          await tx.outletVariant.create({
+          const invItem = itemLookup[v.inventoryItemId] || {};
+          await tx.outletInventory.create({
             data: {
               id: v.id,
-              inventoryItemId: v.inventoryItemId,
-              outletName: v.outletName,
-              color: v.color,
-              size: v.size,
-              barcode: v.barcode,
-              stock: v.stock,
-              price: v.price,
-              isActive: v.isActive,
-              createdAt: new Date(v.createdAt),
-              updatedAt: new Date(v.updatedAt)
+              outletName: v.outletName || outlet,
+              name: v.name || invItem.name || 'Unknown',
+              category: v.category || invItem.category || 'UNCATEGORIZED',
+              color: v.color || null,
+              size: v.size || null,
+              fabric: v.fabric || invItem.fabric || '',
+              barcode: v.barcode || null,
+              stock: parseInt(v.stock) || 0,
+              price: parseFloat(v.price) || 0,
+              createdAt: v.createdAt ? new Date(v.createdAt) : new Date(),
+              updatedAt: v.updatedAt ? new Date(v.updatedAt) : new Date()
             }
           });
         }
@@ -1020,7 +1027,7 @@ const importBackup = async (req, res) => {
         await tx.posReturn.deleteMany();
         await tx.posSaleItem.deleteMany();
         await tx.posSale.deleteMany();
-        await tx.outletVariant.deleteMany();
+        await tx.outletInventory.deleteMany();
         await tx.inventoryItem.deleteMany();
 
         for (const item of inventoryItems) {
@@ -1043,20 +1050,27 @@ const importBackup = async (req, res) => {
           });
         }
 
+        const itemLookupFull = {};
+        for (const item of inventoryItems) {
+          itemLookupFull[item.id] = item;
+        }
+
         for (const v of outletVariants) {
-          await tx.outletVariant.create({
+          const invItem = itemLookupFull[v.inventoryItemId] || {};
+          await tx.outletInventory.create({
             data: {
               id: v.id,
-              inventoryItemId: v.inventoryItemId,
-              outletName: v.outletName,
-              color: v.color,
-              size: v.size,
-              barcode: v.barcode,
-              stock: v.stock,
-              price: v.price,
-              isActive: v.isActive,
-              createdAt: new Date(v.createdAt),
-              updatedAt: new Date(v.updatedAt)
+              outletName: v.outletName || null,
+              name: v.name || invItem.name || 'Unknown',
+              category: v.category || invItem.category || 'UNCATEGORIZED',
+              color: v.color || null,
+              size: v.size || null,
+              fabric: v.fabric || invItem.fabric || '',
+              barcode: v.barcode || null,
+              stock: parseInt(v.stock) || 0,
+              price: parseFloat(v.price) || 0,
+              createdAt: v.createdAt ? new Date(v.createdAt) : new Date(),
+              updatedAt: v.updatedAt ? new Date(v.updatedAt) : new Date()
             }
           });
         }
@@ -1087,12 +1101,11 @@ const exportBackupExcel = async (req, res) => {
     let variants;
 
     if (outlet) {
-      variants = await prisma.outletVariant.findMany({ where: { outletName: outlet } });
-      const itemIds = [...new Set(variants.map(v => v.inventoryItemId))];
-      items = await prisma.inventoryItem.findMany({ where: { id: { in: itemIds } } });
+      variants = await prisma.outletInventory.findMany({ where: { outletName: outlet } });
+      items = await prisma.inventoryItem.findMany();
     } else {
       items = await prisma.inventoryItem.findMany();
-      variants = await prisma.outletVariant.findMany();
+      variants = await prisma.outletInventory.findMany();
     }
 
     // Flatten items for Excel (stringify JSON fields)
@@ -1114,14 +1127,18 @@ const exportBackupExcel = async (req, res) => {
 
     const variantRows = variants.map(v => ({
       id: v.id,
-      inventoryItemId: v.inventoryItemId,
       outletName: v.outletName || '',
+      name: v.name || '',
+      category: v.category || '',
       color: v.color || '',
       size: v.size || '',
+      fabric: v.fabric || '',
       barcode: v.barcode || '',
       stock: v.stock,
       price: v.price,
-      isActive: v.isActive ? 'TRUE' : 'FALSE',
+      imageUrl: v.imageUrl || '',
+      metadata: v.metadata ? JSON.stringify(v.metadata) : '',
+      variants: v.variants ? JSON.stringify(v.variants) : '',
       createdAt: v.createdAt ? new Date(v.createdAt).toISOString() : '',
       updatedAt: v.updatedAt ? new Date(v.updatedAt).toISOString() : ''
     }));
@@ -1130,7 +1147,7 @@ const exportBackupExcel = async (req, res) => {
     const wsItems = XLSX.utils.json_to_sheet(itemRows);
     const wsVariants = XLSX.utils.json_to_sheet(variantRows);
     XLSX.utils.book_append_sheet(wb, wsItems, 'Products');
-    XLSX.utils.book_append_sheet(wb, wsVariants, 'OutletVariants');
+    XLSX.utils.book_append_sheet(wb, wsVariants, 'OutletInventory');
 
     const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
@@ -1155,10 +1172,10 @@ const importBackupExcel = async (req, res) => {
 
     const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
     const productsSheet = wb.Sheets['Products'];
-    const variantsSheet = wb.Sheets['OutletVariants'];
+    const variantsSheet = wb.Sheets['OutletInventory'] || wb.Sheets['OutletVariants'];
 
     if (!productsSheet || !variantsSheet) {
-      return res.status(400).json({ message: 'Invalid Excel file — must contain "Products" and "OutletVariants" sheets' });
+      return res.status(400).json({ message: 'Invalid Excel file — must contain "Products" and "OutletInventory" (or "OutletVariants") sheets' });
     }
 
     const inventoryItems = XLSX.utils.sheet_to_json(productsSheet);
@@ -1169,7 +1186,7 @@ const importBackupExcel = async (req, res) => {
     await prisma.$transaction(async (tx) => {
       if (outlet) {
         // --- Branch-Specific Isolation Restore ---
-        await tx.outletVariant.deleteMany({ where: { outletName: outlet } });
+        await tx.outletInventory.deleteMany({ where: { outletName: outlet } });
 
         // Restore items (upsert them to avoid duplicate ID errors if items exist in another branch)
         for (const item of inventoryItems) {
@@ -1195,19 +1212,27 @@ const importBackupExcel = async (req, res) => {
           }
         }
 
+        // Build lookup for inventory item details (support old XLSX format with inventoryItemId)
+        const itemLookupXlsx = {};
+        for (const item of inventoryItems) {
+          itemLookupXlsx[item.id] = item;
+        }
+
         // Restore branch variants
         for (const v of outletVariants) {
-          await tx.outletVariant.create({
+          const invItem = itemLookupXlsx[v.inventoryItemId] || {};
+          await tx.outletInventory.create({
             data: {
               id: v.id,
-              inventoryItemId: v.inventoryItemId,
-              outletName: v.outletName || null,
+              outletName: v.outletName || outlet || null,
+              name: v.name || invItem.name || 'Unknown',
+              category: v.category || invItem.category || 'UNCATEGORIZED',
               color: v.color || null,
               size: v.size || null,
+              fabric: v.fabric || invItem.fabric || '',
               barcode: v.barcode || null,
               stock: parseInt(v.stock) || 0,
               price: parseFloat(v.price) || 0,
-              isActive: v.isActive === 'TRUE' || v.isActive === true || v.isActive === 'true',
               createdAt: v.createdAt ? new Date(v.createdAt) : new Date(),
               updatedAt: v.updatedAt ? new Date(v.updatedAt) : new Date()
             }
@@ -1218,7 +1243,7 @@ const importBackupExcel = async (req, res) => {
         await tx.posReturn.deleteMany();
         await tx.posSaleItem.deleteMany();
         await tx.posSale.deleteMany();
-        await tx.outletVariant.deleteMany();
+        await tx.outletInventory.deleteMany();
         await tx.inventoryItem.deleteMany();
 
         // Restore items
@@ -1242,19 +1267,27 @@ const importBackupExcel = async (req, res) => {
           });
         }
 
+        // Build lookup for inventory item details (support old XLSX format with inventoryItemId)
+        const itemLookupXlsxFull = {};
+        for (const item of inventoryItems) {
+          itemLookupXlsxFull[item.id] = item;
+        }
+
         // Restore outlet variants
         for (const v of outletVariants) {
-          await tx.outletVariant.create({
+          const invItem = itemLookupXlsxFull[v.inventoryItemId] || {};
+          await tx.outletInventory.create({
             data: {
               id: v.id,
-              inventoryItemId: v.inventoryItemId,
               outletName: v.outletName || null,
+              name: v.name || invItem.name || 'Unknown',
+              category: v.category || invItem.category || 'UNCATEGORIZED',
               color: v.color || null,
               size: v.size || null,
+              fabric: v.fabric || invItem.fabric || '',
               barcode: v.barcode || null,
               stock: parseInt(v.stock) || 0,
               price: parseFloat(v.price) || 0,
-              isActive: v.isActive === 'TRUE' || v.isActive === true || v.isActive === 'true',
               createdAt: v.createdAt ? new Date(v.createdAt) : new Date(),
               updatedAt: v.updatedAt ? new Date(v.updatedAt) : new Date()
             }

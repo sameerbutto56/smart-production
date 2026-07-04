@@ -77,19 +77,28 @@ const OutletTransfers = () => {
     return items;
   }, [inventory, searchTerm]);
 
-  const addTransferItem = (product, variant) => {
-    const key = `${product.id}|${variant.color || ''}|${variant.size || ''}`;
+  const groupedInventory = useMemo(() => {
+    const groups = {};
+    filteredInventory.forEach(item => {
+      if (!groups[item.name]) groups[item.name] = [];
+      groups[item.name].push(item);
+    });
+    return Object.entries(groups);
+  }, [filteredInventory]);
+
+  const addTransferItem = (item) => {
+    const key = item.id;
     if (transferItems.some(t => t.key === key)) {
       setTransferItems(transferItems.map(t => t.key === key ? { ...t, qty: t.qty + 1 } : t));
     } else {
       setTransferItems([...transferItems, {
         key,
-        variantId: variant.id,
-        productName: product.name,
-        color: variant.color,
-        size: variant.size,
-        barcode: variant.barcode,
-        maxQty: variant.stock,
+        variantId: item.id,
+        productName: item.name,
+        color: item.color,
+        size: item.size,
+        barcode: item.barcode,
+        maxQty: item.stock,
         qty: 1
       }]);
     }
@@ -381,25 +390,21 @@ const OutletTransfers = () => {
                 className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
             </div>
             <div className="space-y-1 max-h-[400px] overflow-y-auto">
-              {filteredInventory.map(p => (
-                <div key={p.id} className="bg-gray-800/40 rounded-xl p-2.5 border border-gray-800">
-                  <p className="text-xs font-bold text-white">{p.name}</p>
+              {groupedInventory.map(([name, variants]) => (
+                <div key={name} className="bg-gray-800/40 rounded-xl p-2.5 border border-gray-800">
+                  <p className="text-xs font-bold text-white">{name}</p>
                   <div className="flex flex-wrap gap-1 mt-1.5">
-                    {(p.outletVariants || []).length === 0 ? (
-                      <span className="text-[9px] text-gray-600 italic">No variants</span>
-                    ) : (
-                      p.outletVariants.map(v => (
-                        <button key={v.id}
-                          onClick={() => v.stock > 0 ? addTransferItem(p, v) : null}
-                          disabled={v.stock <= 0}
-                          className={`text-[9px] font-bold px-2 py-0.5 rounded-lg border ${
-                            v.stock <= 0 ? 'bg-gray-900/50 border-gray-800 text-gray-700 cursor-not-allowed' :
-                            transferItems.some(t => t.variantId === v.id) ? 'bg-emerald-600/20 border-emerald-500/30 text-emerald-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'
-                          }`}>
-                          {[v.color, v.size].filter(Boolean).join(' / ') || 'Standard'} ({v.stock})
-                        </button>
-                      ))
-                    )}
+                    {variants.map(v => (
+                      <button key={v.id}
+                        onClick={() => v.stock > 0 ? addTransferItem(v) : null}
+                        disabled={v.stock <= 0}
+                        className={`text-[9px] font-bold px-2 py-0.5 rounded-lg border ${
+                          v.stock <= 0 ? 'bg-gray-900/50 border-gray-800 text-gray-700 cursor-not-allowed' :
+                          transferItems.some(t => t.variantId === v.id) ? 'bg-emerald-600/20 border-emerald-500/30 text-emerald-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'
+                        }`}>
+                        {[v.color, v.size].filter(Boolean).join(' / ') || 'Standard'} ({v.stock})
+                      </button>
+                    ))}
                   </div>
                 </div>
               ))}

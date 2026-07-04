@@ -138,7 +138,8 @@ const approveDemandRequest = async (req, res) => {
 
 const getInventoryForOutlet = async (req, res) => {
   try {
-    const { search } = req.query;
+    const { search, outletName: queryOutlet } = req.query;
+    const outletName = queryOutlet || req.user?.outletName || '';
     const items = await prisma.inventoryItem.findMany({
       orderBy: { name: 'asc' },
       select: {
@@ -151,10 +152,32 @@ const getInventoryForOutlet = async (req, res) => {
         variants: true
       }
     });
-    let filtered = items;
+    let outletStockMap = {};
+    if (outletName) {
+      const outletItems = await prisma.outletInventory.findMany({
+        where: { outletName }
+      });
+      for (const oi of outletItems) {
+        const key = `${oi.name}|${oi.color || ''}|${oi.size || ''}`;
+        outletStockMap[key] = oi;
+      }
+    }
+    const merged = items.map(item => {
+      const key = `${item.name}|${item.color || ''}|${item.size || ''}`;
+      const outletData = outletStockMap[key];
+      return {
+        ...item,
+        outletStock: outletData ? outletData.stock : 0,
+        outletBarcode: outletData ? outletData.barcode : null,
+        outletPrice: outletData ? outletData.price : null,
+        outletInventoryId: outletData ? outletData.id : null,
+        inOutlet: !!outletData
+      };
+    });
+    let filtered = merged;
     if (search) {
       const q = search.toLowerCase();
-      filtered = items.filter(r =>
+      filtered = merged.filter(r =>
         r.name.toLowerCase().includes(q) ||
         r.category?.toLowerCase().includes(q) ||
         r.color?.toLowerCase().includes(q)
@@ -250,14 +273,12 @@ const acceptDemandRequest = async (req, res) => {
       let inv = null;
       if (it.inventoryItemId) {
         inv = await prisma.inventoryItem.findUnique({
-          where: { id: it.inventoryItemId },
-          include: { outletVariants: true }
+          where: { id: it.inventoryItemId }
         });
       }
       if (!inv) {
         const invItems = await prisma.inventoryItem.findMany({
-          where: { name: { contains: it.productName, mode: 'insensitive' } },
-          include: { outletVariants: true }
+          where: { name: { contains: it.productName, mode: 'insensitive' } }
         });
         inv = invItems[0] || null;
       }
@@ -266,35 +287,41 @@ const acceptDemandRequest = async (req, res) => {
         continue;
       }
 
-      // Find or create the matching OutletVariant for THIS outlet only
-      let ov = inv.outletVariants.find(o =>
-        o.outletName === existing.outletName &&
-        o.color === (it.color || null) &&
-        o.size === (it.size || null)
-      );
-      if (!ov) {
+      // Find or create the matching OutletInventory for THIS outlet only
+      let oi = await prisma.outletInventory.findFirst({
+        where: {
+          outletName: existing.outletName,
+          name: inv.name,
+          category: inv.category,
+          color: it.color || null,
+          size: it.size || null
+        }
+      });
+      if (!oi) {
         let bc = generateBarcode(inv.id, it.size, it.color);
         let a = 0;
-        while (await prisma.outletVariant.findFirst({ where: { barcode: bc, outletName: existing.outletName } })) {
+        while (await prisma.outletInventory.findFirst({ where: { barcode: bc, outletName: existing.outletName } })) {
           a++;
           bc = generateBarcode(inv.id, it.size, it.color, a);
         }
-        ov = await prisma.outletVariant.create({
+        oi = await prisma.outletInventory.create({
           data: {
-            inventoryItemId: inv.id,
             outletName: existing.outletName,
+            name: inv.name,
+            category: inv.category || '',
             color: it.color || null,
             size: it.size || null,
+            fabric: inv.fabric || null,
             barcode: bc,
             stock: parseInt(it.approvedQty) || 0,
             price: null,
-            isActive: true
+            metadata: JSON.stringify({ sourceStoreItemId: inv.id })
           }
         });
       } else {
-        // Add stock to existing variant (same outlet)
-        await prisma.outletVariant.update({
-          where: { id: ov.id },
+        // Add stock to existing OutletInventory record
+        await prisma.outletInventory.update({
+          where: { id: oi.id },
           data: { stock: { increment: parseInt(it.approvedQty) || 0 } }
         });
       }
@@ -306,7 +333,7 @@ const acceptDemandRequest = async (req, res) => {
         productName: it.productName,
         color: it.color,
         size: it.size,
-        status: ov ? 'ACCEPTED' : 'CREATED',
+        status: 'ACCEPTED',
         qty: it.approvedQty
       });
     }

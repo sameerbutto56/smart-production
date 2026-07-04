@@ -216,12 +216,35 @@ model InventoryItem {
   variants  Json?    // Array of {color, size, stock, price}
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  outletVariants OutletVariant[]
 
   @@index([name])
   @@index([category])
   @@index([name, category])
   @@index([color, size, category])
+}
+
+model OutletInventory {
+  id         String   @id @default(uuid())
+  outletName String
+  name       String
+  category   String
+  color      String?
+  size       String?
+  fabric     String?
+  stock      Int      @default(0)
+  price      Float?
+  imageUrl   String?
+  metadata   String?   // JSON: optionally stores {sourceStoreItemId} for traceability
+  variants   Json?     // Array of {color, size, stock, price}
+  barcode    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([barcode, outletName])
+  @@index([outletName])
+  @@index([outletName, category])
+  @@index([outletName, name])
+  @@index([barcode])
 }
 
 model StockRequest {
@@ -449,30 +472,6 @@ model Client {
   @@index([isActive])
 }
 
-model OutletVariant {
-  id              String   @id @default(uuid())
-  inventoryItemId String
-  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
-  outletName      String   @default("Johar Town")
-  color           String?
-  size            String?
-  barcode         String
-  stock           Int      @default(0)
-  price           Float?
-  isActive        Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  saleItems       PosSaleItem[]
-  returns         PosReturn[]
-  transferItems   OutletTransferItem[]
-
-  @@unique([barcode, outletName])
-  @@index([inventoryItemId])
-  @@index([outletName])
-  @@index([size, color])
-  @@index([isActive])
-}
-
 model PosSale {
   id               String   @id @default(uuid())
   receiptNumber    String   @unique
@@ -500,8 +499,7 @@ model PosSaleItem {
   id                String   @id @default(uuid())
   saleId            String
   sale              PosSale  @relation(fields: [saleId], references: [id])
-  outletVariantId   String
-  outletVariant     OutletVariant @relation(fields: [outletVariantId], references: [id])
+  outletVariantId   String?  // Historical reference ID (plain string, no FK constraint)
   productName       String
   size              String?
   color             String?
@@ -518,8 +516,7 @@ model PosReturn {
   id              String   @id @default(uuid())
   saleId          String?
   sale            PosSale? @relation(fields: [saleId], references: [id])
-  outletVariantId String
-  outletVariant   OutletVariant @relation(fields: [outletVariantId], references: [id])
+  outletVariantId String?  // Historical reference ID (plain string, no FK constraint)
   outletName      String   @default("Johar Town")
   reason          String?
   quantity        Int      @default(1)
@@ -560,8 +557,8 @@ model OutletTransferItem {
   id              String   @id @default(uuid())
   transferId      String
   transfer        OutletTransfer @relation(fields: [transferId], references: [id])
-  outletVariantId String
-  outletVariant   OutletVariant @relation(fields: [outletVariantId], references: [id])
+  outletVariantId String?  // Historical reference ID (plain string, no FK constraint)
+  outletInventoryId String?
   productName     String
   color           String?
   size            String?
@@ -571,4 +568,5 @@ model OutletTransferItem {
 
   @@index([transferId])
   @@index([outletVariantId])
+  @@index([outletInventoryId])
 }

@@ -129,17 +129,15 @@ const OutletPOS = () => {
   const barcodeMap = useMemo(() => {
     const map = new Map();
     for (const p of products) {
-      for (const v of (p.outletVariants || [])) {
-        if (v.barcode) {
-          map.set(v.barcode, {
-            id: v.id,
-            productName: p.name,
-            color: v.color,
-            size: v.size,
-            stock: v.stock,
-            price: v.price || p.price || 0
-          });
-        }
+      if (p.barcode) {
+        map.set(p.barcode, {
+          id: p.id,
+          productName: p.name,
+          color: p.color,
+          size: p.size,
+          stock: p.stock,
+          price: p.price || 0
+        });
       }
     }
     return map;
@@ -188,11 +186,9 @@ const OutletPOS = () => {
       setSelectedColor('');
       setSelectedQty(1);
     } else {
-      const v = product.outletVariants?.[0];
-      if (!v) return toast.error('No variant available');
       setCart([...cart, {
-        variantId: v.id, productName: product.name,
-        size: null, color: null, unitPrice: v.price || product.price || 0,
+        variantId: product.id, productName: product.name,
+        size: product.size || null, color: product.color || null, unitPrice: product.price || 0,
         qty: 1, alterationAmount: 0, alterationLabel: ''
       }]);
       toast.success(`${product.name} added`);
@@ -206,7 +202,8 @@ const OutletPOS = () => {
     if (hasColors && !selectedColor) return toast.error('Please select a color');
     if (hasSizes && !selectedSize) return toast.error('Please select a size');
     if (selectedQty < 1) return toast.error('Quantity must be at least 1');
-    const variant = product.outletVariants.find(v =>
+    const variant = products.find(v =>
+      v.name === product.name &&
       (!hasColors || v.color === selectedColor) &&
       (!hasSizes || v.size === selectedSize)
     );
@@ -826,9 +823,7 @@ const OutletPOS = () => {
             </div>
           ) : (
           <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
-            {filtered.map(p => {
-              const totalStock = p.outletVariants?.reduce((s, v) => s + v.stock, 0) || 0;
-              return (
+            {filtered.map(p => (
                 <button key={p.id} onClick={() => handleAddToCart(p)}
                   className="glass bg-gray-800/80 rounded-xl border-2 border-gray-700/50 p-2 text-left hover:border-blue-500/50 transition-all active:scale-95">
                   {p.imageUrl ? (
@@ -839,11 +834,13 @@ const OutletPOS = () => {
                     </div>
                   )}
                   <p className="text-[10px] font-bold text-white leading-tight line-clamp-2">{p.name}</p>
+                  {(p.color || p.size) && (
+                    <p className="text-[8px] text-gray-500 font-bold">{[p.color, p.size].filter(Boolean).join(' • ')}</p>
+                  )}
                   <p className="text-xs font-black text-emerald-400 mt-0.5">{formatCurrency(p.price)}</p>
-                  <p className="text-[8px] text-gray-600 font-bold">{p.outletVariants?.length || 0} variants &bull; Stock: {totalStock}</p>
+                  <p className="text-[8px] text-gray-600 font-bold">Stock: {p.stock}</p>
                 </button>
-              );
-            })}
+              ))}
           </div>
           )}
         </div>

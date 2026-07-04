@@ -23,15 +23,12 @@ const OutletPOSInventory = () => {
   const [activeCategory, setActiveCategory] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [customCategory, setCustomCategory] = useState('');
-  const [editCustomCategory, setEditCustomCategory] = useState('');
   const [formData, setFormData] = useState({
-    name: '',
-    category: 'SCRUBS',
-    fabric: '',
-    imageUrl: '',
-    variants: [{ color: '', size: '', price: 0 }]
+    selectedProductId: null,
+    variants: [{ color: '', size: '', stock: 0, price: 0 }]
   });
+  const [storeProducts, setStoreProducts] = useState([]);
+  const [storeProductsLoading, setStoreProductsLoading] = useState(false);
 
   const isOutlet = user?.role === 'OUTLET';
   const canInit = user?.role === 'STORE' || user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
@@ -132,7 +129,6 @@ const OutletPOSInventory = () => {
     ttl: 2 * 60 * 1000,
   });
 
-  // Pre-fetch other outlets in background and seed IndexedDB/hot cache for instant tab switching
   useEffect(() => {
     const otherOutlets = ALL_OUTLETS.filter(o => o !== selectedOutlet);
     otherOutlets.forEach(o => {
@@ -153,7 +149,7 @@ const OutletPOSInventory = () => {
   const addVariant = () => {
     setFormData(prev => ({
       ...prev,
-      variants: [...prev.variants, { color: '', size: '', price: 0 }]
+      variants: [...prev.variants, { color: '', size: '', stock: 0, price: 0 }]
     }));
   };
 
@@ -172,17 +168,23 @@ const OutletPOSInventory = () => {
     });
   };
 
-  const handleOpenModal = () => {
-    setFormData({ name: '', category: 'SCRUBS', fabric: '', imageUrl: '', variants: [{ color: '', size: '', price: 0 }] });
-    setCustomCategory('');
+  const handleOpenModal = async () => {
+    setFormData({ selectedProductId: null, variants: [{ color: '', size: '', stock: 0, price: 0 }] });
     setIsModalOpen(true);
+    setStoreProductsLoading(true);
+    try {
+      const res = await api.get('/api/inventory');
+      setStoreProducts(res.data);
+    } catch {
+      toast.error('Failed to load store products');
+    }
+    setStoreProductsLoading(false);
   };
 
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', category: '', fabric: '', imageUrl: '' });
   const [editVariants, setEditVariants] = useState([]);
-  const [removedVariantIds, setRemovedVariantIds] = useState([]);
   const [editSubmitting, setEditSubmitting] = useState(false);
 
   const handleOpenEdit = (item) => {
@@ -195,37 +197,20 @@ const OutletPOSInventory = () => {
       fabric: item.fabric || '',
       imageUrl: item.imageUrl || ''
     });
-    setEditCustomCategory(isCustom ? item.category : '');
-    // Only load variants for the currently selected outlet — not all outlets
-    const outletVariants = (item.outletVariants || []).filter(v =>
-      !v.outletName || v.outletName === selectedOutlet
-    );
-    setEditVariants(outletVariants.map(v => ({
-      _key: v.id,
-      id: v.id,
-      color: v.color || '',
-      size: v.size || '',
-      barcode: v.barcode,
-      stock: v.stock || 0,
-      price: v.price || 0
-    })));
-    setRemovedVariantIds([]);
+    setEditVariants([{
+      _key: item.id,
+      id: item.id,
+      color: item.color || '',
+      size: item.size || '',
+      barcode: item.barcode,
+      stock: item.stock || 0,
+      price: item.price || 0
+    }]);
     setEditModalOpen(true);
   };
 
   const handleEditVariantChange = (key, field, value) => {
     setEditVariants(prev => prev.map(v => v._key === key ? { ...v, [field]: value } : v));
-  };
-
-  const handleEditAddVariant = () => {
-    const newKey = `new_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    setEditVariants(prev => [...prev, { _key: newKey, id: null, color: '', size: '', barcode: '', stock: 0, price: 0 }]);
-  };
-
-  const handleEditRemoveVariant = (key) => {
-    const variant = editVariants.find(v => v._key === key);
-    if (variant.id) setRemovedVariantIds(prev => [...prev, variant.id]);
-    setEditVariants(prev => prev.filter(v => v._key !== key));
   };
 
   const handleEditSave = async () => {
@@ -238,52 +223,60 @@ const OutletPOSInventory = () => {
         setEditSubmitting(false);
         return;
       }
-      await api.patch(`/api/pos/products/${editItem.id}`, { ...editForm, category: resolvedCategory });
-      const existing = editVariants.filter(v => v.id);
-      await Promise.all(existing.map(v =>
-        api.put(`/api/pos/variants/${v.id}`, { color: v.color || null, size: v.size || null, stock: v.stock, price: v.price })
-      ));
-      const news = editVariants.filter(v => !v.id);
-      await Promise.all(news.map(v =>
-        api.post(`/api/pos/products/${editItem.id}/variants?outlet=${encodeURIComponent(selectedOutlet)}`, { color: v.color || null, size: v.size || null, stock: v.stock, price: v.price })
-      ));
-      await Promise.all(removedVariantIds.map(id => api.delete(`/api/pos/variants/${id}`)));
-      toast.success('Product updated');
+      const variant = editVariants[0];
+      await api.put(`/api/pos/variants/${editItem.id}`, {
+        name: editForm.name,
+        category: resolvedCategory,
+        fabric: editForm.fabric || null,
+        imageUrl: editForm.imageUrl || null,
+        color: variant?.color || null,
+        size: variant?.size || null,
+        stock: variant?.stock || 0,
+        price: variant?.price || 0
+      });
+      toast.success('Inventory item updated');
       setEditModalOpen(false);
       setEditItem(null);
       refresh();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to update product');
+      toast.error(error.response?.data?.message || 'Failed to update inventory item');
     }
     setEditSubmitting(false);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!formData.selectedProductId) {
+      toast.error('Please select a store product');
+      return;
+    }
     setSubmitting(true);
     try {
-      const resolvedCategory = formData.category === 'CUSTOM' ? customCategory.trim().toUpperCase() : formData.category;
-      if (!resolvedCategory) {
-        toast.error('Please specify a category');
+      const validVariants = formData.variants.filter(v => v.color || v.size || v.stock > 0 || v.price > 0);
+      if (validVariants.length === 0) {
+        toast.error('At least one variant is required');
         setSubmitting(false);
         return;
       }
-      const payload = {
-        name: formData.name,
-        category: resolvedCategory,
-        fabric: formData.fabric || undefined,
-        imageUrl: formData.imageUrl || undefined,
-        variants: formData.variants.filter(v => v.color || v.size || v.price > 0).map(v => ({ ...v, stock: 0 }))
-      };
-      await api.post('/api/pos/products', payload);
-      toast.success('Product added to POS catalog');
+      await Promise.all(validVariants.map(v =>
+        api.post(`/api/pos/products/${formData.selectedProductId}/variants?outlet=${encodeURIComponent(selectedOutlet)}`, {
+          color: v.color || null,
+          size: v.size || null,
+          stock: v.stock || 0,
+          price: v.price || 0
+        })
+      ));
+      toast.success('Product added to outlet inventory');
       setIsModalOpen(false);
       refresh();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to create product');
+      toast.error(error.response?.data?.message || 'Failed to add product');
     }
     setSubmitting(false);
   };
+
+  const [customCategory, setCustomCategory] = useState('');
+  const [editCustomCategory, setEditCustomCategory] = useState('');
 
   /* ─── Initialize Inventory ─── */
   const [initModalOpen, setInitModalOpen] = useState(false);
@@ -296,41 +289,47 @@ const OutletPOSInventory = () => {
     setInitLoading(true);
     setInitModalOpen(true);
     try {
-      const res = await api.get('/api/pos/inventory?outlet=Johar%20Town');
-      const products = res.data;
-      setInitProducts(products);
+      const res = await api.get('/api/inventory');
+      const storeItems = res.data;
+      setInitProducts(storeItems);
       const data = {};
-      for (const p of products) {
-        const vdefs = [];
-        const seen = new Set();
-        for (const v of (p.outletVariants || [])) {
-          const key = `${v.color || ''}|${v.size || ''}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            vdefs.push({ color: v.color || '', size: v.size || '' });
+      for (const item of storeItems) {
+        let vdefs = [];
+        if (item.variants) {
+          const parsed = typeof item.variants === 'string' ? JSON.parse(item.variants) : item.variants;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            vdefs = parsed.map(v => ({ color: v.color || '', size: v.size || '' }));
           }
         }
-        if (vdefs.length === 0) vdefs.push({ color: '', size: '' });
-        data[p.id] = { name: p.name, variants: vdefs.map(vd => ({
-          color: vd.color, size: vd.size,
-          stocks: { 'Johar Town': 0, 'Jail Road': 0, 'Abbottabad': 0 }
-        })) };
+        if (vdefs.length === 0) vdefs.push({ color: item.color || '', size: item.size || '' });
+        data[item.id] = {
+          name: item.name,
+          category: item.category,
+          fabric: item.fabric || '',
+          imageUrl: item.imageUrl || '',
+          variants: item.variants,
+          sourceItemId: item.id,
+          productVariants: vdefs.map(vd => ({
+            color: vd.color, size: vd.size,
+            stocks: { 'Johar Town': 0, 'Jail Road': 0, 'Abbottabad': 0 }
+          }))
+        };
       }
       setInitData(data);
     } catch (e) {
-      toast.error('Failed to load products for initialization');
+      toast.error('Failed to load store products for initialization');
     }
     setInitLoading(false);
   }, []);
 
-  const handleInitStockChange = (productId, vi, outlet, value) => {
+  const handleInitStockChange = (sourceItemId, vi, outlet, value) => {
     setInitData(prev => {
       const updated = { ...prev };
-      const product = { ...updated[productId], variants: [...updated[productId].variants] };
-      const variant = { ...product.variants[vi], stocks: { ...product.variants[vi].stocks } };
+      const product = { ...updated[sourceItemId], productVariants: [...updated[sourceItemId].productVariants] };
+      const variant = { ...product.productVariants[vi], stocks: { ...product.productVariants[vi].stocks } };
       variant.stocks[outlet] = parseInt(value) || 0;
-      product.variants[vi] = variant;
-      updated[productId] = product;
+      product.productVariants[vi] = variant;
+      updated[sourceItemId] = product;
       return updated;
     });
   };
@@ -340,16 +339,29 @@ const OutletPOSInventory = () => {
     try {
       const stockData = {};
       for (const outlet of ALL_OUTLETS) stockData[outlet] = [];
-      for (const [pid, product] of Object.entries(initData)) {
-        for (const v of product.variants) {
+      for (const [sourceItemId, product] of Object.entries(initData)) {
+        for (const v of product.productVariants) {
           for (const outlet of ALL_OUTLETS) {
             const stock = v.stocks[outlet] || 0;
-            stockData[outlet].push({ productId: pid, color: v.color || null, size: v.size || null, stock });
+            if (stock > 0) {
+              stockData[outlet].push({
+                sourceItemId,
+                name: product.name,
+                category: product.category,
+                color: v.color || null,
+                size: v.size || null,
+                fabric: product.fabric || null,
+                price: null,
+                stock,
+                imageUrl: product.imageUrl || null,
+                variants: product.variants || null
+              });
+            }
           }
         }
       }
       const res = await api.post('/api/pos/initialize-inventory', { stockData });
-      toast.success(`Initialized: ${res.data.summary.variantsCreated} created, ${res.data.summary.variantsUpdated} updated`);
+      toast.success(`Initialized: ${res.data.summary.created} created, ${res.data.summary.updated} updated`);
       setInitModalOpen(false);
       refresh();
     } catch (error) {
@@ -455,7 +467,7 @@ const OutletPOSInventory = () => {
       ) : (
         <div className="space-y-2">
           {filtered.map(item => {
-            const totalStock = item.outletVariants?.reduce((s, v) => s + v.stock, 0) || 0;
+            const totalStock = item.stock || 0;
             return (
               <div key={item.id} className="bg-gray-900/60 rounded-xl border border-gray-700/50">
                 <button onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
@@ -483,16 +495,14 @@ const OutletPOSInventory = () => {
                 </button>
                 {expandedId === item.id && (
                   <div className="px-4 pb-3 border-t border-gray-700/50 pt-2 space-y-1.5">
-                    <p className="text-[10px] text-gray-500 font-bold">Colors: {item.colors?.join(', ') || 'N/A'} &bull; Sizes: {item.sizes?.join(', ') || 'N/A'}</p>
-                    {item.outletVariants?.map(v => (
-                      <div key={v.id} className="flex items-center gap-2 bg-gray-800/50 rounded-lg px-3 py-2 text-xs">
-                        <span className="font-bold text-gray-300 min-w-[80px]">{[v.color, v.size].filter(Boolean).join(' • ') || 'Default'}</span>
-                        <span className="text-[10px] font-mono text-gray-500 flex-1">{v.barcode}</span>
-                        <span className="font-bold text-emerald-400">{v.price ? formatCurrency(v.price) : '-'}</span>
-                        <span className={`font-bold ml-2 ${v.stock > 0 ? 'text-emerald-400' : 'text-red-400'}`}>{v.stock}</span>
-                        {v.outletName && <span className="text-[9px] text-blue-400 font-bold ml-1 uppercase">{v.outletName}</span>}
-                      </div>
-                    ))}
+                    <p className="text-[10px] text-gray-500 font-bold">Color: {item.color || 'N/A'} &bull; Size: {item.size || 'N/A'} &bull; Fabric: {item.fabric || 'N/A'}</p>
+                    <div className="flex items-center gap-2 bg-gray-800/50 rounded-lg px-3 py-2 text-xs">
+                      <span className="font-bold text-gray-300 min-w-[80px]">{[item.color, item.size].filter(Boolean).join(' • ') || 'Default'}</span>
+                      <span className="text-[10px] font-mono text-gray-500 flex-1">{item.barcode || 'N/A'}</span>
+                      <span className="font-bold text-emerald-400">{item.price ? formatCurrency(item.price) : '-'}</span>
+                      <span className={`font-bold ml-2 ${item.stock > 0 ? 'text-emerald-400' : 'text-red-400'}`}>{item.stock}</span>
+                      {item.outletName && <span className="text-[9px] text-blue-400 font-bold ml-1 uppercase">{item.outletName}</span>}
+                    </div>
                   </div>
                 )}
               </div>
@@ -534,11 +544,11 @@ const OutletPOSInventory = () => {
 
                 {initProducts.map(product => {
                   const pData = initData[product.id];
-                  if (!pData || !pData.variants.length) return null;
+                  if (!pData || !pData.productVariants.length) return null;
                   return (
                     <div key={product.id} className="bg-gray-800/40 rounded-xl border border-gray-700/50 p-4">
                       <p className="font-bold text-white text-sm mb-3">{product.name} <span className="text-[10px] text-gray-500">({product.category})</span></p>
-                      {pData.variants.map((v, vi) => (
+                      {pData.productVariants.map((v, vi) => (
                         <div key={`${v.color}|${v.size}`} className="grid grid-cols-5 gap-2 items-center mb-2 last:mb-0">
                           <span className="text-[11px] font-bold text-gray-300 col-span-1">{[v.color, v.size].filter(Boolean).join(' • ') || 'Default'}</span>
                           {ALL_OUTLETS.map(outlet => (
@@ -557,7 +567,7 @@ const OutletPOSInventory = () => {
                 {initProducts.length === 0 && (
                   <div className="text-center py-8 text-gray-500 font-bold">
                     <Package size={32} className="mx-auto mb-2 text-gray-700" />
-                    <p>No products found in catalog. Add products first.</p>
+                    <p>No products found in store catalog. Add products first.</p>
                   </div>
                 )}
 
@@ -578,8 +588,8 @@ const OutletPOSInventory = () => {
           <div className="bg-gray-900 max-w-xl w-full max-h-[90vh] overflow-y-auto p-6 rounded-[2rem] border-2 border-gray-700 shadow-[0_50px_100px_rgba(0,0,0,0.5)]">
             <div className="flex justify-between items-center mb-6">
               <div>
-                <h2 className="text-xl font-black text-white uppercase tracking-tighter">Add Product</h2>
-                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">POS Catalog Entry</p>
+                <h2 className="text-xl font-black text-white uppercase tracking-tighter">Add Product to Inventory</h2>
+                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Select from store catalog and configure variants</p>
               </div>
               <button onClick={() => setIsModalOpen(false)} className="p-3 bg-gray-800 text-gray-500 hover:text-white rounded-2xl transition-colors">
                 <X size={20} />
@@ -588,88 +598,85 @@ const OutletPOSInventory = () => {
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
-                <label className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Product Name</label>
-                <input type="text" required value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl py-4 px-6 font-bold text-white placeholder-gray-500 outline-none focus:border-blue-500 transition-all"
-                  placeholder="e.g. Ultra-Flex Scrub Top" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Category</label>
-                  <select value={formData.category}
-                    onChange={(e) => setFormData({...formData, category: e.target.value})}
-                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl py-4 px-4 font-bold text-white uppercase outline-none focus:border-blue-500 transition-all">
-                    {['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS', 'FABRIC', 'SHOES', 'CLOGS', 'LABCOAT', 'ACCESSORIES'].map(c => (
-                      <option key={c} value={c}>{c}</option>
+                <label className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Select Store Product</label>
+                {storeProductsLoading ? (
+                  <div className="py-4 text-center"><RefreshCw className="animate-spin text-blue-400 inline" size={20} /></div>
+                ) : (
+                  <div className="max-h-48 overflow-y-auto space-y-1 bg-gray-800 rounded-xl border border-gray-700 p-2">
+                    {storeProducts.map(sp => (
+                      <button key={sp.id} type="button" onClick={() => setFormData(prev => ({ ...prev, selectedProductId: sp.id }))}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all ${
+                          formData.selectedProductId === sp.id
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-900 text-gray-300 hover:bg-gray-700'
+                        }`}>
+                        {sp.name} <span className="text-[10px] text-gray-500 ml-1 uppercase">({sp.category})</span>
+                      </button>
                     ))}
-                    <option value="CUSTOM">— ENTER CUSTOM CATEGORY —</option>
-                  </select>
-                  {formData.category === 'CUSTOM' && (
-                    <input type="text" required value={customCategory}
-                      onChange={(e) => setCustomCategory(e.target.value)}
-                      className="w-full bg-gray-850 border border-blue-500/50 rounded-xl py-3 px-4 font-bold text-white placeholder-gray-500 outline-none mt-1 uppercase"
-                      placeholder="Type custom category (e.g. APRON)" />
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Fabric</label>
-                  <input type="text" value={formData.fabric}
-                    onChange={(e) => setFormData({...formData, fabric: e.target.value})}
-                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl py-4 px-4 font-bold text-white placeholder-gray-500 outline-none focus:border-blue-500 transition-all"
-                    placeholder="Cotton Blend" />
-                </div>
+                    {storeProducts.length === 0 && <p className="text-gray-500 text-xs text-center py-2">No store products available</p>}
+                  </div>
+                )}
               </div>
 
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Variants (Color × Size × Price)</label>
-                  <button type="button" onClick={addVariant}
-                    className="p-2 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white rounded-xl transition-all">
-                    <Plus size={16} />
-                  </button>
-                </div>
-                <div className="space-y-2">
-                  {formData.variants.map((v, vi) => (
-                    <div key={vi} className="grid grid-cols-12 gap-2 items-center bg-gray-800/50 rounded-xl p-3 border border-gray-700/50">
-                      <div className="col-span-4">
-                        <input type="text" value={v.color} placeholder="Color"
-                          onChange={(e) => updateVariantField(vi, 'color', e.target.value)}
-                          className="w-full bg-gray-900 border border-gray-700 rounded-lg py-2.5 px-3 text-xs font-bold text-white placeholder-gray-500 outline-none focus:border-blue-500" />
-                      </div>
-                      <div className="col-span-3">
-                        <input type="text" value={v.size} placeholder="Size"
-                          onChange={(e) => updateVariantField(vi, 'size', e.target.value)}
-                          className="w-full bg-gray-900 border border-gray-700 rounded-lg py-2.5 px-3 text-xs font-bold text-white placeholder-gray-500 outline-none focus:border-blue-500" />
-                      </div>
-                      <div className="col-span-3">
-                        <input type="number" min="0" step="0.01" value={v.price} placeholder="Price"
-                          onChange={(e) => updateVariantField(vi, 'price', parseFloat(e.target.value) || 0)}
-                          className="w-full bg-gray-900 border border-gray-700 rounded-lg py-2.5 px-3 text-xs font-bold text-white outline-none focus:border-blue-500" />
-                      </div>
-                      <div className="col-span-2 flex justify-end">
-                        <button type="button" onClick={() => removeVariant(vi)}
-                          className="p-2 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-lg transition-all disabled:opacity-20"
-                          disabled={formData.variants.length <= 1}>
-                          <Minus size={14} />
-                        </button>
-                      </div>
+              {formData.selectedProductId && (
+                <>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Variants (Color × Size × Stock × Price)</label>
+                      <button type="button" onClick={addVariant}
+                        className="p-2 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white rounded-xl transition-all">
+                        <Plus size={16} />
+                      </button>
                     </div>
-                  ))}
-                </div>
-                <button type="button" onClick={addVariant}
-                  className="w-full py-3 border-2 border-dashed border-gray-700 rounded-xl text-xs font-black text-gray-500 uppercase tracking-widest hover:border-emerald-500/40 hover:text-emerald-500 transition-all flex items-center justify-center gap-2">
-                  <Plus size={14} /> Add Variant
-                </button>
-              </div>
+                    <div className="space-y-2">
+                      {formData.variants.map((v, vi) => (
+                        <div key={vi} className="grid grid-cols-12 gap-2 items-center bg-gray-800/50 rounded-xl p-3 border border-gray-700/50">
+                          <div className="col-span-3">
+                            <input type="text" value={v.color} placeholder="Color"
+                              onChange={(e) => updateVariantField(vi, 'color', e.target.value)}
+                              className="w-full bg-gray-900 border border-gray-700 rounded-lg py-2.5 px-3 text-xs font-bold text-white placeholder-gray-500 outline-none focus:border-blue-500" />
+                          </div>
+                          <div className="col-span-2">
+                            <input type="text" value={v.size} placeholder="Size"
+                              onChange={(e) => updateVariantField(vi, 'size', e.target.value)}
+                              className="w-full bg-gray-900 border border-gray-700 rounded-lg py-2.5 px-3 text-xs font-bold text-white placeholder-gray-500 outline-none focus:border-blue-500" />
+                          </div>
+                          <div className="col-span-3">
+                            <div className="relative">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500 font-bold">₨</span>
+                              <input type="number" min="0" step="0.01" value={v.price}
+                                onChange={(e) => updateVariantField(vi, 'price', parseFloat(e.target.value) || 0)}
+                                className="w-full bg-gray-900 border border-gray-700 rounded-lg py-2.5 pl-5 pr-2 text-xs font-bold text-white outline-none focus:border-blue-500" />
+                            </div>
+                          </div>
+                          <div className="col-span-2">
+                            <input type="number" min="0" value={v.stock}
+                              onChange={(e) => updateVariantField(vi, 'stock', parseInt(e.target.value) || 0)}
+                              className="w-full bg-gray-900 border border-gray-700 rounded-lg py-2.5 px-2 text-xs font-bold text-white outline-none focus:border-blue-500 text-center" />
+                          </div>
+                          <div className="col-span-2 flex justify-end">
+                            <button type="button" onClick={() => removeVariant(vi)}
+                              className="p-2 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-lg transition-all disabled:opacity-20"
+                              disabled={formData.variants.length <= 1}>
+                              <Minus size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <button type="button" onClick={addVariant}
+                      className="w-full py-3 border-2 border-dashed border-gray-700 rounded-xl text-xs font-black text-gray-500 uppercase tracking-widest hover:border-emerald-500/40 hover:text-emerald-500 transition-all flex items-center justify-center gap-2">
+                      <Plus size={14} /> Add Variant
+                    </button>
+                  </div>
 
-              <button type="submit" disabled={submitting}
-                className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black py-4 rounded-xl transition-all flex items-center justify-center gap-3 active:scale-95">
-                {submitting ? <RefreshCw size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}
-                <span>{submitting ? 'Creating...' : 'Add to POS Catalog'}</span>
-              </button>
-              <p className="text-[10px] text-gray-500 text-center font-bold">Stock is always 0 &bull; Use <span className="text-violet-400">Init All</span> to set opening stock per outlet</p>
+                  <button type="submit" disabled={submitting}
+                    className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black py-4 rounded-xl transition-all flex items-center justify-center gap-3 active:scale-95">
+                    {submitting ? <RefreshCw size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}
+                    <span>{submitting ? 'Adding...' : 'Add to Outlet Inventory'}</span>
+                  </button>
+                </>
+              )}
             </form>
           </div>
         </div>
@@ -681,7 +688,7 @@ const OutletPOSInventory = () => {
           <div className="bg-gray-900 max-w-xl w-full max-h-[90vh] overflow-y-auto p-6 rounded-[2rem] border-2 border-gray-700 shadow-[0_50px_100px_rgba(0,0,0,0.5)]">
             <div className="flex justify-between items-center mb-6">
               <div>
-                <h2 className="text-xl font-black text-white uppercase tracking-tighter">Edit Product</h2>
+                <h2 className="text-xl font-black text-white uppercase tracking-tighter">Edit Inventory Item</h2>
                 <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">{editItem.name}</p>
               </div>
               <button onClick={() => { setEditModalOpen(false); setEditItem(null); }} className="p-3 bg-gray-800 text-gray-500 hover:text-white rounded-2xl transition-colors">
@@ -725,14 +732,8 @@ const OutletPOSInventory = () => {
               </div>
 
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Variants (Color × Size × Price × Stock)</label>
-                  <button type="button" onClick={handleEditAddVariant}
-                    className="p-2 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white rounded-xl transition-all">
-                    <Plus size={16} />
-                  </button>
-                </div>
-                <div className="space-y-1.5 max-h-[350px] overflow-y-auto">
+                <label className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Variant (Color × Size × Stock × Price)</label>
+                <div className="space-y-1.5">
                   {editVariants.map(v => (
                     <div key={v._key} className="grid grid-cols-12 gap-1.5 items-center bg-gray-800/50 rounded-xl px-2 py-2 border border-gray-700/50">
                       <div className="col-span-3">
@@ -758,19 +759,12 @@ const OutletPOSInventory = () => {
                           onChange={(e) => handleEditVariantChange(v._key, 'stock', parseInt(e.target.value) || 0)}
                           className="w-full bg-gray-900 border border-gray-700 rounded-lg py-1.5 px-2 text-[10px] font-bold text-white outline-none focus:border-blue-500 text-center" />
                       </div>
-                      <div className="col-span-2 flex justify-end">
-                        <button type="button" onClick={() => handleEditRemoveVariant(v._key)}
-                          className="p-1.5 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-lg transition-all">
-                          <Minus size={12} />
-                        </button>
+                      <div className="col-span-2 flex justify-center">
+                        <span className="text-[9px] font-mono text-gray-500 truncate">{v.barcode}</span>
                       </div>
                     </div>
                   ))}
                 </div>
-                <button type="button" onClick={handleEditAddVariant}
-                  className="w-full py-2 border-2 border-dashed border-gray-700 rounded-xl text-[10px] font-black text-gray-500 uppercase tracking-widest hover:border-emerald-500/40 hover:text-emerald-500 transition-all flex items-center justify-center gap-2">
-                  <Plus size={12} /> Add Variant
-                </button>
               </div>
 
               <button onClick={handleEditSave} disabled={editSubmitting}

@@ -22,11 +22,10 @@ const createTransfer = async (req, res) => {
     if (fromOutlet === toOutlet) return res.status(400).json({ message: 'Source and destination cannot be the same' });
     if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'At least one item is required' });
 
-    // Batch load source variants
+    // Batch load source inventory items
     const variantIds = items.map(i => i.variantId);
-    const sourceVariants = await prisma.outletVariant.findMany({
-      where: { id: { in: variantIds }, outletName: fromOutlet },
-      include: { inventoryItem: true }
+    const sourceVariants = await prisma.outletInventory.findMany({
+      where: { id: { in: variantIds }, outletName: fromOutlet }
     });
     const srcMap = Object.fromEntries(sourceVariants.map(v => [v.id, v]));
 
@@ -37,17 +36,17 @@ const createTransfer = async (req, res) => {
       if (!item.variantId || !item.quantity) return res.status(400).json({ message: 'Each item must have variantId and quantity' });
       const ov = srcMap[item.variantId];
       if (!ov) return res.status(400).json({ message: `Variant ${item.variantId} not found in ${fromOutlet}` });
-      if (ov.stock < item.quantity) return res.status(400).json({ message: `Insufficient stock for ${ov.inventoryItem.name}. Available: ${ov.stock}, requested: ${item.quantity}` });
+      if (ov.stock < item.quantity) return res.status(400).json({ message: `Insufficient stock for ${ov.name}. Available: ${ov.stock}, requested: ${item.quantity}` });
       totalItems += item.quantity;
       transferItems.push({
         outletVariantId: ov.id,
-        inventoryItemId: ov.inventoryItemId,
-        productName: ov.inventoryItem.name,
+        outletInventoryId: ov.id,
+        productName: ov.name,
         color: ov.color,
         size: ov.size,
         barcode: ov.barcode,
         quantity: item.quantity,
-        unitPrice: ov.price || ov.inventoryItem.price || 0
+        unitPrice: ov.price || 0
       });
     }
 
@@ -67,6 +66,7 @@ const createTransfer = async (req, res) => {
         items: {
           create: transferItems.map(ti => ({
             outletVariantId: ti.outletVariantId,
+            outletInventoryId: ti.outletInventoryId,
             productName: ti.productName,
             color: ti.color,
             size: ti.size,
@@ -98,9 +98,8 @@ const dispatchTransfer = async (req, res) => {
 
     // Verify source has sufficient stock at dispatch time
     for (const item of transfer.items) {
-      const ov = await prisma.outletVariant.findUnique({
-        where: { id: item.outletVariantId },
-        include: { inventoryItem: true }
+      const ov = await prisma.outletInventory.findUnique({
+        where: { id: item.outletVariantId }
       });
       if (!ov || ov.stock < item.quantity) {
         return res.status(400).json({ message: `Insufficient stock for ${item.productName} at source outlet` });
@@ -140,50 +139,54 @@ const acceptTransfer = async (req, res) => {
     const completed = await prisma.$transaction(async (tx) => {
       for (const item of transfer.items) {
         // 1. Decrement source stock
-        const sourceOv = await tx.outletVariant.findUnique({
+        const sourceOv = await tx.outletInventory.findUnique({
           where: { id: item.outletVariantId }
         });
         if (!sourceOv || sourceOv.stock < item.quantity) {
           throw new Error(`Insufficient stock for ${item.productName} in source outlet`);
         }
-        await tx.outletVariant.update({
+        await tx.outletInventory.update({
           where: { id: item.outletVariantId },
           data: { stock: { decrement: item.quantity } }
         });
 
-        // 2. Increment destination stock or create variant
-        const destOv = await tx.outletVariant.findFirst({
+        // 2. Increment destination stock or create inventory record
+        const destOv = await tx.outletInventory.findFirst({
           where: {
-            inventoryItemId: sourceOv.inventoryItemId,
+            name: sourceOv.name,
+            category: sourceOv.category,
             outletName: transfer.toOutlet,
             color: sourceOv.color,
-            size: sourceOv.size
+            size: sourceOv.size,
+            fabric: sourceOv.fabric
           }
         });
 
         if (destOv) {
-          await tx.outletVariant.update({
+          await tx.outletInventory.update({
             where: { id: destOv.id },
             data: { stock: { increment: item.quantity } }
           });
         } else {
-          // Auto-create destination variant if it doesn't exist
+          // Auto-create destination inventory record if it doesn't exist
           let barcode = item.barcode;
           let attempt = 0;
-          while (await tx.outletVariant.findFirst({ where: { barcode, outletName: transfer.toOutlet } })) {
+          while (await tx.outletInventory.findFirst({ where: { barcode, outletName: transfer.toOutlet } })) {
             attempt++;
-            barcode = generateBarcode(sourceOv.inventoryItemId, item.size, item.color, attempt);
+            barcode = generateBarcode(sourceOv.id, item.size, item.color, attempt);
           }
-          await tx.outletVariant.create({
+          await tx.outletInventory.create({
             data: {
-              inventoryItemId: sourceOv.inventoryItemId,
+              name: sourceOv.name,
+              category: sourceOv.category,
               outletName: transfer.toOutlet,
               color: item.color || null,
               size: item.size || null,
+              fabric: sourceOv.fabric,
               barcode,
               stock: item.quantity,
               price: item.unitPrice || null,
-              isActive: true
+              metadata: JSON.stringify({ sourceStoreItemId: sourceOv.id })
             }
           });
         }
