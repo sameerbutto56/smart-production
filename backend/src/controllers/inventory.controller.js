@@ -555,10 +555,15 @@ const createCartAllocation = async (req, res) => {
 
 const getCarts = async (req, res) => {
   try {
-    const { personName, status, page = 1, limit = 50 } = req.query;
+    const { personName, status, from, to, page = 1, limit = 50 } = req.query;
     const where = {};
     if (personName) where.personName = { contains: personName, mode: 'insensitive' };
     if (status) where.status = status;
+    if (from || to) {
+      where.createdAt = {};
+      if (from) where.createdAt.gte = new Date(from);
+      if (to) where.createdAt.lte = new Date(new Date(to).setHours(23, 59, 59, 999));
+    }
     const [records, total] = await Promise.all([
       prisma.allocationCart.findMany({
         where,

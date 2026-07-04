@@ -247,7 +247,6 @@ const WarehouseDashboard = () => {
     if (activeTab === 'dashboard' || activeTab === 'allocation') {
       refreshInventory();
       if (activeTab === 'dashboard') {
-        fetchDashboardAllocations(dashAllocDateFrom, dashAllocDateTo, dashAllocSearch);
         fetchDashboardCarts();
         fetchAllocationStats();
         fetchCarts();
@@ -286,36 +285,13 @@ const WarehouseDashboard = () => {
   );
 
   // Dashboard allocation state
-  const [dashAllocDateFrom, setDashAllocDateFrom] = useState('');
-  const [dashAllocDateTo, setDashAllocDateTo] = useState('');
-  const [dashAllocSearch, setDashAllocSearch] = useState('');
-  const [dashAllocRecords, setDashAllocRecords] = useState([]);
-  const [dashAllocLoading, setDashAllocLoading] = useState(false);
-  const [dashAllocExpanded, setDashAllocExpanded] = useState(null);
-  const [dashShowAll, setDashShowAll] = useState(false);
   const [dashPendingCarts, setDashPendingCarts] = useState([]);
   const [dashCartsLoading, setDashCartsLoading] = useState(false);
   // Allocation Summary filter
   const [sumSearch, setSumSearch] = useState('');
-  const [sumFiltered, setSumFiltered] = useState([]);
   // Allocation Carts date filter
   const [cartsDateFrom, setCartsDateFrom] = useState('');
   const [cartsDateTo, setCartsDateTo] = useState('');
-
-  const fetchDashboardAllocations = async (from, to, search) => {
-    setDashAllocLoading(true);
-    try {
-      const params = { page: 1, limit: 20 };
-      if (from) params.from = from;
-      if (to) params.to = to;
-      if (search) params.personName = search;
-      const res = await api.get('/api/inventory/allocations', { params });
-      setDashAllocRecords(res.data.records || []);
-    } catch (error) {
-      console.error('Error fetching dashboard allocations:', error);
-    }
-    setDashAllocLoading(false);
-  };
 
   const fetchDashboardCarts = async () => {
     setDashCartsLoading(true);
@@ -330,23 +306,11 @@ const WarehouseDashboard = () => {
 
   useEffect(() => {
     if (activeTab === 'dashboard') {
-      fetchDashboardAllocations(dashAllocDateFrom, dashAllocDateTo, dashAllocSearch);
       fetchDashboardCarts();
       fetchAllocationStats();
       fetchCarts();
     }
   }, [activeTab]);
-
-  const handleDashDateFilter = () => {
-    fetchDashboardAllocations(dashAllocDateFrom, dashAllocDateTo, dashAllocSearch);
-  };
-
-  const handleDashFilterReset = () => {
-    setDashAllocDateFrom('');
-    setDashAllocDateTo('');
-    setDashAllocSearch('');
-    fetchDashboardAllocations('', '', '');
-  };
 
   return (
     <div className="space-y-4 md:space-y-8 pb-20 px-4">
@@ -531,101 +495,6 @@ const WarehouseDashboard = () => {
                 </div>
               </div>
 
-              {/* Allocation History with Date Range */}
-              <div className="glass p-4 md:p-6 rounded-2xl border-2 theme-border">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                  <div className="flex items-center space-x-3">
-                    <FileText className="text-amber-400" size={20} />
-                    <h2 className="font-black theme-text-primary uppercase tracking-wider text-sm">Allocation History</h2>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <input type="text" placeholder="Search by person..." value={dashAllocSearch}
-                      onChange={(e) => setDashAllocSearch(e.target.value)}
-                      className="theme-input rounded-lg py-1.5 px-3 text-xs font-medium outline-none focus:border-amber-500 w-36" />
-                    <div className="flex items-center space-x-1.5">
-                      <button onClick={() => { const d = new Date(); setDashAllocDateFrom(d.toISOString().split('T')[0]); setDashAllocDateTo(d.toISOString().split('T')[0]); }}
-                        className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-wider transition-all ${!dashAllocDateFrom && !dashAllocDateTo && !dashAllocSearch ? 'bg-amber-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>Daily</button>
-                      <button onClick={() => { const d = new Date(); const w = new Date(d); w.setDate(w.getDate() - 7); setDashAllocDateFrom(w.toISOString().split('T')[0]); setDashAllocDateTo(d.toISOString().split('T')[0]); }}
-                        className="px-2 py-1 rounded text-[9px] font-black uppercase tracking-wider bg-gray-800 text-gray-400 hover:bg-gray-700 transition-all">Weekly</button>
-                      <button onClick={() => { const d = new Date(); const m = new Date(d); m.setMonth(m.getMonth() - 1); setDashAllocDateFrom(m.toISOString().split('T')[0]); setDashAllocDateTo(d.toISOString().split('T')[0]); }}
-                        className="px-2 py-1 rounded text-[9px] font-black uppercase tracking-wider bg-gray-800 text-gray-400 hover:bg-gray-700 transition-all">Monthly</button>
-                    </div>
-                    <button onClick={handleDashDateFilter}
-                      className="bg-amber-600 hover:bg-amber-500 text-white font-black py-1.5 px-3 rounded-lg text-xs transition-all active:scale-95 flex items-center space-x-1">
-                      <Search size={12} />
-                      <span>Filter</span>
-                    </button>
-                    <button onClick={handleDashFilterReset}
-                      className="bg-gray-800 hover:bg-gray-700 text-gray-400 font-black py-1.5 px-3 rounded-lg text-xs transition-all active:scale-95 border border-gray-700 flex items-center space-x-1">
-                      <RefreshCcw size={12} />
-                      <span>Reset</span>
-                    </button>
-                  </div>
-                </div>
-                {dashAllocLoading ? (
-                  <div className="py-8 flex justify-center"><RefreshCcw className="animate-spin text-blue-400" size={24} /></div>
-                ) : dashAllocRecords.length === 0 ? (
-                  <div className="text-center py-8">
-                    <FileText size={36} className="mx-auto text-gray-700 mb-3" />
-                    <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No allocation records found</p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                      {dashAllocRecords.slice(0, dashShowAll ? dashAllocRecords.length : 5).map(rec => {
-                        const isExpanded = dashAllocExpanded === rec.id;
-                        const items = rec.items || [];
-                        return (
-                          <div key={rec.id}>
-                            <div className="flex items-center justify-between p-3 theme-bg-subtle rounded-xl border theme-border hover:border-amber-500/20 transition-all cursor-pointer"
-                              onClick={() => setDashAllocExpanded(isExpanded ? null : rec.id)}>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center space-x-2">
-                                  <span className="font-bold theme-text-primary text-xs">{rec.personName}</span>
-                                  <span className={`px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase border ${
-                                    rec.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
-                                    rec.status === 'ACTIVE' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
-                                    'bg-amber-500/20 text-amber-400 border-amber-500/30'
-                                  }`}>{rec.status || 'ACTIVE'}</span>
-                                </div>
-                                <p className="text-[10px] theme-text-muted mt-0.5">{items.length || rec.itemCount || 0} items · {new Date(rec.createdAt).toLocaleString()}</p>
-                              </div>
-                              <div className="text-right shrink-0 ml-4">
-                                <p className="font-black text-amber-400 text-xs">{rec.totalQuantity || 0} qty</p>
-                                {rec.allocatedByName && <p className="text-[9px] theme-text-muted">{rec.allocatedByName}</p>}
-                              </div>
-                            </div>
-                            {isExpanded && items.length > 0 && (
-                              <div className="ml-4 mt-1 mb-2 p-3 bg-gray-900/50 rounded-xl border border-gray-800 space-y-1.5">
-                                <p className="text-[9px] font-black theme-text-muted uppercase tracking-wider mb-1.5">Products</p>
-                                {items.map((item, i) => (
-                                  <div key={i} className="flex items-center justify-between py-1 px-2 bg-gray-800/50 rounded-lg">
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-xs font-bold theme-text-primary">{item.itemName || item.productName || 'Product'}</p>
-                                      <div className="flex items-center space-x-3 text-[9px] theme-text-muted">
-                                        {item.color && <span>Color: {item.color}</span>}
-                                        {item.size && <span>Size: {item.size}</span>}
-                                      </div>
-                                    </div>
-                                    <span className="font-black text-amber-400 text-xs shrink-0 ml-2">x{item.quantity}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {dashAllocRecords.length > 5 && (
-                      <button onClick={() => setDashShowAll(!dashShowAll)}
-                        className="w-full mt-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-xl text-xs font-black transition-all">
-                        {dashShowAll ? 'Show Less' : `Show All (${dashAllocRecords.length} records)`}
-                      </button>
-                    )}
-                  </>
-                )}
-              </div>
-
               {/* Allocation Carts */}
               <div className="glass p-4 md:p-6 rounded-2xl border-2 theme-border">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
@@ -640,7 +509,7 @@ const WarehouseDashboard = () => {
                   </h3>
                   <div className="flex flex-col md:flex-row items-end md:items-center gap-2">
                     <div className="flex items-center space-x-2">
-                      <select value={cartsStatusFilter} onChange={(e) => { setCartsStatusFilter(e.target.value); setCartsPage(1); }}
+                      <select value={cartsStatusFilter} onChange={(e) => { setCartsStatusFilter(e.target.value); setCartsPage(1); fetchCarts(); }}
                         className="theme-bg-subtle border-2 theme-border rounded-xl py-2 px-3 text-xs font-medium text-white outline-none">
                         <option value="">All Status</option>
                         <option value="PENDING">Pending</option>
@@ -657,12 +526,21 @@ const WarehouseDashboard = () => {
                       </button>
                     </div>
                     <div className="flex items-center space-x-1.5">
-                      <button onClick={() => { const d = new Date(); setCartsDateFrom(d.toISOString().split('T')[0]); setCartsDateTo(d.toISOString().split('T')[0]); }}
-                        className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-wider transition-all ${!cartsDateFrom && !cartsDateTo ? 'bg-amber-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>Daily</button>
-                      <button onClick={() => { const d = new Date(); const w = new Date(d); w.setDate(w.getDate() - 7); setCartsDateFrom(w.toISOString().split('T')[0]); setCartsDateTo(d.toISOString().split('T')[0]); }}
-                        className="px-2 py-1 rounded text-[9px] font-black uppercase tracking-wider bg-gray-800 text-gray-400 hover:bg-gray-700 transition-all">Weekly</button>
-                      <button onClick={() => { const d = new Date(); const m = new Date(d); m.setMonth(m.getMonth() - 1); setCartsDateFrom(m.toISOString().split('T')[0]); setCartsDateTo(d.toISOString().split('T')[0]); }}
+                      <button onClick={() => { const d = new Date(); setCartsDateFrom(d.toISOString().split('T')[0]); setCartsDateTo(d.toISOString().split('T')[0]); setTimeout(() => { setCartsPage(1); fetchCarts(); }, 0); }}
+                        className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-wider transition-all ${(!cartsDateFrom && !cartsDateTo) || (new Date(cartsDateFrom).toDateString() === new Date().toDateString() && new Date(cartsDateTo).toDateString() === new Date().toDateString()) ? 'bg-amber-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>Daily</button>
+                      <button onClick={() => { const d = new Date(); const w = new Date(d); w.setDate(w.getDate() - 7); setCartsDateFrom(w.toISOString().split('T')[0]); setCartsDateTo(d.toISOString().split('T')[0]); setTimeout(() => { setCartsPage(1); fetchCarts(); }, 0); }}
+                        className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-wider transition-all ${cartsDateFrom && cartsDateTo && new Date(cartsDateFrom) <= new Date(new Date().setDate(new Date().getDate() - 7)) && new Date(cartsDateTo).toDateString() === new Date().toDateString() ? 'bg-amber-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>Weekly</button>
+                      <button onClick={() => { const d = new Date(); const m = new Date(d); m.setMonth(m.getMonth() - 1); setCartsDateFrom(m.toISOString().split('T')[0]); setCartsDateTo(d.toISOString().split('T')[0]); setTimeout(() => { setCartsPage(1); fetchCarts(); }, 0); }}
                         className="px-2 py-1 rounded text-[9px] font-black uppercase tracking-wider bg-gray-800 text-gray-400 hover:bg-gray-700 transition-all">Monthly</button>
+                    </div>
+                    <div className="flex items-center space-x-1.5">
+                      <input type="date" value={cartsDateFrom}
+                        onChange={(e) => setCartsDateFrom(e.target.value)}
+                        className="theme-input rounded-lg py-1.5 px-2 text-[10px] font-medium outline-none focus:border-amber-500 w-28" />
+                      <span className="text-[10px] theme-text-muted">-</span>
+                      <input type="date" value={cartsDateTo}
+                        onChange={(e) => setCartsDateTo(e.target.value)}
+                        className="theme-input rounded-lg py-1.5 px-2 text-[10px] font-medium outline-none focus:border-amber-500 w-28" />
                       <button onClick={() => { setCartsPage(1); fetchCarts(); }}
                         className="bg-amber-600 hover:bg-amber-500 text-white font-black py-1.5 px-3 rounded-lg text-xs transition-all active:scale-95">Filter</button>
                       <button onClick={() => { setCartsDateFrom(''); setCartsDateTo(''); setCartsSearch(''); setCartsStatusFilter(''); setCartsPage(1); fetchCarts(); }}
@@ -767,11 +645,11 @@ const WarehouseDashboard = () => {
                     <div className="flex items-center justify-between mt-6">
                       <p className="text-xs theme-text-muted font-bold">{cartsTotal} total carts</p>
                       <div className="flex space-x-2">
-                        <button disabled={cartsPage <= 1} onClick={() => { setCartsPage(p => p - 1); }}
+                        <button disabled={cartsPage <= 1} onClick={() => { setCartsPage(p => p - 1); setTimeout(fetchCarts, 0); }}
                           className="px-4 py-2 bg-gray-800 rounded-xl text-xs font-black text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all">
                           Previous
                         </button>
-                        <button disabled={carts.length < 50} onClick={() => { setCartsPage(p => p + 1); }}
+                        <button disabled={carts.length < 50} onClick={() => { setCartsPage(p => p + 1); setTimeout(fetchCarts, 0); }}
                           className="px-4 py-2 bg-gray-800 rounded-xl text-xs font-black text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all">
                           Next
                         </button>
@@ -1337,11 +1215,11 @@ const WarehouseDashboard = () => {
                     <div className="flex items-center justify-between mt-6">
                       <p className="text-xs theme-text-muted font-bold">{cartsTotal} total carts</p>
                       <div className="flex space-x-2">
-                        <button disabled={cartsPage <= 1} onClick={() => { setCartsPage(p => p - 1); }}
+                        <button disabled={cartsPage <= 1} onClick={() => { setCartsPage(p => p - 1); setTimeout(fetchCarts, 0); }}
                           className="px-4 py-2 bg-gray-800 rounded-xl text-xs font-black text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all">
                           Previous
                         </button>
-                        <button disabled={carts.length < 50} onClick={() => { setCartsPage(p => p + 1); }}
+                        <button disabled={carts.length < 50} onClick={() => { setCartsPage(p => p + 1); setTimeout(fetchCarts, 0); }}
                           className="px-4 py-2 bg-gray-800 rounded-xl text-xs font-black text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all">
                           Next
                         </button>
