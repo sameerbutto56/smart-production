@@ -15,26 +15,20 @@ const generateTransferNumber = (() => {
 
 const createTransfer = async (req, res) => {
   try {
-    const { toOutlet, items, notes, fromOutlet: bodyFromOutlet } = req.body;
+    const { toOutlet, items, notes, fromOutlet: bodyFromOutlet, pickupMethod } = req.body;
     const fromOutlet = req.user?.role === 'OUTLET' ? req.user?.name : (bodyFromOutlet || null);
     if (!fromOutlet) return res.status(400).json({ message: 'Source outlet not determined' });
     if (!toOutlet || !OUTLETS.includes(toOutlet)) return res.status(400).json({ message: 'Invalid destination outlet' });
     if (fromOutlet === toOutlet) return res.status(400).json({ message: 'Source and destination cannot be the same' });
     if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'At least one item is required' });
 
-    // Batch load source variants + find dest variants in one go
+    // Batch load source variants
     const variantIds = items.map(i => i.variantId);
     const sourceVariants = await prisma.outletVariant.findMany({
       where: { id: { in: variantIds }, outletName: fromOutlet },
       include: { inventoryItem: true }
     });
     const srcMap = Object.fromEntries(sourceVariants.map(v => [v.id, v]));
-    const invItemIds = [...new Set(sourceVariants.map(v => v.inventoryItemId))];
-    const destVariants = await prisma.outletVariant.findMany({
-      where: { inventoryItemId: { in: invItemIds }, outletName: toOutlet }
-    });
-    const destKey = (v) => `${v.color || ''}|${v.size || ''}`;
-    const destMap = Object.fromEntries(destVariants.map(v => [destKey(v), v]));
 
     let totalItems = 0;
     const transferItems = [];
@@ -53,78 +47,163 @@ const createTransfer = async (req, res) => {
         size: ov.size,
         barcode: ov.barcode,
         quantity: item.quantity,
-        unitPrice: ov.price || ov.inventoryItem.price || 0,
-        destVariant: destMap[destKey(ov)] || null
+        unitPrice: ov.price || ov.inventoryItem.price || 0
       });
     }
 
     const transferNumber = generateTransferNumber();
 
-    const transfer = await prisma.$transaction(async (tx) => {
-      for (const ti of transferItems) {
-        await tx.outletVariant.update({
-          where: { id: ti.outletVariantId },
-          data: { stock: { decrement: ti.quantity } }
+    const transfer = await prisma.outletTransfer.create({
+      data: {
+        transferNumber,
+        fromOutlet,
+        toOutlet,
+        totalItems,
+        pickupMethod: pickupMethod || 'RIDER',
+        notes: notes || null,
+        requestedById: req.user?.id || null,
+        requestedByName: req.user?.name || null,
+        status: 'PENDING',
+        items: {
+          create: transferItems.map(ti => ({
+            outletVariantId: ti.outletVariantId,
+            productName: ti.productName,
+            color: ti.color,
+            size: ti.size,
+            barcode: ti.barcode,
+            quantity: ti.quantity,
+            unitPrice: ti.unitPrice
+          }))
+        }
+      },
+      include: { items: true }
+    });
+
+    cache.delPattern('pos:');
+    res.status(201).json(transfer);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to create transfer request', error: error.message });
+  }
+};
+
+const dispatchTransfer = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const transfer = await prisma.outletTransfer.findUnique({
+      where: { id },
+      include: { items: true }
+    });
+    if (!transfer) return res.status(404).json({ message: 'Transfer not found' });
+    if (transfer.status !== 'PENDING') return res.status(400).json({ message: `Transfer is already ${transfer.status.toLowerCase()}` });
+
+    // Verify source has sufficient stock at dispatch time
+    for (const item of transfer.items) {
+      const ov = await prisma.outletVariant.findUnique({
+        where: { id: item.outletVariantId },
+        include: { inventoryItem: true }
+      });
+      if (!ov || ov.stock < item.quantity) {
+        return res.status(400).json({ message: `Insufficient stock for ${item.productName} at source outlet` });
+      }
+    }
+
+    const updated = await prisma.outletTransfer.update({
+      where: { id },
+      data: {
+        status: 'DISPATCHED',
+        approvedById: req.user?.id || null,
+        approvedAt: new Date()
+      },
+      include: { items: true }
+    });
+
+    cache.delPattern('pos:');
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to dispatch transfer', error: error.message });
+  }
+};
+
+const acceptTransfer = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const transfer = await prisma.outletTransfer.findUnique({
+      where: { id },
+      include: { items: true }
+    });
+    if (!transfer) return res.status(404).json({ message: 'Transfer not found' });
+    if (transfer.status !== 'DISPATCHED') {
+      return res.status(400).json({ message: 'Can only accept transfers that are in DISPATCHED status.' });
+    }
+
+    // Process stock updates within a single transaction
+    const completed = await prisma.$transaction(async (tx) => {
+      for (const item of transfer.items) {
+        // 1. Decrement source stock
+        const sourceOv = await tx.outletVariant.findUnique({
+          where: { id: item.outletVariantId }
         });
-        if (ti.destVariant) {
+        if (!sourceOv || sourceOv.stock < item.quantity) {
+          throw new Error(`Insufficient stock for ${item.productName} in source outlet`);
+        }
+        await tx.outletVariant.update({
+          where: { id: item.outletVariantId },
+          data: { stock: { decrement: item.quantity } }
+        });
+
+        // 2. Increment destination stock or create variant
+        const destOv = await tx.outletVariant.findFirst({
+          where: {
+            inventoryItemId: sourceOv.inventoryItemId,
+            outletName: transfer.toOutlet,
+            color: sourceOv.color,
+            size: sourceOv.size
+          }
+        });
+
+        if (destOv) {
           await tx.outletVariant.update({
-            where: { id: ti.destVariant.id },
-            data: { stock: { increment: ti.quantity } }
+            where: { id: destOv.id },
+            data: { stock: { increment: item.quantity } }
           });
         } else {
           // Auto-create destination variant if it doesn't exist
-          let barcode = ti.barcode;
+          let barcode = item.barcode;
           let attempt = 0;
-          while (await tx.outletVariant.findFirst({ where: { barcode, outletName: toOutlet } })) {
+          while (await tx.outletVariant.findFirst({ where: { barcode, outletName: transfer.toOutlet } })) {
             attempt++;
-            barcode = generateBarcode(ti.inventoryItemId, ti.size, ti.color, attempt);
+            barcode = generateBarcode(sourceOv.inventoryItemId, item.size, item.color, attempt);
           }
           await tx.outletVariant.create({
             data: {
-              inventoryItemId: ti.inventoryItemId,
-              outletName: toOutlet,
-              color: ti.color || null,
-              size: ti.size || null,
+              inventoryItemId: sourceOv.inventoryItemId,
+              outletName: transfer.toOutlet,
+              color: item.color || null,
+              size: item.size || null,
               barcode,
-              stock: ti.quantity,
-              price: ti.unitPrice || null,
+              stock: item.quantity,
+              price: item.unitPrice || null,
               isActive: true
             }
           });
         }
       }
-      return tx.outletTransfer.create({
+
+      return tx.outletTransfer.update({
+        where: { id },
         data: {
-          transferNumber,
-          fromOutlet,
-          toOutlet,
-          totalItems,
-          notes: notes || null,
-          requestedById: req.user?.id || null,
-          requestedByName: req.user?.name || null,
           status: 'COMPLETED',
           completedById: req.user?.id || null,
-          completedAt: new Date(),
-          items: {
-            create: transferItems.map(ti => ({
-              outletVariantId: ti.outletVariantId,
-              productName: ti.productName,
-              color: ti.color,
-              size: ti.size,
-              barcode: ti.barcode,
-              quantity: ti.quantity,
-              unitPrice: ti.unitPrice
-            }))
-          }
+          completedAt: new Date()
         },
         include: { items: true }
       });
     });
 
     cache.delPattern('pos:');
-    res.status(201).json(transfer);
+    res.json(completed);
   } catch (error) {
-    res.status(500).json({ message: 'Failed to create transfer', error: error.message });
+    res.status(500).json({ message: 'Failed to accept transfer: ' + error.message });
   }
 };
 
@@ -184,5 +263,7 @@ module.exports = {
   createTransfer,
   getTransfers,
   getTransferById,
-  cancelTransfer
+  cancelTransfer,
+  dispatchTransfer,
+  acceptTransfer
 };

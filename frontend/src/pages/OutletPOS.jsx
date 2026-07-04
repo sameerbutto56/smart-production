@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Search, ShoppingCart, Plus, Minus, X, Trash2, Printer, Barcode, Percent, RotateCcw, CreditCard, DollarSign, Package, Tag, Grid3X3, List, ChevronDown, ChevronUp, AlertCircle, BarChart3, RefreshCw } from 'lucide-react';
+import { Search, ShoppingCart, Plus, Minus, X, Trash2, Printer, Barcode, Percent, RotateCcw, CreditCard, DollarSign, Package, Tag, Grid3X3, List, ChevronDown, ChevronUp, AlertCircle, BarChart3, RefreshCw, Calendar, TrendingUp, Award, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import JsBarcode from 'jsbarcode';
 import useCache, { invalidateKey } from '../hooks/useCache';
@@ -9,6 +9,7 @@ import { enqueue } from '../utils/syncQueue';
 import { normalizeInventoryEvent } from '../utils/normalizeEvents';
 import socket from '../socket';
 import { debounce } from '../utils/debounce';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -16,13 +17,25 @@ const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 
 const OutletPOS = () => {
   const { user } = useAuth();
+  const [dashboardRange, setDashboardRange] = useState('all');
+  const [dashboardDateFrom, setDashboardDateFrom] = useState('');
+  const [dashboardDateTo, setDashboardDateTo] = useState('');
+
+  const dashboardKey = `pos:dashboard:${dashboardRange}:${dashboardDateFrom}:${dashboardDateTo}`;
+
   const { data: products = [], loading: productsLoading, refresh: refreshProducts } = useCache('pos:products', {
     fetcher: () => api.get('/api/pos/products').then(r => r.data),
     ttl: 5 * 60 * 1000,
   });
-  const { data: dashboard = null, loading: dashboardLoading, refresh: refreshDashboard } = useCache('pos:dashboard', {
-    fetcher: () => api.get('/api/pos/sales/dashboard').then(r => r.data),
-    ttl: 60 * 1000,
+  const { data: dashboard = null, loading: dashboardLoading, refresh: refreshDashboard } = useCache(dashboardKey, {
+    fetcher: () => api.get('/api/pos/sales/dashboard', {
+      params: {
+        range: dashboardRange,
+        dateFrom: dashboardDateFrom || undefined,
+        dateTo: dashboardDateTo || undefined
+      }
+    }).then(r => r.data),
+    ttl: 30000,
   });
   const { data: sales = [], loading: salesLoading, refresh: refreshSales } = useCache('pos:sales', {
     fetcher: () => api.get('/api/pos/sales').then(r => r.data),
@@ -257,7 +270,7 @@ const OutletPOS = () => {
       .footer { text-align: center; font-size: 9px; margin-top: 6px; }
       .barcode { text-align: center; margin: 4px 0; }
     </style></head><body>`);
-    w.document.write(`<div class="header"><h1>ENAMELS</h1><p>${sale.outletName || ''}</p><p>Receipt #${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}</div>`);
+    w.document.write(`<div class="header"><h1>ENAMELS</h1><p style="font-style:italic;font-size:9px;margin-bottom:6px;">Premium Medical Apparels</p><p>${sale.outletName || ''}</p><p>Invoice Number: ${sale.receiptNumber}</p><p>Date & Time: ${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier Name: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}</div>`);
     w.document.write('<hr><table><thead><tr><th>Item</th><th class="right">Qty</th><th class="right">Price</th><th class="right">Total</th></tr></thead><tbody>');
     (sale.items || []).forEach(item => {
       const details = [item.productName, item.color, item.size].filter(Boolean).join(' ');
@@ -271,9 +284,9 @@ const OutletPOS = () => {
     if (sale.alterationCharges > 0) w.document.write(`<tr><td>Alteration</td><td class="right">${formatCurrency(sale.alterationCharges)}</td></tr>`);
     if (sale.extraCharges > 0) w.document.write(`<tr><td>Extra Charges</td><td class="right">${formatCurrency(sale.extraCharges)}</td></tr>`);
     if (sale.discountPercent > 0 || sale.discountAmount > 0) w.document.write(`<tr><td>Discount${sale.discountPercent > 0 ? ` (${sale.discountPercent}%)` : ''}</td><td class="right">-${formatCurrency(sale.discountAmount)}</td></tr>`);
-    w.document.write(`<tr class="total-row"><td>Grand Total</td><td class="right">${formatCurrency(sale.grandTotal)}</td></tr>`);
-    w.document.write(`<tr><td>Payment: ${sale.paymentMethod}</td><td></td></tr></table>`);
-    w.document.write('<hr><div class="footer"><p>Thank you for your purchase!</p><p>Visit us again</p></div>');
+    w.document.write(`<tr class="total-row"><td>Final Amount</td><td class="right">${formatCurrency(sale.grandTotal)}</td></tr>`);
+    w.document.write(`<tr><td>Payment Method: ${sale.paymentMethod}</td><td></td></tr></table>`);
+    w.document.write('<hr><div class="footer"><p style="font-weight:bold;">Thank You for Shopping with Enamels.</p><p style="font-weight:bold;">Visit Again!</p></div>');
     w.document.write('</body></html>');
     w.document.close();
     w.focus();
@@ -481,63 +494,237 @@ const OutletPOS = () => {
   }
 
   if (tab === 'dashboard') {
+    const kpis = dashboard ? [
+      { label: 'Total Sales', value: formatCurrency(dashboard.totalSales), sub: `${dashboard.totalOrders} orders`, color: 'from-blue-600 to-indigo-600', icon: DollarSign },
+      { label: 'Net Revenue', value: formatCurrency(dashboard.netRevenue), sub: `Refunds: ${formatCurrency(dashboard.totalSales - dashboard.netRevenue)}`, color: 'from-emerald-600 to-teal-600', icon: TrendingUp },
+      { label: 'Total Discount', value: formatCurrency(dashboard.totalDiscount), sub: 'Discounts given', color: 'from-amber-600 to-orange-600', icon: Percent },
+      { label: 'Returned Orders', value: dashboard.returnedOrders, sub: 'Items returned', color: 'from-red-600 to-rose-600', icon: RotateCcw },
+      { label: 'Completed Orders', value: dashboard.completedOrders, sub: 'POS + Standard Completed', color: 'from-purple-600 to-violet-600', icon: CheckCircle2 },
+      { label: 'Pending Orders', value: dashboard.pendingOrders, sub: 'Awaiting production/dispatch', color: 'from-cyan-600 to-blue-600', icon: Clock },
+      { label: 'Cancelled Orders', value: dashboard.cancelledOrders, sub: 'Rejected / Cancelled', color: 'from-gray-600 to-slate-600', icon: X },
+    ] : [];
+
+    const datePresets = [
+      { label: 'All Time', value: 'all' },
+      { label: 'Today', value: 'today' },
+      { label: 'Yesterday', value: 'yesterday' },
+      { label: 'Last 7 Days', value: 'week' },
+      { label: 'Last 30 Days', value: 'month' },
+      { label: 'This Year', value: 'year' },
+      { label: 'Custom Range', value: 'custom' }
+    ];
+
     return (
-      <div className="space-y-6 pb-20 px-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-black text-white">Sales Dashboard</h1>
-          <button onClick={() => setTab('pos')} className="text-sm font-bold text-blue-400 hover:text-blue-300"><ShoppingCart size={16} className="inline mr-1" />Back to POS</button>
+      <div className="space-y-6 pb-20 px-4 overflow-y-auto h-full pt-4">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-black text-white flex items-center gap-2">
+              <BarChart3 size={24} className="text-blue-500" />
+              Sales & Performance Dashboard
+            </h1>
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-0.5">
+              Outlet: {dashboard?.outletName || 'Johar Town'}
+            </p>
+          </div>
+          <button onClick={() => setTab('pos')} className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center gap-1.5 self-start">
+            <ShoppingCart size={14} />
+            Back to POS Register
+          </button>
         </div>
-        {dashboard && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[
-              { label: 'Today', sales: dashboard.todaySales, orders: dashboard.todayOrders },
-              { label: 'Yesterday', sales: dashboard.yesterdaySales, orders: dashboard.yesterdayOrders },
-              { label: 'This Week', sales: dashboard.weekSales, orders: dashboard.weekOrders },
-              { label: 'This Month', sales: dashboard.monthSales, orders: dashboard.monthOrders },
-              { label: 'This Year', sales: dashboard.yearSales, orders: dashboard.yearOrders },
-              { label: 'All Time', sales: dashboard.totalSales, orders: dashboard.totalOrders },
-            ].map((item, i) => (
-              <div key={i} className="glass p-4 rounded-2xl border-2 border-gray-700">
-                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{item.label}</p>
-                <p className="text-2xl font-black text-white mt-1">{formatCurrency(item.sales)}</p>
-                <p className="text-xs font-bold text-gray-400">{item.orders} orders</p>
-              </div>
+
+        {/* Date Filters */}
+        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 space-y-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-black text-gray-500 uppercase tracking-wider mr-2">Select Range:</span>
+            {datePresets.map(preset => (
+              <button
+                key={preset.value}
+                onClick={() => {
+                  setDashboardRange(preset.value);
+                  if (preset.value !== 'custom') {
+                    setDashboardDateFrom('');
+                    setDashboardDateTo('');
+                  }
+                }}
+                className={`text-[10px] font-black px-3.5 py-2 rounded-xl border transition-all ${
+                  dashboardRange === preset.value
+                    ? 'bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-900/30'
+                    : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-500 hover:text-white'
+                }`}
+              >
+                {preset.label}
+              </button>
             ))}
+          </div>
+
+          {dashboardRange === 'custom' && (
+            <div className="flex items-center gap-3 bg-gray-950 p-3 rounded-xl border border-gray-800 w-fit">
+              <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                <Calendar size={14} />
+                <span>From:</span>
+              </div>
+              <input
+                type="date"
+                value={dashboardDateFrom}
+                onChange={e => setDashboardDateFrom(e.target.value)}
+                className="bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-white outline-none focus:border-blue-500"
+              />
+              <span className="text-xs text-gray-500 font-bold">&rarr;</span>
+              <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                <Calendar size={14} />
+                <span>To:</span>
+              </div>
+              <input
+                type="date"
+                value={dashboardDateTo}
+                onChange={e => setDashboardDateTo(e.target.value)}
+                className="bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-white outline-none focus:border-blue-500"
+              />
+              <button
+                onClick={() => {
+                  invalidateKey(dashboardKey);
+                  refreshDashboard();
+                }}
+                className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs"
+              >
+                Apply
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Dashboard statistics */}
+        {dashboardLoading ? (
+          <div className="py-20 flex justify-center items-center">
+            <RefreshCw className="animate-spin text-blue-500" size={32} />
+          </div>
+        ) : dashboard && (
+          <div className="space-y-6">
+            {/* KPIs Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {kpis.map((kpi, i) => {
+                const Icon = kpi.icon;
+                return (
+                  <div key={i} className={`bg-gradient-to-br ${kpi.color} p-[1px] rounded-2xl shadow-lg`}>
+                    <div className="bg-gray-950/90 rounded-2xl p-4 h-full flex flex-col justify-between">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{kpi.label}</span>
+                        <Icon size={14} className="text-gray-500" />
+                      </div>
+                      <div>
+                        <p className="text-xl md:text-2xl font-black text-white">{kpi.value}</p>
+                        <p className="text-[10px] text-gray-500 font-bold mt-1">{kpi.sub}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Peak day & comparisons */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col justify-between">
+                <div>
+                  <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                    <Award size={14} className="text-amber-500" />
+                    Highest Sales Day
+                  </h3>
+                  <p className="text-xl font-black text-white">{formatCurrency(dashboard.highestSalesDay?.amount || 0)}</p>
+                  <p className="text-[10px] text-gray-500 font-bold mt-1">Date: {dashboard.highestSalesDay?.date || 'N/A'}</p>
+                </div>
+              </div>
+
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col justify-between">
+                <div>
+                  <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                    <Award size={14} className="text-blue-500" />
+                    Highest Orders Day
+                  </h3>
+                  <p className="text-xl font-black text-white">{dashboard.highestOrdersDay?.count || 0} Orders</p>
+                  <p className="text-[10px] text-gray-500 font-bold mt-1">Date: {dashboard.highestOrdersDay?.date || 'N/A'}</p>
+                </div>
+              </div>
+
+              {/* Best branch performance comparison (if viewing 'all' admin mode) */}
+              {dashboard.branchPerformance && dashboard.branchPerformance.length > 0 && (
+                <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
+                  <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Branch Comparison</h3>
+                  <div className="space-y-2">
+                    {dashboard.branchPerformance.map((bp, idx) => (
+                      <div key={bp.branch} className="flex items-center justify-between text-xs border-b border-gray-800 pb-1.5">
+                        <span className="font-bold text-gray-300">{idx + 1}. {bp.branch}</span>
+                        <span className="font-black text-emerald-400">{formatCurrency(bp.revenue)} ({bp.orders} ord)</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Sales Chart */}
+            {dashboard.reportData && dashboard.reportData.length > 0 && (
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
+                <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-4">Sales Trend</h3>
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={dashboard.reportData}>
+                      <defs>
+                        <linearGradient id="salesGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                      <XAxis dataKey="date" stroke="#9ca3af" fontSize={10} tickLine={false} />
+                      <YAxis stroke="#9ca3af" fontSize={10} tickLine={false} tickFormatter={(v) => `₨${(v/1000)}k`} />
+                      <Tooltip contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', borderRadius: '12px' }} formatter={(v) => formatCurrency(v)} labelStyle={{ color: '#fff', fontWeight: 'bold' }} />
+                      <Area type="monotone" dataKey="sales" name="Sales" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#salesGrad)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
+            {/* Best Selling Products */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
+                <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Top Selling Products</h3>
+                <div className="space-y-2">
+                  {dashboard.bestSellingProducts && dashboard.bestSellingProducts.map((p, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-xs bg-gray-950 p-2.5 rounded-xl border border-gray-800">
+                      <span className="font-black text-white">{p.name}</span>
+                      <span className="font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-lg">{p.qty} sold</span>
+                    </div>
+                  ))}
+                  {(!dashboard.bestSellingProducts || dashboard.bestSellingProducts.length === 0) && (
+                    <p className="text-center text-gray-500 py-4 font-bold">No product sales data in range</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Recent Sales list */}
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
+                <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Recent Sales Transactions</h3>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {sales.slice(0, 5).map(s => (
+                    <div key={s.id} className="flex items-center justify-between bg-gray-950 p-2.5 rounded-xl border border-gray-800 text-xs">
+                      <div>
+                        <p className="font-black text-white">{s.receiptNumber}</p>
+                        <p className="text-[10px] text-gray-500">{new Date(s.createdAt).toLocaleDateString()} &bull; {s.items?.length || 0} items</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-black text-emerald-400">{formatCurrency(s.grandTotal)}</p>
+                        <p className="text-[10px] text-gray-500">{s.paymentMethod}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {sales.length === 0 && <p className="text-center text-gray-500 font-bold py-4">No recent sales</p>}
+                </div>
+              </div>
+            </div>
           </div>
         )}
-        <div className="glass p-4 rounded-2xl border-2 border-gray-700">
-          <h2 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Recent Sales</h2>
-          <div className="space-y-2 max-h-80 overflow-y-auto">
-            {sales.slice(0, 20).map(s => (
-              <div key={s.id} className="flex items-center justify-between bg-gray-800/50 rounded-xl px-3 py-2">
-                <div>
-                  <p className="text-xs font-bold text-white">{s.receiptNumber}</p>
-                  <p className="text-[10px] text-gray-500">{new Date(s.createdAt).toLocaleString()} &bull; {s.items?.length || 0} items</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-black text-emerald-400">{formatCurrency(s.grandTotal)}</p>
-                  <p className="text-[10px] text-gray-500">{s.paymentMethod}</p>
-                </div>
-              </div>
-            ))}
-            {sales.length === 0 && <p className="text-center text-gray-500 font-bold py-4">No sales yet</p>}
-          </div>
-        </div>
-        <div className="glass p-4 rounded-2xl border-2 border-gray-700">
-          <h2 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Recent Returns</h2>
-          <div className="space-y-2 max-h-60 overflow-y-auto">
-            {returns.slice(0, 10).map(r => (
-              <div key={r.id} className="flex items-center justify-between bg-red-900/10 rounded-xl px-3 py-2 border border-red-900/20">
-                <div>
-                  <p className="text-xs font-bold text-white">{r._variant?.product?.name || 'Unknown'} {r._variant?.color && `(${r._variant.color})`}</p>
-                  <p className="text-[10px] text-gray-500">Qty: {r.quantity} &bull; {new Date(r.createdAt).toLocaleString()}</p>
-                </div>
-                <p className="text-xs font-bold text-red-400">-{formatCurrency(r.refundAmount)}</p>
-              </div>
-            ))}
-            {returns.length === 0 && <p className="text-center text-gray-500 font-bold py-4">No returns</p>}
-          </div>
-        </div>
       </div>
     );
   }

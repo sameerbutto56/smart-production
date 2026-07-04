@@ -35,7 +35,7 @@ const OutletPOSInventory = () => {
 
   const isOutlet = user?.role === 'OUTLET';
   const canInit = user?.role === 'STORE' || user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
-  const isReadOnly = isOutlet && selectedOutlet !== defaultOutlet;
+  const isReadOnly = isOutlet || selectedOutlet !== defaultOutlet;
 
   const { data: items = [], loading, refresh } = useCache(`pos:inventory:${selectedOutlet}`, {
     fetcher: () => api.get(`/api/pos/inventory?outlet=${selectedOutlet}`).then(r => r.data),

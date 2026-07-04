@@ -492,8 +492,11 @@ const getSales = async (req, res) => {
 const getSalesDashboard = async (req, res) => {
   try {
     const outlet = getOutletName(req);
-    const skip = req.query.skipCache === 'true';
-    const cacheKey = `${CACHE_KEY_PREFIX}dashboard:${outlet || 'all'}`;
+    const { dateFrom, dateTo, range = 'all' } = req.query;
+    
+    // We bypass cache if custom dates or skipCache are requested
+    const skip = req.query.skipCache === 'true' || dateFrom || dateTo;
+    const cacheKey = `${CACHE_KEY_PREFIX}dashboard:${outlet || 'all'}:${range}`;
 
     if (!skip) {
       const cached = cache.get(cacheKey);
@@ -501,37 +504,177 @@ const getSalesDashboard = async (req, res) => {
     }
 
     const now = new Date();
-    const startToday = new Date(now); startToday.setHours(0, 0, 0, 0);
-    const startYesterday = new Date(now); startYesterday.setDate(startYesterday.getDate() - 1); startYesterday.setHours(0, 0, 0, 0);
-    const endYesterday = new Date(startYesterday); endYesterday.setHours(23, 59, 59, 999);
-    const startWeek = new Date(now); startWeek.setDate(startWeek.getDate() - 7); startWeek.setHours(0, 0, 0, 0);
-    const startMonth = new Date(now); startMonth.setMonth(startMonth.getMonth() - 1); startMonth.setHours(0, 0, 0, 0);
-    const startYear = new Date(now); startYear.setFullYear(startYear.getFullYear() - 1); startYear.setHours(0, 0, 0, 0);
+    let startLimit = null;
+    let endLimit = null;
 
-    const outletFilter = outlet ? { outletName: outlet } : {};
+    if (dateFrom) {
+      startLimit = new Date(dateFrom);
+    }
+    if (dateTo) {
+      endLimit = new Date(dateTo);
+      endLimit.setHours(23, 59, 59, 999);
+    }
 
-    const [today, yesterday, week, month, year, all] = await Promise.all([
-      prisma.posSale.aggregate({ where: { ...outletFilter, createdAt: { gte: startToday } }, _sum: { grandTotal: true }, _count: true }),
-      prisma.posSale.aggregate({ where: { ...outletFilter, createdAt: { gte: startYesterday, lte: endYesterday } }, _sum: { grandTotal: true }, _count: true }),
-      prisma.posSale.aggregate({ where: { ...outletFilter, createdAt: { gte: startWeek } }, _sum: { grandTotal: true }, _count: true }),
-      prisma.posSale.aggregate({ where: { ...outletFilter, createdAt: { gte: startMonth } }, _sum: { grandTotal: true }, _count: true }),
-      prisma.posSale.aggregate({ where: { ...outletFilter, createdAt: { gte: startYear } }, _sum: { grandTotal: true }, _count: true }),
-      prisma.posSale.aggregate({ where: outletFilter, _sum: { grandTotal: true }, _count: true }),
+    if (!startLimit && !endLimit) {
+      if (range === 'today') {
+        startLimit = new Date(now); startLimit.setHours(0, 0, 0, 0);
+      } else if (range === 'yesterday') {
+        startLimit = new Date(now); startLimit.setDate(startLimit.getDate() - 1); startLimit.setHours(0, 0, 0, 0);
+        endLimit = new Date(startLimit); endLimit.setHours(23, 59, 59, 999);
+      } else if (range === 'week') {
+        startLimit = new Date(now); startLimit.setDate(startLimit.getDate() - 7); startLimit.setHours(0, 0, 0, 0);
+      } else if (range === 'month') {
+        startLimit = new Date(now); startLimit.setMonth(startLimit.getMonth() - 1); startLimit.setHours(0, 0, 0, 0);
+      } else if (range === 'year') {
+        startLimit = new Date(now); startLimit.setFullYear(startLimit.getFullYear() - 1); startLimit.setHours(0, 0, 0, 0);
+      }
+    }
+
+    const whereClause = {};
+    if (outlet) {
+      whereClause.outletName = outlet;
+    }
+    if (startLimit || endLimit) {
+      whereClause.createdAt = {};
+      if (startLimit) whereClause.createdAt.gte = startLimit;
+      if (endLimit) whereClause.createdAt.lte = endLimit;
+    }
+
+    // 1. Basic Stats aggregation
+    const [salesAgg, returnsAgg, discountAgg] = await Promise.all([
+      prisma.posSale.aggregate({
+        where: whereClause,
+        _sum: { grandTotal: true, subtotal: true },
+        _count: true
+      }),
+      prisma.posReturn.aggregate({
+        where: outlet ? { outletName: outlet, ...(startLimit || endLimit ? { createdAt: { gte: startLimit || undefined, lte: endLimit || undefined } } : {}) } : (startLimit || endLimit ? { createdAt: { gte: startLimit || undefined, lte: endLimit || undefined } } : {}),
+        _sum: { refundAmount: true },
+        _count: true
+      }),
+      prisma.posSale.aggregate({
+        where: whereClause,
+        _sum: { discountAmount: true }
+      })
     ]);
 
+    const totalSales = salesAgg._sum.grandTotal || 0;
+    const totalOrders = salesAgg._count || 0;
+    const totalReturns = returnsAgg._count || 0;
+    const refundAmount = returnsAgg._sum.refundAmount || 0;
+    const netRevenue = totalSales - refundAmount;
+    const totalDiscount = discountAgg._sum.discountAmount || 0;
+
+    // 2. Fetch completed/pending/cancelled orders from main order table for comparison
+    const orderWhere = {};
+    if (outlet) {
+      // Normalize comparison for outlet names in Order model vs POS outlet name
+      orderWhere.outletName = { contains: outlet, mode: 'insensitive' };
+    }
+    if (startLimit || endLimit) {
+      orderWhere.createdAt = {};
+      if (startLimit) orderWhere.createdAt.gte = startLimit;
+      if (endLimit) orderWhere.createdAt.lte = endLimit;
+    }
+
+    const [completedOrders, pendingOrders, cancelledOrders] = await Promise.all([
+      prisma.order.count({ where: { ...orderWhere, status: 'COMPLETED' } }),
+      prisma.order.count({ where: { ...orderWhere, status: 'PENDING' } }),
+      prisma.order.count({ where: { ...orderWhere, status: 'CANCELLED' } })
+    ]);
+
+    // 3. Fetch all sales for trend charts & peak day analysis
+    const allSales = await prisma.posSale.findMany({
+      where: whereClause,
+      select: { createdAt: true, grandTotal: true, receiptNumber: true, outletName: true }
+    });
+
+    const salesByDay = {};
+    const ordersByDay = {};
+    
+    allSales.forEach(s => {
+      const day = s.createdAt.toISOString().split('T')[0];
+      salesByDay[day] = (salesByDay[day] || 0) + s.grandTotal;
+      ordersByDay[day] = (ordersByDay[day] || 0) + 1;
+    });
+
+    let highestSalesDay = { date: 'N/A', amount: 0 };
+    let highestOrdersDay = { date: 'N/A', count: 0 };
+
+    Object.entries(salesByDay).forEach(([date, amount]) => {
+      if (amount > highestSalesDay.amount) {
+        highestSalesDay = { date, amount };
+      }
+    });
+
+    Object.entries(ordersByDay).forEach(([date, count]) => {
+      if (count > highestOrdersDay.count) {
+        highestOrdersDay = { date, count };
+      }
+    });
+
+    // 4. Best selling products (aggregate line items)
+    const saleItems = await prisma.posSaleItem.findMany({
+      where: {
+        sale: whereClause
+      },
+      select: { productName: true, quantity: true }
+    });
+
+    const productCounts = {};
+    saleItems.forEach(item => {
+      productCounts[item.productName] = (productCounts[item.productName] || 0) + item.quantity;
+    });
+
+    const bestSellingProducts = Object.entries(productCounts)
+      .map(([name, qty]) => ({ name, qty }))
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 5);
+
+    // 5. Best performing branch (comparison if viewing 'all')
+    const branchPerformance = [];
+    if (!outlet) {
+      const branches = ['Johar Town', 'Jail Road', 'Abbottabad'];
+      for (const b of branches) {
+        const bSales = allSales.filter(s => s.outletName && s.outletName.toLowerCase().includes(b.toLowerCase()));
+        const revenue = bSales.reduce((sum, s) => sum + s.grandTotal, 0);
+        const orders = bSales.length;
+        branchPerformance.push({ branch: b, revenue, orders });
+      }
+      branchPerformance.sort((a, b) => b.revenue - a.revenue);
+    }
+
+    // 6. Trend reports structured for charting (last 12 months, days, etc.)
+    const reportData = Object.entries(salesByDay).map(([date, sales]) => ({
+      date,
+      sales,
+      orders: ordersByDay[date] || 0
+    })).sort((a, b) => a.date.localeCompare(b.date));
+
     const result = {
-      todaySales: today._sum.grandTotal || 0, todayOrders: today._count,
-      yesterdaySales: yesterday._sum.grandTotal || 0, yesterdayOrders: yesterday._count,
-      weekSales: week._sum.grandTotal || 0, weekOrders: week._count,
-      monthSales: month._sum.grandTotal || 0, monthOrders: month._count,
-      yearSales: year._sum.grandTotal || 0, yearOrders: year._count,
-      totalSales: all._sum.grandTotal || 0, totalOrders: all._count
+      totalSales,
+      totalOrders,
+      completedOrders: totalOrders + completedOrders, // POS + main table completed
+      pendingOrders,
+      cancelledOrders,
+      returnedOrders: totalReturns,
+      netRevenue,
+      totalDiscount,
+      highestSalesDay,
+      highestOrdersDay,
+      bestSellingProducts,
+      branchPerformance,
+      reportData,
+      outletName: outlet || 'All Branches'
     };
 
-    cache.set(cacheKey, result, cache.DASHBOARD_TTL);
+    if (!skip) {
+      cache.set(cacheKey, result, cache.DASHBOARD_TTL);
+    }
+    
     res.json(result);
   } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch dashboard', error: error.message });
+    res.status(500).json({ message: 'Failed to fetch dashboard sales analytics', error: error.message });
   }
 };
 

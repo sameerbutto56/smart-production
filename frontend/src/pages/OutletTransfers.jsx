@@ -11,6 +11,7 @@ const formatDate = (d) => new Date(d).toLocaleString();
 
 const statusStyles = {
   COMPLETED: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+  DISPATCHED: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
   PENDING: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
   CANCELLED: 'bg-red-500/20 text-red-400 border-red-500/30',
   REJECTED: 'bg-red-500/20 text-red-400 border-red-500/30',
@@ -34,10 +35,12 @@ const OutletTransfers = () => {
   const [destOutlet, setDestOutlet] = useState('');
   const [fromOutlet, setFromOutlet] = useState(isMultiOutlet ? '' : (userOutlet || ''));
   const [notes, setNotes] = useState('');
+  const [pickupMethod, setPickupMethod] = useState('RIDER');
   const [transferItems, setTransferItems] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
+  const [actionLoading, setActionLoading] = useState(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -108,17 +111,46 @@ const OutletTransfers = () => {
         fromOutlet,
         toOutlet: destOutlet,
         items: transferItems.map(t => ({ variantId: t.variantId, quantity: t.qty })),
+        pickupMethod,
         notes: notes || null
       });
-      toast.success('Transfer completed!');
+      toast.success('Transfer request created (PENDING)!');
       setDestOutlet('');
       setNotes('');
+      setPickupMethod('RIDER');
       setTransferItems([]);
+      setTab('list');
       fetchData();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Transfer failed');
+      toast.error(err.response?.data?.message || 'Transfer creation failed');
     }
     setSubmitting(false);
+  };
+
+  const handleDispatch = async (id) => {
+    setActionLoading(id);
+    try {
+      await api.patch(`/api/transfers/${id}/dispatch`);
+      toast.success('Stock dispatched!');
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Dispatch failed');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleAccept = async (id) => {
+    setActionLoading(id);
+    try {
+      await api.patch(`/api/transfers/${id}/accept`);
+      toast.success('Stock accepted and inventory updated!');
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Accept failed');
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const printTransferSlip = (transfer) => {
@@ -228,9 +260,35 @@ const OutletTransfers = () => {
                     </table>
                   </div>
                   {t.notes && <p className="text-xs text-gray-500 mt-2 italic">Notes: {t.notes}</p>}
-                  <button onClick={() => printTransferSlip(t)} className="mt-2 text-[10px] font-bold text-blue-400 hover:text-blue-300 bg-gray-800 px-3 py-1.5 rounded-lg">
-                    <Printer size={12} className="inline mr-1" />Print Slip
-                  </button>
+                  <p className="text-xs text-gray-400 mt-1 font-bold">Pickup Method: <span className="text-white">{t.pickupMethod === 'CUSTOMER' ? 'Customer Pickup' : 'Delivery Rider Pickup'}</span></p>
+                  
+                  <div className="flex items-center gap-2 mt-3 flex-wrap">
+                    <button onClick={() => printTransferSlip(t)} className="text-[10px] font-bold text-blue-400 hover:text-blue-300 bg-gray-800 px-3 py-1.5 rounded-lg flex items-center gap-1">
+                      <Printer size={12} />Print Slip
+                    </button>
+
+                    {/* Dispatch button: Source branch must approve & dispatch */}
+                    {t.status === 'PENDING' && t.fromOutlet === userOutlet && (
+                      <button
+                        onClick={() => handleDispatch(t.id)}
+                        disabled={actionLoading === t.id}
+                        className="text-[10px] font-black text-white bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded-lg disabled:opacity-50"
+                      >
+                        {actionLoading === t.id ? 'Dispatching...' : 'Approve & Dispatch'}
+                      </button>
+                    )}
+
+                    {/* Accept button: Destination branch must receive & accept */}
+                    {t.status === 'DISPATCHED' && t.toOutlet === userOutlet && (
+                      <button
+                        onClick={() => handleAccept(t.id)}
+                        disabled={actionLoading === t.id}
+                        className="text-[10px] font-black text-white bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 rounded-lg disabled:opacity-50"
+                      >
+                        {actionLoading === t.id ? 'Accepting...' : 'Receive & Accept'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -258,6 +316,29 @@ const OutletTransfers = () => {
                   <option value="">Select outlet...</option>
                   {availableOutlets.filter(o => o !== fromOutlet).map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-400 block mb-1">Pickup Method</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPickupMethod('RIDER')}
+                    className={`flex-1 py-2 text-xs font-bold rounded-xl border ${
+                      pickupMethod === 'RIDER' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-400'
+                    }`}
+                  >
+                    Rider Pickup
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPickupMethod('CUSTOMER')}
+                    className={`flex-1 py-2 text-xs font-bold rounded-xl border ${
+                      pickupMethod === 'CUSTOMER' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-400'
+                    }`}
+                  >
+                    Customer Pickup
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-400 block mb-1">Notes (optional)</label>

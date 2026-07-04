@@ -539,6 +539,7 @@ model OutletTransfer {
   toOutlet        String
   status          String   @default("PENDING")
   totalItems      Int      @default(0)
+  pickupMethod    String?  // RIDER, CUSTOMER
   notes           String?
   requestedById   String?
   requestedByName String?
