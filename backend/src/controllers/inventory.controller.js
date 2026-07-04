@@ -282,29 +282,28 @@ const getAllocations = async (req, res) => {
 
 const getAllocationStats = async (req, res) => {
   try {
-    const stats = await prisma.allocation.groupBy({
-      by: ['personName'],
-      _sum: { quantity: true },
-      _count: { id: true },
-      _max: { createdAt: true }
-    });
+    // Limit per-person stats to last 6 months to avoid full table scan timeouts
+    const sixMonthsAgo = new Date(); sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const [stats, todayTotal, activeTotal, totalAllQty, recent] = await Promise.all([
+      prisma.allocation.groupBy({
+        by: ['personName'],
+        where: { createdAt: { gte: sixMonthsAgo } },
+        _sum: { quantity: true },
+        _count: { id: true },
+        _max: { createdAt: true }
+      }),
+      (() => { const d = new Date(); d.setHours(0,0,0,0); return prisma.allocation.count({ where: { createdAt: { gte: d } } }); })(),
+      prisma.allocation.count({ where: { status: 'ACTIVE' } }),
+      prisma.allocation.aggregate({ _sum: { quantity: true } }),
+      prisma.allocation.findMany({ orderBy: { createdAt: 'desc' }, take: 5 })
+    ]);
+
     const result = stats.map(s => ({
       personName: s.personName,
       totalItems: s._sum.quantity || 0,
       timesTaken: s._count.id,
       lastTaken: s._max.createdAt
     })).sort((a, b) => b.timesTaken - a.timesTaken);
-
-    const todayStart = new Date(); todayStart.setHours(0,0,0,0);
-    const todayTotal = await prisma.allocation.count({ where: { createdAt: { gte: todayStart } } });
-    const activeTotal = await prisma.allocation.count({ where: { status: 'ACTIVE' } });
-    const totalAllQty = await prisma.allocation.aggregate({ _sum: { quantity: true } });
-
-    // Recent 5 allocations
-    const recent = await prisma.allocation.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 5
-    });
 
     res.json({ perPerson: result, todayTotal, activeTotal, totalAllocated: totalAllQty._sum.quantity || 0, recent });
   } catch (error) {
