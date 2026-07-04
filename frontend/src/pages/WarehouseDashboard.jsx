@@ -81,8 +81,6 @@ const WarehouseDashboard = () => {
     { fetcher: () => api.get('/api/production/inventory').then(r => r.data), ttl: 60 * 1000 }
   );
 
-  const productionTasks = tasksData?.productionTasks || null;
-
   const fetchAllocations = async () => {
     setAllocLoading(true);
     try {
@@ -245,7 +243,7 @@ const WarehouseDashboard = () => {
   const refreshActiveTab = () => {
     if (activeTab === 'dashboard' || activeTab === 'allocation' || activeTab === 'inventory') refreshInventory();
     else if (activeTab === 'production') refreshProduction();
-    else if (activeTab === 'tasks') refreshTasks();
+
   };
   usePolling(() => { if (pageVisible) refreshActiveTab(); }, 60000);
 
