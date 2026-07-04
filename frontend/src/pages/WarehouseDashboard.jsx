@@ -73,7 +73,7 @@ const WarehouseDashboard = () => {
 
   // Cache-first: inventory tab
   const { data: inventory = [], loading, refresh: refreshInventory } = useCache(
-    activeTab === 'dashboard' || activeTab === 'allocation' ? 'warehouse:inventory' : null,
+    activeTab === 'dashboard' || activeTab === 'inventory' || activeTab === 'allocation' ? 'warehouse:inventory' : null,
     { fetcher: () => api.get('/api/inventory').then(r => r.data), ttl: 60 * 1000 }
   );
   // Cache-first: production tab
