@@ -47,8 +47,11 @@ const login = async (req, res) => {
 
     res.json({ token, user: { id: user.id, name: user.name, role: user.role } });
   } catch (error) {
-    console.error('LOGIN ERROR:', error);
-    res.status(500).json({ message: 'Error logging in', error: error.message });
+    console.error('LOGIN ERROR:', error.message, error.stack);
+    const msg = error.message?.includes('connect')
+      ? 'Database connection error — please try again in a moment'
+      : 'Error logging in — ' + (error.message || 'unknown error');
+    res.status(500).json({ message: msg, error: error.message });
   }
 };
 

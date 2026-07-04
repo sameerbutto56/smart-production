@@ -771,6 +771,138 @@ const importBackup = async (req, res) => {
   }
 };
 
+const XLSX = require('xlsx');
+
+const exportBackupExcel = async (req, res) => {
+  try {
+    const items = await prisma.inventoryItem.findMany();
+    const variants = await prisma.outletVariant.findMany();
+
+    // Flatten items for Excel (stringify JSON fields)
+    const itemRows = items.map(item => ({
+      id: item.id,
+      name: item.name,
+      category: item.category,
+      color: item.color || '',
+      size: item.size || '',
+      fabric: item.fabric || '',
+      stock: item.stock,
+      price: item.price,
+      imageUrl: item.imageUrl || '',
+      metadata: item.metadata ? JSON.stringify(item.metadata) : '',
+      variants: item.variants ? JSON.stringify(item.variants) : '',
+      createdAt: item.createdAt ? new Date(item.createdAt).toISOString() : '',
+      updatedAt: item.updatedAt ? new Date(item.updatedAt).toISOString() : ''
+    }));
+
+    const variantRows = variants.map(v => ({
+      id: v.id,
+      inventoryItemId: v.inventoryItemId,
+      outletName: v.outletName || '',
+      color: v.color || '',
+      size: v.size || '',
+      barcode: v.barcode || '',
+      stock: v.stock,
+      price: v.price,
+      isActive: v.isActive ? 'TRUE' : 'FALSE',
+      createdAt: v.createdAt ? new Date(v.createdAt).toISOString() : '',
+      updatedAt: v.updatedAt ? new Date(v.updatedAt).toISOString() : ''
+    }));
+
+    const wb = XLSX.utils.book_new();
+    const wsItems = XLSX.utils.json_to_sheet(itemRows);
+    const wsVariants = XLSX.utils.json_to_sheet(variantRows);
+    XLSX.utils.book_append_sheet(wb, wsItems, 'Products');
+    XLSX.utils.book_append_sheet(wb, wsVariants, 'OutletVariants');
+
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    const filename = `inventory_backup_${Date.now()}.xlsx`;
+    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buf);
+  } catch (error) {
+    console.error('EXCEL EXPORT ERROR:', error);
+    res.status(500).json({ message: 'Failed to export Excel backup', error: error.message });
+  }
+};
+
+const importBackupExcel = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'Excel backup file is required' });
+    }
+
+    const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const productsSheet = wb.Sheets['Products'];
+    const variantsSheet = wb.Sheets['OutletVariants'];
+
+    if (!productsSheet || !variantsSheet) {
+      return res.status(400).json({ message: 'Invalid Excel file — must contain "Products" and "OutletVariants" sheets' });
+    }
+
+    const inventoryItems = XLSX.utils.sheet_to_json(productsSheet);
+    const outletVariants = XLSX.utils.sheet_to_json(variantsSheet);
+
+    await prisma.$transaction(async (tx) => {
+      // Clear existing records
+      await tx.posReturn.deleteMany();
+      await tx.posSaleItem.deleteMany();
+      await tx.posSale.deleteMany();
+      await tx.outletVariant.deleteMany();
+      await tx.inventoryItem.deleteMany();
+
+      // Restore items
+      for (const item of inventoryItems) {
+        await tx.inventoryItem.create({
+          data: {
+            id: item.id,
+            name: item.name,
+            category: item.category,
+            color: item.color || null,
+            size: item.size || null,
+            fabric: item.fabric || null,
+            stock: parseInt(item.stock) || 0,
+            price: parseFloat(item.price) || 0,
+            imageUrl: item.imageUrl || null,
+            metadata: item.metadata ? JSON.parse(item.metadata) : undefined,
+            variants: item.variants ? JSON.parse(item.variants) : undefined,
+            createdAt: item.createdAt ? new Date(item.createdAt) : new Date(),
+            updatedAt: item.updatedAt ? new Date(item.updatedAt) : new Date()
+          }
+        });
+      }
+
+      // Restore outlet variants
+      for (const v of outletVariants) {
+        await tx.outletVariant.create({
+          data: {
+            id: v.id,
+            inventoryItemId: v.inventoryItemId,
+            outletName: v.outletName || null,
+            color: v.color || null,
+            size: v.size || null,
+            barcode: v.barcode || null,
+            stock: parseInt(v.stock) || 0,
+            price: parseFloat(v.price) || 0,
+            isActive: v.isActive === 'TRUE' || v.isActive === true,
+            createdAt: v.createdAt ? new Date(v.createdAt) : new Date(),
+            updatedAt: v.updatedAt ? new Date(v.updatedAt) : new Date()
+          }
+        });
+      }
+    });
+
+    const cache = require('../utils/cache');
+    cache.delPattern('pos:');
+
+    res.json({ message: 'Excel backup imported successfully', itemsImported: inventoryItems.length, variantsImported: outletVariants.length });
+  } catch (error) {
+    console.error('EXCEL IMPORT ERROR:', error);
+    res.status(500).json({ message: 'Failed to import Excel backup', error: error.message });
+  }
+};
+
 module.exports = {
   getInventory,
   createInventoryItem,
@@ -787,5 +919,7 @@ module.exports = {
   getCarts,
   updateCartStatus,
   exportBackup,
-  importBackup
+  importBackup,
+  exportBackupExcel,
+  importBackupExcel
 };

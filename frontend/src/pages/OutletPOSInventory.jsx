@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import api from '../services/api';
-import { Package, Search, ChevronDown, ChevronUp, RefreshCw, Warehouse, Plus, X, CheckCircle2, Minus, PlusCircle, Pencil, Eye, EyeOff, Database } from 'lucide-react';
+import { Package, Search, ChevronDown, ChevronUp, RefreshCw, Warehouse, Plus, X, CheckCircle2, Minus, PlusCircle, Pencil, Eye, EyeOff, Database, Download, UploadCloud } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import useCache, { setCache } from '../hooks/useCache';
@@ -36,6 +36,96 @@ const OutletPOSInventory = () => {
   const isOutlet = user?.role === 'OUTLET';
   const canInit = user?.role === 'STORE' || user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
   const isReadOnly = isOutlet || selectedOutlet !== defaultOutlet;
+
+  const backupJsonRef = React.useRef(null);
+  const backupExcelRef = React.useRef(null);
+  const [backupLoading, setBackupLoading] = useState(false);
+
+  const handleExportJSON = async () => {
+    try {
+      setBackupLoading(true);
+      const response = await api.get('/api/inventory/backup/export', { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `inventory_backup_${new Date().toISOString().slice(0,10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast.success('JSON backup exported!');
+    } catch (error) {
+      toast.error('Export failed: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      setBackupLoading(true);
+      const response = await api.get('/api/inventory/backup/export-excel', { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `inventory_backup_${new Date().toISOString().slice(0,10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast.success('Excel backup exported!');
+    } catch (error) {
+      toast.error('Export failed: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
+  const handleImportJSON = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!window.confirm('\u26a0\ufe0f This will REPLACE all inventory data with the JSON backup. Continue?')) {
+      if (backupJsonRef.current) backupJsonRef.current.value = '';
+      return;
+    }
+    try {
+      setBackupLoading(true);
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await api.post('/api/inventory/backup/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      toast.success(`Restored ${res.data.itemsImported} products, ${res.data.variantsImported} variants`);
+      refresh();
+    } catch (error) {
+      toast.error('Import failed: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setBackupLoading(false);
+      if (backupJsonRef.current) backupJsonRef.current.value = '';
+    }
+  };
+
+  const handleImportExcel = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!window.confirm('\u26a0\ufe0f This will REPLACE all inventory data with the Excel backup. Continue?')) {
+      if (backupExcelRef.current) backupExcelRef.current.value = '';
+      return;
+    }
+    try {
+      setBackupLoading(true);
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await api.post('/api/inventory/backup/import-excel', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      toast.success(`Restored ${res.data.itemsImported} products, ${res.data.variantsImported} variants`);
+      refresh();
+    } catch (error) {
+      toast.error('Import failed: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setBackupLoading(false);
+      if (backupExcelRef.current) backupExcelRef.current.value = '';
+    }
+  };
 
   const { data: items = [], loading, refresh } = useCache(`pos:inventory:${selectedOutlet}`, {
     fetcher: () => api.get(`/api/pos/inventory?outlet=${selectedOutlet}`).then(r => r.data),
@@ -288,6 +378,28 @@ const OutletPOSInventory = () => {
           <button onClick={refresh} disabled={loading} className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white font-black px-4 py-3 rounded-xl text-sm">
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />Refresh
           </button>
+          {canInit && (
+            <>
+              <input type="file" ref={backupJsonRef} onChange={handleImportJSON} accept=".json" className="hidden" />
+              <input type="file" ref={backupExcelRef} onChange={handleImportExcel} accept=".xlsx,.xls" className="hidden" />
+              <button onClick={handleExportJSON} disabled={backupLoading}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-black px-4 py-3 rounded-xl text-sm disabled:opacity-50">
+                <Download size={16} />Export JSON
+              </button>
+              <button onClick={handleExportExcel} disabled={backupLoading}
+                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black px-4 py-3 rounded-xl text-sm disabled:opacity-50">
+                <Download size={16} />Export Excel
+              </button>
+              <button onClick={() => backupJsonRef.current?.click()} disabled={backupLoading}
+                className="flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white font-black px-4 py-3 rounded-xl text-sm disabled:opacity-50">
+                <UploadCloud size={16} />Restore JSON
+              </button>
+              <button onClick={() => backupExcelRef.current?.click()} disabled={backupLoading}
+                className="flex items-center gap-2 bg-orange-600 hover:bg-orange-500 text-white font-black px-4 py-3 rounded-xl text-sm disabled:opacity-50">
+                <UploadCloud size={16} />Restore Excel
+              </button>
+            </>
+          )}
         </div>
       </div>
 

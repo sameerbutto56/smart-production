@@ -62,6 +62,7 @@ const InventoryManagement = () => {
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = React.useRef(null);
   const backupInputRef = React.useRef(null);
+  const backupExcelInputRef = React.useRef(null);
   const [backupLoading, setBackupLoading] = useState(false);
 
   useEffect(() => {
@@ -278,7 +279,7 @@ const InventoryManagement = () => {
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-      alert('✅ Backup exported successfully! A copy is also saved on the server.');
+      alert('✅ JSON Backup exported successfully!');
     } catch (error) {
       console.error('Backup export failed:', error);
       alert('Failed to export backup: ' + (error.response?.data?.message || error.message));
@@ -287,10 +288,32 @@ const InventoryManagement = () => {
     }
   };
 
+  const handleExportBackupExcel = async () => {
+    try {
+      setBackupLoading(true);
+      const response = await api.get('/api/inventory/backup/export-excel', { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `inventory_backup_${new Date().toISOString().slice(0,10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      alert('✅ Excel Backup exported successfully!');
+    } catch (error) {
+      console.error('Excel backup export failed:', error);
+      alert('Failed to export Excel backup: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
   const handleImportBackup = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (!window.confirm('⚠️ This will REPLACE all current inventory data with the backup. Are you sure?')) {
+    if (!window.confirm('⚠️ This will REPLACE all current inventory data with the JSON backup. Are you sure?')) {
       if (backupInputRef.current) backupInputRef.current.value = '';
       return;
     }
@@ -309,6 +332,31 @@ const InventoryManagement = () => {
     } finally {
       setBackupLoading(false);
       if (backupInputRef.current) backupInputRef.current.value = '';
+    }
+  };
+
+  const handleImportBackupExcel = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!window.confirm('⚠️ This will REPLACE all current inventory data with the Excel backup. Are you sure?')) {
+      if (backupExcelInputRef.current) backupExcelInputRef.current.value = '';
+      return;
+    }
+    try {
+      setBackupLoading(true);
+      const uploadData = new FormData();
+      uploadData.append('file', file);
+      const response = await api.post('/api/inventory/backup/import-excel', uploadData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      alert(`✅ Excel Backup restored! ${response.data.itemsImported} products and ${response.data.variantsImported} outlet variants imported.`);
+      fetchInventory();
+    } catch (error) {
+      console.error('Excel backup import failed:', error);
+      alert('Failed to import Excel backup: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setBackupLoading(false);
+      if (backupExcelInputRef.current) backupExcelInputRef.current.value = '';
     }
   };
 
@@ -555,25 +603,50 @@ const InventoryManagement = () => {
             accept=".json" 
             className="hidden" 
           />
+          <input 
+            type="file" 
+            ref={backupExcelInputRef} 
+            onChange={handleImportBackupExcel} 
+            accept=".xlsx,.xls" 
+            className="hidden" 
+          />
           {user?.role !== 'INVENTORY_VIEW' && ['SUPER_ADMIN', 'ADMIN', 'STORE'].includes(userRole) && (
             <>
               <button 
                 onClick={handleExportBackup}
                 disabled={backupLoading}
                 className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-black py-3 px-5 rounded-2xl shadow-xl shadow-blue-900/30 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50"
-                title="Export full inventory backup to your computer"
+                title="Export full inventory backup as JSON"
               >
                 <Download size={18} />
-                <span className="hidden sm:inline text-sm">Export Backup</span>
+                <span className="hidden sm:inline text-sm">Export JSON</span>
+              </button>
+              <button 
+                onClick={handleExportBackupExcel}
+                disabled={backupLoading}
+                className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-black py-3 px-5 rounded-2xl shadow-xl shadow-emerald-900/30 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50"
+                title="Export full inventory backup as Excel spreadsheet"
+              >
+                <Download size={18} />
+                <span className="hidden sm:inline text-sm">Export Excel</span>
               </button>
               <button 
                 onClick={() => backupInputRef.current?.click()}
                 disabled={backupLoading}
                 className="bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black py-3 px-5 rounded-2xl shadow-xl shadow-amber-900/30 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50"
-                title="Restore inventory from a backup file"
+                title="Restore inventory from a JSON backup file"
               >
                 <UploadCloud size={18} />
-                <span className="hidden sm:inline text-sm">Restore Backup</span>
+                <span className="hidden sm:inline text-sm">Restore JSON</span>
+              </button>
+              <button 
+                onClick={() => backupExcelInputRef.current?.click()}
+                disabled={backupLoading}
+                className="bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-500 hover:to-orange-600 text-white font-black py-3 px-5 rounded-2xl shadow-xl shadow-orange-900/30 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50"
+                title="Restore inventory from an Excel backup file"
+              >
+                <UploadCloud size={18} />
+                <span className="hidden sm:inline text-sm">Restore Excel</span>
               </button>
             </>
           )}
