@@ -24,7 +24,8 @@ import {
   Printer,
   Download,
   UploadCloud,
-  Shield
+  Shield,
+  Eye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
@@ -45,6 +46,7 @@ const InventoryManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [stockFilter, setStockFilter] = useState('ALL');
+  const [viewMode, setViewMode] = useState('stock');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [expandedItems, setExpandedItems] = useState({});
@@ -709,6 +711,92 @@ const InventoryManagement = () => {
         </div>
       </div>
 
+      {/* View Mode Tabs */}
+      <div className="flex theme-bg border-2 theme-border rounded-2xl p-1.5 overflow-x-auto no-scrollbar">
+        <button onClick={() => setViewMode('stock')}
+          className={`px-6 py-3 text-xs font-black rounded-xl transition-all whitespace-nowrap uppercase tracking-wider flex items-center gap-2 ${viewMode === 'stock' ? 'bg-amber-600 text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-gray-800'}`}>
+          <Eye size={14} />Stock View
+        </button>
+        <button onClick={() => setViewMode('management')}
+          className={`px-6 py-3 text-xs font-black rounded-xl transition-all whitespace-nowrap uppercase tracking-wider flex items-center gap-2 ${viewMode === 'management' ? 'bg-amber-600 text-white shadow-lg' : 'text-gray-500 hover:text-white hover:bg-gray-800'}`}>
+          <Edit2 size={14} />Management
+        </button>
+      </div>
+
+      {/* Stock View */}
+      <div className={viewMode === 'stock' ? '' : 'hidden'}>
+        <div className="space-y-4 md:space-y-6">
+          <div className="relative">
+            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
+            <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search inventory..."
+              className="w-full theme-input rounded-2xl py-3.5 pl-12 pr-10 text-sm font-bold border-2 border-gray-700 focus:border-emerald-500/50 transition-all"
+            />
+            {searchTerm && (
+              <button onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition-all">
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          {loading ? (
+            <div className="py-20 flex items-center justify-center">
+              <PageLoader text="Loading Inventory..." />
+            </div>
+          ) : items.length === 0 ? (
+            <div className="py-20 flex flex-col items-center justify-center space-y-3 text-center">
+              <div className="p-4 bg-gray-800 rounded-2xl"><Package size={32} className="text-gray-600" /></div>
+              <p className="text-gray-400 font-black text-sm">No inventory items found</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredItems.map((item, i) => {
+                const totalItemStock = item.stock != null ? item.stock
+                  : (item.variants && Array.isArray(item.variants) ? item.variants.reduce((s, v) => s + (v.stock || 0), 0) : 0);
+                return (
+                  <motion.div key={item.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
+                    className={`glass p-5 rounded-2xl border-2 transition-all ${totalItemStock <= 10 ? 'border-red-500/20 hover:border-red-500/40' : totalItemStock <= 50 ? 'border-yellow-500/20 hover:border-yellow-500/40' : 'theme-border hover:border-emerald-500/30'}`}>
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <h3 className="font-black theme-text-primary text-sm">{item.name}</h3>
+                        <p className="text-xs md:text-sm font-bold theme-text-muted uppercase tracking-wider">{item.category}</p>
+                      </div>
+                      <div className={`px-3 py-1 rounded-full text-xs md:text-sm font-black uppercase border ${totalItemStock <= 10 ? 'border-red-500/20 bg-red-500/5 text-red-500' : totalItemStock <= 50 ? 'border-yellow-500/20 bg-yellow-500/5 text-yellow-500' : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-500'}`}>
+                        {totalItemStock <= 10 ? 'Low' : totalItemStock <= 50 ? 'Medium' : 'In Stock'}
+                      </div>
+                    </div>
+                    <div className="flex items-end justify-between">
+                      <p className="text-2xl font-black theme-text-primary">{totalItemStock}</p>
+                      <span className="text-xs md:text-sm font-bold theme-text-muted uppercase">units</span>
+                    </div>
+                    {item.variants && Array.isArray(item.variants) && item.variants.length > 0 ? (
+                      <div className="mt-3 pt-3 border-t theme-border space-y-1.5">
+                        <div className="flex items-center justify-between text-xs theme-text-muted font-black uppercase tracking-wider pb-1">
+                          <span>Variant</span>
+                          <span>Stock</span>
+                        </div>
+                        {item.variants.filter(v => (v.stock || 0) > 0).map((v, vi) => (
+                          <div key={vi} className="flex items-center justify-between text-xs md:text-sm">
+                            <span className="theme-text-secondary font-bold">{v.color || ''} {v.size || ''}</span>
+                            <span className="theme-text-primary font-black">{v.stock || 0} <span className="theme-text-muted font-bold">units</span></span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (item.color || item.size || item.fabric ? (
+                      <p className="text-xs md:text-sm theme-text-muted font-bold mt-2">
+                        {[item.color, item.size, item.fabric].filter(Boolean).join(' • ')}
+                      </p>
+                    ) : null)}
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Management View */}
+      <div className={viewMode === 'management' ? '' : 'hidden'}>
       {/* Filters Bar - Category Buttons */}
       <div className="flex overflow-x-auto bg-gray-900 border-2 border-gray-700 rounded-2xl p-1">
         {['ALL', ...allCategories].map(cat => (
@@ -919,6 +1007,7 @@ const InventoryManagement = () => {
             </motion.div>
           ))
         ]).flat()}
+      </div>
       </div>
     {/* Modal */}
     <AnimatePresence>
