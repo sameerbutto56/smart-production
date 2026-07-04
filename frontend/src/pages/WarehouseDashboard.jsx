@@ -459,7 +459,7 @@ const WarehouseDashboard = () => {
                   </div>
                   <span className="text-xs font-bold theme-text-muted">{allocSummary.totalAllocated} total allocated</span>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
                   <div className="p-3 theme-bg-subtle rounded-xl border theme-border">
                     <p className="text-[10px] font-black theme-text-muted uppercase tracking-widest">Active Allocations</p>
                     <p className="text-xl font-black text-amber-400 mt-1">{allocSummary.activeTotal}</p>
@@ -477,6 +477,36 @@ const WarehouseDashboard = () => {
                     <p className="text-xl font-black text-blue-400 mt-1">{allocSummary.todayTotal}</p>
                   </div>
                 </div>
+                {allocationStats.length > 0 && (
+                  <div className="border-t theme-border pt-4">
+                    <h3 className="font-bold theme-text-primary text-xs uppercase tracking-wider mb-3 flex items-center space-x-2">
+                      <User size={14} className="text-amber-400" />
+                      <span>By Person</span>
+                    </h3>
+                    <div className="overflow-x-auto max-h-[250px] overflow-y-auto">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="text-[10px] font-black theme-text-muted uppercase tracking-widest border-b theme-border">
+                            <th className="pb-2 pr-4">Person</th>
+                            <th className="pb-2 pr-4">Times</th>
+                            <th className="pb-2 pr-4">Items</th>
+                            <th className="pb-2">Last</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {allocationStats.map(stat => (
+                            <tr key={stat.personName} className="border-b border-gray-800/30 text-xs">
+                              <td className="py-2 pr-4 font-bold theme-text-primary whitespace-nowrap">{stat.personName}</td>
+                              <td className="py-2 pr-4"><span className="font-black text-amber-400">{stat.timesTaken}x</span></td>
+                              <td className="py-2 pr-4"><span className="font-black text-emerald-400">{stat.totalItems}</span></td>
+                              <td className="py-2 text-[10px] theme-text-secondary">{new Date(stat.lastTaken).toLocaleDateString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Allocation History with Date Range */}
@@ -574,79 +604,17 @@ const WarehouseDashboard = () => {
                 )}
               </div>
 
-              {/* Pending Carts — Approve/Reject */}
-              {dashPendingCarts.length > 0 && (
-                <div className="glass p-4 md:p-6 rounded-2xl border-2 border-yellow-500/20">
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center space-x-3">
-                      <ShoppingCart className="text-yellow-400" size={20} />
-                      <h2 className="font-black theme-text-primary uppercase tracking-wider text-sm">Pending Carts</h2>
-                    </div>
-                    <span className="text-xs font-bold text-yellow-400">{dashPendingCarts.length} awaiting approval</span>
-                  </div>
-                  <div className="space-y-3">
-                    {dashPendingCarts.map(cart => (
-                      <div key={cart.id} className="flex items-center justify-between p-3 theme-bg-subtle rounded-xl border border-yellow-500/20 hover:border-yellow-500/30 transition-all">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-bold theme-text-primary text-xs">{cart.personName}</p>
-                          <p className="text-[10px] theme-text-muted">{cart.totalItems} products · {cart.totalQuantity} qty · {new Date(cart.createdAt).toLocaleString()}</p>
-                        </div>
-                        <div className="flex space-x-2 shrink-0 ml-4">
-                          <button onClick={() => handleCartStatus(cart.id, 'APPROVED')}
-                            className="px-3 py-1.5 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-lg text-[10px] font-black transition-all flex items-center space-x-1">
-                            <CheckCircle size={12} />
-                            <span>Approve</span>
-                          </button>
-                          <button onClick={() => handleCartStatus(cart.id, 'REJECTED')}
-                            className="px-3 py-1.5 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-lg text-[10px] font-black transition-all flex items-center space-x-1">
-                            <XCircle size={12} />
-                            <span>Reject</span>
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Allocation Summary by Person */}
-              {allocationStats.length > 0 && (
-              <div className="glass p-4 md:p-6 rounded-2xl border-2 theme-border">
-                  <h3 className="font-black theme-text-primary uppercase tracking-wider text-sm mb-6 flex items-center space-x-3">
-                    <User size={18} className="text-amber-400" />
-                    <span>Allocation Summary by Person</span>
-                  </h3>
-                  <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
-                    <table className="w-full text-left">
-                      <thead>
-                          <tr className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest border-b theme-border">
-                          <th className="pb-3 pr-4">Person</th>
-                          <th className="pb-3 pr-4">Times Taken</th>
-                          <th className="pb-3 pr-4">Total Items</th>
-                          <th className="pb-3">Last Taken</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {allocationStats.map(stat => (
-                          <tr key={stat.personName} className="border-b border-gray-800/50 text-sm">
-                            <td className="py-3 pr-4 font-bold theme-text-primary whitespace-nowrap" title={stat.personName}>{stat.personName}</td>
-                            <td className="py-3 pr-4"><span className="font-black text-amber-400">{stat.timesTaken}x</span></td>
-                            <td className="py-3 pr-4"><span className="font-black text-emerald-400">{stat.totalItems}</span></td>
-                            <td className="py-3 text-xs theme-text-secondary">{new Date(stat.lastTaken).toLocaleDateString()}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
               {/* Allocation Carts */}
               <div className="glass p-4 md:p-6 rounded-2xl border-2 theme-border">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                   <h3 className="font-black theme-text-primary uppercase tracking-wider text-sm flex items-center space-x-3">
                     <ShoppingCart size={18} className="text-amber-400" />
                     <span>Allocation Carts</span>
+                    {dashPendingCarts.length > 0 && (
+                      <span className="text-[9px] font-black px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 rounded-full border border-yellow-500/30">
+                        {dashPendingCarts.length} pending
+                      </span>
+                    )}
                   </h3>
                   <div className="flex items-center space-x-3">
                     <select value={cartsStatusFilter} onChange={(e) => { setCartsStatusFilter(e.target.value); setCartsPage(1); }}
