@@ -3,10 +3,17 @@ const cache = require('../utils/cache');
 const CACHE_KEY_PREFIX = 'pos:';
 
 const getOutletName = (req) => {
+  let name = '';
   if (req.user?.role === 'OUTLET') {
-    return req.user?.name;
+    name = req.user?.name || '';
+  } else {
+    name = req.query.outlet || req.body.outlet || 'Johar Town';
   }
-  return req.query.outlet || req.body.outlet || 'Johar Town';
+  const n = name.toLowerCase();
+  if (n.includes('johar')) return 'Johar Town';
+  if (n.includes('jail')) return 'Jail Road';
+  if (n.includes('abbottabad')) return 'Abbottabad';
+  return name;
 };
 
 const parseItemVariants = (item) => {

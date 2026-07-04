@@ -941,8 +941,8 @@ const WarehouseDashboard = () => {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {(allocProdSearch
-                      ? inventory.filter(i => i.stock > 0 && i.name.toLowerCase().includes(allocProdSearch.toLowerCase()))
-                      : inventory.filter(i => i.stock > 0)
+                      ? inventory.filter(i => i.name.toLowerCase().includes(allocProdSearch.toLowerCase()))
+                      : inventory
                     ).map((item, i) => {
                       const variants = item.variants || [];
                       const hasVariants = variants.length > 0;
@@ -1108,10 +1108,10 @@ const WarehouseDashboard = () => {
                         </motion.div>
                       );
                     })}
-                    {inventory.filter(i => i.stock > 0).length === 0 && (
+                    {inventory.length === 0 && (
                       <div className="col-span-2 text-center py-12">
                         <Package size={48} className="mx-auto text-gray-700 mb-4" />
-                        <p className="theme-text-muted font-black text-xs">No products in stock</p>
+                        <p className="theme-text-muted font-black text-xs">No products found</p>
                       </div>
                     )}
                   </div>
