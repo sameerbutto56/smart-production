@@ -363,8 +363,18 @@ const updateVariant = async (req, res) => {
     const data = {};
     if (color !== undefined) data.color = color || null;
     if (size !== undefined) data.size = size || null;
-    if (stock !== undefined) data.stock = parseInt(stock);
-    if (price !== undefined) data.price = price !== '' ? parseFloat(price) : null;
+    if (stock !== undefined) {
+      const parsedStock = parseInt(stock);
+      data.stock = isNaN(parsedStock) ? 0 : parsedStock;
+    }
+    if (price !== undefined) {
+      if (price === '' || price === null) {
+        data.price = null;
+      } else {
+        const parsedPrice = parseFloat(price);
+        data.price = isNaN(parsedPrice) ? null : parsedPrice;
+      }
+    }
 
     // Regenerate barcode if color/size changed to keep scan data consistent
     if (newColor !== existing.color || newSize !== existing.size) {
@@ -372,6 +382,7 @@ const updateVariant = async (req, res) => {
       let attempt = 0;
       while (await prisma.outletVariant.findFirst({ where: { barcode, outletName: existing.outletName, id: { not: existing.id } } })) {
         attempt++;
+        if (attempt > 100) break; // safety limit
         barcode = generateBarcode(existing.inventoryItemId, newSize, newColor, attempt);
       }
       data.barcode = barcode;
@@ -384,9 +395,11 @@ const updateVariant = async (req, res) => {
     cache.delPattern(CACHE_KEY_PREFIX);
     res.json(variant);
   } catch (error) {
+    console.error('[updateVariant] error:', error.message, error.code);
     res.status(500).json({ message: 'Failed to update variant', error: error.message });
   }
 };
+
 
 /* ─── Sales ─── */
 const createSale = async (req, res) => {
@@ -403,11 +416,13 @@ const createSale = async (req, res) => {
 
     for (const item of items) {
       if (!item.variantId) return res.status(400).json({ message: 'Each item must have a variantId' });
+      const ovWhere = { id: item.variantId };
+      if (outletName) ovWhere.outletName = outletName;
       const ov = await prisma.outletVariant.findFirst({
-        where: { id: item.variantId, outletName },
+        where: ovWhere,
         include: { inventoryItem: true }
       });
-      if (!ov) return res.status(400).json({ message: `Variant ${item.variantId} not found for outlet ${outletName}` });
+      if (!ov) return res.status(400).json({ message: `Variant ${item.variantId} not found for outlet ${outletName || 'unknown'}` });
       if (ov.stock < (item.quantity || 1)) return res.status(400).json({ message: `Insufficient stock for ${ov.inventoryItem.name} (${ov.color || ''} ${ov.size || ''}). Available: ${ov.stock}` });
       const unitPrice = item.unitPrice || ov.price || ov.inventoryItem.price || 0;
       const qty = item.quantity || 1;
