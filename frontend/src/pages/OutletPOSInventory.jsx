@@ -253,7 +253,7 @@ const OutletPOSInventory = () => {
         <div>
           <h1 className="text-2xl font-black text-white">Outlet POS Inventory <span className="text-blue-400 text-base">[{selectedOutlet}]</span></h1>
           <p className="text-sm font-bold text-gray-400">
-            {isOutlet ? 'View-only inventory (contact Store for changes)' : 'Manage all outlet inventories'}
+            {isReadOnly ? 'View-only — You are viewing another outlet' : 'Manage all outlet inventories'}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -287,10 +287,10 @@ const OutletPOSInventory = () => {
           );
         })}
       </div>
-      {isOutlet && (
+      {isReadOnly && (
         <div className="flex items-center gap-2 bg-amber-900/20 border border-amber-700/30 rounded-xl px-4 py-2">
           <Eye size={14} className="text-amber-400 shrink-0" />
-          <span className="text-[11px] font-bold text-amber-400">View only — You cannot add, edit, or modify inventory. Contact Store for changes.</span>
+          <span className="text-[11px] font-bold text-amber-400">View only — You are viewing another outlet's inventory. Switch to your outlet to make changes.</span>
         </div>
       )}
 
@@ -368,7 +368,8 @@ const OutletPOSInventory = () => {
             <div className="text-center py-12 text-gray-500 font-bold">
               <Warehouse size={40} className="mx-auto mb-3 text-gray-700" />
               <p>No products found{search ? ' matching your search' : ''}.</p>
-              <p className="text-[10px] mt-1">Click <span className="text-violet-400">Init All</span> to pre-populate all outlets with opening stock.</p>
+              {canInit && <p className="text-[10px] mt-1">Click <span className="text-violet-400">Init All</span> to pre-populate all outlets with opening stock.</p>}
+              {!canInit && <p className="text-[10px] mt-1 text-gray-600">No products in catalog yet. Contact Store to add products.</p>}
             </div>
           )}
         </div>
