@@ -296,39 +296,6 @@ export const THEMES = {
     gradient3: '#164e63',
     backgroundImage: 'radial-gradient(circle at top left, #0a3a1a, #052e16 40%), radial-gradient(circle at bottom right, #164e63, #052e16 40%)',
   },
-  sameerSpecial: {
-    id: 'sameerSpecial',
-    name: 'Sameer Special',
-    nameUrdu: 'سمیر اسپیشل',
-    icon: '✨',
-    description: 'Premium light theme — vibrant, modern, enterprise-grade',
-    colors: {
-      primary: '#f43f5e',
-      'primary-glow': 'rgba(244, 63, 94, 0.25)',
-      secondary: '#06b6d4',
-      danger: '#ef4444',
-      warning: '#f59e0b',
-      background: '#f8fafc',
-      'card-bg': 'rgba(255, 255, 255, 0.85)',
-      'card-border': 'rgba(244, 63, 94, 0.1)',
-      'card-bg-solid': '#ffffff',
-      'card-bg-hover': 'rgba(244, 63, 94, 0.04)',
-      'text-primary': '#0f172a',
-      'text-secondary': '#475569',
-      'text-muted': '#94a3b8',
-      'nav-bg': 'rgba(255, 255, 255, 0.92)',
-      'input-bg': '#ffffff',
-      'input-border': '#e2e8f0',
-      'section-title': '#f43f5e',
-      'badge-bg': 'rgba(244, 63, 94, 0.08)',
-      'glass-bg': 'rgba(255, 255, 255, 0.7)',
-      'glass-border': 'rgba(244, 63, 94, 0.1)',
-    },
-    gradient1: '#fef2f2',
-    gradient2: '#f8fafc',
-    gradient3: '#ecfdf5',
-    backgroundImage: 'radial-gradient(circle at top left, #fef2f2, #f8fafc 40%), radial-gradient(circle at bottom right, #ecfdf5, #f8fafc 40%)',
-  },
   clinicalDark: {
     id: 'clinicalDark',
     name: 'Clinical Dark',
@@ -364,4 +331,4 @@ export const THEMES = {
   },
 };
 
-export const DEFAULT_THEME = 'sameerSpecial';
+export const DEFAULT_THEME = 'luxe';

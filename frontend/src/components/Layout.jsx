@@ -117,10 +117,10 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
         <div className={`p-6 flex items-center justify-between ${isCollapsed ? 'lg:p-4 lg:justify-center' : ''}`}>
           {!isCollapsed && (
             <div className="flex flex-col">
-              <h1 className="text-xl font-black bg-gradient-to-r from-rose-500 to-cyan-500 bg-clip-text text-transparent italic" style={{ fontFamily: "'Poppins', sans-serif" }}>
-                Sameer Special
+              <h1 className="text-xl font-black bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent italic">
+                Enamels
               </h1>
-              <span className="text-xs font-black text-rose-400/60 tracking-[0.3em] uppercase">Enamels Production</span>
+              <span className="text-xs font-black text-emerald-500/50 tracking-[0.3em] uppercase">Production</span>
             </div>
           )}
           <button onClick={isCollapsed ? toggleCollapse : toggle} className={`${isCollapsed ? 'hidden lg:block' : 'lg:hidden'} text-gray-400 hover:text-white`}>
@@ -141,12 +141,12 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
               onClick={() => { if (window.innerWidth < 1024) toggle(); }}
               className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} p-3 rounded-xl transition-all duration-200 group ${
                 location.pathname === item.path 
-                  ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/30' 
-                  : 'text-slate-500 hover:bg-rose-50 hover:text-rose-500'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' 
+                  : 'text-gray-400 hover:bg-gray-800 hover:text-white'
               }`}
               title={isCollapsed ? t(item.name) : ""}
             >
-              <item.icon size={16} className={location.pathname === item.path ? 'text-white' : 'group-hover:text-rose-400'} />
+              <item.icon size={16} className={location.pathname === item.path ? 'text-white' : 'group-hover:text-blue-400'} />
               {!isCollapsed && <span className="font-bold text-xs tracking-wide">{t(item.name)}</span>}
             </Link>
           ))}
@@ -156,7 +156,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
           {!isCollapsed ? (
             <>
               <div className="flex items-center space-x-3 mb-4 px-2">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-500 to-cyan-500 flex items-center justify-center font-black text-sm shadow-inner">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-500 to-emerald-500 flex items-center justify-center font-black text-sm shadow-inner">
                   {user?.name?.charAt(0)}
                 </div>
                 <div className="flex-1 overflow-hidden">
@@ -169,32 +169,32 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
                        user?.name
                      ) : user?.name}
                   </p>
-                  <p className="text-xs md:text-sm text-slate-400 font-semibold uppercase tracking-wider">{user?.role?.replace('_', ' ')}</p>
+                  <p className="text-xs md:text-sm text-gray-500 font-black uppercase tracking-widest">{user?.role?.replace('_', ' ')}</p>
                 </div>
               </div>
               {/* Personal Theme Picker */}
               <div className="relative mb-3">
                 <button
                   onClick={() => setShowThemePicker(!showThemePicker)}
-                  className="flex items-center space-x-3 w-full p-3 text-slate-500 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all font-semibold text-xs"
+                  className="flex items-center space-x-3 w-full p-3 text-gray-400 hover:text-white hover:bg-gray-800 rounded-xl transition-all font-bold text-xs"
                 >
                   <Palette size={18} style={{ color: currentTheme.colors.primary }} />
                   <span className="flex-1 text-left">{currentTheme.name}</span>
                   <span className="text-xs opacity-50">▼</span>
                 </button>
                 {showThemePicker && (
-                  <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xl z-50 max-h-48 overflow-y-auto">
+                  <div className="absolute bottom-full left-0 right-0 mb-2 bg-gray-900 border border-gray-800 rounded-xl overflow-hidden shadow-2xl z-50 max-h-48 overflow-y-auto">
                     {Object.entries(THEMES).map(([id, theme]) => (
                       <button
                         key={id}
                         onClick={() => { changeTheme(id); setShowThemePicker(false); }}
                         className={`flex items-center space-x-3 w-full px-4 py-2.5 text-xs transition-all ${
-                          themeId === id ? 'text-rose-500 bg-rose-50 font-bold' : 'text-slate-500 hover:text-rose-500 hover:bg-rose-50'
+                          themeId === id ? 'text-white bg-blue-600/20' : 'text-gray-400 hover:text-white hover:bg-gray-800'
                         }`}
                       >
                         <span>{theme.icon}</span>
-                        <span className="font-semibold">{theme.name}</span>
-                        {themeId === id && <span className="ml-auto text-xs text-rose-400">✓</span>}
+                        <span className="font-bold">{theme.name}</span>
+                        {themeId === id && <span className="ml-auto text-xs text-blue-400">✓</span>}
                       </button>
                     ))}
                   </div>
@@ -202,7 +202,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
               </div>
               <button
                 onClick={handleLogout}
-                className="flex items-center space-x-3 w-full p-3 text-slate-400 hover:text-rose-400 hover:bg-rose-50 rounded-xl transition-all font-semibold text-xs"
+                className="flex items-center space-x-3 w-full p-3 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all font-bold text-xs"
               >
                 <LogOut size={16} />
                 <span>Logout</span>
@@ -341,7 +341,7 @@ const Layout = () => {
           <div className="flex items-center gap-4 flex-1">
             <button 
               onClick={() => setIsSidebarOpen(true)}
-              className={`${isUrdu ? 'order-last' : ''} lg:hidden p-2 text-slate-400 hover:text-rose-500 bg-white border border-slate-200 rounded-lg shadow-sm`}
+              className={`${isUrdu ? 'order-last' : ''} lg:hidden p-2 text-gray-400 hover:text-white bg-gray-800 rounded-lg`}
             >
               <Menu size={16} />
             </button>
@@ -349,7 +349,7 @@ const Layout = () => {
             {/* Search Input */}
             {user?.role && user.role !== 'MAIN_EMPLOYEE' && (
               <form onSubmit={handleGlobalSearch} className="relative group w-full max-w-md hidden sm:block">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-rose-400 transition-colors" size={16} />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-blue-500 transition-colors" size={16} />
                 <input
                   type="text"
                   placeholder="Quick Search: Enter Order Number or Customer..."
@@ -358,7 +358,7 @@ const Layout = () => {
                     setLocalSearch(e.target.value);
                     setContextSearch(e.target.value);
                   }}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-full py-2.5 pl-12 pr-4 focus:outline-none focus:border-rose-300 transition-all text-xs md:text-sm font-medium text-slate-800 shadow-sm placeholder:font-normal placeholder:tracking-normal"
+                  className="w-full bg-gray-900/50 border border-gray-800 rounded-xl py-2.5 pl-12 pr-4 focus:outline-none focus:border-blue-500/50 transition-all text-xs md:text-sm font-black uppercase tracking-widest text-white shadow-inner"
                 />
               </form>
             )}
@@ -367,8 +367,8 @@ const Layout = () => {
           <div className="flex items-center gap-3">
             <LanguageToggle />
             <div className="hidden md:flex flex-col items-end text-right">
-              <span className="text-xs md:text-sm font-bold text-slate-700 uppercase tracking-wide">{user?.role?.replace('_', ' ')}</span>
-              <span className="text-xs font-medium text-slate-400">Active Session</span>
+              <span className="text-xs md:text-sm font-black text-white uppercase tracking-widest">{user?.role?.replace('_', ' ')}</span>
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-tighter">Active Session</span>
             </div>
           </div>
         </header>
