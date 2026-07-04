@@ -643,7 +643,6 @@ const InventoryManagement = () => {
                 <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Target:</span>
                 <select value={selectedBackupOutlet} onChange={(e) => setSelectedBackupOutlet(e.target.value)}
                   className="bg-transparent text-white font-bold text-xs outline-none cursor-pointer focus:ring-0">
-                  <option value="All" className="bg-gray-900 text-white font-bold text-xs">Full (All)</option>
                   <option value="Johar Town" className="bg-gray-900 text-white font-bold text-xs">Johar Town</option>
                   <option value="Jail Road" className="bg-gray-900 text-white font-bold text-xs">Jail Road</option>
                   <option value="Abbottabad" className="bg-gray-900 text-white font-bold text-xs">Abbottabad</option>
