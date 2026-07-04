@@ -2836,7 +2836,17 @@ const getStoreDashboardOrders = async (req, res) => {
       currentStage: 'STORE',
       status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
     };
-    if (sourceFilter !== 'ALL') whereStore.source = sourceFilter;
+    if (sourceFilter !== 'ALL') {
+      if (sourceFilter === 'ONLINE') {
+        whereStore.OR = [
+          { source: { in: ['ONLINE', 'INTERNAL'] } },
+          { outletName: { contains: 'ONLINE', mode: 'insensitive' } }
+        ];
+      } else {
+        const outletFilter = sourceFilter.replace(/_/g, ' ') + ' BRANCH';
+        whereStore.outletName = outletFilter;
+      }
+    }
 
     const storeOrders = await prisma.order.findMany({
       where: whereStore,
