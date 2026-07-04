@@ -1,9 +1,5 @@
 ## Goal
-- Source-wise analytics dashboard with drill-down, filters, and visual charts.
-- Every analytics section supports filters and clickable drill-down cards.
-- Online, Jail Road, Johar Town automatically get independent analytics.
-- Future outlets automatically inherit the same analytics structure.
-- All backend queries run sequentially to avoid Vercel connection pool timeout (limit=1).
+- Complete cache-first rollout across all outlets with independent per-outlet inventory, bulk initialization, and instant tab switching.
 
 ## Constraints & Preferences
 - Delivery riders primarily use mobile devices – UI must be fully responsive with compact cards and expandable details.
@@ -99,14 +95,32 @@
 - **Batch variant auto-creation in `getPosInventory`**: Replaced per-variant `create` loop with single `createMany` call + one refetch (eliminates N+1 DB roundtrips during product creation).
 - **Extracted delivery/refund controller**: Moved `updateDeliveryStatus`, `acceptDelivery`, `getDeliveryHistory`, `refundOrder`, `getRefundQueue`, `processRefund` into `order-delivery.controller.js`. Updated `order.controller.js` to export shared helpers (`isSystemPaused`, `createAuditLog`, `calculateAndRecordRevenue`, `reverseInventoryForRefund`). Updated `order.routes.js` imports accordingly.
 
-### P1 — Cache-First Foundation (current)
-- **Centralized API client**: Migrated all 21 frontend files from raw `axios` to the centralized `api` service (`src/services/api.js`). Eliminated duplicate `sessionStorage.getItem('token')` and `Authorization` header patterns. Affected files: AllOrders, AdminDashboard, DeliveryDashboard, DeliverySheet, MyTasks, WarehouseDashboard, ProductionDashboard, UnifiedAnalytics, OutletStockRequest, History, ProgressChart, EditRequestDashboard, RefundManagement, InventoryManagement, DeletedOrders, ClientRegistration, AdminSettings, OrderCard, Layout, BiSection, AuthContext.
-- **Fixed WebSocket in production**: Rewrote `src/socket.js` — uses WebSocket only when explicitly configured (`VITE_WS_URL`) or running locally; falls back to stub on Vercel. Auth token sent on connect. Reconnection with exponential backoff (5 attempts).
-- **Event normalizer**: Created `src/utils/normalizeEvents.js` — handles varying `order-updated` payload shapes (`{order}`, `{orderId}`, partial updates, deletes) into consistent format.
-- **IndexedDB wrapper**: Created `src/utils/db.js` — `getItem`/`setItem`/`removeItem` with TTL expiry + hot in-memory cache layer for instant reads. Uses `idb-keyval` under the hood.
-- **`useCache` hook**: Created `src/hooks/useCache.js` — cache-first data fetching: hot memory → IndexedDB → API revalidation. Exposes `refresh()`, `mutate()`, `invalidate()`. Stale-while-revalidate pattern.
-- **Sync queue**: Created `src/utils/syncQueue.js` — persistent IndexedDB queue for write operations. Exports `enqueue()`, `getQueueStatus()`, `retryFailed()`. Exponential backoff (max 5 retries). Auto-processes in background.
+### P1 — Cache-First Foundation
+- **Centralized API client**: Migrated all 21 frontend files from raw `axios` to the centralized `api` service (`src/services/api.js`). Eliminated duplicate `sessionStorage.getItem('token')` and `Authorization` header patterns.
+- **Fixed WebSocket in production**: Rewrote `src/socket.js` — uses WebSocket only when explicitly configured (`VITE_WS_URL`) or running locally; falls back to stub on Vercel.
+- **Event normalizer**: Created `src/utils/normalizeEvents.js` — handles varying `order-updated` payload shapes.
+- **IndexedDB wrapper**: Created `src/utils/db.js` — `getItem`/`setItem`/`removeItem` with TTL expiry + hot in-memory cache layer.
+- **`useCache` hook**: Created `src/hooks/useCache.js` — cache-first data fetching: hot memory → IndexedDB → API revalidation. Stale-while-revalidate pattern.
+- **Sync queue**: Created `src/utils/syncQueue.js` — persistent IndexedDB queue for write operations.
 - **No backend files modified** — zero impact on inventory or production data.
+- **Build passes with 0 errors**.
+
+### Done (current session)
+- **ErrorBoundary**: Now shows actual error message in production (was dev-only).
+- **`storeLoading` ReferenceError fixed**: `WarehouseDashboard.jsx:89` — added `loading: storeLoading` to `useCache` destructure.
+- **Outlet name indicators** added to `OutletPOSInventory.jsx` — every product card shows `[outletName]` next to category.
+- **`useCache` reverted aggressive data reset**: Restored original `staleWhileRevalidate` behavior. TTL increased from 30s→2min.
+- **Backend `getPosInventory` pre-populates all 3 outlets**: Auto-creates OutletVariant records for ALL three outlets (stock=0) when any outlet tab is visited.
+- **Backend `POST /api/pos/initialize-inventory`**: Bulk init endpoint accepting `{ stockData: { "Johar Town": [...], ... } }`. Creates missing variants and/or updates stock for all 3 outlets. Clears all `pos:*` backend caches.
+- **Frontend "Init All" modal** (`OutletPOSInventory.jsx`): STORE/ADMIN-only modal showing all products with per-variant × per-outlet stock inputs. Submits to `/api/pos/initialize-inventory`.
+- **Background pre-fetch for other outlets**: `useEffect` fires parallel API calls for non-active outlets, seeding IndexedDB cache (via `setCache`) for instant tab switching.
+- **`OutletPOSInventory.jsx` fully rewritten**: Consolidated add/edit modals, init modal, outlet tabs, search/filter, per-variant stock display.
+- **Backend `cache.js`**: POS_TTL reduced from 10min→2min for fresher data.
+- **Code review fixes**:
+  - `isReadOnly` now computed as `isOutlet && selectedOutlet !== defaultOutlet` — OUTLET users get full CRUD on own outlet, read-only on others.
+  - Background pre-fetch now seeds `useCache` via `setCache()` for instant tab switching.
+  - Init All modal no longer filters out stock=0 entries — all stock values sent to backend.
+  - Add Product button restricted to STORE/ADMIN/SUPER_ADMIN only (creating products affects global catalog, not just one outlet).
 - **Build passes with 0 errors**.
 
 ## Performance Optimizations (Jun 20)
@@ -140,7 +154,10 @@
 - Advance amount replaces the old boolean `advancePaid` – `advanceAmount` is stored as a `Float` number; components now check `parseFloat(order.advanceAmount) > 0` instead of `order.advancePaid`.
 
 ## Next Steps
-- (none)
+1. Verify all 3 outlets load instantly after the first tab visit (variants pre-created by `getPosInventory`).
+2. Run initial bulk stock setup via the "Init All" modal to assign opening stock per outlet.
+3. Confirm per-outlet stock isolation: edit stock in one outlet → other outlets unchanged.
+4. Ensure build passes with 0 errors after any future changes.
 
 ## Notes
 - `useCache` stale-while-revalidate bug fixed (Jul 3): When cached IndexedDB data exists and `staleWhileRevalidate=true`, loading now immediately becomes `false` so stale data is shown while revalidating in background. Previously loading stayed `true` the entire time, causing blank screen until API responded. Also fixed bug where `loading` never became `false` on cold loads with `staleWhileRevalidate=true`.
@@ -159,15 +176,16 @@
 - **Availability status** (`availabilityStatus: 'available' | 'not_available'`) stored per-item in `productDetails`; only products marked "available" trigger inventory deduction during STORE stage completion or approval.
 - **Route validation**: `manualRouteOrder` and `requestStageCompletion` now validate destination is in `validAllStages` before routing. Invalid destinations return `"Cannot route order. Destination route X does not exist."`.
 - **WORKERS stage**: Added to `validAllStages`, `getRolesForStage` (→ `PRODUCTION` role), `validateStageTransition` (from all stages), `getStageDurations`, `AUTO_TRANSITION_STAGES`, analytics `stageOrder`. NOT in `NEXT_STAGES` (manual-only route, not auto-advance).
+- **All 3 outlets receive OutletVariant records (stock=0) on first `getPosInventory` call** to any outlet.
+- **`POST /api/pos/initialize-inventory` accepts per-outlet, per-variant stock assignments** — creates and/or updates records.
+- **`setCache` exported from `useCache.js`** — can seed both hot cache and IndexedDB from outside the hook.
+- **OUTLET role**: full CRUD on own outlet's variants, read-only on other outlets. Cannot add products or initialize inventory.
 
 ## Relevant Files
-- `frontend/src/pages/InventoryManagement.jsx`: `printBarcodeFromStore` — SVG vector barcode printing (55×33mm label, 20mm bars, viewBox scaling, JsBarcode SVG output)
-- `backend/src/controllers/outletDemand.controller.js`: `acceptDemandRequest` — fixed `outletName` propagation, barcode collision check with per-outlet `findFirst`, cache invalidation with `delPattern('pos:')`
-- `backend/src/controllers/pos.controller.js`: `createPosProduct` — `OUTLETS` array now includes `'Abbottabad'` (was missing)
-- `frontend/src/pages/OutletPOSInventory.jsx`: three-outlet tab selector, read-only cross-outlet mode (OUTLET role), full CRUD for own outlet/STORE/ADMIN
-- `frontend/src/components/OrderCard.jsx`: per-product availability toggles (STORE stage), per-product PRODUCTION/STORE rendering
-- `backend/src/controllers/order.controller.js`: deliveryCharges, paymentStatus, advanceAmount, idempotent revenue recording, deliveryType filter, per-product availability (`requestStageCompletion`, `approveStageCompletion`, `classifyOrderItems`)
-- `backend/src/controllers/editRequest.controller.js`: instructionNotes, shopifyOrderDate field mapping
-- `backend/prisma/schema.prisma`: deliveryCharges, advanceAmount, shopifyOrderDate fields
-- `frontend/src/hooks/usePolling.js`: polling hook (unchanged)
-- `AGENTS.md`: full change log
+- `backend/src/controllers/pos.controller.js`: `getPosInventory` now loops all 3 outlets for variant creation; new `initializeInventory` bulk endpoint; `generateBarcode` exported
+- `backend/src/routes/pos.routes.js`: Added `POST /initialize-inventory` route with `authorize('STORE', 'ADMIN', 'SUPER_ADMIN')`
+- `backend/src/utils/cache.js`: POS_TTL reduced 10min→2min
+- `frontend/src/pages/OutletPOSInventory.jsx`: Full rewrite — init modal, outlet labels, background pre-fetch, OUTLET CRUD on own outlet
+- `frontend/src/hooks/useCache.js`: Reverted aggressive data reset; exports `setCache` for external cache seeding
+- `frontend/src/pages/WarehouseDashboard.jsx`: Fixed `storeLoading` ReferenceError
+- `frontend/src/components/ErrorBoundary.jsx`: Error message visible in production

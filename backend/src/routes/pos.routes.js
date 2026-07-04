@@ -8,7 +8,8 @@ const {
   createReturn, getReturns,
   lookupBarcode,
   createPosProduct,
-  updateProduct
+  updateProduct,
+  initializeInventory
 } = require('../controllers/pos.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 
@@ -40,5 +41,8 @@ router.get('/returns', authenticate, getReturns);
 
 // Barcode lookup
 router.get('/barcode/:barcode', authenticate, lookupBarcode);
+
+// Bulk inventory initialization (admin only)
+router.post('/initialize-inventory', authenticate, authorize('STORE', 'ADMIN', 'SUPER_ADMIN'), initializeInventory);
 
 module.exports = router;

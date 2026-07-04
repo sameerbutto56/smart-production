@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import api from '../services/api';
-import { Package, Search, ChevronDown, ChevronUp, RefreshCw, Warehouse, Plus, X, CheckCircle2, Upload, Layers, Hash, Minus, PlusCircle, Pencil, Eye, EyeOff } from 'lucide-react';
+import { Package, Search, ChevronDown, ChevronUp, RefreshCw, Warehouse, Plus, X, CheckCircle2, Minus, PlusCircle, Pencil, Eye, EyeOff, Database } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import useCache from '../hooks/useCache';
+import useCache, { setCache } from '../hooks/useCache';
 
 const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 const ALL_OUTLETS = ['Johar Town', 'Jail Road', 'Abbottabad'];
@@ -32,12 +32,23 @@ const OutletPOSInventory = () => {
   });
 
   const isOutlet = user?.role === 'OUTLET';
-  const isReadOnly = isOutlet;
+  const canInit = user?.role === 'STORE' || user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const isReadOnly = isOutlet && selectedOutlet !== defaultOutlet;
 
   const { data: items = [], loading, refresh } = useCache(`pos:inventory:${selectedOutlet}`, {
     fetcher: () => api.get(`/api/pos/inventory?outlet=${selectedOutlet}`).then(r => r.data),
     ttl: 2 * 60 * 1000,
   });
+
+  // Pre-fetch other outlets in background and seed IndexedDB/hot cache for instant tab switching
+  useEffect(() => {
+    const otherOutlets = ALL_OUTLETS.filter(o => o !== selectedOutlet);
+    otherOutlets.forEach(o => {
+      api.get(`/api/pos/inventory?outlet=${o}`).then(async (res) => {
+        await setCache(`pos:inventory:${o}`, res.data, 2 * 60 * 1000);
+      }).catch(() => {});
+    });
+  }, [selectedOutlet]);
 
   const categories = [...new Set(items.map(i => i.category).filter(Boolean))].sort();
 
@@ -47,7 +58,6 @@ const OutletPOSInventory = () => {
     return true;
   });
 
-  /* ─── Product Form handlers ─── */
   const addVariant = () => {
     setFormData(prev => ({
       ...prev,
@@ -62,7 +72,7 @@ const OutletPOSInventory = () => {
     }));
   };
 
-  const updateVariant = (index, field, value) => {
+  const updateVariantField = (index, field, value) => {
     setFormData(prev => {
       const updated = [...prev.variants];
       updated[index] = { ...updated[index], [field]: value };
@@ -75,7 +85,6 @@ const OutletPOSInventory = () => {
     setIsModalOpen(true);
   };
 
-  /* ─── Edit Product ─── */
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', category: '', fabric: '', imageUrl: '' });
@@ -110,15 +119,7 @@ const OutletPOSInventory = () => {
 
   const handleEditAddVariant = () => {
     const newKey = `new_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    setEditVariants(prev => [...prev, {
-      _key: newKey,
-      id: null,
-      color: '',
-      size: '',
-      barcode: '',
-      stock: 0,
-      price: 0
-    }]);
+    setEditVariants(prev => [...prev, { _key: newKey, id: null, color: '', size: '', barcode: '', stock: 0, price: 0 }]);
   };
 
   const handleEditRemoveVariant = (key) => {
@@ -132,40 +133,15 @@ const OutletPOSInventory = () => {
     setEditSubmitting(true);
     try {
       await api.patch(`/api/pos/products/${editItem.id}`, editForm);
-
-      // Update existing variants
       const existing = editVariants.filter(v => v.id);
-      await Promise.all(
-        existing.map(v =>
-          api.put(`/api/pos/variants/${v.id}`, {
-            color: v.color || null,
-            size: v.size || null,
-            stock: v.stock,
-            price: v.price
-          })
-        )
-      );
-
-      // Create new variants
+      await Promise.all(existing.map(v =>
+        api.put(`/api/pos/variants/${v.id}`, { color: v.color || null, size: v.size || null, stock: v.stock, price: v.price })
+      ));
       const news = editVariants.filter(v => !v.id);
-      await Promise.all(
-        news.map(v =>
-          api.post(`/api/pos/products/${editItem.id}/variants`, {
-            color: v.color || null,
-            size: v.size || null,
-            stock: v.stock,
-            price: v.price
-          })
-        )
-      );
-
-      // Delete removed variants
-      await Promise.all(
-        removedVariantIds.map(id =>
-          api.delete(`/api/pos/variants/${id}`)
-        )
-      );
-
+      await Promise.all(news.map(v =>
+        api.post(`/api/pos/products/${editItem.id}/variants`, { color: v.color || null, size: v.size || null, stock: v.stock, price: v.price })
+      ));
+      await Promise.all(removedVariantIds.map(id => api.delete(`/api/pos/variants/${id}`)));
       toast.success('Product updated');
       setEditModalOpen(false);
       setEditItem(null);
@@ -185,8 +161,7 @@ const OutletPOSInventory = () => {
         category: formData.category,
         fabric: formData.fabric || undefined,
         imageUrl: formData.imageUrl || undefined,
-        variants: formData.variants.filter(v => v.color || v.size || v.price > 0)
-          .map(v => ({ ...v, stock: 0 /* stock always 0 in POS */ }))
+        variants: formData.variants.filter(v => v.color || v.size || v.price > 0).map(v => ({ ...v, stock: 0 }))
       };
       await api.post('/api/pos/products', payload);
       toast.success('Product added to POS catalog');
@@ -196,6 +171,79 @@ const OutletPOSInventory = () => {
       toast.error(error.response?.data?.message || 'Failed to create product');
     }
     setSubmitting(false);
+  };
+
+  /* ─── Initialize Inventory ─── */
+  const [initModalOpen, setInitModalOpen] = useState(false);
+  const [initSubmitting, setInitSubmitting] = useState(false);
+  const [initData, setInitData] = useState({});
+  const [initProducts, setInitProducts] = useState([]);
+  const [initLoading, setInitLoading] = useState(false);
+
+  const openInitModal = useCallback(async () => {
+    setInitLoading(true);
+    setInitModalOpen(true);
+    try {
+      const res = await api.get('/api/pos/inventory?outlet=Johar%20Town');
+      const products = res.data;
+      setInitProducts(products);
+      const data = {};
+      for (const p of products) {
+        const vdefs = [];
+        const seen = new Set();
+        for (const v of (p.outletVariants || [])) {
+          const key = `${v.color || ''}|${v.size || ''}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            vdefs.push({ color: v.color || '', size: v.size || '' });
+          }
+        }
+        if (vdefs.length === 0) vdefs.push({ color: '', size: '' });
+        data[p.id] = { name: p.name, variants: vdefs.map(vd => ({
+          color: vd.color, size: vd.size,
+          stocks: { 'Johar Town': 0, 'Jail Road': 0, 'Abbottabad': 0 }
+        })) };
+      }
+      setInitData(data);
+    } catch (e) {
+      toast.error('Failed to load products for initialization');
+    }
+    setInitLoading(false);
+  }, []);
+
+  const handleInitStockChange = (productId, vi, outlet, value) => {
+    setInitData(prev => {
+      const updated = { ...prev };
+      const product = { ...updated[productId], variants: [...updated[productId].variants] };
+      const variant = { ...product.variants[vi], stocks: { ...product.variants[vi].stocks } };
+      variant.stocks[outlet] = parseInt(value) || 0;
+      product.variants[vi] = variant;
+      updated[productId] = product;
+      return updated;
+    });
+  };
+
+  const handleInitSubmit = async () => {
+    setInitSubmitting(true);
+    try {
+      const stockData = {};
+      for (const outlet of ALL_OUTLETS) stockData[outlet] = [];
+      for (const [pid, product] of Object.entries(initData)) {
+        for (const v of product.variants) {
+          for (const outlet of ALL_OUTLETS) {
+            const stock = v.stocks[outlet] || 0;
+            stockData[outlet].push({ productId: pid, color: v.color || null, size: v.size || null, stock });
+          }
+        }
+      }
+      const res = await api.post('/api/pos/initialize-inventory', { stockData });
+      toast.success(`Initialized: ${res.data.summary.variantsCreated} created, ${res.data.summary.variantsUpdated} updated`);
+      setInitModalOpen(false);
+      refresh();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to initialize inventory');
+    }
+    setInitSubmitting(false);
   };
 
   return (
@@ -209,7 +257,12 @@ const OutletPOSInventory = () => {
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {!isReadOnly && (
+          {canInit && (
+            <button onClick={openInitModal} className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white font-black px-4 py-3 rounded-xl text-sm">
+              <Database size={16} />Init All
+            </button>
+          )}
+          {canInit && (
             <button onClick={handleOpenModal} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black px-4 py-3 rounded-xl text-sm">
               <PlusCircle size={16} />Add Product
             </button>
@@ -227,9 +280,7 @@ const OutletPOSInventory = () => {
           return (
             <button key={outlet} onClick={() => setSelectedOutlet(outlet)}
               className={`text-[10px] font-black px-3 py-1.5 rounded-lg whitespace-nowrap uppercase tracking-wider transition-all ${
-                isActive
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-800 text-gray-400 hover:text-white'
+                isActive ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
               }`}>
               {outlet}
             </button>
@@ -317,9 +368,72 @@ const OutletPOSInventory = () => {
             <div className="text-center py-12 text-gray-500 font-bold">
               <Warehouse size={40} className="mx-auto mb-3 text-gray-700" />
               <p>No products found{search ? ' matching your search' : ''}.</p>
-              <p className="text-[10px] mt-1">All warehouse products are automatically available. Stock arrives via approved demand requests.</p>
+              <p className="text-[10px] mt-1">Click <span className="text-violet-400">Init All</span> to pre-populate all outlets with opening stock.</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ─── Initialize Inventory Modal ─── */}
+      {initModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+          <div className="bg-gray-900 max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 rounded-[2rem] border-2 border-gray-700 shadow-[0_50px_100px_rgba(0,0,0,0.5)]">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-xl font-black text-white uppercase tracking-tighter">Initialize All Outlets</h2>
+                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Set opening stock for each outlet</p>
+              </div>
+              <button onClick={() => setInitModalOpen(false)} className="p-3 bg-gray-800 text-gray-500 hover:text-white rounded-2xl transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+
+            {initLoading ? (
+              <div className="text-center py-12"><RefreshCw className="animate-spin text-blue-400 inline" size={32} /></div>
+            ) : (
+              <div className="space-y-4">
+                <div className="text-[11px] text-gray-400 font-bold flex items-center gap-2 bg-blue-900/20 border border-blue-700/30 rounded-xl px-4 py-3">
+                  <Database size={14} className="text-blue-400 shrink-0" />
+                  Set the initial stock quantity for each product variant in each outlet. Products with stock=0 will still appear in the catalog.
+                </div>
+
+                {initProducts.map(product => {
+                  const pData = initData[product.id];
+                  if (!pData || !pData.variants.length) return null;
+                  return (
+                    <div key={product.id} className="bg-gray-800/40 rounded-xl border border-gray-700/50 p-4">
+                      <p className="font-bold text-white text-sm mb-3">{product.name} <span className="text-[10px] text-gray-500">({product.category})</span></p>
+                      {pData.variants.map((v, vi) => (
+                        <div key={`${v.color}|${v.size}`} className="grid grid-cols-5 gap-2 items-center mb-2 last:mb-0">
+                          <span className="text-[11px] font-bold text-gray-300 col-span-1">{[v.color, v.size].filter(Boolean).join(' • ') || 'Default'}</span>
+                          {ALL_OUTLETS.map(outlet => (
+                            <div key={outlet} className="flex items-center gap-1">
+                              <span className="text-[9px] text-gray-500 font-bold uppercase w-[14px]">{outlet === 'Johar Town' ? 'JT' : outlet === 'Jail Road' ? 'JR' : 'AB'}</span>
+                              <input type="number" min="0" value={v.stocks[outlet]}
+                                onChange={(e) => handleInitStockChange(product.id, vi, outlet, e.target.value)}
+                                className="w-full bg-gray-900 border border-gray-700 rounded-lg py-1.5 px-2 text-xs font-bold text-white outline-none focus:border-blue-500 text-center" />
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+                {initProducts.length === 0 && (
+                  <div className="text-center py-8 text-gray-500 font-bold">
+                    <Package size={32} className="mx-auto mb-2 text-gray-700" />
+                    <p>No products found in catalog. Add products first.</p>
+                  </div>
+                )}
+
+                <button onClick={handleInitSubmit} disabled={initSubmitting || initProducts.length === 0}
+                  className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white font-black py-4 rounded-xl transition-all flex items-center justify-center gap-3 active:scale-95">
+                  {initSubmitting ? <RefreshCw size={18} className="animate-spin" /> : <Database size={18} />}
+                  <span>{initSubmitting ? 'Initializing...' : 'Save Opening Stock for All Outlets'}</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -338,7 +452,6 @@ const OutletPOSInventory = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Name */}
               <div className="space-y-2">
                 <label className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Product Name</label>
                 <input type="text" required value={formData.name}
@@ -347,7 +460,6 @@ const OutletPOSInventory = () => {
                   placeholder="e.g. Ultra-Flex Scrub Top" />
               </div>
 
-              {/* Category + Fabric */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Category</label>
@@ -368,7 +480,6 @@ const OutletPOSInventory = () => {
                 </div>
               </div>
 
-              {/* Variants */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Variants (Color × Size × Price)</label>
@@ -382,17 +493,17 @@ const OutletPOSInventory = () => {
                     <div key={vi} className="grid grid-cols-12 gap-2 items-center bg-gray-800/50 rounded-xl p-3 border border-gray-700/50">
                       <div className="col-span-4">
                         <input type="text" value={v.color} placeholder="Color"
-                          onChange={(e) => updateVariant(vi, 'color', e.target.value)}
+                          onChange={(e) => updateVariantField(vi, 'color', e.target.value)}
                           className="w-full bg-gray-900 border border-gray-700 rounded-lg py-2.5 px-3 text-xs font-bold text-white placeholder-gray-500 outline-none focus:border-blue-500" />
                       </div>
                       <div className="col-span-3">
                         <input type="text" value={v.size} placeholder="Size"
-                          onChange={(e) => updateVariant(vi, 'size', e.target.value)}
+                          onChange={(e) => updateVariantField(vi, 'size', e.target.value)}
                           className="w-full bg-gray-900 border border-gray-700 rounded-lg py-2.5 px-3 text-xs font-bold text-white placeholder-gray-500 outline-none focus:border-blue-500" />
                       </div>
                       <div className="col-span-3">
                         <input type="number" min="0" step="0.01" value={v.price} placeholder="Price"
-                          onChange={(e) => updateVariant(vi, 'price', parseFloat(e.target.value) || 0)}
+                          onChange={(e) => updateVariantField(vi, 'price', parseFloat(e.target.value) || 0)}
                           className="w-full bg-gray-900 border border-gray-700 rounded-lg py-2.5 px-3 text-xs font-bold text-white outline-none focus:border-blue-500" />
                       </div>
                       <div className="col-span-2 flex justify-end">
@@ -411,17 +522,17 @@ const OutletPOSInventory = () => {
                 </button>
               </div>
 
-              {/* Submit */}
               <button type="submit" disabled={submitting}
                 className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black py-4 rounded-xl transition-all flex items-center justify-center gap-3 active:scale-95">
                 {submitting ? <RefreshCw size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}
                 <span>{submitting ? 'Creating...' : 'Add to POS Catalog'}</span>
               </button>
-              <p className="text-[10px] text-gray-500 text-center font-bold">Stock is always 0 &bull; Stock arrives via demand request approval workflow</p>
+              <p className="text-[10px] text-gray-500 text-center font-bold">Stock is always 0 &bull; Use <span className="text-violet-400">Init All</span> to set opening stock per outlet</p>
             </form>
           </div>
         </div>
       )}
+
       {/* ─── Edit Product Modal ─── */}
       {editModalOpen && editItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
@@ -437,7 +548,6 @@ const OutletPOSInventory = () => {
             </div>
 
             <div className="space-y-6">
-              {/* Product Details */}
               <div className="space-y-3">
                 <label className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Product Details</label>
                 <div className="space-y-2">
@@ -463,7 +573,6 @@ const OutletPOSInventory = () => {
                 </div>
               </div>
 
-              {/* Variants */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Variants (Color × Size × Price × Stock)</label>
@@ -513,7 +622,6 @@ const OutletPOSInventory = () => {
                 </button>
               </div>
 
-              {/* Save */}
               <button onClick={handleEditSave} disabled={editSubmitting}
                 className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black py-4 rounded-xl transition-all flex items-center justify-center gap-3 active:scale-95">
                 {editSubmitting ? <RefreshCw size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}

@@ -706,6 +706,69 @@ const updateProduct = async (req, res) => {
   }
 };
 
+/* ─── Bulk Initialize Inventory (one-time: ensures all outlets have variants, sets opening stock) ─── */
+const initializeInventory = async (req, res) => {
+  try {
+    const { stockData } = req.body; // { "Johar Town": [{ productId, color, size, stock }], ... }
+    if (!stockData || typeof stockData !== 'object') {
+      return res.status(400).json({ message: 'stockData object required with outlet keys' });
+    }
+    const summary = { variantsCreated: 0, variantsUpdated: 0, byOutlet: {} };
+    const allItems = await prisma.inventoryItem.findMany({ orderBy: { name: 'asc' } });
+
+    for (const outletName of OUTLETS) {
+      const outletItems = stockData[outletName] || [];
+      const itemMap = Object.fromEntries(outletItems.map(i => [`${i.productId}|${i.color || ''}|${i.size || ''}`, i]));
+      let created = 0, updated = 0;
+
+      for (const item of allItems) {
+        let variantDefs = parseItemVariants(item) || [{ color: item.color || null, size: item.size || null, stock: item.stock, price: item.price }];
+        for (const vd of variantDefs) {
+          const key = `${item.id}|${vd.color || ''}|${vd.size || ''}`;
+          const desiredStock = itemMap[key]?.stock;
+          const existing = await prisma.outletVariant.findFirst({
+            where: { inventoryItemId: item.id, outletName, color: vd.color || null, size: vd.size || null }
+          });
+          if (existing) {
+            if (desiredStock !== undefined && desiredStock !== existing.stock) {
+              await prisma.outletVariant.update({ where: { id: existing.id }, data: { stock: desiredStock } });
+              updated++;
+            }
+          } else {
+            let barcode = generateBarcode(item.id, vd.size, vd.color);
+            let attempt = 0;
+            while (await prisma.outletVariant.findFirst({ where: { barcode, outletName } })) {
+              attempt++;
+              barcode = generateBarcode(item.id, vd.size, vd.color, attempt);
+            }
+            await prisma.outletVariant.create({
+              data: {
+                inventoryItemId: item.id,
+                outletName,
+                color: vd.color || null,
+                size: vd.size || null,
+                barcode,
+                stock: desiredStock !== undefined ? desiredStock : 0,
+                price: vd.price || null,
+                isActive: true
+              }
+            });
+            created++;
+          }
+        }
+      }
+      summary.byOutlet[outletName] = { created, updated };
+      summary.variantsCreated += created;
+      summary.variantsUpdated += updated;
+    }
+
+    cache.delPattern(CACHE_KEY_PREFIX);
+    res.json({ message: 'Inventory initialized', summary });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to initialize inventory', error: error.message });
+  }
+};
+
 module.exports = {
   getPosInventory,
   getProducts,
@@ -716,5 +779,6 @@ module.exports = {
   lookupBarcode,
   createPosProduct,
   updateProduct,
-  generateBarcode
+  generateBarcode,
+  initializeInventory
 };
