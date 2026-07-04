@@ -2,6 +2,7 @@ const express = require('express');
 const {
   getPosInventory,
   getProducts,
+  getVariant,
   updateVariantStock, updateVariantPrice,
   createVariant, deleteVariant, updateVariant,
   createSale, getSales, getSalesDashboard,
@@ -24,6 +25,7 @@ router.post('/products', authenticate, createPosProduct);
 router.patch('/products/:id', authenticate, updateProduct);
 
 // Variants (outlet-specific stock/price)
+router.get('/variants/:id', authenticate, getVariant);
 router.put('/variants/:id/stock', authenticate, updateVariantStock);
 router.put('/variants/:id/price', authenticate, updateVariantPrice);
 router.put('/variants/:id', authenticate, updateVariant);

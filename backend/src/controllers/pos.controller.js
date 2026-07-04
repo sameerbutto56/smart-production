@@ -252,6 +252,19 @@ const getProducts = async (req, res) => {
 };
 
 /* ─── Variants / Stock (outlet-specific) ─── */
+const getVariant = async (req, res) => {
+  try {
+    const variant = await prisma.outletVariant.findUnique({
+      where: { id: req.params.id },
+      include: { inventoryItem: { select: { id: true, name: true, category: true } } }
+    });
+    if (!variant) return res.status(404).json({ message: 'Variant not found' });
+    res.json(variant);
+  } catch (e) {
+    res.status(500).json({ message: 'Failed to fetch variant', error: e.message });
+  }
+};
+
 const updateVariantStock = async (req, res) => {
   try {
     const { stock } = req.body;
@@ -977,6 +990,7 @@ const initializeInventory = async (req, res) => {
 module.exports = {
   getPosInventory,
   getProducts,
+  getVariant,
   updateVariantStock, updateVariantPrice,
   createVariant, deleteVariant, updateVariant,
   createSale, getSales, getSalesDashboard,
