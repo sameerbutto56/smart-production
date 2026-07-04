@@ -677,13 +677,18 @@ const exportBackup = async (req, res) => {
       outletVariants: variants
     };
 
-    // 1. Save backup to server filesystem
-    const backupDir = path.join(__dirname, '../../backups');
-    if (!fs.existsSync(backupDir)) {
-      fs.mkdirSync(backupDir, { recursive: true });
-    }
     const filename = `inventory_backup_${Date.now()}.json`;
-    fs.writeFileSync(path.join(backupDir, filename), JSON.stringify(backupData, null, 2));
+
+    // 1. Save backup to server filesystem (wrap in try-catch to tolerate read-only environments)
+    try {
+      const backupDir = path.join(__dirname, '../../backups');
+      if (!fs.existsSync(backupDir)) {
+        fs.mkdirSync(backupDir, { recursive: true });
+      }
+      fs.writeFileSync(path.join(backupDir, filename), JSON.stringify(backupData, null, 2));
+    } catch (fsError) {
+      console.warn('Warning: Local filesystem write skipped (e.g. read-only serverless env):', fsError.message);
+    }
 
     // 2. Stream to client computer for download
     res.setHeader('Content-disposition', `attachment; filename=${filename}`);
