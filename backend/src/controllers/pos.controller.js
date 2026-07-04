@@ -196,30 +196,35 @@ const createVariant = async (req, res) => {
     const storeItem = await prisma.inventoryItem.findUnique({ where: { id: productId } });
     if (!storeItem) return res.status(404).json({ message: 'Store product not found' });
 
-    let barcode = generateBarcode(productId, size, color);
     let attempt = 0;
-    while (await prisma.outletInventory.findFirst({ where: { barcode, outletName: outlet } })) {
-      attempt++;
-      barcode = generateBarcode(productId, size, color, attempt);
-    }
-
-    const item = await prisma.outletInventory.create({
-      data: {
-        outletName: outlet || 'Johar Town',
-        name: storeItem.name,
-        category: storeItem.category,
-        color: color || null,
-        size: size || null,
-        fabric: storeItem.fabric,
-        barcode,
-        stock: parseInt(stock || 0),
-        price: price !== null && price !== '' ? parseFloat(price) : null,
-        imageUrl: storeItem.imageUrl,
-        metadata: JSON.stringify({ sourceStoreItemId: storeItem.id })
+    while (true) {
+      const barcode = generateBarcode(productId, size, color, attempt);
+      try {
+        const item = await prisma.outletInventory.create({
+          data: {
+            outletName: outlet || 'Johar Town',
+            name: storeItem.name,
+            category: storeItem.category,
+            color: color || null,
+            size: size || null,
+            fabric: storeItem.fabric,
+            barcode,
+            stock: parseInt(stock || 0),
+            price: price !== null && price !== '' ? parseFloat(price) : null,
+            imageUrl: storeItem.imageUrl,
+            metadata: JSON.stringify({ sourceStoreItemId: storeItem.id })
+          }
+        });
+        cache.delPattern(CACHE_KEY_PREFIX);
+        return res.json(item);
+      } catch (createErr) {
+        if (createErr.code === 'P2002' && attempt < 100) {
+          attempt++;
+          continue;
+        }
+        throw createErr;
       }
-    });
-    cache.delPattern(CACHE_KEY_PREFIX);
-    res.json(item);
+    }
   } catch (error) {
     res.status(500).json({ message: 'Failed to create inventory item', error: error.message });
   }

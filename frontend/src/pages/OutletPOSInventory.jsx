@@ -268,14 +268,14 @@ const OutletPOSInventory = () => {
         setSubmitting(false);
         return;
       }
-      await Promise.all(validVariants.map(v =>
-        api.post(`/api/pos/products/${formData.selectedProductId}/variants?outlet=${encodeURIComponent(selectedOutlet)}`, {
+      for (const v of validVariants) {
+        await api.post(`/api/pos/products/${formData.selectedProductId}/variants?outlet=${encodeURIComponent(selectedOutlet)}`, {
           color: v.color || null,
           size: v.size || null,
           stock: v.stock || 0,
           price: v.price || 0
-        })
-      ));
+        });
+      }
       toast.success('Product added to outlet inventory');
       setIsModalOpen(false);
       refresh();
