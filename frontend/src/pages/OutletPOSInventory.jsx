@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import api from '../services/api';
-import { Package, Search, ChevronDown, ChevronUp, RefreshCw, Warehouse, Plus, X, CheckCircle2, Minus, PlusCircle, Pencil, Eye, EyeOff, Database, Download, UploadCloud } from 'lucide-react';
+import { Package, Search, ChevronDown, ChevronUp, RefreshCw, Warehouse, Plus, X, CheckCircle2, Minus, PlusCircle, Pencil, Trash2, Eye, EyeOff, Database, Download, UploadCloud } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import useCache, { setCache } from '../hooks/useCache';
@@ -285,6 +285,17 @@ const OutletPOSInventory = () => {
     setSubmitting(false);
   };
 
+  const handleDeleteVariant = async (item) => {
+    if (!window.confirm(`Delete variant "${item.name}" (${[item.color, item.size].filter(Boolean).join(' • ') || 'Default'})?`)) return;
+    try {
+      await api.delete(`/api/pos/variants/${item.id}`);
+      toast.success('Variant deleted');
+      refresh();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to delete variant');
+    }
+  };
+
   const [customCategory, setCustomCategory] = useState('');
   const [editCustomCategory, setEditCustomCategory] = useState('');
 
@@ -522,10 +533,16 @@ const OutletPOSInventory = () => {
                         <span className="font-bold text-emerald-400">{v.price ? formatCurrency(v.price) : '-'}</span>
                         <span className={`font-bold ml-2 ${v.stock > 0 ? 'text-emerald-400' : 'text-red-400'}`}>{v.stock}</span>
                         {!isReadOnly && (
-                          <button onClick={(e) => { e.stopPropagation(); handleOpenEdit(v); }}
-                            className="p-1.5 bg-gray-700 hover:bg-blue-600 rounded-lg transition-colors">
-                            <Pencil size={11} className="text-white" />
-                          </button>
+                          <>
+                            <button onClick={(e) => { e.stopPropagation(); handleOpenEdit(v); }}
+                              className="p-1.5 bg-gray-700 hover:bg-blue-600 rounded-lg transition-colors">
+                              <Pencil size={11} className="text-white" />
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); handleDeleteVariant(v); }}
+                              className="p-1.5 bg-gray-700 hover:bg-red-600 rounded-lg transition-colors">
+                              <Trash2 size={11} className="text-white" />
+                            </button>
+                          </>
                         )}
                       </div>
                     ))}
