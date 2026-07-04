@@ -138,6 +138,8 @@ const WarehouseDashboard = () => {
       const params = { page: cartsPage, limit: 50 };
       if (cartsSearch.trim()) params.personName = cartsSearch.trim();
       if (cartsStatusFilter) params.status = cartsStatusFilter;
+      if (cartsDateFrom) params.from = cartsDateFrom;
+      if (cartsDateTo) params.to = cartsDateTo;
       const res = await api.get('/api/inventory/carts', { params });
       setCarts(res.data.records);
       setCartsTotal(res.data.total);
@@ -293,6 +295,12 @@ const WarehouseDashboard = () => {
   const [dashShowAll, setDashShowAll] = useState(false);
   const [dashPendingCarts, setDashPendingCarts] = useState([]);
   const [dashCartsLoading, setDashCartsLoading] = useState(false);
+  // Allocation Summary filter
+  const [sumSearch, setSumSearch] = useState('');
+  const [sumFiltered, setSumFiltered] = useState([]);
+  // Allocation Carts date filter
+  const [cartsDateFrom, setCartsDateFrom] = useState('');
+  const [cartsDateTo, setCartsDateTo] = useState('');
 
   const fetchDashboardAllocations = async (from, to, search) => {
     setDashAllocLoading(true);
@@ -477,36 +485,50 @@ const WarehouseDashboard = () => {
                     <p className="text-xl font-black text-blue-400 mt-1">{allocSummary.todayTotal}</p>
                   </div>
                 </div>
-                {allocationStats.length > 0 && (
-                  <div className="border-t theme-border pt-4">
-                    <h3 className="font-bold theme-text-primary text-xs uppercase tracking-wider mb-3 flex items-center space-x-2">
+                <div className="border-t theme-border pt-4">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-3">
+                    <h3 className="font-bold theme-text-primary text-xs uppercase tracking-wider flex items-center space-x-2">
                       <User size={14} className="text-amber-400" />
                       <span>By Person</span>
                     </h3>
-                    <div className="overflow-x-auto max-h-[250px] overflow-y-auto">
-                      <table className="w-full text-left">
-                        <thead>
-                          <tr className="text-[10px] font-black theme-text-muted uppercase tracking-widest border-b theme-border">
-                            <th className="pb-2 pr-4">Person</th>
-                            <th className="pb-2 pr-4">Times</th>
-                            <th className="pb-2 pr-4">Items</th>
-                            <th className="pb-2">Last</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {allocationStats.map(stat => (
-                            <tr key={stat.personName} className="border-b border-gray-800/30 text-xs">
-                              <td className="py-2 pr-4 font-bold theme-text-primary whitespace-nowrap">{stat.personName}</td>
-                              <td className="py-2 pr-4"><span className="font-black text-amber-400">{stat.timesTaken}x</span></td>
-                              <td className="py-2 pr-4"><span className="font-black text-emerald-400">{stat.totalItems}</span></td>
-                              <td className="py-2 text-[10px] theme-text-secondary">{new Date(stat.lastTaken).toLocaleDateString()}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <div className="flex items-center space-x-2">
+                      <input type="text" placeholder="Search by person..." value={sumSearch}
+                        onChange={(e) => setSumSearch(e.target.value)}
+                        className="theme-input rounded-lg py-1.5 px-3 text-xs font-medium outline-none focus:border-amber-500 w-36" />
                     </div>
                   </div>
-                )}
+                  {(() => {
+                    const filtered = sumSearch
+                      ? allocationStats.filter(s => s.personName?.toLowerCase().includes(sumSearch.toLowerCase()))
+                      : allocationStats;
+                    return filtered.length > 0 ? (
+                      <div className="overflow-x-auto max-h-[250px] overflow-y-auto">
+                        <table className="w-full text-left">
+                          <thead>
+                            <tr className="text-[10px] font-black theme-text-muted uppercase tracking-widest border-b theme-border">
+                              <th className="pb-2 pr-4">Person</th>
+                              <th className="pb-2 pr-4">Times</th>
+                              <th className="pb-2 pr-4">Items</th>
+                              <th className="pb-2">Last</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filtered.map(stat => (
+                              <tr key={stat.personName} className="border-b border-gray-800/30 text-xs">
+                                <td className="py-2 pr-4 font-bold theme-text-primary whitespace-nowrap">{stat.personName}</td>
+                                <td className="py-2 pr-4"><span className="font-black text-amber-400">{stat.timesTaken}x</span></td>
+                                <td className="py-2 pr-4"><span className="font-black text-emerald-400">{stat.totalItems}</span></td>
+                                <td className="py-2 text-[10px] theme-text-secondary">{new Date(stat.lastTaken).toLocaleDateString()}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-xs theme-text-muted text-center py-4">No matching persons found</p>
+                    );
+                  })()}
+                </div>
               </div>
 
               {/* Allocation History with Date Range */}
@@ -616,22 +638,36 @@ const WarehouseDashboard = () => {
                       </span>
                     )}
                   </h3>
-                  <div className="flex items-center space-x-3">
-                    <select value={cartsStatusFilter} onChange={(e) => { setCartsStatusFilter(e.target.value); setCartsPage(1); }}
-                      className="theme-bg-subtle border-2 theme-border rounded-xl py-2 px-3 text-xs font-medium text-white outline-none">
-                      <option value="">All Status</option>
-                      <option value="PENDING">Pending</option>
-                      <option value="APPROVED">Approved</option>
-                      <option value="REJECTED">Rejected</option>
-                    </select>
-                    <input type="text" placeholder="Search by person name..." value={cartsSearch}
-                      onChange={(e) => setCartsSearch(e.target.value)}
-                      className="theme-input rounded-xl py-2 px-4 focus:border-amber-500 outline-none text-xs font-medium theme-text-secondary w-48"
-                    />
-                    <button onClick={() => { setCartsPage(1); fetchCarts(); }}
-                      className="bg-gray-800 hover:bg-gray-700 text-gray-300 font-black py-2 px-4 rounded-xl transition-all text-xs active:scale-95 border border-gray-700">
-                      <Search size={14} className="inline" />
-                    </button>
+                  <div className="flex flex-col md:flex-row items-end md:items-center gap-2">
+                    <div className="flex items-center space-x-2">
+                      <select value={cartsStatusFilter} onChange={(e) => { setCartsStatusFilter(e.target.value); setCartsPage(1); }}
+                        className="theme-bg-subtle border-2 theme-border rounded-xl py-2 px-3 text-xs font-medium text-white outline-none">
+                        <option value="">All Status</option>
+                        <option value="PENDING">Pending</option>
+                        <option value="APPROVED">Approved</option>
+                        <option value="REJECTED">Rejected</option>
+                      </select>
+                      <input type="text" placeholder="Search..." value={cartsSearch}
+                        onChange={(e) => setCartsSearch(e.target.value)}
+                        className="theme-input rounded-xl py-2 px-4 focus:border-amber-500 outline-none text-xs font-medium theme-text-secondary w-36"
+                      />
+                      <button onClick={() => { setCartsPage(1); fetchCarts(); }}
+                        className="bg-gray-800 hover:bg-gray-700 text-gray-300 font-black py-2 px-3 rounded-xl transition-all text-xs active:scale-95 border border-gray-700">
+                        <Search size={14} />
+                      </button>
+                    </div>
+                    <div className="flex items-center space-x-1.5">
+                      <button onClick={() => { const d = new Date(); setCartsDateFrom(d.toISOString().split('T')[0]); setCartsDateTo(d.toISOString().split('T')[0]); }}
+                        className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-wider transition-all ${!cartsDateFrom && !cartsDateTo ? 'bg-amber-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>Daily</button>
+                      <button onClick={() => { const d = new Date(); const w = new Date(d); w.setDate(w.getDate() - 7); setCartsDateFrom(w.toISOString().split('T')[0]); setCartsDateTo(d.toISOString().split('T')[0]); }}
+                        className="px-2 py-1 rounded text-[9px] font-black uppercase tracking-wider bg-gray-800 text-gray-400 hover:bg-gray-700 transition-all">Weekly</button>
+                      <button onClick={() => { const d = new Date(); const m = new Date(d); m.setMonth(m.getMonth() - 1); setCartsDateFrom(m.toISOString().split('T')[0]); setCartsDateTo(d.toISOString().split('T')[0]); }}
+                        className="px-2 py-1 rounded text-[9px] font-black uppercase tracking-wider bg-gray-800 text-gray-400 hover:bg-gray-700 transition-all">Monthly</button>
+                      <button onClick={() => { setCartsPage(1); fetchCarts(); }}
+                        className="bg-amber-600 hover:bg-amber-500 text-white font-black py-1.5 px-3 rounded-lg text-xs transition-all active:scale-95">Filter</button>
+                      <button onClick={() => { setCartsDateFrom(''); setCartsDateTo(''); setCartsSearch(''); setCartsStatusFilter(''); setCartsPage(1); fetchCarts(); }}
+                        className="bg-gray-800 hover:bg-gray-700 text-gray-400 font-black py-1.5 px-3 rounded-lg text-xs transition-all active:scale-95 border border-gray-700">Reset</button>
+                    </div>
                   </div>
                 </div>
                 {cartsLoading ? (
