@@ -23,6 +23,8 @@ const OutletPOSInventory = () => {
   const [activeCategory, setActiveCategory] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [customCategory, setCustomCategory] = useState('');
+  const [editCustomCategory, setEditCustomCategory] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     category: 'SCRUBS',
@@ -82,6 +84,7 @@ const OutletPOSInventory = () => {
 
   const handleOpenModal = () => {
     setFormData({ name: '', category: 'SCRUBS', fabric: '', imageUrl: '', variants: [{ color: '', size: '', price: 0 }] });
+    setCustomCategory('');
     setIsModalOpen(true);
   };
 
@@ -94,12 +97,15 @@ const OutletPOSInventory = () => {
 
   const handleOpenEdit = (item) => {
     setEditItem(item);
+    const standardCategories = ['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS', 'FABRIC', 'SHOES', 'CLOGS', 'LABCOAT', 'ACCESSORIES'];
+    const isCustom = !standardCategories.includes(item.category);
     setEditForm({
       name: item.name || '',
-      category: item.category || '',
+      category: isCustom ? 'CUSTOM' : (item.category || ''),
       fabric: item.fabric || '',
       imageUrl: item.imageUrl || ''
     });
+    setEditCustomCategory(isCustom ? item.category : '');
     setEditVariants((item.outletVariants || []).map(v => ({
       _key: v.id,
       id: v.id,
@@ -132,7 +138,13 @@ const OutletPOSInventory = () => {
     if (!editItem) return;
     setEditSubmitting(true);
     try {
-      await api.patch(`/api/pos/products/${editItem.id}`, editForm);
+      const resolvedCategory = editForm.category === 'CUSTOM' ? editCustomCategory.trim().toUpperCase() : editForm.category;
+      if (!resolvedCategory) {
+        toast.error('Please specify a category');
+        setEditSubmitting(false);
+        return;
+      }
+      await api.patch(`/api/pos/products/${editItem.id}`, { ...editForm, category: resolvedCategory });
       const existing = editVariants.filter(v => v.id);
       await Promise.all(existing.map(v =>
         api.put(`/api/pos/variants/${v.id}`, { color: v.color || null, size: v.size || null, stock: v.stock, price: v.price })
@@ -156,9 +168,15 @@ const OutletPOSInventory = () => {
     e.preventDefault();
     setSubmitting(true);
     try {
+      const resolvedCategory = formData.category === 'CUSTOM' ? customCategory.trim().toUpperCase() : formData.category;
+      if (!resolvedCategory) {
+        toast.error('Please specify a category');
+        setSubmitting(false);
+        return;
+      }
       const payload = {
         name: formData.name,
-        category: formData.category,
+        category: resolvedCategory,
         fabric: formData.fabric || undefined,
         imageUrl: formData.imageUrl || undefined,
         variants: formData.variants.filter(v => v.color || v.size || v.price > 0).map(v => ({ ...v, stock: 0 }))
@@ -470,7 +488,14 @@ const OutletPOSInventory = () => {
                     {['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS', 'FABRIC', 'SHOES', 'CLOGS', 'LABCOAT', 'ACCESSORIES'].map(c => (
                       <option key={c} value={c}>{c}</option>
                     ))}
+                    <option value="CUSTOM">— ENTER CUSTOM CATEGORY —</option>
                   </select>
+                  {formData.category === 'CUSTOM' && (
+                    <input type="text" required value={customCategory}
+                      onChange={(e) => setCustomCategory(e.target.value)}
+                      className="w-full bg-gray-850 border border-blue-500/50 rounded-xl py-3 px-4 font-bold text-white placeholder-gray-500 outline-none mt-1 uppercase"
+                      placeholder="Type custom category (e.g. APRON)" />
+                  )}
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Fabric</label>
@@ -557,13 +582,22 @@ const OutletPOSInventory = () => {
                     className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl py-3 px-4 font-bold text-white placeholder-gray-500 outline-none focus:border-blue-500 transition-all"
                     placeholder="Product Name" />
                   <div className="grid grid-cols-2 gap-2">
-                    <select value={editForm.category}
-                      onChange={(e) => setEditForm({...editForm, category: e.target.value})}
-                      className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl py-3 px-3 font-bold text-white uppercase outline-none focus:border-blue-500 transition-all">
-                      {['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS', 'FABRIC', 'SHOES', 'CLOGS', 'LABCOAT', 'ACCESSORIES'].map(c => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
+                    <div className="flex flex-col">
+                      <select value={editForm.category}
+                        onChange={(e) => setEditForm({...editForm, category: e.target.value})}
+                        className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl py-3 px-3 font-bold text-white uppercase outline-none focus:border-blue-500 transition-all">
+                        {['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS', 'FABRIC', 'SHOES', 'CLOGS', 'LABCOAT', 'ACCESSORIES'].map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                        <option value="CUSTOM">— ENTER CUSTOM CATEGORY —</option>
+                      </select>
+                      {editForm.category === 'CUSTOM' && (
+                        <input type="text" required value={editCustomCategory}
+                          onChange={(e) => setEditCustomCategory(e.target.value)}
+                          className="w-full bg-gray-850 border border-blue-500/50 rounded-xl py-2 px-3 font-bold text-white placeholder-gray-500 outline-none mt-1 text-xs uppercase"
+                          placeholder="Type custom category" />
+                      )}
+                    </div>
                     <input type="text" value={editForm.fabric} placeholder="Fabric"
                       onChange={(e) => setEditForm({...editForm, fabric: e.target.value})}
                       className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl py-3 px-3 font-bold text-white placeholder-gray-500 outline-none focus:border-blue-500 transition-all" />

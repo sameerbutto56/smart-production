@@ -324,13 +324,46 @@ const deleteVariant = async (req, res) => {
 
 const updateVariant = async (req, res) => {
   try {
-    const outlet = getOutletName(req);
     const { color, size, stock, price } = req.body;
+    const existing = await prisma.outletVariant.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ message: 'Variant not found' });
+
+    const newColor = color !== undefined ? (color || null) : existing.color;
+    const newSize = size !== undefined ? (size || null) : existing.size;
+
+    // If color or size changed, check for duplicate color/size combo in this outlet
+    if (newColor !== existing.color || newSize !== existing.size) {
+      const duplicate = await prisma.outletVariant.findFirst({
+        where: {
+          inventoryItemId: existing.inventoryItemId,
+          outletName: existing.outletName,
+          color: newColor,
+          size: newSize,
+          id: { not: existing.id }
+        }
+      });
+      if (duplicate) {
+        return res.status(400).json({ message: `A variant with color "${newColor || 'Standard'}" and size "${newSize || 'Standard'}" already exists in ${existing.outletName}.` });
+      }
+    }
+
     const data = {};
     if (color !== undefined) data.color = color || null;
     if (size !== undefined) data.size = size || null;
     if (stock !== undefined) data.stock = parseInt(stock);
     if (price !== undefined) data.price = price !== '' ? parseFloat(price) : null;
+
+    // Regenerate barcode if color/size changed to keep scan data consistent
+    if (newColor !== existing.color || newSize !== existing.size) {
+      let barcode = generateBarcode(existing.inventoryItemId, newSize, newColor);
+      let attempt = 0;
+      while (await prisma.outletVariant.findFirst({ where: { barcode, outletName: existing.outletName, id: { not: existing.id } } })) {
+        attempt++;
+        barcode = generateBarcode(existing.inventoryItemId, newSize, newColor, attempt);
+      }
+      data.barcode = barcode;
+    }
+
     const variant = await prisma.outletVariant.update({
       where: { id: req.params.id },
       data

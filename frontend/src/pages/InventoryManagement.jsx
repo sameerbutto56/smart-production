@@ -46,6 +46,7 @@ const InventoryManagement = () => {
   const [editingItem, setEditingItem] = useState(null);
   const [expandedItems, setExpandedItems] = useState({});
   const VARIANTS_PREVIEW = 3;
+  const [customCategory, setCustomCategory] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     category: 'SCRUBS',
@@ -132,18 +133,22 @@ const InventoryManagement = () => {
   const handleOpenModal = (item = null) => {
     if (item) {
       setEditingItem(item);
+      const standardCategories = ['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS', 'FABRIC', 'SHOES', 'CLOGS', 'LABCOAT'];
+      const isCustomCat = !standardCategories.includes(item.category);
       setFormData({
         name: item.name,
-        category: item.category,
+        category: isCustomCat ? 'CUSTOM' : item.category,
         fabric: item.fabric || '',
         imageUrl: item.imageUrl || '',
         variants: (item.variants && Array.isArray(item.variants) && item.variants.length > 0)
           ? item.variants.map(v => ({ ...v }))
           : [{ color: item.color || '', size: item.size || '', stock: item.stock || 0, price: item.price || 0 }]
       });
+      setCustomCategory(isCustomCat ? item.category : '');
     } else {
       setEditingItem(null);
       setFormData({ name: '', category: 'SCRUBS', fabric: '', imageUrl: '', variants: [{ color: '', size: '', stock: 0, price: 0 }] });
+      setCustomCategory('');
     }
     setIsModalOpen(true);
   };
@@ -151,9 +156,14 @@ const InventoryManagement = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      const resolvedCategory = formData.category === 'CUSTOM' ? customCategory.trim().toUpperCase() : formData.category;
+      if (!resolvedCategory) {
+        alert('Please select or specify a category.');
+        return;
+      }
       const payload = {
         name: formData.name,
-        category: formData.category,
+        category: resolvedCategory,
         fabric: formData.fabric,
         imageUrl: formData.imageUrl,
         variants: formData.variants.filter(v => v.color || v.size || parseInt(v.stock) > 0)
@@ -787,10 +797,24 @@ const InventoryManagement = () => {
                         className="w-full theme-input rounded-[1.25rem] py-4 px-6 font-bold uppercase appearance-none cursor-pointer"
                       >
                         <option value="">— Select Category —</option>
-                        {['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS', 'FABRIC', 'SHOES', 'CLOGS', 'LABCOAT', ...uniqueCategories.filter(c => !['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS', 'FABRIC', 'SHOES', 'CLOGS', 'LABCOAT'].includes(c))].map(cat => (
+                        {['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS', 'FABRIC', 'SHOES', 'CLOGS', 'LABCOAT'].map(cat => (
                           <option key={cat} value={cat}>{cat}</option>
                         ))}
+                        {uniqueCategories.filter(c => !['SCRUBS', 'COAT', 'MASK', 'SOCKS', 'CAPS', 'FABRIC', 'SHOES', 'CLOGS', 'LABCOAT'].includes(c)).map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                        <option value="CUSTOM">— ENTER CUSTOM CATEGORY —</option>
                       </select>
+                      {formData.category === 'CUSTOM' && (
+                        <input
+                          type="text"
+                          required
+                          value={customCategory}
+                          onChange={(e) => setCustomCategory(e.target.value)}
+                          className="w-full theme-input rounded-[1.25rem] py-4 px-6 shadow-inner font-bold uppercase mt-2 border-2 border-emerald-500/30"
+                          placeholder="Type custom category name (e.g. TOWEL)"
+                        />
+                      )}
                     </div>
                     <div className="space-y-4">
                       <div className="flex items-center space-x-3 mb-1">
