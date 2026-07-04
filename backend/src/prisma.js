@@ -6,7 +6,7 @@ const globalForPrisma = global;
 const dbUrl = process.env.DATABASE_URL || '';
 const limitedUrl = dbUrl.includes('connection_limit')
   ? dbUrl
-  : dbUrl + (dbUrl.includes('?') ? '&' : '?') + 'connection_limit=3';
+  : dbUrl + (dbUrl.includes('?') ? '&' : '?') + 'connection_limit=2';
 
 const prisma = globalForPrisma.prisma || new PrismaClient({
   datasources: { db: { url: limitedUrl } },
