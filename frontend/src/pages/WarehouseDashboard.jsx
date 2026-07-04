@@ -366,17 +366,15 @@ const WarehouseDashboard = () => {
                 </div>
               )}
 
+              {/* Full Inventory Management */}
+              <InventoryManagement />
+
             </div>
           )}
 
 
 
 
-
-          {/* Inventory Tab */}
-          {activeTab === 'inventory' && (
-            <InventoryManagement />
-          )}
 
           {/* Production Inventory Tab - Category Wise */}
           {activeTab === 'production' && (
