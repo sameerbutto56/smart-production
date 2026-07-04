@@ -15,10 +15,11 @@ import OrderCard from '../components/OrderCard';
 import toast from 'react-hot-toast';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 import { usePolling } from '../hooks/usePolling';
+import InventoryManagement from './InventoryManagement';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
-const TABS = ['dashboard', 'inventory', 'production', 'allocation', 'demands'];
+const TABS = ['dashboard', 'production', 'allocation', 'demands'];
 const COLORS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899'];
 const CATEGORIES = ['CAPS', 'SHIRTS', 'JACKETS', 'PANTS', 'ACCESSORIES', 'GENERAL'];
 
@@ -72,7 +73,7 @@ const WarehouseDashboard = () => {
 
   // Cache-first: inventory tab
   const { data: inventory = [], loading, refresh: refreshInventory } = useCache(
-    activeTab === 'dashboard' || activeTab === 'allocation' || activeTab === 'inventory' ? 'warehouse:inventory' : null,
+    activeTab === 'dashboard' || activeTab === 'allocation' ? 'warehouse:inventory' : null,
     { fetcher: () => api.get('/api/inventory').then(r => r.data), ttl: 60 * 1000 }
   );
   // Cache-first: production tab
@@ -241,7 +242,7 @@ const WarehouseDashboard = () => {
     return () => document.removeEventListener('visibilitychange', handler);
   }, []);
   const refreshActiveTab = () => {
-    if (activeTab === 'dashboard' || activeTab === 'allocation' || activeTab === 'inventory') refreshInventory();
+    if (activeTab === 'dashboard' || activeTab === 'allocation') refreshInventory();
     else if (activeTab === 'production') refreshProduction();
 
   };
@@ -302,7 +303,6 @@ const WarehouseDashboard = () => {
             }`}
           >
                 {tab === 'dashboard' && <><BarChart3 size={14} className="inline mr-2" />Dashboard</>}
-                {tab === 'inventory' && <><Package size={14} className="inline mr-2" />Inventory</>}
                 {tab === 'production' && <><Factory size={14} className="inline mr-2" />Production Inventory</>}
                 {tab === 'allocation' && <><Gift size={14} className="inline mr-2" />Allocation</>}
                 {tab === 'demands' && <><ShoppingCart size={14} className="inline mr-2" />Demands {demandStats.pending > 0 && <span className="ml-1 bg-red-500 text-white text-xs md:text-sm px-1.5 py-0.5 rounded-full">{demandStats.pending}</span>}</>}
@@ -375,65 +375,7 @@ const WarehouseDashboard = () => {
 
           {/* Inventory Tab */}
           {activeTab === 'inventory' && (
-            <div className="space-y-4 md:space-y-6">
-              <div className="flex justify-between items-center">
-                <h2 className="font-black theme-text-primary text-lg uppercase tracking-wider">Warehouse Stock</h2>
-                <div className="flex items-center space-x-4">
-                  <input type="text" placeholder="Search inventory..." value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="theme-input rounded-xl py-2 px-4 focus:outline-none focus:border-amber-500 transition-all text-xs font-medium theme-text-secondary w-48"
-                  />
-                  <a href="/inventory" className="bg-amber-600 hover:bg-amber-500 text-white font-black py-2.5 px-5 rounded-xl transition-all flex items-center space-x-2 text-xs uppercase tracking-wider active:scale-95">
-                    <PlusCircle size={16} />
-                    <span>Manage Inventory</span>
-                  </a>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredInventory.map((item, i) => (
-                  <motion.div key={item.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
-                    className={`glass p-5 rounded-2xl border-2 transition-all ${
-                      item.stock <= 10 ? 'border-red-500/20 hover:border-red-500/40' : item.stock <= 50 ? 'border-yellow-500/20 hover:border-yellow-500/40' : 'theme-border hover:border-emerald-500/30'
-                    }`}>
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <h3 className="font-black theme-text-primary text-sm">{item.name}</h3>
-                        <p className="text-xs md:text-sm font-bold theme-text-muted uppercase tracking-wider">{item.category}</p>
-                      </div>
-                      <div className={`px-3 py-1 rounded-full text-xs md:text-sm font-black uppercase border ${
-                        item.stock <= 10 ? 'border-red-500/20 bg-red-500/5 text-red-500' :
-                        item.stock <= 50 ? 'border-yellow-500/20 bg-yellow-500/5 text-yellow-500' :
-                        'border-emerald-500/20 bg-emerald-500/5 text-emerald-500'
-                      }`}>
-                        {item.stock <= 10 ? 'Low' : item.stock <= 50 ? 'Medium' : 'In Stock'}
-                      </div>
-                    </div>
-                    <div className="flex items-end justify-between">
-                      <p className="text-2xl font-black theme-text-primary">{item.stock}</p>
-                      <span className="text-xs md:text-sm font-bold theme-text-muted uppercase">units</span>
-                    </div>
-                    {item.variants && Array.isArray(item.variants) && item.variants.length > 0 ? (
-                      <div className="mt-3 pt-3 border-t theme-border space-y-1.5">
-                        <div className="flex items-center justify-between text-xs theme-text-muted font-black uppercase tracking-wider pb-1">
-                          <span>Variant</span>
-                          <span>Stock</span>
-                        </div>
-                        {item.variants.filter(v => (v.stock || 0) > 0).map((v, vi) => (
-                          <div key={vi} className="flex items-center justify-between text-xs md:text-sm">
-                            <span className="theme-text-secondary font-bold">{v.color || ''} {v.size || ''}</span>
-                            <span className="theme-text-primary font-black">{v.stock || 0} <span className="theme-text-muted font-bold">units</span></span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (item.color || item.size || item.fabric ? (
-                      <p className="text-xs md:text-sm theme-text-muted font-bold mt-2">
-                        {[item.color, item.size, item.fabric].filter(Boolean).join(' • ')}
-                      </p>
-                    ) : null)}
-                  </motion.div>
-                ))}
-              </div>
-            </div>
+            <InventoryManagement />
           )}
 
           {/* Production Inventory Tab - Category Wise */}
