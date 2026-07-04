@@ -9,3 +9,6 @@ build/
 backend/.env
 
 .vercel
+backend/backups/
+backend/err.log
+backend/out.log
