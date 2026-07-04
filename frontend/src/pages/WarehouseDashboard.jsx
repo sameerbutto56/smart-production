@@ -19,7 +19,7 @@ import InventoryManagement from './InventoryManagement';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
-const TABS = ['dashboard', 'production', 'allocation', 'demands'];
+const TABS = ['dashboard', 'inventory', 'production', 'allocation', 'demands'];
 const COLORS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899'];
 const CATEGORIES = ['CAPS', 'SHIRTS', 'JACKETS', 'PANTS', 'ACCESSORIES', 'GENERAL'];
 
@@ -303,6 +303,7 @@ const WarehouseDashboard = () => {
             }`}
           >
                 {tab === 'dashboard' && <><BarChart3 size={14} className="inline mr-2" />Dashboard</>}
+                {tab === 'inventory' && <><Package size={14} className="inline mr-2" />Inventory</>}
                 {tab === 'production' && <><Factory size={14} className="inline mr-2" />Production Inventory</>}
                 {tab === 'allocation' && <><Gift size={14} className="inline mr-2" />Allocation</>}
                 {tab === 'demands' && <><ShoppingCart size={14} className="inline mr-2" />Demands {demandStats.pending > 0 && <span className="ml-1 bg-red-500 text-white text-xs md:text-sm px-1.5 py-0.5 rounded-full">{demandStats.pending}</span>}</>}
@@ -366,12 +367,13 @@ const WarehouseDashboard = () => {
                 </div>
               )}
 
-              {/* Full Inventory Management */}
-              <InventoryManagement />
-
             </div>
           )}
 
+          {/* Inventory Tab */}
+          {activeTab === 'inventory' && (
+            <InventoryManagement />
+          )}
 
 
 
