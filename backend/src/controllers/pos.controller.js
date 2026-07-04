@@ -2,7 +2,12 @@ const prisma = require('../prisma');
 const cache = require('../utils/cache');
 const CACHE_KEY_PREFIX = 'pos:';
 
-const getOutletName = (req) => req.query.outlet || (req.user?.role === 'OUTLET' ? req.user?.name : null);
+const getOutletName = (req) => {
+  if (req.user?.role === 'OUTLET') {
+    return req.user?.name;
+  }
+  return req.query.outlet || req.body.outlet || 'Johar Town';
+};
 
 const parseItemVariants = (item) => {
   const raw = typeof item.variants === 'string' ? JSON.parse(item.variants) : item.variants;
@@ -381,7 +386,7 @@ const createSale = async (req, res) => {
     const { items, customerName, alterationCharges, extraCharges, discountPercent, discountFixed, paymentMethod, receiptNumber: manualReceipt } = req.body;
     if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'At least one item is required' });
 
-    const outletName = req.user?.name || 'Outlet';
+    const outletName = getOutletName(req);
     const receiptNumber = manualReceipt || generateReceiptNumber();
     let subtotal = 0;
     let totalAlt = parseFloat(alterationCharges || 0);

@@ -238,4 +238,111 @@ const getSourceOrders = async (req, res) => {
   }
 };
 
-module.exports = { getSources, getSourceAnalytics, getSourceOrders, getUnifiedAnalytics: getSourceAnalytics };
+const exportAnalyticsExcel = async (req, res) => {
+  try {
+    const sourceId = req.query.source || 'all';
+    const where = buildFilters(req.query, sourceId);
+
+    // Fetch matching orders
+    const orders = await prisma.order.findMany({
+      where,
+      select: {
+        orderNumber: true,
+        customerName: true,
+        customerPhone: true,
+        city: true,
+        type: true,
+        quantity: true,
+        status: true,
+        currentStage: true,
+        paymentStatus: true,
+        paymentMethod: true,
+        totalPrice: true,
+        advanceAmount: true,
+        deliveryCharges: true,
+        refundStatus: true,
+        source: true,
+        outletName: true,
+        createdAt: true
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Compute basic analytics
+    const stats = await computeAnalytics(where);
+
+    // Sheet 1: Summary / Overview
+    const summaryRows = [
+      { Metric: 'Total Orders', Value: stats.summary.totalOrders },
+      { Metric: 'Delivered Orders', Value: stats.summary.deliveredOrders },
+      { Metric: 'Returned Orders', Value: stats.summary.returnedOrders },
+      { Metric: 'Pending Orders', Value: stats.summary.pendingOrders },
+      { Metric: 'Total Revenue (₨)', Value: stats.financials.totalRevenue },
+      { Metric: 'COD Revenue (₨)', Value: stats.financials.codRevenue },
+      { Metric: 'Online Revenue (₨)', Value: stats.financials.onlineRevenue },
+      { Metric: 'Prepaid Revenue (₨)', Value: stats.financials.prepaidRevenue },
+      { Metric: 'Total Refunded (₨)', Value: stats.financials.totalRefunded },
+      { Metric: 'Net Revenue (₨)', Value: stats.financials.netRevenue }
+    ];
+
+    // Sheet 2: Orders List
+    const orderRows = orders.map(o => ({
+      'Order Number': o.orderNumber || '',
+      'Customer Name': o.customerName || '',
+      'Customer Phone': o.customerPhone || '',
+      'City': o.city || '',
+      'Type': o.type || '',
+      'Quantity': o.quantity,
+      'Status': o.status || '',
+      'Current Stage': o.currentStage || '',
+      'Payment Status': o.paymentStatus || '',
+      'Payment Method': o.paymentMethod || '',
+      'Total Price (₨)': o.totalPrice || 0,
+      'Advance Amount (₨)': o.advanceAmount || 0,
+      'Delivery Charges (₨)': o.deliveryCharges || 0,
+      'Refund Status': o.refundStatus || '',
+      'Source': o.source || '',
+      'Outlet Name': o.outletName || '',
+      'Created At': o.createdAt ? new Date(o.createdAt).toISOString() : ''
+    }));
+
+    // Sheet 3: Branch Performance Comparison
+    const branchPerformance = [];
+    const branches = ['Johar Town', 'Jail Road', 'Abbottabad'];
+    for (const b of branches) {
+      const bWhere = { ...where, outletName: { contains: b, mode: 'insensitive' } };
+      const bStats = await computeAnalytics(bWhere);
+      branchPerformance.push({
+        'Branch Name': b,
+        'Total Orders': bStats.summary.totalOrders,
+        'Completed Orders': bStats.summary.deliveredOrders,
+        'Returned Orders': bStats.summary.returnedOrders,
+        'Total Revenue (₨)': bStats.financials.totalRevenue,
+        'Total Refunded (₨)': bStats.financials.totalRefunded,
+        'Net Revenue (₨)': bStats.financials.netRevenue
+      });
+    }
+
+    const XLSX = require('xlsx');
+    const wb = XLSX.utils.book_new();
+    const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
+    const wsOrders = XLSX.utils.json_to_sheet(orderRows);
+    const wsBranch = XLSX.utils.json_to_sheet(branchPerformance);
+
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Overview');
+    XLSX.utils.book_append_sheet(wb, wsOrders, 'Orders Report');
+    XLSX.utils.book_append_sheet(wb, wsBranch, 'Branch Performance');
+
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const filename = `analytics_report_${Date.now()}.xlsx`;
+
+    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buf);
+  } catch (error) {
+    console.error('ANALYTICS EXPORT ERROR:', error);
+    res.status(500).json({ message: 'Failed to export analytics report', error: error.message });
+  }
+};
+
+module.exports = { getSources, getSourceAnalytics, getSourceOrders, getUnifiedAnalytics: getSourceAnalytics, exportAnalyticsExcel };

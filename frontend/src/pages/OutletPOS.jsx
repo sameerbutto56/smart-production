@@ -17,19 +17,32 @@ const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 
 const OutletPOS = () => {
   const { user } = useAuth();
+  const defaultOutlet = (() => {
+    if (user?.role !== 'OUTLET') return 'Johar Town';
+    const n = (user?.name || '').toLowerCase();
+    if (n.includes('jail')) return 'Jail Road';
+    if (n.includes('abbottabad')) return 'Abbottabad';
+    return 'Johar Town';
+  })();
+  const [selectedOutlet, setSelectedOutlet] = useState(defaultOutlet);
+
   const [dashboardRange, setDashboardRange] = useState('all');
   const [dashboardDateFrom, setDashboardDateFrom] = useState('');
   const [dashboardDateTo, setDashboardDateTo] = useState('');
 
-  const dashboardKey = `pos:dashboard:${dashboardRange}:${dashboardDateFrom}:${dashboardDateTo}`;
+  const productsKey = `pos:products:${selectedOutlet}`;
+  const dashboardKey = `pos:dashboard:${selectedOutlet}:${dashboardRange}:${dashboardDateFrom}:${dashboardDateTo}`;
+  const salesKey = `pos:sales:${selectedOutlet}`;
+  const returnsKey = `pos:returns:${selectedOutlet}`;
 
-  const { data: products = [], loading: productsLoading, refresh: refreshProducts } = useCache('pos:products', {
-    fetcher: () => api.get('/api/pos/products').then(r => r.data),
+  const { data: products = [], loading: productsLoading, refresh: refreshProducts } = useCache(productsKey, {
+    fetcher: () => api.get(`/api/pos/products?outlet=${selectedOutlet}`).then(r => r.data),
     ttl: 5 * 60 * 1000,
   });
   const { data: dashboard = null, loading: dashboardLoading, refresh: refreshDashboard } = useCache(dashboardKey, {
     fetcher: () => api.get('/api/pos/sales/dashboard', {
       params: {
+        outlet: selectedOutlet,
         range: dashboardRange,
         dateFrom: dashboardDateFrom || undefined,
         dateTo: dashboardDateTo || undefined
@@ -37,12 +50,12 @@ const OutletPOS = () => {
     }).then(r => r.data),
     ttl: 30000,
   });
-  const { data: sales = [], loading: salesLoading, refresh: refreshSales } = useCache('pos:sales', {
-    fetcher: () => api.get('/api/pos/sales').then(r => r.data),
+  const { data: sales = [], loading: salesLoading, refresh: refreshSales } = useCache(salesKey, {
+    fetcher: () => api.get(`/api/pos/sales?outlet=${selectedOutlet}`).then(r => r.data),
     ttl: 5 * 60 * 1000,
   });
-  const { data: returns = [], loading: returnsLoading, refresh: refreshReturns } = useCache('pos:returns', {
-    fetcher: () => api.get('/api/pos/returns').then(r => r.data),
+  const { data: returns = [], loading: returnsLoading, refresh: refreshReturns } = useCache(returnsKey, {
+    fetcher: () => api.get(`/api/pos/returns?outlet=${selectedOutlet}`).then(r => r.data),
     ttl: 5 * 60 * 1000,
   });
 
@@ -91,10 +104,15 @@ const OutletPOS = () => {
 
   // Socket listener for inventory updates — invalidate products cache
   useEffect(() => {
-    const handleInventoryUpdate = debounce(() => { invalidateKey('pos:products'); }, 500);
+    const handleInventoryUpdate = debounce(() => {
+      invalidateKey(`pos:products:${selectedOutlet}`);
+      invalidateKey(`pos:dashboard:${selectedOutlet}:${dashboardRange}:${dashboardDateFrom}:${dashboardDateTo}`);
+      invalidateKey(`pos:sales:${selectedOutlet}`);
+      invalidateKey(`pos:returns:${selectedOutlet}`);
+    }, 500);
     socket.on('inventory-updated', handleInventoryUpdate);
     return () => { socket.off('inventory-updated', handleInventoryUpdate); };
-  }, []);
+  }, [selectedOutlet, dashboardRange, dashboardDateFrom, dashboardDateTo]);
 
   const categories = useMemo(() => {
     const cats = [...new Set(products.map(p => p.category).filter(Boolean))];
@@ -226,11 +244,12 @@ const OutletPOS = () => {
       discountPercent: discountPct,
       discountFixed: discountFixed,
       paymentMethod,
-      receiptNumber: orderNumber || undefined
+      receiptNumber: orderNumber || undefined,
+      outlet: selectedOutlet
     };
     setCheckoutLoading(true);
     try {
-      const res = await api.post('/api/pos/sales', payload);
+      const res = await api.post(`/api/pos/sales?outlet=${selectedOutlet}`, payload);
       setLastSale(res.data);
       setShowCheckout(true);
       setCart([]);
@@ -249,7 +268,7 @@ const OutletPOS = () => {
       await enqueue('sale', 'create', payload);
     }
     setCheckoutLoading(false);
-  }, [cart, customerName, altCharges, discountPct, discountFixed, paymentMethod, orderNumber, refreshProducts, refreshDashboard, refreshSales, refreshReturns]);
+  }, [cart, customerName, altCharges, discountPct, discountFixed, paymentMethod, orderNumber, selectedOutlet, refreshProducts, refreshDashboard, refreshSales, refreshReturns]);
 
   /* ─── Receipt Print ─── */
   const printReceipt = (sale) => {
@@ -298,7 +317,7 @@ const OutletPOS = () => {
     const qty = prompt('Return quantity:');
     if (!qty || parseInt(qty) < 1) return;
     try {
-      await api.post('/api/pos/returns', { variantId, quantity: parseInt(qty), reason: 'Customer return' });
+      await api.post(`/api/pos/returns?outlet=${selectedOutlet}`, { variantId, quantity: parseInt(qty), reason: 'Customer return' });
       toast.success('Return processed, stock updated');
       refreshProducts();
       refreshDashboard();
@@ -343,7 +362,7 @@ const OutletPOS = () => {
     setReturnLoading(true);
     try {
       for (const item of returnCart) {
-        await api.post('/api/pos/returns', { variantId: item.variantId, quantity: item.qty, reason: returnReason });
+        await api.post(`/api/pos/returns?outlet=${selectedOutlet}`, { variantId: item.variantId, quantity: item.qty, reason: returnReason });
       }
       toast.success(`${returnCart.reduce((s, i) => s + i.qty, 0)} item(s) returned successfully`);
       setReturnCart([]);
@@ -524,7 +543,7 @@ const OutletPOS = () => {
               Sales & Performance Dashboard
             </h1>
             <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-0.5">
-              Outlet: {dashboard?.outletName || 'Johar Town'}
+              Outlet: {selectedOutlet}
             </p>
           </div>
           <button onClick={() => setTab('pos')} className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center gap-1.5 self-start">
@@ -736,7 +755,16 @@ const OutletPOS = () => {
         <button onClick={() => setTab('pos')} className={`text-xs font-bold px-3 py-2 rounded-xl ${tab === 'pos' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}><ShoppingCart size={14} className="inline mr-1" />POS</button>
         <button onClick={() => setTab('dashboard')} className={`text-xs font-bold px-3 py-2 rounded-xl ${tab === 'dashboard' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}><BarChart3 size={14} className="inline mr-1" />Dashboard</button>
         <button onClick={() => setTab('returns')} className={`text-xs font-bold px-3 py-2 rounded-xl ${tab === 'returns' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}><RotateCcw size={14} className="inline mr-1" />Returns</button>
-        <button onClick={() => { invalidateKey('pos:products'); invalidateKey('pos:dashboard'); invalidateKey('pos:sales'); invalidateKey('pos:returns'); }} className="text-xs font-bold px-2 py-2 rounded-xl bg-gray-800 text-gray-400 hover:text-white" title="Refresh data"><RefreshCw size={14} className={`inline ${productsLoading ? 'animate-spin' : ''}`} /></button>
+        <button onClick={() => {
+          invalidateKey(productsKey);
+          invalidateKey(dashboardKey);
+          invalidateKey(salesKey);
+          invalidateKey(returnsKey);
+          refreshProducts();
+          refreshDashboard();
+          refreshSales();
+          refreshReturns();
+        }} className="text-xs font-bold px-2 py-2 rounded-xl bg-gray-800 text-gray-400 hover:text-white" title="Refresh data"><RefreshCw size={14} className={`inline ${productsLoading ? 'animate-spin' : ''}`} /></button>
         <div className="relative flex-1 max-w-md">
           <Barcode size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input ref={barcodeRef} value={barcodeInput} onChange={e => setBarcodeInput(e.target.value)} placeholder="Scan barcode..."
@@ -754,6 +782,24 @@ const OutletPOS = () => {
           </select>
         </div>
       </div>
+
+      {/* POS Branch Selector Tabs (Admin only) */}
+      {user?.role !== 'OUTLET' && (
+        <div className="flex gap-1.5 px-4 py-2 bg-gray-950 border-b border-gray-800 overflow-x-auto flex-shrink-0">
+          <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center mr-2">POS Branch:</span>
+          {['Johar Town', 'Jail Road', 'Abbottabad'].map(outlet => {
+            const isActive = outlet === selectedOutlet;
+            return (
+              <button key={outlet} onClick={() => setSelectedOutlet(outlet)}
+                className={`text-[9px] font-black px-3.5 py-1.5 rounded-lg uppercase tracking-wider transition-all ${
+                  isActive ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
+                }`}>
+                {outlet}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div className="flex flex-1 overflow-hidden">
         {/* Product Grid */}

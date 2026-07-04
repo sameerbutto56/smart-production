@@ -667,17 +667,65 @@ const path = require('path');
 
 const exportBackup = async (req, res) => {
   try {
-    const items = await prisma.inventoryItem.findMany();
-    const variants = await prisma.outletVariant.findMany();
-    
+    const { outlet } = req.query; // e.g. "Johar Town"
+
+    let items;
+    let variants;
+    let posSales = [];
+    const posSaleItems = [];
+    let posReturns = [];
+    let clients = [];
+    let transfers = [];
+    let orders = [];
+
+    if (outlet) {
+      // Branch-specific backup
+      variants = await prisma.outletVariant.findMany({ where: { outletName: outlet } });
+      const itemIds = [...new Set(variants.map(v => v.inventoryItemId))];
+      items = await prisma.inventoryItem.findMany({ where: { id: { in: itemIds } } });
+      
+      posSales = await prisma.posSale.findMany({ where: { outletName: outlet }, include: { items: true } });
+      posSales.forEach(sale => {
+        if (sale.items) posSaleItems.push(...sale.items);
+      });
+      posReturns = await prisma.posReturn.findMany({ where: { outletName: outlet } });
+      clients = await prisma.client.findMany({ where: { outletName: outlet } });
+      transfers = await prisma.outletTransfer.findMany({
+        where: { OR: [{ fromOutlet: outlet }, { toOutlet: outlet }] },
+        include: { items: true }
+      });
+      orders = await prisma.order.findMany({ where: { outletName: outlet } });
+    } else {
+      // Legacy/Full backup
+      items = await prisma.inventoryItem.findMany();
+      variants = await prisma.outletVariant.findMany();
+      posSales = await prisma.posSale.findMany({ include: { items: true } });
+      posSales.forEach(sale => {
+        if (sale.items) posSaleItems.push(...sale.items);
+      });
+      posReturns = await prisma.posReturn.findMany();
+      clients = await prisma.client.findMany();
+      transfers = await prisma.outletTransfer.findMany({ include: { items: true } });
+      orders = await prisma.order.findMany();
+    }
+
     const backupData = {
-      version: '1.0',
+      version: '1.1',
       timestamp: new Date().toISOString(),
+      outletName: outlet || null,
       inventoryItems: items,
-      outletVariants: variants
+      outletVariants: variants,
+      posSales,
+      posSaleItems,
+      posReturns,
+      clients,
+      transfers,
+      orders
     };
 
-    const filename = `inventory_backup_${Date.now()}.json`;
+    const filename = outlet 
+      ? `inventory_backup_${outlet.replace(/\s+/g, '_')}_${Date.now()}.json`
+      : `inventory_backup_full_${Date.now()}.json`;
 
     // 1. Save backup to server filesystem (wrap in try-catch to tolerate read-only environments)
     try {
@@ -710,54 +758,304 @@ const importBackup = async (req, res) => {
       return res.status(400).json({ message: 'Invalid backup file structure' });
     }
 
-    const { inventoryItems, outletVariants } = backupData;
+    const { 
+      outletName: backupOutlet,
+      inventoryItems = [], 
+      outletVariants = [],
+      posSales = [],
+      posSaleItems = [],
+      posReturns = [],
+      clients = [],
+      transfers = [],
+      orders = []
+    } = backupData;
+
+    // Use query parameter or backup file outlet name
+    const outlet = req.query.outlet || backupOutlet;
 
     await prisma.$transaction(async (tx) => {
-      // Clear existing records
-      await tx.posReturn.deleteMany();
-      await tx.posSaleItem.deleteMany();
-      await tx.posSale.deleteMany();
-      await tx.outletVariant.deleteMany();
-      await tx.inventoryItem.deleteMany();
+      if (outlet) {
+        // --- Branch-Specific Isolation Restore ---
+        // 1. Clear target branch specific records
+        const targetSaleIds = (await tx.posSale.findMany({ where: { outletName: outlet }, select: { id: true } })).map(s => s.id);
+        await tx.posReturn.deleteMany({ where: { outletName: outlet } });
+        await tx.posSaleItem.deleteMany({ where: { saleId: { in: targetSaleIds } } });
+        await tx.posSale.deleteMany({ where: { outletName: outlet } });
+        await tx.outletVariant.deleteMany({ where: { outletName: outlet } });
+        await tx.client.deleteMany({ where: { outletName: outlet } });
+        await tx.order.deleteMany({ where: { outletName: outlet } });
+        
+        const transferIds = (await tx.outletTransfer.findMany({
+          where: { OR: [{ fromOutlet: outlet }, { toOutlet: outlet }] },
+          select: { id: true }
+        })).map(t => t.id);
+        await tx.outletTransferItem.deleteMany({ where: { transferId: { in: transferIds } } });
+        await tx.outletTransfer.deleteMany({ where: { id: { in: transferIds } } });
 
-      // Restore items
-      for (const item of inventoryItems) {
-        await tx.inventoryItem.create({
-          data: {
-            id: item.id,
-            name: item.name,
-            category: item.category,
-            color: item.color,
-            size: item.size,
-            fabric: item.fabric,
-            stock: item.stock,
-            price: item.price,
-            imageUrl: item.imageUrl,
-            metadata: item.metadata,
-            variants: item.variants,
-            createdAt: new Date(item.createdAt),
-            updatedAt: new Date(item.updatedAt)
+        // 2. Restore main items (upsert them to avoid duplicate ID errors if items exist in another branch)
+        for (const item of inventoryItems) {
+          const exists = await tx.inventoryItem.findUnique({ where: { id: item.id } });
+          if (!exists) {
+            await tx.inventoryItem.create({
+              data: {
+                id: item.id,
+                name: item.name,
+                category: item.category,
+                color: item.color,
+                size: item.size,
+                fabric: item.fabric,
+                stock: item.stock,
+                price: item.price,
+                imageUrl: item.imageUrl,
+                metadata: item.metadata,
+                variants: item.variants,
+                createdAt: new Date(item.createdAt),
+                updatedAt: new Date(item.updatedAt)
+              }
+            });
           }
-        });
-      }
+        }
 
-      // Restore outlet variants
-      for (const v of outletVariants) {
-        await tx.outletVariant.create({
-          data: {
-            id: v.id,
-            inventoryItemId: v.inventoryItemId,
-            outletName: v.outletName,
-            color: v.color,
-            size: v.size,
-            barcode: v.barcode,
-            stock: v.stock,
-            price: v.price,
-            isActive: v.isActive,
-            createdAt: new Date(v.createdAt),
-            updatedAt: new Date(v.updatedAt)
+        // 3. Restore branch variants
+        for (const v of outletVariants) {
+          await tx.outletVariant.create({
+            data: {
+              id: v.id,
+              inventoryItemId: v.inventoryItemId,
+              outletName: v.outletName,
+              color: v.color,
+              size: v.size,
+              barcode: v.barcode,
+              stock: v.stock,
+              price: v.price,
+              isActive: v.isActive,
+              createdAt: new Date(v.createdAt),
+              updatedAt: new Date(v.updatedAt)
+            }
+          });
+        }
+
+        // 4. Restore sales & returns & clients & orders & transfers
+        for (const s of posSales) {
+          await tx.posSale.create({
+            data: {
+              id: s.id,
+              receiptNumber: s.receiptNumber,
+              outletName: s.outletName,
+              cashierName: s.cashierName,
+              customerName: s.customerName,
+              subtotal: s.subtotal,
+              alterationCharges: s.alterationCharges,
+              extraCharges: s.extraCharges,
+              discountPercent: s.discountPercent,
+              discountAmount: s.discountAmount,
+              grandTotal: s.grandTotal,
+              paymentMethod: s.paymentMethod,
+              createdAt: new Date(s.createdAt),
+              updatedAt: new Date(s.updatedAt)
+            }
+          });
+        }
+        for (const si of posSaleItems) {
+          await tx.posSaleItem.create({
+            data: {
+              id: si.id,
+              saleId: si.saleId,
+              outletVariantId: si.outletVariantId,
+              productName: si.productName,
+              size: si.size,
+              color: si.color,
+              quantity: si.quantity,
+              unitPrice: si.unitPrice,
+              alterationCharges: si.alterationCharges,
+              lineTotal: si.lineTotal
+            }
+          });
+        }
+        for (const r of posReturns) {
+          await tx.posReturn.create({
+            data: {
+              id: r.id,
+              saleId: r.saleId,
+              outletVariantId: r.outletVariantId,
+              outletName: r.outletName,
+              reason: r.reason,
+              quantity: r.quantity,
+              refundAmount: r.refundAmount,
+              createdAt: new Date(r.createdAt)
+            }
+          });
+        }
+        for (const c of clients) {
+          await tx.client.create({
+            data: {
+              id: c.id,
+              name: c.name,
+              gender: c.gender,
+              phone: c.phone,
+              additionalPhones: c.additionalPhones,
+              permanentAddress: c.permanentAddress,
+              deliveryAddresses: c.deliveryAddresses,
+              measurementChart: c.measurementChart,
+              sizeDetails: c.sizeDetails,
+              outletName: c.outletName,
+              createdById: c.createdById,
+              isActive: c.isActive,
+              createdAt: new Date(c.createdAt),
+              updatedAt: new Date(c.updatedAt)
+            }
+          });
+        }
+        for (const t of transfers) {
+          await tx.outletTransfer.create({
+            data: {
+              id: t.id,
+              transferNumber: t.transferNumber,
+              fromOutlet: t.fromOutlet,
+              toOutlet: t.toOutlet,
+              status: t.status,
+              totalItems: t.totalItems,
+              pickupMethod: t.pickupMethod,
+              notes: t.notes,
+              requestedById: t.requestedById,
+              requestedByName: t.requestedByName,
+              approvedById: t.approvedById,
+              approvedAt: t.approvedAt ? new Date(t.approvedAt) : null,
+              completedById: t.completedById,
+              completedAt: t.completedAt ? new Date(t.completedAt) : null,
+              createdAt: new Date(t.createdAt),
+              updatedAt: new Date(t.updatedAt)
+            }
+          });
+          if (t.items && Array.isArray(t.items)) {
+            for (const ti of t.items) {
+              await tx.outletTransferItem.create({
+                data: {
+                  id: ti.id,
+                  transferId: ti.transferId,
+                  outletVariantId: ti.outletVariantId,
+                  productName: ti.productName,
+                  color: ti.color,
+                  size: ti.size,
+                  barcode: ti.barcode,
+                  quantity: ti.quantity,
+                  unitPrice: ti.unitPrice
+                }
+              });
+            }
           }
-        });
+        }
+        for (const o of orders) {
+          await tx.order.create({
+            data: {
+              id: o.id,
+              orderNumber: o.orderNumber,
+              shopifyOrderId: o.shopifyOrderId,
+              customerName: o.customerName,
+              customerPhone: o.customerPhone,
+              address: o.address,
+              city: o.city,
+              createdById: o.createdById,
+              type: o.type,
+              urgent: o.urgent,
+              priority: o.priority,
+              quantity: o.quantity,
+              logoDesign: o.logoDesign,
+              logoName: o.logoName,
+              customization: o.customization,
+              productDetails: o.productDetails,
+              sizeData: o.sizeData,
+              currentStage: o.currentStage,
+              status: o.status,
+              deliveryMethod: o.deliveryMethod,
+              advancePaid: o.advancePaid,
+              advanceAmount: o.advanceAmount,
+              productImage: o.productImage,
+              source: o.source,
+              outletName: o.outletName,
+              createdAt: new Date(o.createdAt),
+              updatedAt: new Date(o.updatedAt),
+              paymentDeadline: o.paymentDeadline ? new Date(o.paymentDeadline) : null,
+              paymentStatus: o.paymentStatus,
+              paymentMethod: o.paymentMethod,
+              customizationPrice: o.customizationPrice,
+              deliveryCharges: o.deliveryCharges,
+              totalPrice: o.totalPrice,
+              productionDeadline: o.productionDeadline ? new Date(o.productionDeadline) : null,
+              trackingNumber: o.trackingNumber,
+              courierDetails: o.courierDetails,
+              dispatchStatus: o.dispatchStatus,
+              deliveryType: o.deliveryType,
+              deliveredAt: o.deliveredAt ? new Date(o.deliveredAt) : null,
+              returnedAt: o.returnedAt ? new Date(o.returnedAt) : null,
+              refundStatus: o.refundStatus,
+              refundReason: o.refundReason,
+              refundNote: o.refundNote,
+              refundedAt: o.refundedAt ? new Date(o.refundedAt) : null,
+              refundedById: o.refundedById,
+              storeRequested: o.storeRequested,
+              storeRequestedAt: o.storeRequestedAt ? new Date(o.storeRequestedAt) : null,
+              storeAcceptedAt: o.storeAcceptedAt ? new Date(o.storeAcceptedAt) : null,
+              instructionNotes: o.instructionNotes,
+              shopifyOrderDate: o.shopifyOrderDate ? new Date(o.shopifyOrderDate) : null,
+              riderAcceptedAt: o.riderAcceptedAt ? new Date(o.riderAcceptedAt) : null,
+              noResponseCount: o.noResponseCount,
+              nextDeliveryDate: o.nextDeliveryDate ? new Date(o.nextDeliveryDate) : null,
+              lastDeliveryAttempt: o.lastDeliveryAttempt ? new Date(o.lastDeliveryAttempt) : null,
+              productCost: o.productCost,
+              logoCharges: o.logoCharges,
+              namePrintingCharges: o.namePrintingCharges,
+              productionCost: o.productionCost,
+              grossProfit: o.grossProfit,
+              netProfit: o.netProfit
+            }
+          });
+        }
+      } else {
+        // --- Full Legacy Restore ---
+        await tx.posReturn.deleteMany();
+        await tx.posSaleItem.deleteMany();
+        await tx.posSale.deleteMany();
+        await tx.outletVariant.deleteMany();
+        await tx.inventoryItem.deleteMany();
+
+        for (const item of inventoryItems) {
+          await tx.inventoryItem.create({
+            data: {
+              id: item.id,
+              name: item.name,
+              category: item.category,
+              color: item.color,
+              size: item.size,
+              fabric: item.fabric,
+              stock: item.stock,
+              price: item.price,
+              imageUrl: item.imageUrl,
+              metadata: item.metadata,
+              variants: item.variants,
+              createdAt: new Date(item.createdAt),
+              updatedAt: new Date(item.updatedAt)
+            }
+          });
+        }
+
+        for (const v of outletVariants) {
+          await tx.outletVariant.create({
+            data: {
+              id: v.id,
+              inventoryItemId: v.inventoryItemId,
+              outletName: v.outletName,
+              color: v.color,
+              size: v.size,
+              barcode: v.barcode,
+              stock: v.stock,
+              price: v.price,
+              isActive: v.isActive,
+              createdAt: new Date(v.createdAt),
+              updatedAt: new Date(v.updatedAt)
+            }
+          });
+        }
       }
     });
 
@@ -765,7 +1063,11 @@ const importBackup = async (req, res) => {
     const cache = require('../utils/cache');
     cache.delPattern(cacheKeyPrefix);
 
-    res.json({ message: 'Backup imported successfully', itemsImported: inventoryItems.length, variantsImported: outletVariants.length });
+    res.json({ 
+      message: outlet ? `Backup for ${outlet} imported successfully` : 'Full backup imported successfully', 
+      itemsImported: inventoryItems.length, 
+      variantsImported: outletVariants.length 
+    });
   } catch (error) {
     res.status(500).json({ message: 'Failed to import backup', error: error.message });
   }
@@ -775,8 +1077,19 @@ const XLSX = require('xlsx');
 
 const exportBackupExcel = async (req, res) => {
   try {
-    const items = await prisma.inventoryItem.findMany();
-    const variants = await prisma.outletVariant.findMany();
+    const { outlet } = req.query; // e.g. "Johar Town"
+
+    let items;
+    let variants;
+
+    if (outlet) {
+      variants = await prisma.outletVariant.findMany({ where: { outletName: outlet } });
+      const itemIds = [...new Set(variants.map(v => v.inventoryItemId))];
+      items = await prisma.inventoryItem.findMany({ where: { id: { in: itemIds } } });
+    } else {
+      items = await prisma.inventoryItem.findMany();
+      variants = await prisma.outletVariant.findMany();
+    }
 
     // Flatten items for Excel (stringify JSON fields)
     const itemRows = items.map(item => ({
@@ -817,7 +1130,10 @@ const exportBackupExcel = async (req, res) => {
 
     const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
-    const filename = `inventory_backup_${Date.now()}.xlsx`;
+    const filename = outlet 
+      ? `inventory_backup_${outlet.replace(/\s+/g, '_')}_${Date.now()}.xlsx`
+      : `inventory_backup_full_${Date.now()}.xlsx`;
+
     res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.send(buf);
@@ -844,59 +1160,109 @@ const importBackupExcel = async (req, res) => {
     const inventoryItems = XLSX.utils.sheet_to_json(productsSheet);
     const outletVariants = XLSX.utils.sheet_to_json(variantsSheet);
 
+    const outlet = req.query.outlet;
+
     await prisma.$transaction(async (tx) => {
-      // Clear existing records
-      await tx.posReturn.deleteMany();
-      await tx.posSaleItem.deleteMany();
-      await tx.posSale.deleteMany();
-      await tx.outletVariant.deleteMany();
-      await tx.inventoryItem.deleteMany();
+      if (outlet) {
+        // --- Branch-Specific Isolation Restore ---
+        await tx.outletVariant.deleteMany({ where: { outletName: outlet } });
 
-      // Restore items
-      for (const item of inventoryItems) {
-        await tx.inventoryItem.create({
-          data: {
-            id: item.id,
-            name: item.name,
-            category: item.category,
-            color: item.color || null,
-            size: item.size || null,
-            fabric: item.fabric || null,
-            stock: parseInt(item.stock) || 0,
-            price: parseFloat(item.price) || 0,
-            imageUrl: item.imageUrl || null,
-            metadata: item.metadata ? JSON.parse(item.metadata) : undefined,
-            variants: item.variants ? JSON.parse(item.variants) : undefined,
-            createdAt: item.createdAt ? new Date(item.createdAt) : new Date(),
-            updatedAt: item.updatedAt ? new Date(item.updatedAt) : new Date()
+        // Restore items (upsert them to avoid duplicate ID errors if items exist in another branch)
+        for (const item of inventoryItems) {
+          const exists = await tx.inventoryItem.findUnique({ where: { id: item.id } });
+          if (!exists) {
+            await tx.inventoryItem.create({
+              data: {
+                id: item.id,
+                name: item.name,
+                category: item.category,
+                color: item.color || null,
+                size: item.size || null,
+                fabric: item.fabric || null,
+                stock: parseInt(item.stock) || 0,
+                price: parseFloat(item.price) || 0,
+                imageUrl: item.imageUrl || null,
+                metadata: item.metadata ? JSON.parse(item.metadata) : undefined,
+                variants: item.variants ? JSON.parse(item.variants) : undefined,
+                createdAt: item.createdAt ? new Date(item.createdAt) : new Date(),
+                updatedAt: item.updatedAt ? new Date(item.updatedAt) : new Date()
+              }
+            });
           }
-        });
-      }
+        }
 
-      // Restore outlet variants
-      for (const v of outletVariants) {
-        await tx.outletVariant.create({
-          data: {
-            id: v.id,
-            inventoryItemId: v.inventoryItemId,
-            outletName: v.outletName || null,
-            color: v.color || null,
-            size: v.size || null,
-            barcode: v.barcode || null,
-            stock: parseInt(v.stock) || 0,
-            price: parseFloat(v.price) || 0,
-            isActive: v.isActive === 'TRUE' || v.isActive === true,
-            createdAt: v.createdAt ? new Date(v.createdAt) : new Date(),
-            updatedAt: v.updatedAt ? new Date(v.updatedAt) : new Date()
-          }
-        });
+        // Restore branch variants
+        for (const v of outletVariants) {
+          await tx.outletVariant.create({
+            data: {
+              id: v.id,
+              inventoryItemId: v.inventoryItemId,
+              outletName: v.outletName || null,
+              color: v.color || null,
+              size: v.size || null,
+              barcode: v.barcode || null,
+              stock: parseInt(v.stock) || 0,
+              price: parseFloat(v.price) || 0,
+              isActive: v.isActive === 'TRUE' || v.isActive === true || v.isActive === 'true',
+              createdAt: v.createdAt ? new Date(v.createdAt) : new Date(),
+              updatedAt: v.updatedAt ? new Date(v.updatedAt) : new Date()
+            }
+          });
+        }
+      } else {
+        // --- Full Legacy Restore ---
+        await tx.posReturn.deleteMany();
+        await tx.posSaleItem.deleteMany();
+        await tx.posSale.deleteMany();
+        await tx.outletVariant.deleteMany();
+        await tx.inventoryItem.deleteMany();
+
+        // Restore items
+        for (const item of inventoryItems) {
+          await tx.inventoryItem.create({
+            data: {
+              id: item.id,
+              name: item.name,
+              category: item.category,
+              color: item.color || null,
+              size: item.size || null,
+              fabric: item.fabric || null,
+              stock: parseInt(item.stock) || 0,
+              price: parseFloat(item.price) || 0,
+              imageUrl: item.imageUrl || null,
+              metadata: item.metadata ? JSON.parse(item.metadata) : undefined,
+              variants: item.variants ? JSON.parse(item.variants) : undefined,
+              createdAt: item.createdAt ? new Date(item.createdAt) : new Date(),
+              updatedAt: item.updatedAt ? new Date(item.updatedAt) : new Date()
+            }
+          });
+        }
+
+        // Restore outlet variants
+        for (const v of outletVariants) {
+          await tx.outletVariant.create({
+            data: {
+              id: v.id,
+              inventoryItemId: v.inventoryItemId,
+              outletName: v.outletName || null,
+              color: v.color || null,
+              size: v.size || null,
+              barcode: v.barcode || null,
+              stock: parseInt(v.stock) || 0,
+              price: parseFloat(v.price) || 0,
+              isActive: v.isActive === 'TRUE' || v.isActive === true || v.isActive === 'true',
+              createdAt: v.createdAt ? new Date(v.createdAt) : new Date(),
+              updatedAt: v.updatedAt ? new Date(v.updatedAt) : new Date()
+            }
+          });
+        }
       }
     });
 
     const cache = require('../utils/cache');
     cache.delPattern('pos:');
 
-    res.json({ message: 'Excel backup imported successfully', itemsImported: inventoryItems.length, variantsImported: outletVariants.length });
+    res.json({ message: outlet ? `Excel Backup for ${outlet} imported successfully` : 'Excel backup imported successfully', itemsImported: inventoryItems.length, variantsImported: outletVariants.length });
   } catch (error) {
     console.error('EXCEL IMPORT ERROR:', error);
     res.status(500).json({ message: 'Failed to import Excel backup', error: error.message });

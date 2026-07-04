@@ -64,6 +64,7 @@ const InventoryManagement = () => {
   const backupInputRef = React.useRef(null);
   const backupExcelInputRef = React.useRef(null);
   const [backupLoading, setBackupLoading] = useState(false);
+  const [selectedBackupOutlet, setSelectedBackupOutlet] = useState('All');
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -269,17 +270,23 @@ const InventoryManagement = () => {
   const handleExportBackup = async () => {
     try {
       setBackupLoading(true);
-      const response = await api.get('/api/inventory/backup/export', { responseType: 'blob' });
+      const isFiltered = selectedBackupOutlet !== 'All';
+      const endpoint = isFiltered 
+        ? `/api/inventory/backup/export?outlet=${selectedBackupOutlet}`
+        : '/api/inventory/backup/export';
+      const response = await api.get(endpoint, { responseType: 'blob' });
       const blob = new Blob([response.data], { type: 'application/json' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `inventory_backup_${new Date().toISOString().slice(0,10)}.json`;
+      a.download = isFiltered 
+        ? `inventory_backup_${selectedBackupOutlet.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.json`
+        : `inventory_backup_full_${new Date().toISOString().slice(0,10)}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-      alert('✅ JSON Backup exported successfully!');
+      alert(`✅ JSON Backup ${isFiltered ? 'for ' + selectedBackupOutlet : '(Full)'} exported successfully!`);
     } catch (error) {
       console.error('Backup export failed:', error);
       alert('Failed to export backup: ' + (error.response?.data?.message || error.message));
@@ -291,17 +298,23 @@ const InventoryManagement = () => {
   const handleExportBackupExcel = async () => {
     try {
       setBackupLoading(true);
-      const response = await api.get('/api/inventory/backup/export-excel', { responseType: 'blob' });
+      const isFiltered = selectedBackupOutlet !== 'All';
+      const endpoint = isFiltered 
+        ? `/api/inventory/backup/export-excel?outlet=${selectedBackupOutlet}`
+        : '/api/inventory/backup/export-excel';
+      const response = await api.get(endpoint, { responseType: 'blob' });
       const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `inventory_backup_${new Date().toISOString().slice(0,10)}.xlsx`;
+      a.download = isFiltered 
+        ? `inventory_backup_${selectedBackupOutlet.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.xlsx`
+        : `inventory_backup_full_${new Date().toISOString().slice(0,10)}.xlsx`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-      alert('✅ Excel Backup exported successfully!');
+      alert(`✅ Excel Backup ${isFiltered ? 'for ' + selectedBackupOutlet : '(Full)'} exported successfully!`);
     } catch (error) {
       console.error('Excel backup export failed:', error);
       alert('Failed to export Excel backup: ' + (error.response?.data?.message || error.message));
@@ -313,7 +326,11 @@ const InventoryManagement = () => {
   const handleImportBackup = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (!window.confirm('⚠️ This will REPLACE all current inventory data with the JSON backup. Are you sure?')) {
+    const isFiltered = selectedBackupOutlet !== 'All';
+    const msg = isFiltered 
+      ? `⚠️ This will REPLACE current inventory/sales data specifically for "${selectedBackupOutlet}" branch with the JSON backup. Other branches' data will not be affected. Are you sure?`
+      : '⚠️ This will REPLACE ALL inventory data in the system with the JSON backup. Are you sure?';
+    if (!window.confirm(msg)) {
       if (backupInputRef.current) backupInputRef.current.value = '';
       return;
     }
@@ -321,7 +338,10 @@ const InventoryManagement = () => {
       setBackupLoading(true);
       const uploadData = new FormData();
       uploadData.append('file', file);
-      const response = await api.post('/api/inventory/backup/import', uploadData, {
+      const endpoint = isFiltered 
+        ? `/api/inventory/backup/import?outlet=${selectedBackupOutlet}`
+        : '/api/inventory/backup/import';
+      const response = await api.post(endpoint, uploadData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       alert(`✅ Backup restored! ${response.data.itemsImported} products and ${response.data.variantsImported} outlet variants imported.`);
@@ -338,7 +358,11 @@ const InventoryManagement = () => {
   const handleImportBackupExcel = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (!window.confirm('⚠️ This will REPLACE all current inventory data with the Excel backup. Are you sure?')) {
+    const isFiltered = selectedBackupOutlet !== 'All';
+    const msg = isFiltered 
+      ? `⚠️ This will REPLACE current variants and stocks specifically for "${selectedBackupOutlet}" branch with the Excel backup. Other branches' data will not be affected. Are you sure?`
+      : '⚠️ This will REPLACE ALL inventory data in the system with the Excel backup. Are you sure?';
+    if (!window.confirm(msg)) {
       if (backupExcelInputRef.current) backupExcelInputRef.current.value = '';
       return;
     }
@@ -346,7 +370,10 @@ const InventoryManagement = () => {
       setBackupLoading(true);
       const uploadData = new FormData();
       uploadData.append('file', file);
-      const response = await api.post('/api/inventory/backup/import-excel', uploadData, {
+      const endpoint = isFiltered 
+        ? `/api/inventory/backup/import-excel?outlet=${selectedBackupOutlet}`
+        : '/api/inventory/backup/import-excel';
+      const response = await api.post(endpoint, uploadData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       alert(`✅ Excel Backup restored! ${response.data.itemsImported} products and ${response.data.variantsImported} outlet variants imported.`);
@@ -441,7 +468,7 @@ const InventoryManagement = () => {
     background: #fff; color: #000;
     overflow: hidden;
   }
-  .label .name { width: 100%; font-size: 8pt; font-weight: bold; text-transform: uppercase; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .label .name { width: 100%; font-size: 7.5pt; font-weight: bold; text-transform: uppercase; line-height: 1.2; word-wrap: break-word; }
   .label .bcwrap { width: 100%; display: flex; align-items: center; justify-content: center; flex: 1 1 auto; min-height: 0; padding: 0.5mm 0; }
   .label .bcwrap svg { display: block; max-width: 100%; max-height: 100%; }
   .label .bctext { font-size: 6pt; font-family: 'Courier New', monospace; font-weight: bold; color: #000; text-align: center; letter-spacing: 0.2px; line-height: 1.1; }
@@ -452,7 +479,7 @@ const InventoryManagement = () => {
 <body>
   ${Array(count).fill(null).map(() => `
   <div class="label">
-    <div class="name">${productName}</div>
+    <div class="name">${productName} ${[variant.color, variant.size].filter(Boolean).join(' • ')}</div>
     <div class="bcwrap">${svgString}</div>
     <div class="bctext">${barcode}</div>
     <div class="bottom"><span class="price">${formatCurr(variant.price || item.price || 0)}</span></div>
@@ -612,6 +639,16 @@ const InventoryManagement = () => {
           />
           {user?.role !== 'INVENTORY_VIEW' && ['SUPER_ADMIN', 'ADMIN', 'STORE'].includes(userRole) && (
             <>
+              <div className="flex items-center gap-1.5 bg-gray-800 border border-gray-700 px-3.5 py-3 rounded-2xl">
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Target:</span>
+                <select value={selectedBackupOutlet} onChange={(e) => setSelectedBackupOutlet(e.target.value)}
+                  className="bg-transparent text-white font-bold text-xs outline-none cursor-pointer focus:ring-0">
+                  <option value="All" className="bg-gray-900 text-white font-bold text-xs">Full (All)</option>
+                  <option value="Johar Town" className="bg-gray-900 text-white font-bold text-xs">Johar Town</option>
+                  <option value="Jail Road" className="bg-gray-900 text-white font-bold text-xs">Jail Road</option>
+                  <option value="Abbottabad" className="bg-gray-900 text-white font-bold text-xs">Abbottabad</option>
+                </select>
+              </div>
               <button 
                 onClick={handleExportBackup}
                 disabled={backupLoading}

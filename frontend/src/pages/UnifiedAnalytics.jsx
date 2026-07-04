@@ -175,6 +175,31 @@ const UnifiedAnalytics = () => {
     } catch { setOrderList([]); setOrderListTitle(label); }
   };
 
+  const handleExportExcel = async () => {
+    try {
+      const dr = getDateRange();
+      const params = new URLSearchParams({ ...dr, source });
+      if (paymentMethod !== 'all') params.set('paymentMethod', paymentMethod);
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (cityFilter) params.set('city', cityFilter);
+      if (deliveryStatus !== 'all') params.set('deliveryStatus', deliveryStatus);
+
+      const response = await api.get(`/api/analytics/export-excel?${params}`, { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `analytics_report_${source}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Export analytics failed:', error);
+      alert('Failed to export analytics: ' + (error.response?.data?.message || error.message));
+    }
+  };
+
   const s = data?.summary || {};
   const db = data?.deliveredBreakdown || {};
   const ra = data?.returnsAnalytics || {};
@@ -436,6 +461,9 @@ const UnifiedAnalytics = () => {
           <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Source-Wise Performance Dashboard</p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={handleExportExcel} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-900/30">
+            <FileText size={14} /> Export Excel
+          </button>
           <button onClick={fetchData} className="p-2 bg-gray-900 border border-gray-700 rounded-xl hover:bg-gray-800 transition-colors">
             <RefreshCcw size={14} className={`text-gray-400 ${loading ? 'animate-spin' : ''}`} />
           </button>
