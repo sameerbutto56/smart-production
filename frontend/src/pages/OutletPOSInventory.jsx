@@ -146,6 +146,16 @@ const OutletPOSInventory = () => {
     return true;
   });
 
+  const grouped = useMemo(() => {
+    const map = new Map();
+    for (const item of filtered) {
+      const key = `${item.name}||${item.category}||${item.outletName}`;
+      if (!map.has(key)) map.set(key, { name: item.name, category: item.category, outletName: item.outletName, imageUrl: item.imageUrl, fabric: item.fabric, variants: [] });
+      map.get(key).variants.push(item);
+    }
+    return Array.from(map.values());
+  }, [filtered]);
+
   const addVariant = () => {
     setFormData(prev => ({
       ...prev,
@@ -466,22 +476,32 @@ const OutletPOSInventory = () => {
         <div className="text-center py-12"><RefreshCw className="animate-spin text-blue-400 inline" size={32} /></div>
       ) : (
         <div className="space-y-2">
-          {filtered.map(item => {
-            const totalStock = item.stock || 0;
+          {grouped.length === 0 && (
+            <div className="text-center py-12 text-gray-500 font-bold">
+              <Warehouse size={40} className="mx-auto mb-3 text-gray-700" />
+              <p>No products found{search ? ' matching your search' : ''}.</p>
+              {canInit && <p className="text-[10px] mt-1">Click <span className="text-violet-400">Init All</span> to pre-populate all outlets with opening stock.</p>}
+              {!canInit && <p className="text-[10px] mt-1 text-gray-600">No products in catalog yet. Contact Store to add products.</p>}
+            </div>
+          )}
+          {grouped.map(group => {
+            const totalStock = group.variants.reduce((s, v) => s + (v.stock || 0), 0);
+            const groupId = group.name + group.category + group.outletName;
+            const isExpanded = expandedId === groupId;
             return (
-              <div key={item.id} className="bg-gray-900/60 rounded-xl border border-gray-700/50">
-                <button onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
+              <div key={groupId} className="bg-gray-900/60 rounded-xl border border-gray-700/50">
+                <button onClick={() => setExpandedId(isExpanded ? null : groupId)}
                   className="w-full flex items-center justify-between px-4 py-3">
                   <div className="flex items-center gap-3">
-                    {item.imageUrl ? <img src={item.imageUrl} className="w-10 h-10 rounded-lg object-cover" /> : <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center"><Package size={18} className="text-gray-500" /></div>}
+                    {group.imageUrl ? <img src={group.imageUrl} className="w-10 h-10 rounded-lg object-cover" /> : <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center"><Package size={18} className="text-gray-500" /></div>}
                     <div className="text-left">
-                      <p className="text-sm font-bold text-white">{item.name}</p>
-                      <p className="text-[10px] text-gray-500 font-bold">{item.category} {item.outletName && <span className="text-blue-400 ml-1">[{item.outletName}]</span>}</p>
+                      <p className="text-sm font-bold text-white">{group.name}</p>
+                      <p className="text-[10px] text-gray-500 font-bold">{group.category} {group.outletName && <span className="text-blue-400 ml-1">[{group.outletName}]</span>}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {!isReadOnly && (
-                      <button onClick={(e) => { e.stopPropagation(); handleOpenEdit(item); }}
+                    {!isReadOnly && group.variants.length === 1 && (
+                      <button onClick={(e) => { e.stopPropagation(); handleOpenEdit(group.variants[0]); }}
                         className="flex items-center gap-1 px-3 py-2 bg-gray-800 hover:bg-blue-600 rounded-lg transition-colors">
                         <Pencil size={12} className="text-white" />
                         <span className="text-[10px] font-bold text-white">Edit</span>
@@ -490,32 +510,30 @@ const OutletPOSInventory = () => {
                     <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${totalStock > 0 ? 'bg-emerald-900/30 text-emerald-400' : 'bg-gray-800 text-gray-500'}`}>
                       Stock: {totalStock}
                     </span>
-                    {expandedId === item.id ? <ChevronUp size={14} className="text-gray-500" /> : <ChevronDown size={14} className="text-gray-500" />}
+                    {group.variants.length > 1 && (isExpanded ? <ChevronUp size={14} className="text-gray-500" /> : <ChevronDown size={14} className="text-gray-500" />)}
                   </div>
                 </button>
-                {expandedId === item.id && (
+                {isExpanded && (
                   <div className="px-4 pb-3 border-t border-gray-700/50 pt-2 space-y-1.5">
-                    <p className="text-[10px] text-gray-500 font-bold">Color: {item.color || 'N/A'} &bull; Size: {item.size || 'N/A'} &bull; Fabric: {item.fabric || 'N/A'}</p>
-                    <div className="flex items-center gap-2 bg-gray-800/50 rounded-lg px-3 py-2 text-xs">
-                      <span className="font-bold text-gray-300 min-w-[80px]">{[item.color, item.size].filter(Boolean).join(' • ') || 'Default'}</span>
-                      <span className="text-[10px] font-mono text-gray-500 flex-1">{item.barcode || 'N/A'}</span>
-                      <span className="font-bold text-emerald-400">{item.price ? formatCurrency(item.price) : '-'}</span>
-                      <span className={`font-bold ml-2 ${item.stock > 0 ? 'text-emerald-400' : 'text-red-400'}`}>{item.stock}</span>
-                      {item.outletName && <span className="text-[9px] text-blue-400 font-bold ml-1 uppercase">{item.outletName}</span>}
-                    </div>
+                    {group.variants.map(v => (
+                      <div key={v.id} className="flex items-center gap-2 bg-gray-800/50 rounded-lg px-3 py-2 text-xs">
+                        <span className="font-bold text-gray-300 min-w-[80px]">{[v.color, v.size].filter(Boolean).join(' • ') || 'Default'}</span>
+                        <span className="text-[10px] font-mono text-gray-500 flex-1">{v.barcode || 'N/A'}</span>
+                        <span className="font-bold text-emerald-400">{v.price ? formatCurrency(v.price) : '-'}</span>
+                        <span className={`font-bold ml-2 ${v.stock > 0 ? 'text-emerald-400' : 'text-red-400'}`}>{v.stock}</span>
+                        {!isReadOnly && (
+                          <button onClick={(e) => { e.stopPropagation(); handleOpenEdit(v); }}
+                            className="p-1.5 bg-gray-700 hover:bg-blue-600 rounded-lg transition-colors">
+                            <Pencil size={11} className="text-white" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
             );
           })}
-          {filtered.length === 0 && (
-            <div className="text-center py-12 text-gray-500 font-bold">
-              <Warehouse size={40} className="mx-auto mb-3 text-gray-700" />
-              <p>No products found{search ? ' matching your search' : ''}.</p>
-              {canInit && <p className="text-[10px] mt-1">Click <span className="text-violet-400">Init All</span> to pre-populate all outlets with opening stock.</p>}
-              {!canInit && <p className="text-[10px] mt-1 text-gray-600">No products in catalog yet. Contact Store to add products.</p>}
-            </div>
-          )}
         </div>
       )}
 
@@ -603,16 +621,43 @@ const OutletPOSInventory = () => {
                   <div className="py-4 text-center"><RefreshCw className="animate-spin text-blue-400 inline" size={20} /></div>
                 ) : (
                   <div className="max-h-48 overflow-y-auto space-y-1 bg-gray-800 rounded-xl border border-gray-700 p-2">
-                    {storeProducts.map(sp => (
-                      <button key={sp.id} type="button" onClick={() => setFormData(prev => ({ ...prev, selectedProductId: sp.id }))}
-                        className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all ${
-                          formData.selectedProductId === sp.id
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-900 text-gray-300 hover:bg-gray-700'
-                        }`}>
-                        {sp.name} <span className="text-[10px] text-gray-500 ml-1 uppercase">({sp.category})</span>
-                      </button>
-                    ))}
+                    {storeProducts.map(sp => {
+                      const spVariants = (() => {
+                        if (!sp.variants) return null;
+                        const p = typeof sp.variants === 'string' ? JSON.parse(sp.variants) : sp.variants;
+                        return Array.isArray(p) && p.length > 0 ? p : null;
+                      })();
+                      const colorLabel = spVariants ? [...new Set(spVariants.map(v => v.color || '').filter(Boolean))].join(', ') : (sp.color || 'N/A');
+                      const sizeLabel = spVariants ? [...new Set(spVariants.map(v => v.size || '').filter(Boolean))].join(', ') : (sp.size || 'N/A');
+                      const priceLabel = spVariants ? [...new Set(spVariants.map(v => v.price || 0))].join(', ') : (sp.price || 'N/A');
+                      return (
+                        <button key={sp.id} type="button"
+                          onClick={() => {
+                            const selected = storeProducts.find(p => p.id === sp.id);
+                            let newVariants = [];
+                            if (spVariants) {
+                              newVariants = spVariants.map(v => ({ color: v.color || '', size: v.size || '', stock: v.stock || 0, price: v.price || 0 }));
+                            } else {
+                              newVariants = [{ color: selected.color || '', size: selected.size || '', stock: 0, price: selected.price || 0 }];
+                            }
+                            setFormData(prev => ({ ...prev, selectedProductId: sp.id, variants: newVariants }));
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all ${
+                            formData.selectedProductId === sp.id
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-900 text-gray-300 hover:bg-gray-700'
+                          }`}>
+                          <div className="flex flex-col">
+                            <span>{sp.name} <span className="text-[10px] opacity-60 uppercase">({sp.category})</span></span>
+                            {formData.selectedProductId === sp.id && (
+                              <span className="text-[10px] mt-0.5 opacity-80">
+                                Color: {colorLabel} | Size: {sizeLabel} | Price: ₨{priceLabel}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
                     {storeProducts.length === 0 && <p className="text-gray-500 text-xs text-center py-2">No store products available</p>}
                   </div>
                 )}

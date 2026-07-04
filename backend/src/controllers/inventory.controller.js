@@ -276,6 +276,7 @@ const getAllocations = async (req, res) => {
     ]);
     res.json({ records, total, page: parseInt(page), limit: parseInt(limit) });
   } catch (error) {
+    console.error('[getAllocations] error:', error.message, error.code);
     res.status(500).json({ message: 'Error fetching allocations', error: error.message });
   }
 };
@@ -307,6 +308,7 @@ const getAllocationStats = async (req, res) => {
 
     res.json({ perPerson: result, todayTotal, activeTotal, totalAllocated: totalAllQty._sum.quantity || 0, recent });
   } catch (error) {
+    console.error('[getAllocationStats] error:', error.message, error.code);
     res.status(500).json({ message: 'Error fetching allocation stats', error: error.message });
   }
 };
@@ -645,7 +647,7 @@ const updateCartStatus = async (req, res) => {
 
       await prisma.$transaction(updates);
     } else {
-      // REJECTED — just update status
+      // REJECTED â€” just update status
       await prisma.$transaction([
         prisma.allocation.updateMany({ where: { cartId: id }, data: { status: 'REJECTED' } }),
         prisma.allocationCart.update({ where: { id }, data: { status: 'REJECTED' } }),
@@ -780,13 +782,23 @@ const importBackup = async (req, res) => {
       if (outlet) {
         // --- Branch-Specific Isolation Restore ---
         // 1. Clear target branch specific records
+        // Delete order child records first to avoid FK violations
+        const targetOrders = await tx.order.findMany({ where: { outletName: outlet }, select: { id: true } });
+        const targetOrderIds = targetOrders.map(o => o.id);
+        if (targetOrderIds.length > 0) {
+          await tx.auditLog.deleteMany({ where: { orderId: { in: targetOrderIds } } });
+          await tx.orderStage.deleteMany({ where: { orderId: { in: targetOrderIds } } });
+          await tx.orderEditRequest.deleteMany({ where: { orderId: { in: targetOrderIds } } });
+          await tx.deliveryAttempt.deleteMany({ where: { orderId: { in: targetOrderIds } } });
+          await tx.routingHistory.deleteMany({ where: { orderId: { in: targetOrderIds } } });
+        }
         const targetSaleIds = (await tx.posSale.findMany({ where: { outletName: outlet }, select: { id: true } })).map(s => s.id);
         await tx.posReturn.deleteMany({ where: { outletName: outlet } });
         await tx.posSaleItem.deleteMany({ where: { saleId: { in: targetSaleIds } } });
         await tx.posSale.deleteMany({ where: { outletName: outlet } });
         await tx.outletInventory.deleteMany({ where: { outletName: outlet } });
         await tx.client.deleteMany({ where: { outletName: outlet } });
-        await tx.order.deleteMany({ where: { outletName: outlet } });
+        await tx.order.deleteMany({ where: { id: { in: targetOrderIds } } });
         
         const transferIds = (await tx.outletTransfer.findMany({
           where: { OR: [{ fromOutlet: outlet }, { toOutlet: outlet }] },
@@ -1075,7 +1087,7 @@ const importBackup = async (req, res) => {
           });
         }
       }
-    });
+    }, { timeout: 25000 });
 
     const cacheKeyPrefix = 'pos:';
     const cache = require('../utils/cache');
@@ -1175,7 +1187,7 @@ const importBackupExcel = async (req, res) => {
     const variantsSheet = wb.Sheets['OutletInventory'] || wb.Sheets['OutletVariants'];
 
     if (!productsSheet || !variantsSheet) {
-      return res.status(400).json({ message: 'Invalid Excel file — must contain "Products" and "OutletInventory" (or "OutletVariants") sheets' });
+      return res.status(400).json({ message: 'Invalid Excel file â€” must contain "Products" and "OutletInventory" (or "OutletVariants") sheets' });
     }
 
     const inventoryItems = XLSX.utils.sheet_to_json(productsSheet);
@@ -1203,7 +1215,7 @@ const importBackupExcel = async (req, res) => {
                 stock: parseInt(item.stock) || 0,
                 price: parseFloat(item.price) || 0,
                 imageUrl: item.imageUrl || null,
-                metadata: item.metadata ? JSON.parse(item.metadata) : undefined,
+                metadata: item.metadata || null,
                 variants: item.variants ? JSON.parse(item.variants) : undefined,
                 createdAt: item.createdAt ? new Date(item.createdAt) : new Date(),
                 updatedAt: item.updatedAt ? new Date(item.updatedAt) : new Date()
@@ -1257,18 +1269,18 @@ const importBackupExcel = async (req, res) => {
               size: item.size || null,
               fabric: item.fabric || null,
               stock: parseInt(item.stock) || 0,
-              price: parseFloat(item.price) || 0,
-              imageUrl: item.imageUrl || null,
-              metadata: item.metadata ? JSON.parse(item.metadata) : undefined,
-              variants: item.variants ? JSON.parse(item.variants) : undefined,
-              createdAt: item.createdAt ? new Date(item.createdAt) : new Date(),
-              updatedAt: item.updatedAt ? new Date(item.updatedAt) : new Date()
-            }
-          });
-        }
+                price: parseFloat(item.price) || 0,
+                imageUrl: item.imageUrl || null,
+                metadata: item.metadata || null,
+                variants: item.variants ? JSON.parse(item.variants) : undefined,
+                createdAt: item.createdAt ? new Date(item.createdAt) : new Date(),
+                updatedAt: item.updatedAt ? new Date(item.updatedAt) : new Date()
+              }
+            });
+          }
 
-        // Build lookup for inventory item details (support old XLSX format with inventoryItemId)
-        const itemLookupXlsxFull = {};
+          // Build lookup for inventory item details (support old XLSX format with inventoryItemId)
+          const itemLookupXlsxFull = {};
         for (const item of inventoryItems) {
           itemLookupXlsxFull[item.id] = item;
         }
@@ -1294,7 +1306,7 @@ const importBackupExcel = async (req, res) => {
           });
         }
       }
-    });
+    }, { timeout: 25000 });
 
     const cache = require('../utils/cache');
     cache.delPattern('pos:');
