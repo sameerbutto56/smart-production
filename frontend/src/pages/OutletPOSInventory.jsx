@@ -196,7 +196,11 @@ const OutletPOSInventory = () => {
       imageUrl: item.imageUrl || ''
     });
     setEditCustomCategory(isCustom ? item.category : '');
-    setEditVariants((item.outletVariants || []).map(v => ({
+    // Only load variants for the currently selected outlet — not all outlets
+    const outletVariants = (item.outletVariants || []).filter(v =>
+      !v.outletName || v.outletName === selectedOutlet
+    );
+    setEditVariants(outletVariants.map(v => ({
       _key: v.id,
       id: v.id,
       color: v.color || '',
@@ -241,7 +245,7 @@ const OutletPOSInventory = () => {
       ));
       const news = editVariants.filter(v => !v.id);
       await Promise.all(news.map(v =>
-        api.post(`/api/pos/products/${editItem.id}/variants`, { color: v.color || null, size: v.size || null, stock: v.stock, price: v.price })
+        api.post(`/api/pos/products/${editItem.id}/variants?outlet=${encodeURIComponent(selectedOutlet)}`, { color: v.color || null, size: v.size || null, stock: v.stock, price: v.price })
       ));
       await Promise.all(removedVariantIds.map(id => api.delete(`/api/pos/variants/${id}`)));
       toast.success('Product updated');
