@@ -242,9 +242,15 @@ const WarehouseDashboard = () => {
     return () => document.removeEventListener('visibilitychange', handler);
   }, []);
   const refreshActiveTab = () => {
-    if (activeTab === 'dashboard' || activeTab === 'allocation') refreshInventory();
+    if (activeTab === 'dashboard' || activeTab === 'allocation') {
+      refreshInventory();
+      if (activeTab === 'dashboard') {
+        fetchDashboardAllocations(dashAllocDateFrom, dashAllocDateTo);
+        fetchDashboardCarts();
+        fetchAllocationStats();
+      }
+    }
     else if (activeTab === 'production') refreshProduction();
-
   };
   usePolling(() => { if (pageVisible) refreshActiveTab(); }, 60000);
 
@@ -269,11 +275,57 @@ const WarehouseDashboard = () => {
 
   const totalStock = inventory.reduce((sum, item) => sum + item.stock, 0);
   const lowStockItems = inventory.filter(item => item.stock > 0 && item.stock <= 5);
+  const outOfStockItems = inventory.filter(item => item.stock === 0);
 
   const filteredInventory = inventory.filter(item =>
     !searchTerm || item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.category?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Dashboard allocation state
+  const [dashAllocDateFrom, setDashAllocDateFrom] = useState('');
+  const [dashAllocDateTo, setDashAllocDateTo] = useState('');
+  const [dashAllocRecords, setDashAllocRecords] = useState([]);
+  const [dashAllocLoading, setDashAllocLoading] = useState(false);
+  const [dashPendingCarts, setDashPendingCarts] = useState([]);
+  const [dashCartsLoading, setDashCartsLoading] = useState(false);
+
+  const fetchDashboardAllocations = async (from, to) => {
+    setDashAllocLoading(true);
+    try {
+      const params = { page: 1, limit: 20 };
+      if (from) params.from = from;
+      if (to) params.to = to;
+      const res = await api.get('/api/inventory/allocations', { params });
+      setDashAllocRecords(res.data.records || []);
+    } catch (error) {
+      console.error('Error fetching dashboard allocations:', error);
+    }
+    setDashAllocLoading(false);
+  };
+
+  const fetchDashboardCarts = async () => {
+    setDashCartsLoading(true);
+    try {
+      const res = await api.get('/api/inventory/carts', { params: { status: 'PENDING', page: 1, limit: 10 } });
+      setDashPendingCarts(res.data.records || []);
+    } catch (error) {
+      console.error('Error fetching dashboard carts:', error);
+    }
+    setDashCartsLoading(false);
+  };
+
+  useEffect(() => {
+    if (activeTab === 'dashboard') {
+      fetchDashboardAllocations(dashAllocDateFrom, dashAllocDateTo);
+      fetchDashboardCarts();
+      fetchAllocationStats();
+    }
+  }, [activeTab]);
+
+  const handleDashDateFilter = () => {
+    fetchDashboardAllocations(dashAllocDateFrom, dashAllocDateTo);
+  };
 
   return (
     <div className="space-y-4 md:space-y-8 pb-20 px-4">
@@ -338,6 +390,24 @@ const WarehouseDashboard = () => {
                     <p className="text-xl md:text-3xl font-black theme-text-primary">{lowStockItems.length}</p>
                     <p className="text-xs font-bold theme-text-muted uppercase tracking-wider mt-1">Low Stock Items</p>
                 </motion.div>
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+                    className="glass p-4 md:p-6 rounded-2xl border-2 theme-border hover:border-amber-500/30 transition-all">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="p-3 bg-gray-700/50 rounded-xl"><XCircle className="text-gray-400" size={20} /></div>
+                      <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Out</span>
+                    </div>
+                    <p className="text-xl md:text-3xl font-black theme-text-primary">{outOfStockItems.length}</p>
+                    <p className="text-xs font-bold theme-text-muted uppercase tracking-wider mt-1">Out of Stock</p>
+                </motion.div>
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+                    className="glass p-4 md:p-6 rounded-2xl border-2 theme-border hover:border-amber-500/30 transition-all">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="p-3 bg-amber-500/10 rounded-xl"><Gift className="text-amber-400" size={20} /></div>
+                      <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Today</span>
+                    </div>
+                    <p className="text-xl md:text-3xl font-black text-amber-400">{allocSummary.todayTotal}</p>
+                    <p className="text-xs font-bold theme-text-muted uppercase tracking-wider mt-1">Today's Allocations</p>
+                </motion.div>
               </div>
 
               {/* Low Stock Alert */}
@@ -363,6 +433,127 @@ const WarehouseDashboard = () => {
                     {lowStockItems.length > 5 && (
                       <p className="text-xs theme-text-muted font-bold text-center">+{lowStockItems.length - 5} more items low on stock</p>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* Allocation Summary */}
+              <div className="glass p-4 md:p-6 rounded-2xl border-2 theme-border">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center space-x-3">
+                    <Gift className="text-amber-400" size={20} />
+                    <h2 className="font-black theme-text-primary uppercase tracking-wider text-sm">Allocation Summary</h2>
+                  </div>
+                  <span className="text-xs font-bold theme-text-muted">{allocSummary.totalAllocated} total allocated</span>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="p-3 theme-bg-subtle rounded-xl border theme-border">
+                    <p className="text-[10px] font-black theme-text-muted uppercase tracking-widest">Active Allocations</p>
+                    <p className="text-xl font-black text-amber-400 mt-1">{allocSummary.activeTotal}</p>
+                  </div>
+                  <div className="p-3 theme-bg-subtle rounded-xl border theme-border">
+                    <p className="text-[10px] font-black theme-text-muted uppercase tracking-widest">Total Items</p>
+                    <p className="text-xl font-black text-emerald-400 mt-1">{allocSummary.totalAllocated}</p>
+                  </div>
+                  <div className="p-3 theme-bg-subtle rounded-xl border theme-border">
+                    <p className="text-[10px] font-black theme-text-muted uppercase tracking-widest">Pending Carts</p>
+                    <p className="text-xl font-black text-yellow-400 mt-1">{dashPendingCarts.length}</p>
+                  </div>
+                  <div className="p-3 theme-bg-subtle rounded-xl border theme-border">
+                    <p className="text-[10px] font-black theme-text-muted uppercase tracking-widest">Today</p>
+                    <p className="text-xl font-black text-blue-400 mt-1">{allocSummary.todayTotal}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Allocation History with Date Range */}
+              <div className="glass p-4 md:p-6 rounded-2xl border-2 theme-border">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                  <div className="flex items-center space-x-3">
+                    <FileText className="text-amber-400" size={20} />
+                    <h2 className="font-black theme-text-primary uppercase tracking-wider text-sm">Allocation History</h2>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-2">
+                      <label className="text-[10px] font-black theme-text-muted uppercase tracking-widest">From</label>
+                      <input type="date" value={dashAllocDateFrom} onChange={(e) => setDashAllocDateFrom(e.target.value)}
+                        className="theme-input rounded-lg py-1.5 px-2 text-xs font-medium outline-none focus:border-amber-500" />
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <label className="text-[10px] font-black theme-text-muted uppercase tracking-widest">To</label>
+                      <input type="date" value={dashAllocDateTo} onChange={(e) => setDashAllocDateTo(e.target.value)}
+                        className="theme-input rounded-lg py-1.5 px-2 text-xs font-medium outline-none focus:border-amber-500" />
+                    </div>
+                    <button onClick={handleDashDateFilter}
+                      className="bg-amber-600 hover:bg-amber-500 text-white font-black py-1.5 px-4 rounded-lg text-xs transition-all active:scale-95 flex items-center space-x-1.5">
+                      <Search size={12} />
+                      <span>Filter</span>
+                    </button>
+                  </div>
+                </div>
+                {dashAllocLoading ? (
+                  <div className="py-8 flex justify-center"><RefreshCcw className="animate-spin text-blue-400" size={24} /></div>
+                ) : dashAllocRecords.length === 0 ? (
+                  <div className="text-center py-8">
+                    <FileText size={36} className="mx-auto text-gray-700 mb-3" />
+                    <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No allocation records found</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                    {dashAllocRecords.map(rec => (
+                      <div key={rec.id} className="flex items-center justify-between p-3 theme-bg-subtle rounded-xl border theme-border hover:border-amber-500/20 transition-all">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-bold theme-text-primary text-xs">{rec.personName}</span>
+                            <span className={`px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase border ${
+                              rec.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+                              rec.status === 'ACTIVE' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
+                              'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                            }`}>{rec.status || 'ACTIVE'}</span>
+                          </div>
+                          <p className="text-[10px] theme-text-muted mt-0.5">{rec.itemCount || rec.items?.length || 0} items · {new Date(rec.createdAt).toLocaleString()}</p>
+                        </div>
+                        <div className="text-right shrink-0 ml-4">
+                          <p className="font-black text-amber-400 text-xs">{rec.totalQuantity || 0} qty</p>
+                          {rec.allocatedByName && <p className="text-[9px] theme-text-muted">{rec.allocatedByName}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Pending Carts — Approve/Reject */}
+              {dashPendingCarts.length > 0 && (
+                <div className="glass p-4 md:p-6 rounded-2xl border-2 border-yellow-500/20">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center space-x-3">
+                      <ShoppingCart className="text-yellow-400" size={20} />
+                      <h2 className="font-black theme-text-primary uppercase tracking-wider text-sm">Pending Carts</h2>
+                    </div>
+                    <span className="text-xs font-bold text-yellow-400">{dashPendingCarts.length} awaiting approval</span>
+                  </div>
+                  <div className="space-y-3">
+                    {dashPendingCarts.map(cart => (
+                      <div key={cart.id} className="flex items-center justify-between p-3 theme-bg-subtle rounded-xl border border-yellow-500/20 hover:border-yellow-500/30 transition-all">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold theme-text-primary text-xs">{cart.personName}</p>
+                          <p className="text-[10px] theme-text-muted">{cart.totalItems} products · {cart.totalQuantity} qty · {new Date(cart.createdAt).toLocaleString()}</p>
+                        </div>
+                        <div className="flex space-x-2 shrink-0 ml-4">
+                          <button onClick={() => handleCartStatus(cart.id, 'APPROVED')}
+                            className="px-3 py-1.5 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-lg text-[10px] font-black transition-all flex items-center space-x-1">
+                            <CheckCircle size={12} />
+                            <span>Approve</span>
+                          </button>
+                          <button onClick={() => handleCartStatus(cart.id, 'REJECTED')}
+                            className="px-3 py-1.5 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-lg text-[10px] font-black transition-all flex items-center space-x-1">
+                            <XCircle size={12} />
+                            <span>Reject</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
