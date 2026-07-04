@@ -1,11 +1,13 @@
 const express = require('express');
-const { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem, clearAllInventory, bulkUploadInventory, allocateInventory, getAllocations, getAllocationStats, searchInventory, updateAllocationStatus, createCartAllocation, getCarts, updateCartStatus } = require('../controllers/inventory.controller');
+const { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem, clearAllInventory, bulkUploadInventory, allocateInventory, getAllocations, getAllocationStats, searchInventory, updateAllocationStatus, createCartAllocation, getCarts, updateCartStatus, exportBackup, importBackup } = require('../controllers/inventory.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 const router = express.Router();
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
 
 router.get('/', authenticate, getInventory);
+router.get('/backup/export', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'STORE']), exportBackup);
+router.post('/backup/import', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'STORE']), upload.single('file'), importBackup);
 router.post('/bulk-upload', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'FAISAL', 'STORE']), upload.single('file'), bulkUploadInventory);
 router.post('/', authenticate, authorize(['ADMIN', 'SUPER_ADMIN', 'FAISAL', 'STORE']), createInventoryItem);
 router.post('/allocate', authenticate, authorize(['STORE', 'ADMIN', 'SUPER_ADMIN']), allocateInventory);

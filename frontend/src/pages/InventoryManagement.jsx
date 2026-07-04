@@ -21,7 +21,10 @@ import {
   Image as ImageIcon,
   Hash,
   Minus,
-  Printer
+  Printer,
+  Download,
+  UploadCloud,
+  Shield
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
@@ -58,6 +61,8 @@ const InventoryManagement = () => {
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = React.useRef(null);
+  const backupInputRef = React.useRef(null);
+  const [backupLoading, setBackupLoading] = useState(false);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -257,6 +262,53 @@ const InventoryManagement = () => {
       fetchInventory();
     } catch (error) {
       console.error('Error deleting inventory item:', error);
+    }
+  };
+
+  const handleExportBackup = async () => {
+    try {
+      setBackupLoading(true);
+      const response = await api.get('/api/inventory/backup/export', { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `inventory_backup_${new Date().toISOString().slice(0,10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      alert('✅ Backup exported successfully! A copy is also saved on the server.');
+    } catch (error) {
+      console.error('Backup export failed:', error);
+      alert('Failed to export backup: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
+  const handleImportBackup = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!window.confirm('⚠️ This will REPLACE all current inventory data with the backup. Are you sure?')) {
+      if (backupInputRef.current) backupInputRef.current.value = '';
+      return;
+    }
+    try {
+      setBackupLoading(true);
+      const uploadData = new FormData();
+      uploadData.append('file', file);
+      const response = await api.post('/api/inventory/backup/import', uploadData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      alert(`✅ Backup restored! ${response.data.itemsImported} products and ${response.data.variantsImported} outlet variants imported.`);
+      fetchInventory();
+    } catch (error) {
+      console.error('Backup import failed:', error);
+      alert('Failed to import backup: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setBackupLoading(false);
+      if (backupInputRef.current) backupInputRef.current.value = '';
     }
   };
 
@@ -488,7 +540,7 @@ const InventoryManagement = () => {
             <p className="theme-text-secondary text-sm font-medium uppercase tracking-widest">{user?.role === 'INVENTORY_VIEW' ? 'View available product variants' : 'Master Product Management'}</p>
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 flex-wrap">
           <input 
             type="file" 
             ref={fileInputRef} 
@@ -496,19 +548,48 @@ const InventoryManagement = () => {
             accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" 
             className="hidden" 
           />
+          <input 
+            type="file" 
+            ref={backupInputRef} 
+            onChange={handleImportBackup} 
+            accept=".json" 
+            className="hidden" 
+          />
+          {user?.role !== 'INVENTORY_VIEW' && ['SUPER_ADMIN', 'ADMIN', 'STORE'].includes(userRole) && (
+            <>
+              <button 
+                onClick={handleExportBackup}
+                disabled={backupLoading}
+                className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-black py-3 px-5 rounded-2xl shadow-xl shadow-blue-900/30 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50"
+                title="Export full inventory backup to your computer"
+              >
+                <Download size={18} />
+                <span className="hidden sm:inline text-sm">Export Backup</span>
+              </button>
+              <button 
+                onClick={() => backupInputRef.current?.click()}
+                disabled={backupLoading}
+                className="bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black py-3 px-5 rounded-2xl shadow-xl shadow-amber-900/30 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50"
+                title="Restore inventory from a backup file"
+              >
+                <UploadCloud size={18} />
+                <span className="hidden sm:inline text-sm">Restore Backup</span>
+              </button>
+            </>
+          )}
           {user?.role !== 'INVENTORY_VIEW' && ['SUPER_ADMIN', 'ADMIN'].includes(userRole) && (
             <button 
               onClick={() => fileInputRef.current?.click()}
-              className="bg-gray-800 hover:bg-gray-700 text-emerald-400 border border-emerald-500/30 font-black py-4 px-6 rounded-2xl shadow-xl transition-all flex items-center space-x-3 active:scale-95"
+              className="bg-gray-800 hover:bg-gray-700 text-emerald-400 border border-emerald-500/30 font-black py-3 px-5 rounded-2xl shadow-xl transition-all flex items-center space-x-3 active:scale-95"
             >
-              <Upload size={20} />
-              <span className="hidden sm:inline">Bulk Import (Excel/CSV)</span>
+              <Upload size={18} />
+              <span className="hidden sm:inline text-sm">Bulk Import</span>
             </button>
           )}
           {user?.role !== 'INVENTORY_VIEW' && (
           <button
             onClick={() => printInventoryReport(filteredItems, stockFilter)}
-            className="bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white font-black py-4 px-4 rounded-2xl border border-gray-700 transition-all flex items-center gap-2 active:scale-95"
+            className="bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white font-black py-3 px-4 rounded-2xl border border-gray-700 transition-all flex items-center gap-2 active:scale-95"
             title="Print Inventory Report"
           >
             <Printer size={18} />

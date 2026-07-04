@@ -662,4 +662,125 @@ const updateCartStatus = async (req, res) => {
   }
 };
 
-module.exports = { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem, clearAllInventory, bulkUploadInventory, allocateInventory, getAllocations, getAllocationStats, searchInventory, updateAllocationStatus, createCartAllocation, getCarts, updateCartStatus };
+const fs = require('fs');
+const path = require('path');
+
+const exportBackup = async (req, res) => {
+  try {
+    const items = await prisma.inventoryItem.findMany();
+    const variants = await prisma.outletVariant.findMany();
+    
+    const backupData = {
+      version: '1.0',
+      timestamp: new Date().toISOString(),
+      inventoryItems: items,
+      outletVariants: variants
+    };
+
+    // 1. Save backup to server filesystem
+    const backupDir = path.join(__dirname, '../../backups');
+    if (!fs.existsSync(backupDir)) {
+      fs.mkdirSync(backupDir, { recursive: true });
+    }
+    const filename = `inventory_backup_${Date.now()}.json`;
+    fs.writeFileSync(path.join(backupDir, filename), JSON.stringify(backupData, null, 2));
+
+    // 2. Stream to client computer for download
+    res.setHeader('Content-disposition', `attachment; filename=${filename}`);
+    res.setHeader('Content-type', 'application/json');
+    res.write(JSON.stringify(backupData, null, 2));
+    res.end();
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to export backup', error: error.message });
+  }
+};
+
+const importBackup = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'Backup file is required' });
+    }
+    const backupData = JSON.parse(req.file.buffer.toString());
+    if (!backupData.inventoryItems || !backupData.outletVariants) {
+      return res.status(400).json({ message: 'Invalid backup file structure' });
+    }
+
+    const { inventoryItems, outletVariants } = backupData;
+
+    await prisma.$transaction(async (tx) => {
+      // Clear existing records
+      await tx.posReturn.deleteMany();
+      await tx.posSaleItem.deleteMany();
+      await tx.posSale.deleteMany();
+      await tx.outletVariant.deleteMany();
+      await tx.inventoryItem.deleteMany();
+
+      // Restore items
+      for (const item of inventoryItems) {
+        await tx.inventoryItem.create({
+          data: {
+            id: item.id,
+            name: item.name,
+            category: item.category,
+            color: item.color,
+            size: item.size,
+            fabric: item.fabric,
+            stock: item.stock,
+            price: item.price,
+            imageUrl: item.imageUrl,
+            metadata: item.metadata,
+            variants: item.variants,
+            createdAt: new Date(item.createdAt),
+            updatedAt: new Date(item.updatedAt)
+          }
+        });
+      }
+
+      // Restore outlet variants
+      for (const v of outletVariants) {
+        await tx.outletVariant.create({
+          data: {
+            id: v.id,
+            inventoryItemId: v.inventoryItemId,
+            outletName: v.outletName,
+            color: v.color,
+            size: v.size,
+            barcode: v.barcode,
+            stock: v.stock,
+            price: v.price,
+            isActive: v.isActive,
+            createdAt: new Date(v.createdAt),
+            updatedAt: new Date(v.updatedAt)
+          }
+        });
+      }
+    });
+
+    const cacheKeyPrefix = 'pos:';
+    const cache = require('../utils/cache');
+    cache.delPattern(cacheKeyPrefix);
+
+    res.json({ message: 'Backup imported successfully', itemsImported: inventoryItems.length, variantsImported: outletVariants.length });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to import backup', error: error.message });
+  }
+};
+
+module.exports = {
+  getInventory,
+  createInventoryItem,
+  updateInventoryItem,
+  deleteInventoryItem,
+  clearAllInventory,
+  bulkUploadInventory,
+  allocateInventory,
+  getAllocations,
+  getAllocationStats,
+  searchInventory,
+  updateAllocationStatus,
+  createCartAllocation,
+  getCarts,
+  updateCartStatus,
+  exportBackup,
+  importBackup
+};
