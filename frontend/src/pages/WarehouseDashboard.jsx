@@ -562,7 +562,7 @@ const WarehouseDashboard = () => {
                   </div>
                 ) : (
                   <>
-                    <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                    <div className="space-y-3">
                       {carts.map(cart => {
                         const cartStatusColors = {
                           PENDING: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
