@@ -93,6 +93,7 @@ const OutletPOS = () => {
   const [returnCart, setReturnCart] = useState([]);
   const [returnReason, setReturnReason] = useState('Customer return');
   const [returnLoading, setReturnLoading] = useState(false);
+  const [receiptSearch, setReceiptSearch] = useState('');
 
   // Persist ephemeral state to localStorage
   useEffect(() => { localStorage.setItem('pos_cart', JSON.stringify(cart)); }, [cart]);
@@ -338,7 +339,7 @@ const OutletPOS = () => {
     if (sale.discountPercent > 0 || sale.discountAmount > 0) w.document.write(`<tr><td>Discount${sale.discountPercent > 0 ? ` (${sale.discountPercent}%)` : ''}</td><td class="right">-${formatCurrency(sale.discountAmount)}</td></tr>`);
     w.document.write(`<tr class="total-row"><td>Final Amount</td><td class="right">${formatCurrency(sale.grandTotal)}</td></tr>`);
     w.document.write(`<tr><td>Payment Method: ${sale.paymentMethod}</td><td></td></tr></table>`);
-    w.document.write('<hr><div class="footer"><p style="font-weight:bold;">Thank You for Shopping with Enamels.</p><p style="font-weight:bold;">Visit Again!</p></div>');
+    w.document.write('<hr><div class="footer"><p style="font-weight:bold;font-size:11px;">Bill #: ' + sale.receiptNumber + '</p><hr><p style="font-weight:bold;">Thank You for Shopping with Enamels.</p><p style="font-weight:bold;">Visit Again!</p><hr><p style="font-size:8px;margin-top:4px;">Software is developed by Sameer Butt</p></div>');
     w.document.write('</body></html>');
     w.document.close();
     w.focus();
@@ -409,6 +410,56 @@ const OutletPOS = () => {
     }
     setReturnLoading(false);
   };
+
+  if (tab === 'history') {
+    const filteredSales = receiptSearch
+      ? sales.filter(s => s.receiptNumber?.toLowerCase().includes(receiptSearch.toLowerCase()))
+      : sales;
+    return (
+      <div className="space-y-4 pb-20 px-4 overflow-y-auto h-full pt-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-black text-white flex items-center gap-2"><Clock size={24} className="text-purple-500" />Sales History</h1>
+          <div className="flex gap-2">
+            <button onClick={() => setTab('pos')} className="text-xs font-bold px-3 py-1.5 rounded-xl bg-gray-800 text-gray-400 hover:text-white"><ShoppingCart size={14} className="inline mr-1" />POS</button>
+            <button onClick={() => setTab('dashboard')} className="text-xs font-bold px-3 py-1.5 rounded-xl bg-gray-800 text-gray-400 hover:text-white"><BarChart3 size={14} className="inline mr-1" />Dashboard</button>
+          </div>
+        </div>
+        <div className="relative max-w-md">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input value={receiptSearch} onChange={e => setReceiptSearch(e.target.value)} placeholder="Search by bill / receipt number..."
+            className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl pl-9 pr-3 py-2.5 text-sm font-bold text-white placeholder-gray-500 focus:border-purple-500 outline-none" />
+        </div>
+        <div className="space-y-2">
+          {filteredSales.length === 0 && <p className="text-center text-gray-500 py-8 font-bold">{receiptSearch ? 'No sales match your search' : 'No sales yet'}</p>}
+          {filteredSales.map(s => (
+            <div key={s.id} className="bg-gray-800/60 rounded-2xl border border-gray-700/50 p-4">
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <p className="text-lg font-black text-white">{s.receiptNumber}</p>
+                  <p className="text-xs text-gray-500 font-bold">{new Date(s.createdAt).toLocaleString()} &bull; {s.outletName}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-lg font-black text-emerald-400">{formatCurrency(s.grandTotal)}</p>
+                  <p className="text-[10px] text-gray-500 font-bold">{s.paymentMethod}</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1 mb-2">
+                {(s.items || []).map((item, idx) => (
+                  <span key={idx} className="text-[10px] font-bold text-gray-400 bg-gray-900 px-2 py-0.5 rounded-lg">
+                    {item.productName}{item.color ? ` (${item.color})` : ''}{item.size ? ` / ${item.size}` : ''} x{item.quantity} = {formatCurrency(item.lineTotal)}
+                  </span>
+                ))}
+              </div>
+              <div className="flex items-center justify-between text-xs text-gray-500 font-bold">
+                <span>Cashier: {s.cashierName || 'N/A'} {s.customerName ? `| Customer: ${s.customerName}` : ''}</span>
+                <button onClick={() => printReceipt(s)} className="text-purple-400 hover:text-purple-300 bg-purple-500/10 px-3 py-1.5 rounded-xl"><Printer size={12} className="inline mr-1" />Reprint</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   if (tab === 'returns') {
     return (
@@ -788,6 +839,7 @@ const OutletPOS = () => {
         <button onClick={() => setTab('pos')} className={`text-xs font-bold px-3 py-2 rounded-xl ${tab === 'pos' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}><ShoppingCart size={14} className="inline mr-1" />POS</button>
         <button onClick={() => setTab('dashboard')} className={`text-xs font-bold px-3 py-2 rounded-xl ${tab === 'dashboard' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}><BarChart3 size={14} className="inline mr-1" />Dashboard</button>
         <button onClick={() => setTab('returns')} className={`text-xs font-bold px-3 py-2 rounded-xl ${tab === 'returns' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}><RotateCcw size={14} className="inline mr-1" />Returns</button>
+        <button onClick={() => setTab('history')} className={`text-xs font-bold px-3 py-2 rounded-xl ${tab === 'history' ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}><Clock size={14} className="inline mr-1" />History</button>
         <button onClick={() => {
           invalidateKey(productsKey);
           invalidateKey(dashboardKey);

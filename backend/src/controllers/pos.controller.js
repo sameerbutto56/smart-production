@@ -409,9 +409,9 @@ const createSale = async (req, res) => {
 const getSales = async (req, res) => {
   try {
     const outlet = getOutletName(req);
-    const { range } = req.query;
+    const { range, search } = req.query;
     const skip = req.query.skipCache === 'true';
-    const cacheKey = `${CACHE_KEY_PREFIX}sales:${outlet || 'all'}:${range || 'all'}`;
+    const cacheKey = `${CACHE_KEY_PREFIX}sales:${outlet || 'all'}:${range || 'all'}${search ? `:${search}` : ''}`;
 
     if (!skip) {
       const cached = cache.get(cacheKey);
@@ -428,6 +428,7 @@ const getSales = async (req, res) => {
 
     const where = { ...dateFilter };
     if (outlet) where.outletName = outlet;
+    if (search) where.receiptNumber = { contains: search, mode: 'insensitive' };
 
     const sales = await prisma.posSale.findMany({
       where,
