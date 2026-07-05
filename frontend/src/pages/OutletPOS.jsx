@@ -339,7 +339,7 @@ const OutletPOS = () => {
     if (sale.discountPercent > 0 || sale.discountAmount > 0) w.document.write(`<tr><td>Discount${sale.discountPercent > 0 ? ` (${sale.discountPercent}%)` : ''}</td><td class="right">-${formatCurrency(sale.discountAmount)}</td></tr>`);
     w.document.write(`<tr class="total-row"><td>Final Amount</td><td class="right">${formatCurrency(sale.grandTotal)}</td></tr>`);
     w.document.write(`<tr><td>Payment Method: ${sale.paymentMethod}</td><td></td></tr></table>`);
-    w.document.write('<hr><div class="footer"><p style="font-weight:bold;font-size:11px;">Bill #: ' + sale.receiptNumber + '</p><hr><p style="font-weight:bold;">Thank You for Shopping with Enamels.</p><p style="font-weight:bold;">Visit Again!</p><hr><p style="font-size:8px;margin-top:4px;">Software is developed by Sameer Butt</p></div>');
+    w.document.write('<hr><div class="footer"><p style="font-weight:bold;">Thank You for Shopping with Enamels.</p><p style="font-weight:bold;">Visit Again!</p><hr><p style="font-size:8px;margin-top:4px;">Software is developed by Sameer Butt</p></div>');
     w.document.write('</body></html>');
     w.document.close();
     w.focus();
