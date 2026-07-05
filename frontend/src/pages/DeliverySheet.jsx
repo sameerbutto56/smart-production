@@ -52,13 +52,14 @@ const DeliverySheet = () => {
 
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
-      // Must be an online order
-      const isOnline = 
-        order.source === 'ONLINE' || 
-        order.source === 'INTERNAL' ||
-        order.source === 'ONLINE ORDER' ||
-        order.createdBy?.role === 'FAISAL';
-      if (!isOnline) return false;
+      // FAISAL sees only online orders
+      if (user?.role === 'FAISAL') {
+        const isOnline = 
+          order.source === 'ONLINE' || 
+          order.source === 'INTERNAL' ||
+          order.source === 'ONLINE ORDER';
+        if (!isOnline) return false;
+      }
 
       // Must be in delivery-related stage
       const deliveryStages = ['OUT_FOR_DELIVERY', 'DISPATCH', 'STORE_RECEIVE', 'DELIVERED'];

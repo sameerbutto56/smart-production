@@ -884,7 +884,7 @@ const AdminDashboard = () => {
         <div className="flex items-center gap-1.5 min-w-max">
           {TOP_TABS.map((tab) => {
             const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
-            if ((tab.id === 'edit_requests' || tab.id === 'settings') && !isAdmin) return null;
+            if ((tab.id === 'edit_requests' || tab.id === 'warehouse' || tab.id === 'settings') && !isAdmin) return null;
             return (
               <button
                 key={tab.id}
