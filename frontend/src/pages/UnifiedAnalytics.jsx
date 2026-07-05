@@ -10,6 +10,8 @@ import {
   ResponsiveContainer, Legend, PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
 import { PageLoader } from '../components/LoadingSpinner';
+import BiSection from '../components/BiSection';
+import OutletAnalytics from '../components/OutletAnalytics';
 
 const outletForSource = (sourceId) => {
   if (sourceId === 'jail_road') return 'Jail Road';
@@ -120,7 +122,14 @@ const DrillDetail = React.memo(({ title, items, onBack, onViewOrders }) => (
   </div>
 ));
 
+const ANALYTICS_TABS = [
+  { id: 'overview', label: 'Overview', icon: BarChart3 },
+  { id: 'bi', label: 'Business Intelligence', icon: TrendingUp },
+  { id: 'outlet', label: 'Outlet Analytics', icon: Store },
+];
+
 const UnifiedAnalytics = () => {
+  const [mainTab, setMainTab] = useState('overview');
   const [source, setSource] = useState('all');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -489,127 +498,143 @@ const UnifiedAnalytics = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg md:text-xl font-black text-white tracking-tight">Analytics</h1>
-          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Source-Wise Performance Dashboard</p>
+          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+            {mainTab === 'overview' ? 'Source-Wise Performance Dashboard' : mainTab === 'bi' ? 'Business Intelligence' : 'Outlet Analytics'}
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={handleExportExcel} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-900/30">
-            <FileText size={14} /> Export Excel
-          </button>
+          {mainTab === 'overview' && (
+            <button onClick={handleExportExcel} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-900/30">
+              <FileText size={14} /> Export Excel
+            </button>
+          )}
           <button onClick={() => { fetchData(); fetchPosData(); }} className="p-2 bg-gray-900 border border-gray-700 rounded-xl hover:bg-gray-800 transition-colors">
             <RefreshCcw size={14} className={`text-gray-400 ${loading || posLoading ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
 
-      {/* Source Tabs */}
-      {renderSourceTabs()}
+      {/* Analytics Main Tabs */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1">
+        {ANALYTICS_TABS.map(t => (
+          <button key={t.id} onClick={() => setMainTab(t.id)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+              mainTab === t.id ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg' : 'bg-gray-900 text-gray-500 border border-gray-800 hover:border-gray-600'
+            }`}
+          >
+            <t.icon size={12} /> {t.label}
+          </button>
+        ))}
+      </div>
 
-      {/* Filters */}
-      {renderFilters()}
-
-      {/* Main Content */}
-      {loading ? (
-        <PageLoader text="Loading Analytics..." />
-      ) : (
-        <div className="space-y-3">
-          {/* Summary Cards */}
-          {renderSummaryCards()}
-
-          {/* Drill-down Content */}
-          {drillView === 'delivered' && renderDeliveredDrill()}
-          {drillView === 'returns' && renderReturnsDrill()}
-          {drillView === 'pending' && renderPendingDrill()}
-
-          {/* Financial Overview */}
-          {!drillView && (
-            <>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                <div className="lg:col-span-2">{renderFinancials()}</div>
-                {revenuePie}
-              </div>
-              {/* Trends */}
-              {trendsChart}
-            </>
-          )}
-
-          {/* POS Analytics Section */}
-          <div className="bg-gray-900/30 rounded-2xl border border-gray-800/50 p-4 mt-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Store size={16} className="text-purple-500" />
-              <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest">Point of Sale Analytics</h3>
-              {posLoading && <RefreshCcw size={12} className="animate-spin text-gray-500" />}
-            </div>
-            {posData ? (
-              <>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-                  <div className="bg-gray-800/40 rounded-xl p-3">
-                    <p className="text-[10px] font-black text-gray-500 uppercase">POS Sales</p>
-                    <p className="text-lg font-black text-purple-400">{fmt(posData.totalSales)}</p>
-                    <p className="text-[10px] text-gray-500">{posData.totalOrders} orders</p>
+      {mainTab === 'overview' && (
+        <>
+          {/* Source Tabs */}
+          {renderSourceTabs()}
+          {/* Filters */}
+          {renderFilters()}
+          {/* Main Content */}
+          {loading ? (
+            <PageLoader text="Loading Analytics..." />
+          ) : (
+            <div className="space-y-3">
+              {renderSummaryCards()}
+              {drillView === 'delivered' && renderDeliveredDrill()}
+              {drillView === 'returns' && renderReturnsDrill()}
+              {drillView === 'pending' && renderPendingDrill()}
+              {!drillView && (
+                <>
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                    <div className="lg:col-span-2">{renderFinancials()}</div>
+                    {revenuePie}
                   </div>
-                  <div className="bg-gray-800/40 rounded-xl p-3">
-                    <p className="text-[10px] font-black text-gray-500 uppercase">POS Orders</p>
-                    <p className="text-lg font-black text-white">{posData.totalOrders}</p>
-                    <p className="text-[10px] text-gray-500">{posData.completedOrders} completed</p>
-                  </div>
-                  <div className="bg-gray-800/40 rounded-xl p-3">
-                    <p className="text-[10px] font-black text-gray-500 uppercase">POS Returns</p>
-                    <p className="text-lg font-black text-red-400">{posData.returnedOrders}</p>
-                    <p className="text-[10px] text-gray-500">{fmt(posData.totalSales - posData.netRevenue)} refunded</p>
-                  </div>
-                  <div className="bg-gray-800/40 rounded-xl p-3">
-                    <p className="text-[10px] font-black text-gray-500 uppercase">POS Discount</p>
-                    <p className="text-lg font-black text-amber-400">{fmt(posData.totalDiscount)}</p>
-                    <p className="text-[10px] text-gray-500">given on sales</p>
-                  </div>
+                  {trendsChart}
+                </>
+              )}
+              {/* POS Analytics Section */}
+              <div className="bg-gray-900/30 rounded-2xl border border-gray-800/50 p-4 mt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Store size={16} className="text-purple-500" />
+                  <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest">Point of Sale Analytics</h3>
+                  {posLoading && <RefreshCcw size={12} className="animate-spin text-gray-500" />}
                 </div>
-                {posData.branchPerformance && posData.branchPerformance.length > 0 && (
-                  <div className="mb-3">
-                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Branch Performance</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      {posData.branchPerformance.map((bp, i) => (
-                        <div key={bp.branch} className="bg-gray-800/30 rounded-xl p-3 border border-gray-700/30">
-                          <p className="text-xs font-black text-white">{bp.branch}</p>
-                          <p className="text-sm font-black text-emerald-400">{fmt(bp.revenue)}</p>
-                          <p className="text-[10px] text-gray-500">{bp.orders} orders</p>
+                {posData ? (
+                  <>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                      <div className="bg-gray-800/40 rounded-xl p-3">
+                        <p className="text-[10px] font-black text-gray-500 uppercase">POS Sales</p>
+                        <p className="text-lg font-black text-purple-400">{fmt(posData.totalSales)}</p>
+                        <p className="text-[10px] text-gray-500">{posData.totalOrders} orders</p>
+                      </div>
+                      <div className="bg-gray-800/40 rounded-xl p-3">
+                        <p className="text-[10px] font-black text-gray-500 uppercase">POS Orders</p>
+                        <p className="text-lg font-black text-white">{posData.totalOrders}</p>
+                        <p className="text-[10px] text-gray-500">{posData.completedOrders} completed</p>
+                      </div>
+                      <div className="bg-gray-800/40 rounded-xl p-3">
+                        <p className="text-[10px] font-black text-gray-500 uppercase">POS Returns</p>
+                        <p className="text-lg font-black text-red-400">{posData.returnedOrders}</p>
+                        <p className="text-[10px] text-gray-500">{fmt(posData.totalSales - posData.netRevenue)} refunded</p>
+                      </div>
+                      <div className="bg-gray-800/40 rounded-xl p-3">
+                        <p className="text-[10px] font-black text-gray-500 uppercase">POS Discount</p>
+                        <p className="text-lg font-black text-amber-400">{fmt(posData.totalDiscount)}</p>
+                        <p className="text-[10px] text-gray-500">given on sales</p>
+                      </div>
+                    </div>
+                    {posData.branchPerformance && posData.branchPerformance.length > 0 && (
+                      <div className="mb-3">
+                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Branch Performance</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          {posData.branchPerformance.map((bp) => (
+                            <div key={bp.branch} className="bg-gray-800/30 rounded-xl p-3 border border-gray-700/30">
+                              <p className="text-xs font-black text-white">{bp.branch}</p>
+                              <p className="text-sm font-black text-emerald-400">{fmt(bp.revenue)}</p>
+                              <p className="text-[10px] text-gray-500">{bp.orders} orders</p>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  </div>
+                      </div>
+                    )}
+                    {posData.bestSellingProducts && posData.bestSellingProducts.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Best Selling Products</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {posData.bestSellingProducts.map((p, i) => (
+                            <span key={i} className="text-[10px] font-bold text-white bg-gray-800/60 px-2.5 py-1 rounded-lg border border-gray-700/30">
+                              {i + 1}. {p.name} <span className="text-emerald-400">({p.qty} sold)</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {posData.reportData && posData.reportData.length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Daily POS Sales Trend</p>
+                        <ResponsiveContainer width="100%" height={160}>
+                          <AreaChart data={posData.reportData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                            <XAxis dataKey="date" tick={{ fill: '#9ca3af', fontSize: 8 }} />
+                            <YAxis tick={{ fill: '#9ca3af', fontSize: 8 }} />
+                            <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 12, fontSize: 10 }} formatter={(v) => fmt(v)} />
+                            <Area type="monotone" dataKey="sales" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.15} name="POS Sales" strokeWidth={2} />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-xs text-gray-600 text-center py-4">No POS data for selected period</p>
                 )}
-                {posData.bestSellingProducts && posData.bestSellingProducts.length > 0 && (
-                  <div>
-                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Best Selling Products</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {posData.bestSellingProducts.map((p, i) => (
-                        <span key={i} className="text-[10px] font-bold text-white bg-gray-800/60 px-2.5 py-1 rounded-lg border border-gray-700/30">
-                          {i + 1}. {p.name} <span className="text-emerald-400">({p.qty} sold)</span>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {posData.reportData && posData.reportData.length > 0 && (
-                  <div className="mt-3">
-                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Daily POS Sales Trend</p>
-                    <ResponsiveContainer width="100%" height={160}>
-                      <AreaChart data={posData.reportData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                        <XAxis dataKey="date" tick={{ fill: '#9ca3af', fontSize: 8 }} />
-                        <YAxis tick={{ fill: '#9ca3af', fontSize: 8 }} />
-                        <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 12, fontSize: 10 }} formatter={(v) => fmt(v)} />
-                        <Area type="monotone" dataKey="sales" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.15} name="POS Sales" strokeWidth={2} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </>
-            ) : (
-              <p className="text-xs text-gray-600 text-center py-4">No POS data for selected period</p>
-            )}
-          </div>
-        </div>
+              </div>
+            </div>
+          )}
+        </>
       )}
+
+      {mainTab === 'bi' && <BiSection />}
+
+      {mainTab === 'outlet' && <OutletAnalytics />}
 
       {/* Order List Modal */}
       {orderList && (
