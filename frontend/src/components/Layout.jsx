@@ -25,6 +25,7 @@ import {
   UserPlus,
   ShoppingCart,
   ArrowRightLeft,
+  ArrowLeft,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import socket from '../socket';
@@ -338,6 +339,13 @@ const Layout = () => {
         {/* Universal Top Bar */}
         <header className="h-16 border-b flex items-center px-6 justify-between flex-shrink-0 relative z-20" style={{ borderColor: 'var(--glass-border)', background: 'var(--nav-bg)' }}>
           <div className="flex items-center gap-4 flex-1">
+            <button 
+              onClick={() => navigate(-1)}
+              className="p-2 text-gray-400 hover:text-white bg-gray-800 rounded-lg"
+              title="Back"
+            >
+              <ArrowLeft size={16} />
+            </button>
             <button 
               onClick={() => setIsSidebarOpen(true)}
               className={`${isUrdu ? 'order-last' : ''} lg:hidden p-2 text-gray-400 hover:text-white bg-gray-800 rounded-lg`}
