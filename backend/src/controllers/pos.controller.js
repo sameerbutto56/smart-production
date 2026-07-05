@@ -41,17 +41,21 @@ const generateBarcode = (itemId, size, color, attempt = 0) => {
   return `${prefix}${base}`;
 };
 
-const generateReceiptNumber = (() => {
-  let counter = 0;
-  const startDate = new Date().toISOString().slice(0, 10);
-  return () => {
-    counter++;
-    const d = new Date();
-    const dayKey = d.toISOString().slice(0, 10);
-    if (dayKey !== startDate) { counter = 1; }
-    return `RCP-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(counter).padStart(5, '0')}`;
-  };
-})();
+const generateReceiptNumber = async () => {
+  const d = new Date();
+  const datePrefix = `RCP-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  const last = await prisma.posSale.findFirst({
+    where: { receiptNumber: { startsWith: datePrefix } },
+    orderBy: { receiptNumber: 'desc' },
+    select: { receiptNumber: true }
+  });
+  let nextNum = 1;
+  if (last) {
+    const parts = last.receiptNumber.split('-');
+    nextNum = parseInt(parts[parts.length - 1] || '0', 10) + 1;
+  }
+  return `${datePrefix}-${String(nextNum).padStart(5, '0')}`;
+};
 
 /* ─── POS Inventory — read-only view of outlet inventory ─── */
 const getPosInventory = async (req, res) => {
@@ -338,7 +342,7 @@ const createSale = async (req, res) => {
     if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'At least one item is required' });
 
     const outletName = getOutletName(req);
-    const receiptNumber = manualReceipt || generateReceiptNumber();
+    const receiptNumber = manualReceipt || await generateReceiptNumber();
     let subtotal = 0;
     let totalAlt = parseFloat(alterationCharges || 0);
     let totalExtra = parseFloat(extraCharges || 0);
