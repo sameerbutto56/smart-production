@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Search, ShoppingCart, Plus, Minus, X, Trash2, Printer, Barcode, Percent, RotateCcw, CreditCard, DollarSign, Package, Tag, Grid3X3, List, ChevronDown, ChevronUp, AlertCircle, BarChart3, RefreshCw, Calendar, TrendingUp, Award, Clock, CheckCircle2 } from 'lucide-react';
+import { Search, ShoppingCart, Plus, Minus, X, Trash2, Printer, Barcode, Percent, RotateCcw, CreditCard, DollarSign, Package, Tag, Grid3X3, List, ChevronDown, ChevronUp, AlertCircle, BarChart3, RefreshCw, Calendar, TrendingUp, Award, Clock, CheckCircle2, Globe } from 'lucide-react';
 import toast from 'react-hot-toast';
 import JsBarcode from 'jsbarcode';
 import useCache, { invalidateKey } from '../hooks/useCache';
@@ -396,7 +396,7 @@ const OutletPOS = () => {
     setReturnLoading(true);
     try {
       for (const item of returnCart) {
-        await api.post(`/api/pos/returns?outlet=${selectedOutlet}`, { variantId: item.variantId, quantity: item.qty, reason: returnReason });
+        await api.post(`/api/pos/returns?outlet=${selectedOutlet}`, { variantId: item.variantId, quantity: item.qty, reason: returnReason, saleId: item.saleId || undefined });
       }
       toast.success(`${returnCart.reduce((s, i) => s + i.qty, 0)} item(s) returned successfully`);
       setReturnCart([]);
@@ -507,7 +507,8 @@ const OutletPOS = () => {
                                 setReturnCart([...returnCart, {
                                   variantId: item.outletVariantId, productName: item.productName,
                                   color: item.color, size: item.size, barcode: '',
-                                  unitPrice: item.unitPrice, qty: 1, maxQty: 99
+                                  unitPrice: item.unitPrice, qty: 1, maxQty: 99,
+                                  saleId: s.id
                                 }]);
                               }
                             });
@@ -724,6 +725,37 @@ const OutletPOS = () => {
                 );
               })}
             </div>
+
+            {/* Payment Method Breakdown */}
+            {dashboard.paymentBreakdown && dashboard.paymentBreakdown.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {dashboard.paymentBreakdown.map(pm => {
+                  const icons = { CASH: DollarSign, ONLINE: Globe, CARD: CreditCard };
+                  const colors = { CASH: 'from-emerald-600 to-green-600', ONLINE: 'from-blue-600 to-indigo-600', CARD: 'from-purple-600 to-violet-600' };
+                  const bgColors = { CASH: 'text-emerald-400', ONLINE: 'text-blue-400', CARD: 'text-purple-400' };
+                  const Icon = icons[pm.method] || DollarSign;
+                  return (
+                    <div key={pm.method} className={`bg-gradient-to-br ${colors[pm.method] || 'from-gray-600 to-slate-600'} p-[1px] rounded-2xl shadow-lg`}>
+                      <div className="bg-gray-950/90 rounded-2xl p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                            <Icon size={14} className={bgColors[pm.method] || 'text-gray-400'} />
+                            {pm.method}
+                          </span>
+                        </div>
+                        <p className="text-lg font-black text-white">{formatCurrency(pm.net)}</p>
+                        <div className="flex items-center gap-3 mt-1.5 text-[10px]">
+                          <span className="text-emerald-400 font-bold">Gross: {formatCurrency(pm.gross)}</span>
+                          {pm.returns > 0 && (
+                            <span className="text-red-400 font-bold">Returns: -{formatCurrency(pm.returns)}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Peak day & comparisons */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -523,6 +523,32 @@ const getSalesDashboard = async (req, res) => {
     const netRevenue = totalSales - refundAmount;
     const totalDiscount = discountAgg._sum.discountAmount || 0;
 
+    // Payment method breakdown
+    const salesByMethod = await prisma.posSale.groupBy({
+      by: ['paymentMethod'],
+      where: whereClause,
+      _sum: { grandTotal: true }
+    });
+    const returnsWithSale = await prisma.posReturn.findMany({
+      where: {
+        ...(outlet ? { outletName: outlet } : {}),
+        ...(startLimit || endLimit ? { createdAt: { gte: startLimit || undefined, lte: endLimit || undefined } } : {}),
+        saleId: { not: null }
+      },
+      select: { refundAmount: true, sale: { select: { paymentMethod: true } } }
+    });
+    const returnsByMethod = {};
+    returnsWithSale.forEach(r => {
+      const method = r.sale?.paymentMethod || 'CASH';
+      returnsByMethod[method] = (returnsByMethod[method] || 0) + r.refundAmount;
+    });
+    const paymentBreakdown = salesByMethod.map(sm => {
+      const method = sm.paymentMethod;
+      const gross = sm._sum.grandTotal || 0;
+      const ret = returnsByMethod[method] || 0;
+      return { method, gross, returns: ret, net: gross - ret };
+    });
+
     // 2. Fetch completed/pending/cancelled orders from main order table for comparison
     const orderWhere = {};
     if (outlet) {
@@ -618,6 +644,7 @@ const getSalesDashboard = async (req, res) => {
       returnedOrders: totalReturns,
       netRevenue,
       totalDiscount,
+      paymentBreakdown,
       highestSalesDay,
       highestOrdersDay,
       bestSellingProducts,
@@ -639,7 +666,7 @@ const getSalesDashboard = async (req, res) => {
 /* ─── Returns ─── */
 const createReturn = async (req, res) => {
   try {
-    const { variantId, reason, quantity } = req.body;
+    const { variantId, reason, quantity, saleId } = req.body;
     const outlet = getOutletName(req);
     if (!variantId || !quantity) return res.status(400).json({ message: 'variantId and quantity are required' });
 
@@ -653,6 +680,7 @@ const createReturn = async (req, res) => {
         data: {
           outletVariantId: variantId,
           outletName: outlet || 'Johar Town',
+          saleId: saleId || null,
           reason: reason || null,
           quantity: parseInt(quantity),
           refundAmount
