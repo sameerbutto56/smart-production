@@ -3,13 +3,20 @@ import api from '../services/api';
 import {
   BarChart3, TrendingUp, DollarSign, RefreshCcw, ChevronRight, X, Search,
   ShoppingCart, CheckCircle2, RotateCcw, Clock, Filter, Calendar,
-  CreditCard, Banknote, Landmark, AlertTriangle, ArrowLeft, Eye, FileText
+  CreditCard, Banknote, Landmark, AlertTriangle, ArrowLeft, Eye, FileText, Store, Award
 } from 'lucide-react';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
 import { PageLoader } from '../components/LoadingSpinner';
+
+const outletForSource = (sourceId) => {
+  if (sourceId === 'jail_road') return 'Jail Road';
+  if (sourceId === 'johar_town') return 'Johar Town';
+  if (sourceId === 'abbottabad') return 'Abbottabad';
+  return null;
+};
 
 const CHART_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
 const PIE_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
@@ -129,6 +136,8 @@ const UnifiedAnalytics = () => {
   const [orderList, setOrderList] = useState(null);
   const [orderListTitle, setOrderListTitle] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [posData, setPosData] = useState(null);
+  const [posLoading, setPosLoading] = useState(false);
 
   const getDateRange = useCallback(() => {
     const d = parseInt(datePreset);
@@ -161,6 +170,28 @@ const UnifiedAnalytics = () => {
   }, [source, datePreset, customStart, customEnd, paymentMethod, statusFilter, cityFilter, deliveryStatus, getDateRange]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  const fetchPosData = useCallback(async () => {
+    const outlet = outletForSource(source);
+    if (!outlet && source !== 'all') { setPosData(null); return; }
+    setPosLoading(true);
+    try {
+      const dayRange = outletForSource(source) ? {} : (() => {
+        const dr = getDateRange();
+        const params = {};
+        if (dr.startDate) params.startDate = dr.startDate;
+        if (dr.endDate) params.endDate = dr.endDate;
+        return params;
+      })();
+      const params = new URLSearchParams(dayRange);
+      if (outlet) params.set('outlet', outlet);
+      const res = await api.get(`/api/pos/sales/dashboard?${params}`);
+      setPosData(res.data);
+    } catch { setPosData(null); }
+    setPosLoading(false);
+  }, [source, getDateRange]);
+
+  useEffect(() => { fetchPosData(); }, [fetchPosData]);
 
   const fetchOrders = async (type, label) => {
     try {
@@ -464,8 +495,8 @@ const UnifiedAnalytics = () => {
           <button onClick={handleExportExcel} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-900/30">
             <FileText size={14} /> Export Excel
           </button>
-          <button onClick={fetchData} className="p-2 bg-gray-900 border border-gray-700 rounded-xl hover:bg-gray-800 transition-colors">
-            <RefreshCcw size={14} className={`text-gray-400 ${loading ? 'animate-spin' : ''}`} />
+          <button onClick={() => { fetchData(); fetchPosData(); }} className="p-2 bg-gray-900 border border-gray-700 rounded-xl hover:bg-gray-800 transition-colors">
+            <RefreshCcw size={14} className={`text-gray-400 ${loading || posLoading ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
@@ -500,6 +531,83 @@ const UnifiedAnalytics = () => {
               {trendsChart}
             </>
           )}
+
+          {/* POS Analytics Section */}
+          <div className="bg-gray-900/30 rounded-2xl border border-gray-800/50 p-4 mt-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Store size={16} className="text-purple-500" />
+              <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest">Point of Sale Analytics</h3>
+              {posLoading && <RefreshCcw size={12} className="animate-spin text-gray-500" />}
+            </div>
+            {posData ? (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                  <div className="bg-gray-800/40 rounded-xl p-3">
+                    <p className="text-[10px] font-black text-gray-500 uppercase">POS Sales</p>
+                    <p className="text-lg font-black text-purple-400">{fmt(posData.totalSales)}</p>
+                    <p className="text-[10px] text-gray-500">{posData.totalOrders} orders</p>
+                  </div>
+                  <div className="bg-gray-800/40 rounded-xl p-3">
+                    <p className="text-[10px] font-black text-gray-500 uppercase">POS Orders</p>
+                    <p className="text-lg font-black text-white">{posData.totalOrders}</p>
+                    <p className="text-[10px] text-gray-500">{posData.completedOrders} completed</p>
+                  </div>
+                  <div className="bg-gray-800/40 rounded-xl p-3">
+                    <p className="text-[10px] font-black text-gray-500 uppercase">POS Returns</p>
+                    <p className="text-lg font-black text-red-400">{posData.returnedOrders}</p>
+                    <p className="text-[10px] text-gray-500">{fmt(posData.totalSales - posData.netRevenue)} refunded</p>
+                  </div>
+                  <div className="bg-gray-800/40 rounded-xl p-3">
+                    <p className="text-[10px] font-black text-gray-500 uppercase">POS Discount</p>
+                    <p className="text-lg font-black text-amber-400">{fmt(posData.totalDiscount)}</p>
+                    <p className="text-[10px] text-gray-500">given on sales</p>
+                  </div>
+                </div>
+                {posData.branchPerformance && posData.branchPerformance.length > 0 && (
+                  <div className="mb-3">
+                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Branch Performance</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {posData.branchPerformance.map((bp, i) => (
+                        <div key={bp.branch} className="bg-gray-800/30 rounded-xl p-3 border border-gray-700/30">
+                          <p className="text-xs font-black text-white">{bp.branch}</p>
+                          <p className="text-sm font-black text-emerald-400">{fmt(bp.revenue)}</p>
+                          <p className="text-[10px] text-gray-500">{bp.orders} orders</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {posData.bestSellingProducts && posData.bestSellingProducts.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Best Selling Products</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {posData.bestSellingProducts.map((p, i) => (
+                        <span key={i} className="text-[10px] font-bold text-white bg-gray-800/60 px-2.5 py-1 rounded-lg border border-gray-700/30">
+                          {i + 1}. {p.name} <span className="text-emerald-400">({p.qty} sold)</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {posData.reportData && posData.reportData.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Daily POS Sales Trend</p>
+                    <ResponsiveContainer width="100%" height={160}>
+                      <AreaChart data={posData.reportData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                        <XAxis dataKey="date" tick={{ fill: '#9ca3af', fontSize: 8 }} />
+                        <YAxis tick={{ fill: '#9ca3af', fontSize: 8 }} />
+                        <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 12, fontSize: 10 }} formatter={(v) => fmt(v)} />
+                        <Area type="monotone" dataKey="sales" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.15} name="POS Sales" strokeWidth={2} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="text-xs text-gray-600 text-center py-4">No POS data for selected period</p>
+            )}
+          </div>
         </div>
       )}
 
