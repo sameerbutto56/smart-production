@@ -590,15 +590,6 @@ const InventoryManagement = () => {
                   </div>
                 ) : null;
               })()}
-              {/* Print barcode for first variant only (INVENTORY_VIEW) */}
-              <div className="mt-3 flex justify-end">
-                <button onClick={() => {
-                  const v = item.variants?.[0] || item;
-                  printBarcodeFromStore(item, v, item.name);
-                }} className="text-[10px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-all">
-                  <Printer size={12} /> Print Barcode
-                </button>
-              </div>
             </motion.div>
           ))
         ]).flat()}
@@ -975,14 +966,6 @@ const InventoryManagement = () => {
                       {item.price > 0 && <span className="text-xs md:text-sm font-bold text-emerald-500">₨{item.price}</span>}
                     </div>
                   </div>
-                  {user?.role === 'INVENTORY_VIEW' && (
-                    <div className="mt-3 flex justify-end">
-                      <button onClick={(e) => { e.stopPropagation(); printBarcodeFromStore(item, item, item.name); }}
-                        className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-blue-400 hover:text-blue-300 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1">
-                        <Printer size={12} /> Print Barcode
-                      </button>
-                    </div>
-                  )}
                 </>
               )}
 
