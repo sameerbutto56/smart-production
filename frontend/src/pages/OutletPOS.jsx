@@ -308,20 +308,20 @@ const OutletPOS = () => {
   const printReceipt = (sale) => {
     const w = window.open('', '_blank');
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt</title><style>
-      @page { margin: 0; size: 80mm auto; }
-      body { font-family: 'Courier New', monospace; font-size: 12px; width: 72mm; margin: 0 auto; padding: 4mm 0; color: #000; }
-      .header { text-align: center; margin-bottom: 4px; }
-      .header h1 { font-size: 18px; font-weight: 900; margin: 0; letter-spacing: 2px; text-transform: uppercase; }
-      .header p { font-size: 10px; margin: 2px 0; }
-      hr { border: none; border-top: 1px dashed #000; margin: 4px 0; }
-      table { width: 100%; font-size: 10px; border-collapse: collapse; }
-      th { text-align: left; font-size: 9px; padding: 2px 0; border-bottom: 1px solid #000; }
-      td { padding: 2px 0; vertical-align: top; }
+      @page { margin: 2mm 4mm; size: 80mm auto; }
+      body { font-family: 'Courier New', monospace; font-size: 10px; width: 72mm; margin: 0; padding: 0; color: #000; line-height: 1.3; }
+      .header { text-align: center; margin-bottom: 2px; }
+      .header h1 { font-size: 16px; font-weight: 900; margin: 0; letter-spacing: 3px; text-transform: uppercase; }
+      .header p { font-size: 8px; margin: 1px 0; }
+      hr { border: none; border-top: 1px dashed #000; margin: 3px 0; }
+      table { width: 100%; font-size: 9px; border-collapse: collapse; }
+      th { text-align: left; font-size: 8px; padding: 1px 0; border-bottom: 1px solid #000; }
+      td { padding: 1px 0; vertical-align: top; }
       .right { text-align: right; }
       .center { text-align: center; }
-      .total-row td { font-weight: 900; font-size: 12px; padding-top: 4px; }
-      .footer { text-align: center; font-size: 9px; margin-top: 6px; }
-      .barcode { text-align: center; margin: 4px 0; }
+      .total-row td { font-weight: 900; font-size: 10px; padding-top: 3px; }
+      .footer { text-align: center; font-size: 8px; margin-top: 4px; }
+      .barcode { text-align: center; margin: 3px 0; }
     </style></head><body>`);
     w.document.write(`<div class="header"><h1>ENAMELS</h1><p style="font-style:italic;font-size:9px;margin-bottom:6px;">Premium Medical Apparels</p><p>${sale.outletName || ''}</p><p>Invoice Number: ${sale.receiptNumber}</p><p>Date & Time: ${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier Name: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}</div>`);
     w.document.write('<hr><table><thead><tr><th>Item</th><th class="right">Qty</th><th class="right">Price</th><th class="right">Total</th></tr></thead><tbody>');
