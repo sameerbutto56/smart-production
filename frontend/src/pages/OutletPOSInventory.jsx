@@ -673,7 +673,7 @@ const OutletPOSInventory = () => {
                             const selected = storeProducts.find(p => p.id === sp.id);
                             let newVariants = [];
                             if (spVariants) {
-                              newVariants = spVariants.map(v => ({ color: v.color || '', size: v.size || '', stock: 0, price: v.price || 0 }));
+                              newVariants = spVariants.map(v => ({ color: v.color || '', size: v.size || '', stock: 0, price: (v.price && v.price > 0) ? v.price : (selected.price || 0) }));
                             } else {
                               newVariants = [{ color: selected.color || '', size: selected.size || '', stock: 0, price: selected.price || 0 }];
                             }

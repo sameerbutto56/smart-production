@@ -734,9 +734,17 @@ const OUTLETS = ['Johar Town', 'Jail Road', 'Abbottabad'];
 
 const createPosProduct = async (req, res) => {
   try {
-    const { name, category, fabric, imageUrl, variants } = req.body;
+    const { name, category, fabric, imageUrl, price, variants } = req.body;
     if (!name || !category) {
       return res.status(400).json({ message: 'Product name and category are required' });
+    }
+
+    let computedPrice = price;
+    if ((!price || price === 0) && variants && Array.isArray(variants) && variants.length > 0) {
+      const firstPrice = parseFloat(variants[0].price);
+      computedPrice = isNaN(firstPrice) ? 0 : firstPrice;
+    } else if (!price || price === 0) {
+      computedPrice = 0;
     }
 
     const item = await prisma.inventoryItem.create({
@@ -746,7 +754,7 @@ const createPosProduct = async (req, res) => {
         fabric: fabric || null,
         imageUrl: imageUrl || null,
         stock: 0,
-        price: null,
+        price: parseFloat(computedPrice) || 0,
         variants: variants || null
       }
     });

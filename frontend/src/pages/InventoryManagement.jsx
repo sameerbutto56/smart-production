@@ -170,12 +170,14 @@ const InventoryManagement = () => {
         alert('Please select or specify a category.');
         return;
       }
+      const validVariants = formData.variants.filter(v => v.color || v.size || parseInt(v.stock) > 0);
       const payload = {
         name: formData.name,
         category: resolvedCategory,
         fabric: formData.fabric,
         imageUrl: formData.imageUrl,
-        variants: formData.variants.filter(v => v.color || v.size || parseInt(v.stock) > 0)
+        price: validVariants.length > 0 ? parseFloat(validVariants[0].price) || 0 : 0,
+        variants: validVariants
       };
       if (editingItem) {
         await api.put(`/api/inventory/${editingItem.id}`, payload);
