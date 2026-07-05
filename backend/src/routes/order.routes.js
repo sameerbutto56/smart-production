@@ -35,7 +35,8 @@ const {
   acceptTask,
   getOrderTimeline,
   getOutletAnalytics,
-  updateProductAvailability
+  updateProductAvailability,
+  trackOrder
 } = require('../controllers/order.controller');
 const {
   updateDeliveryStatus,
@@ -57,6 +58,9 @@ router.delete('/history', authenticate, authorize(['SUPER_ADMIN', 'FAISAL']), cl
 
 // List all orders (available to all authenticated users)
 router.get('/', authenticate, getOrders);
+
+// Track order by orderNumber (any authenticated user)
+router.get('/track/:orderNumber', authenticate, trackOrder);
 
 // Module Employee: Request stage completion
 router.put('/:orderId/stages/:stageId/request', authenticate, requestStageCompletion);

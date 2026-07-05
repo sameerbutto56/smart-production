@@ -3161,6 +3161,24 @@ const updateProductAvailability = async (req, res) => {
   }
 };
 
+const trackOrder = async (req, res) => {
+  const { orderNumber } = req.params;
+  try {
+    const order = await prisma.order.findUnique({
+      where: { orderNumber },
+      include: {
+        stages: { orderBy: { createdAt: 'asc' } },
+        routingHistory: { orderBy: { createdAt: 'asc' }, include: { sentByUser: { select: { name: true } } } }
+      }
+    });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    res.json(order);
+  } catch (error) {
+    console.error('[trackOrder] error:', error.message);
+    res.status(500).json({ message: 'Error tracking order' });
+  }
+};
+
 module.exports = {
   createOrder,
   getOrders,
@@ -3197,5 +3215,6 @@ module.exports = {
   updateDispatchStatus,
   acceptTask,
   getOrderTimeline,
-  updateProductAvailability
+  updateProductAvailability,
+  trackOrder
 };

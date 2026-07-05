@@ -30,6 +30,7 @@ const ClientRegistration = lazy(() => import('./pages/ClientRegistration'));
 const OutletPOS = lazy(() => import('./pages/OutletPOS'));
 const OutletPOSInventory = lazy(() => import('./pages/OutletPOSInventory'));
 const OutletTransfers = lazy(() => import('./pages/OutletTransfers'));
+const OrderTrack = lazy(() => import('./pages/OrderTrack'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -50,7 +51,7 @@ const AuthRedirectHandler = () => {
   if (role === 'PRODUCTION') return <Navigate to="/tasks" replace={true} />;
   if (role === 'DELIVERY_BOY') return <Navigate to="/delivery" replace={true} />;
   if (role === 'STORE') return <Navigate to="/warehouse" replace={true} />;
-  if (role === 'INVENTORY_VIEW') return <Navigate to="/inventory" replace={true} />;
+  if (role === 'INVENTORY_VIEW') return <Navigate to="/order-track" replace={true} />;
   
   return <Navigate to="/tasks" replace={true} />;
 };
@@ -109,6 +110,7 @@ function App() {
                   <Route path="pos" element={<OutletPOS />} />
                   <Route path="pos-inventory" element={<OutletPOSInventory />} />
                   <Route path="transfers" element={<OutletTransfers />} />
+                  <Route path="order-track" element={<OrderTrack />} />
                 </Route>
               </Routes>
               </ErrorBoundary>
