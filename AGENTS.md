@@ -1,14 +1,14 @@
 ## Goal
-- Complete cache-first rollout across all outlets with independent per-outlet inventory, bulk initialization, and instant tab switching.
+- Complete POS advance/balance payment flow — order lookup by phone or bill number, card charges, receipt polish, dashboard tracking for order-linked sales.
 
 ## Constraints & Preferences
-- Delivery riders primarily use mobile devices – UI must be fully responsive with compact cards and expandable details.
-- Backend controllers, frontend pages, and build must pass without errors.
-- Inventory data must never be deleted.
-- Print output must be clean A4 format, suppress UI chrome, and support printer-connected direct printing.
-- Prepaid orders must skip payment collection at delivery (only Deliver / No Response / Return shown).
-- Prepaid orders must record revenue immediately at creation.
-- Job Sheet must be printable for physical production use – clean A4 with per-product branding.
+- QR code on receipt must encode per-outlet Google Maps review URL (not receipt data)
+- QR must print at the very bottom of the receipt (after all text)
+- Receipt must show column headings: ITEM, QTY×PRICE, TOTAL
+- Order number in OrderEntry must be manually entered (no auto-generate)
+- Inventory data must never be deleted or modified by any cleanup script
+- Cart panel must scroll fully so products + summary are both visible
+- Balance orders (advance + POS) must be tracked in dashboard with ORDER badge
 
 ## Progress
 ### Done
@@ -66,34 +66,20 @@
   - Green date row showing both dates prominently
   - Financial Summary stays in English (admin purpose)
 
-### Done (current session)
-- Changed analytics default date range from "This Week" to "All Time" so all orders show on load.
-- Fixed outlet demand request size/color dropdowns – backend preserves variants for OUTLET role, frontend falls back to flat size/color fields when variants are empty. Reverted backend changes per request (keep original controller), kept frontend fallback.
-- Cleaned inventory (51 items deleted) and order data (75 orders + related tables) for fresh start.
-- Restored inventory from seed (21 items), then removed all per user request (0 items).
-- Fixed analytics source filter: `buildSourceFilter` now matches by `outletName` regardless of `source` field; `getSources` no longer restricts to `source: 'OUTLET'` so Online orders appear.
-- **Shoes category size selection**: Added `isShoes` helper in `OrderEntry.jsx` to show size buttons for SHOES despite `isAccessory` returning `true`. Size buttons use default `['S', 'M', 'L', 'XL', '2XL']` sizes (not empty). `handleCategorySelect` skips `setSize('Standard')` for SHOES.
-- **Fixed `useCallback` TDZ crash**, **Fixed missing deps**, **Branding fields preserved**, **logoName badge**, **Financial Summary split**, **Fixed `handleSizeSelect` stale closure** (see full details below).
-- **Per-product availability toggles, backend classification, expanded toggles to Job Sheet** — all rolled out in prior session.
-- **Routing System Fix**: Added route validation (`destinationStage` must be in `validAllStages`) in `manualRouteOrder` and `requestStageCompletion` — returns clear error message `"Cannot route order. Destination route X does not exist. Please configure the workflow route first."`. Previously no validation existed, routing to invalid stages would silently create orphan stages with no recipients.
-- **WORKERS stage**: Added as a valid routing destination across the entire system — `validAllStages`, `validateStageTransition`, `getRolesForStage` (mapped to `PRODUCTION` role), `getRolesForStageBasedOnRole`, `getStageDurations`, `AUTO_TRANSITION_STAGES`, analytics `stageOrder`. Frontend routing UIs updated: OrderCard STORE dropdown, STORE_RECEIVE buttons, admin Move To, prompt-based routing, WarehouseDashboard quick-route buttons + modal, MyTasks bulk routing, AdminDashboard bulk routing.
-- **SVG vector barcode printing**: Replaced canvas PNG with JsBarcode SVG rendering — vector format scales perfectly at any DPI. Added viewBox for zero-loss scaling. Label dimensions: 55mm × 33mm with 20mm barcode height (meets 20-25mm spec). Pure black bars on white background for max scanner contrast.
-- **Fixed `acceptDemandRequest` outlet bug**: OutletVariant create/update now sets `outletName: existing.outletName` — stock no longer always lands in Johar Town. Variant find filters by `outletName` too, preventing cross-outlet stock corruption. Barcode collision check uses `findFirst({where:{barcode,outletName}})`.
-- **Fixed `createPosProduct` OUTLETS**: Added `'Abbottabad'` to the hardcoded array (was `['Johar Town', 'Jail Road']`).
-- **Fixed cache invalidation**: Changed `cache.del('pos:inventory')` to `cache.delPattern('pos:')` so per-outlet cached responses are cleared.
-- **Added outlet selector in OutletPOSInventory.jsx**: Three tabs (Johar Town/Jail Road/Abbottabad) let users switch between outlet inventories. STORE/ADMIN sees all with full CRUD. OUTLET role sees own outlet (full CRUD) + other outlets (read-only — Edit/Add buttons hidden). Amber "Read-only view" banner when viewing another outlet.
-- **Per-item Three Status system**: `inventoryDeducted: true` field in productDetails. `updateProductAvailability` now deducts inventory immediately on ✓ click. ✓ → `availabilityStatus: 'available'` + locked (no further toggling). ✗ → `availabilityStatus: 'not_available'` (no deduction).
-- **Three visual states**: Default `undefined` → ⏳ Pending (gray badge), `true` → ✓ Completed (green badge), `false` → ✗ Rejected (red badge). Initialization from DB uses strict `=== 'available'` / `=== 'not_available'` checks.
-- **Toggle protection**: ✓ button disabled+locked when Completed. Hover styles for pending items; Completed shows permanent green with `cursor-not-allowed`.
-- **Routing-time skip**: `requestStageCompletion` STORE section filters `!item.inventoryDeducted` to skip already-deducted items. Only pending items get classified/deducted.
-- **Clean avail payload**: STORE routing payload only includes explicitly `true`/`false` items.
-- **All status badges updated**: OrderCard, AllOrders everywhere.
-- **Build passes with 0 errors**.
-- **Fixed 504 timeout on Transfers page**: Removed redundant auto-creation loop from `getProducts` (variants already created by `getPosInventory`). [Commit 0a6d653]
-- **Fixed transfers load failure**: Added `parseItemVariants()` helper for JSON string `variants` field, null guard for orphaned `OutletVariant` records (null `inventoryItem`), split `Promise.all` for per-endpoint error messages. [Commit 39268f9]
-- **`onDelete: Cascade` on OutletVariant.inventoryItem**: Prisma schema updated — deleting an InventoryItem now auto-removes all OutletVariants referencing it (eliminates orphan OV errors on product delete).
-- **Batch variant auto-creation in `getPosInventory`**: Replaced per-variant `create` loop with single `createMany` call + one refetch (eliminates N+1 DB roundtrips during product creation).
-- **Extracted delivery/refund controller**: Moved `updateDeliveryStatus`, `acceptDelivery`, `getDeliveryHistory`, `refundOrder`, `getRefundQueue`, `processRefund` into `order-delivery.controller.js`. Updated `order.controller.js` to export shared helpers (`isSystemPaused`, `createAuditLog`, `calculateAndRecordRevenue`, `reverseInventoryForRefund`). Updated `order.routes.js` imports accordingly.
+### Done (latest session)
+- **Receipt layout fixes**: brand letter-spacing removed, summary order reverted (Subtotal → Alteration → Discount → Final Amount last)
+- **QR code on receipt**: per-outlet Google Maps review URL (Johar Town, Jail Road, Abbottabad), placed at bottom after Payment line
+- **Receipt column headings**: `ITEM` / `QTY×PRICE` / `TOTAL` above items
+- **OrderEntry order number**: always editable & required for outlet (no auto-generate)
+- **Inventory backup script**: `backend/prisma/backup-inventory.js` exports InventoryItem, OutletInventory to `backups/`
+- **Johar Town phone** `0325-6666063` in receipt header
+- **Advance/Balance feature**: `PosSale.advanceAmount`, receipt shows Advance/Balance lines; advance input in POS cart; `PosSale.orderId` links sale to order & marks order PAID
+- **Order lookup**: `GET /api/pos/order-lookup` searches by orderNumber OR phone; auto-detects input type; 600ms debounce; sets advance + customer name
+- **Dashboard**: Balance Orders section (amber) listing order-linked POS sales; empty state always visible; all 3 payment methods always shown
+- **Cart overflow fix**: scrollable cart with summary visible
+- **Card charges**: `PosSale.cardChargesPct`/`cardChargesAmount`; percentage input on CARD selection; shown on receipt
+- **Auto-load order items**: on order lookup, matches items to outlet inventory by name/color/size and adds to cart
+- **Customer phone field**: optional phone input in POS cart; stored on PosSale; shown on receipt print
 
 ### P1 — Cache-First Foundation
 - **Centralized API client**: Migrated all 21 frontend files from raw `axios` to the centralized `api` service (`src/services/api.js`). Eliminated duplicate `sessionStorage.getItem('token')` and `Authorization` header patterns.
@@ -152,6 +138,10 @@
 - Print Job Sheet uses `openPrintWindow`/`closePrintWindow` pattern (not `@media print`) to avoid modal overlay artifacts.
 - CAP pricing uses hardcoded `capUnitPrice = 500` per cap, included in per-item `totalPrice` and Financial Summary cap charges line.
 - Advance amount replaces the old boolean `advancePaid` – `advanceAmount` is stored as a `Float` number; components now check `parseFloat(order.advanceAmount) > 0` instead of `order.advancePaid`.
+- Order lookup uses one input field that auto-detects phone number vs order number by regex.
+- Advance amount stored separately on PosSale (not merged into grandTotal) so receipt can show historic advance + current payment.
+- Card charges percentage applies to amount after discount.
+- Dashboard Balance Orders section pulled from `posSale` table (`orderId != null`), always visible with empty state.
 
 ## Next Steps
 1. Verify all 3 outlets load instantly after the first tab visit (variants pre-created by `getPosInventory`).
@@ -165,7 +155,7 @@
 - Barcode print (Jul 3): Changed JsBarcode from `width:2.2, height:28, margin:0` to `width:1.8, height:48, margin:12` — adds critical quiet zone (12px each side ≈ 10× X-dimension) for scanner readability. Removed viewBox stretching; SVG keeps natural dimensions with `max-width/max-height` CSS. Removed unused `sizeInfo` variable.
 
 ## Critical Context
-- Latest commit includes: P1 foundation — centralized API client (21 files migrated), fixed WebSocket, event normalizer, IndexedDB wrapper, useCache hook, sync queue.
+- Latest commit includes: Auto-load order items into cart on lookup, customer phone field, balance orders always visible in dashboard.
 - Build passes with 0 errors.
 - `isAccessory` uses substring matching (`catUpper.includes('COAT')`).
 - `calculateAndRecordRevenue` at line 2482 of `order.controller.js` is idempotent.
@@ -180,12 +170,18 @@
 - **`POST /api/pos/initialize-inventory` accepts per-outlet, per-variant stock assignments** — creates and/or updates records.
 - **`setCache` exported from `useCache.js`** — can seed both hot cache and IndexedDB from outside the hook.
 - **OUTLET role**: full CRUD on own outlet's variants, read-only on other outlets. Cannot add products or initialize inventory.
+- **`PosSale` now has fields**: `advanceAmount`, `orderId`, `cardChargesPct`, `cardChargesAmount`, `customerPhone`
+- **Order lookup**: auto-detects phone vs order number via regex; sets advance, customer name, phone; auto-loads cart items matched by name/color/size
+- **Balance Orders dashboard section**: always visible even when empty, shows all order-linked POS sales with paid/advance/total breakdown
 
 ## Relevant Files
-- `backend/src/controllers/pos.controller.js`: `getPosInventory` now loops all 3 outlets for variant creation; new `initializeInventory` bulk endpoint; `generateBarcode` exported
-- `backend/src/routes/pos.routes.js`: Added `POST /initialize-inventory` route with `authorize('STORE', 'ADMIN', 'SUPER_ADMIN')`
+- `backend/src/controllers/pos.controller.js`: `getPosInventory` now loops all 3 outlets for variant creation; new `initializeInventory` bulk endpoint; `generateBarcode` exported; `createSale` accepts `customerPhone`, `advanceAmount`, `orderId`, `cardChargesPct`; `getSalesDashboard` returns `balanceOrders`; `orderLookup` by orderNumber or phone
+- `backend/src/routes/pos.routes.js`: Added `POST /initialize-inventory` route with `authorize('STORE', 'ADMIN', 'SUPER_ADMIN')`; `GET /api/pos/order-lookup`
+- `backend/prisma/schema.prisma`: PosSale model — added `advanceAmount`, `orderId`, `cardChargesPct`, `cardChargesAmount`, `customerPhone`
+- `backend/prisma/backup-inventory.js`: backup script for inventory tables
 - `backend/src/utils/cache.js`: POS_TTL reduced 10min→2min
 - `frontend/src/pages/OutletPOSInventory.jsx`: Full rewrite — init modal, outlet labels, background pre-fetch, OUTLET CRUD on own outlet
 - `frontend/src/hooks/useCache.js`: Reverted aggressive data reset; exports `setCache` for external cache seeding
 - `frontend/src/pages/WarehouseDashboard.jsx`: Fixed `storeLoading` ReferenceError
 - `frontend/src/components/ErrorBoundary.jsx`: Error message visible in production
+- `frontend/src/pages/OutletPOS.jsx`: receipt print (QR, headings, advance/balance, card charges, phone, customer phone), cart UI (order lookup, advance input, card charges input, scroll fix, phone input), dashboard (payment cards, balance orders section, ORDER badge)
