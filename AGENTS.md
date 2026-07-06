@@ -67,6 +67,7 @@
   - Financial Summary stays in English (admin purpose)
 
 ### Done (latest session)
+- **QR code fix**: Replaced external `api.qrserver.com` image with local `qrcode` npm package — generates QR as inline data URL (200px, high contrast). Works fully offline. Added explicit `w.print()` call (300ms delay) instead of unreliable `onload` handler.
 - **Receipt layout fixes**: brand letter-spacing removed, summary order reverted (Subtotal → Alteration → Discount → Final Amount last)
 - **QR code on receipt**: per-outlet Google Maps review URL (Johar Town, Jail Road, Abbottabad), placed at bottom after Payment line
 - **Receipt column headings**: `ITEM` / `QTY×PRICE` / `TOTAL` above items
@@ -80,6 +81,7 @@
 - **Card charges**: `PosSale.cardChargesPct`/`cardChargesAmount`; percentage input on CARD selection; shown on receipt
 - **Auto-load order items**: on order lookup, matches items to outlet inventory by name/color/size and adds to cart
 - **Customer phone field**: optional phone input in POS cart; stored on PosSale; shown on receipt print
+- **POS data cleanup**: Deleted all Johar Town (5) + Jail Road (1) POS sales; backed up inventory + POS data to `backend/backups/`; inventory untouched (62 items, 14 outlet variants)
 
 ### P1 — Cache-First Foundation
 - **Centralized API client**: Migrated all 21 frontend files from raw `axios` to the centralized `api` service (`src/services/api.js`). Eliminated duplicate `sessionStorage.getItem('token')` and `Authorization` header patterns.
