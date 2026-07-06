@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Search, ShoppingCart, Plus, Minus, X, Trash2, Printer, Barcode, Percent, RotateCcw, CreditCard, DollarSign, Package, Tag, Grid3X3, List, ChevronDown, ChevronUp, AlertCircle, BarChart3, RefreshCw, Calendar, TrendingUp, Award, Clock, CheckCircle2, Globe } from 'lucide-react';
 import toast from 'react-hot-toast';
 import JsBarcode from 'jsbarcode';
+import QRCode from 'qrcode';
 import useCache, { invalidateKey } from '../hooks/useCache';
 import { enqueue } from '../utils/syncQueue';
 import { normalizeInventoryEvent } from '../utils/normalizeEvents';
@@ -399,7 +400,7 @@ const OutletPOS = () => {
   }, [cart, customerName, customerPhone, altCharges, discountPct, discountFixed, advanceAmount, cardChargesPct, lookedUpOrder, paymentMethod, orderNumber, selectedOutlet, refreshProducts, refreshDashboard, refreshSales, refreshReturns]);
 
   /* ─── Receipt Print ─── */
-  const printReceipt = (sale) => {
+  const printReceipt = async (sale) => {
     const w = window.open('', '_blank');
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt</title><style>
       @page { margin: 0; size: 80mm auto; }
@@ -468,11 +469,13 @@ const OutletPOS = () => {
       'Abbottabad': 'https://www.google.com/maps/search/Enamels+Abbottabad',
     };
     const reviewUrl = reviewUrls[sale.outletName] || 'https://www.google.com/maps/search/Enamels';
-    w.document.write(`<div style="text-align:center;margin:10px 0 0;"><img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(reviewUrl)}" width="120" height="120" alt="Review QR" style="display:inline-block;" onload="window.print()" onerror="window.print()"><p style="font-size:10px;margin:3px 0 0;font-weight:bold;">Scan to Review us on Google</p></div>`);
+    const qrDataUrl = await QRCode.toDataURL(reviewUrl, { width: 200, margin: 2, color: { dark: '#000', light: '#fff' } });
+    w.document.write(`<div style="text-align:center;margin:10px 0 0;"><img src="${qrDataUrl}" width="120" height="120" alt="Review QR" style="display:inline-block;"><p style="font-size:10px;margin:3px 0 0;font-weight:bold;">Scan to Review us on Google</p></div>`);
     w.document.write('<hr><p style="text-align:center;font-size:9px;margin-top:4px;">Software is develop by Sameer Butt</p>');
     w.document.write('</body></html>');
     w.document.close();
     w.focus();
+    setTimeout(() => w.print(), 300);
   };
 
   /* ─── Return ─── */
