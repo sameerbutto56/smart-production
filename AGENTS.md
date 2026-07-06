@@ -70,7 +70,7 @@
 - **QR code fix**: Replaced external `api.qrserver.com` image with local `qrcode` npm package — generates QR as inline data URL (200px, high contrast). Works fully offline. Added explicit `w.print()` call (300ms delay) instead of unreliable `onload` handler.
 - **Re-reverted to API QR**: Switched back to `api.qrserver.com` per user request (300×300).
 - **Barcode label fix**: Product name now always on ONE line (`white-space: nowrap; text-overflow: ellipsis`). Barcode wrapper has fixed 13mm height regardless of name length — no resizing.
-- **Barcode mismatch fix**: 35 OutletInventory records had barcodes that didn't match what `generateBarcode` produced from their source InventoryItem. Fixed all 35 — scanning printed labels now works (65/66 match).
+- **Barcode mismatch fix**: 35 OutletInventory records had barcodes that didn't match `generateBarcode`. Fixed all — deleted 1 duplicate, all 65 remaining match. Cross-outlet consistency verified: same product variant has same barcode in every outlet.
 - **Receipt layout fixes**: brand letter-spacing removed, summary order reverted (Subtotal → Alteration → Discount → Final Amount last)
 - **QR code on receipt**: per-outlet Google Maps review URL (Johar Town, Jail Road, Abbottabad), placed at bottom after Payment line
 - **Receipt column headings**: `ITEM` / `QTY×PRICE` / `TOTAL` above items
