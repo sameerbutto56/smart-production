@@ -309,40 +309,49 @@ const OutletPOS = () => {
     const w = window.open('', '_blank');
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt</title><style>
       @page { margin: 0; size: 80mm auto; }
-      body { font-family: 'Courier New', monospace; font-size: 14px; width: 72mm; margin: 0 auto; padding: 3mm 0; color: #000; line-height: 1.5; background: #fff; }
-      .header { text-align: center; margin-bottom: 6px; }
-      .header h1 { font-size: 22px; font-weight: 900; margin: 0; letter-spacing: 4px; text-transform: uppercase; }
-      .header p { font-size: 12px; margin: 3px 0; font-weight: bold; }
-      hr { border: none; border-top: 2px solid #000; margin: 6px 0; }
-      table { width: 100%; font-size: 12px; border-collapse: collapse; table-layout: fixed; }
-      th { text-align: left; font-size: 11px; font-weight: 900; padding: 3px 0; border-bottom: 2px solid #000; }
-      td { padding: 3px 0; vertical-align: top; }
-      .col-item { width: 52%; word-break: break-word; }
-      .col-qty { width: 13%; text-align: right; }
-      .col-price { width: 18%; text-align: right; }
-      .col-total { width: 17%; text-align: right; }
-      .total-row td { font-weight: 900; font-size: 15px; padding-top: 6px; border-top: 2px solid #000; }
-      .footer { text-align: center; font-size: 11px; margin-top: 8px; }
-      .variant { font-size: 10px; color: #555; }
+      body { font-family: 'Courier New', monospace; font-size: 16px; width: 72mm; margin: 0 auto; padding: 3mm 0; color: #000; line-height: 1.6; background: #fff; }
+      .header { text-align: center; margin-bottom: 8px; }
+      .header h1 { font-size: 26px; font-weight: 900; margin: 0; letter-spacing: 4px; }
+      .header p { font-size: 14px; margin: 4px 0; font-weight: bold; }
+      hr { border: none; border-top: 2px solid #000; margin: 8px 0; }
+      .items { margin: 6px 0; }
+      .item { margin-bottom: 8px; padding: 4px 0; border-bottom: 1px dotted #999; }
+      .item-name { font-size: 15px; font-weight: 900; word-break: break-word; }
+      .item-variant { font-size: 12px; color: #666; font-weight: bold; margin-top: 1px; }
+      .item-line { display: flex; justify-content: flex-end; gap: 10px; font-size: 14px; font-weight: bold; margin-top: 3px; }
+      .item-qty { color: #333; }
+      .item-price { color: #333; }
+      .item-total { font-weight: 900; min-width: 70px; text-align: right; }
+      .summary { width: 100%; font-size: 15px; margin: 6px 0; }
+      .summary tr td { padding: 3px 0; }
+      .summary .label { font-weight: bold; }
+      .summary .value { text-align: right; font-weight: bold; }
+      .summary .final td { font-size: 18px; font-weight: 900; padding-top: 8px; border-top: 2px solid #000; }
+      .summary .payment td { padding-top: 4px; font-size: 13px; }
+      .footer { text-align: center; font-size: 13px; margin-top: 10px; font-weight: bold; }
     </style></head><body>`);
-    w.document.write(`<div class="header"><h1>ENAMELS</h1><p style="font-size:11px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p><p>${sale.outletName || ''}</p><p>Invoice: ${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}</div>`);
-    w.document.write('<hr><table><thead><tr><th class="col-item">Item</th><th class="col-qty">Qty</th><th class="col-price">Price</th><th class="col-total">Total</th></tr></thead><tbody>');
+    w.document.write(`<div class="header"><h1>ENAMELS</h1><p style="font-size:12px;font-style:italic;margin-bottom:10px;">Premium Medical Apparels</p><p>${sale.outletName || ''}</p><p>Invoice: ${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}</div>`);
+    w.document.write('<hr><div class="items">');
     (sale.items || []).forEach(item => {
       const name = item.productName || '';
       const variantParts = [item.color, item.size].filter(Boolean);
-      w.document.write(`<tr><td class="col-item">${name}${variantParts.length > 0 ? `<br><span class="variant">${variantParts.join(' / ')}</span>` : ''}</td><td class="col-qty">${item.quantity}</td><td class="col-price">${formatCurrency(item.unitPrice)}</td><td class="col-total">${formatCurrency(item.lineTotal)}</td></tr>`);
+      w.document.write('<div class="item">');
+      w.document.write(`<div class="item-name">${name}</div>`);
+      if (variantParts.length > 0) w.document.write(`<div class="item-variant">${variantParts.join(' / ')}</div>`);
+      w.document.write(`<div class="item-line"><span class="item-qty">${item.quantity} ×</span><span class="item-price">${formatCurrency(item.unitPrice)}</span><span class="item-total">${formatCurrency(item.lineTotal)}</span></div>`);
       if (item.alterationCharges > 0) {
-        w.document.write(`<tr><td class="col-item" style="padding-left:8px;">+ Alteration</td><td></td><td></td><td class="col-total">${formatCurrency(item.alterationCharges)}</td></tr>`);
+        w.document.write(`<div class="item-line"><span></span><span>+ Alteration</span><span class="item-total">${formatCurrency(item.alterationCharges)}</span></div>`);
       }
+      w.document.write('</div>');
     });
-    w.document.write('</tbody></table><hr>');
-    w.document.write(`<table><tr><td class="col-item">Subtotal</td><td class="col-total">${formatCurrency(sale.subtotal)}</td></tr>`);
-    if (sale.alterationCharges > 0) w.document.write(`<tr><td class="col-item">Alteration</td><td class="col-total">${formatCurrency(sale.alterationCharges)}</td></tr>`);
-    if (sale.extraCharges > 0) w.document.write(`<tr><td class="col-item">Extra Charges</td><td class="col-total">${formatCurrency(sale.extraCharges)}</td></tr>`);
-    if (sale.discountPercent > 0 || sale.discountAmount > 0) w.document.write(`<tr><td class="col-item">Discount${sale.discountPercent > 0 ? ` (${sale.discountPercent}%)` : ''}</td><td class="col-total">-${formatCurrency(sale.discountAmount)}</td></tr>`);
-    w.document.write(`<tr class="total-row"><td class="col-item">Final Amount</td><td class="col-total">${formatCurrency(sale.grandTotal)}</td></tr>`);
-    w.document.write(`<tr><td class="col-item">Payment: ${sale.paymentMethod}</td><td></td></tr></table>`);
-    w.document.write('<hr><div class="footer"><p style="font-weight:900;">Thank You for Shopping with Enamels.</p><p style="font-weight:900;">Visit Again!</p><hr><p style="font-size:9px;margin-top:4px;">Software by Sameer Butt</p></div>');
+    w.document.write('</div><hr>');
+    w.document.write(`<table class="summary"><tr class="final"><td class="label">Final Amount</td><td class="value">${formatCurrency(sale.grandTotal)}</td></tr>`);
+    w.document.write(`<tr><td class="label">Subtotal</td><td class="value">${formatCurrency(sale.subtotal)}</td></tr>`);
+    if (sale.alterationCharges > 0) w.document.write(`<tr><td class="label">Alteration</td><td class="value">${formatCurrency(sale.alterationCharges)}</td></tr>`);
+    if (sale.extraCharges > 0) w.document.write(`<tr><td class="label">Extra Charges</td><td class="value">${formatCurrency(sale.extraCharges)}</td></tr>`);
+    if (sale.discountPercent > 0 || sale.discountAmount > 0) w.document.write(`<tr><td class="label">Discount${sale.discountPercent > 0 ? ` (${sale.discountPercent}%)` : ''}</td><td class="value">-${formatCurrency(sale.discountAmount)}</td></tr>`);
+    w.document.write(`<tr class="payment"><td class="label">Payment</td><td class="value">${sale.paymentMethod}</td></tr></table>`);
+    w.document.write('<hr><div class="footer"><p>Thank You for Shopping with Enamels.</p><p>Visit Again!</p><hr><p style="font-size:10px;margin-top:6px;">Software is develop by Sameer Butt</p></div>');
     w.document.write('</body></html>');
     w.document.close();
     w.focus();
