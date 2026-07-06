@@ -242,16 +242,18 @@ const OutletStockRequest = () => {
                         <div className="grid grid-cols-2 gap-2">
                           {sizes.length > 0 && (
                             <select value={productSelections[item.id]?.size || ''} onChange={(e) => setProductSelection(item.id, 'size', e.target.value)}
-                              className="theme-bg-subtle border-2 theme-border rounded-lg py-1.5 px-2 text-xs font-medium text-white outline-none">
-                              <option value="">Size</option>
-                              {sizes.map(s => <option key={s} value={s}>{s}</option>)}
+                              className="theme-bg-subtle border-2 theme-border rounded-lg py-1.5 px-2 text-xs font-medium text-white outline-none"
+                              style={{ colorScheme: 'dark' }}>
+                              <option value="" style={{ background: '#111', color: '#fff' }}>Size</option>
+                              {sizes.map(s => <option key={s} value={s} style={{ background: '#111', color: '#fff' }}>{s}</option>)}
                             </select>
                           )}
                           {colors.length > 0 && (
                             <select value={productSelections[item.id]?.color || ''} onChange={(e) => setProductSelection(item.id, 'color', e.target.value)}
-                              className="theme-bg-subtle border-2 theme-border rounded-lg py-1.5 px-2 text-xs font-medium text-white outline-none">
-                              <option value="">Color</option>
-                              {colors.map(c => <option key={c} value={c}>{c}</option>)}
+                              className="theme-bg-subtle border-2 theme-border rounded-lg py-1.5 px-2 text-xs font-medium text-white outline-none"
+                              style={{ colorScheme: 'dark' }}>
+                              <option value="" style={{ background: '#111', color: '#fff' }}>Color</option>
+                              {colors.map(c => <option key={c} value={c} style={{ background: '#111', color: '#fff' }}>{c}</option>)}
                             </select>
                           )}
                         </div>
@@ -305,19 +307,20 @@ const OutletStockRequest = () => {
                             <div>
                               <label className="text-[9px] font-black theme-text-muted uppercase">Size</label>
                               <select value={item.size} onChange={(e) => updateCartItem(idx, 'size', e.target.value)}
-                                className="w-full theme-bg border rounded-lg py-1 px-1.5 text-[10px] font-medium text-white outline-none">
+                                className="w-full theme-bg border rounded-lg py-1 px-1.5 text-[10px] font-medium text-white outline-none"
+                                style={{ colorScheme: 'dark' }}>
                                 {(item.availableSizes?.length ? item.availableSizes : [item.size]).map(s => (
-                                  <option key={s} value={s}>{s}</option>
+                                  <option key={s} value={s} style={{ background: '#111', color: '#fff' }}>{s}</option>
                                 ))}
                               </select>
                             </div>
                             <div>
                               <label className="text-[9px] font-black theme-text-muted uppercase">Color</label>
                               <select value={item.color} onChange={(e) => updateCartItem(idx, 'color', e.target.value)}
-                                className="w-full theme-bg border rounded-lg py-1 px-1.5 text-[10px] font-medium text-white outline-none">
+                                className="w-full theme-bg border rounded-lg py-1 px-1.5 text-[10px] font-medium text-white outline-none"
+                                style={{ colorScheme: 'dark' }}>
                                 {(item.availableColors?.length ? item.availableColors : [item.color]).map(c => (
-                                  <option key={c} value={c}>{c}</option>
-                                ))}
+                                  <option key={c} value={c} style={{ background: '#111', color: '#fff' }}>{c}</option>))}
                               </select>
                             </div>
                             <div>
