@@ -215,6 +215,7 @@ const OutletPOS = () => {
   };
 
   const handleAddToCart = (product) => {
+    if (product.stock != null && product.stock <= 0) return toast.error(`"${product.name}" is out of stock`);
     const hasColors = product.colors?.length > 0;
     const hasSizes = product.sizes?.length > 0;
     if (hasColors || hasSizes) {
@@ -245,6 +246,7 @@ const OutletPOS = () => {
       (!hasSizes || v.size === selectedSize)
     );
     if (!variant) return toast.error('Variant not found');
+    if (variant.stock != null && variant.stock < selectedQty) return toast.error(`Only ${variant.stock} in stock for ${variant.name}` + (variant.color ? ` (${variant.color})` : '') + (variant.size ? ` ${variant.size}` : ''));
     setCart([...cart, {
       variantId: variant.id, productName: product.name,
       size: variant.size, color: variant.color, unitPrice: variant.price || product.price || 0,
@@ -297,8 +299,12 @@ const OutletPOS = () => {
       refreshReturns();
       toast.success('Sale completed!');
     } catch (err) {
-      // Offline fallback — enqueue for later sync
-      toast.error('Checkout failed, queueing for retry...');
+      const msg = err.response?.data?.message || err.message;
+      toast.error('Checkout failed: ' + msg);
+      if (err.response?.status === 400) {
+        console.error('Checkout validation error:', msg);
+        return;
+      }
       await enqueue('sale', 'create', payload);
     }
     setCheckoutLoading(false);
@@ -954,9 +960,15 @@ const OutletPOS = () => {
             {groupedProducts.map(g => {
               const colorLabel = g.colors.length > 0 ? g.colors.join(', ') : null;
               const sizeLabel = g.sizes.length > 0 ? g.sizes.join(', ') : null;
+              const isOutOfStock = (g.totalStock != null && g.totalStock <= 0) || (g.variants.length === 1 && g.variants[0].stock != null && g.variants[0].stock <= 0);
               return (
                 <button key={g.id} onClick={() => handleAddToCart(g.variants.length === 1 ? g.variants[0] : g)}
-                  className="glass bg-gray-800/80 rounded-xl border-2 border-gray-700/50 p-2 text-left hover:border-blue-500/50 transition-all active:scale-95">
+                  disabled={isOutOfStock}
+                  className={`glass bg-gray-800/80 rounded-xl border-2 p-2 text-left transition-all active:scale-95 ${
+                    isOutOfStock
+                      ? 'border-red-900/30 opacity-50 cursor-not-allowed'
+                      : 'border-gray-700/50 hover:border-blue-500/50'
+                  }`}>
                   {g.imageUrl ? (
                     <img src={g.imageUrl} className="w-full h-20 object-cover rounded-lg mb-1.5" />
                   ) : (
@@ -969,7 +981,7 @@ const OutletPOS = () => {
                     <p className="text-[8px] text-gray-500 font-bold">{[colorLabel, sizeLabel].filter(Boolean).join(' | ')}</p>
                   )}
                   <p className="text-xs font-black text-emerald-400 mt-0.5">{formatCurrency(g.price)}</p>
-                  <p className="text-[8px] text-gray-600 font-bold">Stock: {g.totalStock}</p>
+                  <p className={`text-[8px] font-bold ${isOutOfStock ? 'text-red-400' : 'text-gray-600'}`}>{isOutOfStock ? 'OUT OF STOCK' : `Stock: ${g.totalStock}`}</p>
                 </button>
               );
             })}
