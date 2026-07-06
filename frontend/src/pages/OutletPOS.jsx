@@ -808,7 +808,7 @@ const OutletPOS = () => {
     const kpis = dashboard ? [
       { label: 'Total Sales', value: formatCurrency(dashboard.totalSales), sub: `${dashboard.totalOrders} orders`, color: 'from-blue-600 to-indigo-600', icon: DollarSign },
       { label: 'Net Revenue', value: formatCurrency(dashboard.netRevenue), sub: `Refunds: ${formatCurrency(dashboard.totalSales - dashboard.netRevenue)}`, color: 'from-emerald-600 to-teal-600', icon: TrendingUp },
-      { label: 'Total Discount', value: formatCurrency(dashboard.totalDiscount), sub: 'Discounts given', color: 'from-amber-600 to-orange-600', icon: Percent },
+      { label: 'Total Discount', value: formatCurrency(dashboard.totalDiscount), sub: 'Discounts given', color: 'from-amber-600 to-orange-600', icon: Tag },
       { label: 'Returned Orders', value: dashboard.returnedOrders, sub: 'Items returned', color: 'from-red-600 to-rose-600', icon: RotateCcw },
       { label: 'Completed Orders', value: dashboard.completedOrders, sub: 'POS + Standard Completed', color: 'from-purple-600 to-violet-600', icon: CheckCircle2 },
       { label: 'Pending Orders', value: dashboard.pendingOrders, sub: 'Awaiting production/dispatch', color: 'from-cyan-600 to-blue-600', icon: Clock },
