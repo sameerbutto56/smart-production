@@ -36,44 +36,63 @@ const ViewOnlyInventory = () => {
 
   useEffect(() => { fetchAll(); }, []);
 
-  const allItems = useMemo(() => {
-    const items = [];
+  /* Build a cross-outlet variant map keyed by name||category||color||size */
+  const crossOutletData = useMemo(() => {
+    const variantMap = new Map(); /* key → { name, category, color, size, fabric, imageUrl, barcode, price, outletStock: { JT, JR, AB } } */
+    const productMap = new Map(); /* name||category → { name, category, imageUrl, fabric, variants: [...] } */
+
     for (const outlet of ALL_OUTLETS) {
       for (const item of (allData[outlet] || [])) {
-        items.push({ ...item, outletName: outlet });
+        const vkey = `${item.name}||${item.category}||${item.color||''}||${item.size||''}`;
+        if (!variantMap.has(vkey)) {
+          variantMap.set(vkey, {
+            name: item.name, category: item.category,
+            color: item.color || '', size: item.size || '',
+            fabric: item.fabric || '', imageUrl: item.imageUrl || '',
+            barcode: item.barcode || 'N/A',
+            price: item.price || 0,
+            outletStock: { 'Johar Town': 0, 'Jail Road': 0, 'Abbottabad': 0 }
+          });
+        }
+        const v = variantMap.get(vkey);
+        v.outletStock[outlet] = (item.stock || 0);
+        if (!v.price && item.price) v.price = item.price;
+        if (!v.barcode && item.barcode) v.barcode = item.barcode;
+        if (!v.imageUrl && item.imageUrl) v.imageUrl = item.imageUrl;
+        if (!v.fabric && item.fabric) v.fabric = item.fabric;
       }
     }
-    return items;
+
+    for (const v of variantMap.values()) {
+      const pkey = `${v.name}||${v.category}`;
+      if (!productMap.has(pkey)) {
+        productMap.set(pkey, { name: v.name, category: v.category, imageUrl: v.imageUrl, fabric: v.fabric, variants: [] });
+      }
+      productMap.get(pkey).variants.push(v);
+    }
+
+    return { products: Array.from(productMap.values()), variantMap };
   }, [allData]);
 
-  const categories = [...new Set(allItems.map(i => i.category).filter(Boolean))].sort();
+  const categories = [...new Set(crossOutletData.products.map(p => p.category).filter(Boolean))].sort();
 
-  const filtered = allItems.filter(i => {
-    if (activeCategory && i.category !== activeCategory) return false;
-    if (search && !i.name.toLowerCase().includes(search.toLowerCase())) return false;
+  const filteredProducts = crossOutletData.products.filter(p => {
+    if (activeCategory && p.category !== activeCategory) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      if (!p.name.toLowerCase().includes(q) && !p.variants.some(v => v.color.toLowerCase().includes(q) || v.size.toLowerCase().includes(q))) return false;
+    }
     return true;
   });
 
-  const grouped = useMemo(() => {
-    const map = new Map();
-    for (const item of filtered) {
-      const key = `${item.name}||${item.category}`;
-      if (!map.has(key)) map.set(key, { name: item.name, category: item.category, imageUrl: item.imageUrl, fabric: item.fabric, variants: [] });
-      const g = map.get(key);
-      g.variants.push(item);
-    }
-    for (const g of map.values()) {
-      g.variants.sort((a, b) => ALL_OUTLETS.indexOf(a.outletName) - ALL_OUTLETS.indexOf(b.outletName));
-    }
-    return Array.from(map.values());
-  }, [filtered]);
+  const totalStockAll = (variants) => variants.reduce((s, v) => s + v.outletStock['Johar Town'] + v.outletStock['Jail Road'] + v.outletStock['Abbottabad'], 0);
 
   return (
     <div className="space-y-6 pb-20 px-4">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-white">Outlet POS Inventory</h1>
-          <p className="text-sm font-bold text-gray-400">View-only — All outlets stock at a glance</p>
+          <p className="text-sm font-bold text-gray-400">View-only — Stock across Johar Town / Jail Road / Abbottabad</p>
         </div>
         <button onClick={fetchAll} disabled={loading}
           className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white font-black px-4 py-3 rounded-xl text-sm">
@@ -104,48 +123,54 @@ const ViewOnlyInventory = () => {
         <div className="text-center py-12"><RefreshCw className="animate-spin text-blue-400 inline" size={32} /></div>
       ) : (
         <div className="space-y-2">
-          {grouped.length === 0 && (
+          {filteredProducts.length === 0 && (
             <div className="text-center py-12 text-gray-500 font-bold">
               <Warehouse size={40} className="mx-auto mb-3 text-gray-700" />
               <p>No products found{search ? ' matching your search' : ''}.</p>
             </div>
           )}
-          {grouped.map(group => {
-            const groupId = group.name + group.category;
-            const totalStock = group.variants.reduce((s, v) => s + (v.stock || 0), 0);
+          {filteredProducts.map(product => {
+            const totalStock = totalStockAll(product.variants);
             return (
-              <div key={groupId} className="bg-gray-900/60 rounded-xl border border-gray-700/50 overflow-hidden">
+              <div key={product.name + product.category} className="bg-gray-900/60 rounded-xl border border-gray-700/50 overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-700/30">
                   <div className="flex items-center gap-3">
-                    {group.imageUrl ? <img src={group.imageUrl} className="w-10 h-10 rounded-lg object-cover" /> : <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center"><Package size={18} className="text-gray-500" /></div>}
+                    {product.imageUrl ? <img src={product.imageUrl} className="w-10 h-10 rounded-lg object-cover" /> : <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center"><Package size={18} className="text-gray-500" /></div>}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-white truncate">{group.name}</p>
-                      <p className="text-[10px] text-gray-500 font-bold">{group.category} <span className={`ml-2 font-bold ${totalStock > 0 ? 'text-emerald-400' : 'text-red-400'}`}>Total: {totalStock}</span></p>
+                      <p className="text-sm font-bold text-white truncate">{product.name}</p>
+                      <p className="text-[10px] text-gray-500 font-bold">{product.category} <span className={`ml-2 font-bold ${totalStock > 0 ? 'text-emerald-400' : 'text-red-400'}`}>Total: {totalStock}</span></p>
                     </div>
                   </div>
                 </div>
                 <div className="divide-y divide-gray-800/50">
-                  <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 px-4 py-1.5 text-[9px] font-black text-gray-600 uppercase tracking-wider">
-                    <span>Variant</span>
-                    <span>Barcode</span>
+                  <div className="grid grid-cols-[1fr_auto_auto] gap-2 px-4 py-1.5 text-[9px] font-black text-gray-600 uppercase tracking-wider items-center">
+                    <span className="pl-1">Variant</span>
                     <span className="text-center">Price</span>
-                    <span className="text-center w-[60px]">Stock / Outlet</span>
+                    <span className="text-center">Stock / JT · JR · AB</span>
                   </div>
-                  {group.variants.map(v => (
-                    <div key={v.id} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 px-4 py-2 items-center">
-                      <span className="text-[11px] font-bold text-gray-300 truncate">{[v.color, v.size].filter(Boolean).join(' • ') || 'Default'}</span>
-                      <span className="text-[10px] font-mono text-gray-500 truncate">{v.barcode || 'N/A'}</span>
-                      <span className="text-[11px] font-bold text-emerald-400 text-center">₨{(v.price || 0).toLocaleString()}</span>
-                      <div className="flex items-center gap-1 w-[60px]">
-                        {ALL_OUTLETS.map(o => (
-                          <span key={o} className={`text-[9px] font-bold px-1 py-0.5 rounded ${(allData[o]||[]).find(x => x.id === v.id)?.stock > 0 ? 'bg-emerald-900/30 text-emerald-400' : 'bg-gray-800 text-gray-600'}`}
-                            title={`${o}: ${(allData[o]||[]).find(x => x.id === v.id)?.stock || 0}`}>
-                            {OUTLET_SHORT[o]}
-                          </span>
-                        ))}
+                  {product.variants.map(v => {
+                    const vkey = `${v.name}||${v.category}||${v.color}||${v.size}`;
+                    return (
+                      <div key={vkey} className="grid grid-cols-[1fr_auto_auto] gap-2 px-4 py-2 items-center">
+                        <div className="min-w-0">
+                          <span className="text-[11px] font-bold text-gray-300 truncate block">{[v.color, v.size].filter(Boolean).join(' • ') || 'Default'}</span>
+                          <span className="text-[9px] font-mono text-gray-600">{v.barcode}</span>
+                        </div>
+                        <span className="text-[11px] font-bold text-emerald-400 text-center w-16">₨{(v.price || 0).toLocaleString()}</span>
+                        <div className="flex items-center gap-1.5 justify-end w-28">
+                          {ALL_OUTLETS.map(o => {
+                            const stk = v.outletStock[o] || 0;
+                            return (
+                              <span key={o} className={`text-[10px] font-bold px-1.5 py-1 rounded min-w-[32px] text-center ${stk > 0 ? 'bg-emerald-900/30 text-emerald-400' : 'bg-gray-800 text-gray-600'}`}
+                                title={`${o}: ${stk}`}>
+                                {OUTLET_SHORT[o]} {stk}
+                              </span>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             );
