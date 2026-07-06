@@ -924,10 +924,12 @@ const initializeInventory = async (req, res) => {
 
 const orderLookup = async (req, res) => {
   try {
-    const { orderNumber } = req.query;
-    if (!orderNumber) return res.status(400).json({ message: 'orderNumber is required' });
-    const order = await prisma.order.findFirst({ where: { orderNumber } });
+    const { orderNumber, phone } = req.query;
+    if (!orderNumber && !phone) return res.status(400).json({ message: 'orderNumber or phone is required' });
+    const where = orderNumber ? { orderNumber } : { customerPhone: phone };
+    const order = await prisma.order.findFirst({ where });
     if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (order.paymentStatus === 'PAID') return res.json({ paid: true, message: 'This order is already fully paid', orderNumber: order.orderNumber });
     let productDetails = [];
     try { productDetails = JSON.parse(order.productDetails || '[]'); } catch {}
     const totalPrice = order.totalPrice || productDetails.reduce((s, p) => s + (parseFloat(p.totalPrice) || 0), 0);
