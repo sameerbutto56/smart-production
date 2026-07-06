@@ -469,8 +469,8 @@ const OutletPOS = () => {
       'Abbottabad': 'https://www.google.com/maps/search/Enamels+Abbottabad',
     };
     const reviewUrl = reviewUrls[sale.outletName] || 'https://www.google.com/maps/search/Enamels';
-    const qrDataUrl = await QRCode.toDataURL(reviewUrl, { width: 200, margin: 2, color: { dark: '#000', light: '#fff' } });
-    w.document.write(`<div style="text-align:center;margin:10px 0 0;"><img src="${qrDataUrl}" width="120" height="120" alt="Review QR" style="display:inline-block;"><p style="font-size:10px;margin:3px 0 0;font-weight:bold;">Scan to Review us on Google</p></div>`);
+    const qrDataUrl = await QRCode.toDataURL(reviewUrl, { width: 300, margin: 4, color: { dark: '#000', light: '#fff' } });
+    w.document.write(`<div style="text-align:center;margin:10px 0 0;padding:8px;"><img src="${qrDataUrl}" width="300" height="300" alt="Review QR" style="display:inline-block;max-width:100%;"><p style="font-size:12px;margin:6px 0 0;font-weight:bold;">Scan to Review us on Google</p></div>`);
     w.document.write('<hr><p style="text-align:center;font-size:9px;margin-top:4px;">Software is develop by Sameer Butt</p>');
     w.document.write('</body></html>');
     w.document.close();
