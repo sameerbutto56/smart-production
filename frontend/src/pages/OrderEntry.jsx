@@ -719,7 +719,7 @@ const SmartOrderForm = () => {
 
   const validateProductConfig = () => {
     // 1. Basic validation (customer details must be present)
-    if (!isOutlet && !formData.orderNumber.trim()) return t('orderNo') + ' ' + t('required');
+    if (!formData.orderNumber.trim()) return t('orderNo') + ' ' + t('required');
     if (!formData.customerName.trim()) return t('customerName') + ' ' + t('required');
     if (!formData.customerPhone.trim()) return t('customerPhone') + ' ' + t('required');
     if (formData.type === 'FULL_CUSTOM' && !(parseFloat(formData.advanceAmount) > 0)) return 'Advance payment is compulsory for custom orders.';
@@ -739,7 +739,7 @@ const SmartOrderForm = () => {
     setError('');
     
     if (activeTab === 'basic') {
-      if (!isOutlet && !formData.orderNumber.trim()) return t('orderNo') + ' ' + t('required');
+      if (!formData.orderNumber.trim()) return t('orderNo') + ' ' + t('required');
       if (!formData.customerName.trim()) return t('customerName') + ' ' + t('required');
       if (!formData.customerPhone.trim()) return t('customerPhone') + ' ' + t('required');
     }
@@ -1777,12 +1777,11 @@ const SmartOrderForm = () => {
                       <input
                         type="text"
                         onKeyDown={preventEnterSubmit}
-                        value={isOutlet ? 'AUTO-GENERATED' : formData.orderNumber}
-                        disabled={isOutlet}
+                        value={formData.orderNumber}
                         onChange={(e) => setFormData({...formData, orderNumber: e.target.value})}
-                        className={`w-full theme-input rounded-[2rem] py-7 ${useUrdu ? 'pr-20 pl-10 text-right' : 'pl-20 pr-10'} transition-all text-2xl font-black shadow-inner ${isOutlet ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        placeholder={isOutlet ? 'Will be auto-assigned' : "ORD-772"}
-                        required={!isOutlet}
+                        className={`w-full theme-input rounded-[2rem] py-7 ${useUrdu ? 'pr-20 pl-10 text-right' : 'pl-20 pr-10'} transition-all text-2xl font-black shadow-inner`}
+                        placeholder="ORD-772"
+                        required
                       />
                     </div>
                   </div>
