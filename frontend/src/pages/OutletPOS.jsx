@@ -356,16 +356,20 @@ const OutletPOS = () => {
       }
       w.document.write('</div>');
     });
-    w.document.write('</div>');
-    const qrData = `Invoice: ${sale.receiptNumber} | Total: ${formatCurrency(sale.grandTotal)} | ${sale.outletName || ''}`;
-    w.document.write(`<div style="text-align:center;margin:6px 0;"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(qrData)}" width="100" height="100" alt="QR" style="display:inline-block;"></div>`);
-    w.document.write('<hr>');
+    w.document.write('</div><hr>');
     w.document.write(`<table class="summary"><tr class="sub"><td>Subtotal</td><td class="value">${formatCurrency(sale.subtotal)}</td></tr>`);
     if (sale.alterationCharges > 0) w.document.write(`<tr><td>Alteration</td><td class="value">${formatCurrency(sale.alterationCharges)}</td></tr>`);
     if (sale.extraCharges > 0) w.document.write(`<tr><td>Extra Charges</td><td class="value">${formatCurrency(sale.extraCharges)}</td></tr>`);
     if (sale.discountPercent > 0 || sale.discountAmount > 0) w.document.write(`<tr><td>Discount${sale.discountPercent > 0 ? ` (${sale.discountPercent}%)` : ''}</td><td class="value">-${formatCurrency(sale.discountAmount)}</td></tr>`);
     w.document.write(`<tr class="final"><td>Final Amount</td><td class="value">${formatCurrency(sale.grandTotal)}</td></tr>`);
     w.document.write(`<tr><td>Payment</td><td class="value">${sale.paymentMethod}</td></tr></table>`);
+    const qrUrls = {
+      'Johar Town': 'https://www.google.com/maps/search/Enamels+375+A2+Block+A+2+Phase+1+Johar+Town+Lahore',
+      'Jail Road': 'https://www.google.com/maps/search/Enamels+Jail+Road+Lahore',
+      'Abbottabad': 'https://www.google.com/maps/search/Enamels+Abbottabad',
+    };
+    const qrUrl = qrUrls[sale.outletName] || 'https://www.google.com/maps/search/Enamels';
+    w.document.write(`<div style="text-align:center;margin:8px 0 4px;"><img src="https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${encodeURIComponent(qrUrl)}" width="110" height="110" alt="QR" style="display:inline-block;"><p style="font-size:10px;margin:2px 0 0;font-weight:bold;">Scan to Review us on Google</p></div>`);
     w.document.write('<hr><div class="footer"><p>Thank You for Shopping with Enamels.</p><p>Visit Again!</p><hr><p style="font-size:10px;margin-top:6px;">Software is develop by Sameer Butt</p></div>');
     w.document.write('</body></html>');
     w.document.close();
