@@ -283,13 +283,15 @@ const OutletPOS = () => {
     // If not in local map, try API lookup (cache may be stale)
     if (!v) {
       try {
-        const res = await api.get(`/api/pos/barcode/${code}?outlet=${selectedOutlet}`);
+        const res = await api.get(`/api/pos/barcode/${encodeURIComponent(code)}?outlet=${selectedOutlet}`);
         if (res.data) {
           v = { id: res.data.id, productName: res.data.productName, color: res.data.color, size: res.data.size, price: res.data.price || 0, stock: res.data.stock };
         }
-      } catch (e) { /* not found via API either */ }
+      } catch (e) {
+        console.warn(`Barcode API lookup failed for "${code}":`, e?.response?.data || e.message);
+      }
     }
-    if (!v) return toast.error('Barcode not found');
+    if (!v) return toast.error(`Barcode not found: ${code}`);
     const existing = cart.find(i => i.variantId === v.id);
     if (existing) {
       setCart(cart.map(i => i.variantId === v.id ? { ...i, qty: i.qty + 1 } : i));
@@ -507,13 +509,15 @@ const OutletPOS = () => {
     let v = barcodeMap.get(code);
     if (!v) {
       try {
-        const res = await api.get(`/api/pos/barcode/${code}?outlet=${selectedOutlet}`);
+        const res = await api.get(`/api/pos/barcode/${encodeURIComponent(code)}?outlet=${selectedOutlet}`);
         if (res.data) {
           v = { id: res.data.id, productName: res.data.productName, color: res.data.color, size: res.data.size, price: res.data.price || 0, stock: res.data.stock };
         }
-      } catch (e) { /* not found */ }
+      } catch (e) {
+        console.warn(`Return barcode lookup failed for "${code}":`, e?.response?.data || e.message);
+      }
     }
-    if (!v) return toast.error('Barcode not found');
+    if (!v) return toast.error(`Barcode not found: ${code}`);
     if (v.stock <= 0) return toast.error('No stock to return');
     const existing = returnCart.find(i => i.variantId === v.id);
     if (existing) {
