@@ -105,6 +105,38 @@ const getPosInventory = async (req, res) => {
   }
 };
 
+/* ─── View-only: all outlets inventory (bypasses OUTLET role restriction) ─── */
+const getAllOutletsView = async (req, res) => {
+  try {
+    const cacheKey = `${CACHE_KEY_PREFIX}inventory:all-outlets-view`;
+    const cached = cache.get(cacheKey);
+    if (cached) return res.json(cached);
+
+    const items = await prisma.outletInventory.findMany({
+      orderBy: [{ name: 'asc' }, { outletName: 'asc' }]
+    });
+
+    const result = items.map(item => ({
+      id: item.id,
+      name: item.name,
+      category: item.category,
+      color: item.color,
+      size: item.size,
+      fabric: item.fabric,
+      stock: item.stock,
+      price: item.price || 0,
+      imageUrl: item.imageUrl,
+      barcode: item.barcode,
+      outletName: item.outletName,
+    }));
+
+    cache.set(cacheKey, result, cache.POS_TTL);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch all outlets view', error: error.message });
+  }
+};
+
 /* ─── Products for Outlet POS ─── */
 const getProducts = async (req, res) => {
   try {
@@ -1015,7 +1047,7 @@ module.exports = {
   createVariant, deleteVariant, deleteProductVariants, updateVariant,
   createSale, getSales, getSalesDashboard,
   createReturn, getReturns,
-  lookupBarcode, orderLookup,
+  lookupBarcode, orderLookup, getAllOutletsView,
   createPosProduct,
   updateProduct,
   generateBarcode,

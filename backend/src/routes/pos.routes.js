@@ -7,7 +7,7 @@ const {
   createVariant,   deleteVariant, deleteProductVariants, updateVariant,
   createSale, getSales, getSalesDashboard,
   createReturn, getReturns,
-  lookupBarcode, orderLookup,
+  lookupBarcode, orderLookup, getAllOutletsView,
   createPosProduct,
   updateProduct,
   initializeInventory
@@ -18,6 +18,9 @@ const router = express.Router();
 
 // POS Inventory — read-only view of all warehouse products with outlet stock
 router.get('/inventory', authenticate, getPosInventory);
+
+// All outlets inventory view (bypasses OUTLET role restriction)
+router.get('/inventory/all', authenticate, getAllOutletsView);
 
 // Products for Outlet POS (only active in POS inventory)
 router.get('/products', authenticate, getProducts);

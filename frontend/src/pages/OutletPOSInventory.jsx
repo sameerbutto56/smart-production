@@ -18,19 +18,16 @@ const ViewOnlyInventory = () => {
 
   const fetchAll = async () => {
     setLoading(true);
-    const results = {};
     try {
-      const res = await Promise.all(
-        ALL_OUTLETS.map(o =>
-          api.get(`/api/pos/inventory?outlet=${o}`).then(r => ({ outlet: o, data: r.data }))
-        )
-      );
-      for (const { outlet, data } of res) {
-        results[outlet] = data;
-        await setCache(`pos:inventory:${outlet}`, data, 2 * 60 * 1000);
+      const res = await api.get('/api/pos/inventory/all');
+      const data = res.data;
+      const grouped = { 'Johar Town': [], 'Jail Road': [], 'Abbottabad': [] };
+      for (const item of data) {
+        if (grouped[item.outletName]) grouped[item.outletName].push(item);
       }
+      setAllData(grouped);
+      await setCache('pos:inventory:all-outlets-view', data, 2 * 60 * 1000);
     } catch { toast.error('Failed to load inventory'); }
-    setAllData(results);
     setLoading(false);
   };
 
@@ -38,8 +35,8 @@ const ViewOnlyInventory = () => {
 
   /* Build a cross-outlet variant map keyed by name||category||color||size */
   const crossOutletData = useMemo(() => {
-    const variantMap = new Map(); /* key → { name, category, color, size, fabric, imageUrl, barcode, price, outletStock: { JT, JR, AB } } */
-    const productMap = new Map(); /* name||category → { name, category, imageUrl, fabric, variants: [...] } */
+    const variantMap = new Map();
+    const productMap = new Map();
 
     for (const outlet of ALL_OUTLETS) {
       for (const item of (allData[outlet] || [])) {
