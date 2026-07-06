@@ -324,24 +324,25 @@ const OutletPOS = () => {
     const w = window.open('', '_blank');
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt</title><style>
       @page { margin: 0; size: 80mm auto; }
-      body { font-family: monospace; font-size: 18px; padding: 4mm 6mm; color: #000; line-height: 1.6; background: #fff; margin: 0; }
-      .header { text-align: center; margin-bottom: 8px; }
-      .header h1 { font-size: 28px; font-weight: 900; margin: 0; letter-spacing: 4px; }
-      .header p { font-size: 16px; margin: 4px 0; font-weight: bold; }
-      hr { border: none; border-top: 3px solid #000; margin: 8px 0; }
-      .items { margin: 6px 0; }
-      .item { margin-bottom: 10px; padding: 5px 0; border-bottom: 1px solid #000; }
-      .item-name { font-size: 17px; font-weight: 900; word-break: break-word; }
-      .item-variant { font-size: 14px; font-weight: bold; margin-top: 2px; }
-      .item-line { display: flex; justify-content: flex-end; gap: 15px; font-size: 16px; font-weight: bold; margin-top: 4px; }
-      .item-total { font-weight: 900; min-width: 80px; text-align: right; }
-      .summary { width: 100%; font-size: 16px; margin: 6px 0; border-collapse: collapse; }
-      .summary tr td { padding: 5px 0; font-weight: bold; }
+      body { font-family: monospace; font-size: 16px; padding: 4mm 6mm; color: #000; line-height: 1.5; background: #fff; margin: 0; }
+      .header { text-align: center; margin-bottom: 6px; }
+      .header h1 { font-size: 26px; font-weight: 900; margin: 0; }
+      .header p { font-size: 14px; margin: 2px 0; font-weight: bold; }
+      hr { border: none; border-top: 2px solid #000; margin: 6px 0; }
+      .items { margin: 4px 0; }
+      .item { margin-bottom: 8px; padding: 4px 0; border-bottom: 1px solid #000; }
+      .item-name { font-size: 16px; font-weight: 900; word-break: break-word; }
+      .item-variant { font-size: 13px; font-weight: bold; color: #444; margin-top: 1px; }
+      .item-line { display: flex; justify-content: flex-end; gap: 12px; font-size: 15px; font-weight: bold; margin-top: 2px; }
+      .item-total { font-weight: 900; min-width: 75px; text-align: right; }
+      .summary { width: 100%; font-size: 15px; margin: 4px 0; border-collapse: collapse; }
+      .summary tr td { padding: 4px 0; font-weight: bold; }
       .summary .value { text-align: right; }
-      .summary .final td { font-size: 20px; font-weight: 900; padding-top: 10px; border-top: 3px solid #000; }
-      .footer { text-align: center; font-size: 15px; margin-top: 12px; font-weight: bold; }
+      .summary .sub td { padding-top: 6px; border-top: 1px solid #000; }
+      .summary .final td { font-size: 19px; font-weight: 900; padding-top: 8px; border-top: 3px solid #000; }
+      .footer { text-align: center; font-size: 14px; margin-top: 10px; font-weight: bold; }
     </style></head><body>`);
-    w.document.write(`<div class="header"><h1>ENAMELS</h1><p style="font-size:13px;font-style:italic;margin-bottom:10px;">Premium Medical Apparels</p><p>${sale.outletName || ''}</p><p>Invoice: ${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}</div>`);
+    w.document.write(`<div class="header"><h1>ENAMELS</h1><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p><p>${sale.outletName || ''}</p><p>Invoice: ${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}</div>`);
     w.document.write('<hr><div class="items">');
     (sale.items || []).forEach(item => {
       const name = item.productName || '';
@@ -356,13 +357,13 @@ const OutletPOS = () => {
       w.document.write('</div>');
     });
     w.document.write('</div><hr>');
-    w.document.write(`<table class="summary"><tr class="final"><td>Final Amount</td><td class="value">${formatCurrency(sale.grandTotal)}</td></tr>`);
-    w.document.write(`<tr><td>Subtotal</td><td class="value">${formatCurrency(sale.subtotal)}</td></tr>`);
+    w.document.write(`<table class="summary"><tr class="sub"><td>Subtotal</td><td class="value">${formatCurrency(sale.subtotal)}</td></tr>`);
     if (sale.alterationCharges > 0) w.document.write(`<tr><td>Alteration</td><td class="value">${formatCurrency(sale.alterationCharges)}</td></tr>`);
     if (sale.extraCharges > 0) w.document.write(`<tr><td>Extra Charges</td><td class="value">${formatCurrency(sale.extraCharges)}</td></tr>`);
     if (sale.discountPercent > 0 || sale.discountAmount > 0) w.document.write(`<tr><td>Discount${sale.discountPercent > 0 ? ` (${sale.discountPercent}%)` : ''}</td><td class="value">-${formatCurrency(sale.discountAmount)}</td></tr>`);
+    w.document.write(`<tr class="final"><td>Final Amount</td><td class="value">${formatCurrency(sale.grandTotal)}</td></tr>`);
     w.document.write(`<tr><td>Payment</td><td class="value">${sale.paymentMethod}</td></tr></table>`);
-    w.document.write('<hr><div class="footer"><p>Thank You for Shopping with Enamels.</p><p>Visit Again!</p><hr><p style="font-size:11px;margin-top:6px;">Software is develop by Sameer Butt</p></div>');
+    w.document.write('<hr><div class="footer"><p>Thank You for Shopping with Enamels.</p><p>Visit Again!</p><hr><p style="font-size:10px;margin-top:6px;">Software is develop by Sameer Butt</p></div>');
     w.document.write('</body></html>');
     w.document.close();
     w.focus();
