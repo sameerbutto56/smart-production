@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Search, ShoppingCart, Plus, Minus, X, Trash2, Printer, Barcode, RotateCcw, CreditCard, DollarSign, Package, Tag, Grid3X3, List, ChevronDown, ChevronUp, AlertCircle, BarChart3, RefreshCw, Calendar, TrendingUp, Award, Clock, CheckCircle2, Globe } from 'lucide-react';
@@ -16,6 +17,7 @@ const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'l
 const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 
 const OutletPOS = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const defaultOutlet = (() => {
     if (user?.role !== 'OUTLET') return 'Johar Town';
@@ -916,8 +918,17 @@ const OutletPOS = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {kpis.map((kpi, i) => {
                 const Icon = kpi.icon;
+                const routes = {
+                  'Total Sales': '/orders',
+                  'Net Revenue': '/analytics',
+                  'Total Discount': '/orders',
+                  'Returned Orders': '/refund-management',
+                  'Completed Orders': '/orders',
+                  'Pending Orders': '/orders',
+                  'Cancelled Orders': '/orders',
+                };
                 return (
-                  <div key={i} className={`bg-gradient-to-br ${kpi.color} p-[1px] rounded-2xl shadow-lg`}>
+                  <div key={i} onClick={() => navigate(routes[kpi.label] || '/orders')} className={`bg-gradient-to-br ${kpi.color} p-[1px] rounded-2xl shadow-lg cursor-pointer hover:scale-[1.02] transition-transform`}>
                     <div className="bg-gray-950/90 rounded-2xl p-4 h-full flex flex-col justify-between">
                       <div className="flex justify-between items-start mb-2">
                         <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{kpi.label}</span>
@@ -941,8 +952,9 @@ const OutletPOS = () => {
                 const colors = { CASH: 'from-emerald-600 to-green-600', ONLINE: 'from-blue-600 to-indigo-600', CARD: 'from-purple-600 to-violet-600' };
                 const bgColors = { CASH: 'text-emerald-400', ONLINE: 'text-blue-400', CARD: 'text-purple-400' };
                 const Icon = icons[pm.method] || DollarSign;
+                const methodRoutes = { CASH: '/orders', CARD: '/orders', ONLINE: '/orders' };
                 return (
-                  <div key={pm.method} className={`bg-gradient-to-br ${colors[pm.method] || 'from-gray-600 to-slate-600'} p-[1px] rounded-2xl shadow-lg`}>
+                  <div key={pm.method} onClick={() => navigate(methodRoutes[pm.method] || '/orders')} className={`bg-gradient-to-br ${colors[pm.method] || 'from-gray-600 to-slate-600'} p-[1px] rounded-2xl shadow-lg cursor-pointer hover:scale-[1.02] transition-transform`}>
                     <div className="bg-gray-950/90 rounded-2xl p-4">
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
@@ -965,7 +977,7 @@ const OutletPOS = () => {
 
             {/* Peak day & comparisons */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col justify-between">
+              <div onClick={() => navigate('/analytics')} className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition-transform">
                 <div>
                   <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3 flex items-center gap-1.5">
                     <Award size={14} className="text-amber-500" />
@@ -976,7 +988,7 @@ const OutletPOS = () => {
                 </div>
               </div>
 
-              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col justify-between">
+              <div onClick={() => navigate('/orders')} className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition-transform">
                 <div>
                   <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3 flex items-center gap-1.5">
                     <Award size={14} className="text-blue-500" />
