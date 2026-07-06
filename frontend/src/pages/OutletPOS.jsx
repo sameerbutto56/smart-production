@@ -330,11 +330,13 @@ const OutletPOS = () => {
       .header p { font-size: 14px; margin: 2px 0; font-weight: bold; }
       hr { border: none; border-top: 2px solid #000; margin: 6px 0; }
       .items { margin: 4px 0; }
+      .items-heading { display: flex; justify-content: space-between; font-size: 13px; font-weight: 900; text-transform: uppercase; padding: 2px 0 4px; border-bottom: 3px solid #000; margin-bottom: 2px; }
       .item { margin-bottom: 8px; padding: 4px 0; border-bottom: 1px solid #000; }
       .item-name { font-size: 16px; font-weight: 900; word-break: break-word; }
       .item-variant { font-size: 13px; font-weight: bold; color: #444; margin-top: 1px; }
       .item-line { display: flex; justify-content: flex-end; gap: 12px; font-size: 15px; font-weight: bold; margin-top: 2px; }
       .item-total { font-weight: 900; min-width: 75px; text-align: right; }
+      .section-label { font-size: 13px; font-weight: 900; text-align: center; letter-spacing: 2px; margin: 4px 0 2px; padding: 3px 0; border-bottom: 2px solid #000; }
       .summary { width: 100%; font-size: 15px; margin: 4px 0; border-collapse: collapse; }
       .summary tr td { padding: 4px 0; font-weight: bold; }
       .summary .value { text-align: right; }
@@ -343,7 +345,7 @@ const OutletPOS = () => {
       .footer { text-align: center; font-size: 14px; margin-top: 10px; font-weight: bold; }
     </style></head><body>`);
     w.document.write(`<div class="header"><h1>ENAMELS</h1><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p><p>${sale.outletName || ''}</p><p>Invoice: ${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}</div>`);
-    w.document.write('<hr><div class="items">');
+    w.document.write('<hr><div class="items"><div class="items-heading"><span>ITEM</span><span>TOTAL</span></div>');
     (sale.items || []).forEach(item => {
       const name = item.productName || '';
       const variantParts = [item.color, item.size].filter(Boolean);
@@ -356,7 +358,7 @@ const OutletPOS = () => {
       }
       w.document.write('</div>');
     });
-    w.document.write('</div><hr>');
+    w.document.write('</div><div class="section-label">SUMMARY</div>');
     w.document.write(`<table class="summary"><tr class="sub"><td>Subtotal</td><td class="value">${formatCurrency(sale.subtotal)}</td></tr>`);
     if (sale.alterationCharges > 0) w.document.write(`<tr><td>Alteration</td><td class="value">${formatCurrency(sale.alterationCharges)}</td></tr>`);
     if (sale.extraCharges > 0) w.document.write(`<tr><td>Extra Charges</td><td class="value">${formatCurrency(sale.extraCharges)}</td></tr>`);
