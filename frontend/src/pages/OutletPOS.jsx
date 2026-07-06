@@ -453,8 +453,18 @@ const OutletPOS = () => {
                   <p className="text-xs text-gray-500 font-bold">{new Date(s.createdAt).toLocaleString()} &bull; {s.outletName}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-lg font-black text-emerald-400">{formatCurrency(s.grandTotal)}</p>
-                  <p className="text-[10px] text-gray-500 font-bold">{s.paymentMethod}</p>
+                  {(() => {
+                    const refundTotal = (s.returns || []).reduce((sum, r) => sum + r.refundAmount, 0);
+                    const netAmount = s.grandTotal - refundTotal;
+                    const hasReturn = refundTotal > 0;
+                    return (
+                      <>
+                        <p className="text-lg font-black text-emerald-400">{formatCurrency(netAmount)}</p>
+                        {hasReturn && <p className="text-[9px] text-red-400 font-bold line-through opacity-60">{formatCurrency(s.grandTotal)}</p>}
+                        <p className="text-[10px] text-gray-500 font-bold">{s.paymentMethod}</p>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
               <div className="flex flex-wrap gap-1 mb-2">
