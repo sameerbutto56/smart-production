@@ -279,6 +279,7 @@ const OutletPOS = () => {
 
   const handleBarcodeLookup = async (code) => {
     if (!code) return;
+    code = code.toUpperCase().trim();
     let v = barcodeMap.get(code);
     // If not in local map, try API lookup (cache may be stale)
     if (!v) {
@@ -506,6 +507,7 @@ const OutletPOS = () => {
   /* ─── Return by Barcode ─── */
   const handleReturnBarcodeLookup = async (code) => {
     if (!code) return;
+    code = code.toUpperCase().trim();
     let v = barcodeMap.get(code);
     if (!v) {
       try {
