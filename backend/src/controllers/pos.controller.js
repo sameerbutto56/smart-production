@@ -554,14 +554,14 @@ const getSalesDashboard = async (req, res) => {
       const method = r.sale?.paymentMethod || 'CASH';
       returnsByMethod[method] = (returnsByMethod[method] || 0) + r.refundAmount;
     });
-    const paymentBreakdown = salesByMethod.map(sm => {
-      const method = sm.paymentMethod;
-      const gross = sm._sum.grandTotal || 0;
+    const paymentBreakdown = ['CASH', 'CARD', 'ONLINE'].map(method => {
+      const found = salesByMethod.find(sm => sm.paymentMethod === method);
+      const gross = found?._sum.grandTotal || 0;
       const ret = returnsByMethod[method] || 0;
       return { method, gross, returns: ret, net: gross - ret };
     });
 
-    // 2. Fetch completed/pending/cancelled orders from main order table for comparison
+    // 2. Balance orders — POS sales linked to orders with advance payments
     const orderWhere = {};
     if (outlet) {
       // Normalize comparison for outlet names in Order model vs POS outlet name
@@ -647,6 +647,28 @@ const getSalesDashboard = async (req, res) => {
       orders: ordersByDay[date] || 0
     })).sort((a, b) => a.date.localeCompare(b.date));
 
+    // 7. Balance orders — POS sales linked to orders with advance
+    const balanceSales = await prisma.posSale.findMany({
+      where: { ...whereClause, orderId: { not: null } },
+      select: {
+        id: true, receiptNumber: true, grandTotal: true, advanceAmount: true,
+        customerName: true, paymentMethod: true, createdAt: true, orderId: true
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20
+    });
+    const balanceOrders = balanceSales.map(ps => ({
+      id: ps.id,
+      receiptNumber: ps.receiptNumber,
+      customerName: ps.customerName,
+      paid: ps.grandTotal,
+      advanceAmount: ps.advanceAmount,
+      totalWithAdvance: ps.grandTotal + ps.advanceAmount,
+      paymentMethod: ps.paymentMethod,
+      createdAt: ps.createdAt,
+      orderId: ps.orderId
+    }));
+
     const result = {
       totalSales,
       totalOrders,
@@ -657,6 +679,7 @@ const getSalesDashboard = async (req, res) => {
       netRevenue,
       totalDiscount,
       paymentBreakdown,
+      balanceOrders,
       highestSalesDay,
       highestOrdersDay,
       bestSellingProducts,

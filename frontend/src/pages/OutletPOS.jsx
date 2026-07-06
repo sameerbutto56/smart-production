@@ -817,36 +817,35 @@ const OutletPOS = () => {
               })}
             </div>
 
-            {/* Payment Method Breakdown */}
-            {dashboard.paymentBreakdown && dashboard.paymentBreakdown.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {dashboard.paymentBreakdown.map(pm => {
-                  const icons = { CASH: DollarSign, ONLINE: Globe, CARD: CreditCard };
-                  const colors = { CASH: 'from-emerald-600 to-green-600', ONLINE: 'from-blue-600 to-indigo-600', CARD: 'from-purple-600 to-violet-600' };
-                  const bgColors = { CASH: 'text-emerald-400', ONLINE: 'text-blue-400', CARD: 'text-purple-400' };
-                  const Icon = icons[pm.method] || DollarSign;
-                  return (
-                    <div key={pm.method} className={`bg-gradient-to-br ${colors[pm.method] || 'from-gray-600 to-slate-600'} p-[1px] rounded-2xl shadow-lg`}>
-                      <div className="bg-gray-950/90 rounded-2xl p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
-                            <Icon size={14} className={bgColors[pm.method] || 'text-gray-400'} />
-                            {pm.method}
-                          </span>
-                        </div>
-                        <p className="text-lg font-black text-white">{formatCurrency(pm.net)}</p>
-                        <div className="flex items-center gap-3 mt-1.5 text-[10px]">
-                          <span className="text-emerald-400 font-bold">Gross: {formatCurrency(pm.gross)}</span>
-                          {pm.returns > 0 && (
-                            <span className="text-red-400 font-bold">Returns: -{formatCurrency(pm.returns)}</span>
-                          )}
-                        </div>
+            {/* Payment Method Breakdown — always show all 3 */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {['CASH', 'CARD', 'ONLINE'].map(method => {
+                const pm = dashboard.paymentBreakdown?.find(p => p.method === method) || { method, gross: 0, returns: 0, net: 0 };
+                const icons = { CASH: DollarSign, ONLINE: Globe, CARD: CreditCard };
+                const colors = { CASH: 'from-emerald-600 to-green-600', ONLINE: 'from-blue-600 to-indigo-600', CARD: 'from-purple-600 to-violet-600' };
+                const bgColors = { CASH: 'text-emerald-400', ONLINE: 'text-blue-400', CARD: 'text-purple-400' };
+                const Icon = icons[pm.method] || DollarSign;
+                return (
+                  <div key={pm.method} className={`bg-gradient-to-br ${colors[pm.method] || 'from-gray-600 to-slate-600'} p-[1px] rounded-2xl shadow-lg`}>
+                    <div className="bg-gray-950/90 rounded-2xl p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                          <Icon size={14} className={bgColors[pm.method] || 'text-gray-400'} />
+                          {pm.method}
+                        </span>
+                      </div>
+                      <p className="text-lg font-black text-white">{formatCurrency(pm.net)}</p>
+                      <div className="flex items-center gap-3 mt-1.5 text-[10px]">
+                        <span className="text-emerald-400 font-bold">Gross: {formatCurrency(pm.gross)}</span>
+                        {pm.returns > 0 && (
+                          <span className="text-red-400 font-bold">Returns: -{formatCurrency(pm.returns)}</span>
+                        )}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                  </div>
+                );
+              })}
+            </div>
 
             {/* Peak day & comparisons */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -929,7 +928,32 @@ const OutletPOS = () => {
                 </div>
               </div>
 
-              {/* Recent Sales list */}
+              {/* Balance Orders — advance payment orders */}
+            {dashboard.balanceOrders && dashboard.balanceOrders.length > 0 && (
+              <div className="bg-gray-900 border border-amber-800/50 rounded-2xl p-4">
+                <h3 className="text-xs font-black text-amber-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                  <CreditCard size={14} />
+                  Balance Orders (Advance + POS)
+                </h3>
+                <div className="space-y-2 max-h-72 overflow-y-auto">
+                  {dashboard.balanceOrders.map(bo => (
+                    <div key={bo.id} className="flex items-center justify-between bg-gray-950 p-2.5 rounded-xl border border-gray-800 text-xs">
+                      <div>
+                        <p className="font-black text-white">{bo.receiptNumber}</p>
+                        <p className="text-[10px] text-gray-500">{bo.customerName || 'No name'} &bull; {bo.paymentMethod}</p>
+                      </div>
+                      <div className="text-right space-y-0.5">
+                        <p className="font-black text-emerald-400">{formatCurrency(bo.paid)} (POS)</p>
+                        <p className="text-[9px] text-amber-400">Advance: {formatCurrency(bo.advanceAmount)}</p>
+                        <p className="text-[9px] text-gray-500">Total: {formatCurrency(bo.totalWithAdvance)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Recent Sales list */}
               <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
                 <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Recent Sales Transactions</h3>
                 <div className="space-y-2 max-h-60 overflow-y-auto">
