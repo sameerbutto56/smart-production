@@ -444,10 +444,10 @@ const InventoryManagement = () => {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     JsBarcode(svg, barcode, {
       format: 'CODE128',
-      width: 1.8,
-      height: 60,
+      width: 2.5,
+      height: 100,
       displayValue: false,
-      margin: 12,
+      margin: 8,
       background: '#ffffff',
       lineColor: '#000000',
     });
@@ -460,24 +460,37 @@ const InventoryManagement = () => {
 <meta charset="utf-8">
 <title>Barcode Labels</title>
 <style>
-  @page { margin: 0; size: 50.8mm 25.4mm; }
+  @page { margin: 0; size: 50mm 25mm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .label {
-    width: 50.8mm; height: 25.4mm;
-    padding: 1.5mm 1.5mm 1mm;
+    width: 50mm; height: 25mm;
+    padding: 1mm 2mm;
     display: flex; flex-direction: column;
-    align-items: center; text-align: center;
+    align-items: center;
     page-break-after: always; page-break-inside: avoid;
     background: #fff; color: #000;
     overflow: hidden;
   }
-  .label .name { width: 100%; font-size: 7pt; font-weight: bold; text-transform: uppercase; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .label .bcwrap { width: 100%; height: 13mm; display: flex; align-items: center; justify-content: center; padding: 0.3mm 0; }
-  .label .bcwrap svg { display: block; max-width: 100%; max-height: 100%; height: 12mm; }
-  .label .bctext { font-size: 6pt; font-family: 'Courier New', monospace; font-weight: bold; color: #000; text-align: center; letter-spacing: 0.2px; line-height: 1.1; }
-  .label .bottom { width: 100%; display: flex; justify-content: flex-end; }
-  .label .price  { font-size: 9pt; font-weight: 900; color: #000; }
+  .label .name {
+    width: 100%; height: 6.5mm;
+    font-size: 7pt; font-weight: bold; text-transform: uppercase;
+    line-height: 1.15; word-break: break-word;
+    overflow: hidden;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    text-overflow: ellipsis; text-align: center;
+  }
+  .label .bcwrap {
+    width: 40mm; height: 13mm;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0;
+    margin: 0 auto;
+  }
+  .label .bcwrap svg { display: block; max-width: 100%; max-height: 100%; }
+  .label .row { width: 100%; display: flex; align-items: baseline; justify-content: space-between; }
+  .label .bctext { font-size: 5.5pt; font-family: 'Courier New', monospace; font-weight: bold; color: #000; letter-spacing: 0.2px; }
+  .label .price  { font-size: 8pt; font-weight: 900; color: #000; }
 </style>
 </head>
 <body>
@@ -485,8 +498,10 @@ const InventoryManagement = () => {
   <div class="label">
     <div class="name">${productName} ${[variant.color, variant.size].filter(Boolean).join(' • ')}</div>
     <div class="bcwrap">${svgString}</div>
-    <div class="bctext">${barcode}</div>
-    <div class="bottom"><span class="price">${formatCurr(variant.price || item.price || 0)}</span></div>
+    <div class="row">
+      <span class="bctext">${barcode}</span>
+      <span class="price">${formatCurr(variant.price || item.price || 0)}</span>
+    </div>
   </div>`).join('')}
 </body>
 </html>`);
