@@ -1067,7 +1067,7 @@ const OutletPOS = () => {
         </div>
 
         {/* Cart */}
-        <div className="w-96 bg-gray-900/80 border-l-2 border-gray-800 flex flex-col flex-shrink-0">
+        <div className="w-96 bg-gray-900/80 border-l-2 border-gray-800 flex flex-col flex-shrink-0 h-full">
           <div className="p-3 border-b-2 border-gray-800 flex items-center justify-between flex-shrink-0">
             <h2 className="text-sm font-black text-white flex items-center gap-2"><ShoppingCart size={16} />Cart ({cart.length})</h2>
             {cart.length > 0 && (
@@ -1075,7 +1075,7 @@ const OutletPOS = () => {
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-3 space-y-2 max-h-[calc(100vh-340px)]">
+          <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
             {cart.map((item, i) => (
               <div key={i} className="bg-gray-800/60 rounded-xl border border-gray-700/50 p-2.5">
                 <div className="flex items-start justify-between">
