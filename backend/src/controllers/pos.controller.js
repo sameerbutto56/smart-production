@@ -809,7 +809,7 @@ const createPosProduct = async (req, res) => {
 /* ─── Barcode lookup ─── */
 const lookupBarcode = async (req, res) => {
   try {
-    const barcode = req.params.barcode.toUpperCase();
+    const barcode = req.params.barcode;
     const outlet = getOutletName(req);
     const cacheKey = `${CACHE_KEY_PREFIX}barcode:${outlet || 'all'}:${barcode}`;
 
@@ -817,7 +817,7 @@ const lookupBarcode = async (req, res) => {
     if (cached) return res.json(cached);
 
     const inv = await prisma.outletInventory.findFirst({
-      where: { barcode, ...(outlet ? { outletName: outlet } : {}) }
+      where: { barcode: { equals: barcode, mode: 'insensitive' }, ...(outlet ? { outletName: outlet } : {}) }
     });
     if (!inv) return res.status(404).json({ message: 'Barcode not found in this outlet' });
 

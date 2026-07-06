@@ -246,7 +246,7 @@ const OutletPOS = () => {
     const map = new Map();
     for (const p of products) {
       if (p.barcode) {
-        map.set(p.barcode, {
+        map.set(p.barcode.toUpperCase(), {
           id: p.id,
           productName: p.name,
           color: p.color,
@@ -279,7 +279,7 @@ const OutletPOS = () => {
 
   const handleBarcodeLookup = async (code) => {
     if (!code) return;
-    code = code.toUpperCase().trim();
+    code = code.trim();
     let v = barcodeMap.get(code);
     // If not in local map, try API lookup (cache may be stale)
     if (!v) {
@@ -506,7 +506,7 @@ const OutletPOS = () => {
   /* ─── Return by Barcode ─── */
   const handleReturnBarcodeLookup = async (code) => {
     if (!code) return;
-    code = code.toUpperCase().trim();
+    code = code.trim();
     let v = barcodeMap.get(code);
     if (!v) {
       try {
