@@ -338,14 +338,15 @@ const updateVariant = async (req, res) => {
 /* ─── Sales ─── */
 const createSale = async (req, res) => {
   try {
-    const { items, customerName, customerPhone, alterationCharges, extraCharges, discountPercent, discountFixed, paymentMethod, advanceAmount, cardChargesPct, orderId, receiptNumber: manualReceipt } = req.body;
+    const { items, customerName, customerPhone, extraCharges, discountPercent, discountFixed, paymentMethod, advanceAmount, cardChargesPct, orderId, receiptNumber: manualReceipt } = req.body;
     if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'At least one item is required' });
 
     const outletName = getOutletName(req);
     const receiptNumber = manualReceipt || await generateReceiptNumber();
     let subtotal = 0;
-    let totalAlt = parseFloat(alterationCharges || 0);
-    let totalExtra = parseFloat(extraCharges || 0);
+    let totalAlt = 0;
+    let totalItemDiscount = 0;
+    let netAfterItems = 0;
     const saleItems = [];
 
     for (const item of items) {
@@ -355,10 +356,16 @@ const createSale = async (req, res) => {
       if (inv.stock < (item.quantity || 1)) return res.status(400).json({ message: `Insufficient stock for ${inv.name} (${inv.color || ''} ${inv.size || ''}). Available: ${inv.stock}` });
       const unitPrice = item.unitPrice || inv.price || 0;
       const qty = item.quantity || 1;
-      const lineTotal = unitPrice * qty;
-      const itemAlt = parseFloat(item.alterationCharges || 0) * qty;
-      subtotal += lineTotal;
+      const lineBase = unitPrice * qty;
+      const itemAlt = parseFloat(item.alterationCharges || 0);
+      const dpct = parseFloat(item.discountPct || 0);
+      const dfixed = parseFloat(item.discountFixed || 0);
+      const itemDiscount = (lineBase * dpct / 100) + dfixed;
+      const itemNet = Math.max(0, lineBase - itemDiscount) + itemAlt;
+      subtotal += lineBase;
       totalAlt += itemAlt;
+      totalItemDiscount += itemDiscount;
+      netAfterItems += itemNet;
       saleItems.push({
         outletVariantId: inv.id,
         productName: inv.name,
@@ -367,17 +374,20 @@ const createSale = async (req, res) => {
         quantity: qty,
         unitPrice,
         alterationCharges: itemAlt,
-        lineTotal: lineTotal + itemAlt
+        discountPct: dpct,
+        discountFixed: dfixed,
+        lineTotal: itemNet
       });
     }
 
-    const discountPct = parseFloat(discountPercent || 0);
-    const discountFixedVal = parseFloat(discountFixed || 0);
-    const discountAmount = ((subtotal + totalAlt + totalExtra) * discountPct) / 100 + discountFixedVal;
-    const baseTotal = subtotal + totalAlt + totalExtra - discountAmount;
+    const globalPct = parseFloat(discountPercent || 0);
+    const globalFixed = parseFloat(discountFixed || 0);
+    const globalDiscountAmt = (netAfterItems * globalPct / 100) + globalFixed;
+    const discountAmount = totalItemDiscount + globalDiscountAmt;
+    const netAfterGlobal = netAfterItems - globalDiscountAmt;
     const cardPct = parseFloat(cardChargesPct || 0);
-    const cardChargesAmount = (baseTotal * cardPct) / 100;
-    const grandTotal = baseTotal + cardChargesAmount;
+    const cardChargesAmount = (netAfterItems * cardPct) / 100;
+    const grandTotal = netAfterGlobal + cardChargesAmount;
 
     const sale = await prisma.$transaction(async (tx) => {
       for (const si of saleItems) {
@@ -400,8 +410,7 @@ const createSale = async (req, res) => {
           customerName: customerName || null,
           subtotal,
           alterationCharges: totalAlt,
-          extraCharges: totalExtra,
-          discountPercent: discountPct,
+          discountPercent: globalPct,
           discountAmount,
           grandTotal,
           advanceAmount: parseFloat(advanceAmount || 0),

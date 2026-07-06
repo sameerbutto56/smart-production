@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Search, ShoppingCart, Plus, Minus, X, Trash2, Printer, Barcode, Percent, RotateCcw, CreditCard, DollarSign, Package, Tag, Grid3X3, List, ChevronDown, ChevronUp, AlertCircle, BarChart3, RefreshCw, Calendar, TrendingUp, Award, Clock, CheckCircle2, Globe } from 'lucide-react';
+import { Search, ShoppingCart, Plus, Minus, X, Trash2, Printer, Barcode, RotateCcw, CreditCard, DollarSign, Package, Tag, Grid3X3, List, ChevronDown, ChevronUp, AlertCircle, BarChart3, RefreshCw, Calendar, TrendingUp, Award, Clock, CheckCircle2, Globe } from 'lucide-react';
 import toast from 'react-hot-toast';
 import JsBarcode from 'jsbarcode';
 import useCache, { invalidateKey } from '../hooks/useCache';
@@ -160,7 +160,8 @@ const OutletPOS = () => {
                 unitPrice: unitPrice || match.price || 0,
                 qty: Math.min(qty, match.stock),
                 alterationAmount: 0,
-                alterationLabel: ''
+                alterationLabel: '',
+                discountPct: 0, discountFixed: 0
               });
             }
           });
@@ -261,9 +262,16 @@ const OutletPOS = () => {
 
   const subtotal = useMemo(() => cart.reduce((s, i) => s + i.unitPrice * i.qty, 0), [cart]);
   const altCharges = useMemo(() => cart.reduce((s, i) => s + (i.alterationAmount || 0), 0), [cart]);
-  const discountAmount = ((subtotal + altCharges) * discountPct) / 100 + discountFixed;
-  const cardChargesAmt = paymentMethod === 'CARD' ? ((subtotal + altCharges - discountAmount) * cardChargesPct) / 100 : 0;
-  const grandTotal = subtotal + altCharges - discountAmount + cardChargesAmt;
+  const perItemDiscount = useMemo(() => cart.reduce((s, i) => {
+    const base = i.unitPrice * i.qty;
+    const dpct = parseFloat(i.discountPct) || 0;
+    const dfixed = parseFloat(i.discountFixed) || 0;
+    return s + (base * dpct / 100) + dfixed;
+  }, 0), [cart]);
+  const netBeforeGlobal = subtotal - perItemDiscount + altCharges;
+  const globalDiscountAmt = netBeforeGlobal * discountPct / 100 + discountFixed;
+  const cardChargesAmt = paymentMethod === 'CARD' ? (netBeforeGlobal * cardChargesPct) / 100 : 0;
+  const grandTotal = netBeforeGlobal - globalDiscountAmt + cardChargesAmt;
 
   /* ─── Barcode Scan ─── */
   useEffect(() => {
@@ -306,7 +314,7 @@ const OutletPOS = () => {
       setCart([...cart, {
         variantId: v.id, productName: v.productName,
         size: v.size, color: v.color, unitPrice: v.price || 0,
-        qty: 1, alterationAmount: 0, alterationLabel: ''
+        qty: 1, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0
       }]);
     }
     toast.success(`${v.productName} added via barcode`);
@@ -325,7 +333,7 @@ const OutletPOS = () => {
       setCart([...cart, {
         variantId: product.id, productName: product.name,
         size: product.size || null, color: product.color || null, unitPrice: product.price || 0,
-        qty: 1, alterationAmount: 0, alterationLabel: ''
+        qty: 1, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0
       }]);
       toast.success(`${product.name} added`);
     }
@@ -348,7 +356,7 @@ const OutletPOS = () => {
     setCart([...cart, {
       variantId: variant.id, productName: product.name,
       size: variant.size, color: variant.color, unitPrice: variant.price || product.price || 0,
-      qty: selectedQty, alterationAmount: 0, alterationLabel: ''
+      qty: selectedQty, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0
     }]);
     setShowConfig(null);
     toast.success(`${product.name} added`);
@@ -367,13 +375,18 @@ const OutletPOS = () => {
     setCart(copy);
   };
 
+  const updateCartDiscount = (i, field, value) => {
+    const copy = [...cart];
+    copy[i] = { ...copy[i], [field]: value };
+    setCart(copy);
+  };
+
   /* ─── Checkout (try fast path, fallback to sync queue) ─── */
   const handleCheckout = useCallback(async () => {
     if (cart.length === 0) return;
     const payload = {
-      items: cart.map(i => ({ variantId: i.variantId, quantity: i.qty, unitPrice: i.unitPrice, alterationCharges: i.alterationAmount })),
+      items: cart.map(i => ({ variantId: i.variantId, quantity: i.qty, unitPrice: i.unitPrice, alterationCharges: i.alterationAmount, discountPct: parseFloat(i.discountPct) || 0, discountFixed: parseFloat(i.discountFixed) || 0 })),
       customerName: customerName || null,
-      alterationCharges: altCharges,
       extraCharges: 0,
       discountPercent: discountPct,
       discountFixed: discountFixed,
@@ -1217,7 +1230,7 @@ const OutletPOS = () => {
           <div className="p-3 border-b-2 border-gray-800 flex items-center justify-between flex-shrink-0">
             <h2 className="text-sm font-black text-white flex items-center gap-2"><ShoppingCart size={16} />Cart ({cart.length})</h2>
             {cart.length > 0 && (
-              <button onClick={() => { if (window.confirm('Clear cart?')) { setCart([]); setDiscountPct(0); } }} className="text-[10px] font-bold text-red-400 hover:text-red-300"><Trash2 size={12} className="inline mr-1" />Clear</button>
+              <button onClick={() => { if (window.confirm('Clear cart?')) { setCart([]); setDiscountPct(0); setDiscountFixed(0); } }} className="text-[10px] font-bold text-red-400 hover:text-red-300"><Trash2 size={12} className="inline mr-1" />Clear</button>
             )}
           </div>
 
@@ -1256,6 +1269,13 @@ const OutletPOS = () => {
                   </select>
                   {item.alterationAmount > 0 && <p className="text-[9px] text-amber-400 font-bold mt-0.5">+{formatCurrency(item.alterationAmount)} alteration</p>}
                 </div>
+                <div className="mt-1.5 flex gap-1">
+                  <input type="number" value={item.discountPct || 0} onChange={e => updateCartDiscount(i, 'discountPct', Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
+                    className="w-14 bg-gray-900 border border-gray-700 rounded-lg px-1.5 py-1 text-[10px] font-bold text-white text-center focus:border-blue-500 outline-none" min="0" max="100" placeholder="%" />
+                  <input type="number" value={item.discountFixed || 0} onChange={e => updateCartDiscount(i, 'discountFixed', Math.max(0, parseFloat(e.target.value) || 0))}
+                    className="w-16 bg-gray-900 border border-gray-700 rounded-lg px-1.5 py-1 text-[10px] font-bold text-white text-center focus:border-blue-500 outline-none" min="0" placeholder="₨" />
+                  <span className="text-[10px] text-blue-400 font-bold self-center">disc</span>
+                </div>
               </div>
             ))}
             {cart.length === 0 && (
@@ -1277,14 +1297,19 @@ const OutletPOS = () => {
                   <span>{formatCurrency(altCharges)}</span>
                 </div>
               )}
+              {perItemDiscount > 0 && (
+                <div className="flex items-center justify-between text-xs text-blue-400">
+                  <span>Item Discounts</span>
+                  <span>-{formatCurrency(perItemDiscount)}</span>
+                </div>
+              )}
               <div className="flex items-center gap-2">
-                <Percent size={12} className="text-blue-400" />
                 <input type="number" value={discountPct} onChange={e => setDiscountPct(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
-                  className="w-16 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs font-bold text-white text-center focus:border-blue-500 outline-none" min="0" max="100" />
+                  className="w-14 bg-gray-800 border border-gray-700 rounded-lg px-1.5 py-1 text-[10px] font-bold text-white text-center focus:border-blue-500 outline-none" min="0" max="100" />
                 <span className="text-[10px] text-gray-500">%</span>
                 <input type="number" value={discountFixed} onChange={e => setDiscountFixed(Math.max(0, parseFloat(e.target.value) || 0))}
-                  className="w-16 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs font-bold text-white text-center focus:border-blue-500 outline-none" min="0" />
-                <span className="text-[10px] text-gray-500">Fixed: -{formatCurrency(discountAmount)}</span>
+                  className="w-16 bg-gray-800 border border-gray-700 rounded-lg px-1.5 py-1 text-[10px] font-bold text-white text-center focus:border-blue-500 outline-none" min="0" />
+                <span className="text-[10px] text-gray-500">fix: -{formatCurrency(globalDiscountAmt)}</span>
               </div>
               {paymentMethod === 'CARD' && cardChargesAmt > 0 && (
                 <div className="flex items-center justify-between text-xs text-purple-400">
