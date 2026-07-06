@@ -1154,8 +1154,15 @@ const OutletPOS = () => {
           ) : (
           <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
             {groupedProducts.map(g => {
-              const colorLabel = g.colors.length > 0 ? g.colors.join(', ') : null;
-              const sizeLabel = g.sizes.length > 0 ? g.sizes.join(', ') : null;
+              const maxShow = 3;
+              const colorsMore = g.colors.length > maxShow ? g.colors.length - maxShow : 0;
+              const sizesMore = g.sizes.length > maxShow ? g.sizes.length - maxShow : 0;
+              const colorLabel = g.colors.length > 0
+                ? (colorsMore > 0 ? g.colors.slice(0, maxShow).join(', ') + ` +${colorsMore}` : g.colors.join(', '))
+                : null;
+              const sizeLabel = g.sizes.length > 0
+                ? (sizesMore > 0 ? g.sizes.slice(0, maxShow).join(', ') + ` +${sizesMore}` : g.sizes.join(', '))
+                : null;
               const isOutOfStock = (g.totalStock != null && g.totalStock <= 0) || (g.variants.length === 1 && g.variants[0].stock != null && g.variants[0].stock <= 0);
               return (
                 <button key={g.id} onClick={() => handleAddToCart(g.variants.length === 1 ? g.variants[0] : g)}
@@ -1173,8 +1180,11 @@ const OutletPOS = () => {
                     </div>
                   )}
                   <p className="text-[10px] font-bold text-white leading-tight line-clamp-2">{g.name}</p>
+                  {g.variants.length > 1 && (
+                    <span className="inline-block text-[7px] font-bold text-blue-400 bg-blue-900/30 rounded-full px-1.5 py-0.5 mb-0.5">{g.variants.length} variants</span>
+                  )}
                   {(colorLabel || sizeLabel) && (
-                    <p className="text-[8px] text-gray-500 font-bold">{[colorLabel, sizeLabel].filter(Boolean).join(' | ')}</p>
+                    <p className="text-[8px] text-gray-500 font-bold truncate">{[colorLabel, sizeLabel].filter(Boolean).join(' | ')}</p>
                   )}
                   <p className="text-xs font-black text-emerald-400 mt-0.5">{formatCurrency(g.price)}</p>
                   <p className={`text-[8px] font-bold ${isOutOfStock ? 'text-red-400' : 'text-gray-600'}`}>{isOutOfStock ? 'OUT OF STOCK' : `Stock: ${g.totalStock}`}</p>
