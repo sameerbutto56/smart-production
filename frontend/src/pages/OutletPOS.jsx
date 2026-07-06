@@ -364,7 +364,12 @@ const OutletPOS = () => {
     w.document.write(`<tr class="final"><td>Final Amount</td><td class="value">${formatCurrency(sale.grandTotal)}</td></tr>`);
     w.document.write(`<tr><td>Payment</td><td class="value">${sale.paymentMethod}</td></tr></table>`);
     w.document.write('<hr><div class="footer"><p>Thank You for Shopping with Enamels.</p><p>Visit Again!</p></div>');
-    const reviewUrl = 'https://www.google.com/maps/search/Enamels+Johar+Town+Lahore';
+    const reviewUrls = {
+      'Johar Town': 'https://www.google.com/maps/search/Enamels+375+A2+Block+A+2+Phase+1+Johar+Town+Lahore',
+      'Jail Road': 'https://www.google.com/maps/search/Enamels+Jail+Road+7+sharahe+Shahrah+Aiwan-e-Sanat-o-Tijarat+Lahore',
+      'Abbottabad': 'https://www.google.com/maps/search/Enamels+Abbottabad',
+    };
+    const reviewUrl = reviewUrls[sale.outletName] || 'https://www.google.com/maps/search/Enamels';
     w.document.write(`<div style="text-align:center;margin:10px 0 0;"><img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(reviewUrl)}" width="120" height="120" alt="Review QR" style="display:inline-block;" onload="window.print()" onerror="window.print()"><p style="font-size:10px;margin:3px 0 0;font-weight:bold;">Scan to Review us on Google</p></div>`);
     w.document.write('<hr><p style="text-align:center;font-size:9px;margin-top:4px;">Software is develop by Sameer Butt</p>');
     w.document.write('</body></html>');
