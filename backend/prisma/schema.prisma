@@ -486,6 +486,8 @@ model PosSale {
   grandTotal       Float    @default(0)
   advanceAmount    Float    @default(0)
   orderId          String?
+  cardChargesPct   Float    @default(0)
+  cardChargesAmount Float   @default(0)
   paymentMethod    String   @default("CASH")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

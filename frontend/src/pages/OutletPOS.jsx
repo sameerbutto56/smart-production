@@ -90,6 +90,7 @@ const OutletPOS = () => {
   });
   const [orderNumber, setOrderNumber] = useState('');
   const [advanceAmount, setAdvanceAmount] = useState(0);
+  const [cardChargesPct, setCardChargesPct] = useState(0);
   const [customerName, setCustomerName] = useState(() => localStorage.getItem('pos_customer_name') || '');
   const [paymentMethod, setPaymentMethod] = useState(() => localStorage.getItem('pos_payment_method') || 'CASH');
   const [showCheckout, setShowCheckout] = useState(false);
@@ -216,7 +217,8 @@ const OutletPOS = () => {
   const subtotal = useMemo(() => cart.reduce((s, i) => s + i.unitPrice * i.qty, 0), [cart]);
   const altCharges = useMemo(() => cart.reduce((s, i) => s + (i.alterationAmount || 0), 0), [cart]);
   const discountAmount = ((subtotal + altCharges) * discountPct) / 100 + discountFixed;
-  const grandTotal = subtotal + altCharges - discountAmount;
+  const cardChargesAmt = paymentMethod === 'CARD' ? ((subtotal + altCharges - discountAmount) * cardChargesPct) / 100 : 0;
+  const grandTotal = subtotal + altCharges - discountAmount + cardChargesAmt;
 
   /* ─── Barcode Scan ─── */
   useEffect(() => {
@@ -313,6 +315,7 @@ const OutletPOS = () => {
       discountPercent: discountPct,
       discountFixed: discountFixed,
       advanceAmount: parseFloat(advanceAmount) || 0,
+      cardChargesPct: parseFloat(cardChargesPct) || 0,
       orderId: lookedUpOrder?.id || null,
       paymentMethod,
       receiptNumber: orderNumber || undefined,
@@ -327,6 +330,7 @@ const OutletPOS = () => {
       setDiscountPct(0);
       setDiscountFixed(0);
       setAdvanceAmount(0);
+      setCardChargesPct(0);
       setLookedUpOrder(null);
       setCustomerName('');
       setOrderNumber('');
@@ -345,7 +349,7 @@ const OutletPOS = () => {
       await enqueue('sale', 'create', payload);
     }
     setCheckoutLoading(false);
-  }, [cart, customerName, altCharges, discountPct, discountFixed, advanceAmount, lookedUpOrder, paymentMethod, orderNumber, selectedOutlet, refreshProducts, refreshDashboard, refreshSales, refreshReturns]);
+  }, [cart, customerName, altCharges, discountPct, discountFixed, advanceAmount, cardChargesPct, lookedUpOrder, paymentMethod, orderNumber, selectedOutlet, refreshProducts, refreshDashboard, refreshSales, refreshReturns]);
 
   /* ─── Receipt Print ─── */
   const printReceipt = (sale) => {
@@ -396,6 +400,7 @@ const OutletPOS = () => {
     if (sale.alterationCharges > 0) w.document.write(`<tr><td>Alteration</td><td class="value">${formatCurrency(sale.alterationCharges)}</td></tr>`);
     if (sale.extraCharges > 0) w.document.write(`<tr><td>Extra Charges</td><td class="value">${formatCurrency(sale.extraCharges)}</td></tr>`);
     if (sale.discountPercent > 0 || sale.discountAmount > 0) w.document.write(`<tr><td>Discount${sale.discountPercent > 0 ? ` (${sale.discountPercent}%)` : ''}</td><td class="value">-${formatCurrency(sale.discountAmount)}</td></tr>`);
+    if (sale.cardChargesPct > 0) w.document.write(`<tr><td>Card Charges (${sale.cardChargesPct}%)</td><td class="value">+${formatCurrency(sale.cardChargesAmount)}</td></tr>`);
     const adv = parseFloat(sale.advanceAmount) || 0;
     const isOrderSale = !!sale.orderId;
     if (isOrderSale && adv > 0) {
@@ -1021,12 +1026,20 @@ const OutletPOS = () => {
           className="flex-1 bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none max-w-xs" />
         <div className="flex items-center gap-1">
           <span className="text-xs font-bold text-gray-500 mr-1">Pay:</span>
-          <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
+          <select value={paymentMethod} onChange={e => { setPaymentMethod(e.target.value); if (e.target.value !== 'CARD') setCardChargesPct(0); }}
             className="bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:border-blue-500 outline-none">
             <option value="CASH">Cash</option>
             <option value="CARD">Card</option>
             <option value="ONLINE">Online</option>
           </select>
+          {paymentMethod === 'CARD' && (
+            <div className="flex items-center gap-1 ml-2">
+              <span className="text-[9px] text-gray-500">Charges:</span>
+              <input type="number" value={cardChargesPct} onChange={e => setCardChargesPct(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
+                className="w-14 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white text-center focus:border-blue-500 outline-none" min="0" max="100" />
+              <span className="text-[9px] text-gray-500">%</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1179,6 +1192,12 @@ const OutletPOS = () => {
                   className="w-16 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs font-bold text-white text-center focus:border-blue-500 outline-none" min="0" />
                 <span className="text-[10px] text-gray-500">Fixed: -{formatCurrency(discountAmount)}</span>
               </div>
+              {paymentMethod === 'CARD' && cardChargesAmt > 0 && (
+                <div className="flex items-center justify-between text-xs text-purple-400">
+                  <span>Card Charges ({cardChargesPct}%)</span>
+                  <span>+{formatCurrency(cardChargesAmt)}</span>
+                </div>
+              )}
               <input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Customer name (optional)"
                 className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
               <div className="flex items-center justify-between bg-gray-800/50 rounded-lg px-3 py-2">

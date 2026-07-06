@@ -338,7 +338,7 @@ const updateVariant = async (req, res) => {
 /* ─── Sales ─── */
 const createSale = async (req, res) => {
   try {
-    const { items, customerName, alterationCharges, extraCharges, discountPercent, discountFixed, paymentMethod, advanceAmount, orderId, receiptNumber: manualReceipt } = req.body;
+    const { items, customerName, alterationCharges, extraCharges, discountPercent, discountFixed, paymentMethod, advanceAmount, cardChargesPct, orderId, receiptNumber: manualReceipt } = req.body;
     if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'At least one item is required' });
 
     const outletName = getOutletName(req);
@@ -374,7 +374,10 @@ const createSale = async (req, res) => {
     const discountPct = parseFloat(discountPercent || 0);
     const discountFixedVal = parseFloat(discountFixed || 0);
     const discountAmount = ((subtotal + totalAlt + totalExtra) * discountPct) / 100 + discountFixedVal;
-    const grandTotal = subtotal + totalAlt + totalExtra - discountAmount;
+    const baseTotal = subtotal + totalAlt + totalExtra - discountAmount;
+    const cardPct = parseFloat(cardChargesPct || 0);
+    const cardChargesAmount = (baseTotal * cardPct) / 100;
+    const grandTotal = baseTotal + cardChargesAmount;
 
     const sale = await prisma.$transaction(async (tx) => {
       for (const si of saleItems) {
@@ -403,6 +406,8 @@ const createSale = async (req, res) => {
           grandTotal,
           advanceAmount: parseFloat(advanceAmount || 0),
           orderId: orderId || null,
+          cardChargesPct: cardPct,
+          cardChargesAmount,
           paymentMethod: paymentMethod || 'CASH',
           items: { create: saleItems }
         },
