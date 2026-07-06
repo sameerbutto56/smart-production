@@ -182,17 +182,17 @@ const OutletPOS = () => {
     return () => clearTimeout(timer);
   }, [orderNumber, products]);
 
-  // Socket listener for inventory updates — invalidate products cache
+  // Socket listener for inventory updates — refresh all caches
   useEffect(() => {
     const handleInventoryUpdate = debounce(() => {
-      invalidateKey(`pos:products:${selectedOutlet}`);
-      invalidateKey(`pos:dashboard:${selectedOutlet}:${dashboardRange}:${dashboardDateFrom}:${dashboardDateTo}`);
-      invalidateKey(`pos:sales:${selectedOutlet}`);
-      invalidateKey(`pos:returns:${selectedOutlet}`);
+      refreshProducts();
+      refreshDashboard();
+      refreshSales();
+      refreshReturns();
     }, 500);
     socket.on('inventory-updated', handleInventoryUpdate);
     return () => { socket.off('inventory-updated', handleInventoryUpdate); };
-  }, [selectedOutlet, dashboardRange, dashboardDateFrom, dashboardDateTo]);
+  }, [selectedOutlet, dashboardRange, dashboardDateFrom, dashboardDateTo, refreshProducts, refreshDashboard, refreshSales, refreshReturns]);
 
   const categories = useMemo(() => {
     const cats = [...new Set(products.map(p => p.category).filter(Boolean))];
@@ -277,9 +277,18 @@ const OutletPOS = () => {
     return () => window.removeEventListener('keydown', handler);
   }, [barcodeInput]);
 
-  const handleBarcodeLookup = (code) => {
+  const handleBarcodeLookup = async (code) => {
     if (!code) return;
-    const v = barcodeMap.get(code);
+    let v = barcodeMap.get(code);
+    // If not in local map, try API lookup (cache may be stale)
+    if (!v) {
+      try {
+        const res = await api.get(`/api/pos/barcode/${code}?outlet=${selectedOutlet}`);
+        if (res.data) {
+          v = { id: res.data.id, productName: res.data.productName, color: res.data.color, size: res.data.size, price: res.data.price || 0, stock: res.data.stock };
+        }
+      } catch (e) { /* not found via API either */ }
+    }
     if (!v) return toast.error('Barcode not found');
     const existing = cart.find(i => i.variantId === v.id);
     if (existing) {
@@ -493,9 +502,17 @@ const OutletPOS = () => {
   };
 
   /* ─── Return by Barcode ─── */
-  const handleReturnBarcodeLookup = (code) => {
+  const handleReturnBarcodeLookup = async (code) => {
     if (!code) return;
-    const v = barcodeMap.get(code);
+    let v = barcodeMap.get(code);
+    if (!v) {
+      try {
+        const res = await api.get(`/api/pos/barcode/${code}?outlet=${selectedOutlet}`);
+        if (res.data) {
+          v = { id: res.data.id, productName: res.data.productName, color: res.data.color, size: res.data.size, price: res.data.price || 0, stock: res.data.stock };
+        }
+      } catch (e) { /* not found */ }
+    }
     if (!v) return toast.error('Barcode not found');
     if (v.stock <= 0) return toast.error('No stock to return');
     const existing = returnCart.find(i => i.variantId === v.id);
