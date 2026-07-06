@@ -458,6 +458,7 @@ const OutletPOS = () => {
     </style></head><body>`);
     const phones = { 'Johar Town': '0325-6666063', 'Jail Road': '(042) 36282641', 'Abbottabad': '' };
     const phone = phones[sale.outletName] || '';
+    const pf = (n) => (n || 0).toLocaleString();
     w.document.write(`<div class="header"><h1>ENAMELS</h1><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p><p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}${sale.customerPhone ? `<p>Phone: ${sale.customerPhone}</p>` : ''}</div>`);
     w.document.write('<hr><div class="items"><div class="items-heading"><span class="col-item">ITEM</span><span class="col-qty">QTY × PRICE</span><span class="col-total">TOTAL</span></div>');
     (sale.items || []).forEach(item => {
@@ -466,29 +467,29 @@ const OutletPOS = () => {
       w.document.write('<div class="item">');
       w.document.write(`<div class="item-name">${name}</div>`);
       if (variantParts.length > 0) w.document.write(`<div class="item-variant">${variantParts.join(' / ')}</div>`);
-      w.document.write(`<div class="item-line"><span>${item.quantity} × ${formatCurrency(item.unitPrice)}</span><span class="item-total">${formatCurrency(item.lineTotal)}</span></div>`);
+      w.document.write(`<div class="item-line"><span>${item.quantity} × ${pf(item.unitPrice)}</span><span class="item-total">${pf(item.lineTotal)}</span></div>`);
       if (item.alterationCharges > 0) {
-        w.document.write(`<div class="item-line"><span>+ Alteration</span><span class="item-total">${formatCurrency(item.alterationCharges)}</span></div>`);
+        w.document.write(`<div class="item-line"><span>+ Alteration</span><span class="item-total">${pf(item.alterationCharges)}</span></div>`);
       }
       w.document.write('</div>');
     });
     w.document.write('</div><div class="section-label">SUMMARY</div>');
-    w.document.write(`<table class="summary"><tr class="sub"><td>Subtotal</td><td class="value">${formatCurrency(sale.subtotal)}</td></tr>`);
-    if (sale.alterationCharges > 0) w.document.write(`<tr><td>Alteration</td><td class="value">${formatCurrency(sale.alterationCharges)}</td></tr>`);
-    if (sale.extraCharges > 0) w.document.write(`<tr><td>Extra Charges</td><td class="value">${formatCurrency(sale.extraCharges)}</td></tr>`);
-    if (sale.discountPercent > 0 || sale.discountAmount > 0) w.document.write(`<tr><td>Discount${sale.discountPercent > 0 ? ` (${sale.discountPercent}%)` : ''}</td><td class="value">-${formatCurrency(sale.discountAmount)}</td></tr>`);
-    if (sale.cardChargesPct > 0) w.document.write(`<tr><td>Card Charges (${sale.cardChargesPct}%)</td><td class="value">+${formatCurrency(sale.cardChargesAmount)}</td></tr>`);
+    w.document.write(`<table class="summary"><tr class="sub"><td>Subtotal</td><td class="value">${pf(sale.subtotal)}</td></tr>`);
+    if (sale.alterationCharges > 0) w.document.write(`<tr><td>Alteration</td><td class="value">${pf(sale.alterationCharges)}</td></tr>`);
+    if (sale.extraCharges > 0) w.document.write(`<tr><td>Extra Charges</td><td class="value">${pf(sale.extraCharges)}</td></tr>`);
+    if (sale.discountPercent > 0 || sale.discountAmount > 0) w.document.write(`<tr><td>Discount${sale.discountPercent > 0 ? ` (${sale.discountPercent}%)` : ''}</td><td class="value">-${pf(sale.discountAmount)}</td></tr>`);
+    if (sale.cardChargesPct > 0) w.document.write(`<tr><td>Card Charges (${sale.cardChargesPct}%)</td><td class="value">+${pf(sale.cardChargesAmount)}</td></tr>`);
     const adv = parseFloat(sale.advanceAmount) || 0;
     const isOrderSale = !!sale.orderId;
     if (isOrderSale && adv > 0) {
-      w.document.write(`<tr class="final"><td>Current Payment</td><td class="value">${formatCurrency(sale.grandTotal)}</td></tr>`);
-      w.document.write(`<tr><td>Advance (Order)</td><td class="value">${formatCurrency(adv)}</td></tr>`);
-      w.document.write(`<tr style="font-size:17px;font-weight:900;"><td>Total Paid</td><td class="value">${formatCurrency(sale.grandTotal + adv)}</td></tr>`);
+      w.document.write(`<tr class="final"><td>Current Payment</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
+      w.document.write(`<tr><td>Advance (Order)</td><td class="value">${pf(adv)}</td></tr>`);
+      w.document.write(`<tr style="font-size:17px;font-weight:900;"><td>Total Paid</td><td class="value">${pf(sale.grandTotal + adv)}</td></tr>`);
     } else {
       const balance = sale.grandTotal - adv;
-      w.document.write(`<tr class="final"><td>Final Amount</td><td class="value">${formatCurrency(sale.grandTotal)}</td></tr>`);
-      if (adv > 0) w.document.write(`<tr><td>Advance</td><td class="value">-${formatCurrency(adv)}</td></tr>`);
-      if (adv > 0) w.document.write(`<tr style="font-size:17px;font-weight:900;"><td>Balance</td><td class="value">${formatCurrency(balance)}</td></tr>`);
+      w.document.write(`<tr class="final"><td>Final Amount</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
+      if (adv > 0) w.document.write(`<tr><td>Advance</td><td class="value">-${pf(adv)}</td></tr>`);
+      if (adv > 0) w.document.write(`<tr style="font-size:17px;font-weight:900;"><td>Balance</td><td class="value">${pf(balance)}</td></tr>`);
     }
     w.document.write(`<tr><td>Payment</td><td class="value">${sale.paymentMethod}</td></tr></table>`);
     w.document.write('<hr><div class="footer"><p>Thank You for Shopping with Enamels.</p><p>Visit Again!</p></div>');
@@ -498,7 +499,7 @@ const OutletPOS = () => {
       'Abbottabad': 'https://www.google.com/maps/search/Enamels+Abbottabad',
     };
     const reviewUrl = reviewUrls[sale.outletName] || 'https://www.google.com/maps/search/Enamels';
-    w.document.write(`<div style="text-align:center;margin:8px 0 0;padding:4px;"><img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(reviewUrl)}" width="120" height="120" alt="Review QR" style="display:inline-block;"><p style="font-size:9px;margin:4px 0 0;font-weight:bold;">Scan to Review us on Google</p></div>`);
+    w.document.write(`<div style="text-align:center;margin:4px 0 0;padding:2px;"><img src="https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent(reviewUrl)}" width="60" height="60" alt="Review QR" style="display:inline-block;"><p style="font-size:7px;margin:2px 0 0;font-weight:bold;">Scan to Review us on Google</p></div>`);
     w.document.write('<hr><p style="text-align:center;font-size:9px;margin-top:4px;">Software is develop by Sameer Butt</p>');
     w.document.write('</body></html>');
     w.document.close();
