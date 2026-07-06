@@ -356,7 +356,10 @@ const OutletPOS = () => {
       }
       w.document.write('</div>');
     });
-    w.document.write('</div><hr>');
+    w.document.write('</div>');
+    const qrData = `Invoice: ${sale.receiptNumber} | Total: ${formatCurrency(sale.grandTotal)} | ${sale.outletName || ''}`;
+    w.document.write(`<div style="text-align:center;margin:6px 0;"><img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(qrData)}" width="100" height="100" alt="QR" style="display:inline-block;"></div>`);
+    w.document.write('<hr>');
     w.document.write(`<table class="summary"><tr class="sub"><td>Subtotal</td><td class="value">${formatCurrency(sale.subtotal)}</td></tr>`);
     if (sale.alterationCharges > 0) w.document.write(`<tr><td>Alteration</td><td class="value">${formatCurrency(sale.alterationCharges)}</td></tr>`);
     if (sale.extraCharges > 0) w.document.write(`<tr><td>Extra Charges</td><td class="value">${formatCurrency(sale.extraCharges)}</td></tr>`);
