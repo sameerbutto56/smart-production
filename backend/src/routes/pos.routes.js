@@ -7,7 +7,7 @@ const {
   createVariant,   deleteVariant, deleteProductVariants, updateVariant,
   createSale, getSales, getSalesDashboard,
   createReturn, getReturns,
-  lookupBarcode,
+  lookupBarcode, orderLookup,
   createPosProduct,
   updateProduct,
   initializeInventory
@@ -44,6 +44,9 @@ router.get('/returns', authenticate, getReturns);
 
 // Barcode lookup
 router.get('/barcode/:barcode', authenticate, lookupBarcode);
+
+// Order lookup for advance payment
+router.get('/order-lookup', authenticate, orderLookup);
 
 // Bulk inventory initialization (admin only)
 router.post('/initialize-inventory', authenticate, authorize('STORE', 'ADMIN', 'SUPER_ADMIN'), initializeInventory);

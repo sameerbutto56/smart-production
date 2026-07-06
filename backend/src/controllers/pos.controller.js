@@ -338,7 +338,7 @@ const updateVariant = async (req, res) => {
 /* ─── Sales ─── */
 const createSale = async (req, res) => {
   try {
-    const { items, customerName, alterationCharges, extraCharges, discountPercent, discountFixed, paymentMethod, receiptNumber: manualReceipt } = req.body;
+    const { items, customerName, alterationCharges, extraCharges, discountPercent, discountFixed, paymentMethod, advanceAmount, orderId, receiptNumber: manualReceipt } = req.body;
     if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'At least one item is required' });
 
     const outletName = getOutletName(req);
@@ -383,6 +383,12 @@ const createSale = async (req, res) => {
           data: { stock: { decrement: si.quantity } }
         });
       }
+      if (orderId) {
+        await tx.order.update({
+          where: { id: orderId },
+          data: { paymentStatus: 'PAID' }
+        });
+      }
       return tx.posSale.create({
         data: {
           receiptNumber,
@@ -395,6 +401,8 @@ const createSale = async (req, res) => {
           discountPercent: discountPct,
           discountAmount,
           grandTotal,
+          advanceAmount: parseFloat(advanceAmount || 0),
+          orderId: orderId || null,
           paymentMethod: paymentMethod || 'CASH',
           items: { create: saleItems }
         },
@@ -891,7 +899,33 @@ const initializeInventory = async (req, res) => {
   }
 };
 
-// Trigger Vercel redeploy
+const orderLookup = async (req, res) => {
+  try {
+    const { orderNumber } = req.query;
+    if (!orderNumber) return res.status(400).json({ message: 'orderNumber is required' });
+    const order = await prisma.order.findFirst({ where: { orderNumber } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    let productDetails = [];
+    try { productDetails = JSON.parse(order.productDetails || '[]'); } catch {}
+    const totalPrice = order.totalPrice || productDetails.reduce((s, p) => s + (parseFloat(p.totalPrice) || 0), 0);
+    const adv = parseFloat(order.advanceAmount) || 0;
+    const balance = totalPrice - adv;
+    res.json({
+      id: order.id,
+      orderNumber: order.orderNumber,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      totalPrice,
+      advanceAmount: adv,
+      balance,
+      paymentStatus: order.paymentStatus,
+      productDetails
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Order lookup failed', error: error.message });
+  }
+};
+
 module.exports = {
   getPosInventory,
   getProducts,
@@ -900,7 +934,7 @@ module.exports = {
   createVariant, deleteVariant, deleteProductVariants, updateVariant,
   createSale, getSales, getSalesDashboard,
   createReturn, getReturns,
-  lookupBarcode,
+  lookupBarcode, orderLookup,
   createPosProduct,
   updateProduct,
   generateBarcode,

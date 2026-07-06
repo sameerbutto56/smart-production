@@ -89,11 +89,13 @@ const OutletPOS = () => {
     return val ? parseFloat(val) : 0;
   });
   const [orderNumber, setOrderNumber] = useState('');
+  const [advanceAmount, setAdvanceAmount] = useState(0);
   const [customerName, setCustomerName] = useState(() => localStorage.getItem('pos_customer_name') || '');
   const [paymentMethod, setPaymentMethod] = useState(() => localStorage.getItem('pos_payment_method') || 'CASH');
   const [showCheckout, setShowCheckout] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [lastSale, setLastSale] = useState(null);
+  const [lookedUpOrder, setLookedUpOrder] = useState(null);
   const [tab, setTab] = useState('pos');
   const [barcodeInput, setBarcodeInput] = useState('');
   const barcodeRef = useRef(null);
@@ -111,6 +113,20 @@ const OutletPOS = () => {
   useEffect(() => { localStorage.setItem('pos_customer_name', customerName); }, [customerName]);
   useEffect(() => { localStorage.setItem('pos_payment_method', paymentMethod); }, [paymentMethod]);
   useEffect(() => { localStorage.setItem('pos_active_category', activeCategory); }, [activeCategory]);
+
+  // Order lookup — when order number entered, fetch order details
+  useEffect(() => {
+    if (!orderNumber.trim()) { setLookedUpOrder(null); return; }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await api.get(`/api/pos/order-lookup?orderNumber=${encodeURIComponent(orderNumber.trim())}`);
+        setLookedUpOrder(res.data);
+        setAdvanceAmount(parseFloat(res.data.advanceAmount) || 0);
+        setCustomerName(res.data.customerName || '');
+      } catch { setLookedUpOrder(null); }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [orderNumber]);
 
   // Socket listener for inventory updates — invalidate products cache
   useEffect(() => {
@@ -288,6 +304,8 @@ const OutletPOS = () => {
       extraCharges: 0,
       discountPercent: discountPct,
       discountFixed: discountFixed,
+      advanceAmount: parseFloat(advanceAmount) || 0,
+      orderId: lookedUpOrder?.id || null,
       paymentMethod,
       receiptNumber: orderNumber || undefined,
       outlet: selectedOutlet
@@ -300,6 +318,8 @@ const OutletPOS = () => {
       setCart([]);
       setDiscountPct(0);
       setDiscountFixed(0);
+      setAdvanceAmount(0);
+      setLookedUpOrder(null);
       setCustomerName('');
       setOrderNumber('');
       refreshProducts();
@@ -317,7 +337,7 @@ const OutletPOS = () => {
       await enqueue('sale', 'create', payload);
     }
     setCheckoutLoading(false);
-  }, [cart, customerName, altCharges, discountPct, discountFixed, paymentMethod, orderNumber, selectedOutlet, refreshProducts, refreshDashboard, refreshSales, refreshReturns]);
+  }, [cart, customerName, altCharges, discountPct, discountFixed, advanceAmount, lookedUpOrder, paymentMethod, orderNumber, selectedOutlet, refreshProducts, refreshDashboard, refreshSales, refreshReturns]);
 
   /* ─── Receipt Print ─── */
   const printReceipt = (sale) => {
@@ -368,7 +388,11 @@ const OutletPOS = () => {
     if (sale.alterationCharges > 0) w.document.write(`<tr><td>Alteration</td><td class="value">${formatCurrency(sale.alterationCharges)}</td></tr>`);
     if (sale.extraCharges > 0) w.document.write(`<tr><td>Extra Charges</td><td class="value">${formatCurrency(sale.extraCharges)}</td></tr>`);
     if (sale.discountPercent > 0 || sale.discountAmount > 0) w.document.write(`<tr><td>Discount${sale.discountPercent > 0 ? ` (${sale.discountPercent}%)` : ''}</td><td class="value">-${formatCurrency(sale.discountAmount)}</td></tr>`);
+    const adv = parseFloat(sale.advanceAmount) || 0;
+    const balance = sale.grandTotal - adv;
     w.document.write(`<tr class="final"><td>Final Amount</td><td class="value">${formatCurrency(sale.grandTotal)}</td></tr>`);
+    if (adv > 0) w.document.write(`<tr><td>Advance</td><td class="value">-${formatCurrency(adv)}</td></tr>`);
+    if (adv > 0) w.document.write(`<tr style="font-size:17px;font-weight:900;"><td>Balance</td><td class="value">${formatCurrency(balance)}</td></tr>`);
     w.document.write(`<tr><td>Payment</td><td class="value">${sale.paymentMethod}</td></tr></table>`);
     w.document.write('<hr><div class="footer"><p>Thank You for Shopping with Enamels.</p><p>Visit Again!</p></div>');
     const reviewUrls = {
@@ -492,7 +516,7 @@ const OutletPOS = () => {
             <div key={s.id} className="bg-gray-800/60 rounded-2xl border border-gray-700/50 p-4">
               <div className="flex items-start justify-between mb-2">
                 <div>
-                  <p className="text-lg font-black text-white">{s.receiptNumber}</p>
+                  <p className="text-lg font-black text-white">{s.receiptNumber} {s.orderId && <span className="text-[9px] bg-purple-600 text-white px-2 py-0.5 rounded-full ml-1">ORDER</span>}</p>
                   <p className="text-xs text-gray-500 font-bold">{new Date(s.createdAt).toLocaleString()} &bull; {s.outletName}</p>
                 </div>
                 <div className="text-right">
@@ -562,7 +586,7 @@ const OutletPOS = () => {
                   {sales.slice(0, 30).map(s => (
                     <div key={s.id} className="bg-gray-800/50 rounded-xl p-3">
                       <div className="flex items-center justify-between mb-1">
-                        <p className="text-xs font-bold text-white">{s.receiptNumber}</p>
+                        <p className="text-xs font-bold text-white">{s.receiptNumber} {s.orderId && <span className="text-[8px] bg-purple-600 text-white px-1 py-0.5 rounded-full ml-1">ORD</span>}</p>
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] text-gray-500">{formatCurrency(s.grandTotal)}</span>
                           <button onClick={() => {
@@ -912,7 +936,7 @@ const OutletPOS = () => {
                   {sales.slice(0, 5).map(s => (
                     <div key={s.id} className="flex items-center justify-between bg-gray-950 p-2.5 rounded-xl border border-gray-800 text-xs">
                       <div>
-                        <p className="font-black text-white">{s.receiptNumber}</p>
+                        <p className="font-black text-white">{s.receiptNumber} {s.orderId && <span className="text-[8px] bg-purple-600 text-white px-1 py-0.5 rounded-full ml-1">ORD</span>}</p>
                         <p className="text-[10px] text-gray-500">{new Date(s.createdAt).toLocaleDateString()} &bull; {s.items?.length || 0} items</p>
                       </div>
                       <div className="text-right">
@@ -1120,15 +1144,43 @@ const OutletPOS = () => {
             </div>
             <input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Customer name (optional)"
               className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
-            <input value={orderNumber} onChange={e => setOrderNumber(e.target.value)} placeholder="Order # (leave blank for auto-generate)"
+            <div className="flex items-center justify-between bg-gray-800/50 rounded-lg px-3 py-2">
+              <label className="text-[10px] font-bold text-gray-400">Advance ₨</label>
+              <input type="number" value={advanceAmount} onChange={e => setAdvanceAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                className="w-24 bg-transparent border-b border-gray-600 px-1 py-1 text-xs font-bold text-white text-right focus:border-blue-500 outline-none" min="0" />
+            </div>
+            <input value={orderNumber} onChange={e => setOrderNumber(e.target.value)} placeholder="Order # — enter to fetch advance/balance"
               className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
+            {lookedUpOrder && (
+              <div className="bg-blue-900/20 border border-blue-800 rounded-xl px-3 py-2 space-y-1">
+                <p className="text-xs font-bold text-blue-300">{lookedUpOrder.customerName} ({lookedUpOrder.customerPhone || 'no phone'})</p>
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-gray-400">Total</span>
+                  <span className="text-white font-bold">{formatCurrency(lookedUpOrder.totalPrice)}</span>
+                </div>
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-amber-400">Advance</span>
+                  <span className="text-amber-400 font-bold">-{formatCurrency(lookedUpOrder.advanceAmount)}</span>
+                </div>
+                <div className="flex justify-between text-xs font-black border-t border-blue-800 pt-1">
+                  <span className="text-emerald-400">Balance Due</span>
+                  <span className="text-emerald-400">{formatCurrency(lookedUpOrder.balance)}</span>
+                </div>
+              </div>
+            )}
             <div className="flex items-center justify-between text-sm font-black text-white border-t border-gray-700 pt-2">
               <span>Grand Total</span>
               <span className="text-emerald-400">{formatCurrency(grandTotal)}</span>
             </div>
+            {parseFloat(advanceAmount) > 0 && (
+              <div className="flex items-center justify-between text-xs font-bold">
+                <span className="text-amber-400">Balance</span>
+                <span className="text-amber-400">{formatCurrency(grandTotal - parseFloat(advanceAmount))}</span>
+              </div>
+            )}
             <button onClick={handleCheckout} disabled={cart.length === 0 || checkoutLoading}
               className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2 mt-2">
-              {checkoutLoading ? 'Processing...' : `Checkout ${formatCurrency(grandTotal)}`}
+              {checkoutLoading ? 'Processing...' : `Checkout ${parseFloat(advanceAmount) > 0 ? formatCurrency(grandTotal - parseFloat(advanceAmount)) + ' (Bal)' : formatCurrency(grandTotal)}`}
             </button>
             <div className="flex gap-2">
               <button onClick={() => setTab('dashboard')} className="flex-1 text-[10px] font-bold text-gray-500 hover:text-white bg-gray-800 py-2 rounded-xl text-center">Dashboard</button>
