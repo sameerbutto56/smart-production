@@ -367,7 +367,6 @@ const OutletPOS = () => {
     const payload = {
       items: cart.map(i => ({ variantId: i.variantId, quantity: i.qty, unitPrice: i.unitPrice, alterationCharges: i.alterationAmount })),
       customerName: customerName || null,
-      customerPhone: customerPhone || null,
       alterationCharges: altCharges,
       extraCharges: 0,
       discountPercent: discountPct,

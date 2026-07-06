@@ -478,7 +478,6 @@ model PosSale {
   outletName       String?
   cashierName      String?
   customerName     String?
-  customerPhone    String?
   subtotal         Float    @default(0)
   alterationCharges Float   @default(0)
   extraCharges     Float    @default(0)
