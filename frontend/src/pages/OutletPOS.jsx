@@ -314,30 +314,34 @@ const OutletPOS = () => {
       .header h1 { font-size: 22px; font-weight: 900; margin: 0; letter-spacing: 4px; text-transform: uppercase; }
       .header p { font-size: 12px; margin: 3px 0; font-weight: bold; }
       hr { border: none; border-top: 2px solid #000; margin: 6px 0; }
-      table { width: 100%; font-size: 12px; border-collapse: collapse; }
+      table { width: 100%; font-size: 12px; border-collapse: collapse; table-layout: fixed; }
       th { text-align: left; font-size: 11px; font-weight: 900; padding: 3px 0; border-bottom: 2px solid #000; }
       td { padding: 3px 0; vertical-align: top; }
-      .right { text-align: right; }
-      .center { text-align: center; }
+      .col-item { width: 52%; word-break: break-word; }
+      .col-qty { width: 13%; text-align: right; }
+      .col-price { width: 18%; text-align: right; }
+      .col-total { width: 17%; text-align: right; }
       .total-row td { font-weight: 900; font-size: 15px; padding-top: 6px; border-top: 2px solid #000; }
       .footer { text-align: center; font-size: 11px; margin-top: 8px; }
+      .variant { font-size: 10px; color: #555; }
     </style></head><body>`);
     w.document.write(`<div class="header"><h1>ENAMELS</h1><p style="font-size:11px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p><p>${sale.outletName || ''}</p><p>Invoice: ${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}</div>`);
-    w.document.write('<hr><table><thead><tr><th>Item</th><th class="right">Qty</th><th class="right">Price</th><th class="right">Total</th></tr></thead><tbody>');
+    w.document.write('<hr><table><thead><tr><th class="col-item">Item</th><th class="col-qty">Qty</th><th class="col-price">Price</th><th class="col-total">Total</th></tr></thead><tbody>');
     (sale.items || []).forEach(item => {
-      const details = [item.productName, item.color, item.size].filter(Boolean).join(' ');
-      w.document.write(`<tr><td>${details}</td><td class="right">${item.quantity}</td><td class="right">${formatCurrency(item.unitPrice)}</td><td class="right">${formatCurrency(item.lineTotal)}</td></tr>`);
+      const name = item.productName || '';
+      const variantParts = [item.color, item.size].filter(Boolean);
+      w.document.write(`<tr><td class="col-item">${name}${variantParts.length > 0 ? `<br><span class="variant">${variantParts.join(' / ')}</span>` : ''}</td><td class="col-qty">${item.quantity}</td><td class="col-price">${formatCurrency(item.unitPrice)}</td><td class="col-total">${formatCurrency(item.lineTotal)}</td></tr>`);
       if (item.alterationCharges > 0) {
-        w.document.write(`<tr><td style="padding-left:8px;">+ Alteration</td><td></td><td></td><td class="right">${formatCurrency(item.alterationCharges)}</td></tr>`);
+        w.document.write(`<tr><td class="col-item" style="padding-left:8px;">+ Alteration</td><td></td><td></td><td class="col-total">${formatCurrency(item.alterationCharges)}</td></tr>`);
       }
     });
     w.document.write('</tbody></table><hr>');
-    w.document.write(`<table><tr><td>Subtotal</td><td class="right">${formatCurrency(sale.subtotal)}</td></tr>`);
-    if (sale.alterationCharges > 0) w.document.write(`<tr><td>Alteration</td><td class="right">${formatCurrency(sale.alterationCharges)}</td></tr>`);
-    if (sale.extraCharges > 0) w.document.write(`<tr><td>Extra Charges</td><td class="right">${formatCurrency(sale.extraCharges)}</td></tr>`);
-    if (sale.discountPercent > 0 || sale.discountAmount > 0) w.document.write(`<tr><td>Discount${sale.discountPercent > 0 ? ` (${sale.discountPercent}%)` : ''}</td><td class="right">-${formatCurrency(sale.discountAmount)}</td></tr>`);
-    w.document.write(`<tr class="total-row"><td>Final Amount</td><td class="right">${formatCurrency(sale.grandTotal)}</td></tr>`);
-    w.document.write(`<tr><td>Payment: ${sale.paymentMethod}</td><td></td></tr></table>`);
+    w.document.write(`<table><tr><td class="col-item">Subtotal</td><td class="col-total">${formatCurrency(sale.subtotal)}</td></tr>`);
+    if (sale.alterationCharges > 0) w.document.write(`<tr><td class="col-item">Alteration</td><td class="col-total">${formatCurrency(sale.alterationCharges)}</td></tr>`);
+    if (sale.extraCharges > 0) w.document.write(`<tr><td class="col-item">Extra Charges</td><td class="col-total">${formatCurrency(sale.extraCharges)}</td></tr>`);
+    if (sale.discountPercent > 0 || sale.discountAmount > 0) w.document.write(`<tr><td class="col-item">Discount${sale.discountPercent > 0 ? ` (${sale.discountPercent}%)` : ''}</td><td class="col-total">-${formatCurrency(sale.discountAmount)}</td></tr>`);
+    w.document.write(`<tr class="total-row"><td class="col-item">Final Amount</td><td class="col-total">${formatCurrency(sale.grandTotal)}</td></tr>`);
+    w.document.write(`<tr><td class="col-item">Payment: ${sale.paymentMethod}</td><td></td></tr></table>`);
     w.document.write('<hr><div class="footer"><p style="font-weight:900;">Thank You for Shopping with Enamels.</p><p style="font-weight:900;">Visit Again!</p><hr><p style="font-size:9px;margin-top:4px;">Software by Sameer Butt</p></div>');
     w.document.write('</body></html>');
     w.document.close();
