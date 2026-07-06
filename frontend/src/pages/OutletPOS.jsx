@@ -1075,7 +1075,7 @@ const OutletPOS = () => {
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          <div className="flex-1 overflow-y-auto p-3 space-y-2 max-h-[calc(100vh-340px)]">
             {cart.map((item, i) => (
               <div key={i} className="bg-gray-800/60 rounded-xl border border-gray-700/50 p-2.5">
                 <div className="flex items-start justify-between">
