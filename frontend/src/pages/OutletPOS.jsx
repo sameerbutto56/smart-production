@@ -1250,7 +1250,7 @@ const OutletPOS = () => {
                 <input type="number" value={advanceAmount} onChange={e => setAdvanceAmount(Math.max(0, parseFloat(e.target.value) || 0))}
                   className="w-24 bg-transparent border-b border-gray-600 px-1 py-1 text-xs font-bold text-white text-right focus:border-blue-500 outline-none" min="0" />
               </div>
-              <input value={orderNumber} onChange={e => setOrderNumber(e.target.value)} placeholder="Order # or phone — fetch balance"
+              <input value={orderNumber} onChange={e => setOrderNumber(e.target.value)} placeholder="Order # or phone (optional) — fetch balance"
                 className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
               {lookedUpOrder && (
                 <div className="bg-blue-900/20 border border-blue-800 rounded-xl px-3 py-2 space-y-1">
