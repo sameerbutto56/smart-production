@@ -347,7 +347,9 @@ const OutletPOS = () => {
       .summary .final td { font-size: 19px; font-weight: 900; padding-top: 8px; border-top: 3px solid #000; }
       .footer { text-align: center; font-size: 14px; margin-top: 10px; font-weight: bold; }
     </style></head><body>`);
-    w.document.write(`<div class="header"><h1>ENAMELS</h1><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p><p>${sale.outletName || ''}</p><p>Invoice: ${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}</div>`);
+    const phones = { 'Johar Town': '0325-6666063', 'Jail Road': '(042) 36282641', 'Abbottabad': '' };
+    const phone = phones[sale.outletName] || '';
+    w.document.write(`<div class="header"><h1>ENAMELS</h1><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p><p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}</div>`);
     w.document.write('<hr><div class="items"><div class="items-heading"><span class="col-item">ITEM</span><span class="col-qty">QTY × PRICE</span><span class="col-total">TOTAL</span></div>');
     (sale.items || []).forEach(item => {
       const name = item.productName || '';
