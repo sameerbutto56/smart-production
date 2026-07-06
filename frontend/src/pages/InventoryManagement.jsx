@@ -472,9 +472,9 @@ const InventoryManagement = () => {
     background: #fff; color: #000;
     overflow: hidden;
   }
-  .label .name { width: 100%; font-size: 7.5pt; font-weight: bold; text-transform: uppercase; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .label .bcwrap { width: 100%; height: 12mm; display: flex; align-items: center; justify-content: center; padding: 0.5mm 0; }
-  .label .bcwrap svg { display: block; max-width: 100%; max-height: 100%; height: 11mm; }
+  .label .name { width: 100%; font-size: 7pt; font-weight: bold; text-transform: uppercase; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .label .bcwrap { width: 100%; height: 13mm; display: flex; align-items: center; justify-content: center; padding: 0.3mm 0; }
+  .label .bcwrap svg { display: block; max-width: 100%; max-height: 100%; height: 12mm; }
   .label .bctext { font-size: 6pt; font-family: 'Courier New', monospace; font-weight: bold; color: #000; text-align: center; letter-spacing: 0.2px; line-height: 1.1; }
   .label .bottom { width: 100%; display: flex; justify-content: flex-end; }
   .label .price  { font-size: 9pt; font-weight: 900; color: #000; }
