@@ -132,10 +132,53 @@ const OutletPOS = () => {
         setLookedUpOrder(res.data);
         setAdvanceAmount(parseFloat(res.data.advanceAmount) || 0);
         setCustomerName(res.data.customerName || '');
+        // Auto-load order items into cart
+        const orderItems = res.data.productDetails || [];
+        if (orderItems.length > 0) {
+          const newCartItems = [];
+          orderItems.forEach(oi => {
+            const pd = oi.productDetails || oi;
+            const prodName = pd.productType || oi.productName || '';
+            const prodColor = pd.color || '';
+            const prodSize = pd.size || '';
+            const qty = oi.quantity || 1;
+            const unitPrice = oi.unitPrice || 0;
+            // Try to find matching variant in outlet products
+            const match = products.find(p =>
+              p.name.toLowerCase() === prodName.toLowerCase() &&
+              (!prodColor || (p.color || '').toLowerCase() === prodColor.toLowerCase()) &&
+              (!prodSize || (p.size || '').toLowerCase() === prodSize.toLowerCase())
+            );
+            if (match && match.stock > 0) {
+              newCartItems.push({
+                variantId: match.id,
+                productName: match.name,
+                size: match.size,
+                color: match.color,
+                unitPrice: unitPrice || match.price || 0,
+                qty: Math.min(qty, match.stock),
+                alterationAmount: 0,
+                alterationLabel: ''
+              });
+            }
+          });
+          if (newCartItems.length > 0) {
+            setCart(prev => {
+              const merged = [...prev];
+              newCartItems.forEach(ni => {
+                const existing = merged.find(i => i.variantId === ni.variantId);
+                if (existing) existing.qty = Math.min(existing.qty + ni.qty, 99);
+                else merged.push(ni);
+              });
+              return merged;
+            });
+            toast.success(`Loaded ${newCartItems.length} item(s) from order`);
+          }
+        }
       } catch { setLookedUpOrder(null); }
     }, 600);
     return () => clearTimeout(timer);
-  }, [orderNumber]);
+  }, [orderNumber, products]);
 
   // Socket listener for inventory updates — invalidate products cache
   useEffect(() => {
