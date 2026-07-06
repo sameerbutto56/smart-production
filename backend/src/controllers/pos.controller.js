@@ -413,9 +413,9 @@ const createSale = async (req, res) => {
 const getSales = async (req, res) => {
   try {
     const outlet = getOutletName(req);
-    const { range, search } = req.query;
+    const { range, search, dateFrom, dateTo } = req.query;
     const skip = req.query.skipCache === 'true';
-    const cacheKey = `${CACHE_KEY_PREFIX}sales:${outlet || 'all'}:${range || 'all'}${search ? `:${search}` : ''}`;
+    const cacheKey = `${CACHE_KEY_PREFIX}sales:${outlet || 'all'}:${range || 'all'}${dateFrom ? `:${dateFrom}` : ''}${dateTo ? `:${dateTo}` : ''}${search ? `:${search}` : ''}`;
 
     if (!skip) {
       const cached = cache.get(cacheKey);
@@ -424,7 +424,11 @@ const getSales = async (req, res) => {
 
     const now = new Date();
     let dateFilter = {};
-    if (range === 'today') { const s = new Date(now); s.setHours(0, 0, 0, 0); dateFilter = { createdAt: { gte: s } }; }
+    if (dateFrom || dateTo) {
+      dateFilter.createdAt = {};
+      if (dateFrom) { const s = new Date(dateFrom); s.setHours(0, 0, 0, 0); dateFilter.createdAt.gte = s; }
+      if (dateTo) { const e = new Date(dateTo); e.setHours(23, 59, 59, 999); dateFilter.createdAt.lte = e; }
+    } else if (range === 'today') { const s = new Date(now); s.setHours(0, 0, 0, 0); dateFilter = { createdAt: { gte: s } }; }
     else if (range === 'yesterday') { const s = new Date(now); s.setDate(s.getDate() - 1); s.setHours(0, 0, 0, 0); const e = new Date(s); e.setHours(23, 59, 59, 999); dateFilter = { createdAt: { gte: s, lte: e } }; }
     else if (range === 'week') { const s = new Date(now); s.setDate(s.getDate() - 7); s.setHours(0, 0, 0, 0); dateFilter = { createdAt: { gte: s } }; }
     else if (range === 'month') { const s = new Date(now); s.setMonth(s.getMonth() - 1); s.setHours(0, 0, 0, 0); dateFilter = { createdAt: { gte: s } }; }

@@ -50,8 +50,17 @@ const OutletPOS = () => {
     }).then(r => r.data),
     ttl: 30000,
   });
-  const { data: sales = [], loading: salesLoading, refresh: refreshSales } = useCache(salesKey, {
-    fetcher: () => api.get(`/api/pos/sales?outlet=${selectedOutlet}`).then(r => r.data),
+  const [salesRange, setSalesRange] = useState('all');
+  const [salesDateFrom, setSalesDateFrom] = useState('');
+  const [salesDateTo, setSalesDateTo] = useState('');
+  const { data: sales = [], loading: salesLoading, refresh: refreshSales } = useCache(`${salesKey}:range:${salesRange}:${salesDateFrom}:${salesDateTo}`, {
+    fetcher: () => {
+      let url = `/api/pos/sales?outlet=${selectedOutlet}`;
+      if (salesRange !== 'all') url += `&range=${salesRange}`;
+      if (salesDateFrom) url += `&dateFrom=${salesDateFrom}`;
+      if (salesDateTo) url += `&dateTo=${salesDateTo}`;
+      return api.get(url).then(r => r.data);
+    },
     ttl: 5 * 60 * 1000,
   });
   const { data: returns = [], loading: returnsLoading, refresh: refreshReturns } = useCache(returnsKey, {
@@ -437,6 +446,25 @@ const OutletPOS = () => {
             <button onClick={() => setTab('pos')} className="text-xs font-bold px-3 py-1.5 rounded-xl bg-gray-800 text-gray-400 hover:text-white"><ShoppingCart size={14} className="inline mr-1" />POS</button>
             <button onClick={() => setTab('dashboard')} className="text-xs font-bold px-3 py-1.5 rounded-xl bg-gray-800 text-gray-400 hover:text-white"><BarChart3 size={14} className="inline mr-1" />Dashboard</button>
           </div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {['all', 'today', 'yesterday', 'week', 'month', 'year'].map(p => (
+            <button key={p} onClick={() => { setSalesRange(p); if (p !== 'custom') { setSalesDateFrom(''); setSalesDateTo(''); } }}
+              className={`text-[10px] font-black px-3 py-1.5 rounded-xl border transition-all ${salesRange === p ? 'bg-purple-600 text-white border-purple-500' : 'bg-gray-800 text-gray-400 border-gray-700 hover:text-white'}`}>
+              {p === 'all' ? 'All' : p.charAt(0).toUpperCase() + p.slice(1)}
+            </button>
+          ))}
+          <button onClick={() => setSalesRange('custom')}
+            className={`text-[10px] font-black px-3 py-1.5 rounded-xl border transition-all ${salesRange === 'custom' ? 'bg-purple-600 text-white border-purple-500' : 'bg-gray-800 text-gray-400 border-gray-700 hover:text-white'}`}>Custom</button>
+          {salesRange === 'custom' && (
+            <div className="flex items-center gap-1">
+              <input type="date" value={salesDateFrom} onChange={e => setSalesDateFrom(e.target.value)}
+                className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-[10px] font-bold text-white outline-none" />
+              <span className="text-gray-500 text-xs">→</span>
+              <input type="date" value={salesDateTo} onChange={e => setSalesDateTo(e.target.value)}
+                className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-[10px] font-bold text-white outline-none" />
+            </div>
+          )}
         </div>
         <div className="relative max-w-md">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
