@@ -661,7 +661,7 @@ const OutletPOS = () => {
                 <h2 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Scan Barcode to Return</h2>
                 <div className="relative">
                   <Barcode size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-                  <input value={returnBarcodeInput} onChange={e => setReturnBarcodeInput(e.target.value)}
+                  <input value={returnBarcodeInput} onChange={e => setReturnBarcodeInput(e.target.value.toUpperCase())}
                     placeholder="Scan barcode..." autoFocus
                     className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl pl-9 pr-3 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-red-500 outline-none" />
                 </div>
@@ -1091,7 +1091,7 @@ const OutletPOS = () => {
         }} className="text-xs font-bold px-2 py-2 rounded-xl bg-gray-800 text-gray-400 hover:text-white" title="Refresh data"><RefreshCw size={14} className={`inline ${productsLoading ? 'animate-spin' : ''}`} /></button>
         <div className="relative flex-1 max-w-md">
           <Barcode size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-          <input ref={barcodeRef} value={barcodeInput} onChange={e => setBarcodeInput(e.target.value)} placeholder="Scan barcode..."
+          <input ref={barcodeRef} value={barcodeInput} onChange={e => setBarcodeInput(e.target.value.toUpperCase())} placeholder="Scan barcode..."
             className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
         </div>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..."

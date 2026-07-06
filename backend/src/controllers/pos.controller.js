@@ -338,7 +338,7 @@ const updateVariant = async (req, res) => {
 /* ─── Sales ─── */
 const createSale = async (req, res) => {
   try {
-    const { items, customerName, alterationCharges, extraCharges, discountPercent, discountFixed, paymentMethod, advanceAmount, cardChargesPct, orderId, receiptNumber: manualReceipt } = req.body;
+    const { items, customerName, customerPhone, alterationCharges, extraCharges, discountPercent, discountFixed, paymentMethod, advanceAmount, cardChargesPct, orderId, receiptNumber: manualReceipt } = req.body;
     if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'At least one item is required' });
 
     const outletName = getOutletName(req);
@@ -809,7 +809,7 @@ const createPosProduct = async (req, res) => {
 /* ─── Barcode lookup ─── */
 const lookupBarcode = async (req, res) => {
   try {
-    const { barcode } = req.params;
+    const barcode = req.params.barcode.toUpperCase();
     const outlet = getOutletName(req);
     const cacheKey = `${CACHE_KEY_PREFIX}barcode:${outlet || 'all'}:${barcode}`;
 
