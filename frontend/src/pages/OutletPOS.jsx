@@ -92,6 +92,7 @@ const OutletPOS = () => {
   const [advanceAmount, setAdvanceAmount] = useState(0);
   const [cardChargesPct, setCardChargesPct] = useState(0);
   const [customerName, setCustomerName] = useState(() => localStorage.getItem('pos_customer_name') || '');
+  const [customerPhone, setCustomerPhone] = useState(() => localStorage.getItem('pos_customer_phone') || '');
   const [paymentMethod, setPaymentMethod] = useState(() => localStorage.getItem('pos_payment_method') || 'CASH');
   const [showCheckout, setShowCheckout] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
@@ -112,6 +113,7 @@ const OutletPOS = () => {
   useEffect(() => { localStorage.setItem('pos_discount_pct', discountPct.toString()); }, [discountPct]);
   useEffect(() => { localStorage.setItem('pos_discount_fixed', discountFixed.toString()); }, [discountFixed]);
   useEffect(() => { localStorage.setItem('pos_customer_name', customerName); }, [customerName]);
+  useEffect(() => { localStorage.setItem('pos_customer_phone', customerPhone); }, [customerPhone]);
   useEffect(() => { localStorage.setItem('pos_payment_method', paymentMethod); }, [paymentMethod]);
   useEffect(() => { localStorage.setItem('pos_active_category', activeCategory); }, [activeCategory]);
 
@@ -353,6 +355,7 @@ const OutletPOS = () => {
     const payload = {
       items: cart.map(i => ({ variantId: i.variantId, quantity: i.qty, unitPrice: i.unitPrice, alterationCharges: i.alterationAmount })),
       customerName: customerName || null,
+      customerPhone: customerPhone || null,
       alterationCharges: altCharges,
       extraCharges: 0,
       discountPercent: discountPct,
@@ -376,6 +379,7 @@ const OutletPOS = () => {
       setCardChargesPct(0);
       setLookedUpOrder(null);
       setCustomerName('');
+      setCustomerPhone('');
       setOrderNumber('');
       refreshProducts();
       refreshDashboard();
@@ -392,7 +396,7 @@ const OutletPOS = () => {
       await enqueue('sale', 'create', payload);
     }
     setCheckoutLoading(false);
-  }, [cart, customerName, altCharges, discountPct, discountFixed, advanceAmount, cardChargesPct, lookedUpOrder, paymentMethod, orderNumber, selectedOutlet, refreshProducts, refreshDashboard, refreshSales, refreshReturns]);
+  }, [cart, customerName, customerPhone, altCharges, discountPct, discountFixed, advanceAmount, cardChargesPct, lookedUpOrder, paymentMethod, orderNumber, selectedOutlet, refreshProducts, refreshDashboard, refreshSales, refreshReturns]);
 
   /* ─── Receipt Print ─── */
   const printReceipt = (sale) => {
@@ -424,7 +428,7 @@ const OutletPOS = () => {
     </style></head><body>`);
     const phones = { 'Johar Town': '0325-6666063', 'Jail Road': '(042) 36282641', 'Abbottabad': '' };
     const phone = phones[sale.outletName] || '';
-    w.document.write(`<div class="header"><h1>ENAMELS</h1><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p><p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}</div>`);
+    w.document.write(`<div class="header"><h1>ENAMELS</h1><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p><p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}${sale.customerPhone ? `<p>Phone: ${sale.customerPhone}</p>` : ''}</div>`);
     w.document.write('<hr><div class="items"><div class="items-heading"><span class="col-item">ITEM</span><span class="col-qty">QTY × PRICE</span><span class="col-total">TOTAL</span></div>');
     (sale.items || []).forEach(item => {
       const name = item.productName || '';
@@ -1245,12 +1249,14 @@ const OutletPOS = () => {
               )}
               <input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Customer name (optional)"
                 className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
+              <input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="Customer phone (optional)"
+                className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
               <div className="flex items-center justify-between bg-gray-800/50 rounded-lg px-3 py-2">
                 <label className="text-[10px] font-bold text-gray-400">Advance ₨</label>
                 <input type="number" value={advanceAmount} onChange={e => setAdvanceAmount(Math.max(0, parseFloat(e.target.value) || 0))}
                   className="w-24 bg-transparent border-b border-gray-600 px-1 py-1 text-xs font-bold text-white text-right focus:border-blue-500 outline-none" min="0" />
               </div>
-              <input value={orderNumber} onChange={e => setOrderNumber(e.target.value)} placeholder="Order # or phone (optional) — fetch balance"
+              <input value={orderNumber} onChange={e => setOrderNumber(e.target.value)} placeholder="Order # or phone — fetch balance"
                 className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
               {lookedUpOrder && (
                 <div className="bg-blue-900/20 border border-blue-800 rounded-xl px-3 py-2 space-y-1">

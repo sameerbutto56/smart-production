@@ -338,7 +338,7 @@ const updateVariant = async (req, res) => {
 /* ─── Sales ─── */
 const createSale = async (req, res) => {
   try {
-    const { items, customerName, alterationCharges, extraCharges, discountPercent, discountFixed, paymentMethod, advanceAmount, cardChargesPct, orderId, receiptNumber: manualReceipt } = req.body;
+    const { items, customerName, customerPhone, alterationCharges, extraCharges, discountPercent, discountFixed, paymentMethod, advanceAmount, cardChargesPct, orderId, receiptNumber: manualReceipt } = req.body;
     if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'At least one item is required' });
 
     const outletName = getOutletName(req);
@@ -398,6 +398,7 @@ const createSale = async (req, res) => {
           outletName,
           cashierName: req.user?.name || 'Cashier',
           customerName: customerName || null,
+          customerPhone: customerPhone || null,
           subtotal,
           alterationCharges: totalAlt,
           extraCharges: totalExtra,
