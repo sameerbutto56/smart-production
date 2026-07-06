@@ -992,12 +992,12 @@ const OutletPOS = () => {
               </div>
 
               {/* Balance Orders — advance payment orders */}
-            {dashboard.balanceOrders && dashboard.balanceOrders.length > 0 && (
               <div className="bg-gray-900 border border-amber-800/50 rounded-2xl p-4">
                 <h3 className="text-xs font-black text-amber-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
                   <CreditCard size={14} />
                   Balance Orders (Advance + POS)
                 </h3>
+                {dashboard.balanceOrders && dashboard.balanceOrders.length > 0 ? (
                 <div className="space-y-2 max-h-72 overflow-y-auto">
                   {dashboard.balanceOrders.map(bo => (
                     <div key={bo.id} className="flex items-center justify-between bg-gray-950 p-2.5 rounded-xl border border-gray-800 text-xs">
@@ -1013,8 +1013,10 @@ const OutletPOS = () => {
                     </div>
                   ))}
                 </div>
+                ) : (
+                  <p className="text-center text-gray-500 font-bold py-4 text-xs">No balance payment records in this range</p>
+                )}
               </div>
-            )}
 
             {/* Recent Sales list */}
               <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
