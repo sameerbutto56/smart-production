@@ -296,15 +296,24 @@ const deleteProductVariants = async (req, res) => {
     const decodedName = decodeURIComponent(productName);
 
     const items = await prisma.outletInventory.findMany({
-      where: { name: decodedName, outletName: outlet }
+      where: { name: decodedName, outletName: outlet },
+      select: { id: true }
     });
     if (items.length === 0) return res.status(404).json({ message: 'Product not found in this outlet' });
 
+    const itemIds = items.map(i => i.id);
+    const [saleItems, returnItems] = await Promise.all([
+      prisma.posSaleItem.findMany({ where: { outletVariantId: { in: itemIds } }, select: { outletVariantId: true } }),
+      prisma.posReturn.findMany({ where: { outletVariantId: { in: itemIds } }, select: { outletVariantId: true } })
+    ]);
+    const hasHistoryIds = new Set([
+      ...saleItems.map(s => s.outletVariantId),
+      ...returnItems.map(r => r.outletVariantId)
+    ]);
+
     let deleted = 0, zeroed = 0;
     for (const item of items) {
-      const saleCount = await prisma.posSaleItem.count({ where: { outletVariantId: item.id } });
-      const returnCount = await prisma.posReturn.count({ where: { outletVariantId: item.id } });
-      if (saleCount > 0 || returnCount > 0) {
+      if (hasHistoryIds.has(item.id)) {
         await prisma.outletInventory.update({ where: { id: item.id }, data: { stock: 0 } });
         zeroed++;
       } else {
