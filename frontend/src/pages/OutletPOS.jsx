@@ -1317,22 +1317,7 @@ const OutletPOS = () => {
                   </div>
                   <span className="text-xs font-black text-white ml-auto">{formatCurrency(item.unitPrice * item.qty + (item.customization1 ? 500 : 0) + (item.customization2 ? 1000 : 0) + (item.nameEngrave ? 300 : 0))}</span>
                 </div>
-                <div className="mt-1.5">
-                  <select value={item.alterationLabel} onChange={e => {
-                    const val = e.target.value;
-                    const amounts = { '': 0, 'Trouser Shorten': 150, 'Trouser Lengthen': 200, 'Sleeve Shorten': 100, 'Sleeve Lengthen': 150, 'Waist Alter': 200, 'Custom Alteration': 250 };
-                    updateAlteration(i, val, amounts[val] || 0);
-                  }} className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2 py-1 text-[10px] font-bold text-white focus:border-blue-500 outline-none">
-                    <option value="">No alteration</option>
-                    <option value="Trouser Shorten">Trouser Shorten (+₨150)</option>
-                    <option value="Trouser Lengthen">Trouser Lengthen (+₨200)</option>
-                    <option value="Sleeve Shorten">Sleeve Shorten (+₨100)</option>
-                    <option value="Sleeve Lengthen">Sleeve Lengthen (+₨150)</option>
-                    <option value="Waist Alter">Waist Alter (+₨200)</option>
-                    <option value="Custom Alteration">Custom Alteration (+₨250)</option>
-                  </select>
-                  {item.alterationAmount > 0 && <p className="text-[9px] text-amber-400 font-bold mt-0.5">+{formatCurrency(item.alterationAmount)} alteration</p>}
-                </div>
+
                 <div className="flex flex-wrap gap-1 mt-1.5">
                   <button onClick={() => updateCartCustomization(i, 'customization1')}
                     className={`px-2 py-1 rounded-lg text-[9px] font-bold border ${item.customization1 ? 'border-purple-500 bg-purple-600/20 text-purple-300' : 'border-gray-700 text-gray-500'}`}>
