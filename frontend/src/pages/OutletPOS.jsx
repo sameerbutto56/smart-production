@@ -343,13 +343,11 @@ const OutletPOS = () => {
     const product = showConfig;
     const hasColors = product.colors?.length > 0;
     const hasSizes = product.sizes?.length > 0;
-    if (hasColors && !selectedColor) return toast.error('Please select a color');
-    if (hasSizes && !selectedSize) return toast.error('Please select a size');
     if (selectedQty < 1) return toast.error('Quantity must be at least 1');
     const variant = products.find(v =>
       v.name === product.name &&
-      (!hasColors || v.color === selectedColor) &&
-      (!hasSizes || v.size === selectedSize)
+      (!hasColors || !selectedColor || v.color === selectedColor) &&
+      (!hasSizes || !selectedSize || v.size === selectedSize)
     );
     if (!variant) return toast.error('Variant not found');
     if (variant.stock != null && variant.stock < selectedQty) return toast.error(`Only ${variant.stock} in stock for ${variant.name}` + (variant.color ? ` (${variant.color})` : '') + (variant.size ? ` ${variant.size}` : ''));
