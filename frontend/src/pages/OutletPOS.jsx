@@ -333,6 +333,7 @@ const OutletPOS = () => {
   };
 
   const handleAddToCart = (product) => {
+    if (!employeeLoggedIn) return toast.error('Please login employee first');
     if (product.stock != null && product.stock <= 0) return toast.error(`"${product.name}" is out of stock`);
     const hasColors = product.colors?.length > 0;
     const hasSizes = product.sizes?.length > 0;
