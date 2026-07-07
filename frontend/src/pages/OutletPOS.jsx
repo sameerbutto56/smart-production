@@ -298,6 +298,7 @@ const OutletPOS = () => {
   }, [barcodeInput]);
 
   const handleBarcodeLookup = async (code) => {
+    if (!employeeLoggedIn) return toast.error('Please login employee first');
     if (!code) return;
     code = code.trim();
     let v = barcodeMap.get(code);
