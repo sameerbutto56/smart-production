@@ -109,9 +109,9 @@ const OutletPOS = () => {
   const [refundPaymentMethod, setRefundPaymentMethod] = useState('CASH');
   const [returnLoading, setReturnLoading] = useState(false);
   const [receiptSearch, setReceiptSearch] = useState('');
-  const [employeeName, setEmployeeName] = useState('');
+  const [employeeName, setEmployeeName] = useState(() => localStorage.getItem('pos_employee_name') || '');
   const [employeePassword, setEmployeePassword] = useState('');
-  const [employeeLoggedIn, setEmployeeLoggedIn] = useState(false);
+  const [employeeLoggedIn, setEmployeeLoggedIn] = useState(() => localStorage.getItem('pos_employee_logged_in') === 'true');
   const employees = { Junaid: 'J170', Sajawal: 'S170', Zain: 'Z170', Gull: 'G170' };
 
   // Persist ephemeral state to localStorage
@@ -122,6 +122,8 @@ const OutletPOS = () => {
   useEffect(() => { localStorage.setItem('pos_customer_phone', customerPhone); }, [customerPhone]);
   useEffect(() => { localStorage.setItem('pos_payment_method', paymentMethod); }, [paymentMethod]);
   useEffect(() => { localStorage.setItem('pos_active_category', activeCategory); }, [activeCategory]);
+  useEffect(() => { localStorage.setItem('pos_employee_name', employeeLoggedIn ? employeeName : ''); }, [employeeLoggedIn, employeeName]);
+  useEffect(() => { localStorage.setItem('pos_employee_logged_in', employeeLoggedIn ? 'true' : 'false'); }, [employeeLoggedIn]);
 
   // Order lookup — when order number or phone entered, fetch order details
   useEffect(() => {
@@ -355,6 +357,7 @@ const OutletPOS = () => {
   };
 
   const confirmConfig = () => {
+    if (!employeeLoggedIn) return toast.error('Please login employee first');
     const product = showConfig;
     if (selectedQty < 1) return toast.error('Quantity must be at least 1');
     const matchColor = (v) => !selectedColor || v.color === selectedColor;
