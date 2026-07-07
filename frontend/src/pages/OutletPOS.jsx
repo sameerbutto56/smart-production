@@ -567,7 +567,8 @@ const OutletPOS = () => {
     else if (adv > 0) { gpPaid = adv; gpBalance = sale.grandTotal - adv; }
     else { gpPaid = sale.grandTotal; gpBalance = 0; }
     w.document.write('<hr style="border-top:2px dashed #000;"><div style="text-align:center;margin:6px 0 0;padding:4px;background:#ffd700;border:2px solid #000;border-radius:4px;">');
-    w.document.write('<p style="font-size:18px;font-weight:900;margin:0 0 6px;text-transform:uppercase;">Gate Pass</p>');
+    w.document.write('<p style="font-size:18px;font-weight:900;margin:0 0 4px;text-transform:uppercase;">Gate Pass</p>');
+    w.document.write(`<p style="font-size:11px;font-weight:bold;margin:0 0 4px;">${new Date(sale.createdAt).toLocaleDateString()} | Invoice: ${sale.receiptNumber}</p>`);
     w.document.write('<table style="width:100%;font-size:14px;font-weight:bold;border-collapse:collapse;">');
     w.document.write(`<tr><td style="text-align:left;padding:2px 4px;">Total Products</td><td style="text-align:right;padding:2px 4px;">${totalQty}</td></tr>`);
     w.document.write(`<tr><td style="text-align:left;padding:2px 4px;">Total Amount</td><td style="text-align:right;padding:2px 4px;">${pf(sale.grandTotal)}</td></tr>`);
