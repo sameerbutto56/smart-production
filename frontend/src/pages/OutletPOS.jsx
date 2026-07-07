@@ -333,6 +333,7 @@ const OutletPOS = () => {
       setSelectedSize('');
       setSelectedColor('');
       setSelectedQty(1);
+      refreshProducts(); // refresh stock so (0) badges are accurate
     } else {
       setCart([...cart, {
         variantId: product.id, productName: product.name,
