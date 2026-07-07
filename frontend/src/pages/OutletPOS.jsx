@@ -499,15 +499,14 @@ const OutletPOS = () => {
       if (adv > 0) w.document.write(`<tr style="font-size:17px;font-weight:900;"><td>Balance</td><td class="value">${pf(balance)}</td></tr>`);
     }
     w.document.write(`<tr><td>Payment</td><td class="value">${sale.paymentMethod}</td></tr></table>`);
-    w.document.write('<hr><div class="footer"><p>Thank You for Shopping with Enamels.</p><p>Visit Again!</p></div>');
-    w.document.write('<div style="font-size:11px;font-weight:bold;margin:6px 0 0;border-top:2px solid #000;padding-top:4px;"><p style="font-size:12px;font-weight:900;text-align:center;margin:0 0 3px;">TERMS &amp; CONDITIONS</p><ul style="margin:3px 0;padding-left:12px;"><li>No refunds will be issued.</li><li>Exchanges allowed within 7 days from date of purchase for unwashed &amp; unworn items with original tags &amp; invoice. Items with iron marks, tears, stains, perfume, body odor, smoke odor, or any damage will not be eligible for exchange.</li><li>Sale or discounted items are not eligible for refund or exchange.</li><li>For customized orders, original invoice must be presented at collection.</li><li>Customers will be notified when customized orders are ready. Enamels is not responsible for customized orders not collected within 7 days after notification.</li></ul></div>');
+    w.document.write('<div style="font-size:11px;font-weight:bold;margin:6px 0 0;border-top:2px solid #000;padding-top:4px;"><p style="font-size:12px;font-weight:900;text-align:center;margin:0 0 3px;">TERMS &amp; CONDITIONS</p><p style="margin:2px 0;text-align:center;">Exchanges are allowed only within 7 days with original tags and invoice.</p></div>');
     const reviewUrls = {
       'Johar Town': 'https://www.google.com/maps/search/Enamels+375+A2+Block+A+2+Phase+1+Johar+Town+Lahore',
       'Jail Road': 'https://www.google.com/maps/search/Enamels+Jail+Road+7+sharahe+Shahrah+Aiwan-e-Sanat-o-Tijarat+Lahore',
       'Abbottabad': 'https://www.google.com/maps/search/Enamels+Abbottabad',
     };
     const reviewUrl = reviewUrls[sale.outletName] || 'https://www.google.com/maps/search/Enamels';
-    w.document.write(`<div style="text-align:center;margin:6px 0 0;padding:3px;"><img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(reviewUrl)}" width="150" height="150" alt="Review QR" style="display:inline-block;"><p style="font-size:8px;margin:3px 0 0;font-weight:bold;">Scan to Review us on Google &amp; Avail Special Offers</p></div>`);
+    w.document.write(`<div style="text-align:center;margin:6px 0 0;padding:3px;"><img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(reviewUrl)}" width="150" height="150" alt="Review QR" style="display:inline-block;"><p style="font-size:8px;margin:3px 0 0;font-weight:bold;">Scan to Review us on Google &amp; Avail Special Offers</p><p style="font-size:13px;font-weight:900;margin:4px 0 0;">Thank you for shopping! Visit Again!</p></div>`);
     w.document.write('<hr><p style="text-align:center;font-size:9px;margin-top:4px;">Software is develop by Sameer Butt</p>');
     w.document.write('</body></html>');
     w.document.close();
