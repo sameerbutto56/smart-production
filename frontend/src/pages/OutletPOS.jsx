@@ -470,7 +470,14 @@ const OutletPOS = () => {
   }, [cart, products, customerName, customerPhone, altCharges, discountPct, discountFixed, advanceAmount, cardChargesPct, lookedUpOrder, paymentMethod, orderNumber, selectedOutlet, refreshProducts, invalidateProducts, refreshDashboard, refreshSales, refreshReturns]);
 
   /* ─── Receipt Print ─── */
-  const printReceipt = (sale) => {
+  const printReceipt = async (sale) => {
+    // Preload logo as blob URL so it renders instantly in the print window
+    let logoUrl = window.location.origin + '/logo.png';
+    try {
+      const logoResp = await fetch(logoUrl);
+      const logoBlob = await logoResp.blob();
+      logoUrl = URL.createObjectURL(logoBlob);
+    } catch {}
     const w = window.open('', '_blank');
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt</title><style>
       @page { margin: 0; size: 80mm auto; }
@@ -500,7 +507,6 @@ const OutletPOS = () => {
     const phones = { 'Johar Town': '0325-6666063', 'Jail Road': '(042) 36282641', 'Abbottabad': '' };
     const phone = phones[sale.outletName] || '';
     const pf = (n) => (n || 0).toLocaleString();
-    const logoUrl = window.location.origin + '/logo.png';
     w.document.write(`<div class="header"><img src="${logoUrl}" alt="ENAMELS" style="height:50px;margin-bottom:4px;"><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p><p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}${sale.customerPhone ? `<p>Phone: ${sale.customerPhone}</p>` : ''}</div>`);
     w.document.write('<hr><div class="items"><div class="items-heading"><span class="col-item">ITEM</span><span class="col-qty">QTY × PRICE</span><span class="col-total">TOTAL</span></div>');
     (sale.items || []).forEach(item => {
@@ -555,7 +561,7 @@ const OutletPOS = () => {
     w.document.write('</body></html>');
     w.document.close();
     w.focus();
-    setTimeout(() => w.print(), 300);
+    setTimeout(() => { w.print(); if (logoUrl.startsWith('blob:')) URL.revokeObjectURL(logoUrl); }, 500);
   };
 
   /* ─── Return ─── */
