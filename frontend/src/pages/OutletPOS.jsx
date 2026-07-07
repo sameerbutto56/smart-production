@@ -556,7 +556,7 @@ const OutletPOS = () => {
       'Abbottabad': 'https://www.google.com/maps/search/Enamels+Abbottabad',
     };
     const reviewUrl = reviewUrls[sale.outletName] || 'https://www.google.com/maps/search/Enamels';
-    w.document.write(`<div style="text-align:center;margin:6px 0 0;padding:3px;"><img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(reviewUrl)}" width="150" height="150" alt="Review QR" style="display:inline-block;"><p style="font-size:8px;margin:3px 0 0;font-weight:bold;">Scan to Review us on Google &amp; Avail Special Offers</p><p style="font-size:13px;font-weight:900;margin:4px 0 0;">Thank you for shopping! Visit Again!</p></div>`);
+    w.document.write(`<div style="text-align:center;margin:6px 0 0;padding:3px;"><img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(reviewUrl)}" width="150" height="150" alt="Review QR" style="display:inline-block;"><p style="font-size:8px;margin:3px 0 0;font-weight:bold;">Scan to Review us and Avail Special Offers</p><p style="font-size:13px;font-weight:900;margin:4px 0 0;">Thank you for shopping! Visit Again!</p></div>`);
     w.document.write('<hr><p style="text-align:center;font-size:9px;margin-top:4px;">Software is develop by Sameer Butt</p>');
     w.document.write('</body></html>');
     w.document.close();
