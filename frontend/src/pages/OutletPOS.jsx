@@ -521,6 +521,15 @@ const OutletPOS = () => {
       .summary .final td { font-size: 19px; font-weight: 900; padding-top: 8px; border-top: 3px solid #000; }
       .footer { text-align: center; font-size: 14px; margin-top: 10px; font-weight: bold; }
     </style></head><body>`;
+    const gatePassHtml = () => `<div style="text-align:center;width:100%;padding:4px;background:#ffd700;border:3px solid #000;border-radius:4px;">
+<p style="font-size:22px;font-weight:900;margin:0 0 6px;text-transform:uppercase;">Gate Pass</p>
+<p style="font-size:13px;font-weight:bold;margin:0 0 6px;">${new Date(sale.createdAt).toLocaleDateString()} | Invoice: ${sale.receiptNumber}</p>
+<table style="width:100%;font-size:16px;font-weight:bold;border-collapse:collapse;">
+<tr><td style="text-align:left;padding:4px;">Total Products</td><td style="text-align:right;padding:4px;">${totalQty}</td></tr>
+<tr><td style="text-align:left;padding:4px;">Total Amount</td><td style="text-align:right;padding:4px;">${pf(sale.grandTotal)}</td></tr>
+<tr><td style="text-align:left;padding:4px;">Paid Amount</td><td style="text-align:right;padding:4px;">${pf(gpPaid)}</td></tr>
+<tr><td style="text-align:left;padding:4px;">Balance Amount</td><td style="text-align:right;padding:4px;">${pf(gpBalance)}</td></tr>
+</table></div>`;
     const writeMainReceipt = (w) => {
       w.document.write(receiptStyle);
       w.document.write(`<div class="header"><img src="${logoUrl}" alt="ENAMELS" style="height:80px;margin-bottom:4px;"><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p><p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}${sale.customerPhone ? `<p>Phone: ${sale.customerPhone}</p>` : ''}</div>`);
@@ -569,36 +578,36 @@ const OutletPOS = () => {
       w.document.write('</body></html>');
       w.document.close();
     };
-    const printGatePass = () => {
-      const gw = window.open('', '_blank');
-      gw.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Gate Pass</title><style>
-        @page { margin: 0; size: 80mm auto; }
-        body { font-family: monospace; font-size: 16px; padding: 4mm 6mm; color: #000; line-height: 1.5; background: #fff; margin: 0; display:flex;align-items:center;justify-content:center;min-height:100vh; }
-      </style></head><body>`);
-      gw.document.write('<div style="text-align:center;width:100%;padding:4px;background:#ffd700;border:3px solid #000;border-radius:4px;">');
-      gw.document.write('<p style="font-size:22px;font-weight:900;margin:0 0 6px;text-transform:uppercase;">Gate Pass</p>');
-      gw.document.write(`<p style="font-size:13px;font-weight:bold;margin:0 0 6px;">${new Date(sale.createdAt).toLocaleDateString()} | Invoice: ${sale.receiptNumber}</p>`);
-      gw.document.write('<table style="width:100%;font-size:16px;font-weight:bold;border-collapse:collapse;">');
-      gw.document.write(`<tr><td style="text-align:left;padding:4px;">Total Products</td><td style="text-align:right;padding:4px;">${totalQty}</td></tr>`);
-      gw.document.write(`<tr><td style="text-align:left;padding:4px;">Total Amount</td><td style="text-align:right;padding:4px;">${pf(sale.grandTotal)}</td></tr>`);
-      gw.document.write(`<tr><td style="text-align:left;padding:4px;">Paid Amount</td><td style="text-align:right;padding:4px;">${pf(gpPaid)}</td></tr>`);
-      gw.document.write(`<tr><td style="text-align:left;padding:4px;">Balance Amount</td><td style="text-align:right;padding:4px;">${pf(gpBalance)}</td></tr>`);
-      gw.document.write('</table></div>');
-      gw.document.write('</body></html>');
-      gw.document.close();
-      gw.focus();
-      setTimeout(() => { gw.print(); }, 300);
-    };
     const w = window.open('', '_blank');
     writeMainReceipt(w);
     w.focus();
     let printed = false;
     w.onafterprint = () => {
-      if (!printed) { printed = true; w.close(); setTimeout(printGatePass, 500); }
+      if (!printed) {
+        printed = true;
+        w.document.open();
+        w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Gate Pass</title><style>
+          @page { margin: 0; size: 80mm auto; }
+          body { font-family: monospace; font-size: 16px; padding: 4mm 6mm; color: #000; line-height: 1.5; background: #fff; margin: 0; display:flex;align-items:center;justify-content:center;min-height:100vh; }
+        </style></head><body>${gatePassHtml()}</body></html>`);
+        w.document.close();
+        w.focus();
+        setTimeout(() => { w.print(); }, 400);
+      }
     };
     setTimeout(() => { w.print(); }, 500);
     setTimeout(() => {
-      if (!printed) { printed = true; w.close(); setTimeout(printGatePass, 500); }
+      if (!printed) {
+        printed = true;
+        w.document.open();
+        w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Gate Pass</title><style>
+          @page { margin: 0; size: 80mm auto; }
+          body { font-family: monospace; font-size: 16px; padding: 4mm 6mm; color: #000; line-height: 1.5; background: #fff; margin: 0; display:flex;align-items:center;justify-content:center;min-height:100vh; }
+        </style></head><body>${gatePassHtml()}</body></html>`);
+        w.document.close();
+        w.focus();
+        setTimeout(() => { w.print(); }, 400);
+      }
     }, 8000);
     setTimeout(() => { if (logoUrl.startsWith('blob:')) URL.revokeObjectURL(logoUrl); }, 500);
   };
