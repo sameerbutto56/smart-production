@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Search, ShoppingCart, Plus, Minus, X, Trash2, Printer, Barcode, RotateCcw, CreditCard, DollarSign, Package, Tag, Grid3X3, List, ChevronDown, ChevronUp, AlertCircle, BarChart3, RefreshCw, Calendar, TrendingUp, Award, Clock, CheckCircle2, Globe } from 'lucide-react';
 import toast from 'react-hot-toast';
 import JsBarcode from 'jsbarcode';
-import useCache, { invalidateKey } from '../hooks/useCache';
+import useCache, { invalidateKey, setCache } from '../hooks/useCache';
 import { enqueue } from '../utils/syncQueue';
 import { normalizeInventoryEvent } from '../utils/normalizeEvents';
 import socket from '../socket';
@@ -392,10 +392,20 @@ const OutletPOS = () => {
   /* ─── Checkout (try fast path, fallback to sync queue) ─── */
   const handleCheckout = useCallback(async () => {
     if (cart.length === 0) return;
+    // Fetch fresh stock before checkout to avoid stale-cache rejections
+    let stockData;
+    try {
+      const fresh = await api.get(`/api/pos/products?outlet=${selectedOutlet}&skipCache=true`);
+      stockData = fresh.data;
+      // Update frontend caches with fresh data
+      setCache(productsKey, stockData);
+    } catch {
+      stockData = products; // fallback to cached
+    }
     for (const c of cart) {
-      const pr = products.find(p => p.id === c.variantId);
-      if (pr && pr.stock != null && pr.stock < c.qty) {
-        refreshProducts();
+      const pr = stockData.find(p => p.id === c.variantId);
+      if (!pr) return toast.error(`"${c.productName}" not found in outlet inventory`);
+      if (pr.stock != null && pr.stock < c.qty) {
         return toast.error(`"${c.productName}" has only ${pr.stock} in stock (need ${c.qty})`);
       }
     }
@@ -436,7 +446,6 @@ const OutletPOS = () => {
       toast.error('Checkout failed: ' + msg);
       if (err.response?.status === 400) {
         console.error('Checkout validation error:', msg);
-        refreshProducts();
         invalidateProducts();
         return;
       }
