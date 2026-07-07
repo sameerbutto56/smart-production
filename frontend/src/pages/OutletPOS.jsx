@@ -1392,10 +1392,16 @@ const OutletPOS = () => {
               <div className="mb-3">
                 <label className="text-xs font-bold text-gray-400 block mb-1">Color</label>
                 <div className="flex flex-wrap gap-1.5">
-                  {showConfig.colors.map(c => (
-                    <button key={c} onClick={() => setSelectedColor(c)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${selectedColor === c ? 'border-blue-500 bg-blue-600/20 text-white' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>{c}</button>
-                  ))}
+                  {showConfig.colors.map(c => {
+                    const hasColorStock = showConfig.variants.some(v => v.color === c && v.stock != null && v.stock > 0);
+                    return (
+                      <button key={c} onClick={() => { setSelectedColor(c); setSelectedSize(''); }}
+                        disabled={!hasColorStock}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${!hasColorStock ? 'border-red-900/40 text-red-500/50 cursor-not-allowed' : selectedColor === c ? 'border-blue-500 bg-blue-600/20 text-white' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>
+                        {c}{!hasColorStock && ' (0)'}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -1403,10 +1409,18 @@ const OutletPOS = () => {
               <div className="mb-3">
                 <label className="text-xs font-bold text-gray-400 block mb-1">Size</label>
                 <div className="flex flex-wrap gap-1.5">
-                  {showConfig.sizes.map(s => (
-                    <button key={s} onClick={() => setSelectedSize(s)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${selectedSize === s ? 'border-blue-500 bg-blue-600/20 text-white' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>{s}</button>
-                  ))}
+                  {showConfig.sizes.map(s => {
+                    const hasSizeStock = selectedColor
+                      ? showConfig.variants.some(v => v.size === s && v.color === selectedColor && v.stock != null && v.stock > 0)
+                      : showConfig.variants.some(v => v.size === s && v.stock != null && v.stock > 0);
+                    return (
+                      <button key={s} onClick={() => setSelectedSize(s)}
+                        disabled={!hasSizeStock}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${!hasSizeStock ? 'border-red-900/40 text-red-500/50 cursor-not-allowed' : selectedSize === s ? 'border-blue-500 bg-blue-600/20 text-white' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>
+                        {s}{!hasSizeStock && ' (0)'}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
