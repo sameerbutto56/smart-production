@@ -192,7 +192,10 @@ const OutletPOS = () => {
       refreshReturns();
     }, 500);
     socket.on('inventory-updated', handleInventoryUpdate);
-    return () => { socket.off('inventory-updated', handleInventoryUpdate); };
+    // Re-fetch products when tab regains focus (stock may have changed elsewhere)
+    const onFocus = () => { refreshProducts(); };
+    window.addEventListener('focus', onFocus);
+    return () => { socket.off('inventory-updated', handleInventoryUpdate); window.removeEventListener('focus', onFocus); };
   }, [selectedOutlet, dashboardRange, dashboardDateFrom, dashboardDateTo, refreshProducts, refreshDashboard, refreshSales, refreshReturns]);
 
   const categories = useMemo(() => {
@@ -341,14 +344,20 @@ const OutletPOS = () => {
 
   const confirmConfig = () => {
     const product = showConfig;
-    const hasColors = product.colors?.length > 0;
-    const hasSizes = product.sizes?.length > 0;
     if (selectedQty < 1) return toast.error('Quantity must be at least 1');
-    const variant = products.find(v =>
+    let variant = products.find(v =>
       v.name === product.name &&
-      (!hasColors || !selectedColor || v.color === selectedColor) &&
-      (!hasSizes || !selectedSize || v.size === selectedSize)
+      (!selectedColor || v.color === selectedColor) &&
+      (!selectedSize || v.size === selectedSize) &&
+      v.stock != null && v.stock >= selectedQty
     );
+    if (!variant) {
+      variant = products.find(v =>
+        v.name === product.name &&
+        (!selectedColor || v.color === selectedColor) &&
+        (!selectedSize || v.size === selectedSize)
+      );
+    }
     if (!variant) return toast.error('Variant not found');
     if (variant.stock != null && variant.stock < selectedQty) return toast.error(`Only ${variant.stock} in stock for ${variant.name}` + (variant.color ? ` (${variant.color})` : '') + (variant.size ? ` ${variant.size}` : ''));
     setCart([...cart, {
