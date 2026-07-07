@@ -1363,7 +1363,7 @@ const OutletPOS = () => {
               )}
               {custCharges > 0 && (
                 <div className="flex items-center justify-between text-xs text-purple-400">
-                  <span>Customization</span>
+                  <span>Discount</span>
                   <span>{formatCurrency(custCharges)}</span>
                 </div>
               )}
