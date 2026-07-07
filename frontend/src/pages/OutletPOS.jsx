@@ -35,7 +35,7 @@ const OutletPOS = () => {
   const salesKey = `pos:sales:${selectedOutlet}`;
   const returnsKey = `pos:returns:${selectedOutlet}`;
 
-  const { data: products = [], loading: productsLoading, refresh: refreshProducts } = useCache(productsKey, {
+  const { data: products = [], loading: productsLoading, refresh: refreshProducts, invalidate: invalidateProducts } = useCache(productsKey, {
     fetcher: () => api.get(`/api/pos/products?outlet=${selectedOutlet}`).then(r => r.data),
     ttl: 5 * 60 * 1000,
   });
@@ -310,6 +310,7 @@ const OutletPOS = () => {
       }
     }
     if (!v) return toast.error(`Barcode not found: ${code}`);
+    if (v.stock != null && v.stock < 1) return toast.error(`"${v.productName}" is out of stock`);
     const existing = cart.find(i => i.variantId === v.id);
     if (existing) {
       setCart(cart.map(i => i.variantId === v.id ? { ...i, qty: i.qty + 1 } : i));
@@ -391,6 +392,13 @@ const OutletPOS = () => {
   /* ─── Checkout (try fast path, fallback to sync queue) ─── */
   const handleCheckout = useCallback(async () => {
     if (cart.length === 0) return;
+    for (const c of cart) {
+      const pr = products.find(p => p.id === c.variantId);
+      if (pr && pr.stock != null && pr.stock < c.qty) {
+        refreshProducts();
+        return toast.error(`"${c.productName}" has only ${pr.stock} in stock (need ${c.qty})`);
+      }
+    }
     const payload = {
       items: cart.map(i => ({ variantId: i.variantId, quantity: i.qty, unitPrice: i.unitPrice, alterationCharges: i.alterationAmount, discountPct: parseFloat(i.discountPct) || 0, discountFixed: parseFloat(i.discountFixed) || 0 })),
       customerName: customerName || null,
@@ -428,12 +436,14 @@ const OutletPOS = () => {
       toast.error('Checkout failed: ' + msg);
       if (err.response?.status === 400) {
         console.error('Checkout validation error:', msg);
+        refreshProducts();
+        invalidateProducts();
         return;
       }
       await enqueue('sale', 'create', payload);
     }
     setCheckoutLoading(false);
-  }, [cart, customerName, customerPhone, altCharges, discountPct, discountFixed, advanceAmount, cardChargesPct, lookedUpOrder, paymentMethod, orderNumber, selectedOutlet, refreshProducts, refreshDashboard, refreshSales, refreshReturns]);
+  }, [cart, products, customerName, customerPhone, altCharges, discountPct, discountFixed, advanceAmount, cardChargesPct, lookedUpOrder, paymentMethod, orderNumber, selectedOutlet, refreshProducts, invalidateProducts, refreshDashboard, refreshSales, refreshReturns]);
 
   /* ─── Receipt Print ─── */
   const printReceipt = (sale) => {
