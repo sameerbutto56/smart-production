@@ -1332,12 +1332,13 @@ const OutletPOS = () => {
                     Name Engrave (+₨300)
                   </button>
                 </div>
-                <div className="mt-1.5 flex gap-1">
+                <div className="mt-1.5 flex gap-1 items-center">
+                  <span className="text-[10px] font-bold text-blue-400">%</span>
                   <input type="number" value={item.discountPct || 0} onChange={e => updateCartDiscount(i, 'discountPct', Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
-                    className="w-14 bg-gray-900 border border-gray-700 rounded-lg px-1.5 py-1 text-[10px] font-bold text-white text-center focus:border-blue-500 outline-none" min="0" max="100" placeholder="%" />
+                    className="w-14 bg-gray-900 border border-gray-700 rounded-lg px-1.5 py-1 text-[10px] font-bold text-white text-center focus:border-blue-500 outline-none" min="0" max="100" />
+                  <span className="text-[10px] font-bold text-blue-400">₨</span>
                   <input type="number" value={item.discountFixed || 0} onChange={e => updateCartDiscount(i, 'discountFixed', Math.max(0, parseFloat(e.target.value) || 0))}
-                    className="w-16 bg-gray-900 border border-gray-700 rounded-lg px-1.5 py-1 text-[10px] font-bold text-white text-center focus:border-blue-500 outline-none" min="0" placeholder="₨" />
-                  <span className="text-[10px] text-blue-400 font-bold self-center">disc</span>
+                    className="w-16 bg-gray-900 border border-gray-700 rounded-lg px-1.5 py-1 text-[10px] font-bold text-white text-center focus:border-blue-500 outline-none" min="0" />
                 </div>
               </div>
             ))}
