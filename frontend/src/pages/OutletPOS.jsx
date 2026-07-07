@@ -1420,12 +1420,13 @@ const OutletPOS = () => {
                 <label className="text-xs font-bold text-gray-400 block mb-1">Color</label>
                 <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
                   {showConfig.colors.map(c => {
-                    const hasColorStock = showConfig.variants.some(v => v.color === c && v.stock != null && v.stock > 0);
+                    const colorStockTotal = products.filter(v => v.name === showConfig.name && v.color === c).reduce((s, v) => s + (v.stock || 0), 0);
+                    const hasColorStock = colorStockTotal > 0;
                     return (
                       <button key={c} onClick={() => { setSelectedColor(c); setSelectedSize(''); }}
                         disabled={!hasColorStock}
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${!hasColorStock ? 'border-red-900/40 text-red-500/50 cursor-not-allowed' : selectedColor === c ? 'border-blue-500 bg-blue-600/20 text-white' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>
-                        {c}{!hasColorStock && ' (0)'}
+                        {c} ({colorStockTotal})
                       </button>
                     );
                   })}
@@ -1437,14 +1438,15 @@ const OutletPOS = () => {
                 <label className="text-xs font-bold text-gray-400 block mb-1">Size</label>
                 <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
                   {showConfig.sizes.map(s => {
-                    const hasSizeStock = selectedColor
-                      ? showConfig.variants.some(v => v.size === s && v.color === selectedColor && v.stock != null && v.stock > 0)
-                      : showConfig.variants.some(v => v.size === s && v.stock != null && v.stock > 0);
+                    const sizeStockTotal = selectedColor
+                      ? products.filter(v => v.name === showConfig.name && v.color === selectedColor && v.size === s).reduce((acc, v) => acc + (v.stock || 0), 0)
+                      : products.filter(v => v.name === showConfig.name && v.size === s).reduce((acc, v) => acc + (v.stock || 0), 0);
+                    const hasSizeStock = sizeStockTotal > 0;
                     return (
                       <button key={s} onClick={() => setSelectedSize(s)}
                         disabled={!hasSizeStock}
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${!hasSizeStock ? 'border-red-900/40 text-red-500/50 cursor-not-allowed' : selectedSize === s ? 'border-blue-500 bg-blue-600/20 text-white' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>
-                        {s}{!hasSizeStock && ' (0)'}
+                        {s} ({sizeStockTotal})
                       </button>
                     );
                   })}
