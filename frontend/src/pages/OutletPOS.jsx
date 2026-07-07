@@ -491,6 +491,7 @@ const OutletPOS = () => {
     }
     w.document.write(`<tr><td>Payment</td><td class="value">${sale.paymentMethod}</td></tr></table>`);
     w.document.write('<hr><div class="footer"><p>Thank You for Shopping with Enamels.</p><p>Visit Again!</p></div>');
+    w.document.write('<div style="font-size:11px;font-weight:bold;margin:6px 0 0;border-top:2px solid #000;padding-top:4px;"><p style="font-size:12px;font-weight:900;text-align:center;margin:0 0 3px;">TERMS &amp; CONDITIONS</p><ul style="margin:3px 0;padding-left:12px;"><li>No refunds will be issued.</li><li>Exchanges allowed within 7 days from date of purchase for unwashed &amp; unworn items with original tags &amp; invoice. Items with iron marks, tears, stains, perfume, body odor, smoke odor, or any damage will not be eligible for exchange.</li><li>Sale or discounted items are not eligible for refund or exchange.</li><li>For customized orders, original invoice must be presented at collection.</li><li>Customers will be notified when customized orders are ready. Enamels is not responsible for customized orders not collected within 7 days after notification.</li></ul></div>');
     const reviewUrls = {
       'Johar Town': 'https://www.google.com/maps/search/Enamels+375+A2+Block+A+2+Phase+1+Johar+Town+Lahore',
       'Jail Road': 'https://www.google.com/maps/search/Enamels+Jail+Road+7+sharahe+Shahrah+Aiwan-e-Sanat-o-Tijarat+Lahore',
