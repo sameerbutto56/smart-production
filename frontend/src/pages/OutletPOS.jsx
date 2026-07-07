@@ -561,6 +561,19 @@ const OutletPOS = () => {
     w.document.write('<div style="font-size:11px;font-weight:bold;margin:6px 0 0;border-top:2px solid #000;padding-top:4px;"><p style="font-size:12px;font-weight:900;text-align:center;margin:0 0 3px;">TERMS &amp; CONDITIONS</p><p style="margin:2px 0;text-align:center;">Exchanges are allowed only within 7 days with original tags and invoice.</p></div>');
     w.document.write(`<div style="text-align:center;margin:6px 0 0;padding:3px;"><img src="${qrDataUrl || 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(reviewUrl)}" width="200" height="200" alt="Review QR" style="display:inline-block;"><p style="font-size:8px;margin:3px 0 0;font-weight:bold;">Scan to Review us and Avail Special Offers</p><p style="font-size:13px;font-weight:900;margin:4px 0 0;">Thank you for shopping! Visit Again!</p></div>`);
     w.document.write('<hr><p style="text-align:center;font-size:9px;margin-top:4px;">Software is develop by Sameer Butt</p>');
+    const totalQty = (sale.items || []).reduce((s, i) => s + (i.quantity || 0), 0);
+    let gpPaid, gpBalance;
+    if (isOrderSale) { gpPaid = sale.grandTotal + adv; gpBalance = 0; }
+    else if (adv > 0) { gpPaid = adv; gpBalance = sale.grandTotal - adv; }
+    else { gpPaid = sale.grandTotal; gpBalance = 0; }
+    w.document.write('<hr style="border-top:2px dashed #000;"><div style="text-align:center;margin:6px 0 0;padding:4px;background:#ffd700;border:2px solid #000;border-radius:4px;">');
+    w.document.write('<p style="font-size:18px;font-weight:900;margin:0 0 6px;text-transform:uppercase;">Gate Pass</p>');
+    w.document.write('<table style="width:100%;font-size:14px;font-weight:bold;border-collapse:collapse;">');
+    w.document.write(`<tr><td style="text-align:left;padding:2px 4px;">Total Products</td><td style="text-align:right;padding:2px 4px;">${totalQty}</td></tr>`);
+    w.document.write(`<tr><td style="text-align:left;padding:2px 4px;">Total Amount</td><td style="text-align:right;padding:2px 4px;">${pf(sale.grandTotal)}</td></tr>`);
+    w.document.write(`<tr><td style="text-align:left;padding:2px 4px;">Paid Amount</td><td style="text-align:right;padding:2px 4px;">${pf(gpPaid)}</td></tr>`);
+    w.document.write(`<tr><td style="text-align:left;padding:2px 4px;">Balance Amount</td><td style="text-align:right;padding:2px 4px;">${pf(gpBalance)}</td></tr>`);
+    w.document.write('</table></div>');
     w.document.write('</body></html>');
     w.document.close();
     w.focus();
