@@ -109,6 +109,10 @@ const OutletPOS = () => {
   const [refundPaymentMethod, setRefundPaymentMethod] = useState('CASH');
   const [returnLoading, setReturnLoading] = useState(false);
   const [receiptSearch, setReceiptSearch] = useState('');
+  const [employeeName, setEmployeeName] = useState('');
+  const [employeePassword, setEmployeePassword] = useState('');
+  const [employeeLoggedIn, setEmployeeLoggedIn] = useState(false);
+  const employees = { Junaid: 'J170', Sajawal: 'S170', Zain: 'Z170', Gull: 'G170' };
 
   // Persist ephemeral state to localStorage
   useEffect(() => { localStorage.setItem('pos_cart', JSON.stringify(cart)); }, [cart]);
@@ -408,6 +412,7 @@ const OutletPOS = () => {
   /* ─── Checkout (try fast path, fallback to sync queue) ─── */
   const handleCheckout = useCallback(async () => {
     if (cart.length === 0) return;
+    if (!employeeLoggedIn) return toast.error('Please select employee and enter password first');
     // Fetch fresh stock before checkout to avoid stale-cache rejections
     let stockData;
     try {
@@ -436,7 +441,8 @@ const OutletPOS = () => {
       orderId: lookedUpOrder?.id || null,
       paymentMethod,
       receiptNumber: orderNumber || undefined,
-      outlet: selectedOutlet
+      outlet: selectedOutlet,
+      cashierName: employeeName
     };
     setCheckoutLoading(true);
     try {
@@ -1420,6 +1426,29 @@ const OutletPOS = () => {
                 <input type="number" value={advanceAmount} onChange={e => setAdvanceAmount(Math.max(0, parseFloat(e.target.value) || 0))}
                   className="w-24 bg-transparent border-b border-gray-600 px-1 py-1 text-xs font-bold text-white text-right focus:border-blue-500 outline-none" min="0" />
               </div>
+              <div className={`rounded-lg px-3 py-2 space-y-2 ${employeeLoggedIn ? 'bg-emerald-900/20 border border-emerald-800' : 'bg-gray-800/50 border border-gray-700'}`}>
+                <div className="flex items-center gap-2">
+                  <select value={employeeLoggedIn ? employeeName : ''} onChange={e => { setEmployeeName(e.target.value); setEmployeePassword(''); setEmployeeLoggedIn(false); }}
+                    className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white focus:border-blue-500 outline-none">
+                    <option value="">Select Employee</option>
+                    {Object.keys(employees).map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                  <input type="password" value={employeePassword} disabled={!employeeName || employeeLoggedIn}
+                    onChange={e => setEmployeePassword(e.target.value)} placeholder="Password"
+                    className="w-20 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
+                  {!employeeLoggedIn ? (
+                    <button onClick={() => {
+                      if (!employeeName) return toast.error('Select an employee');
+                      if (employees[employeeName] !== employeePassword) return toast.error('Wrong password');
+                      setEmployeeLoggedIn(true); setEmployeePassword(''); toast.success(`${employeeName} logged in`);
+                    }} className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">Login</button>
+                  ) : (
+                    <button onClick={() => { setEmployeeLoggedIn(false); setEmployeeName(''); setEmployeePassword(''); }}
+                      className="bg-red-600 hover:bg-red-500 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">Logout</button>
+                  )}
+                </div>
+                {employeeLoggedIn && <p className="text-[10px] font-bold text-emerald-400 text-center">✓ {employeeName} logged in</p>}
+              </div>
               <input value={orderNumber} onChange={e => setOrderNumber(e.target.value)} placeholder="Order # or phone — fetch balance"
                 className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
               {lookedUpOrder && (
@@ -1461,9 +1490,9 @@ const OutletPOS = () => {
                   <span className="text-amber-400">{formatCurrency(grandTotal - parseFloat(advanceAmount))}</span>
                 </div>
               )}
-              <button onClick={handleCheckout} disabled={cart.length === 0 || checkoutLoading}
+              <button onClick={handleCheckout} disabled={cart.length === 0 || checkoutLoading || !employeeLoggedIn}
                 className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2 mt-2">
-                {checkoutLoading ? 'Processing...' : lookedUpOrder ? `Pay Balance ${formatCurrency(grandTotal)}` : `Checkout ${formatCurrency(grandTotal)}`}
+                {checkoutLoading ? 'Processing...' : !employeeLoggedIn ? 'Login Employee First' : lookedUpOrder ? `Pay Balance ${formatCurrency(grandTotal)}` : `Checkout ${formatCurrency(grandTotal)}`}
               </button>
               <div className="flex gap-2">
                 <button onClick={() => setTab('dashboard')} className="flex-1 text-[10px] font-bold text-gray-500 hover:text-white bg-gray-800 py-2 rounded-xl text-center">Dashboard</button>
