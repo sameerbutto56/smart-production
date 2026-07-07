@@ -329,7 +329,7 @@ const OutletPOS = () => {
         variantId: v.id, productName: v.productName,
         size: v.size, color: v.color, unitPrice: v.price || 0,
         qty: 1, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0,
-        customization1: false, customization2: false, nameEngrave: false
+        customization1: false, customization2: false, nameEngrave: false, otherCharges: 0
       }]);
     }
     toast.success(`${v.productName} added via barcode`);
@@ -351,7 +351,7 @@ const OutletPOS = () => {
         variantId: product.id, productName: product.name,
         size: product.size || null, color: product.color || null, unitPrice: product.price || 0,
         qty: 1, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0,
-        customization1: false, customization2: false, nameEngrave: false
+        customization1: false, customization2: false, nameEngrave: false, otherCharges: 0
       }]);
       toast.success(`${product.name} added`);
     }
@@ -384,7 +384,7 @@ const OutletPOS = () => {
       variantId: variant.id, productName: product.name,
       size: variant.size, color: variant.color, unitPrice: variant.price || product.price || 0,
       qty: selectedQty, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0,
-      customization1: false, customization2: false, nameEngrave: false
+      customization1: false, customization2: false, nameEngrave: false, otherCharges: 0
     }]);
     setShowConfig(null);
     toast.success(`${product.name} added`);
@@ -436,7 +436,7 @@ const OutletPOS = () => {
       }
     }
     const payload = {
-      items: cart.map(i => ({ variantId: i.variantId, quantity: i.qty, unitPrice: i.unitPrice, alterationCharges: i.alterationAmount, discountPct: parseFloat(i.discountPct) || 0, discountFixed: parseFloat(i.discountFixed) || 0, customization1: i.customization1 || false, customization2: i.customization2 || false, nameEngrave: i.nameEngrave || false })),
+      items: cart.map(i => ({ variantId: i.variantId, quantity: i.qty, unitPrice: i.unitPrice, alterationCharges: i.alterationAmount, discountPct: parseFloat(i.discountPct) || 0, discountFixed: parseFloat(i.discountFixed) || 0, customization1: i.customization1 || false, customization2: i.customization2 || false, nameEngrave: i.nameEngrave || false, otherCharges: parseFloat(i.otherCharges) || 0 })),
       customerName: customerName || null,
       extraCharges: 0,
       discountPercent: discountPct,
@@ -553,6 +553,9 @@ const OutletPOS = () => {
       if (custParts.length > 0) {
         w.document.write(`<div style="font-size:11px;font-weight:bold;color:#555;margin-top:2px;">${custParts.join(' + ')} (+${pf(item.customizationCharges || 0)})</div>`);
       }
+      if (item.otherCharges > 0) {
+        w.document.write(`<div style="font-size:11px;font-weight:bold;color:#a06600;margin-top:1px;">Other Charges: +${pf(item.otherCharges)}</div>`);
+      }
       w.document.write('</div>');
     });
     w.document.write('</div><div class="section-label">SUMMARY</div>');
@@ -560,6 +563,8 @@ const OutletPOS = () => {
     if (sale.alterationCharges > 0) w.document.write(`<tr><td>Alteration</td><td class="value">${pf(sale.alterationCharges)}</td></tr>`);
     const receiptCustTotal = (sale.items || []).reduce((s, i) => s + (i.customizationCharges || 0), 0);
     if (receiptCustTotal > 0) w.document.write(`<tr><td>Customization</td><td class="value">${pf(receiptCustTotal)}</td></tr>`);
+    const receiptOtherTotal = (sale.items || []).reduce((s, i) => s + (parseFloat(i.otherCharges) || 0), 0);
+    if (receiptOtherTotal > 0) w.document.write(`<tr><td>Other Charges</td><td class="value">${pf(receiptOtherTotal)}</td></tr>`);
     if (sale.extraCharges > 0) w.document.write(`<tr><td>Extra Charges</td><td class="value">${pf(sale.extraCharges)}</td></tr>`);
     if (sale.discountPercent > 0 || sale.discountAmount > 0) w.document.write(`<tr><td>Discount${sale.discountPercent > 0 ? ` (${sale.discountPercent}%)` : ''}</td><td class="value">-${pf(sale.discountAmount)}</td></tr>`);
     if (sale.cardChargesPct > 0) w.document.write(`<tr><td>Card Charges (${sale.cardChargesPct}%)</td><td class="value">+${pf(sale.cardChargesAmount)}</td></tr>`);
@@ -1350,7 +1355,7 @@ const OutletPOS = () => {
                     <span className="px-2 text-xs font-bold text-white min-w-[20px] text-center">{item.qty}</span>
                     <button onClick={() => updateQty(i, item.qty + 1)} className="p-1.5 hover:text-white text-gray-500"><Plus size={12} /></button>
                   </div>
-                  <span className="text-xs font-black text-white ml-auto">{formatCurrency(item.unitPrice * item.qty + (item.customization1 ? 500 : 0) + (item.customization2 ? 1000 : 0) + (item.nameEngrave ? 300 : 0))}</span>
+                  <span className="text-xs font-black text-white ml-auto">{formatCurrency(item.unitPrice * item.qty + (item.customization1 ? 500 : 0) + (item.customization2 ? 1000 : 0) + (item.nameEngrave ? 300 : 0) + (parseFloat(item.otherCharges) || 0))}</span>
                 </div>
 
                 <div className="flex flex-wrap gap-1 mt-1.5">
@@ -1366,6 +1371,11 @@ const OutletPOS = () => {
                     className={`px-2 py-1 rounded-lg text-[9px] font-bold border ${item.nameEngrave ? 'border-purple-500 bg-purple-600/20 text-purple-300' : 'border-gray-700 text-gray-500'}`}>
                     Name Engrave (+₨300)
                   </button>
+                </div>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-orange-400">Other Charges ₨</span>
+                  <input type="number" value={item.otherCharges || 0} onChange={e => updateCartDiscount(i, 'otherCharges', Math.max(0, parseFloat(e.target.value) || 0))}
+                    className="w-20 bg-gray-900 border border-gray-700 rounded-lg px-1.5 py-1 text-[10px] font-bold text-white text-center focus:border-orange-500 outline-none" min="0" />
                 </div>
                 <div className="mt-1.5 flex gap-1 items-center">
                   <span className="text-[10px] font-bold text-blue-400">%</span>

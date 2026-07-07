@@ -403,10 +403,11 @@ const createSale = async (req, res) => {
       const cust2 = item.customization2 ? 1000 : 0;
       const engrave = item.nameEngrave ? 300 : 0;
       const custCharges = cust1 + cust2 + engrave;
+      const otherCharges = parseFloat(item.otherCharges || 0);
       const dpct = parseFloat(item.discountPct || 0);
       const dfixed = parseFloat(item.discountFixed || 0);
       const itemDiscount = (lineBase * dpct / 100) + dfixed;
-      const itemNet = Math.max(0, lineBase - itemDiscount) + itemAlt + custCharges;
+      const itemNet = Math.max(0, lineBase - itemDiscount) + itemAlt + custCharges + otherCharges;
       subtotal += lineBase;
       totalAlt += itemAlt;
       totalItemDiscount += itemDiscount;
@@ -423,6 +424,7 @@ const createSale = async (req, res) => {
         customization2: item.customization2 || false,
         nameEngrave: item.nameEngrave || false,
         customizationCharges: custCharges,
+        otherCharges,
         discountPct: dpct,
         discountFixed: dfixed,
         lineTotal: itemNet
