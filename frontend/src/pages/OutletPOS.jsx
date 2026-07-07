@@ -347,21 +347,25 @@ const OutletPOS = () => {
   const confirmConfig = () => {
     const product = showConfig;
     if (selectedQty < 1) return toast.error('Quantity must be at least 1');
+    const matchColor = (v) => !selectedColor || v.color === selectedColor;
+    const matchSize = (v) => !selectedSize || v.size === selectedSize;
+    const hasSize = (v) => v.size != null && v.size !== '';
+    const inStock = (v) => v.stock != null && v.stock >= selectedQty;
     let variant = products.find(v =>
-      v.name === product.name &&
-      (!selectedColor || v.color === selectedColor) &&
-      (!selectedSize || v.size === selectedSize) &&
-      v.stock != null && v.stock >= selectedQty
+      v.name === product.name && matchColor(v) && matchSize(v) && inStock(v)
     );
+    if (!variant && !selectedSize) {
+      variant = products.find(v =>
+        v.name === product.name && matchColor(v) && hasSize(v) && inStock(v)
+      );
+    }
     if (!variant) {
       variant = products.find(v =>
-        v.name === product.name &&
-        (!selectedColor || v.color === selectedColor) &&
-        (!selectedSize || v.size === selectedSize)
+        v.name === product.name && matchColor(v) && matchSize(v)
       );
     }
     if (!variant) return toast.error('Variant not found');
-    if (variant.stock != null && variant.stock < selectedQty) return toast.error(`Only ${variant.stock} in stock for ${variant.name}` + (variant.color ? ` (${variant.color})` : '') + (variant.size ? ` ${variant.size}` : ''));
+    if (!inStock(variant)) return toast.error(`Only ${variant.stock} in stock for ${variant.name}` + (variant.color ? ` (${variant.color})` : '') + (variant.size ? ` ${variant.size}` : ''));
     setCart([...cart, {
       variantId: variant.id, productName: product.name,
       size: variant.size, color: variant.color, unitPrice: variant.price || product.price || 0,
