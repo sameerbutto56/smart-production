@@ -319,7 +319,8 @@ const OutletPOS = () => {
       setCart([...cart, {
         variantId: v.id, productName: v.productName,
         size: v.size, color: v.color, unitPrice: v.price || 0,
-        qty: 1, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0
+        qty: 1, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0,
+        customization1: false, customization2: false, nameEngrave: false
       }]);
     }
     toast.success(`${v.productName} added via barcode`);
@@ -339,7 +340,8 @@ const OutletPOS = () => {
       setCart([...cart, {
         variantId: product.id, productName: product.name,
         size: product.size || null, color: product.color || null, unitPrice: product.price || 0,
-        qty: 1, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0
+        qty: 1, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0,
+        customization1: false, customization2: false, nameEngrave: false
       }]);
       toast.success(`${product.name} added`);
     }
@@ -370,7 +372,8 @@ const OutletPOS = () => {
     setCart([...cart, {
       variantId: variant.id, productName: product.name,
       size: variant.size, color: variant.color, unitPrice: variant.price || product.price || 0,
-      qty: selectedQty, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0
+      qty: selectedQty, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0,
+      customization1: false, customization2: false, nameEngrave: false
     }]);
     setShowConfig(null);
     toast.success(`${product.name} added`);
@@ -392,6 +395,11 @@ const OutletPOS = () => {
   const updateCartDiscount = (i, field, value) => {
     const copy = [...cart];
     copy[i] = { ...copy[i], [field]: value };
+    setCart(copy);
+  };
+  const updateCartCustomization = (i, field) => {
+    const copy = [...cart];
+    copy[i] = { ...copy[i], [field]: !copy[i][field] };
     setCart(copy);
   };
 
@@ -416,7 +424,7 @@ const OutletPOS = () => {
       }
     }
     const payload = {
-      items: cart.map(i => ({ variantId: i.variantId, quantity: i.qty, unitPrice: i.unitPrice, alterationCharges: i.alterationAmount, discountPct: parseFloat(i.discountPct) || 0, discountFixed: parseFloat(i.discountFixed) || 0 })),
+      items: cart.map(i => ({ variantId: i.variantId, quantity: i.qty, unitPrice: i.unitPrice, alterationCharges: i.alterationAmount, discountPct: parseFloat(i.discountPct) || 0, discountFixed: parseFloat(i.discountFixed) || 0, customization1: i.customization1 || false, customization2: i.customization2 || false, nameEngrave: i.nameEngrave || false })),
       customerName: customerName || null,
       extraCharges: 0,
       discountPercent: discountPct,
@@ -503,6 +511,13 @@ const OutletPOS = () => {
       w.document.write(`<div class="item-line"><span>${item.quantity} × ${pf(item.unitPrice)}</span><span class="item-total">${pf(item.lineTotal)}</span></div>`);
       if (item.alterationCharges > 0) {
         w.document.write(`<div class="item-line"><span>+ Alteration</span><span class="item-total">${pf(item.alterationCharges)}</span></div>`);
+      }
+      const custParts = [];
+      if (item.customization1) custParts.push('Custom 1');
+      if (item.customization2) custParts.push('Custom 2');
+      if (item.nameEngrave) custParts.push('Engrave');
+      if (custParts.length > 0) {
+        w.document.write(`<div style="font-size:11px;font-weight:bold;color:#555;margin-top:2px;">${custParts.join(' + ')} (+${pf(item.customizationCharges || 0)})</div>`);
       }
       w.document.write('</div>');
     });
@@ -1297,7 +1312,7 @@ const OutletPOS = () => {
                     <span className="px-2 text-xs font-bold text-white min-w-[20px] text-center">{item.qty}</span>
                     <button onClick={() => updateQty(i, item.qty + 1)} className="p-1.5 hover:text-white text-gray-500"><Plus size={12} /></button>
                   </div>
-                  <span className="text-xs font-black text-white ml-auto">{formatCurrency(item.unitPrice * item.qty)}</span>
+                  <span className="text-xs font-black text-white ml-auto">{formatCurrency(item.unitPrice * item.qty + (item.customization1 ? 500 : 0) + (item.customization2 ? 1000 : 0) + (item.nameEngrave ? 300 : 0))}</span>
                 </div>
                 <div className="mt-1.5">
                   <select value={item.alterationLabel} onChange={e => {
@@ -1314,6 +1329,20 @@ const OutletPOS = () => {
                     <option value="Custom Alteration">Custom Alteration (+₨250)</option>
                   </select>
                   {item.alterationAmount > 0 && <p className="text-[9px] text-amber-400 font-bold mt-0.5">+{formatCurrency(item.alterationAmount)} alteration</p>}
+                </div>
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  <button onClick={() => updateCartCustomization(i, 'customization1')}
+                    className={`px-2 py-1 rounded-lg text-[9px] font-bold border ${item.customization1 ? 'border-purple-500 bg-purple-600/20 text-purple-300' : 'border-gray-700 text-gray-500'}`}>
+                    Custom 1 (+₨500)
+                  </button>
+                  <button onClick={() => updateCartCustomization(i, 'customization2')}
+                    className={`px-2 py-1 rounded-lg text-[9px] font-bold border ${item.customization2 ? 'border-purple-500 bg-purple-600/20 text-purple-300' : 'border-gray-700 text-gray-500'}`}>
+                    Custom 2 (+₨1000)
+                  </button>
+                  <button onClick={() => updateCartCustomization(i, 'nameEngrave')}
+                    className={`px-2 py-1 rounded-lg text-[9px] font-bold border ${item.nameEngrave ? 'border-purple-500 bg-purple-600/20 text-purple-300' : 'border-gray-700 text-gray-500'}`}>
+                    Name Engrave (+₨300)
+                  </button>
                 </div>
                 <div className="mt-1.5 flex gap-1">
                   <input type="number" value={item.discountPct || 0} onChange={e => updateCartDiscount(i, 'discountPct', Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}

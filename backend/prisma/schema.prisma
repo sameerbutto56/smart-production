@@ -511,7 +511,11 @@ model PosSaleItem {
   quantity          Int      @default(1)
   unitPrice         Float    @default(0)
   alterationCharges Float    @default(0)
-  discountPct      Float    @default(0)
+  customization1    Boolean  @default(false)
+  customization2    Boolean  @default(false)
+  nameEngrave       Boolean  @default(false)
+  customizationCharges Float @default(0)
+  discountPct       Float    @default(0)
   discountFixed     Float    @default(0)
   lineTotal         Float    @default(0)
 

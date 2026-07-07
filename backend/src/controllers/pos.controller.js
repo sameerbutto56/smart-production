@@ -390,10 +390,14 @@ const createSale = async (req, res) => {
       const qty = item.quantity || 1;
       const lineBase = unitPrice * qty;
       const itemAlt = parseFloat(item.alterationCharges || 0);
+      const cust1 = item.customization1 ? 500 : 0;
+      const cust2 = item.customization2 ? 1000 : 0;
+      const engrave = item.nameEngrave ? 300 : 0;
+      const custCharges = cust1 + cust2 + engrave;
       const dpct = parseFloat(item.discountPct || 0);
       const dfixed = parseFloat(item.discountFixed || 0);
       const itemDiscount = (lineBase * dpct / 100) + dfixed;
-      const itemNet = Math.max(0, lineBase - itemDiscount) + itemAlt;
+      const itemNet = Math.max(0, lineBase - itemDiscount) + itemAlt + custCharges;
       subtotal += lineBase;
       totalAlt += itemAlt;
       totalItemDiscount += itemDiscount;
@@ -406,6 +410,10 @@ const createSale = async (req, res) => {
         quantity: qty,
         unitPrice,
         alterationCharges: itemAlt,
+        customization1: item.customization1 || false,
+        customization2: item.customization2 || false,
+        nameEngrave: item.nameEngrave || false,
+        customizationCharges: custCharges,
         discountPct: dpct,
         discountFixed: dfixed,
         lineTotal: itemNet
