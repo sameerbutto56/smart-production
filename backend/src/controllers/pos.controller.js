@@ -747,7 +747,7 @@ const getSalesDashboard = async (req, res) => {
 /* ─── Returns ─── */
 const createReturn = async (req, res) => {
   try {
-    const { variantId, reason, quantity, saleId } = req.body;
+    const { variantId, reason, quantity, saleId, refundPaymentMethod } = req.body;
     const outlet = getOutletName(req);
     if (!variantId || !quantity) return res.status(400).json({ message: 'variantId and quantity are required' });
 
@@ -764,7 +764,8 @@ const createReturn = async (req, res) => {
           saleId: saleId || null,
           reason: reason || null,
           quantity: parseInt(quantity),
-          refundAmount
+          refundAmount,
+          refundPaymentMethod: refundPaymentMethod || 'CASH'
         }
       });
     });

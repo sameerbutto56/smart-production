@@ -105,6 +105,7 @@ const OutletPOS = () => {
   const [returnBarcodeInput, setReturnBarcodeInput] = useState('');
   const [returnCart, setReturnCart] = useState([]);
   const [returnReason, setReturnReason] = useState('Customer return');
+  const [refundPaymentMethod, setRefundPaymentMethod] = useState('CASH');
   const [returnLoading, setReturnLoading] = useState(false);
   const [receiptSearch, setReceiptSearch] = useState('');
 
@@ -606,11 +607,12 @@ const OutletPOS = () => {
     setReturnLoading(true);
     try {
       for (const item of returnCart) {
-        await api.post(`/api/pos/returns?outlet=${selectedOutlet}`, { variantId: item.variantId, quantity: item.qty, reason: returnReason, saleId: item.saleId || undefined });
+        await api.post(`/api/pos/returns?outlet=${selectedOutlet}`, { variantId: item.variantId, quantity: item.qty, reason: returnReason, saleId: item.saleId || undefined, refundPaymentMethod });
       }
       toast.success(`${returnCart.reduce((s, i) => s + i.qty, 0)} item(s) returned successfully`);
       setReturnCart([]);
       setReturnReason('Customer return');
+      setRefundPaymentMethod('CASH');
       refreshProducts();
       refreshDashboard();
       refreshSales();
@@ -821,6 +823,17 @@ const OutletPOS = () => {
               <label className="text-xs font-bold text-gray-400 block mb-1">Return Reason</label>
               <input value={returnReason} onChange={e => setReturnReason(e.target.value)}
                 className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-red-500 outline-none" />
+            </div>
+            <div className="mb-3">
+              <label className="text-xs font-bold text-gray-400 block mb-1">Refund Payment Method</label>
+              <div className="flex gap-1.5">
+                {['CASH', 'CARD', 'ONLINE'].map(m => (
+                  <button key={m} onClick={() => setRefundPaymentMethod(m)}
+                    className={`flex-1 py-2 rounded-xl text-xs font-black border-2 ${refundPaymentMethod === m ? 'border-red-500 bg-red-600/20 text-white' : 'border-gray-700 text-gray-500 hover:border-gray-500'}`}>
+                    {m}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="flex items-center justify-between text-sm mb-3">
               <span className="text-gray-400 font-bold">Total Refund</span>

@@ -525,10 +525,11 @@ model PosReturn {
   sale            PosSale? @relation(fields: [saleId], references: [id])
   outletVariantId String?  // Historical reference ID (plain string, no FK constraint)
   outletName      String   @default("Johar Town")
-  reason          String?
-  quantity        Int      @default(1)
-  refundAmount    Float    @default(0)
-  createdAt       DateTime @default(now())
+  reason              String?
+  quantity            Int      @default(1)
+  refundAmount        Float    @default(0)
+  refundPaymentMethod String   @default("CASH")
+  createdAt           DateTime @default(now())
 
   @@index([saleId])
   @@index([outletVariantId])
