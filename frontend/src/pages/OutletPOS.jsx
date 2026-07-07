@@ -266,13 +266,14 @@ const OutletPOS = () => {
 
   const subtotal = useMemo(() => cart.reduce((s, i) => s + i.unitPrice * i.qty, 0), [cart]);
   const altCharges = useMemo(() => cart.reduce((s, i) => s + (i.alterationAmount || 0), 0), [cart]);
+  const custCharges = useMemo(() => cart.reduce((s, i) => s + (i.customization1 ? 500 : 0) + (i.customization2 ? 1000 : 0) + (i.nameEngrave ? 300 : 0), 0), [cart]);
   const perItemDiscount = useMemo(() => cart.reduce((s, i) => {
     const base = i.unitPrice * i.qty;
     const dpct = parseFloat(i.discountPct) || 0;
     const dfixed = parseFloat(i.discountFixed) || 0;
     return s + (base * dpct / 100) + dfixed;
   }, 0), [cart]);
-  const netBeforeGlobal = subtotal - perItemDiscount + altCharges;
+  const netBeforeGlobal = subtotal - perItemDiscount + altCharges + custCharges;
   const globalDiscountAmt = netBeforeGlobal * discountPct / 100 + discountFixed;
   const cardChargesAmt = paymentMethod === 'CARD' ? (netBeforeGlobal * cardChargesPct) / 100 : 0;
   const grandTotal = netBeforeGlobal - globalDiscountAmt + cardChargesAmt;
@@ -524,6 +525,8 @@ const OutletPOS = () => {
     w.document.write('</div><div class="section-label">SUMMARY</div>');
     w.document.write(`<table class="summary"><tr class="sub"><td>Subtotal</td><td class="value">${pf(sale.subtotal)}</td></tr>`);
     if (sale.alterationCharges > 0) w.document.write(`<tr><td>Alteration</td><td class="value">${pf(sale.alterationCharges)}</td></tr>`);
+    const receiptCustTotal = (sale.items || []).reduce((s, i) => s + (i.customizationCharges || 0), 0);
+    if (receiptCustTotal > 0) w.document.write(`<tr><td>Customization</td><td class="value">${pf(receiptCustTotal)}</td></tr>`);
     if (sale.extraCharges > 0) w.document.write(`<tr><td>Extra Charges</td><td class="value">${pf(sale.extraCharges)}</td></tr>`);
     if (sale.discountPercent > 0 || sale.discountAmount > 0) w.document.write(`<tr><td>Discount${sale.discountPercent > 0 ? ` (${sale.discountPercent}%)` : ''}</td><td class="value">-${pf(sale.discountAmount)}</td></tr>`);
     if (sale.cardChargesPct > 0) w.document.write(`<tr><td>Card Charges (${sale.cardChargesPct}%)</td><td class="value">+${pf(sale.cardChargesAmount)}</td></tr>`);
@@ -1370,6 +1373,12 @@ const OutletPOS = () => {
                 <div className="flex items-center justify-between text-xs text-amber-400">
                   <span>Alteration</span>
                   <span>{formatCurrency(altCharges)}</span>
+                </div>
+              )}
+              {custCharges > 0 && (
+                <div className="flex items-center justify-between text-xs text-purple-400">
+                  <span>Customization</span>
+                  <span>{formatCurrency(custCharges)}</span>
                 </div>
               )}
               {perItemDiscount > 0 && (
