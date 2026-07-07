@@ -1384,13 +1384,13 @@ const OutletPOS = () => {
 
       {/* Product Config Modal */}
       {showConfig && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => setShowConfig(null)}>
-          <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-6 w-full max-w-sm max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-start justify-center pt-10 pb-10 overflow-y-auto" onClick={() => setShowConfig(null)}>
+          <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-black text-white mb-4">{showConfig.name}</h3>
             {showConfig.colors?.length > 0 && (
               <div className="mb-3">
                 <label className="text-xs font-bold text-gray-400 block mb-1">Color</label>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
                   {showConfig.colors.map(c => {
                     const hasColorStock = showConfig.variants.some(v => v.color === c && v.stock != null && v.stock > 0);
                     return (
@@ -1407,7 +1407,7 @@ const OutletPOS = () => {
             {showConfig.sizes?.length > 0 && (
               <div className="mb-3">
                 <label className="text-xs font-bold text-gray-400 block mb-1">Size</label>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
                   {showConfig.sizes.map(s => {
                     const hasSizeStock = selectedColor
                       ? showConfig.variants.some(v => v.size === s && v.color === selectedColor && v.stock != null && v.stock > 0)
