@@ -472,7 +472,6 @@ const OutletPOS = () => {
 
   /* ─── Receipt Print ─── */
   const printReceipt = async (sale) => {
-    // Preload logo as blob URL so it renders instantly in the print window
     let logoUrl = window.location.origin + '/logo.png';
     try {
       const logoResp = await fetch(logoUrl);
@@ -487,8 +486,17 @@ const OutletPOS = () => {
     const reviewUrl = reviewUrls[sale.outletName] || 'https://www.google.com/maps/search/Enamels';
     let qrDataUrl = '';
     try { qrDataUrl = await QRCode.toDataURL(reviewUrl, { width: 150, margin: 1 }); } catch {}
-    const w = window.open('', '_blank');
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt</title><style>
+    const phones = { 'Johar Town': '0325-6666063', 'Jail Road': '(042) 36282641', 'Abbottabad': '' };
+    const phone = phones[sale.outletName] || '';
+    const pf = (n) => (n || 0).toLocaleString();
+    const adv = parseFloat(sale.advanceAmount) || 0;
+    const isOrderSale = !!sale.orderId;
+    const totalQty = (sale.items || []).reduce((s, i) => s + (i.quantity || 0), 0);
+    let gpPaid, gpBalance;
+    if (isOrderSale) { gpPaid = sale.grandTotal + adv; gpBalance = 0; }
+    else if (adv > 0) { gpPaid = adv; gpBalance = sale.grandTotal - adv; }
+    else { gpPaid = sale.grandTotal; gpBalance = 0; }
+    const receiptStyle = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt</title><style>
       @page { margin: 0; size: 80mm auto; }
       body { font-family: monospace; font-size: 16px; padding: 4mm 6mm; color: #000; line-height: 1.5; background: #fff; margin: 0; }
       .header { text-align: center; margin-bottom: 6px; }
@@ -512,73 +520,87 @@ const OutletPOS = () => {
       .summary .sub td { padding-top: 6px; border-top: 1px solid #000; }
       .summary .final td { font-size: 19px; font-weight: 900; padding-top: 8px; border-top: 3px solid #000; }
       .footer { text-align: center; font-size: 14px; margin-top: 10px; font-weight: bold; }
-    </style></head><body>`);
-    const phones = { 'Johar Town': '0325-6666063', 'Jail Road': '(042) 36282641', 'Abbottabad': '' };
-    const phone = phones[sale.outletName] || '';
-    const pf = (n) => (n || 0).toLocaleString();
-    w.document.write(`<div class="header"><img src="${logoUrl}" alt="ENAMELS" style="height:80px;margin-bottom:4px;"><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p><p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}${sale.customerPhone ? `<p>Phone: ${sale.customerPhone}</p>` : ''}</div>`);
-    w.document.write('<hr><div class="items"><div class="items-heading"><span class="col-item">ITEM</span><span class="col-qty">QTY × PRICE</span><span class="col-total">TOTAL</span></div>');
-    (sale.items || []).forEach(item => {
-      const name = item.productName || '';
-      const variantParts = [item.color, item.size].filter(Boolean);
-      w.document.write('<div class="item">');
-      w.document.write(`<div class="item-name">${name}</div>`);
-      if (variantParts.length > 0) w.document.write(`<div class="item-variant">${variantParts.join(' / ')}</div>`);
-      w.document.write(`<div class="item-line"><span>${item.quantity} × ${pf(item.unitPrice)}</span><span class="item-total">${pf(item.lineTotal)}</span></div>`);
-      if (item.alterationCharges > 0) {
-        w.document.write(`<div class="item-line"><span>+ Alteration</span><span class="item-total">${pf(item.alterationCharges)}</span></div>`);
+    </style></head><body>`;
+    const writeMainReceipt = (w) => {
+      w.document.write(receiptStyle);
+      w.document.write(`<div class="header"><img src="${logoUrl}" alt="ENAMELS" style="height:80px;margin-bottom:4px;"><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p><p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}${sale.customerPhone ? `<p>Phone: ${sale.customerPhone}</p>` : ''}</div>`);
+      w.document.write('<hr><div class="items"><div class="items-heading"><span class="col-item">ITEM</span><span class="col-qty">QTY × PRICE</span><span class="col-total">TOTAL</span></div>');
+      (sale.items || []).forEach(item => {
+        const name = item.productName || '';
+        const variantParts = [item.color, item.size].filter(Boolean);
+        w.document.write('<div class="item">');
+        w.document.write(`<div class="item-name">${name}</div>`);
+        if (variantParts.length > 0) w.document.write(`<div class="item-variant">${variantParts.join(' / ')}</div>`);
+        w.document.write(`<div class="item-line"><span>${item.quantity} × ${pf(item.unitPrice)}</span><span class="item-total">${pf(item.lineTotal)}</span></div>`);
+        if (item.alterationCharges > 0) {
+          w.document.write(`<div class="item-line"><span>+ Alteration</span><span class="item-total">${pf(item.alterationCharges)}</span></div>`);
+        }
+        const custParts = [];
+        if (item.customization1) custParts.push('Custom 1');
+        if (item.customization2) custParts.push('Custom 2');
+        if (item.nameEngrave) custParts.push('Engrave');
+        if (custParts.length > 0) {
+          w.document.write(`<div style="font-size:11px;font-weight:bold;color:#555;margin-top:2px;">${custParts.join(' + ')} (+${pf(item.customizationCharges || 0)})</div>`);
+        }
+        w.document.write('</div>');
+      });
+      w.document.write('</div><div class="section-label">SUMMARY</div>');
+      w.document.write(`<table class="summary"><tr class="sub"><td>Subtotal</td><td class="value">${pf(sale.subtotal)}</td></tr>`);
+      if (sale.alterationCharges > 0) w.document.write(`<tr><td>Alteration</td><td class="value">${pf(sale.alterationCharges)}</td></tr>`);
+      const receiptCustTotal = (sale.items || []).reduce((s, i) => s + (i.customizationCharges || 0), 0);
+      if (receiptCustTotal > 0) w.document.write(`<tr><td>Customization</td><td class="value">${pf(receiptCustTotal)}</td></tr>`);
+      if (sale.extraCharges > 0) w.document.write(`<tr><td>Extra Charges</td><td class="value">${pf(sale.extraCharges)}</td></tr>`);
+      if (sale.discountPercent > 0 || sale.discountAmount > 0) w.document.write(`<tr><td>Discount${sale.discountPercent > 0 ? ` (${sale.discountPercent}%)` : ''}</td><td class="value">-${pf(sale.discountAmount)}</td></tr>`);
+      if (sale.cardChargesPct > 0) w.document.write(`<tr><td>Card Charges (${sale.cardChargesPct}%)</td><td class="value">+${pf(sale.cardChargesAmount)}</td></tr>`);
+      if (isOrderSale && adv > 0) {
+        w.document.write(`<tr class="final"><td>Current Payment</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
+        w.document.write(`<tr><td>Advance (Order)</td><td class="value">${pf(adv)}</td></tr>`);
+        w.document.write(`<tr style="font-size:17px;font-weight:900;"><td>Total Paid</td><td class="value">${pf(sale.grandTotal + adv)}</td></tr>`);
+      } else {
+        const balance = sale.grandTotal - adv;
+        w.document.write(`<tr class="final"><td>Final Amount</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
+        if (adv > 0) w.document.write(`<tr><td>Advance</td><td class="value">-${pf(adv)}</td></tr>`);
+        if (adv > 0) w.document.write(`<tr style="font-size:17px;font-weight:900;"><td>Balance</td><td class="value">${pf(balance)}</td></tr>`);
       }
-      const custParts = [];
-      if (item.customization1) custParts.push('Custom 1');
-      if (item.customization2) custParts.push('Custom 2');
-      if (item.nameEngrave) custParts.push('Engrave');
-      if (custParts.length > 0) {
-        w.document.write(`<div style="font-size:11px;font-weight:bold;color:#555;margin-top:2px;">${custParts.join(' + ')} (+${pf(item.customizationCharges || 0)})</div>`);
-      }
-      w.document.write('</div>');
-    });
-    w.document.write('</div><div class="section-label">SUMMARY</div>');
-    w.document.write(`<table class="summary"><tr class="sub"><td>Subtotal</td><td class="value">${pf(sale.subtotal)}</td></tr>`);
-    if (sale.alterationCharges > 0) w.document.write(`<tr><td>Alteration</td><td class="value">${pf(sale.alterationCharges)}</td></tr>`);
-    const receiptCustTotal = (sale.items || []).reduce((s, i) => s + (i.customizationCharges || 0), 0);
-    if (receiptCustTotal > 0) w.document.write(`<tr><td>Customization</td><td class="value">${pf(receiptCustTotal)}</td></tr>`);
-    if (sale.extraCharges > 0) w.document.write(`<tr><td>Extra Charges</td><td class="value">${pf(sale.extraCharges)}</td></tr>`);
-    if (sale.discountPercent > 0 || sale.discountAmount > 0) w.document.write(`<tr><td>Discount${sale.discountPercent > 0 ? ` (${sale.discountPercent}%)` : ''}</td><td class="value">-${pf(sale.discountAmount)}</td></tr>`);
-    if (sale.cardChargesPct > 0) w.document.write(`<tr><td>Card Charges (${sale.cardChargesPct}%)</td><td class="value">+${pf(sale.cardChargesAmount)}</td></tr>`);
-    const adv = parseFloat(sale.advanceAmount) || 0;
-    const isOrderSale = !!sale.orderId;
-    if (isOrderSale && adv > 0) {
-      w.document.write(`<tr class="final"><td>Current Payment</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
-      w.document.write(`<tr><td>Advance (Order)</td><td class="value">${pf(adv)}</td></tr>`);
-      w.document.write(`<tr style="font-size:17px;font-weight:900;"><td>Total Paid</td><td class="value">${pf(sale.grandTotal + adv)}</td></tr>`);
-    } else {
-      const balance = sale.grandTotal - adv;
-      w.document.write(`<tr class="final"><td>Final Amount</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
-      if (adv > 0) w.document.write(`<tr><td>Advance</td><td class="value">-${pf(adv)}</td></tr>`);
-      if (adv > 0) w.document.write(`<tr style="font-size:17px;font-weight:900;"><td>Balance</td><td class="value">${pf(balance)}</td></tr>`);
-    }
-    w.document.write(`<tr><td>Payment</td><td class="value">${sale.paymentMethod}</td></tr></table>`);
-    w.document.write('<div style="font-size:11px;font-weight:bold;margin:6px 0 0;border-top:2px solid #000;padding-top:4px;"><p style="font-size:12px;font-weight:900;text-align:center;margin:0 0 3px;">TERMS &amp; CONDITIONS</p><p style="margin:2px 0;text-align:center;">Exchanges are allowed only within 7 days with original tags and invoice.</p></div>');
-    w.document.write(`<div style="text-align:center;margin:6px 0 0;padding:3px;"><img src="${qrDataUrl || 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(reviewUrl)}" width="150" height="150" alt="Review QR" style="display:inline-block;"><p style="font-size:8px;margin:3px 0 0;font-weight:bold;">Scan to Review us and Avail Special Offers</p><p style="font-size:13px;font-weight:900;margin:4px 0 0;">Thank you for shopping! Visit Again!</p></div>`);
-    w.document.write('<hr><p style="text-align:center;font-size:9px;margin-top:4px;">Software is develop by Sameer Butt</p>');
-    const totalQty = (sale.items || []).reduce((s, i) => s + (i.quantity || 0), 0);
-    let gpPaid, gpBalance;
-    if (isOrderSale) { gpPaid = sale.grandTotal + adv; gpBalance = 0; }
-    else if (adv > 0) { gpPaid = adv; gpBalance = sale.grandTotal - adv; }
-    else { gpPaid = sale.grandTotal; gpBalance = 0; }
-    w.document.write('<hr style="border-top:2px dashed #000;"><div style="text-align:center;margin:6px 0 0;padding:4px;background:#ffd700;border:2px solid #000;border-radius:4px;">');
-    w.document.write('<p style="font-size:18px;font-weight:900;margin:0 0 4px;text-transform:uppercase;">Gate Pass</p>');
-    w.document.write(`<p style="font-size:11px;font-weight:bold;margin:0 0 4px;">${new Date(sale.createdAt).toLocaleDateString()} | Invoice: ${sale.receiptNumber}</p>`);
-    w.document.write('<table style="width:100%;font-size:14px;font-weight:bold;border-collapse:collapse;">');
-    w.document.write(`<tr><td style="text-align:left;padding:2px 4px;">Total Products</td><td style="text-align:right;padding:2px 4px;">${totalQty}</td></tr>`);
-    w.document.write(`<tr><td style="text-align:left;padding:2px 4px;">Total Amount</td><td style="text-align:right;padding:2px 4px;">${pf(sale.grandTotal)}</td></tr>`);
-    w.document.write(`<tr><td style="text-align:left;padding:2px 4px;">Paid Amount</td><td style="text-align:right;padding:2px 4px;">${pf(gpPaid)}</td></tr>`);
-    w.document.write(`<tr><td style="text-align:left;padding:2px 4px;">Balance Amount</td><td style="text-align:right;padding:2px 4px;">${pf(gpBalance)}</td></tr>`);
-    w.document.write('</table></div>');
-    w.document.write('</body></html>');
-    w.document.close();
+      w.document.write(`<tr><td>Payment</td><td class="value">${sale.paymentMethod}</td></tr></table>`);
+      w.document.write('<div style="font-size:11px;font-weight:bold;margin:6px 0 0;border-top:2px solid #000;padding-top:4px;"><p style="font-size:12px;font-weight:900;text-align:center;margin:0 0 3px;">TERMS &amp; CONDITIONS</p><p style="margin:2px 0;text-align:center;">Exchanges are allowed only within 7 days with original tags and invoice.</p></div>');
+      w.document.write(`<div style="text-align:center;margin:6px 0 0;padding:3px;"><img src="${qrDataUrl || 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(reviewUrl)}" width="150" height="150" alt="Review QR" style="display:inline-block;"><p style="font-size:8px;margin:3px 0 0;font-weight:bold;">Scan to Review us and Avail Special Offers</p><p style="font-size:13px;font-weight:900;margin:4px 0 0;">Thank you for shopping! Visit Again!</p></div>`);
+      w.document.write('<hr><p style="text-align:center;font-size:9px;margin-top:4px;">Software is develop by Sameer Butt</p>');
+      w.document.write('</body></html>');
+      w.document.close();
+    };
+    const printGatePass = () => {
+      const gw = window.open('', '_blank');
+      gw.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Gate Pass</title><style>
+        @page { margin: 0; size: 80mm auto; }
+        body { font-family: monospace; font-size: 16px; padding: 4mm 6mm; color: #000; line-height: 1.5; background: #fff; margin: 0; display:flex;align-items:center;justify-content:center;min-height:100vh; }
+      </style></head><body>`);
+      gw.document.write('<div style="text-align:center;width:100%;padding:4px;background:#ffd700;border:3px solid #000;border-radius:4px;">');
+      gw.document.write('<p style="font-size:22px;font-weight:900;margin:0 0 6px;text-transform:uppercase;">Gate Pass</p>');
+      gw.document.write(`<p style="font-size:13px;font-weight:bold;margin:0 0 6px;">${new Date(sale.createdAt).toLocaleDateString()} | Invoice: ${sale.receiptNumber}</p>`);
+      gw.document.write('<table style="width:100%;font-size:16px;font-weight:bold;border-collapse:collapse;">');
+      gw.document.write(`<tr><td style="text-align:left;padding:4px;">Total Products</td><td style="text-align:right;padding:4px;">${totalQty}</td></tr>`);
+      gw.document.write(`<tr><td style="text-align:left;padding:4px;">Total Amount</td><td style="text-align:right;padding:4px;">${pf(sale.grandTotal)}</td></tr>`);
+      gw.document.write(`<tr><td style="text-align:left;padding:4px;">Paid Amount</td><td style="text-align:right;padding:4px;">${pf(gpPaid)}</td></tr>`);
+      gw.document.write(`<tr><td style="text-align:left;padding:4px;">Balance Amount</td><td style="text-align:right;padding:4px;">${pf(gpBalance)}</td></tr>`);
+      gw.document.write('</table></div>');
+      gw.document.write('</body></html>');
+      gw.document.close();
+      gw.focus();
+      setTimeout(() => { gw.print(); }, 300);
+    };
+    const w = window.open('', '_blank');
+    writeMainReceipt(w);
     w.focus();
-    setTimeout(() => { w.print(); if (logoUrl.startsWith('blob:')) URL.revokeObjectURL(logoUrl); }, 500);
+    let printed = false;
+    w.onafterprint = () => {
+      if (!printed) { printed = true; w.close(); setTimeout(printGatePass, 500); }
+    };
+    setTimeout(() => { w.print(); }, 500);
+    setTimeout(() => {
+      if (!printed) { printed = true; w.close(); setTimeout(printGatePass, 500); }
+    }, 8000);
+    setTimeout(() => { if (logoUrl.startsWith('blob:')) URL.revokeObjectURL(logoUrl); }, 500);
   };
 
   /* ─── Return ─── */
