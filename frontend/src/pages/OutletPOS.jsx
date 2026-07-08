@@ -456,6 +456,8 @@ const OutletPOS = () => {
     try {
       const res = await api.post(`/api/pos/sales?outlet=${selectedOutlet}`, payload);
       if (faisalTake) {
+        setLastSale({ ...res.data, isFaisalTake: true });
+        setShowCheckout(true);
         setCart([]);
         setDiscountPct(0);
         setDiscountFixed(0);
@@ -503,6 +505,7 @@ const OutletPOS = () => {
 
   /* ─── Receipt Print ─── */
   const printReceipt = async (sale) => {
+    const isFT = sale.isFaisalTake;
     let logoUrl = window.location.origin + '/logo.png';
     try {
       const logoResp = await fetch(logoUrl);
@@ -524,7 +527,8 @@ const OutletPOS = () => {
     const isOrderSale = !!sale.orderId;
     const totalQty = (sale.items || []).reduce((s, i) => s + (i.quantity || 0), 0);
     let gpPaid, gpBalance;
-    if (isOrderSale) { gpPaid = sale.grandTotal + adv; gpBalance = 0; }
+    if (isFT) { gpPaid = 0; gpBalance = 0; }
+    else if (isOrderSale) { gpPaid = sale.grandTotal + adv; gpBalance = 0; }
     else if (adv > 0) { gpPaid = adv; gpBalance = sale.grandTotal - adv; }
     else { gpPaid = sale.grandTotal; gpBalance = 0; }
     const receiptStyle = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt</title><style>
@@ -554,7 +558,7 @@ const OutletPOS = () => {
     </style></head><body>`;
     const w = window.open('', '_blank');
     w.document.write(receiptStyle);
-    w.document.write(`<div class="header"><img src="${logoUrl}" alt="ENAMELS" style="height:80px;margin-bottom:4px;"><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p><p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}${sale.customerPhone ? `<p>Phone: ${sale.customerPhone}</p>` : ''}</div>`);
+    w.document.write(`<div class="header"><img src="${logoUrl}" alt="ENAMELS" style="height:80px;margin-bottom:4px;"><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p>${isFT ? '<p style="font-size:22px;font-weight:900;color:#c00;margin:6px 0;text-transform:uppercase;letter-spacing:3px;">FAISAL TAKE — NO CHARGE</p>' : ''}<p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}${sale.customerPhone ? `<p>Phone: ${sale.customerPhone}</p>` : ''}</div>`);
     w.document.write('<hr><div class="items"><div class="items-heading"><span class="col-item">ITEM</span><span class="col-qty">QTY × PRICE</span><span class="col-total">TOTAL</span></div>');
     (sale.items || []).forEach(item => {
       const name = item.productName || '';
@@ -562,10 +566,11 @@ const OutletPOS = () => {
       w.document.write('<div class="item">');
       w.document.write(`<div class="item-name">${name}</div>`);
       if (variantParts.length > 0) w.document.write(`<div class="item-variant">${variantParts.join(' / ')}</div>`);
-      w.document.write(`<div class="item-line"><span>${item.quantity} × ${pf(item.unitPrice)}</span><span class="item-total">${pf(item.lineTotal)}</span></div>`);
-      if (item.alterationCharges > 0) {
+      w.document.write(`<div class="item-line"><span>${item.quantity} × ${pf(isFT ? 0 : item.unitPrice)}</span><span class="item-total">${pf(isFT ? 0 : item.lineTotal)}</span></div>`);
+      if (!isFT && item.alterationCharges > 0) {
         w.document.write(`<div class="item-line"><span>+ Alteration</span><span class="item-total">${pf(item.alterationCharges)}</span></div>`);
       }
+      if (!isFT) {
       const custParts = [];
       if (item.customization1) custParts.push('Custom 1');
       if (item.customization2) custParts.push('Custom 2');
@@ -576,8 +581,12 @@ const OutletPOS = () => {
       if (item.otherCharges > 0) {
         w.document.write(`<div style="font-size:11px;font-weight:bold;color:#a06600;margin-top:1px;">Other Charges: +${pf(item.otherCharges)}</div>`);
       }
+      }
       w.document.write('</div>');
     });
+    if (isFT) {
+      w.document.write('<div style="text-align:center;font-size:24px;font-weight:900;color:#c00;margin:12px 0;text-transform:uppercase;letter-spacing:2px;">NO CHARGE</div>');
+    } else {
     w.document.write('</div><div class="section-label">SUMMARY</div>');
     w.document.write(`<table class="summary"><tr class="sub"><td>Subtotal</td><td class="value">${pf(sale.subtotal)}</td></tr>`);
     if (sale.alterationCharges > 0) w.document.write(`<tr><td>Alteration</td><td class="value">${pf(sale.alterationCharges)}</td></tr>`);
@@ -599,6 +608,7 @@ const OutletPOS = () => {
       if (adv > 0) w.document.write(`<tr style="font-size:17px;font-weight:900;"><td>Balance</td><td class="value">${pf(balance)}</td></tr>`);
     }
     w.document.write(`<tr><td>Payment</td><td class="value">${sale.paymentMethod}</td></tr></table>`);
+    }
     w.document.write('<div style="font-size:11px;font-weight:bold;margin:6px 0 0;border-top:2px solid #000;padding-top:4px;"><p style="font-size:12px;font-weight:900;text-align:center;margin:0 0 3px;">TERMS &amp; CONDITIONS</p><p style="margin:2px 0;text-align:center;">Exchanges are allowed only within 7 days with original tags and invoice.</p></div>');
     w.document.write(`<div style="text-align:center;margin:6px 0 0;padding:3px;"><img src="${qrDataUrl || 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(reviewUrl)}" width="150" height="150" alt="Review QR" style="display:inline-block;"><p style="font-size:8px;margin:3px 0 0;font-weight:bold;">Scan to Review us and Avail Special Offers</p><p style="font-size:13px;font-weight:900;margin:4px 0 0;">Thank you for shopping! Visit Again!</p></div>`);
     w.document.write('<hr><p style="text-align:center;font-size:9px;margin-top:4px;">Software is develop by Sameer Butt</p>');
@@ -1712,9 +1722,9 @@ const OutletPOS = () => {
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => setShowCheckout(false)}>
           <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-6 w-full max-w-sm text-center" onClick={e => e.stopPropagation()}>
             <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4"><ShoppingCart size={32} className="text-emerald-400" /></div>
-            <h3 className="text-xl font-black text-white mb-1">Sale Complete!</h3>
+            <h3 className="text-xl font-black text-white mb-1">{lastSale.isFaisalTake ? 'Faisal Take' : 'Sale Complete!'}</h3>
             <p className="text-sm font-bold text-gray-400 mb-2">{lastSale.receiptNumber}</p>
-            <p className="text-3xl font-black text-emerald-400 mb-4">{formatCurrency(lastSale.grandTotal)}</p>
+            <p className={`text-3xl font-black mb-4 ${lastSale.isFaisalTake ? 'text-red-400' : 'text-emerald-400'}`}>{lastSale.isFaisalTake ? '₨0 — NO CHARGE' : formatCurrency(lastSale.grandTotal)}</p>
             <div className="flex gap-2">
               <button onClick={() => printReceipt(lastSale)} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2">
                 <Printer size={16} />Print Receipt
