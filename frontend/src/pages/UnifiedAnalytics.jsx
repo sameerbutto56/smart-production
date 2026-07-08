@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import {
   BarChart3, TrendingUp, DollarSign, RefreshCcw, ChevronRight, X, Search,
   ShoppingCart, CheckCircle2, RotateCcw, Clock, Filter, Calendar,
@@ -129,8 +130,24 @@ const ANALYTICS_TABS = [
 ];
 
 const UnifiedAnalytics = () => {
+  const { user } = useAuth();
+  const filteredTabs = useMemo(() => {
+    if (user?.role === 'OUTLET') {
+      const name = user.name?.toLowerCase().replace(/\s+/g, '_') || '';
+      const tab = SOURCE_TABS.find(t => t.id === name);
+      return tab ? [SOURCE_TABS[0], tab] : [SOURCE_TABS[0]];
+    }
+    return SOURCE_TABS;
+  }, [user]);
+
+  const initialSource = (() => {
+    if (user?.role === 'OUTLET') {
+      return user.name?.toLowerCase().replace(/\s+/g, '_') || 'all';
+    }
+    return 'all';
+  })();
   const [mainTab, setMainTab] = useState('overview');
-  const [source, setSource] = useState('all');
+  const [source, setSource] = useState(initialSource);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [datePreset, setDatePreset] = useState('-2');
@@ -260,7 +277,7 @@ const UnifiedAnalytics = () => {
 
   const renderSourceTabs = () => (
     <div className="flex gap-1.5 overflow-x-auto pb-1">
-      {SOURCE_TABS.map(t => (
+      {filteredTabs.map(t => (
         <button key={t.id} onClick={() => handleSourceClick(t.id)}
           className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${
             source === t.id ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg' : 'bg-gray-900 text-gray-500 border border-gray-800 hover:border-gray-600'

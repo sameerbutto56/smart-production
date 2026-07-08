@@ -1,19 +1,8 @@
 const prisma = require('../prisma');
+const cache = require('../utils/cache');
 
 const safeFind = async (args) => {
   try { return await prisma.order.findMany(args); } catch { return []; }
-};
-
-// Timeout guard: if the promise takes longer than `ms`, return a fallback
-const withTimeout = (promise, ms, fallback) => {
-  let timer;
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), ms); })
-  ]).finally(() => clearTimeout(timer)).catch((err) => {
-    console.error('[analytics] query timed out or failed:', err?.message);
-    return fallback;
-  });
 };
 
 const EMPTY_RESPONSE = {
@@ -82,6 +71,16 @@ const SOURCE_LABELS = {
 // GET /api/analytics/sources — list all available sources
 const getSources = async (req, res) => {
   try {
+    // OUTLET role only sees their own source
+    if (req.user?.role === 'OUTLET') {
+      const outletName = req.user.name;
+      if (!outletName) return res.json([]);
+      const id = outletNameToSourceId(outletName);
+      return res.json([
+        { id, label: `Outlet - ${outletName}`, type: 'OUTLET', outletName }
+      ]);
+    }
+
     const outletNames = await prisma.order.findMany({
       where: { outletName: { not: null } },
       distinct: ['outletName'],
@@ -107,13 +106,33 @@ const getSources = async (req, res) => {
   }
 };
 
+const outletNameToSourceId = (name) => name?.toLowerCase().replace(/\s+/g, '_') || '';
+
 // GET /api/analytics/source/:sourceId — full analytics for one source
 const getSourceAnalytics = async (req, res) => {
-  const sourceId = req.params.sourceId || req.query.branch || 'all';
-  const where = buildFilters(req.query, sourceId);
+  try {
+    let sourceId = req.params.sourceId || req.query.branch || 'all';
 
-  const result = await withTimeout(computeAnalytics(where), 15000, EMPTY_RESPONSE);
-  res.json(result);
+    // Role-based enforcement: OUTLET role can only see their own outlet
+    if (req.user?.role === 'OUTLET') {
+      const userOutlet = req.user.name;
+      if (!userOutlet) return res.json(EMPTY_RESPONSE);
+      sourceId = outletNameToSourceId(userOutlet);
+    }
+
+    const cacheKey = `analytics:${sourceId}:${JSON.stringify(req.query)}`;
+    const cached = cache.get(cacheKey);
+    if (cached) return res.json(cached);
+
+    const where = buildFilters(req.query, sourceId);
+    const result = await computeAnalytics(where);
+    // Cache for 2 minutes
+    cache.set(cacheKey, result, 120);
+    res.json(result);
+  } catch (err) {
+    console.error('[analytics] getSourceAnalytics error:', err);
+    res.json(EMPTY_RESPONSE);
+  }
 };
 
 const computeAnalytics = async (where) => {
@@ -206,8 +225,15 @@ const computeAnalytics = async (where) => {
 // GET /api/analytics/source/:sourceId/orders — list orders for drill-down
 const getSourceOrders = async (req, res) => {
   try {
-    const { sourceId } = req.params;
-    const { type, limit } = req.query; // type: delivered-cod, delivered-online, delivered-prepaid, returned-paid, returned-cod, pending
+    let { sourceId } = req.params;
+
+    // OUTLET role constraint
+    if (req.user?.role === 'OUTLET') {
+      if (!req.user.name) return res.json([]);
+      sourceId = outletNameToSourceId(req.user.name);
+    }
+
+    const { type, limit } = req.query;
     const where = buildFilters(req.query, sourceId);
 
     if (type === 'delivered-cod') {
@@ -251,7 +277,14 @@ const getSourceOrders = async (req, res) => {
 
 const exportAnalyticsExcel = async (req, res) => {
   try {
-    const sourceId = req.query.source || 'all';
+    let sourceId = req.query.source || 'all';
+
+    // OUTLET role constraint
+    if (req.user?.role === 'OUTLET') {
+      if (!req.user.name) return res.status(403).json({ message: 'Access denied' });
+      sourceId = outletNameToSourceId(req.user.name);
+    }
+
     const where = buildFilters(req.query, sourceId);
 
     // Fetch matching orders
