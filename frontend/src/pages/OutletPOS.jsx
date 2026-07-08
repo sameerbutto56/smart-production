@@ -1582,7 +1582,7 @@ const OutletPOS = () => {
               </div>
               <div className={`rounded-lg px-3 py-2 space-y-2 ${employeeLoggedIn ? 'bg-emerald-900/20 border border-emerald-800' : 'bg-gray-800/50 border border-gray-700'}`}>
                 <div className="flex items-center gap-2">
-                  <select value={employeeLoggedIn ? employeeName : ''} onChange={e => { setEmployeeName(e.target.value); setEmployeePassword(''); setEmployeeLoggedIn(false); }}
+                   <select value={employeeName} onChange={e => { setEmployeeName(e.target.value); setEmployeePassword(''); setEmployeeLoggedIn(false); }}
                     className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white focus:border-blue-500 outline-none">
                     <option value="">Select Employee</option>
                     {Object.keys(employees).map(n => <option key={n} value={n}>{n}</option>)}
