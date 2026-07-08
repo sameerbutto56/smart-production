@@ -698,7 +698,7 @@ const OutletPOS = () => {
           {['all', 'today', 'yesterday', 'week', 'month', 'year'].map(p => (
             <button key={p} onClick={() => { setSalesRange(p); if (p !== 'custom') { setSalesDateFrom(''); setSalesDateTo(''); } }}
               className={`text-[10px] font-black px-3 py-1.5 rounded-xl border transition-all ${salesRange === p ? 'bg-purple-600 text-white border-purple-500' : 'bg-gray-800 text-gray-400 border-gray-700 hover:text-white'}`}>
-              {p === 'all' ? 'All' : p.charAt(0).toUpperCase() + p.slice(1)}
+              {p === 'all' ? 'All' : p === 'week' ? 'Weekly' : p === 'month' ? 'Monthly' : p === 'year' ? 'Yearly' : p.charAt(0).toUpperCase() + p.slice(1)}
             </button>
           ))}
           <button onClick={() => setSalesRange('custom')}
