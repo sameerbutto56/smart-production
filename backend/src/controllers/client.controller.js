@@ -1,12 +1,21 @@
 const prisma = require('../prisma');
 
+const generateClientNumber = async () => {
+  // Find the highest existing clientNumber, then increment
+  const last = await prisma.client.findFirst({ where: { clientNumber: { not: null } }, orderBy: { clientNumber: 'desc' }, select: { clientNumber: true } });
+  let next = last?.clientNumber ? parseInt(last.clientNumber, 10) + 1 : 1000;
+  if (next > 99999) next = 1000; // wrap if exceeds 5 digits
+  return String(next);
+};
+
 const createClient = async (req, res) => {
   try {
     const { name, gender, phone, additionalPhones, permanentAddress, deliveryAddresses, measurementChart, sizeDetails, outletName } = req.body;
     if (!name || !phone || !outletName) return res.status(400).json({ message: 'Name, phone, and outlet are required' });
+    const clientNumber = await generateClientNumber();
     const client = await prisma.client.create({
       data: {
-        name, gender, phone,
+        clientNumber, name, gender, phone,
         additionalPhones: additionalPhones || [],
         permanentAddress: permanentAddress || null,
         deliveryAddresses: deliveryAddresses || [],
@@ -42,7 +51,8 @@ const searchClients = async (req, res) => {
       isActive: true,
       OR: [
         { name: { contains: q, mode: 'insensitive' } },
-        { phone: { contains: q } }
+        { phone: { contains: q } },
+        { clientNumber: { contains: q } }
       ]
     };
     if (outlet) where.outletName = outlet;

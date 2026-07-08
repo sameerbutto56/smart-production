@@ -452,6 +452,7 @@ model OutletDemandRequest {
 
 model Client {
   id               String   @id @default(uuid())
+  clientNumber     String?  @unique
   name             String
   gender           String
   phone            String

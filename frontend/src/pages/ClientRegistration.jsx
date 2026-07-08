@@ -29,7 +29,8 @@ const ClientRegistration = () => {
   const [form, setForm] = useState({
     name: '', gender: 'Male', phone: '',
     permanentAddress: '',
-    measurementChart: '', sizeDetails: ''
+    measurementChart: '', sizeDetails: '',
+    clientNumber: ''
   });
 
   const [customMeasurements, setCustomMeasurements] = useState({});
@@ -59,7 +60,7 @@ const ClientRegistration = () => {
   };
 
   const resetForm = () => {
-    setForm({ name: '', gender: 'Male', phone: '', permanentAddress: '', measurementChart: '', sizeDetails: '' });
+    setForm({ name: '', gender: 'Male', phone: '', permanentAddress: '', measurementChart: '', sizeDetails: '', clientNumber: '' });
     setCustomMeasurements({});
     setExtraMeasurements([]);
     setAdditionalPhones([]);
@@ -167,7 +168,8 @@ const ClientRegistration = () => {
       phone: client.phone || '',
       permanentAddress: client.permanentAddress || '',
       measurementChart: client.measurementChart || '',
-      sizeDetails: client.sizeDetails || ''
+      sizeDetails: client.sizeDetails || '',
+      clientNumber: client.clientNumber || ''
     });
     if (client.sizeDetails && typeof client.sizeDetails === 'string' && client.sizeDetails.startsWith('{')) {
       try {
@@ -264,6 +266,12 @@ const ClientRegistration = () => {
                   placeholder="03XX-XXXXXXX" />
               </div>
             </div>
+            {form.clientNumber && (
+              <div className="bg-blue-900/20 border border-blue-800 rounded-xl px-4 py-2.5 inline-block">
+                <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Client #</span>
+                <p className="text-lg font-black text-blue-300">{form.clientNumber}</p>
+              </div>
+            )}
 
             {/* Additional Phones */}
             <div>
@@ -407,7 +415,7 @@ const ClientRegistration = () => {
             <div className="absolute left-4 top-1/2 -translate-y-1/2"><Search className="text-gray-500" size={16} /></div>
             <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-gray-900 border-2 border-gray-700 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none"
-              placeholder="Search by name or phone number..." />
+              placeholder="Search by name, phone, or client number..." />
           </div>
           <div className="space-y-2">
             {loading ? (
@@ -420,6 +428,7 @@ const ClientRegistration = () => {
                   <div>
                     <h3 className="font-black text-lg theme-text-primary">{client.name}</h3>
                     <p className="text-sm font-bold text-gray-400">{client.gender} • {client.outletName}</p>
+                    {client.clientNumber && <p className="text-xs font-black text-blue-400">Client #{client.clientNumber}</p>}
                     <p className="text-sm font-bold text-blue-400">{client.phone}</p>
                     {client.additionalPhones?.filter(Boolean).map((p, i) => (
                       <p key={i} className="text-sm font-bold text-gray-500">{p}</p>
