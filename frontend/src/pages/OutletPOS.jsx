@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Search, ShoppingCart, Plus, Minus, X, Trash2, Printer, Barcode, RotateCcw, CreditCard, DollarSign, Package, Tag, Grid3X3, List, ChevronDown, ChevronUp, AlertCircle, BarChart3, RefreshCw, Calendar, TrendingUp, Award, Clock, CheckCircle2, Globe } from 'lucide-react';
+import { Search, ShoppingCart, Plus, Minus, X, Trash2, Printer, Barcode, RotateCcw, CreditCard, DollarSign, Package, Tag, Grid3X3, List, ChevronDown, ChevronUp, AlertCircle, BarChart3, RefreshCw, Calendar, TrendingUp, Award, Clock, CheckCircle2, Globe, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import JsBarcode from 'jsbarcode';
 import QRCode from 'qrcode';
+import * as XLSX from 'xlsx';
 import useCache, { invalidateKey, setCache } from '../hooks/useCache';
 import { enqueue } from '../utils/syncQueue';
 import { normalizeInventoryEvent } from '../utils/normalizeEvents';
@@ -681,6 +682,29 @@ const OutletPOS = () => {
     setReturnLoading(false);
   };
 
+  const downloadExcel = useCallback(() => {
+    const data = (receiptSearch ? sales.filter(s => s.receiptNumber?.toLowerCase().includes(receiptSearch.toLowerCase())) : sales).map(s => ({
+      'Receipt #': s.receiptNumber || '',
+      'Date': new Date(s.createdAt).toLocaleString(),
+      'Cashier': s.cashierName || '',
+      'Customer': s.customerName || '',
+      'Phone': s.customerPhone || '',
+      'Items': (s.items || []).map(i => `${i.productName}${i.color ? ' ('+i.color+')' : ''}${i.size ? ' '+i.size : ''} x${i.quantity}`).join(', '),
+      'Subtotal': s.subtotal || 0,
+      'Discount': s.discountAmount || 0,
+      'Card Charges': s.cardChargesAmount || 0,
+      'Grand Total': s.grandTotal || 0,
+      'Payment': s.paymentMethod || '',
+      'Advance': s.advanceAmount || 0,
+      'Order #': s.orderId || ''
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Sales');
+    XLSX.writeFile(wb, `sales_${selectedOutlet}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast.success('Excel downloaded');
+  }, [sales, receiptSearch, selectedOutlet]);
+
   if (tab === 'history') {
     const filteredSales = receiptSearch
       ? sales.filter(s => s.receiptNumber?.toLowerCase().includes(receiptSearch.toLowerCase()))
@@ -713,10 +737,13 @@ const OutletPOS = () => {
             </div>
           )}
         </div>
-        <div className="relative max-w-md">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-          <input value={receiptSearch} onChange={e => setReceiptSearch(e.target.value)} placeholder="Search by bill / receipt number..."
-            className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl pl-9 pr-3 py-2.5 text-sm font-bold text-white placeholder-gray-500 focus:border-purple-500 outline-none" />
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1 max-w-md">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+            <input value={receiptSearch} onChange={e => setReceiptSearch(e.target.value)} placeholder="Search by bill / receipt number..."
+              className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl pl-9 pr-3 py-2.5 text-sm font-bold text-white placeholder-gray-500 focus:border-purple-500 outline-none" />
+          </div>
+          <button onClick={downloadExcel} className="bg-green-700 hover:bg-green-600 text-white font-bold px-3 py-2.5 rounded-xl text-[10px] flex items-center gap-1"><Download size={14} />Excel</button>
         </div>
         <div className="space-y-2">
           {filteredSales.length === 0 && <p className="text-center text-gray-500 py-8 font-bold">{receiptSearch ? 'No sales match your search' : 'No sales yet'}</p>}
