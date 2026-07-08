@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import api from '../services/api';
-import { Package, Search, ChevronDown, ChevronUp, RefreshCw, Warehouse, Plus, X, CheckCircle2, Minus, PlusCircle, Pencil, Trash2, Eye, Database, Download, UploadCloud } from 'lucide-react';
+import { Package, Search, ChevronDown, ChevronUp, RefreshCw, Warehouse, Plus, X, CheckCircle2, Minus, PlusCircle, Pencil, Trash2, Eye, Database, Download, UploadCloud, Printer } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import useCache, { setCache } from '../hooks/useCache';
@@ -200,9 +200,11 @@ const ManagementInventory = () => {
   const backupExcelRef = React.useRef(null);
   const [backupLoading, setBackupLoading] = useState(false);
 
-  /* ─── Download Available Stock (CSV) ─── */
+  /* ─── Available Stock helpers ─── */
+  const getAvailableStock = () => items.filter(i => (i.stock || 0) >= 1);
+
   const handleDownloadAvailable = () => {
-    const available = items.filter(i => (i.stock || 0) >= 1);
+    const available = getAvailableStock();
     if (available.length === 0) return toast.error('No products in stock');
     const rows = [['Product Name', 'Color', 'Size', 'Quantity']];
     available.forEach(i => {
@@ -219,6 +221,32 @@ const ManagementInventory = () => {
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
     toast.success('Available stock downloaded!');
+  };
+
+  const handlePrintAvailable = () => {
+    const available = getAvailableStock();
+    if (available.length === 0) return toast.error('No products in stock');
+    const w = window.open('', '_blank');
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Available Stock — ${selectedOutlet}</title><style>
+      @page { margin: 15mm; }
+      body { font-family: 'Segoe UI',Arial,sans-serif; font-size: 14px; color: #000; }
+      h1 { font-size: 22px; text-align: center; margin-bottom: 4px; }
+      h2 { font-size: 15px; text-align: center; font-weight: normal; margin-top: 0; color: #555; }
+      table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+      th { background: #222; color: #fff; padding: 8px 6px; font-size: 13px; text-align: left; }
+      td { padding: 6px; border-bottom: 1px solid #ccc; font-size: 13px; }
+      tr:nth-child(even) td { background: #f5f5f5; }
+    </style></head><body>`);
+    w.document.write(`<h1>Available Stock</h1><h2>${selectedOutlet}</h2>`);
+    w.document.write(`<p style="text-align:right;font-size:12px;color:#888;">${new Date().toLocaleString()}</p>`);
+    w.document.write('<table><thead><tr><th>Product Name</th><th>Color</th><th>Size</th><th>Qty</th></tr></thead><tbody>');
+    available.forEach(i => {
+      w.document.write(`<tr><td>${i.name || ''}</td><td>${i.color || ''}</td><td>${i.size || ''}</td><td>${i.stock || 0}</td></tr>`);
+    });
+    w.document.write('</tbody></table></body></html>');
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 300);
   };
 
   const handleExportJSON = async () => {
@@ -593,6 +621,10 @@ const ManagementInventory = () => {
             <button onClick={handleDownloadAvailable}
               className="flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white font-black px-4 py-3 rounded-xl text-sm">
               <Download size={16} />Avail Stock
+            </button>
+            <button onClick={handlePrintAvailable}
+              className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white font-black px-4 py-3 rounded-xl text-sm">
+              <Printer size={16} />Print Avail
             </button>
             <button onClick={() => backupJsonRef.current?.click()} disabled={backupLoading}
               className="flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white font-black px-4 py-3 rounded-xl text-sm disabled:opacity-50">
