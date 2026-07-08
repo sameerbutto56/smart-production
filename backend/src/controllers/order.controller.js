@@ -2164,15 +2164,19 @@ const getOutletAnalytics = async (req, res) => {
     }
 
     const orderWhere = { ...dateFilter };
-    if (outletName) orderWhere.outletName = outletName;
+    // Use contains for flexible outlet matching (frontend sends 'ONLINE', DB has 'ONLINE ORDER')
+    if (outletName) orderWhere.outletName = { contains: outletName, mode: 'insensitive' };
 
-    const [totalOrders, completedOrders, pendingOrders, inProgressOrders, cancelledOrders, revenueAgg, outletNames] = await Promise.all([
+    const NOT_COMPLETED = ['CANCELLED', 'REJECTED'];
+    const ACTIVE_STATUSES = ['PENDING', 'WAITING_PAYMENT', 'IN_PROGRESS'];
+
+    const [totalOrders, completedOrders, cancelledOrders, inProgressOrders, pendingOrders, revenueAgg, outletNames] = await Promise.all([
       prisma.order.count({ where: orderWhere }),
       prisma.order.count({ where: { ...orderWhere, status: 'COMPLETED' } }),
-      prisma.order.count({ where: { ...orderWhere, status: 'PENDING' } }),
+      prisma.order.count({ where: { ...orderWhere, status: { in: NOT_COMPLETED } } }),
       prisma.order.count({ where: { ...orderWhere, status: 'IN_PROGRESS' } }),
-      prisma.order.count({ where: { ...orderWhere, status: { in: ['CANCELLED', 'REJECTED'] } } }),
-      prisma.order.aggregate({ where: { ...orderWhere, status: { in: ['COMPLETED', 'DELIVERED'] } }, _sum: { totalPrice: true }, _avg: { totalPrice: true } }),
+      prisma.order.count({ where: { ...orderWhere, status: { in: ['PENDING', 'WAITING_PAYMENT'] } } }),
+      prisma.order.aggregate({ where: { ...orderWhere, status: 'COMPLETED' }, _sum: { totalPrice: true }, _avg: { totalPrice: true } }),
       outletName ? Promise.resolve([]) : prisma.order.groupBy({
         by: ['outletName'],
         _count: { id: true },
@@ -2181,10 +2185,9 @@ const getOutletAnalytics = async (req, res) => {
       })
     ]);
 
-    // Recent orders for the outlet
     const recentOrders = await prisma.order.findMany({
       where: orderWhere,
-      select: { id: true, orderNumber: true, customerName: true, totalPrice: true, status: true, priority: true, createdAt: true, outletName: true },
+      select: { id: true, orderNumber: true, customerName: true, totalPrice: true, status: true, paymentStatus: true, priority: true, createdAt: true, outletName: true },
       orderBy: { createdAt: 'desc' },
       take: 20
     });
@@ -2203,6 +2206,7 @@ const getOutletAnalytics = async (req, res) => {
       recentOrders
     });
   } catch (error) {
+    console.error('[getOutletAnalytics] Error:', error);
     res.status(500).json({ message: 'Error fetching outlet analytics', error: error.message });
   }
 };

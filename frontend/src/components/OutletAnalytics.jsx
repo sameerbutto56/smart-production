@@ -8,7 +8,7 @@ const BRANCHES = [
   { value: 'JOHAR TOWN BRANCH', label: 'Johar Town Branch' },
   { value: 'ABBOTTABAD BRANCH', label: 'Abbottabad Branch' },
   { value: 'JAIL ROAD BRANCH', label: 'Jail Road Branch' },
-  { value: 'ONLINE', label: 'Online System' },
+  { value: 'ONLINE ORDER', label: 'Online System' },
 ];
 
 const OutletAnalytics = () => {
@@ -68,6 +68,7 @@ const OutletAnalytics = () => {
 
       <div className="flex flex-wrap items-center gap-2">
         {[
+          { key: 'all', label: 'All Time' },
           { key: 'week', label: 'Weekly' },
           { key: 'month', label: 'Monthly' },
         ].map(r => (
