@@ -379,7 +379,7 @@ const updateVariant = async (req, res) => {
 /* ─── Sales ─── */
 const createSale = async (req, res) => {
   try {
-    const { items, customerName, customerPhone, extraCharges, discountPercent, discountFixed, paymentMethod, advanceAmount, cardChargesPct, orderId, receiptNumber: manualReceipt, cashierName } = req.body;
+    const { items, customerName, customerPhone, extraCharges, discountPercent, discountFixed, paymentMethod, advanceAmount, cardChargesPct, orderId, receiptNumber: manualReceipt, cashierName, faisalTake } = req.body;
     if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'At least one item is required' });
 
     const outletName = getOutletName(req);
@@ -440,6 +440,8 @@ const createSale = async (req, res) => {
     const cardChargesAmount = (netAfterItems * cardPct) / 100;
     const grandTotal = netAfterGlobal + cardChargesAmount;
 
+    const isFaisalTake = faisalTake === true || faisalTake === 'true';
+
     const sale = await prisma.$transaction(async (tx) => {
       for (const si of saleItems) {
         await tx.outletInventory.update({
@@ -459,17 +461,19 @@ const createSale = async (req, res) => {
           outletName,
           cashierName: cashierName || req.user?.name || 'Cashier',
           customerName: customerName || null,
-          subtotal,
-          alterationCharges: totalAlt,
-          discountPercent: globalPct,
-          discountAmount,
-          grandTotal,
-          advanceAmount: parseFloat(advanceAmount || 0),
-          orderId: orderId || null,
-          cardChargesPct: cardPct,
-          cardChargesAmount,
-          paymentMethod: paymentMethod || 'CASH',
-          items: { create: saleItems }
+          subtotal: isFaisalTake ? 0 : subtotal,
+          alterationCharges: isFaisalTake ? 0 : totalAlt,
+          discountPercent: isFaisalTake ? 0 : globalPct,
+          discountAmount: isFaisalTake ? 0 : discountAmount,
+          grandTotal: isFaisalTake ? 0 : grandTotal,
+          advanceAmount: isFaisalTake ? 0 : (parseFloat(advanceAmount || 0)),
+          orderId: isFaisalTake ? null : (orderId || null),
+          cardChargesPct: isFaisalTake ? 0 : cardPct,
+          cardChargesAmount: isFaisalTake ? 0 : cardChargesAmount,
+          paymentMethod: isFaisalTake ? 'FAISAL_TAKE' : (paymentMethod || 'CASH'),
+          faisalTake: isFaisalTake,
+          faisalTakenAt: isFaisalTake ? new Date() : null,
+          items: { create: saleItems.map(si => ({ ...si, lineTotal: isFaisalTake ? 0 : si.lineTotal })) }
         },
         include: { items: true }
       });
@@ -565,7 +569,7 @@ const getSalesDashboard = async (req, res) => {
       }
     }
 
-    const whereClause = {};
+    const whereClause = { faisalTake: false };
     if (outlet) {
       whereClause.outletName = outlet;
     }
@@ -734,10 +738,21 @@ const getSalesDashboard = async (req, res) => {
       orderId: ps.orderId
     }));
 
+    // 8. Faisal Takes — products taken by Faisal (not sales)
+    const faisalTakes = await prisma.posSale.findMany({
+      where: { ...whereClause, faisalTake: true },
+      select: {
+        id: true, receiptNumber: true, cashierName: true, createdAt: true, faisalTakenAt: true,
+        items: { select: { productName: true, quantity: true, size: true, color: true, unitPrice: true } }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+
     const result = {
       totalSales,
       totalOrders,
-      completedOrders: totalOrders + completedOrders, // POS + main table completed
+      completedOrders: totalOrders + completedOrders,
       pendingOrders,
       cancelledOrders,
       returnedOrders: totalReturns,
@@ -750,7 +765,8 @@ const getSalesDashboard = async (req, res) => {
       bestSellingProducts,
       branchPerformance,
       reportData,
-      outletName: outlet || 'All Branches'
+      outletName: outlet || 'All Branches',
+      faisalTakes
     };
 
     if (!skip) {

@@ -100,6 +100,7 @@ const OutletPOS = () => {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [lastSale, setLastSale] = useState(null);
   const [lookedUpOrder, setLookedUpOrder] = useState(null);
+  const [faisalTake, setFaisalTake] = useState(false);
   const [tab, setTab] = useState('pos');
   const [barcodeInput, setBarcodeInput] = useState('');
   const barcodeRef = useRef(null);
@@ -284,7 +285,7 @@ const OutletPOS = () => {
   const netBeforeGlobal = subtotal - perItemDiscount + altCharges + custCharges;
   const globalDiscountAmt = netBeforeGlobal * discountPct / 100 + discountFixed;
   const cardChargesAmt = paymentMethod === 'CARD' ? (netBeforeGlobal * cardChargesPct) / 100 : 0;
-  const grandTotal = netBeforeGlobal - globalDiscountAmt + cardChargesAmt;
+  const grandTotal = faisalTake ? 0 : (netBeforeGlobal - globalDiscountAmt + cardChargesAmt);
 
   /* ─── Barcode Scan ─── */
   useEffect(() => {
@@ -448,11 +449,29 @@ const OutletPOS = () => {
       paymentMethod,
       receiptNumber: orderNumber || undefined,
       outlet: selectedOutlet,
-      cashierName: employeeName
+      cashierName: employeeName,
+      faisalTake
     };
     setCheckoutLoading(true);
     try {
       const res = await api.post(`/api/pos/sales?outlet=${selectedOutlet}`, payload);
+      if (faisalTake) {
+        setCart([]);
+        setDiscountPct(0);
+        setDiscountFixed(0);
+        setAdvanceAmount(0);
+        setCardChargesPct(0);
+        setLookedUpOrder(null);
+        setCustomerName('');
+        setCustomerPhone('');
+        setOrderNumber('');
+        setFaisalTake(false);
+        refreshProducts();
+        refreshDashboard();
+        toast.success('Faisal Take recorded!');
+        setCheckoutLoading(false);
+        return;
+      }
       setLastSale(res.data);
       setShowCheckout(true);
       setCart([]);
@@ -1242,6 +1261,36 @@ const OutletPOS = () => {
                 )}
               </div>
 
+              {/* Faisal Takes — products taken by Faisal (not sales) */}
+              <div className="bg-gray-900 border border-amber-800/50 rounded-2xl p-4">
+                <h3 className="text-xs font-black text-amber-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                  <Package size={14} />
+                  Faisal Takes
+                </h3>
+                {dashboard.faisalTakes && dashboard.faisalTakes.length > 0 ? (
+                <div className="space-y-2 max-h-72 overflow-y-auto">
+                  {dashboard.faisalTakes.map(ft => (
+                    <div key={ft.id} className="bg-gray-950 p-2.5 rounded-xl border border-gray-800 text-xs">
+                      <div className="flex items-center justify-between">
+                        <p className="font-black text-amber-300">{ft.cashierName || 'Faisal'}</p>
+                        <p className="text-[9px] text-gray-500">{new Date(ft.faisalTakenAt || ft.createdAt).toLocaleString()}</p>
+                      </div>
+                      <div className="mt-1.5 space-y-0.5">
+                        {ft.items && ft.items.map((item, idx) => (
+                          <div key={idx} className="flex items-center justify-between text-[10px] text-gray-400">
+                            <span>{item.productName} {item.size ? `(${item.size})` : ''} {item.color ? `[${item.color}]` : ''}</span>
+                            <span className="font-bold text-white">x{item.quantity}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                ) : (
+                  <p className="text-center text-gray-500 font-bold py-4 text-xs">No Faisal Take records in this range</p>
+                )}
+              </div>
+
             {/* Recent Sales list */}
               <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
                 <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Recent Sales Transactions</h3>
@@ -1406,6 +1455,18 @@ const OutletPOS = () => {
             )}
           </div>
 
+          {/* Faisal Take toggle */}
+          <div className="px-3 pt-1 pb-0 flex-shrink-0">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <div onClick={() => { if (cart.length > 0 && !faisalTake && !window.confirm('Enable Faisal Take? All prices will be set to 0.')) return; setFaisalTake(!faisalTake); }}
+                className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${faisalTake ? 'bg-amber-500 border-amber-500' : 'border-gray-600 bg-gray-800'}`}>
+                {faisalTake && <span className="text-white text-[10px] font-black">✓</span>}
+              </div>
+              <span className={`text-[10px] font-black uppercase tracking-widest ${faisalTake ? 'text-amber-400' : 'text-gray-600'}`}>
+                Faisal Take {faisalTake ? '(ON — prices excluded)' : ''}
+              </span>
+            </label>
+          </div>
           <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
             {cart.map((item, i) => (
               <div key={i} className="bg-gray-800/60 rounded-xl border border-gray-700/50 p-2.5">
@@ -1575,7 +1636,7 @@ const OutletPOS = () => {
               )}
               <button onClick={handleCheckout} disabled={cart.length === 0 || checkoutLoading || !employeeLoggedIn}
                 className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2 mt-2">
-                {checkoutLoading ? 'Processing...' : !employeeLoggedIn ? 'Login Employee First' : lookedUpOrder ? `Pay Balance ${formatCurrency(grandTotal)}` : `Checkout ${formatCurrency(grandTotal)}`}
+                {checkoutLoading ? 'Processing...' : !employeeLoggedIn ? 'Login Employee First' : faisalTake ? 'Record Faisal Take' : lookedUpOrder ? `Pay Balance ${formatCurrency(grandTotal)}` : `Checkout ${formatCurrency(grandTotal)}`}
               </button>
               <div className="flex gap-2">
                 <button onClick={() => setTab('dashboard')} className="flex-1 text-[10px] font-bold text-gray-500 hover:text-white bg-gray-800 py-2 rounded-xl text-center">Dashboard</button>
