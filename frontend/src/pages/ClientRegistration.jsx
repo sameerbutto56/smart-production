@@ -112,9 +112,9 @@ const ClientRegistration = () => {
         alert('Client updated successfully');
       } else {
         const res = await api.post('/api/clients', payload);
+        setForm(f => ({ ...f, clientNumber: res.data.clientNumber || '' }));
         setClients([res.data, ...clients]);
-        resetForm();
-        alert('Client registered successfully');
+        alert(`Client registered! Number: ${res.data.clientNumber || 'N/A'}`);
       }
     } catch (err) {
       alert(err.response?.data?.message || 'Error saving client');
