@@ -705,6 +705,44 @@ const OutletPOS = () => {
     toast.success('Excel downloaded');
   }, [sales, receiptSearch, selectedOutlet]);
 
+  const downloadDashboardExcel = useCallback(() => {
+    if (!dashboard) return toast.error('No dashboard data to export');
+    const kpiRows = [
+      { Metric: 'Total Sales', Value: dashboard.totalSales || 0 },
+      { Metric: 'Net Revenue', Value: dashboard.netRevenue || 0 },
+      { Metric: 'Total Discount', Value: dashboard.totalDiscount || 0 },
+      { Metric: 'Returned Orders', Value: dashboard.returnedOrders || 0 },
+      { Metric: 'Completed Orders', Value: dashboard.completedOrders || 0 },
+      { Metric: 'Pending Orders', Value: dashboard.pendingOrders || 0 },
+      { Metric: 'Cancelled Orders', Value: dashboard.cancelledOrders || 0 },
+    ];
+    const paymentRows = (dashboard.paymentBreakdown || []).map(p => ({
+      Method: p.method,
+      Gross: p.gross || 0,
+      Returns: p.returns || 0,
+      Net: p.net || 0
+    }));
+    const productRows = (dashboard.bestSellingProducts || []).map(p => ({
+      Product: p.name,
+      Sold: p.qty
+    }));
+    const balanceRows = (dashboard.balanceOrders || []).map(bo => ({
+      Receipt: bo.receiptNumber,
+      Customer: bo.customerName || '',
+      Payment: bo.paymentMethod || '',
+      'POS Paid': bo.paid || 0,
+      Advance: bo.advanceAmount || 0,
+      'Total Paid': bo.totalWithAdvance || 0
+    }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(kpiRows), 'KPIs');
+    if (paymentRows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(paymentRows), 'Payment Breakdown');
+    if (productRows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(productRows), 'Top Products');
+    if (balanceRows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(balanceRows), 'Balance Orders');
+    XLSX.writeFile(wb, `dashboard_${selectedOutlet}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast.success('Dashboard Excel downloaded');
+  }, [dashboard, selectedOutlet]);
+
   if (tab === 'history') {
     const filteredSales = receiptSearch
       ? sales.filter(s => s.receiptNumber?.toLowerCase().includes(receiptSearch.toLowerCase()))
@@ -968,10 +1006,13 @@ const OutletPOS = () => {
               Outlet: {selectedOutlet}
             </p>
           </div>
-          <button onClick={() => setTab('pos')} className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center gap-1.5 self-start">
-            <ShoppingCart size={14} />
-            Back to POS Register
-          </button>
+          <div className="flex gap-2">
+            <button onClick={downloadDashboardExcel} className="bg-green-700 hover:bg-green-600 text-white font-bold py-2 px-3 rounded-xl text-xs flex items-center gap-1.5"><Download size={14} />Excel</button>
+            <button onClick={() => setTab('pos')} className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center gap-1.5">
+              <ShoppingCart size={14} />
+              Back to POS Register
+            </button>
+          </div>
         </div>
 
         {/* Date Filters */}
