@@ -461,6 +461,7 @@ const createSale = async (req, res) => {
           outletName,
           cashierName: cashierName || req.user?.name || 'Cashier',
           customerName: customerName || null,
+          customerPhone: customerPhone || null,
           subtotal: isFaisalTake ? 0 : subtotal,
           alterationCharges: isFaisalTake ? 0 : totalAlt,
           discountPercent: isFaisalTake ? 0 : globalPct,

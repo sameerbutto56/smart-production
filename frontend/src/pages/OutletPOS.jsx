@@ -420,6 +420,7 @@ const OutletPOS = () => {
   const handleCheckout = useCallback(async () => {
     if (cart.length === 0) return;
     if (!employeeLoggedIn) return toast.error('Please select employee and enter password first');
+    if (!faisalTake && !customerPhone.trim()) return toast.error('Customer phone is required');
     // Fetch fresh stock before checkout to avoid stale-cache rejections
     let stockData;
     try {
@@ -440,6 +441,7 @@ const OutletPOS = () => {
     const payload = {
       items: cart.map(i => ({ variantId: i.variantId, quantity: i.qty, unitPrice: i.unitPrice, alterationCharges: i.alterationAmount, discountPct: parseFloat(i.discountPct) || 0, discountFixed: parseFloat(i.discountFixed) || 0, customization1: i.customization1 || false, customization2: i.customization2 || false, nameEngrave: i.nameEngrave || false, otherCharges: parseFloat(i.otherCharges) || 0 })),
       customerName: customerName || null,
+      customerPhone: customerPhone || null,
       extraCharges: 0,
       discountPercent: discountPct,
       discountFixed: discountFixed,
@@ -1573,7 +1575,7 @@ const OutletPOS = () => {
               )}
               <input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Customer name (optional)"
                 className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
-              <input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="Customer phone (optional)"
+              <input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="Customer phone *required"
                 className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
               <div className="flex items-center justify-between bg-gray-800/50 rounded-lg px-3 py-2">
                 <label className="text-[10px] font-bold text-gray-400">Advance ₨</label>
