@@ -200,6 +200,27 @@ const ManagementInventory = () => {
   const backupExcelRef = React.useRef(null);
   const [backupLoading, setBackupLoading] = useState(false);
 
+  /* ─── Download Available Stock (CSV) ─── */
+  const handleDownloadAvailable = () => {
+    const available = items.filter(i => (i.stock || 0) >= 1);
+    if (available.length === 0) return toast.error('No products in stock');
+    const rows = [['Product Name', 'Color', 'Size', 'Quantity']];
+    available.forEach(i => {
+      rows.push([i.name || '', i.color || '', i.size || '', i.stock || 0]);
+    });
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${selectedOutlet.replace(/\s+/g, '_')}_available_stock.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    toast.success('Available stock downloaded!');
+  };
+
   const handleExportJSON = async () => {
     try {
       setBackupLoading(true);
@@ -568,6 +589,10 @@ const ManagementInventory = () => {
             <button onClick={handleExportExcel} disabled={backupLoading}
               className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black px-4 py-3 rounded-xl text-sm disabled:opacity-50">
               <Download size={16} />Export Excel
+            </button>
+            <button onClick={handleDownloadAvailable}
+              className="flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white font-black px-4 py-3 rounded-xl text-sm">
+              <Download size={16} />Avail Stock
             </button>
             <button onClick={() => backupJsonRef.current?.click()} disabled={backupLoading}
               className="flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white font-black px-4 py-3 rounded-xl text-sm disabled:opacity-50">
