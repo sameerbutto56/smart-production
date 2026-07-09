@@ -32,7 +32,7 @@ const DESTINATION_STAGES = {
 
 const createOutletOrder = async (req, res) => {
   try {
-    const { clientNumber, customerName, customerPhone, address, city, notes, products, engravingRequired, engravingText, engravingInstructions, sizeData, advanceAmount, orderDestination } = req.body;
+    const { clientNumber, customerName, customerPhone, address, city, notes, products, engravingRequired, engravingText, engravingInstructions, logoRequired, engravingNames, engravingLogos, sizeData, advanceAmount, orderDestination } = req.body;
 
     if (!customerName) return res.status(400).json({ message: 'Customer name is required' });
     if (!products || !Array.isArray(products) || products.length === 0) return res.status(400).json({ message: 'At least one product is required' });
@@ -63,6 +63,9 @@ const createOutletOrder = async (req, res) => {
           engravingRequired: engravingRequired || false,
           engravingText: engravingText || null,
           engravingInstructions: engravingInstructions || null,
+          logoRequired: logoRequired || false,
+          engravingNames: engravingNames ? JSON.stringify(engravingNames) : null,
+          engravingLogos: engravingLogos ? JSON.stringify(engravingLogos) : null,
           orderDestination,
           advanceAmount: adv,
           totalPrice,
@@ -119,7 +122,7 @@ const lookupClientByNumber = async (req, res) => {
       where: { customerPhone: client.phone, source: 'OUTLET' },
       orderBy: { createdAt: 'desc' },
       take: 3,
-      select: { id: true, orderNumber: true, createdAt: true, productDetails: true, totalPrice: true, advanceAmount: true, currentStage: true, engravingRequired: true, engravingText: true, engravingInstructions: true, instructionNotes: true, orderDestination: true }
+      select: { id: true, orderNumber: true, createdAt: true, productDetails: true, totalPrice: true, advanceAmount: true, currentStage: true, engravingRequired: true, engravingText: true, engravingInstructions: true, logoRequired: true, engravingNames: true, engravingLogos: true, instructionNotes: true, orderDestination: true }
     });
     res.json({ client, recentOrders: recentOrders || [] });
   } catch (error) {

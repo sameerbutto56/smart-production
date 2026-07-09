@@ -39,6 +39,9 @@ const OutletOrderEntry = () => {
   const [engravingRequired, setEngravingRequired] = useState(false);
   const [engravingText, setEngravingText] = useState('');
   const [engravingInstructions, setEngravingInstructions] = useState('');
+  const [logoRequired, setLogoRequired] = useState(false);
+  const [engravingNames, setEngravingNames] = useState([]);
+  const [engravingLogos, setEngravingLogos] = useState([]);
 
   const [sizeData, setSizeData] = useState({});
   const [clientStandardSizes, setClientStandardSizes] = useState([]);
@@ -198,6 +201,9 @@ const OutletOrderEntry = () => {
         engravingRequired,
         engravingText: engravingText || null,
         engravingInstructions: engravingInstructions || null,
+        logoRequired,
+        engravingNames: engravingNames.length > 0 ? engravingNames : null,
+        engravingLogos: engravingLogos.length > 0 ? engravingLogos : null,
         sizeData: Object.keys(sizeData).length > 0 ? sizeData : null,
         advanceAmount: advance,
         orderDestination: destination
@@ -482,13 +488,72 @@ const OutletOrderEntry = () => {
               Engraving Required
             </label>
             {engravingRequired && (
-              <div className="space-y-3 pl-6">
+              <div className="space-y-4 pl-6">
                 <div>
                   <label className="text-xs font-bold text-gray-400 block mb-1">Engraving Text</label>
                   <input value={engravingText} onChange={e => setEngravingText(e.target.value)}
                     className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-amber-500 outline-none"
                     placeholder="Text to engrave" />
                 </div>
+                {/* Names for Engraving */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-gray-400">Names for Engraving</label>
+                    <button type="button" onClick={() => setEngravingNames(prev => [...prev, ''])}
+                      className="text-[10px] font-black text-amber-400 hover:text-amber-300 flex items-center gap-1">
+                      <Plus size={12} /> Add Name
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {engravingNames.map((name, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <input value={name} onChange={e => {
+                          const next = [...engravingNames];
+                          next[i] = e.target.value;
+                          setEngravingNames(next);
+                        }}
+                          className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white placeholder-gray-500 outline-none"
+                          placeholder={`Name ${i + 1}`} />
+                        <button onClick={() => setEngravingNames(prev => prev.filter((_, j) => j !== i))}
+                          className="text-red-400 hover:text-red-300 p-1"><X size={14} /></button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {/* Logo toggle */}
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-bold text-white cursor-pointer">
+                    <input type="checkbox" checked={logoRequired} onChange={e => setLogoRequired(e.target.checked)}
+                      className="accent-amber-500 w-5 h-5" />
+                    Add Logo
+                  </label>
+                </div>
+                {logoRequired && (
+                  <div className="pl-6">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-bold text-gray-400">Logos</label>
+                      <button type="button" onClick={() => setEngravingLogos(prev => [...prev, ''])}
+                        className="text-[10px] font-black text-amber-400 hover:text-amber-300 flex items-center gap-1">
+                        <Plus size={12} /> Add Logo
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {engravingLogos.map((logo, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <input value={logo} onChange={e => {
+                            const next = [...engravingLogos];
+                            next[i] = e.target.value;
+                            setEngravingLogos(next);
+                          }}
+                            className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white placeholder-gray-500 outline-none"
+                            placeholder={`Logo ${i + 1} description (e.g. company logo left chest)`} />
+                          <button onClick={() => setEngravingLogos(prev => prev.filter((_, j) => j !== i))}
+                            className="text-red-400 hover:text-red-300 p-1"><X size={14} /></button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label className="text-xs font-bold text-gray-400 block mb-1">Engraving Instructions</label>
                   <textarea value={engravingInstructions} onChange={e => setEngravingInstructions(e.target.value)}
@@ -591,6 +656,10 @@ const OutletOrderEntry = () => {
               <p className="text-gray-400">Phone: <span className="text-white font-black">{customer.phone}</span></p>
               <p className="text-gray-400">Products: <span className="text-white font-black">{products.length} item(s)</span></p>
               <p className="text-gray-400">Engraving: <span className="text-white font-black">{engravingRequired ? 'Yes' : 'No'}</span></p>
+              {engravingRequired && <>
+                {engravingNames.length > 0 && <p className="text-gray-400">Names: <span className="text-white font-black">{engravingNames.filter(Boolean).join(', ')}</span></p>}
+                {logoRequired && <p className="text-gray-400">Logo: <span className="text-white font-black">{engravingLogos.filter(Boolean).join(', ') || 'Yes'}</span></p>}
+              </>}
               <p className="text-gray-400">Destination: <span className="text-white font-black">{DESTINATIONS.find(d => d.value === destination)?.label || destination}</span></p>
               <div className="border-t border-gray-700 pt-2 flex justify-between text-base">
                 <span className="text-gray-400 font-bold">Total</span>
