@@ -26,11 +26,14 @@ const ClientRegistration = () => {
   const [deliveryAddresses, setDeliveryAddresses] = useState([]);
   const [expandedId, setExpandedId] = useState(null);
 
+  const STANDARD_SIZE_OPTIONS = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+
   const [form, setForm] = useState({
     name: '', gender: 'Male', phone: '',
-    permanentAddress: '',
+    permanentAddress: '', city: '',
     measurementChart: '', sizeDetails: '',
-    clientNumber: ''
+    clientNumber: '',
+    standardSizes: []
   });
 
   const [customMeasurements, setCustomMeasurements] = useState({});
@@ -60,7 +63,7 @@ const ClientRegistration = () => {
   };
 
   const resetForm = () => {
-    setForm({ name: '', gender: 'Male', phone: '', permanentAddress: '', measurementChart: '', sizeDetails: '', clientNumber: '' });
+    setForm({ name: '', gender: 'Male', phone: '', permanentAddress: '', city: '', measurementChart: '', sizeDetails: '', clientNumber: '', standardSizes: [] });
     setCustomMeasurements({});
     setExtraMeasurements([]);
     setAdditionalPhones([]);
@@ -167,9 +170,11 @@ const ClientRegistration = () => {
       gender: client.gender || 'Male',
       phone: client.phone || '',
       permanentAddress: client.permanentAddress || '',
+      city: client.city || '',
       measurementChart: client.measurementChart || '',
       sizeDetails: client.sizeDetails || '',
-      clientNumber: client.clientNumber || ''
+      clientNumber: client.clientNumber || '',
+      standardSizes: client.standardSizes || []
     });
     if (client.sizeDetails && typeof client.sizeDetails === 'string' && client.sizeDetails.startsWith('{')) {
       try {
@@ -296,8 +301,14 @@ const ClientRegistration = () => {
           <div className="glass p-4 md:p-6 rounded-2xl border-2 theme-border space-y-4">
             <h2 className="text-sm font-black theme-text-primary uppercase tracking-widest flex items-center gap-2"><MapPin size={14} />Address Information</h2>
             <div>
-              <label className="text-xs font-bold theme-text-secondary block mb-1">Permanent Address</label>
-              <textarea name="permanentAddress" value={form.permanentAddress} onChange={handleChange} rows={2}
+                <label className="text-xs font-bold theme-text-secondary block mb-1">City</label>
+                <input name="city" value={form.city} onChange={handleChange}
+                  className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none"
+                  placeholder="City" />
+              </div>
+            <div>
+                <label className="text-xs font-bold theme-text-secondary block mb-1">Permanent Address</label>
+                <textarea name="permanentAddress" value={form.permanentAddress} onChange={handleChange} rows={2}
                 className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none resize-none"
                 placeholder="Permanent address" />
             </div>
@@ -387,6 +398,29 @@ const ClientRegistration = () => {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Standard Sizes */}
+          <div className="glass p-4 md:p-6 rounded-2xl border-2 theme-border space-y-3">
+            <h2 className="text-sm font-black theme-text-primary uppercase tracking-widest flex items-center gap-2"><Ruler size={14} />Standard Sizes</h2>
+            <p className="text-xs font-bold text-gray-500">Select standard garment sizes for this customer.</p>
+            <div className="flex flex-wrap gap-2">
+              {STANDARD_SIZE_OPTIONS.map(s => (
+                <button key={s} type="button" onClick={() => {
+                  const copy = [...(form.standardSizes || [])];
+                  const idx = copy.indexOf(s);
+                  if (idx >= 0) copy.splice(idx, 1); else copy.push(s);
+                  setForm({ ...form, standardSizes: copy });
+                }}
+                  className={`px-4 py-2 text-xs font-black rounded-xl border-2 transition-all ${
+                    (form.standardSizes || []).includes(s)
+                      ? 'bg-blue-600 border-blue-500 text-white'
+                      : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white'
+                  }`}>
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Outlet selection for admin */}

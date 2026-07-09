@@ -121,7 +121,7 @@ const lookupClientByNumber = async (req, res) => {
       take: 3,
       select: { id: true, orderNumber: true, createdAt: true, productDetails: true, totalPrice: true, advanceAmount: true, currentStage: true, engravingRequired: true, engravingText: true, engravingInstructions: true, instructionNotes: true, orderDestination: true }
     });
-    res.json({ client, recentOrders });
+    res.json({ client, recentOrders: recentOrders || [] });
   } catch (error) {
     res.status(500).json({ message: 'Error looking up client', error: error.message });
   }
@@ -142,7 +142,7 @@ const saveUnregisteredClient = async (req, res) => {
     const existing = await prisma.client.findUnique({ where: { clientNumber: number } });
     if (existing) return res.status(409).json({ message: 'Client number already exists' });
     const client = await prisma.client.create({
-      data: { clientNumber: number, name: customerName, gender: 'Other', phone: customerPhone, permanentAddress: address || null, outletName, deliveryAddresses: city ? [city] : [], createdById: req.user?.id }
+      data: { clientNumber: number, name: customerName, gender: 'Other', phone: customerPhone, permanentAddress: address || null, city: city || null, outletName, deliveryAddresses: city ? [city] : [], createdById: req.user?.id }
     });
     res.status(201).json(client);
   } catch (error) {

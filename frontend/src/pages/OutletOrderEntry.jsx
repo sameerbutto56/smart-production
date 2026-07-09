@@ -41,6 +41,7 @@ const OutletOrderEntry = () => {
   const [engravingInstructions, setEngravingInstructions] = useState('');
 
   const [sizeData, setSizeData] = useState({});
+  const [clientStandardSizes, setClientStandardSizes] = useState([]);
 
   const [notes, setNotes] = useState('');
 
@@ -65,9 +66,16 @@ const OutletOrderEntry = () => {
         name: client.name || '',
         phone: client.phone || '',
         address: client.permanentAddress || '',
-        city: (Array.isArray(client.deliveryAddresses) ? client.deliveryAddresses[0] : '') || '',
+        city: client.city || (Array.isArray(client.deliveryAddresses) ? client.deliveryAddresses[0] : '') || '',
         notes: ''
       });
+      setClientStandardSizes(client.standardSizes || []);
+      if (client.sizeDetails && typeof client.sizeDetails === 'string' && client.sizeDetails.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(client.sizeDetails);
+          setSizeData(parsed);
+        } catch {}
+      }
       setLookedUp(true);
       setSaveAfterOrder(false);
       toast.success(`Client ${client.name} found`);
@@ -98,7 +106,7 @@ const OutletOrderEntry = () => {
   const categories = [...new Map(catalog.map(p => [p.category, p])).values()].map(p => p.category).filter(Boolean).sort();
 
   const filteredCatalog = useMemo(() => {
-    if (!selectedCategory) return [];
+    if (!selectedCategory) return catalog;
     return catalog.filter(p => p.category === selectedCategory);
   }, [catalog, selectedCategory]);
 
@@ -233,6 +241,8 @@ const OutletOrderEntry = () => {
     setSaveAfterOrder(false);
     setSubmitted(false);
     setCreatedOrder(null);
+    setClientStandardSizes([]);
+    setSelectedCategory('');
   };
 
   /* ─── Render ─── */
@@ -491,6 +501,11 @@ const OutletOrderEntry = () => {
           <div className="space-y-4">
             <h2 className="text-lg font-black text-white flex items-center gap-2"><Ruler size={18} />Size Chart</h2>
             <p className="text-xs font-bold text-gray-500">Enter measurements for each product (optional).</p>
+            {clientStandardSizes.length > 0 && (
+              <div className="bg-blue-900/20 border border-blue-700 rounded-xl p-3">
+                <p className="text-xs font-bold text-blue-400">Saved Standard Sizes: {clientStandardSizes.join(', ')}</p>
+              </div>
+            )}
             {products.length === 0 ? (
               <p className="text-sm text-gray-500">No products selected. Go back and add products first.</p>
             ) : (

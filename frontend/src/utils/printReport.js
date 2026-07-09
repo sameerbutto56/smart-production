@@ -1098,6 +1098,13 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   }
   win.document.write(`</div>`);
 
+  // ─── OUTLET SOURCE LABEL ───
+  if (order.source === 'OUTLET' && order.outletName) {
+    win.document.write(`<div style="background:#7c3aed10;border:2px solid #7c3aed40;border-radius:6px;padding:6px 12px;margin-bottom:8px;text-align:center">`);
+    win.document.write(`<span style="font-size:22px;font-weight:900;color:#7c3aed;text-transform:uppercase">Source: Outlet — ${order.outletName}</span>`);
+    win.document.write(`</div>`);
+  }
+
   // ─── ORDER META BADGES ───
   win.document.write(`<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">`);
   const badgeLabels = {

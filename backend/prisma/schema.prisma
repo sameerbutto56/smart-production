@@ -463,8 +463,10 @@ model Client {
   additionalPhones Json?
   permanentAddress String?
   deliveryAddresses Json?
+  city             String?
   measurementChart String?
   sizeDetails      Json?
+  standardSizes    Json?
   outletName       String
   createdById      String?
   isActive         Boolean  @default(true)

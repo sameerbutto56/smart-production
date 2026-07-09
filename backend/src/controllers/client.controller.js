@@ -10,7 +10,7 @@ const generateClientNumber = async () => {
 
 const createClient = async (req, res) => {
   try {
-    const { name, gender, phone, additionalPhones, permanentAddress, deliveryAddresses, measurementChart, sizeDetails, outletName } = req.body;
+    const { name, gender, phone, additionalPhones, permanentAddress, deliveryAddresses, city, measurementChart, sizeDetails, standardSizes, outletName } = req.body;
     if (!name || !phone || !outletName) return res.status(400).json({ message: 'Name, phone, and outlet are required' });
     const clientNumber = await generateClientNumber();
     const client = await prisma.client.create({
@@ -19,8 +19,10 @@ const createClient = async (req, res) => {
         additionalPhones: additionalPhones || [],
         permanentAddress: permanentAddress || null,
         deliveryAddresses: deliveryAddresses || [],
+        city: city || null,
         measurementChart: measurementChart || null,
         sizeDetails: sizeDetails || null,
+        standardSizes: standardSizes || null,
         outletName,
         createdById: req.user?.id || null
       }
@@ -75,7 +77,7 @@ const getClientById = async (req, res) => {
 
 const updateClient = async (req, res) => {
   try {
-    const { name, gender, phone, additionalPhones, permanentAddress, deliveryAddresses, measurementChart, sizeDetails } = req.body;
+    const { name, gender, phone, additionalPhones, permanentAddress, deliveryAddresses, city, measurementChart, sizeDetails, standardSizes } = req.body;
     const client = await prisma.client.update({
       where: { id: req.params.id },
       data: {
@@ -85,8 +87,10 @@ const updateClient = async (req, res) => {
         ...(additionalPhones !== undefined && { additionalPhones }),
         ...(permanentAddress !== undefined && { permanentAddress }),
         ...(deliveryAddresses !== undefined && { deliveryAddresses }),
+        ...(city !== undefined && { city }),
         ...(measurementChart !== undefined && { measurementChart }),
-        ...(sizeDetails !== undefined && { sizeDetails })
+        ...(sizeDetails !== undefined && { sizeDetails }),
+        ...(standardSizes !== undefined && { standardSizes })
       }
     });
     res.json(client);
