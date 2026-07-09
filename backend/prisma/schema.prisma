@@ -83,6 +83,7 @@ model Order {
   orderDestination  String?    // STORE / LOGO_DESIGN / PRODUCTION
   engravingRequired Boolean   @default(false)
   engravingText     String?
+  engravingType     String?    // 'direct' or 'patch'
   engravingInstructions String?
   logoRequired      Boolean   @default(false)
   engravingNames    String?   // JSON array of names

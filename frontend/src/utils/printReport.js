@@ -901,6 +901,14 @@ function parseJSON(data) {
   try { return typeof data === 'string' ? JSON.parse(data) : data; } catch (e) { return {}; }
 }
 
+/** Normalize a cart item to its product object (handles both wrapped and flat formats) */
+const getItemProduct = (item) => {
+  if (!item) return {};
+  if (item.productDetails) return item.productDetails;
+  if (item.name || item.productType || item.fabricType) return item;
+  return {};
+};
+
 /** Format date for display */
 function fmtDate(d) {
   if (!d) return '—';
@@ -1067,7 +1075,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const rawPd = parseJSON(order.productDetails);
   const allItems = Array.isArray(rawPd) ? rawPd : null;
   const isMultiItem = allItems && allItems.length > 0;
-  const firstProduct = isMultiItem ? (allItems[0]?.productDetails || allItems[0] || {}) : (rawPd || {});
+  const firstProduct = isMultiItem ? getItemProduct(allItems[0]) : (rawPd || {});
   const custom = parseJSON(order.customization);
   const rawSizes = parseJSON(order.sizeData);
   const sizes = (rawSizes && Object.keys(rawSizes).length > 0) ? rawSizes : ({});
@@ -1146,7 +1154,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     const headers = ['#', sec.product, sec.fabricColor, sec.sizeGender, sec.qty].concat(showCap ? [sec.cap] : []).concat([sec.price]);
     win.document.write(`<table><thead><tr>${headers.map(h => '<th>' + h + '</th>').join('')}</tr></thead><tbody>`);
     allItems.forEach((item, idx) => {
-      const p = item.productDetails || {};
+      const p = getItemProduct(item);
       const capQty = showCap && p.matchingCap ? (p.matchingCapQty || 0) : (showCap && item.capCharges > 0 ? (p.femaleOptions?.cap || 0) : 0);
       win.document.write(`<tr>`);
       win.document.write(`<td style="font-weight:700">${idx + 1}</td>`);
@@ -1212,7 +1220,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       // Per-item customization (standard flow)
       if (hasAnyCustomization) {
         brandingItems.forEach((item, idx) => {
-          const p = item.productDetails || {};
+          const p = getItemProduct(item);
           const c = item.customization ? parseJSON(item.customization) : custom;
           const filteredNames = c?.articleNames?.filter(n => n?.trim()) || [];
           const hasNames = filteredNames.length > 0 || c?.nameSpelling?.trim();
@@ -1289,6 +1297,10 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
         win.document.write(`<span style="font-weight:900;font-size:22px;text-transform:uppercase;color:#7c3aed">Outlet Engraving</span>`);
         win.document.write(`</div>`);
 
+        if (order.engravingType) {
+          const etLabel = order.engravingType === 'direct' ? 'Direct Engraving' : 'Patch Engraving';
+          win.document.write(`<p style="font-size:20px;font-weight:800;color:#7c3aed;margin-bottom:4px">Type: ${etLabel}</p>`);
+        }
         if (order.engravingText) {
           win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;margin-bottom:4px">${sec.engravingType}: ${order.engravingText}</p>`);
         }
@@ -1321,14 +1333,16 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   if (orderType === 'FULL_CUSTOM' && showMeas) {
     const measItems = isMultiItem ? allItems : [{ productDetails: firstProduct, sizeData: sizes }];
     const hasAnyMeas = measItems.some(item => {
-      const s = item.sizeData || {};
+      const s = item.sizeData || sizes || {};
       return s.specialNote || Object.entries(s).some(([k, v]) => v && k !== 'specialNote');
     });
+    // Also check order-level sizes if items don't have per-item sizes
+    const orderLevelSizeData = sizes && Object.keys(sizes).length > 0;
     if (hasAnyMeas) {
       win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
       measItems.forEach((item, idx) => {
-        const p = item.productDetails || {};
-        const s = item.sizeData || {};
+        const p = getItemProduct(item);
+        const s = item.sizeData || sizes || {};
         const productSize = p.size || 'Custom';
         const allSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'C'];
         win.document.write(`<div style="margin-bottom:6px;page-break-inside:avoid">`);
@@ -1420,20 +1434,20 @@ export function printDispatchSheet(order) {
   win.document.write(`<div class="section-title" style="font-size:24px;margin-top:4px">Products</div>`);
   const rawPd = parseJSON(order.productDetails);
   const allItems = Array.isArray(rawPd) ? rawPd : null;
-  const firstProduct = allItems ? (allItems[0]?.productDetails || allItems[0] || {}) : (rawPd || {});
+  const firstProduct = allItems ? getItemProduct(allItems[0]) : (rawPd || {});
   const isMultiItem = allItems && allItems.length > 0;
 
   if (isMultiItem) {
     win.document.write(`<table><thead><tr><th>#</th><th>Product</th><th>Color / Size</th><th style="text-align:center">Qty</th><th style="text-align:right">Price</th></tr></thead><tbody>`);
     allItems.forEach((item, idx) => {
-      const p = item.productDetails || {};
+      const p = getItemProduct(item);
       const slMap = { 'full':'Full', 'half':'Half', 'three-quarter':'3 Quarter' };
       const shMap = { 'long':'Long', 'short':'Short', 'regular':'Regular' };
       const extras = [p.sleeveLength ? `Sleeve: ${slMap[p.sleeveLength] || p.sleeveLength}` : null, p.shirtLength ? `Length: ${shMap[p.shirtLength] || p.shirtLength}` : null].filter(Boolean).join(' | ');
       win.document.write(`<tr>`);
       win.document.write(`<td style="font-weight:700">${idx + 1}</td>`);
-      win.document.write(`<td style="font-weight:700">${p.productType || '—'}</td>`);
-      win.document.write(`<td>${[p.fabricType, p.color, p.size, p.gender].filter(Boolean).join(' • ')}${extras ? ` • ${extras}` : ''}</td>`);
+      win.document.write(`<td style="font-weight:700">${p.productType || p.name || '—'}</td>`);
+      win.document.write(`<td>${[p.fabricType, p.color, p.size, p.gender].filter(Boolean).join(' • ') || '—'}${extras ? ` • ${extras}` : ''}</td>`);
       win.document.write(`<td style="text-align:center;font-weight:700">${item.quantity || 1}</td>`);
       win.document.write(`<td style="text-align:right;font-weight:700">${currency(item.totalPrice)}</td>`);
       win.document.write(`</tr>`);
@@ -1442,8 +1456,8 @@ export function printDispatchSheet(order) {
   } else {
     win.document.write(`<table><thead><tr><th>Product</th><th>Color / Size</th><th style="text-align:center">Qty</th><th style="text-align:right">Price</th></tr></thead><tbody>`);
     win.document.write(`<tr>`);
-    win.document.write(`<td style="font-weight:700">${firstProduct.productType || '—'}</td>`);
-    win.document.write(`<td>${[firstProduct.fabricType, firstProduct.color, firstProduct.size, firstProduct.gender].filter(Boolean).join(' • ')}</td>`);
+    win.document.write(`<td style="font-weight:700">${firstProduct.productType || firstProduct.name || '—'}</td>`);
+    win.document.write(`<td>${[firstProduct.fabricType, firstProduct.color, firstProduct.size, firstProduct.gender].filter(Boolean).join(' • ') || '—'}</td>`);
     win.document.write(`<td style="text-align:center;font-weight:700">${order.quantity || 1}</td>`);
     win.document.write(`<td style="text-align:right;font-weight:700">${currency(order.totalPrice)}</td>`);
     win.document.write(`</tr></tbody></table>`);

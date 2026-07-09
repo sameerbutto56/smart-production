@@ -1130,6 +1130,11 @@ const AllOrders = () => {
                       <section className="bg-purple-600/5 p-4 md:p-8 rounded-[2rem] border border-purple-500/10 mt-4">
                         <h4 className="text-xs md:text-sm font-black text-purple-400 uppercase tracking-[0.3em] mb-6">ENGRAVING</h4>
                         <div className="space-y-3">
+                          {selectedOrder.engravingType && (
+                            <p className="text-purple-400 font-black text-xs uppercase tracking-wider">
+                              Type: {selectedOrder.engravingType === 'direct' ? 'Direct Engraving' : 'Patch Engraving'}
+                            </p>
+                          )}
                           {selectedOrder.engravingText && <p className="text-white font-bold">{selectedOrder.engravingText}</p>}
                           {en.length > 0 && (
                             <div>

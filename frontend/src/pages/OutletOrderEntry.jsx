@@ -40,6 +40,7 @@ const OutletOrderEntry = () => {
 
   const [engravingRequired, setEngravingRequired] = useState(false);
   const [engravingText, setEngravingText] = useState('');
+  const [engravingType, setEngravingType] = useState('direct');
   const [engravingInstructions, setEngravingInstructions] = useState('');
   const [logoRequired, setLogoRequired] = useState(false);
   const [engravingNames, setEngravingNames] = useState([]);
@@ -233,6 +234,7 @@ const OutletOrderEntry = () => {
         })),
         engravingRequired,
         engravingText: engravingText || null,
+        engravingType: engravingType || null,
         engravingInstructions: engravingInstructions || null,
         logoRequired,
         engravingNames: engravingNames.length > 0 ? engravingNames : null,
@@ -544,6 +546,21 @@ const OutletOrderEntry = () => {
             </label>
             {engravingRequired && (
               <div className="space-y-4 pl-6">
+                <div>
+                  <label className="text-xs font-bold text-gray-400 block mb-1">Engraving Type</label>
+                  <div className="flex gap-2">
+                    {['direct', 'patch'].map(type => (
+                      <button key={type} type="button" onClick={() => setEngravingType(type)}
+                        className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all border-2 ${
+                          engravingType === type
+                            ? 'bg-amber-500/20 text-amber-400 border-amber-500'
+                            : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-600'
+                        }`}>
+                        {type === 'direct' ? 'Direct Engraving' : 'Patch Engraving'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div>
                   <label className="text-xs font-bold text-gray-400 block mb-1">Engraving Text</label>
                   <input value={engravingText} onChange={e => setEngravingText(e.target.value)}
