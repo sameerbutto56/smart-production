@@ -51,6 +51,9 @@ const OutletOrderEntry = () => {
   const [sizeData, setSizeData] = useState({});
   const [clientStandardSizes, setClientStandardSizes] = useState([]);
   const [clientMeasurements, setClientMeasurements] = useState({});
+  const [sizingMode, setSizingMode] = useState(null); // 'standard' | 'custom' | null
+  const [selectedStandardSize, setSelectedStandardSize] = useState('');
+  const [clientMeasurementChart, setClientMeasurementChart] = useState('');
 
   const FIELD_NAME_MAP = {
     chest: 'Chest', waist: 'Waist', shoulder: 'Shoulder',
@@ -81,49 +84,80 @@ const OutletOrderEntry = () => {
       city: client.city || (Array.isArray(client.deliveryAddresses) ? client.deliveryAddresses[0] : '') || '',
       notes: ''
     });
-    setClientStandardSizes(client.standardSizes || []);
-    // Load measurements: flat (Client Registration) or per-product (previous order)
+
+    const sizes = client.standardSizes || [];
+    const chart = client.measurementChart || '';
+    setClientStandardSizes(sizes);
+    setClientMeasurementChart(chart);
+
+    // --- Load and detect measurements ---
     let loaded = false;
+    let hasCustomFromDetails = false;
+    let hasStandardFromDetails = false;
+    let preSelectedSize = '';
+    let normalized = {};
+    setSizeData({});
     setClientMeasurements({});
+
     if (client.sizeDetails) {
-      try {
-        const raw = typeof client.sizeDetails === 'string' ? JSON.parse(client.sizeDetails) : client.sizeDetails;
-        if (raw && typeof raw === 'object' && Object.keys(raw).length > 0) {
-          // Check if already per-product format (from previous outlet order)
-          const isPerProduct = Object.values(raw).some(v => typeof v === 'object' && v !== null && !Array.isArray(v));
-          if (isPerProduct) {
-            setSizeData(raw);
-            // Also build flat clientMeasurements from first product's measurements
-            const first = Object.values(raw).find(v => typeof v === 'object' && v !== null);
-            if (first) setClientMeasurements(first);
-            loaded = true;
-          } else {
-            // Flat format from Client Registration — normalize field names
-            const normalized = {};
-            Object.keys(raw).forEach(k => {
-              const mapped = FIELD_NAME_MAP[k.toLowerCase()] || k;
-              normalized[mapped] = raw[k];
-            });
-            // Store _extra separately
-            if (raw._extra && Array.isArray(raw._extra)) {
-              normalized._extra = raw._extra;
-            }
-            setClientMeasurements(normalized);
-          }
+      const raw = typeof client.sizeDetails === 'string'
+        ? (() => { try { return JSON.parse(client.sizeDetails); } catch { return client.sizeDetails; } })()
+        : client.sizeDetails;
+
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        const { _extra, ...rest } = raw;
+        const isPerProduct = Object.values(raw).some(v => typeof v === 'object' && v !== null && !Array.isArray(v));
+
+        if (isPerProduct) {
+          setSizeData(raw);
+          const first = Object.values(raw).find(v => typeof v === 'object' && v !== null);
+          if (first) { setClientMeasurements(first); hasCustomFromDetails = Object.keys(first).filter(k => k !== '_extra').length > 0; }
+          loaded = true;
+        } else if (Object.keys(rest).length > 0) {
+          hasCustomFromDetails = true;
+          Object.keys(rest).forEach(k => {
+            const mapped = FIELD_NAME_MAP[k.toLowerCase()] || k;
+            normalized[mapped] = rest[k];
+          });
+          if (_extra && Array.isArray(_extra)) normalized._extra = _extra;
+          setClientMeasurements(normalized);
         }
-      } catch {}
+      } else if (typeof raw === 'string' && raw.trim()) {
+        // Plain string → standard size value (e.g. "XL" from Standard Size Chart)
+        hasStandardFromDetails = true;
+        preSelectedSize = raw.trim().toUpperCase();
+      }
     }
+
+    // Fallback to recent order's sizeData
     if (!loaded && orders && orders.length > 0 && orders[0].sizeData) {
       try {
         const raw = typeof orders[0].sizeData === 'string' ? JSON.parse(orders[0].sizeData) : orders[0].sizeData;
         if (raw && typeof raw === 'object' && Object.keys(raw).length > 0) {
           setSizeData(raw);
           const first = Object.values(raw).find(v => typeof v === 'object' && v !== null);
-          if (first) setClientMeasurements(first);
+          if (first) { setClientMeasurements(first); hasCustomFromDetails = true; }
           loaded = true;
         }
       } catch {}
     }
+
+    // --- Auto-detect sizing mode ---
+    const hasStandardOption = chart !== 'Custom Measurements' && (sizes.length > 0 || hasStandardFromDetails);
+    const hasCustom = hasCustomFromDetails || chart === 'Custom Measurements';
+
+    setSelectedStandardSize(preSelectedSize);
+
+    if (hasStandardOption && hasCustom) {
+      setSizingMode('standard'); // default to standard if both available
+    } else if (hasStandardOption) {
+      setSizingMode('standard');
+    } else if (hasCustom) {
+      setSizingMode('custom');
+    } else {
+      setSizingMode(null);
+    }
+
     setLookedUp(true);
     setSaveAfterOrder(false);
     toast.success(`Client ${client.name} found`);
@@ -218,25 +252,30 @@ const OutletOrderEntry = () => {
       name: prod.name,
       category: prod.category,
       color: '',
-      size: '',
+      size: sizingMode === 'standard' && selectedStandardSize ? selectedStandardSize : '',
       quantity: 1,
       unitPrice: prod.price || 0,
       _colors: colors,
       _sizes: sizes
     }]);
     // Auto-populate measurements from client's saved data
-    if (Object.keys(clientMeasurements).length > 0) {
+    if (sizingMode === 'custom' && Object.keys(clientMeasurements).length > 0) {
       setSizeData(prev => {
         const copy = { ...prev };
         const { _extra, ...rest } = clientMeasurements;
         const measurements = { ...rest };
-        // Flatten _extra into individual fields
         if (Array.isArray(_extra)) {
           _extra.forEach(e => { if (e.name && e.value) measurements[e.name] = e.value; });
         }
         copy[prod.name] = { ...(copy[prod.name] || {}), ...measurements };
         return copy;
       });
+    }
+    if (sizingMode === 'standard' && selectedStandardSize) {
+      setSizeData(prev => ({
+        ...prev,
+        [prod.name]: { ...(prev[prod.name] || {}), _standardSize: selectedStandardSize }
+      }));
     }
   };
 
@@ -357,6 +396,9 @@ const OutletOrderEntry = () => {
     setSubmitted(false);
     setCreatedOrder(null);
     setClientStandardSizes([]);
+    setSizingMode(null);
+    setSelectedStandardSize('');
+    setClientMeasurementChart('');
     setSelectedCategory('');
   };
 
@@ -720,15 +762,71 @@ const OutletOrderEntry = () => {
         {step === 4 && (
           <div className="space-y-4">
             <h2 className="text-lg font-black text-white flex items-center gap-2"><Ruler size={18} />Size Chart</h2>
-            <p className="text-xs font-bold text-gray-500">Enter measurements for each product (optional).</p>
-            {clientStandardSizes.length > 0 && (
-              <div className="bg-blue-900/20 border border-blue-700 rounded-xl p-3">
-                <p className="text-xs font-bold text-blue-400">Saved Standard Sizes: {clientStandardSizes.join(', ')}</p>
+            <p className="text-xs font-bold text-gray-500">Choose sizing method and enter or confirm measurements.</p>
+
+            {/* Sizing Mode Toggles */}
+            {products.length > 0 && (
+              <div className="flex gap-3">
+                {clientStandardSizes.length > 0 && (
+                  <button type="button" onClick={() => setSizingMode('standard')}
+                    className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all border-2 ${
+                      sizingMode === 'standard'
+                        ? 'bg-blue-600/20 text-blue-400 border-blue-500'
+                        : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-600'
+                    }`}>
+                    ☐ Standard Size{clientMeasurementChart ? ` (${clientMeasurementChart})` : ''}
+                  </button>
+                )}
+                {clientMeasurementChart === 'Custom Measurements' || Object.keys(clientMeasurements).length > 0 ? (
+                  <button type="button" onClick={() => setSizingMode('custom')}
+                    className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all border-2 ${
+                      sizingMode === 'custom'
+                        ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500'
+                        : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-600'
+                    }`}>
+                    ☐ Custom Measurements
+                  </button>
+                ) : null}
               </div>
             )}
+
             {products.length === 0 ? (
               <p className="text-sm text-gray-500">No products selected. Go back and add products first.</p>
-            ) : (
+            ) : sizingMode === 'standard' && clientStandardSizes.length > 0 ? (
+              <div className="space-y-3">
+                <div className="bg-blue-900/20 border border-blue-700 rounded-xl p-3">
+                  <p className="text-xs font-bold text-blue-400 mb-2">Select Standard Size</p>
+                  <div className="flex flex-wrap gap-2">
+                    {clientStandardSizes.map(s => (
+                      <button key={s} type="button" onClick={() => {
+                        setSelectedStandardSize(s);
+                        // Apply to all products' size field and sizeData snapshot
+                        setProducts(prev => prev.map(p => ({ ...p, size: s })));
+                        setSizeData(prev => {
+                          const copy = { ...prev };
+                          Object.keys(copy).forEach(pname => {
+                            copy[pname] = { ...(copy[pname] || {}), _standardSize: s };
+                          });
+                          return copy;
+                        });
+                      }}
+                        className={`px-5 py-3 text-sm font-black rounded-xl border-2 transition-all ${
+                          selectedStandardSize === s
+                            ? 'bg-blue-600 border-blue-500 text-white'
+                            : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white'
+                        }`}>
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                  {selectedStandardSize && (
+                    <p className="text-xs font-bold text-emerald-400 mt-3">
+                      Size {selectedStandardSize} applied to all {products.length} product(s).
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : sizingMode === 'custom' ? (
               <div className="space-y-3 max-h-80 overflow-y-auto">
                 {products.map((p, idx) => (
                   <div key={p._tempId} className="bg-gray-800 rounded-xl p-3">
@@ -737,7 +835,7 @@ const OutletOrderEntry = () => {
                       {(() => {
                         const allFields = ['Shirt Length', 'Shoulder', 'Sleeves Length', 'Sleeves Hole', 'Chest', 'Bottom', 'Waist', 'Length', 'Pancha', 'Thighs', 'Asan'];
                         const existingKeys = Object.keys(sizeData[p.name] || {});
-                        const extraKeys = existingKeys.filter(k => !allFields.includes(k) && k !== '_extra');
+                        const extraKeys = existingKeys.filter(k => !allFields.includes(k) && k !== '_extra' && k !== '_standardSize');
                         return [...allFields, ...extraKeys];
                       })().map(m => (
                         <div key={m}>
@@ -749,6 +847,33 @@ const OutletOrderEntry = () => {
                     </div>
                   </div>
                 ))}
+              </div>
+            ) : (
+              <div className="bg-gray-800 rounded-xl p-4">
+                <p className="text-sm text-gray-400">No sizing method available. No saved measurements found for this client.</p>
+                {Object.keys(sizeData).length > 0 && (
+                  <div className="mt-3 space-y-3 max-h-80 overflow-y-auto">
+                    {products.map((p, idx) => (
+                      <div key={p._tempId} className="bg-gray-800 rounded-xl p-3">
+                        <p className="text-sm font-black text-white mb-2">{p.name}</p>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                          {(() => {
+                            const allFields = ['Shirt Length', 'Shoulder', 'Sleeves Length', 'Sleeves Hole', 'Chest', 'Bottom', 'Waist', 'Length', 'Pancha', 'Thighs', 'Asan'];
+                            const existingKeys = Object.keys(sizeData[p.name] || {});
+                            const extraKeys = existingKeys.filter(k => !allFields.includes(k) && k !== '_extra' && k !== '_standardSize');
+                            return [...allFields, ...extraKeys];
+                          })().map(m => (
+                            <div key={m}>
+                              <label className="text-[10px] text-gray-500">{m}</label>
+                              <input type="text" value={sizeData[p.name]?.[m] || ''} onChange={e => setSizeData({ ...sizeData, [p.name]: { ...(sizeData[p.name] || {}), [m]: e.target.value } })}
+                                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white outline-none" placeholder="in" />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
