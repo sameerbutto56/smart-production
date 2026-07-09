@@ -487,4 +487,147 @@ const generateOrderNumberEndpoint = async (req, res) => {
   }
 };
 
-module.exports = { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint };
+const getOutletAnalytics = async (req, res) => {
+  try {
+    const outletName = getOutletName(req) || 'Unknown Outlet';
+    const { range = 'all', dateFrom, dateTo } = req.query;
+
+    const now = new Date();
+    let startDate = null;
+    let endDate = null;
+    if (dateFrom) startDate = new Date(dateFrom);
+    if (dateTo) { endDate = new Date(dateTo); endDate.setHours(23, 59, 59, 999); }
+    if (!startDate && !endDate) {
+      if (range === 'today') { startDate = new Date(now); startDate.setHours(0, 0, 0, 0); }
+      else if (range === 'yesterday') { startDate = new Date(now); startDate.setDate(startDate.getDate() - 1); startDate.setHours(0, 0, 0, 0); endDate = new Date(startDate); endDate.setHours(23, 59, 59, 999); }
+      else if (range === 'week') { startDate = new Date(now); startDate.setDate(startDate.getDate() - 7); startDate.setHours(0, 0, 0, 0); }
+      else if (range === 'month') { startDate = new Date(now); startDate.setMonth(startDate.getMonth() - 1); startDate.setHours(0, 0, 0, 0); }
+      else if (range === 'year') { startDate = new Date(now); startDate.setFullYear(startDate.getFullYear() - 1); startDate.setHours(0, 0, 0, 0); }
+    }
+
+    const dateFilter = {};
+    if (startDate) dateFilter.gte = startDate;
+    if (endDate) dateFilter.lte = endDate;
+
+    const orderWhere = { source: 'OUTLET', outletName };
+    if (startDate || endDate) orderWhere.createdAt = { ...dateFilter };
+
+    // 1. Order KPIs
+    const [totalOrders, pendingOrders, inProgressOrders, completedOrders, cancelledOrders] = await Promise.all([
+      prisma.order.count({ where: orderWhere }),
+      prisma.order.count({ where: { ...orderWhere, status: 'PENDING' } }),
+      prisma.order.count({ where: { ...orderWhere, status: 'IN_PROGRESS' } }),
+      prisma.order.count({ where: { ...orderWhere, status: 'COMPLETED' } }),
+      prisma.order.count({ where: { ...orderWhere, status: { in: ['CANCELLED', 'REJECTED'] } } })
+    ]);
+
+    // 2. Payment status breakdown
+    const [paidOrders, pendingPaymentOrders] = await Promise.all([
+      prisma.order.count({ where: { ...orderWhere, paymentStatus: 'PAID' } }),
+      prisma.order.count({ where: { ...orderWhere, paymentStatus: 'PENDING' } })
+    ]);
+
+    // 3. Order type distribution
+    const [orders, posSalesData] = await Promise.all([
+      prisma.order.findMany({
+        where: orderWhere,
+        select: { createdAt: true, totalPrice: true, paymentStatus: true, type: true }
+      }),
+      prisma.posSale.aggregate({
+        where: outletName ? { outletName, ...(startDate || endDate ? { createdAt: dateFilter } : {}) } : (startDate || endDate ? { createdAt: dateFilter } : {}),
+        _sum: { grandTotal: true, advanceAmount: true },
+        _count: true
+      })
+    ]);
+
+    // Order type distribution
+    const typeDist = {};
+    orders.forEach(o => {
+      const t = o.type || 'STANDARD';
+      typeDist[t] = (typeDist[t] || 0) + 1;
+    });
+    const orderTypeDistribution = Object.entries(typeDist).map(([name, count]) => ({ name, count }));
+
+    // 4. Daily revenue + order trends
+    const dailyTrend = {};
+    const orderTrend = {};
+    orders.forEach(o => {
+      if (o.totalPrice && o.paymentStatus === 'PAID') {
+        const day = o.createdAt.toISOString().split('T')[0];
+        dailyTrend[day] = (dailyTrend[day] || 0) + Number(o.totalPrice);
+      }
+      const day = o.createdAt.toISOString().split('T')[0];
+      orderTrend[day] = (orderTrend[day] || 0) + 1;
+    });
+
+    const salesTrend = Object.entries(dailyTrend)
+      .map(([date, revenue]) => ({ date, revenue: Math.round(revenue) }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    const ordersTrend = Object.entries(orderTrend)
+      .map(([date, count]) => ({ date, count }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    // 5. Top products from outlet orders (parse productDetails JSON)
+    const ordersWithProducts = await prisma.order.findMany({
+      where: { ...orderWhere, productDetails: { not: null } },
+      select: { productDetails: true }
+    });
+    const productCounts = {};
+    ordersWithProducts.forEach(o => {
+      try {
+        const details = typeof o.productDetails === 'string' ? JSON.parse(o.productDetails) : o.productDetails;
+        (Array.isArray(details) ? details : [details]).forEach(p => {
+          const name = p.name || p.productName || 'Unknown';
+          productCounts[name] = (productCounts[name] || 0) + (parseInt(p.quantity) || 1);
+        });
+      } catch (e) { /* skip malformed */ }
+    });
+    const topProducts = Object.entries(productCounts)
+      .map(([name, qty]) => ({ name, qty }))
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 10);
+
+    // 6. POS summary
+    const posTotal = posSalesData._sum.grandTotal || 0;
+    const posCount = posSalesData._count || 0;
+
+    // 7. Inventory overview
+    const invWhere = outletName ? { outletName } : {};
+    const inventory = await prisma.outletInventory.findMany({
+      where: invWhere,
+      select: { stock: true, name: true }
+    });
+    const inStock = inventory.filter(i => i.stock > 5).length;
+    const lowStock = inventory.filter(i => i.stock > 0 && i.stock <= 5).length;
+    const outOfStock = inventory.filter(i => i.stock === 0).length;
+
+    // Cache result for 2 minutes
+    const cacheKey = `outlet:analytics:${outletName}:${range}:${dateFrom || ''}:${dateTo || ''}`;
+    cache.set(cacheKey, {
+      orderStats: { totalOrders, pendingOrders, inProgressOrders, completedOrders, cancelledOrders },
+      paymentBreakdown: { paidOrders, pendingPaymentOrders },
+      orderTypeDistribution,
+      salesTrend,
+      ordersTrend,
+      topProducts,
+      posSummary: { totalSales: posTotal, orderCount: posCount },
+      inventoryOverview: { inStock, lowStock, outOfStock, total: inventory.length }
+    }, 120);
+
+    res.json({
+      orderStats: { totalOrders, pendingOrders, inProgressOrders, completedOrders, cancelledOrders },
+      paymentBreakdown: { paidOrders, pendingPaymentOrders },
+      orderTypeDistribution,
+      salesTrend,
+      ordersTrend,
+      topProducts,
+      posSummary: { totalSales: posTotal, orderCount: posCount },
+      inventoryOverview: { inStock, lowStock, outOfStock, total: inventory.length }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching outlet analytics', error: error.message });
+  }
+};
+
+module.exports = { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint, getOutletAnalytics };

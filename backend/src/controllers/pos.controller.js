@@ -384,17 +384,29 @@ const createSale = async (req, res) => {
 
     const outletName = getOutletName(req);
     const receiptNumber = manualReceipt || await generateReceiptNumber();
+
+    // Batch fetch all inventory variants in a single query
+    const variantIds = items.map(i => i.variantId);
+    if (variantIds.some(id => !id)) return res.status(400).json({ message: 'Each item must have a variantId' });
+    const inventoryVariants = await prisma.outletInventory.findMany({
+      where: { id: { in: variantIds } },
+      select: { id: true, stock: true, name: true, color: true, size: true, price: true }
+    });
+    const invMap = new Map(inventoryVariants.map(i => [i.id, i]));
+
     let subtotal = 0;
     let totalAlt = 0;
     let totalItemDiscount = 0;
     let netAfterItems = 0;
     const saleItems = [];
+    const stockErrors = [];
 
     for (const item of items) {
-      if (!item.variantId) return res.status(400).json({ message: 'Each item must have a variantId' });
-      const inv = await prisma.outletInventory.findUnique({ where: { id: item.variantId } });
+      const inv = invMap.get(item.variantId);
       if (!inv) return res.status(400).json({ message: `Inventory item ${item.variantId} not found for outlet ${outletName || 'unknown'}` });
-      if (inv.stock < (item.quantity || 1)) return res.status(400).json({ message: `Insufficient stock for ${inv.name} (${inv.color || ''} ${inv.size || ''}). Available: ${inv.stock}` });
+      if (inv.stock < (item.quantity || 1)) {
+        stockErrors.push(`${inv.name} (${inv.color || ''} ${inv.size || ''}). Available: ${inv.stock}`);
+      }
       const unitPrice = item.unitPrice || inv.price || 0;
       const qty = item.quantity || 1;
       const lineBase = unitPrice * qty;
@@ -431,6 +443,10 @@ const createSale = async (req, res) => {
       });
     }
 
+    if (stockErrors.length > 0) {
+      return res.status(400).json({ message: `Insufficient stock for: ${stockErrors.join('; ')}` });
+    }
+
     const globalPct = parseFloat(discountPercent || 0);
     const globalFixed = parseFloat(discountFixed || 0);
     const globalDiscountAmt = (netAfterItems * globalPct / 100) + globalFixed;
@@ -443,12 +459,15 @@ const createSale = async (req, res) => {
     const isFaisalTake = faisalTake === true || faisalTake === 'true';
 
     const sale = await prisma.$transaction(async (tx) => {
-      for (const si of saleItems) {
-        await tx.outletInventory.update({
-          where: { id: si.outletVariantId },
+      // Parallel stock updates with atomic check (no overselling)
+      await Promise.all(saleItems.map(si =>
+        tx.outletInventory.updateMany({
+          where: { id: si.outletVariantId, stock: { gte: si.quantity } },
           data: { stock: { decrement: si.quantity } }
-        });
-      }
+        }).then(result => {
+          if (result.count === 0) throw new Error(`Stock conflict for ${si.productName} - please retry`);
+        })
+      ));
       if (orderId) {
         await tx.order.update({
           where: { id: orderId },
@@ -480,7 +499,8 @@ const createSale = async (req, res) => {
       });
     });
 
-    cache.delPattern(CACHE_KEY_PREFIX);
+    // Selective cache invalidation — clear only affected caches
+    cache.delKeys(`${CACHE_KEY_PREFIX}products:${outletName}`, `${CACHE_KEY_PREFIX}inventory:${outletName}`, `${CACHE_KEY_PREFIX}inventory:all-outlets-view`, `${CACHE_KEY_PREFIX}dashboard:${outletName || 'all'}`, `${CACHE_KEY_PREFIX}sales:${outletName || 'all'}`);
     if (req.app.get('io')) req.app.get('io').emit('inventory-updated', { source: 'pos', outletName, saleId: sale.id });
     res.status(201).json(sale);
   } catch (error) {

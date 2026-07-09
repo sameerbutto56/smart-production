@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth.middleware');
-const { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint } = require('../controllers/outletOrder.controller');
+const { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint, getOutletAnalytics } = require('../controllers/outletOrder.controller');
 
 router.post('/', authenticate, createOutletOrder);
 router.get('/generate-number', authenticate, generateOrderNumberEndpoint);
@@ -13,6 +13,7 @@ router.post('/:orderId/receive', authenticate, receiveOutletReturn);
 
 // Dashboard
 router.get('/dashboard-stats', authenticate, getOutletDashboardStats);
+router.get('/analytics', authenticate, getOutletAnalytics);
 
 // Tasks
 router.get('/tasks', authenticate, getOutletTasks);
