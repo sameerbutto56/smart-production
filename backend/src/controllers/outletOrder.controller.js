@@ -1,6 +1,16 @@
 const prisma = require('../prisma');
 const cache = require('../utils/cache');
 
+const getOutletName = (req) => {
+  let name = req.user?.name || req.query.outlet || '';
+  if (!name) return null;
+  const n = name.toLowerCase();
+  if (n.includes('johar')) return 'Johar Town';
+  if (n.includes('jail')) return 'Jail Road';
+  if (n.includes('abbottabad')) return 'Abbottabad';
+  return name;
+};
+
 const generateOrderNumber = async () => {
   const prefix = 'OUT-';
   let isUnique = false;
@@ -28,7 +38,7 @@ const createOutletOrder = async (req, res) => {
     if (!products || !Array.isArray(products) || products.length === 0) return res.status(400).json({ message: 'At least one product is required' });
     if (!orderDestination || !DESTINATION_STAGES[orderDestination]) return res.status(400).json({ message: 'Order destination is required: STORE, LOGO_DESIGN, or PRODUCTION' });
 
-    const outletName = req.user?.name || 'Unknown Outlet';
+    const outletName = getOutletName(req) || 'Unknown Outlet';
     const orderNumber = await generateOrderNumber();
     const productDetails = JSON.stringify(products);
     const sizeDataStr = sizeData ? JSON.stringify(sizeData) : null;
@@ -121,7 +131,7 @@ const saveUnregisteredClient = async (req, res) => {
   try {
     const { clientNumber, customerName, customerPhone, address, city, notes } = req.body;
     if (!customerName || !customerPhone) return res.status(400).json({ message: 'Name and phone are required' });
-    const outletName = req.user?.name || 'Unknown Outlet';
+    const outletName = getOutletName(req) || 'Unknown Outlet';
     let number = clientNumber;
     if (!number) {
       const last = await prisma.client.findFirst({ where: { clientNumber: { not: null } }, orderBy: { clientNumber: 'desc' }, select: { clientNumber: true } });
@@ -142,7 +152,7 @@ const saveUnregisteredClient = async (req, res) => {
 
 const getOutletOrders = async (req, res) => {
   try {
-    const outletName = req.user?.name || 'Unknown Outlet';
+    const outletName = getOutletName(req) || 'Unknown Outlet';
     const orders = await prisma.order.findMany({
       where: { source: 'OUTLET', outletName, currentStage: { not: 'ORDER_ENTRY' } },
       orderBy: { createdAt: 'desc' },
