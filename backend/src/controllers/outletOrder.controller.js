@@ -659,7 +659,7 @@ const getOutletAnalytics = async (req, res) => {
       topProducts,
       posSummary: { totalSales: posTotal, orderCount: posCount },
       inventoryOverview: { inStock, lowStock, outOfStock, total: inventory.length }
-    }, 120);
+    }, 5);
 
     res.json({
       orderStats: { totalOrders, pendingOrders, inProgressOrders, completedOrders, cancelledOrders, totalRevenue },
