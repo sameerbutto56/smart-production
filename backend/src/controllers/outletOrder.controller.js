@@ -477,4 +477,14 @@ const inHouseDelivery = async (req, res) => {
   }
 };
 
-module.exports = { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery };
+const generateOrderNumberEndpoint = async (req, res) => {
+  try {
+    const outletName = getOutletName(req) || 'Unknown Outlet';
+    const orderNumber = await generateOrderNumber(outletName);
+    res.json({ orderNumber });
+  } catch (error) {
+    res.status(500).json({ message: 'Error generating order number', error: error.message });
+  }
+};
+
+module.exports = { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint };
