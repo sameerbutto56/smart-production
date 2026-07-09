@@ -12,8 +12,8 @@ const getOutletName = (req) => {
   return name;
 };
 
-const generateOrderNumber = async () => {
-  const prefix = 'OUT-';
+const generateOrderNumber = async (outletName) => {
+  const prefix = outletName === 'Johar Town' ? 'JT-' : outletName === 'Jail Road' ? 'JL-' : 'OUT-';
   let isUnique = false;
   let orderNumber;
   while (!isUnique) {
@@ -40,7 +40,7 @@ const createOutletOrder = async (req, res) => {
     if (!orderDestination || !DESTINATION_STAGES[orderDestination]) return res.status(400).json({ message: 'Order destination is required: STORE, LOGO_DESIGN, or PRODUCTION' });
 
     const outletName = getOutletName(req) || 'Unknown Outlet';
-    const orderNumber = await generateOrderNumber();
+    const orderNumber = await generateOrderNumber(outletName);
     // Add productType alias for backward compat with job sheet display
     const enriched = products.map(p => ({ ...p, productType: p.name }));
     const productDetails = JSON.stringify(enriched);
