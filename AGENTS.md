@@ -1,5 +1,6 @@
 ## Goal
 - Complete POS advance/balance payment flow — order lookup by phone or bill number, card charges, receipt polish, dashboard tracking for order-linked sales.
+- Auto-populate customer measurements in Outlet Order Entry with Standard Size / Custom Measurements toggles.
 
 ## Constraints & Preferences
 - QR code on receipt must encode per-outlet Google Maps review URL (not receipt data)
@@ -9,6 +10,9 @@
 - Inventory data must never be deleted or modified by any cleanup script
 - Cart panel must scroll fully so products + summary are both visible
 - Balance orders (advance + POS) must be tracked in dashboard with ORDER badge
+- Outlet Order Entry sizing mode (Standard Size vs Custom Measurements) auto-detected from client's saved profile
+- Every measurement field auto-populated for all products — user never re-enters stored measurements
+- sizeData stored as JSON snapshot on order, never overwritten by client profile updates
 
 ## Progress
 ### Done
@@ -95,6 +99,12 @@
 - **Sync queue**: Created `src/utils/syncQueue.js` — persistent IndexedDB queue for write operations.
 - **No backend files modified** — zero impact on inventory or production data.
 - **Build passes with 0 errors**.
+
+### Done (latest)
+- **Client Registration measurements updated**: Replaced old 11 custom measurement fields with Shirt group (Shirt Length, Shoulder, Sleeves Length, Sleeves Hole, Chest, Bottom) + Trouser group (Waist, Length, Pancha, Thighs, Asan) with color-coded headers and "Add More" extras preserved.
+- **Outlet Order Entry measurement auto-population**: `selectClient` rewritten to detect all 3 data shapes (per-product JSON, flat Custom Measurements JSON, plain standard-size string). `measurementChart` field used to auto-detect sizing method. Standard sizes no longer just an info banner — now functional with size selector buttons that apply to all products. Custom measurements auto-populated per-product with all 11 fields + extras.
+- **Standard Size / Custom Measurements toggles**: Two sizing mode buttons in Size Chart step. Auto-select based on client profile data. User can switch between modes. Standard size stored as `_standardSize` snapshot in `sizeData` per product.
+- **Backend write-back removed**: `createOutletOrder` no longer writes order `sizeData` back to `Client.sizeDetails` — prevents corruption of flat format.
 
 ### Done (current session)
 - **ErrorBoundary**: Now shows actual error message in production (was dev-only).
@@ -187,7 +197,7 @@
 ## Relevant Files
 - `backend/src/controllers/pos.controller.js`: `getPosInventory` now loops all 3 outlets for variant creation; new `initializeInventory` bulk endpoint; `generateBarcode` exported; `createSale` accepts `customerPhone`, `advanceAmount`, `orderId`, `cardChargesPct`; `getSalesDashboard` returns `balanceOrders`; `orderLookup` by orderNumber or phone
 - `backend/src/routes/pos.routes.js`: Added `POST /initialize-inventory` route with `authorize('STORE', 'ADMIN', 'SUPER_ADMIN')`; `GET /api/pos/order-lookup`
-- `backend/prisma/schema.prisma`: PosSale model — added `advanceAmount`, `orderId`, `cardChargesPct`, `cardChargesAmount`, `customerPhone`; added `PosBalancePayment` model
+- `backend/prisma/schema.prisma`: PosSale model — added `advanceAmount`, `orderId`, `cardChargesPct`, `cardChargesAmount`, `customerPhone`; added `PosBalancePayment` model; Client model with `measurementChart`, `sizeDetails`, `standardSizes`
 - `backend/prisma/backup-inventory.js`: backup script for inventory tables
 - `backend/src/utils/cache.js`: POS_TTL reduced 10min→2min
 - `backend/src/controllers/pos.controller.js`: Added `getBalanceInvoices`, `getInvoiceBalance`, `payBalance`, `getBalanceCollections`, `getBalancePaymentHistory`; updated `getSalesDashboard` for payment-date-based revenue
@@ -197,3 +207,5 @@
 - `frontend/src/pages/WarehouseDashboard.jsx`: Fixed `storeLoading` ReferenceError
 - `frontend/src/components/ErrorBoundary.jsx`: Error message visible in production
 - `frontend/src/pages/OutletPOS.jsx`: receipt print (QR, headings, advance/balance, card charges, phone, customer phone), cart UI (order lookup, advance input, card charges input, scroll fix, phone input), dashboard (payment cards, balance orders section, ORDER badge, Balance Collection Card, Remaining Balance section with Pay action, Pay Remaining Balance modal, Balance Payment Success/Receipt modal, Balance Payment History modal)
+- `frontend/src/pages/OutletOrderEntry.jsx`: Sizing mode auto-detection (Standard Size / Custom Measurements), `measurementChart` check, `sizeDetails` plain string detection, standard size buttons applied to all products, auto-populated custom measurements per-product, `_standardSize` snapshot in `sizeData`
+- `frontend/src/pages/ClientRegistration.jsx`: Measurement fields grouped as Shirt (6) + Trouser (5) with color-coded headers, Add More extras
