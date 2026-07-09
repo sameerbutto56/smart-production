@@ -115,20 +115,9 @@ const createOutletOrder = async (req, res) => {
       });
     });
 
-    // Save sizeData to client profile if matched (best-effort, don't block response)
-    if (clientNumber && sizeData) {
-      try {
-        const existingClient = await prisma.client.findUnique({ where: { clientNumber } });
-        if (existingClient) {
-          await prisma.client.update({
-            where: { clientNumber },
-            data: { sizeDetails: sizeData }
-          });
-        }
-      } catch (sdErr) {
-        console.error('Failed to save sizeDetails to client:', sdErr);
-      }
-    }
+    // Do NOT write back sizeData to Client.sizeDetails — the order owns its own
+    // measurement snapshot. Writing back would corrupt the flat Client Registration
+    // format with the per-product nested format.
 
     if (req.app.get('io')) req.app.get('io').emit('new-order', { orderId: order.id, orderNumber: order.orderNumber, source: 'OUTLET', outletName });
 

@@ -38,18 +38,21 @@ const ClientRegistration = () => {
 
   const [customMeasurements, setCustomMeasurements] = useState({});
 
-  const MEASUREMENT_FIELDS = [
+  const SHIRT_FIELDS = [
     { key: 'shirtLength', label: 'Shirt Length' },
-    { key: 'waist', label: 'Waist' },
     { key: 'shoulder', label: 'Shoulder' },
-    { key: 'length', label: 'Length' },
-    { key: 'sleeve', label: 'Sleeve' },
-    { key: 'bottomWidth', label: 'Bottom Width (Pancha)' },
-    { key: 'mori', label: 'Mori (Leg Opening)' },
-    { key: 'thigh', label: 'Thigh' },
+    { key: 'sleevesLength', label: 'Sleeves Length' },
+    { key: 'sleevesHole', label: 'Sleeves Hole' },
     { key: 'chest', label: 'Chest' },
-    { key: 'bottomZeer', label: 'Bottom / Hem (Zeer)' },
     { key: 'bottom', label: 'Bottom' },
+  ];
+
+  const TROUSER_FIELDS = [
+    { key: 'waist', label: 'Waist' },
+    { key: 'length', label: 'Length' },
+    { key: 'pancha', label: 'Pancha' },
+    { key: 'thighs', label: 'Thighs' },
+    { key: 'asan', label: 'Asan' },
   ];
 
   const [extraMeasurements, setExtraMeasurements] = useState([]);
@@ -366,8 +369,11 @@ const ClientRegistration = () => {
             {form.measurementChart === 'Custom Measurements' && (
               <div className="border-t-2 border-gray-700 pt-4 mt-2">
                 <p className="text-xs font-black theme-text-primary uppercase tracking-widest mb-4">Make Your Own Size (inches)</p>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {MEASUREMENT_FIELDS.map(field => (
+
+                {/* Shirt Measurements */}
+                <p className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-3">Shirt Measurements</p>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
+                  {SHIRT_FIELDS.map(field => (
                     <div key={field.key}>
                       <label className="text-[10px] font-bold theme-text-secondary block mb-1 uppercase tracking-wider">{field.label}</label>
                       <input type="text" value={customMeasurements[field.key] || ''} onChange={(e) => handleMeasurementChange(field.key, e.target.value)}
@@ -377,7 +383,20 @@ const ClientRegistration = () => {
                   ))}
                 </div>
 
-                {/* Extra Measurements */}
+                {/* Trouser Measurements */}
+                <p className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-3">Trouser Measurements</p>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
+                  {TROUSER_FIELDS.map(field => (
+                    <div key={field.key}>
+                      <label className="text-[10px] font-bold theme-text-secondary block mb-1 uppercase tracking-wider">{field.label}</label>
+                      <input type="text" value={customMeasurements[field.key] || ''} onChange={(e) => handleMeasurementChange(field.key, e.target.value)}
+                        className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl px-3 py-2.5 text-sm font-bold text-white placeholder-gray-600 focus:border-blue-500 outline-none"
+                        placeholder="in" />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add More Measurements */}
                 <div className="border-t border-gray-700 pt-4 mt-6">
                   <p className="text-xs font-bold theme-text-secondary mb-3">Additional Measurements</p>
                   <div className="space-y-2">

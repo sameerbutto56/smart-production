@@ -50,6 +50,18 @@ const OutletOrderEntry = () => {
 
   const [sizeData, setSizeData] = useState({});
   const [clientStandardSizes, setClientStandardSizes] = useState([]);
+  const [clientMeasurements, setClientMeasurements] = useState({});
+
+  const FIELD_NAME_MAP = {
+    chest: 'Chest', waist: 'Waist', shoulder: 'Shoulder',
+    length: 'Length', sleeve: 'Sleeve', thigh: 'Thigh',
+    mori: 'Mori', bottom: 'Bottom',
+    shirtLength: 'Shirt Length', bottomWidth: 'Bottom Width',
+    bottomZeer: 'Bottom Zeer', neck: 'Neck', cuff: 'Cuff',
+    armhole: 'Armhole', hip: 'Hip', trouserLength: 'Trouser Length',
+    sleevesLength: 'Sleeves Length', sleevesHole: 'Sleeves Hole',
+    pancha: 'Pancha', thighs: 'Thighs', asan: 'Asan'
+  };
 
   const [notes, setNotes] = useState('');
 
@@ -70,18 +82,46 @@ const OutletOrderEntry = () => {
       notes: ''
     });
     setClientStandardSizes(client.standardSizes || []);
-    // Load sizeDetails from client profile, fallback to last order's sizeData
+    // Load measurements: flat (Client Registration) or per-product (previous order)
     let loaded = false;
+    setClientMeasurements({});
     if (client.sizeDetails) {
       try {
         const raw = typeof client.sizeDetails === 'string' ? JSON.parse(client.sizeDetails) : client.sizeDetails;
-        if (raw && typeof raw === 'object' && Object.keys(raw).length > 0) { setSizeData(raw); loaded = true; }
+        if (raw && typeof raw === 'object' && Object.keys(raw).length > 0) {
+          // Check if already per-product format (from previous outlet order)
+          const isPerProduct = Object.values(raw).some(v => typeof v === 'object' && v !== null && !Array.isArray(v));
+          if (isPerProduct) {
+            setSizeData(raw);
+            // Also build flat clientMeasurements from first product's measurements
+            const first = Object.values(raw).find(v => typeof v === 'object' && v !== null);
+            if (first) setClientMeasurements(first);
+            loaded = true;
+          } else {
+            // Flat format from Client Registration — normalize field names
+            const normalized = {};
+            Object.keys(raw).forEach(k => {
+              const mapped = FIELD_NAME_MAP[k.toLowerCase()] || k;
+              normalized[mapped] = raw[k];
+            });
+            // Store _extra separately
+            if (raw._extra && Array.isArray(raw._extra)) {
+              normalized._extra = raw._extra;
+            }
+            setClientMeasurements(normalized);
+          }
+        }
       } catch {}
     }
     if (!loaded && orders && orders.length > 0 && orders[0].sizeData) {
       try {
         const raw = typeof orders[0].sizeData === 'string' ? JSON.parse(orders[0].sizeData) : orders[0].sizeData;
-        if (raw && typeof raw === 'object' && Object.keys(raw).length > 0) setSizeData(raw);
+        if (raw && typeof raw === 'object' && Object.keys(raw).length > 0) {
+          setSizeData(raw);
+          const first = Object.values(raw).find(v => typeof v === 'object' && v !== null);
+          if (first) setClientMeasurements(first);
+          loaded = true;
+        }
       } catch {}
     }
     setLookedUp(true);
@@ -184,6 +224,20 @@ const OutletOrderEntry = () => {
       _colors: colors,
       _sizes: sizes
     }]);
+    // Auto-populate measurements from client's saved data
+    if (Object.keys(clientMeasurements).length > 0) {
+      setSizeData(prev => {
+        const copy = { ...prev };
+        const { _extra, ...rest } = clientMeasurements;
+        const measurements = { ...rest };
+        // Flatten _extra into individual fields
+        if (Array.isArray(_extra)) {
+          _extra.forEach(e => { if (e.name && e.value) measurements[e.name] = e.value; });
+        }
+        copy[prod.name] = { ...(copy[prod.name] || {}), ...measurements };
+        return copy;
+      });
+    }
   };
 
   const updateProduct = (idx, field, value) => {
@@ -295,6 +349,7 @@ const OutletOrderEntry = () => {
     setEngravingText('');
     setEngravingInstructions('');
     setSizeData({});
+    setClientMeasurements({});
     setNotes('');
     setAdvanceAmount(0);
     setDestination('');
@@ -679,7 +734,12 @@ const OutletOrderEntry = () => {
                   <div key={p._tempId} className="bg-gray-800 rounded-xl p-3">
                     <p className="text-sm font-black text-white mb-2">{p.name}</p>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                      {['Chest', 'Waist', 'Shoulder', 'Length', 'Sleeve', 'Bottom', 'Thigh', 'Mori'].map(m => (
+                      {(() => {
+                        const allFields = ['Shirt Length', 'Shoulder', 'Sleeves Length', 'Sleeves Hole', 'Chest', 'Bottom', 'Waist', 'Length', 'Pancha', 'Thighs', 'Asan'];
+                        const existingKeys = Object.keys(sizeData[p.name] || {});
+                        const extraKeys = existingKeys.filter(k => !allFields.includes(k) && k !== '_extra');
+                        return [...allFields, ...extraKeys];
+                      })().map(m => (
                         <div key={m}>
                           <label className="text-[10px] text-gray-500">{m}</label>
                           <input type="text" value={sizeData[p.name]?.[m] || ''} onChange={e => setSizeData({ ...sizeData, [p.name]: { ...(sizeData[p.name] || {}), [m]: e.target.value } })}
