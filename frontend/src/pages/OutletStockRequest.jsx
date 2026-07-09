@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import api from '../services/api';
 import {
-  ShoppingCart, Package, Building2,
-  RefreshCcw, Search, Plus, Minus, Send, ClipboardList,
-  Warehouse, Trash2, Download
-} from 'lucide-react';
+    ShoppingCart, Package, Building2,
+    RefreshCcw, Search, Plus, Minus, Send, ClipboardList,
+    Warehouse, Trash2, Download, ArrowLeftRight, CheckCircle
+  } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -34,6 +34,13 @@ const OutletStockRequest = () => {
     activeTab === 'inventory' ? 'outlet:demand:catalog' : null,
     { fetcher: () => api.get('/api/demand/inventory').then(r => r.data), ttl: 30 * 1000 }
   );
+  // Cache-first: returned orders
+  const { data: returnedOrders = [], loading: returnsLoading, refresh: refreshReturns } = useCache(
+    activeTab === 'returns' ? 'outlet:returns' : null,
+    { fetcher: () => api.get('/api/outlet-orders/returns').then(r => r.data), ttl: 30 * 1000 }
+  );
+
+  const [receivingId, setReceivingId] = useState(null);
 
   // --- Demand Request State ---
   const [cartItems, setCartItems] = useState([]);
@@ -202,6 +209,13 @@ const OutletStockRequest = () => {
           }`}>
           <Warehouse size={14} />
           <span>Warehouse Catalog</span>
+        </button>
+        <button onClick={() => setActiveTab('returns')}
+          className={`px-4 md:px-6 py-3 text-xs font-black rounded-xl transition-all whitespace-nowrap uppercase tracking-wider flex items-center space-x-2 ${
+            activeTab === 'returns' ? 'bg-amber-600 text-white shadow-lg' : 'theme-text-muted hover:text-white hover:bg-gray-800'
+          }`}>
+          <ArrowLeftRight size={14} />
+          <span>Returns {returnedOrders.length > 0 && <span className="ml-1 bg-amber-500 text-white px-1.5 py-0.5 rounded-full">{returnedOrders.length}</span>}</span>
         </button>
       </div>
 
@@ -559,6 +573,68 @@ const OutletStockRequest = () => {
                       <p className="theme-text-muted font-black text-xs">No products found</p>
                     </div>
                   )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ======= Returns Tab ======= */}
+          {activeTab === 'returns' && (
+            <div className="space-y-6">
+              <h2 className="font-black theme-text-primary uppercase tracking-wider text-sm flex items-center space-x-2">
+                <ArrowLeftRight size={18} className="text-amber-400" />
+                <span>Returned Orders</span>
+              </h2>
+              {returnsLoading ? (
+                <div className="py-12 flex justify-center"><RefreshCcw className="animate-spin text-amber-400" size={32} /></div>
+              ) : returnedOrders.length === 0 ? (
+                <div className="text-center py-16">
+                  <Package size={48} className="mx-auto text-gray-700 mb-4" />
+                  <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No returned orders</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {returnedOrders.map((o, i) => {
+                    const items = o.productDetails || [];
+                    return (
+                      <motion.div key={o.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                        className="glass p-4 md:p-6 rounded-2xl border-2 border-amber-700/30 hover:border-amber-600/50 transition-all">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <p className="text-sm font-black theme-text-primary">#{o.orderNumber}</p>
+                            <p className="text-xs theme-text-muted">{o.customerName} {o.customerPhone && `— ${o.customerPhone}`}</p>
+                          </div>
+                          <span className="text-[10px] font-black text-amber-400 uppercase bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20">Pending Receive</span>
+                        </div>
+                        <div className="space-y-1 mb-3">
+                          {items.map((it, ii) => (
+                            <div key={ii} className="flex items-center justify-between text-xs bg-gray-800/40 rounded-lg px-3 py-1.5">
+                              <span className="font-bold text-white">{it.name}</span>
+                              <span className="text-gray-400">{it.color && `${it.color} / `}{it.size || ''} ×{it.quantity || 1}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-gray-400">{new Date(o.createdAt).toLocaleDateString()} — ₨{(o.totalPrice || 0).toLocaleString()}</p>
+                          <button onClick={async () => {
+                            setReceivingId(o.id);
+                            try {
+                              await api.post(`/api/outlet-orders/${o.id}/receive`);
+                              toast.success(`Order #${o.orderNumber} received`);
+                              refreshReturns();
+                            } catch (err) {
+                              toast.error(err.response?.data?.message || 'Failed to receive order');
+                            }
+                            setReceivingId(null);
+                          }} disabled={receivingId === o.id}
+                            className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white font-black text-xs rounded-xl disabled:opacity-50 flex items-center gap-1.5">
+                            <CheckCircle size={14} />
+                            {receivingId === o.id ? 'Receiving...' : 'Receive Order'}
+                          </button>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
                 </div>
               )}
             </div>

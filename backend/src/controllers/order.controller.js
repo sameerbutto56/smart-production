@@ -30,7 +30,7 @@ const NEXT_STAGES = {
   'FULL_CUSTOM': ['STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY']
 };
  
-const AUTO_TRANSITION_STAGES = ['STORE', 'WORKERS', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
+const AUTO_TRANSITION_STAGES = ['STORE', 'WORKERS', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'OUTLET_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
 
 // Validates forward-only stage transitions to prevent routing loops
 const validateStageTransition = (fromStage, toStage, orderType) => {
@@ -38,7 +38,7 @@ const validateStageTransition = (fromStage, toStage, orderType) => {
     'STORE': { 'STANDARD': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'], 'READY_LOGO': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'], 'FULL_CUSTOM': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'] },
     'LOGO_DESIGN': { 'STANDARD': ['WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION'], 'READY_LOGO': ['WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION'], 'FULL_CUSTOM': ['WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION'] },
     'PRODUCTION_ACCEPTANCE': { 'STANDARD': ['WORKERS', 'PRODUCTION'], 'READY_LOGO': ['WORKERS', 'PRODUCTION'], 'FULL_CUSTOM': ['WORKERS', 'PRODUCTION'] },
-    'PRODUCTION': { 'STANDARD': ['STORE_RECEIVE', 'STORE', 'WORKERS'], 'READY_LOGO': ['STORE_RECEIVE', 'STORE', 'WORKERS'], 'FULL_CUSTOM': ['STORE_RECEIVE', 'STORE', 'WORKERS'] },
+    'PRODUCTION': { 'STANDARD': ['STORE_RECEIVE', 'STORE', 'WORKERS', 'OUTLET_RECEIVE'], 'READY_LOGO': ['STORE_RECEIVE', 'STORE', 'WORKERS', 'OUTLET_RECEIVE'], 'FULL_CUSTOM': ['STORE_RECEIVE', 'STORE', 'WORKERS', 'OUTLET_RECEIVE'] },
     'STORE_RECEIVE': { 'STANDARD': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'], 'READY_LOGO': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'], 'FULL_CUSTOM': ['LOGO_DESIGN', 'WORKERS', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'DISPATCH', 'OUT_FOR_DELIVERY', 'ORDER_ENTRY'] },
     'DISPATCH': { 'STANDARD': ['OUT_FOR_DELIVERY'], 'READY_LOGO': ['OUT_FOR_DELIVERY'], 'FULL_CUSTOM': ['OUT_FOR_DELIVERY'] },
     'OUT_FOR_DELIVERY': { 'STANDARD': [], 'READY_LOGO': [], 'FULL_CUSTOM': [] }
@@ -51,7 +51,7 @@ const validateStageTransition = (fromStage, toStage, orderType) => {
   return { valid: true, expected: toStage };
 };
 
-const validAllStages = ['ORDER_ENTRY', 'STORE', 'WORKERS', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
+const validAllStages = ['ORDER_ENTRY', 'STORE', 'WORKERS', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'OUTLET_RECEIVE'];
 
 const getRolesForStage = (stageName) => {
   const map = {
@@ -61,6 +61,7 @@ const getRolesForStage = (stageName) => {
     'PRODUCTION_ACCEPTANCE': ['PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT'],
     'PRODUCTION': ['PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT'],
     'STORE_RECEIVE': ['STORE', 'STORE_EMPLOYEE'],
+    'OUTLET_RECEIVE': ['OUTLET'],
     'DISPATCH': ['DISPATCH', 'MAIN_EMPLOYEE'],
     'OUT_FOR_DELIVERY': ['OUT_FOR_DELIVERY', 'DELIVERY_BOY']
   };
@@ -82,7 +83,7 @@ const getStageDurations = async (priority = 'NORMAL') => {
   });
 
   let config = {
-    stageDurations: { STORE: 24, WORKERS: 24, LOGO_DESIGN: 24, PRODUCTION_ACCEPTANCE: 4, PRODUCTION: 48, STORE_RECEIVE: 12, DISPATCH: 12, OUT_FOR_DELIVERY: 12 },
+    stageDurations: { STORE: 24, WORKERS: 24, LOGO_DESIGN: 24, PRODUCTION_ACCEPTANCE: 4, PRODUCTION: 48, STORE_RECEIVE: 12, OUTLET_RECEIVE: 48, DISPATCH: 12, OUT_FOR_DELIVERY: 12 },
     slaMultipliers: { NORMAL: 1, URGENT: 0.75, SUPER_URGENT: 0.5 }
   };
 
@@ -2830,6 +2831,75 @@ const returnToStore = async (req, res) => {
   }
 };
 
+const returnToOutlet = async (req, res) => {
+  const { orderId } = req.params;
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { stages: true }
+    });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (order.source !== 'OUTLET') return res.status(400).json({ message: 'Only outlet orders can be returned to outlet' });
+    if (!['PRODUCTION', 'PRODUCTION_ACCEPTANCE'].includes(order.currentStage)) {
+      return res.status(400).json({ message: 'Order must be in Production to return to outlet' });
+    }
+
+    const activeStage = order.stages.find(s =>
+      ['PENDING', 'IN_PROGRESS', 'WAITING_APPROVAL'].includes(s.status)
+    );
+    if (activeStage) {
+      await prisma.orderStage.update({
+        where: { id: activeStage.id },
+        data: { status: 'COMPLETED', completedAt: new Date(), returnReason: 'Returned to originating outlet from Production' }
+      });
+    }
+
+    const durations = await getStageDurations(order.priority);
+    const deadline = calculateDeadline(new Date(), durations['OUTLET_RECEIVE'] || 48);
+    await prisma.orderStage.create({
+      data: { orderId, stageName: 'OUTLET_RECEIVE', status: 'PENDING', deadlineAt: deadline, returnReason: 'Returned to originating outlet from Production' }
+    });
+
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { currentStage: 'OUTLET_RECEIVE', status: 'PENDING' }
+    });
+
+    const outletUsers = await prisma.user.findMany({
+      where: { role: 'OUTLET', name: { contains: order.outletName?.replace(' Branch', ''), mode: 'insensitive' } },
+      select: { id: true }
+    });
+
+    await prisma.routingHistory.create({
+      data: {
+        orderId, sentByUserId: req.user.id, sentToStage: 'OUTLET_RECEIVE',
+        sentToUserIds: JSON.stringify(outletUsers.map(u => u.id)),
+        previousStage: activeStage?.stageName || 'PRODUCTION', newStage: 'OUTLET_RECEIVE',
+        remarks: `Returned to originating outlet (${order.outletName || 'Unknown'}) from Production`,
+        createdAt: new Date()
+      }
+    });
+
+    await prisma.seenTask.deleteMany({
+      where: { userId: { in: outletUsers.map(u => u.id) }, orderId, stageName: 'OUTLET_RECEIVE' }
+    }).catch(() => {});
+
+    await createAuditLog(orderId, 'RETURN_TO_OUTLET', `Returned to originating outlet (${order.outletName || 'Unknown'}) from Production`, req.user.id);
+
+    const io = req.app.get('io');
+    io.emit('order-updated', { orderId });
+
+    const updated = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { stages: { orderBy: { createdAt: 'asc' } } }
+    });
+
+    res.json({ message: `Order returned to ${order.outletName || 'Outlet'}`, order: updated });
+  } catch (error) {
+    res.status(500).json({ message: 'Error returning order to outlet', error: error.message });
+  }
+};
+
 const getStoreDashboardOrders = async (req, res) => {
   const userId = req.user.id;
   const limit = parseInt(req.query.limit) || 250;
@@ -3213,6 +3283,7 @@ module.exports = {
   acceptStoreOrder,
   storeRouteOrder,
   returnToStore,
+  returnToOutlet,
   getStoreDashboardOrders,
   bulkRouteOrders,
   dispatchOrder,

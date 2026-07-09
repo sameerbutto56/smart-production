@@ -1,5 +1,6 @@
 const prisma = require('../prisma');
 const cache = require('../utils/cache');
+const { createAuditLog } = require('./order-helpers');
 
 const getOutletName = (req) => {
   let name = req.user?.name || req.query.outlet || '';
@@ -93,7 +94,7 @@ const createOutletOrder = async (req, res) => {
           orderId: created.id,
           action: 'OUTLET_ORDER_CREATED',
           details: `Outlet order created, routed to ${orderDestination}`,
-          userId: req.user?.id
+          performedBy: req.user?.id || 'SYSTEM'
         }
       });
 
@@ -203,4 +204,57 @@ const getOutletOrders = async (req, res) => {
   }
 };
 
-module.exports = { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders };
+const getOutletReturns = async (req, res) => {
+  try {
+    const outletName = getOutletName(req) || 'Unknown Outlet';
+    const orders = await prisma.order.findMany({
+      where: { source: 'OUTLET', outletName, currentStage: 'OUTLET_RECEIVE', status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] } },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: { id: true, orderNumber: true, customerName: true, customerPhone: true, productDetails: true, totalPrice: true, advanceAmount: true, currentStage: true, orderDestination: true, createdAt: true, engravingRequired: true, status: true, sizeData: true, instructionNotes: true }
+    });
+    const parsed = orders.map(o => ({ ...o, productDetails: (() => { try { return JSON.parse(o.productDetails); } catch { return []; } })() }));
+    res.json(parsed);
+  } catch (error) {
+    console.error('Get outlet returns error:', error);
+    res.status(500).json({ message: 'Error fetching outlet returns', error: error.message });
+  }
+};
+
+const receiveOutletReturn = async (req, res) => {
+  const { orderId } = req.params;
+  try {
+    const outletName = getOutletName(req) || 'Unknown Outlet';
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (order.currentStage !== 'OUTLET_RECEIVE') return res.status(400).json({ message: 'Order is not in OUTLET_RECEIVE stage' });
+    if (order.outletName !== outletName) return res.status(403).json({ message: 'This order belongs to a different outlet' });
+
+    const activeStage = await prisma.orderStage.findFirst({
+      where: { orderId, stageName: 'OUTLET_RECEIVE', status: 'PENDING' }
+    });
+    if (activeStage) {
+      await prisma.orderStage.update({
+        where: { id: activeStage.id },
+        data: { status: 'COMPLETED', completedAt: new Date() }
+      });
+    }
+
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { currentStage: 'ORDER_ENTRY', status: 'COMPLETED' }
+    });
+
+    await createAuditLog(orderId, 'OUTLET_RECEIVED', `Order received by outlet ${outletName}`, req.user?.id || 'SYSTEM');
+
+    const io = req.app.get('io');
+    if (io) io.emit('order-updated', { orderId });
+
+    res.json({ message: 'Order received successfully' });
+  } catch (error) {
+    console.error('Receive outlet return error:', error);
+    res.status(500).json({ message: 'Error receiving order', error: error.message });
+  }
+};
+
+module.exports = { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn };
