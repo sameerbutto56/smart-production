@@ -1150,8 +1150,9 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       const capQty = showCap && p.matchingCap ? (p.matchingCapQty || 0) : (showCap && item.capCharges > 0 ? (p.femaleOptions?.cap || 0) : 0);
       win.document.write(`<tr>`);
       win.document.write(`<td style="font-weight:700">${idx + 1}</td>`);
-      win.document.write(`<td style="font-weight:700">${ru(p.productType)}</td>`);
-      win.document.write(`<td>${[p.fabricType, ru(p.color)].filter(Boolean).join(' • ')}</td>`);
+      win.document.write(`<td style="font-weight:700">${ru(p.productType || p.name) || '—'}</td>`);
+      const colParts = [p.fabricType, ru(p.color), p.size].filter(Boolean);
+      win.document.write(`<td>${colParts.join(' • ') || '—'}</td>`);
       const extras = [p.sleeveLength ? `${sec.sleeves}: ${slDisplay(p.sleeveLength)}` : null, p.shirtLength ? `${sec.length}: ${shDisplay(p.shirtLength)}` : null].filter(Boolean).join(' | ');
       const altParts = [];
       if (p.alteration?.trouserLength) altParts.push(`Trouser ${p.alteration.trouserLength}"`);
@@ -1159,7 +1160,9 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       if (p.alteration?.sleeveLength) altParts.push(`Sleeve ${p.alteration.sleeveLength}"`);
       const altStr = altParts.length > 0 ? ` | Alt: ${altParts.join(' ')}` : '';
       const altStyle = altParts.length > 0 ? 'background-color:#fbbf24;color:#000;font-weight:700;padding:2px 6px;border-radius:4px;' : '';
-      win.document.write(`<td>${p.size || 'Custom'} • ${p.gender || 'Male'}${extras ? ` • ${extras}` : ''}${altStr ? `<br><span style="${altStyle}">${altStr}</span>` : ''}</td>`);
+      const genStr = p.gender ? `${p.gender}` : '';
+      const szStr = p.size ? `Size ${p.size}` : 'Custom';
+      win.document.write(`<td>${szStr}${genStr ? ` • ${genStr}` : ''}${extras ? ` • ${extras}` : ''}${altStr ? `<br><span style="${altStyle}">${altStr}</span>` : ''}</td>`);
       win.document.write(`<td style="text-align:center;font-weight:700">${item.quantity || 1}</td>`);
       if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;color:#000">${capQty || '—'}</td>`);
       win.document.write(`<td style="text-align:right;font-weight:700">${priceDisplay(item.totalPrice)}</td>`);
@@ -1172,9 +1175,9 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     const headers = [sec.product, sec.fabric, sec.color, sec.size, sec.gender, sec.qty].concat(showCap ? [sec.cap] : []).concat([sec.price]);
     win.document.write(`<table><thead><tr>${headers.map(h => '<th>' + h + '</th>').join('')}</tr></thead><tbody>`);
     win.document.write(`<tr>`);
-    win.document.write(`<td style="font-weight:700">${ru(firstProduct.productType)}</td>`);
-    win.document.write(`<td>${firstProduct.fabricType}</td>`);
-    win.document.write(`<td>${ru(firstProduct.color)}</td>`);
+    win.document.write(`<td style="font-weight:700">${ru(firstProduct.productType || firstProduct.name) || '—'}</td>`);
+    win.document.write(`<td>${firstProduct.fabricType || '—'}</td>`);
+    win.document.write(`<td>${ru(firstProduct.color) || '—'}</td>`);
     const extras = [firstProduct.sleeveLength ? `${sec.sleeves}: ${slDisplay(firstProduct.sleeveLength)}` : null, firstProduct.shirtLength ? `${sec.length}: ${shDisplay(firstProduct.shirtLength)}` : null].filter(Boolean).join(' | ');
     const altParts = [];
     if (firstProduct.alteration?.trouserLength) altParts.push(`Trouser ${firstProduct.alteration.trouserLength}"`);
@@ -1183,99 +1186,135 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     const altStr = altParts.length > 0 ? ` | Alt: ${altParts.join(' ')}` : '';
     const altStyle = altParts.length > 0 ? 'background-color:#fbbf24;color:#000;font-weight:700;padding:2px 6px;border-radius:4px;' : '';
     win.document.write(`<td>${firstProduct.size || 'Custom'}</td>`);
-    win.document.write(`<td>${firstProduct.gender || 'Male'}${extras ? ` ${extras}` : ''}${altStr ? `<br><span style="${altStyle}">${altStr}</span>` : ''}</td>`);
+    win.document.write(`<td>${firstProduct.gender || '—'}${extras ? ` ${extras}` : ''}${altStr ? `<br><span style="${altStyle}">${altStr}</span>` : ''}</td>`);
     win.document.write(`<td style="text-align:center;font-weight:700">${order.quantity || 1}</td>`);
     if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;color:#000">${capQty || '—'}</td>`);
     win.document.write(`<td style="text-align:right;font-weight:700">${priceDisplay(order.totalPrice)}</td>`);
     win.document.write(`</tr></tbody></table>`);
   }
 
-  // ─── ENGRAVING ───
+  // ─── ENGRAVING / BRANDING ───
   if (orderType !== 'STANDARD' && showEngraving) {
+    // Parse order-level outlet engraving fields
+    const outEngravingNames = order.engravingNames ? parseJSON(order.engravingNames) : [];
+    const outEngravingLogos = order.engravingLogos ? parseJSON(order.engravingLogos) : [];
+    const outHasEngraving = order.engravingRequired && (outEngravingNames.length > 0 || outEngravingLogos.length > 0 || order.engravingText || order.engravingInstructions || order.logoRequired);
+
     const brandingItems = isMultiItem ? allItems : [{ productDetails: firstProduct, customization: custom }];
     const hasAnyCustomization = brandingItems.some(item => {
       const c = item.customization ? (typeof item.customization === 'string' ? JSON.parse(item.customization) : item.customization) : custom;
       if (c?.skipEngraving) return false;
       return c?.engravingType || c?.nameSpelling?.trim() || c?.nameColor || c?.logoPlacement || c?.logos?.length > 0 || c?.designNotes || c?.articleNames?.filter(n => n?.trim())?.length > 0;
     });
-    if (!hasAnyCustomization) { /* no customization data, skip engraving section */ }
-    else {
+
+    if (hasAnyCustomization || outHasEngraving) {
       win.document.write(`<div class="section-title" style="font-size:26px">${sec.engraving}</div>`);
-      brandingItems.forEach((item, idx) => {
-        const p = item.productDetails || {};
-        const c = item.customization ? parseJSON(item.customization) : custom;
-        const filteredNames = c?.articleNames?.filter(n => n?.trim()) || [];
-        const hasNames = filteredNames.length > 0 || c?.nameSpelling?.trim();
-        const hasLogos = c?.logos?.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).length > 0;
-        const hasSpecs = c?.nameColor || c?.logoPlacement || c?.engravingType;
-        const hasNotes = c?.designNotes;
+      // Per-item customization (standard flow)
+      if (hasAnyCustomization) {
+        brandingItems.forEach((item, idx) => {
+          const p = item.productDetails || {};
+          const c = item.customization ? parseJSON(item.customization) : custom;
+          const filteredNames = c?.articleNames?.filter(n => n?.trim()) || [];
+          const hasNames = filteredNames.length > 0 || c?.nameSpelling?.trim();
+          const hasLogos = c?.logos?.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).length > 0;
+          const hasSpecs = c?.nameColor || c?.logoPlacement || c?.engravingType;
+          const hasNotes = c?.designNotes;
 
-        if (!hasNames && !hasLogos && !hasSpecs && !hasNotes) return;
+          if (!hasNames && !hasLogos && !hasSpecs && !hasNotes) return;
 
-        win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px;page-break-inside:avoid">`);
-        win.document.write(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding-bottom:6px;border-bottom:2px solid #eee">`);
-        win.document.write(`<span style="background:#111;color:#fff;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:20px;font-weight:800">${idx + 1}</span>`);
-          win.document.write(`<span style="font-weight:900;font-size:22px;text-transform:uppercase">${ru(p.productType) || 'Item ' + (idx + 1)}</span>`);
-        if (p.color) win.document.write(`<span style="font-size:18px;color:#000">(${ru(p.color)})</span>`);
-        win.document.write(`</div>`);
-
-        // Engraving Type
-        if (c?.engravingType) {
-          win.document.write(`<div style="margin-bottom:6px">`);
-          const engravingLabel = c.engravingType === 'direct' ? sec.directEngraving : sec.patchEngraving;
-          win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${sec.engravingType}: ${engravingLabel}</p>`);
+          win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px;page-break-inside:avoid">`);
+          win.document.write(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding-bottom:6px;border-bottom:2px solid #eee">`);
+          win.document.write(`<span style="background:#111;color:#fff;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:20px;font-weight:800">${idx + 1}</span>`);
+            win.document.write(`<span style="font-weight:900;font-size:22px;text-transform:uppercase">${ru(p.productType || p.name) || 'Item ' + (idx + 1)}</span>`);
+          if (p.color) win.document.write(`<span style="font-size:18px;color:#000">(${ru(p.color)})</span>`);
           win.document.write(`</div>`);
-        }
 
-        // Name Lines
-        if (hasNames) {
-          win.document.write(`<div style="margin-bottom:6px">`);
-          win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.nameLines}</p>`);
-          if (filteredNames.length > 0) {
-            filteredNames.forEach((an, ai) => {
-              win.document.write(`<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span style="background:#7c3aed20;color:#7c3aed;font-size:18px;font-weight:800;padding:2px 6px;border-radius:3px">L${ai + 1}</span><span style="font-size:24px;font-weight:700">${an}</span></div>`);
-            });
-          } else {
-            win.document.write(`<div style="display:flex;align-items:center;gap:6px"><span style="background:#7c3aed20;color:#7c3aed;font-size:18px;font-weight:800;padding:2px 6px;border-radius:3px">L1</span><span style="font-size:24px;font-weight:700">${c.nameSpelling}</span></div>`);
+          if (c?.engravingType) {
+            win.document.write(`<div style="margin-bottom:6px">`);
+            const engravingLabel = c.engravingType === 'direct' ? sec.directEngraving : sec.patchEngraving;
+            win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${sec.engravingType}: ${engravingLabel}</p>`);
+            win.document.write(`</div>`);
           }
+
+          if (hasNames) {
+            win.document.write(`<div style="margin-bottom:6px">`);
+            win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.nameLines}</p>`);
+            if (filteredNames.length > 0) {
+              filteredNames.forEach((an, ai) => {
+                win.document.write(`<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span style="background:#7c3aed20;color:#7c3aed;font-size:18px;font-weight:800;padding:2px 6px;border-radius:3px">L${ai + 1}</span><span style="font-size:24px;font-weight:700">${an}</span></div>`);
+              });
+            } else {
+              win.document.write(`<div style="display:flex;align-items:center;gap:6px"><span style="background:#7c3aed20;color:#7c3aed;font-size:18px;font-weight:800;padding:2px 6px;border-radius:3px">L1</span><span style="font-size:24px;font-weight:700">${c.nameSpelling}</span></div>`);
+            }
+            win.document.write(`</div>`);
+          }
+
+          if (hasSpecs) {
+            win.document.write(`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">`);
+            if (c.nameColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fce7f3;color:#9d174d">${sec.color}: ${c.nameColor}</span>`);
+            if (c.logoPlacement) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#ccfbf1;color:#0f766e">${sec.position}: ${c.logoPlacement}</span>`);
+            if (c.logoColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#92400e">${isUrdu ? 'لوگو:' : 'Logo:'} ${c.logoColor}</span>`);
+            win.document.write(`</div>`);
+          }
+
+          if (hasLogos) {
+            win.document.write(`<div style="margin-bottom:6px">`);
+            win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.logos}</p>`);
+            c.logos.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).forEach((l, li) => {
+              win.document.write(`<div style="font-size:22px;font-weight:700;background:#fffbeb;padding:3px 8px;border-radius:4px;margin-bottom:2px;border:2px solid #fef3c7">${l.name || l.design}${l.name && l.design ? ` — ${l.design}` : ''}</div>`);
+            });
+            win.document.write(`</div>`);
+          }
+
+          if (hasNotes) {
+            const notesDisplay = c.designNotes;
+            win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px">`);
+            win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
+            win.document.write(`<p style="font-size:22px;font-style:italic;color:#000"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
+          }
+
+          const capQty = p.matchingCap ? (p.matchingCapQty || 0) : 0;
+          if (capQty > 0) {
+            win.document.write(`<p style="font-size:20px;margin-top:4px;color:#000;font-weight:700">${sec.matchingCap} ×${capQty}</p>`);
+          }
+
           win.document.write(`</div>`);
-        }
-
-        // Specs badges
-        if (hasSpecs) {
-          win.document.write(`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">`);
-          if (c.nameColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fce7f3;color:#9d174d">${sec.color}: ${c.nameColor}</span>`);
-          if (c.logoPlacement) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#ccfbf1;color:#0f766e">${sec.position}: ${c.logoPlacement}</span>`);
-          if (c.logoColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#92400e">${isUrdu ? 'لوگو:' : 'Logo:'} ${c.logoColor}</span>`);
-          win.document.write(`</div>`);
-        }
-
-        // Logos
-        if (hasLogos) {
-          win.document.write(`<div style="margin-bottom:6px">`);
-          win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.logos}</p>`);
-          c.logos.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).forEach((l, li) => {
-            win.document.write(`<div style="font-size:22px;font-weight:700;background:#fffbeb;padding:3px 8px;border-radius:4px;margin-bottom:2px;border:2px solid #fef3c7">${l.name || l.design}${l.name && l.design ? ` — ${l.design}` : ''}</div>`);
-          });
-          win.document.write(`</div>`);
-        }
-
-        // Special Notes
-        if (hasNotes) {
-          const notesDisplay = c.designNotes;
-          win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px">`);
-          win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
-          win.document.write(`<p style="font-size:22px;font-style:italic;color:#000"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
-        }
-
-        // Matching Cap
-        const capQty = p.matchingCap ? (p.matchingCapQty || 0) : 0;
-        if (capQty > 0) {
-          win.document.write(`<p style="font-size:20px;margin-top:4px;color:#000;font-weight:700">${sec.matchingCap} ×${capQty}</p>`);
-        }
-
+        });
+      }
+      // Outlet-style engraving (order-level fields)
+      if (outHasEngraving) {
+        win.document.write(`<div style="border:2px solid #7c3aed40;border-radius:8px;padding:8px 10px;margin-bottom:8px;page-break-inside:avoid">`);
+        win.document.write(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding-bottom:6px;border-bottom:2px solid #7c3aed20">`);
+        win.document.write(`<span style="background:#7c3aed;color:#fff;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:20px;font-weight:800">✦</span>`);
+        win.document.write(`<span style="font-weight:900;font-size:22px;text-transform:uppercase;color:#7c3aed">Outlet Engraving</span>`);
         win.document.write(`</div>`);
-      });
+
+        if (order.engravingText) {
+          win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;margin-bottom:4px">${sec.engravingType}: ${order.engravingText}</p>`);
+        }
+        if (outEngravingNames.length > 0) {
+          win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:3px">${sec.nameLines}</p>`);
+          outEngravingNames.forEach((an, ai) => {
+            if (an?.trim()) {
+              win.document.write(`<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span style="background:#7c3aed20;color:#7c3aed;font-size:18px;font-weight:800;padding:2px 6px;border-radius:3px">L${ai + 1}</span><span style="font-size:24px;font-weight:700">${an}</span></div>`);
+            }
+          });
+        }
+        if (order.logoRequired && outEngravingLogos.length > 0) {
+          win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#000;margin:6px 0 3px">${sec.logos}</p>`);
+          outEngravingLogos.forEach((logo, li) => {
+            if (logo?.trim()) {
+              win.document.write(`<div style="font-size:22px;font-weight:700;background:#fffbeb;padding:3px 8px;border-radius:4px;margin-bottom:2px;border:2px solid #fef3c7">${logo}</div>`);
+            }
+          });
+        }
+        if (order.engravingInstructions) {
+          win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px;margin-top:6px">`);
+          win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:2px">${sec.specialNote}</p>`);
+          win.document.write(`<p style="font-size:22px;font-style:italic;color:#000">${order.engravingInstructions}</p></div>`);
+        }
+        win.document.write(`</div>`);
+      }
     }
   }
   // ─── MEASUREMENTS ───
@@ -1294,7 +1333,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
         const allSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'C'];
         win.document.write(`<div style="margin-bottom:6px;page-break-inside:avoid">`);
         if (isMultiItem) {
-          win.document.write(`<p style="font-size:20px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px">#${idx + 1} ${ru(p.productType) || ''}</p>`);
+          win.document.write(`<p style="font-size:20px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px">#${idx + 1} ${ru(p.productType || p.name) || ''}</p>`);
         }
         win.document.write(`<div style="display:flex;gap:4px;flex-wrap:wrap">`);
         allSizes.forEach(sz => {

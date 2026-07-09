@@ -256,7 +256,7 @@ const AllOrders = () => {
       return [
         `"${order.orderNumber || order.id}"`,
         `"${order.customerName || 'Unknown'}"`,
-        `"${product?.productType || 'N/A'}"`,
+        `"${product?.productType || product?.name || 'N/A'}"`,
         `"${product?.color || 'N/A'}"`,
         `"${order.type}"`,
         `"${order.status}"`,
@@ -680,7 +680,7 @@ const AllOrders = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm font-bold theme-text-primary">
-                        {product?.productType || 'Standard Item'}
+                        {product?.productType || product?.name || 'Standard Item'}
                         {isMultiItem && <span className="ml-2 text-purple-400 text-xs md:text-sm font-black bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">+{rawPd.length - 1} more</span>}
                         {order.quantity > 1 && <span className="ml-2 text-blue-400">x{order.quantity}</span>}
                       </div>
@@ -903,7 +903,7 @@ const AllOrders = () => {
                                 <tr key={idx} className="border-b theme-border last:border-0 hover:bg-white/5 font-bold">
                                   <td className="py-4 pl-4 font-mono theme-text-muted">{idx + 1}</td>
                                   <td className="py-4 text-white">
-                                    <span className="text-sm font-black">{p.productType}</span>
+                                    <span className="text-sm font-black">{p.productType || p.name}</span>
                                     {p.femaleOptions?.dupatta && (
                                       <span className="ml-2 bg-pink-500/20 text-pink-400 border border-pink-500/30 text-xs md:text-sm px-1.5 py-0.5 rounded font-black uppercase">Dupatta</span>
                                     )}
@@ -979,7 +979,7 @@ const AllOrders = () => {
                                     </div>
                                   </td>
                                   <td className="py-4 theme-text-secondary uppercase">
-                                    <div>{p.size || 'Custom'} • {p.gender || 'MALE'}</div>
+                                    <div>{p.size ? `Size ${p.size}${p.gender ? ` • ${p.gender}` : ''}` : p.gender || 'Custom'}</div>
                                     {(hasSleeves || hasShirtLength) && (
                                       <div className="text-xs md:text-sm text-pink-400 font-black mt-0.5">
                                         {hasSleeves && `Sleeves: ${p.sleeveLength ? ({'full':'Full','half':'Half','three-quarter':'3 Quarter'}[p.sleeveLength] || p.sleeveLength) : ({'full':'Full','half':'Half','medium':'Medium'}[p.femaleOptions?.sleeves] || p.femaleOptions?.sleeves || '')}`} {hasShirtLength && `| Length: ${p.shirtLength ? ({'long':'Long','short':'Short','regular':'Regular'}[p.shirtLength] || p.shirtLength) : ({'long':'Long','short':'Short'}[p.femaleOptions?.shirtLength] || p.femaleOptions?.shirtLength || '')}`}
@@ -1046,7 +1046,7 @@ const AllOrders = () => {
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6">
                       {[
-                        { label: 'Product Base', val: product?.productType },
+                        { label: 'Product Base', val: product?.productType || product?.name },
                         { label: 'Fabric Type', val: product?.fabricType },
                         { label: 'Primary Color', val: product?.color },
                         { label: 'Order Size', val: product?.size },
@@ -1120,6 +1120,47 @@ const AllOrders = () => {
                       ))}
                     </div>
                   )}
+                  {/* Outlet Engraving — order-level fields */}
+                  {(() => {
+                    const en = selectedOrder.engravingNames ? (typeof selectedOrder.engravingNames === 'string' ? (() => { try { return JSON.parse(selectedOrder.engravingNames); } catch { return []; } })() : selectedOrder.engravingNames) : [];
+                    const el = selectedOrder.engravingLogos ? (typeof selectedOrder.engravingLogos === 'string' ? (() => { try { return JSON.parse(selectedOrder.engravingLogos); } catch { return []; } })() : selectedOrder.engravingLogos) : [];
+                    const hasEng = selectedOrder.engravingRequired && (en.length > 0 || el.length > 0 || selectedOrder.engravingText || selectedOrder.engravingInstructions || selectedOrder.logoRequired);
+                    if (!hasEng) return null;
+                    return (
+                      <section className="bg-purple-600/5 p-4 md:p-8 rounded-[2rem] border border-purple-500/10 mt-4">
+                        <h4 className="text-xs md:text-sm font-black text-purple-400 uppercase tracking-[0.3em] mb-6">ENGRAVING</h4>
+                        <div className="space-y-3">
+                          {selectedOrder.engravingText && <p className="text-white font-bold">{selectedOrder.engravingText}</p>}
+                          {en.length > 0 && (
+                            <div>
+                              <p className="text-xs font-black text-purple-400 uppercase mb-2">Names:</p>
+                              <div className="flex flex-wrap gap-1">
+                                {en.filter(Boolean).map((n, i) => (
+                                  <span key={i} className="text-xs font-black text-purple-300 bg-purple-900/30 px-1.5 py-0.5 rounded">L{i+1}: {n}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {selectedOrder.logoRequired && el.length > 0 && (
+                            <div>
+                              <p className="text-xs font-black text-purple-400 uppercase mb-2">Logos:</p>
+                              <div className="flex flex-wrap gap-1">
+                                {el.filter(Boolean).map((l, i) => (
+                                  <span key={i} className="text-xs font-black text-amber-300 bg-amber-900/30 px-1.5 py-0.5 rounded">{l}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {selectedOrder.engravingInstructions && (
+                            <div className="bg-yellow-900/20 border border-yellow-500/20 rounded-lg p-3">
+                              <p className="text-xs font-black text-yellow-400 uppercase mb-1">Special Notes:</p>
+                              <p className="text-sm text-yellow-300 font-medium italic">{selectedOrder.engravingInstructions}</p>
+                            </div>
+                          )}
+                        </div>
+                      </section>
+                    );
+                  })()}
                 </section>
 
                 {!isMultiItem && selectedOrder.type === 'FULL_CUSTOM' && (

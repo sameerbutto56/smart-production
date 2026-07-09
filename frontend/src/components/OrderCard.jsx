@@ -300,7 +300,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               transition={{ delay: idx * 0.1 }}
               className={`text-xs md:text-sm flex items-center justify-between p-2 rounded-lg border ${isRejected ? 'bg-red-900/10 border-red-500/30 border-l-2 border-l-red-500' : isCompleted ? 'bg-emerald-900/10 border-emerald-500/30 border-l-2 border-l-emerald-500' : 'bg-gray-900/30 border-gray-800/20'}`}
             >
-              <span className={`font-bold uppercase tracking-tighter ${isRejected ? 'text-orange-300' : isCompleted ? 'text-emerald-300' : 'text-gray-400'}`}>#{idx + 1} {p.productType || 'Item'}: {p.fabricType || 'STD'} / {p.color || '—'} / Size {p.size || '—'}{p.alteration && (p.alteration.trouserLength || p.alteration.shirtLength || p.alteration.sleeveLength) ? <span className="ml-1.5 text-amber-400 bg-amber-500/20 border border-amber-500/30 px-1 py-0.5 rounded text-[9px]">Alt: {[p.alteration.trouserLength && `Trouser ${p.alteration.trouserLength}"`, p.alteration.shirtLength && `Shirt ${p.alteration.shirtLength}"`, p.alteration.sleeveLength && `Sleeve ${p.alteration.sleeveLength}"`].filter(Boolean).join(' ')}</span> : ''}</span>
+              <span className={`font-bold uppercase tracking-tighter ${isRejected ? 'text-orange-300' : isCompleted ? 'text-emerald-300' : 'text-gray-400'}`}>#{idx + 1} {(p.productType || p.name) || 'Item'}: {p.fabricType || 'STD'} / {p.color || '—'} / Size {p.size || '—'}{p.alteration && (p.alteration.trouserLength || p.alteration.shirtLength || p.alteration.sleeveLength) ? <span className="ml-1.5 text-amber-400 bg-amber-500/20 border border-amber-500/30 px-1 py-0.5 rounded text-[9px]">Alt: {[p.alteration.trouserLength && `Trouser ${p.alteration.trouserLength}"`, p.alteration.shirtLength && `Shirt ${p.alteration.shirtLength}"`, p.alteration.sleeveLength && `Sleeve ${p.alteration.sleeveLength}"`].filter(Boolean).join(' ')}</span> : ''}</span>
               {isStoreRole && (
                 <div className="flex gap-1 shrink-0 ml-2">
                   <button
@@ -403,7 +403,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 {(isMultiProd || sortedItems.length > 1) && (
                   <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-800/50">
                     <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[9px] font-black">#{idx + 1}</span>
-                    <span className="text-xs font-black text-white uppercase">{p.productType || `Item ${idx + 1}`}</span>
+                    <span className="text-xs font-black text-white uppercase">{(p.productType || p.name) || `Item ${idx + 1}`}</span>
                     {p.color && <span className="text-[9px] text-gray-500">({p.color})</span>}
                     {isNotAvail && (
                       <span className="ml-auto px-2 py-0.5 bg-red-500/10 border border-red-500/30 rounded text-[9px] font-black text-red-400 uppercase tracking-wider">
@@ -816,7 +816,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
           {/* Product Details Strip */}
           {(product?.color || product?.size || product?.fabricType || product?.productType || order.quantity > 0 || order.customizationPrice > 0 || order.logoCharges > 0 || order.namePrintingCharges > 0) && (
             <div className="mb-3 flex flex-wrap items-center gap-1.5 bg-gray-950/50 p-2 rounded-xl border border-gray-800/50">
-              {product?.productType && (
+              {(product?.productType || product?.name) && (
                 <span className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-tighter bg-gray-900 px-2 py-0.5 rounded-md truncate max-w-[100px]">{product.productType}</span>
               )}
               {product?.fabricType && (
@@ -885,7 +885,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     return (
                       <div key={idx} className="border border-gray-800 rounded-xl p-2.5 space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-cyan-400">#{idx + 1} {p.productType || 'Product'}</span>
+                          <span className="text-xs font-bold text-cyan-400">#{idx + 1} {(p.productType || p.name) || 'Product'}</span>
                           <span className="text-[9px] font-black text-gray-500 uppercase">Qty: {item.quantity || 1}</span>
                         </div>
                         <div className="grid grid-cols-2 gap-1.5 text-[10px]">
@@ -940,7 +940,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 ) : (
                   <div className="border border-gray-800 rounded-xl p-2.5 space-y-2">
                     <div className="grid grid-cols-2 gap-1.5 text-[10px]">
-                      {product?.productType && <div><span className="text-gray-500">Product:</span> <span className="text-white font-bold">{product.productType}</span></div>}
+                      {(product?.productType || product?.name) && <div><span className="text-gray-500">Product:</span> <span className="text-white font-bold">{product.productType}</span></div>}
                       {product?.category && <div><span className="text-gray-500">Category:</span> <span className="text-white font-bold">{product.category}</span></div>}
                       {product?.color && <div><span className="text-gray-500">Color:</span> <span className="text-white font-bold">{product.color}</span></div>}
                       {product?.size && <div><span className="text-gray-500">Size:</span> <span className="text-white font-bold">{product.size}</span></div>}
@@ -1716,7 +1716,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           const p = item.productDetails || {};
                           return (
                             <div key={idx} className="flex items-center justify-between p-2 bg-blue-900/10 rounded-lg border border-blue-500/20">
-                              <span className="text-xs font-bold text-blue-300 uppercase">{p.productType || 'Item'}: {p.fabricType || '—'} / {p.color || '—'}</span>
+                              <span className="text-xs font-bold text-blue-300 uppercase">{(p.productType || p.name) || 'Item'}: {p.fabricType || '—'} / {p.color || '—'}</span>
                               <span className="text-xs font-black text-blue-400">x{item.quantity || 1}</span>
                             </div>
                           );
@@ -2292,7 +2292,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                 <React.Fragment key={idx}>
                                 <tr className={`border-b border-gray-800/50 transition-colors ${isRejected ? 'bg-red-900/5 hover:bg-red-900/15 border-l-2 border-l-red-500/40' : isCompleted ? 'bg-emerald-900/5 hover:bg-emerald-900/15 border-l-2 border-l-emerald-500/40' : 'hover:bg-gray-900/30'}`}>
                                   <td className="py-4 px-4 text-gray-500 font-black">{idx + 1}</td>
-                                  <td className="py-4 px-4 font-bold uppercase">{isRejected ? <span className="text-orange-300">{p.productType || '—'}</span> : isCompleted ? <span className="text-emerald-300">{p.productType || '—'}</span> : <span className="text-white">{p.productType || '—'}</span>}</td>
+                                  <td className="py-4 px-4 font-bold uppercase">{isRejected ? <span className="text-orange-300">{(p.productType || p.name) || '—'}</span> : isCompleted ? <span className="text-emerald-300">{(p.productType || p.name) || '—'}</span> : <span className="text-white">{(p.productType || p.name) || '—'}</span>}</td>
                                   <td className="py-4 px-4">
                                     <div className={`uppercase ${isRejected ? 'text-orange-200' : isCompleted ? 'text-emerald-200' : 'text-gray-300'}`}>
                                       {[p.fabricType, p.color].filter(Boolean).join(' • ') || '—'}
@@ -2420,7 +2420,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         </thead>
                         <tbody>
                           {[
-                            { label: t('Product'), val: product?.productType },
+                            { label: t('Product'), val: product?.productType || product?.name },
                             { label: t('Fabric'), val: product?.fabricType },
                             { label: t('Color'), val: product?.color },
                             { label: t('Size'), val: product?.size },
@@ -2479,6 +2479,48 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     </div>
                   )}
                 </section>
+
+                {/* Outlet Engraving */}
+                {(() => {
+                  const en = order.engravingNames ? (typeof order.engravingNames === 'string' ? (() => { try { return JSON.parse(order.engravingNames); } catch { return []; } })() : order.engravingNames) : [];
+                  const el = order.engravingLogos ? (typeof order.engravingLogos === 'string' ? (() => { try { return JSON.parse(order.engravingLogos); } catch { return []; } })() : order.engravingLogos) : [];
+                  const hasEng = order.engravingRequired && (en.length > 0 || el.length > 0 || order.engravingText || order.engravingInstructions || order.logoRequired);
+                  if (!hasEng) return null;
+                  return (
+                    <section className="bg-purple-600/5 p-4 md:p-8 rounded-xl md:rounded-[2rem] border border-purple-500/10 mt-4">
+                      <h4 className="text-xs md:text-sm font-black text-purple-400 uppercase tracking-[0.3em] mb-6">ENGRAVING</h4>
+                      <div className="space-y-3">
+                        {order.engravingText && <p className="text-white font-bold">{order.engravingText}</p>}
+                        {en.length > 0 && (
+                          <div>
+                            <p className="text-xs font-black text-purple-400 uppercase mb-2">Names:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {en.filter(Boolean).map((n, i) => (
+                                <span key={i} className="text-xs font-black text-purple-300 bg-purple-900/30 px-1.5 py-0.5 rounded">L{i+1}: {n}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {order.logoRequired && el.length > 0 && (
+                          <div>
+                            <p className="text-xs font-black text-purple-400 uppercase mb-2">Logos:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {el.filter(Boolean).map((l, i) => (
+                                <span key={i} className="text-xs font-black text-amber-300 bg-amber-900/30 px-1.5 py-0.5 rounded">{l}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {order.engravingInstructions && (
+                          <div className="bg-yellow-900/20 border border-yellow-500/20 rounded-lg p-3">
+                            <p className="text-xs font-black text-yellow-400 uppercase mb-1">Special Notes:</p>
+                            <p className="text-sm text-yellow-300 font-medium italic">{order.engravingInstructions}</p>
+                          </div>
+                        )}
+                      </div>
+                    </section>
+                  );
+                })()}
 
               {!isMultiItem && order.type === 'FULL_CUSTOM' && (
                 <section className="bg-blue-600/5 p-4 md:p-8 rounded-xl md:rounded-[2rem] border border-blue-500/10">

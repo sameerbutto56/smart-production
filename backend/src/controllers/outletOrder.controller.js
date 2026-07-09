@@ -41,7 +41,9 @@ const createOutletOrder = async (req, res) => {
 
     const outletName = getOutletName(req) || 'Unknown Outlet';
     const orderNumber = await generateOrderNumber();
-    const productDetails = JSON.stringify(products);
+    // Add productType alias for backward compat with job sheet display
+    const enriched = products.map(p => ({ ...p, productType: p.name }));
+    const productDetails = JSON.stringify(enriched);
     const sizeDataStr = sizeData ? JSON.stringify(sizeData) : null;
     const totalPrice = products.reduce((sum, p) => sum + (parseFloat(p.unitPrice) || 0) * (p.quantity || 1), 0);
     const adv = parseFloat(advanceAmount) || 0;
