@@ -654,7 +654,15 @@ const OutletOrderEntry = () => {
             <div className="bg-gray-800 rounded-xl p-4 space-y-2 text-sm">
               <p className="text-gray-400">Customer: <span className="text-white font-black">{customer.name}</span></p>
               <p className="text-gray-400">Phone: <span className="text-white font-black">{customer.phone}</span></p>
-              <p className="text-gray-400">Products: <span className="text-white font-black">{products.length} item(s)</span></p>
+              <div>
+                <p className="text-gray-400 mb-1">Products: <span className="text-white font-black">{products.length} item(s)</span></p>
+                {products.map((p, i) => (
+                  <div key={p._tempId} className="bg-gray-900 rounded-lg px-3 py-2 mb-1 text-xs flex items-center justify-between">
+                    <span className="text-white font-bold">{p.name}</span>
+                    <span className="text-gray-400">{p.color && `${p.color} / `}{p.size}{p.quantity > 1 && ` ×${p.quantity}`} — <span className="text-amber-400 font-black">₨{((p.unitPrice || 0) * (p.quantity || 1)).toLocaleString()}</span></span>
+                  </div>
+                ))}
+              </div>
               <p className="text-gray-400">Engraving: <span className="text-white font-black">{engravingRequired ? 'Yes' : 'No'}</span></p>
               {engravingRequired && <>
                 {engravingNames.length > 0 && <p className="text-gray-400">Names: <span className="text-white font-black">{engravingNames.filter(Boolean).join(', ')}</span></p>}
