@@ -619,8 +619,8 @@ const OutletStockRequest = () => {
                           <button onClick={async () => {
                             setReceivingId(o.id);
                             try {
-                              await api.post(`/api/outlet-orders/${o.id}/receive`);
-                              toast.success(`Order #${o.orderNumber} received`);
+                              const res = await api.post(`/api/outlet-orders/${o.id}/receive`);
+                              toast.success(res.data.message || `Order #${o.orderNumber} received`);
                               refreshReturns();
                             } catch (err) {
                               toast.error(err.response?.data?.message || 'Failed to receive order');

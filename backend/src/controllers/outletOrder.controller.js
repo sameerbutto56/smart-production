@@ -231,18 +231,20 @@ const receiveOutletReturn = async (req, res) => {
     if (order.outletName !== outletName) return res.status(403).json({ message: 'This order belongs to a different outlet' });
 
     const activeStage = await prisma.orderStage.findFirst({
-      where: { orderId, stageName: 'OUTLET_RECEIVE', status: 'PENDING' }
+      where: { orderId, stageName: 'OUTLET_RECEIVE', status: { in: ['PENDING', 'IN_PROGRESS'] } }
     });
     if (activeStage) {
       await prisma.orderStage.update({
         where: { id: activeStage.id },
         data: { status: 'COMPLETED', completedAt: new Date() }
       });
+    } else {
+      return res.status(400).json({ message: 'No active OUTLET_RECEIVE stage found' });
     }
 
     await prisma.order.update({
       where: { id: orderId },
-      data: { currentStage: 'ORDER_ENTRY', status: 'COMPLETED' }
+      data: { currentStage: 'ORDER_ENTRY', status: 'COMPLETED', storeAcceptedAt: null }
     });
 
     await createAuditLog(orderId, 'OUTLET_RECEIVED', `Order received by outlet ${outletName}`, req.user?.id || 'SYSTEM');
