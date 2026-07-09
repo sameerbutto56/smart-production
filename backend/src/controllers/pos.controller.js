@@ -570,7 +570,7 @@ const getSalesDashboard = async (req, res) => {
       }
     }
 
-    const whereClause = { faisalTake: false };
+    const whereClause = { faisalTake: { not: true } };
     if (outlet) {
       whereClause.outletName = outlet;
     }
@@ -1128,7 +1128,7 @@ const generateBalanceReceiptNumber = async () => {
 const getBalanceInvoices = async (req, res) => {
   try {
     const outlet = getOutletName(req);
-    const where = { faisalTake: false };
+    const where = { faisalTake: { not: true } };
     if (outlet) where.outletName = outlet;
 
     const sales = await prisma.posSale.findMany({
