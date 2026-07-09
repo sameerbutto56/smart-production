@@ -11,35 +11,44 @@ export default function useCache(key, { fetcher, ttl = DEFAULT_TTL, staleWhileRe
   const mountRef = useRef(true);
   const keyRef = useRef(key);
   const fetcherRef = useRef(fetcher);
+  const reqRef = useRef(0);
   fetcherRef.current = fetcher;
 
   const load = useCallback(async (skipCache = false) => {
     const currentKey = keyRef.current;
     if (!currentKey) { setLoading(false); return; }
 
+    const reqId = ++reqRef.current;
     let hadCachedData = false;
 
     if (!skipCache) {
-      // 1. Hot cache (memory)
+      // 1. Hot cache (memory) — if staleWhileRevalidate, show stale but still revalidate
       const hot = getHot(currentKey);
       if (hot !== null) {
         setData(hot);
-        setLoading(false);
-        setError(null);
-        return;
-      }
-
-      // 2. IndexedDB
-      const cached = await getItem(currentKey);
-      if (cached !== null) {
-        hadCachedData = true;
-        setData(cached);
         setError(null);
         if (staleWhileRevalidate) {
-          setLoading(false); // Show stale data now, revalidate below
+          setLoading(false);
+          hadCachedData = true;
         } else {
           setLoading(false);
           return;
+        }
+      }
+
+      // 2. IndexedDB
+      if (!hadCachedData) {
+        const cached = await getItem(currentKey);
+        if (cached !== null) {
+          hadCachedData = true;
+          setData(cached);
+          setError(null);
+          if (staleWhileRevalidate) {
+            setLoading(false);
+          } else {
+            setLoading(false);
+            return;
+          }
         }
       }
     }
@@ -50,16 +59,16 @@ export default function useCache(key, { fetcher, ttl = DEFAULT_TTL, staleWhileRe
     if (!hadCachedData) setLoading(true);
     try {
       const freshData = await fn();
-      if (!mountRef.current) return;
+      if (!mountRef.current || reqRef.current !== reqId) return;
       setData(freshData);
       setError(null);
       setHot(currentKey, freshData, ttl);
       await setItem(currentKey, freshData, ttl);
     } catch (err) {
-      if (!mountRef.current) return;
+      if (!mountRef.current || reqRef.current !== reqId) return;
       setError(err);
     } finally {
-      if (mountRef.current) setLoading(false);
+      if (mountRef.current && reqRef.current === reqId) setLoading(false);
     }
   }, [ttl, staleWhileRevalidate]);
 
