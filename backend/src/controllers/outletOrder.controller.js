@@ -542,9 +542,11 @@ const getOutletAnalytics = async (req, res) => {
 
     // Order type distribution
     const typeDist = {};
+    let totalRevenue = 0;
     orders.forEach(o => {
       const t = o.type || 'STANDARD';
       typeDist[t] = (typeDist[t] || 0) + 1;
+      if (o.paymentStatus === 'PAID') totalRevenue += Number(o.totalPrice || 0);
     });
     const orderTypeDistribution = Object.entries(typeDist).map(([name, count]) => ({ name, count }));
 
@@ -605,7 +607,7 @@ const getOutletAnalytics = async (req, res) => {
     // Cache result for 2 minutes
     const cacheKey = `outlet:analytics:${outletName}:${range}:${dateFrom || ''}:${dateTo || ''}`;
     cache.set(cacheKey, {
-      orderStats: { totalOrders, pendingOrders, inProgressOrders, completedOrders, cancelledOrders },
+      orderStats: { totalOrders, pendingOrders, inProgressOrders, completedOrders, cancelledOrders, totalRevenue },
       paymentBreakdown: { paidOrders, pendingPaymentOrders },
       orderTypeDistribution,
       salesTrend,
@@ -616,7 +618,7 @@ const getOutletAnalytics = async (req, res) => {
     }, 120);
 
     res.json({
-      orderStats: { totalOrders, pendingOrders, inProgressOrders, completedOrders, cancelledOrders },
+      orderStats: { totalOrders, pendingOrders, inProgressOrders, completedOrders, cancelledOrders, totalRevenue },
       paymentBreakdown: { paidOrders, pendingPaymentOrders },
       orderTypeDistribution,
       salesTrend,
