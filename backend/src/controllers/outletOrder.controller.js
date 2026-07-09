@@ -83,7 +83,7 @@ const createOutletOrder = async (req, res) => {
 
       const destStage = DESTINATION_STAGES[orderDestination];
       await tx.orderStage.create({
-        data: { orderId: created.id, stageName: destStage, status: 'PENDING', startedAt: new Date() }
+        data: { orderId: created.id, stageName: destStage, status: 'IN_PROGRESS', startedAt: new Date() }
       });
 
       await tx.order.update({
