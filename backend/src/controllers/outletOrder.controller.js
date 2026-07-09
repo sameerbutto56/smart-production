@@ -104,12 +104,12 @@ const createOutletOrder = async (req, res) => {
     });
 
     // Save sizeData to client profile if matched
-    if (clientNumber && sizeDataStr) {
+    if (clientNumber && sizeData) {
       const existingClient = await prisma.client.findUnique({ where: { clientNumber } });
       if (existingClient) {
         await prisma.client.update({
           where: { clientNumber },
-          data: { sizeDetails: sizeDataStr }
+          data: { sizeDetails: sizeData }
         });
       }
     }
