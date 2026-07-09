@@ -1078,7 +1078,9 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const firstProduct = isMultiItem ? getItemProduct(allItems[0]) : (rawPd || {});
   const custom = parseJSON(order.customization);
   const rawSizes = parseJSON(order.sizeData);
-  const sizes = (rawSizes && Object.keys(rawSizes).length > 0) ? rawSizes : ({});
+  const isOutletSizeData = rawSizes && typeof rawSizes === 'object' && !Array.isArray(rawSizes) && Object.values(rawSizes).some(v => typeof v === 'object' && v !== null && !Array.isArray(v) && !v._extra);
+  const flatSizes = isOutletSizeData ? Object.values(rawSizes).reduce((acc, v) => ({ ...acc, ...v }), {}) : rawSizes;
+  const sizes = (flatSizes && Object.keys(flatSizes).length > 0) ? flatSizes : ({});
 
   // ─── DATE SECTION ───
   const entryDate = fmtDateTime(order.createdAt);
@@ -1333,7 +1335,10 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   if (orderType === 'FULL_CUSTOM' && showMeas) {
     const measItems = isMultiItem ? allItems : [{ productDetails: firstProduct, sizeData: sizes }];
     const hasAnyMeas = measItems.some(item => {
-      const s = item.sizeData || sizes || {};
+      const rawS = item.sizeData || sizes || {};
+      const s = rawS && typeof rawS === 'object' && !Array.isArray(rawS) && Object.values(rawS).some(v => typeof v === 'object' && v !== null && !Array.isArray(v) && !v._extra)
+        ? Object.values(rawS).reduce((acc, v) => ({ ...acc, ...v }), {})
+        : rawS;
       return s.specialNote || Object.entries(s).some(([k, v]) => v && k !== 'specialNote');
     });
     // Also check order-level sizes if items don't have per-item sizes
@@ -1342,7 +1347,10 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
       measItems.forEach((item, idx) => {
         const p = getItemProduct(item);
-        const s = item.sizeData || sizes || {};
+        const rawS = item.sizeData || sizes || {};
+        const s = rawS && typeof rawS === 'object' && !Array.isArray(rawS) && Object.values(rawS).some(v => typeof v === 'object' && v !== null && !Array.isArray(v) && !v._extra)
+          ? Object.values(rawS).reduce((acc, v) => ({ ...acc, ...v }), {})
+          : rawS;
         const productSize = p.size || 'Custom';
         const allSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'C'];
         win.document.write(`<div style="margin-bottom:6px;page-break-inside:avoid">`);
@@ -1355,6 +1363,15 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           win.document.write(`<div style="text-align:center;border:2px solid ${isSelected ? '#000' : '#ccc'};border-radius:6px;padding:6px 14px;background:${isSelected ? '#000' : '#fff'};color:${isSelected ? '#fff' : '#666'};font-size:18px;font-weight:800">${sz}</div>`);
         });
         win.document.write(`</div>`);
+        // Custom measurement values from sizeData
+        const measEntries = Object.entries(s).filter(([k, v]) => v && k !== 'specialNote' && k !== '_extra' && k !== '_standardSize');
+        if (measEntries.length > 0) {
+          win.document.write(`<div style="margin-top:6px;display:grid;grid-template-columns:1fr 1fr;gap:3px;font-size:18px">`);
+          measEntries.forEach(([k, v]) => {
+            win.document.write(`<div style="display:flex;justify-content:space-between;padding:2px 6px;background:#f5f5f5;border-radius:3px"><span style="font-weight:700;color:#333">${k}</span><span style="font-weight:900;color:#000">${v}"</span></div>`);
+          });
+          win.document.write(`</div>`);
+        }
         // Sleeve / Shirt Length
         const slv = p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves ? p.femaleOptions.sleeves : null);
         const slen = p.shirtLength || (p.gender === 'Female' && p.femaleOptions?.shirtLength ? p.femaleOptions.shirtLength : null);

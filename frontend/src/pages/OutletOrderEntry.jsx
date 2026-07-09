@@ -58,7 +58,7 @@ const OutletOrderEntry = () => {
 
   const FIELD_NAME_MAP = {
     chest: 'Chest', waist: 'Waist', shoulder: 'Shoulder',
-    length: 'Length', sleeve: 'Sleeve', thigh: 'Thigh',
+    length: 'Length', sleeve: 'Sleeves Length', thigh: 'Thighs',
     mori: 'Mori', bottom: 'Bottom',
     shirtLength: 'Shirt Length', bottomWidth: 'Bottom Width',
     bottomZeer: 'Bottom Zeer', neck: 'Neck', cuff: 'Cuff',
@@ -110,8 +110,22 @@ const OutletOrderEntry = () => {
         const isPerProduct = Object.values(raw).some(v => typeof v === 'object' && v !== null && !Array.isArray(v));
 
         if (isPerProduct) {
-          setSizeData(raw);
-          const first = Object.values(raw).find(v => typeof v === 'object' && v !== null);
+          // Normalize measurement field names in per-product format
+          const normalizedPerProduct = {};
+          Object.entries(raw).forEach(([prodName, measurements]) => {
+            if (typeof measurements === 'object' && measurements !== null && !Array.isArray(measurements)) {
+              normalizedPerProduct[prodName] = {};
+              Object.entries(measurements).forEach(([k, v]) => {
+                if (k === '_extra' || k === '_standardSize') { normalizedPerProduct[prodName][k] = v; return; }
+                const mapped = FIELD_NAME_MAP[k.toLowerCase()] || k;
+                normalizedPerProduct[prodName][mapped] = v;
+              });
+            } else {
+              normalizedPerProduct[prodName] = measurements;
+            }
+          });
+          setSizeData(normalizedPerProduct);
+          const first = Object.values(normalizedPerProduct).find(v => typeof v === 'object' && v !== null);
           if (first) { setClientMeasurements(first); hasCustomFromDetails = Object.keys(first).filter(k => k !== '_extra').length > 0; }
           loaded = true;
         } else if (Object.keys(rest).length > 0) {

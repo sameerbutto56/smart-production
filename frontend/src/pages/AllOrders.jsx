@@ -795,6 +795,8 @@ const AllOrders = () => {
         const isMultiItem = allItems && allItems.length > 0;
         const custom = typeof selectedOrder.customization === 'string' ? JSON.parse(selectedOrder.customization) : selectedOrder.customization;
         const rawSizes = typeof selectedOrder.sizeData === 'string' ? JSON.parse(selectedOrder.sizeData) : selectedOrder.sizeData;
+        const isOutletSizeData = rawSizes && typeof rawSizes === 'object' && !Array.isArray(rawSizes) && Object.values(rawSizes).some(v => typeof v === 'object' && v !== null && !Array.isArray(v) && !v._extra);
+        const flatSizes = isOutletSizeData ? Object.values(rawSizes).reduce((acc, v) => ({ ...acc, ...v }), {}) : rawSizes;
         
         const standardMeasurements = {
           'S': { chest: '36', shoulder: '14.5', length: '26', sleeve: '22', waist: '30', hips: '38' },
@@ -804,7 +806,7 @@ const AllOrders = () => {
           '2XL': { chest: '48', shoulder: '18', length: '30', sleeve: '26', waist: '42', hips: '50' }
         };
 
-        const sizes = (rawSizes && Object.keys(rawSizes).length > 0) ? rawSizes : (standardMeasurements[product?.size] || {});
+        const sizes = (flatSizes && Object.keys(flatSizes).length > 0) ? flatSizes : (standardMeasurements[product?.size] || {});
         const hasCustomData = isMultiItem
           ? allItems.some(item => {
               const c = item.customization || {};
@@ -890,8 +892,10 @@ const AllOrders = () => {
                               const c = item.customization || {};
                               const perItemS = item.sizeData;
                               const orderS = rawSizes;
+                              const outletS = isOutletSizeData ? (rawSizes?.[p.productType || p.name] || {}) : null;
                               const chartS = standardMeasurements[p.size] || {};
                               const s = (perItemS && Object.values(perItemS).some(v => v)) ? perItemS
+                                : (outletS && Object.values(outletS).some(v => v)) ? outletS
                                 : (orderS && Object.values(orderS).some(v => v)) ? orderS
                                 : chartS;
                               const hasSleeves = p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves);
@@ -1172,7 +1176,7 @@ const AllOrders = () => {
                   <section className="bg-blue-600/5 p-4 md:p-8 rounded-[2rem] border border-blue-500/10">
                     <h4 className="text-xs md:text-sm font-black text-blue-400 uppercase tracking-[0.3em] mb-6">02. Precise Measurements (Inches)</h4>
                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                      {Object.entries(sizes || {}).map(([key, val], i) => (
+                      {Object.entries(sizes || {}).filter(([k, v]) => v && k !== 'specialNote').map(([key, val], i) => (
                         <div key={i} className="text-center p-4 theme-bg-subtle rounded-2xl border theme-border shadow-sm">
                           <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-tighter mb-1">{key.replace(/([A-Z])/g, ' $1')}</p>
                           <p className="text-xl font-black text-blue-400">{val}"</p>

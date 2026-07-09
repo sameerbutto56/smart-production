@@ -244,7 +244,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
 
   const { primary: product, allItems: orderItems, isMultiItem } = normalizeProduct(order.productDetails);
   const rawSizes = parseJSON(order.sizeData);
-  const sizes = (rawSizes && Object.keys(rawSizes).length > 0) ? rawSizes : (standardMeasurements[product?.size] || {});
+  const isOutletSizeData = rawSizes && typeof rawSizes === 'object' && !Array.isArray(rawSizes) && Object.values(rawSizes).some(v => typeof v === 'object' && v !== null && !Array.isArray(v) && !v._extra);
+  const flatSizes = isOutletSizeData ? Object.values(rawSizes).reduce((acc, v) => ({ ...acc, ...v }), {}) : rawSizes;
+  const sizes = (flatSizes && Object.keys(flatSizes).length > 0) ? flatSizes : (standardMeasurements[product?.size] || {});
   const custom = parseJSON(order.customization);
 
   const productionStages = ['PRODUCTION_ACCEPTANCE', 'PRODUCTION'];
@@ -378,7 +380,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
 
     if (stage === 'PRODUCTION') {
       const { primary: _, allItems: prodItems, isMultiItem: isMultiProd } = normalizeProduct(order.productDetails);
-      const items = isMultiProd && prodItems ? prodItems : [{ productDetails: normalizeProduct(order.productDetails).primary, customization: parseJSON(order.customization), sizeData: parseJSON(order.sizeData) }];
+      const items = isMultiProd && prodItems ? prodItems : [{ productDetails: normalizeProduct(order.productDetails).primary, customization: parseJSON(order.customization), sizeData: isOutletSizeData ? flatSizes : parseJSON(order.sizeData) }];
       // Sort: unavailable items first
       const sortedItems = [...items].sort((a, b) => {
         const aNA = (a.productDetails || a).availabilityStatus === 'not_available';
@@ -391,7 +393,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
           {sortedItems.map((item, idx) => {
             const p = item.productDetails || {};
             const c = item.customization || {};
-            const s = item.sizeData || {};
+            const rawS = item.sizeData || {};
+            const s = rawS && typeof rawS === 'object' && !Array.isArray(rawS) && Object.values(rawS).some(v => typeof v === 'object' && v !== null && !Array.isArray(v) && !v._extra)
+              ? Object.values(rawS).reduce((acc, v) => ({ ...acc, ...v }), {})
+              : rawS;
             const female = p?.femaleOptions || {};
             const hasSizes = s && Object.keys(s).some(k => s[k]);
             const isFirst = idx === 0;
@@ -507,17 +512,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         </tr>
                       </thead>
                       <tbody>
-                        {[
-                          { l: 'Chest', v: s?.chest },
-                          { l: 'Shoulder', v: s?.shoulder },
-                          { l: 'Length', v: s?.length },
-                          { l: 'Sleeve', v: s?.sleeve },
-                          { l: 'Waist', v: s?.waist },
-                          { l: 'Hips', v: s?.hips }
-                        ].filter(sm => sm.v).map((sm, si) => (
+                        {Object.entries(s).filter(([k, v]) => v && k !== 'specialNote').map(([key, val], si) => (
                           <tr key={si} className="border-b border-gray-800/30">
-                            <td className="text-gray-400 font-bold py-1.5 pr-2">{sm.l}</td>
-                            <td className="text-right text-white font-black py-1.5 pl-2">{sm.v}"</td>
+                            <td className="text-gray-400 font-bold py-1.5 pr-2 capitalize">{key}</td>
+                            <td className="text-right text-white font-black py-1.5 pl-2">{val}"</td>
                           </tr>
                         ))}
                       </tbody>
