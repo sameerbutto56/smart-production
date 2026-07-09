@@ -601,7 +601,7 @@ const getSalesDashboard = async (req, res) => {
     // 3. Fetch all sales for trend charts & revenue calculation
     const allSales = await prisma.posSale.findMany({
       where: whereClause,
-      select: { id: true, createdAt: true, grandTotal: true, advanceAmount: true, receiptNumber: true, outletName: true, paymentMethod: true }
+      select: { id: true, createdAt: true, grandTotal: true, advanceAmount: true, receiptNumber: true, outletName: true, paymentMethod: true, orderId: true }
     });
     const saleIds = allSales.map(s => s.id);
     const balancePayments = saleIds.length > 0 ? await prisma.posBalancePayment.findMany({
@@ -610,11 +610,12 @@ const getSalesDashboard = async (req, res) => {
     }) : [];
 
     // Calculate total sales by actual payment dates
-    // For each sale: count advanceAmount on sale date (or full grandTotal if fully paid upfront)
-    // Balance payments are counted on their payment dates (handled above in salesByDay)
+    // Regular sales (no orderId): full grandTotal counted on sale date
+    // Advance/balance sales: only advanceAmount counted on sale date (balance tracked via PosBalancePayment)
+    const saleRevenue = (s) => s.orderId ? (s.advanceAmount >= s.grandTotal ? s.grandTotal : s.advanceAmount) : s.grandTotal;
     let totalSales = 0;
     allSales.forEach(s => {
-      totalSales += s.advanceAmount >= s.grandTotal ? s.grandTotal : s.advanceAmount;
+      totalSales += saleRevenue(s);
     });
     balancePayments.forEach(bp => {
       totalSales += bp.amountPaidNow;
@@ -631,7 +632,7 @@ const getSalesDashboard = async (req, res) => {
     const paymentTotals = {};
     allSales.forEach(s => {
       const method = ['CASH', 'CARD', 'ONLINE'].includes(s.paymentMethod) ? s.paymentMethod : 'CASH';
-      const received = s.advanceAmount >= s.grandTotal ? s.grandTotal : s.advanceAmount;
+      const received = saleRevenue(s);
       paymentTotals[method] = (paymentTotals[method] || 0) + received;
     });
     // Add balance payments by their payment method
@@ -682,10 +683,7 @@ const getSalesDashboard = async (req, res) => {
 
     allSales.forEach(s => {
       const day = s.createdAt.toISOString().split('T')[0];
-      // For fully paid sales (advance = grandTotal), count full amount on sale date
-      // For partial payment sales, count only the advance amount on sale date
-      const saleRevenue = s.advanceAmount >= s.grandTotal ? s.grandTotal : s.advanceAmount;
-      salesByDay[day] = (salesByDay[day] || 0) + saleRevenue;
+      salesByDay[day] = (salesByDay[day] || 0) + saleRevenue(s);
       ordersByDay[day] = (ordersByDay[day] || 0) + 1;
     });
 
