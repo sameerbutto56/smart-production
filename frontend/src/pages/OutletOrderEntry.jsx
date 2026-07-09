@@ -122,6 +122,8 @@ const OutletOrderEntry = () => {
 
   /* ─── Product Management ─── */
   const addProduct = (prod) => {
+    const colors = [...new Set((prod.variants || []).map(v => v.color).filter(Boolean))];
+    const sizes = [...new Set((prod.variants || []).map(v => v.size).filter(Boolean))];
     setProducts(prev => [...prev, {
       _tempId: Date.now() + Math.random(),
       name: prod.name,
@@ -129,7 +131,9 @@ const OutletOrderEntry = () => {
       color: '',
       size: '',
       quantity: 1,
-      unitPrice: prod.price || 0
+      unitPrice: prod.price || 0,
+      _colors: colors,
+      _sizes: sizes
     }]);
   };
 
@@ -439,7 +443,7 @@ const OutletOrderEntry = () => {
                         <select value={p.color} onChange={e => updateProduct(idx, 'color', e.target.value)}
                           className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white outline-none">
                           <option value="">Select</option>
-                          {[...new Set(p.variants?.map(v => v.color).filter(Boolean))].map(c => <option key={c} value={c}>{c}</option>)}
+                          {(p._colors || []).map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                       </div>
                       <div>
@@ -447,7 +451,7 @@ const OutletOrderEntry = () => {
                         <select value={p.size} onChange={e => updateProduct(idx, 'size', e.target.value)}
                           className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white outline-none">
                           <option value="">Select</option>
-                          {[...new Set(p.variants?.map(v => v.size).filter(Boolean))].map(s => <option key={s} value={s}>{s}</option>)}
+                          {(p._sizes || []).map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
                       </div>
                       <div>
