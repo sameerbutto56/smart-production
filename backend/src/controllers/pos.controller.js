@@ -1128,7 +1128,7 @@ const generateBalanceReceiptNumber = async () => {
 const getBalanceInvoices = async (req, res) => {
   try {
     const outlet = getOutletName(req);
-    const where = { faisalTake: { not: true } };
+    const where = { faisalTake: { not: true }, orderId: { not: null } };
     if (outlet) where.outletName = outlet;
 
     const sales = await prisma.posSale.findMany({
