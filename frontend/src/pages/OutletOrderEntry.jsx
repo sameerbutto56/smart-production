@@ -69,16 +69,16 @@ const OutletOrderEntry = () => {
     setClientStandardSizes(client.standardSizes || []);
     // Load sizeDetails from client profile, fallback to last order's sizeData
     let loaded = false;
-    if (client.sizeDetails && typeof client.sizeDetails === 'string' && client.sizeDetails.startsWith('{')) {
+    if (client.sizeDetails) {
       try {
-        const parsed = JSON.parse(client.sizeDetails);
-        if (Object.keys(parsed).length > 0) { setSizeData(parsed); loaded = true; }
+        const raw = typeof client.sizeDetails === 'string' ? JSON.parse(client.sizeDetails) : client.sizeDetails;
+        if (raw && typeof raw === 'object' && Object.keys(raw).length > 0) { setSizeData(raw); loaded = true; }
       } catch {}
     }
     if (!loaded && orders && orders.length > 0 && orders[0].sizeData) {
       try {
-        const sd = typeof orders[0].sizeData === 'string' ? JSON.parse(orders[0].sizeData) : orders[0].sizeData;
-        if (Object.keys(sd).length > 0) setSizeData(sd);
+        const raw = typeof orders[0].sizeData === 'string' ? JSON.parse(orders[0].sizeData) : orders[0].sizeData;
+        if (raw && typeof raw === 'object' && Object.keys(raw).length > 0) setSizeData(raw);
       } catch {}
     }
     setLookedUp(true);
