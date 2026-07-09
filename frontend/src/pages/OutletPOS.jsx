@@ -32,11 +32,11 @@ const OutletPOS = () => {
   const [dashboardDateFrom, setDashboardDateFrom] = useState('');
   const [dashboardDateTo, setDashboardDateTo] = useState('');
 
-  const productsKey = `pos:products:${selectedOutlet}`;
-  const DASHBOARD_CACHE_VERSION = 'v2';
-  const dashboardKey = `pos:dashboard:${DASHBOARD_CACHE_VERSION}:${selectedOutlet}:${dashboardRange}:${dashboardDateFrom}:${dashboardDateTo}`;
-  const salesKey = `pos:sales:${selectedOutlet}`;
-  const returnsKey = `pos:returns:${selectedOutlet}`;
+  const CACHE_VERSION = 'v3';
+  const productsKey = `pos:products:${CACHE_VERSION}:${selectedOutlet}`;
+  const dashboardKey = `pos:dashboard:${CACHE_VERSION}:${selectedOutlet}:${dashboardRange}:${dashboardDateFrom}:${dashboardDateTo}`;
+  const salesKey = `pos:sales:${CACHE_VERSION}:${selectedOutlet}`;
+  const returnsKey = `pos:returns:${CACHE_VERSION}:${selectedOutlet}`;
 
   const { data: products = [], loading: productsLoading, refresh: refreshProducts, invalidate: invalidateProducts } = useCache(productsKey, {
     fetcher: () => api.get(`/api/pos/products?outlet=${selectedOutlet}`).then(r => r.data),
