@@ -598,6 +598,17 @@ const getSalesDashboard = async (req, res) => {
       })
     ]);
 
+    // 3. Fetch all sales for trend charts & revenue calculation
+    const allSales = await prisma.posSale.findMany({
+      where: whereClause,
+      select: { id: true, createdAt: true, grandTotal: true, advanceAmount: true, receiptNumber: true, outletName: true, paymentMethod: true }
+    });
+    const saleIds = allSales.map(s => s.id);
+    const balancePayments = saleIds.length > 0 ? await prisma.posBalancePayment.findMany({
+      where: { posSaleId: { in: saleIds } },
+      select: { posSaleId: true, amountPaidNow: true, paidAt: true, paymentMethod: true }
+    }) : [];
+
     // Calculate total sales by actual payment dates
     // For each sale: count advanceAmount on sale date (or full grandTotal if fully paid upfront)
     // Balance payments are counted on their payment dates (handled above in salesByDay)
@@ -624,11 +635,7 @@ const getSalesDashboard = async (req, res) => {
       paymentTotals[method] = (paymentTotals[method] || 0) + received;
     });
     // Add balance payments by their payment method
-    const bpWithMethod = saleIds.length > 0 ? await prisma.posBalancePayment.findMany({
-      where: { posSaleId: { in: saleIds } },
-      select: { amountPaidNow: true, paymentMethod: true }
-    }) : [];
-    bpWithMethod.forEach(bp => {
+    balancePayments.forEach(bp => {
       const method = ['CASH', 'CARD', 'ONLINE'].includes(bp.paymentMethod) ? bp.paymentMethod : 'CASH';
       paymentTotals[method] = (paymentTotals[method] || 0) + bp.amountPaidNow;
     });
@@ -669,20 +676,6 @@ const getSalesDashboard = async (req, res) => {
       prisma.order.count({ where: { ...orderWhere, status: 'PENDING' } }),
       prisma.order.count({ where: { ...orderWhere, status: 'CANCELLED' } })
     ]);
-
-    // 3. Fetch all sales for trend charts & peak day analysis
-    // Revenue is calculated by actual payment date, not invoice date
-    const allSales = await prisma.posSale.findMany({
-      where: whereClause,
-      select: { id: true, createdAt: true, grandTotal: true, advanceAmount: true, receiptNumber: true, outletName: true }
-    });
-
-    // Fetch all balance payments for these sales
-    const saleIds = allSales.map(s => s.id);
-    const balancePayments = saleIds.length > 0 ? await prisma.posBalancePayment.findMany({
-      where: { posSaleId: { in: saleIds } },
-      select: { posSaleId: true, amountPaidNow: true, paidAt: true }
-    }) : [];
 
     const salesByDay = {};
     const ordersByDay = {};
