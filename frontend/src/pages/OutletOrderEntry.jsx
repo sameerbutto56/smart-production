@@ -17,9 +17,11 @@ const OutletOrderEntry = () => {
   const outletName = user?.name || 'Outlet';
 
   const [step, setStep] = useState(0);
-  const [clientNumber, setClientNumber] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [clientData, setClientData] = useState(null);
   const [recentOrders, setRecentOrders] = useState([]);
+  const [searchResults, setSearchResults] = useState([]);
+  const [showResults, setShowResults] = useState(false);
   const [lookedUp, setLookedUp] = useState(false);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [saveAfterOrder, setSaveAfterOrder] = useState(false);
@@ -52,36 +54,61 @@ const OutletOrderEntry = () => {
 
   const [destination, setDestination] = useState('');
 
+  const selectClient = useCallback((client, orders) => {
+    setClientData(client);
+    setShowResults(false);
+    setSearchResults([]);
+    setRecentOrders(orders || []);
+    setCustomer({
+      name: client.name || '',
+      phone: client.phone || '',
+      address: client.permanentAddress || '',
+      city: client.city || (Array.isArray(client.deliveryAddresses) ? client.deliveryAddresses[0] : '') || '',
+      notes: ''
+    });
+    setClientStandardSizes(client.standardSizes || []);
+    // Load sizeDetails from client profile, fallback to last order's sizeData
+    let loaded = false;
+    if (client.sizeDetails && typeof client.sizeDetails === 'string' && client.sizeDetails.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(client.sizeDetails);
+        if (Object.keys(parsed).length > 0) { setSizeData(parsed); loaded = true; }
+      } catch {}
+    }
+    if (!loaded && orders && orders.length > 0 && orders[0].sizeData) {
+      try {
+        const sd = typeof orders[0].sizeData === 'string' ? JSON.parse(orders[0].sizeData) : orders[0].sizeData;
+        if (Object.keys(sd).length > 0) setSizeData(sd);
+      } catch {}
+    }
+    setLookedUp(true);
+    setSaveAfterOrder(false);
+    toast.success(`Client ${client.name} found`);
+  }, []);
+
   /* ─── Lookup Client ─── */
   const handleLookup = useCallback(async () => {
-    const num = clientNumber.trim();
-    if (!num) return toast.error('Enter a client number');
+    const q = searchQuery.trim();
+    if (!q) return toast.error('Enter client number, phone, or name');
     setLookupLoading(true);
     setLookedUp(false);
     setClientData(null);
     setRecentOrders([]);
+    setShowResults(false);
     try {
-      const res = await api.get('/api/outlet-orders/lookup', { params: { number: num } });
-      const { client, recentOrders: orders } = res.data;
-      setClientData(client);
-      setRecentOrders(orders || []);
-      setCustomer({
-        name: client.name || '',
-        phone: client.phone || '',
-        address: client.permanentAddress || '',
-        city: client.city || (Array.isArray(client.deliveryAddresses) ? client.deliveryAddresses[0] : '') || '',
-        notes: ''
-      });
-      setClientStandardSizes(client.standardSizes || []);
-      if (client.sizeDetails && typeof client.sizeDetails === 'string' && client.sizeDetails.startsWith('{')) {
-        try {
-          const parsed = JSON.parse(client.sizeDetails);
-          setSizeData(parsed);
-        } catch {}
+      const isNumber = /^\d{4,5}$/.test(q);
+      const isPhone = /^[\d\-+ ]{7,}$/.test(q);
+      const params = isNumber ? { number: q } : isPhone ? { phone: q } : { name: q };
+      const res = await api.get('/api/outlet-orders/lookup', { params });
+      const { clients } = res.data;
+      if (clients.length === 1) {
+        selectClient(clients[0].client, clients[0].recentOrders);
+      } else {
+        setSearchResults(clients);
+        setShowResults(true);
+        if (clients.length === 0) toast('Client not found — enter details manually');
       }
       setLookedUp(true);
-      setSaveAfterOrder(false);
-      toast.success(`Client ${client.name} found`);
     } catch (err) {
       if (err.response?.status === 404) {
         setLookedUp(true);
@@ -92,7 +119,13 @@ const OutletOrderEntry = () => {
       }
     }
     setLookupLoading(false);
-  }, [clientNumber]);
+  }, [searchQuery, selectClient]);
+
+  const handleManualEntry = useCallback(() => {
+    setClientData(null);
+    setShowResults(false);
+    setLookedUp(true);
+  }, []);
 
   /* ─── Fetch Product Catalog (reference only) ─── */
   const fetchCatalog = useCallback(async () => {
@@ -161,7 +194,7 @@ const OutletOrderEntry = () => {
   /* ─── Validation ─── */
   const canProceed = useMemo(() => {
     switch (step) {
-      case 0: return clientNumber.trim().length > 0 && lookedUp;
+      case 0: return searchQuery.trim().length > 0 && lookedUp;
       case 1: return customer.name.trim().length > 0 && customer.phone.trim().length > 0;
       case 2: return products.length > 0;
       case 3: return true;
@@ -172,7 +205,7 @@ const OutletOrderEntry = () => {
       case 8: return true;
       default: return false;
     }
-  }, [step, clientNumber, lookedUp, customer, products, destination]);
+  }, [step, searchQuery, lookedUp, customer, products, destination]);
 
   const nextStep = () => { if (canProceed) setStep(s => Math.min(s + 1, STEPS.length - 1)); };
   const prevStep = () => setStep(s => Math.max(s - 1, 0));
@@ -215,7 +248,7 @@ const OutletOrderEntry = () => {
       if (saveAfterOrder && !clientData) {
         try {
           await api.post('/api/outlet-orders/save-client', {
-            clientNumber: clientNumber.trim(),
+            clientNumber: searchQuery.trim(),
             customerName: customer.name,
             customerPhone: customer.phone,
             address: customer.address,
@@ -310,23 +343,40 @@ const OutletOrderEntry = () => {
       {/* Step Content */}
       <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-4 md:p-6 space-y-4 min-h-[300px]">
 
-        {/* Step 0: Order Number (Client Number) */}
+        {/* Step 0: Search Client */}
         {step === 0 && (
           <div className="space-y-4">
-            <h2 className="text-lg font-black text-white flex items-center gap-2"><Search size={18} />Enter Client Number</h2>
-            <p className="text-sm font-bold text-gray-400">Enter the unique 4-5 digit client number to auto-fill customer details.</p>
+            <h2 className="text-lg font-black text-white flex items-center gap-2"><Search size={18} />Find Client</h2>
+            <p className="text-sm font-bold text-gray-400">Search by client number, phone number, or name.</p>
             <div className="flex gap-2">
-              <input value={clientNumber} onChange={e => { setClientNumber(e.target.value); setLookedUp(false); }}
-                placeholder="Client Number (e.g., 1001)"
+              <input value={searchQuery} onChange={e => { setSearchQuery(e.target.value); setLookedUp(false); setShowResults(false); }}
+                placeholder="Client #, Phone, or Name"
                 className="flex-1 bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-lg font-black text-white placeholder-gray-500 focus:border-amber-500 outline-none" />
-              <button onClick={handleLookup} disabled={lookupLoading || !clientNumber.trim()}
+              <button onClick={handleLookup} disabled={lookupLoading || !searchQuery.trim()}
                 className="bg-amber-600 hover:bg-amber-500 text-white font-black px-6 py-3 rounded-xl disabled:opacity-50">
                 {lookupLoading ? '...' : 'Search'}
               </button>
             </div>
-            {lookedUp && !clientData && (
-              <div className="bg-amber-900/20 border border-amber-700 rounded-xl p-4">
-                <p className="text-sm font-bold text-amber-400">Client not found. You can enter details manually in the next step.</p>
+            {showResults && searchResults.length > 1 && (
+              <div className="space-y-2">
+                <p className="text-xs font-bold text-gray-400">{searchResults.length} clients found — select one:</p>
+                {searchResults.map(({ client, recentOrders }, i) => (
+                  <button key={i} onClick={() => selectClient(client, recentOrders)}
+                    className="w-full bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-xl p-3 text-left">
+                    <p className="text-sm font-black text-white">{client.name} <span className="text-blue-400 text-xs">#{client.clientNumber}</span></p>
+                    <p className="text-xs text-gray-400">{client.phone}{client.city ? ` — ${client.city}` : ''}</p>
+                  </button>
+                ))}
+                <button onClick={handleManualEntry} className="text-xs font-bold text-amber-400 hover:text-amber-300 underline">
+                  Not listed — enter manually
+                </button>
+              </div>
+            )}
+            {lookedUp && !clientData && !showResults && (
+              <div className="space-y-3">
+                <div className="bg-amber-900/20 border border-amber-700 rounded-xl p-4">
+                  <p className="text-sm font-bold text-amber-400">Client not found. Enter details manually in the next step.</p>
+                </div>
               </div>
             )}
           </div>
@@ -373,7 +423,7 @@ const OutletOrderEntry = () => {
                 className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-amber-500 outline-none resize-none" rows={2}
                 placeholder="Any notes about the customer" />
             </div>
-            {!clientData && lookedUp && (
+            {!clientData && (
               <label className="flex items-center gap-2 text-sm font-bold text-emerald-400 cursor-pointer">
                 <input type="checkbox" checked={saveAfterOrder} onChange={e => setSaveAfterOrder(e.target.checked)}
                   className="accent-emerald-500 w-4 h-4" />

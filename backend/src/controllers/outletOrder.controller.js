@@ -103,6 +103,17 @@ const createOutletOrder = async (req, res) => {
       });
     });
 
+    // Save sizeData to client profile if matched
+    if (clientNumber && sizeDataStr) {
+      const existingClient = await prisma.client.findUnique({ where: { clientNumber } });
+      if (existingClient) {
+        await prisma.client.update({
+          where: { clientNumber },
+          data: { sizeDetails: sizeDataStr }
+        });
+      }
+    }
+
     if (req.app.get('io')) req.app.get('io').emit('new-order', { orderId: order.id, orderNumber: order.orderNumber, source: 'OUTLET', outletName });
 
     res.status(201).json(order);
@@ -114,18 +125,38 @@ const createOutletOrder = async (req, res) => {
 
 const lookupClientByNumber = async (req, res) => {
   try {
-    const { number } = req.query;
-    if (!number) return res.status(400).json({ message: 'Client number is required' });
-    const client = await prisma.client.findFirst({ where: { clientNumber: number, isActive: true } });
-    if (!client) return res.status(404).json({ message: 'Client not found' });
-    const recentOrders = await prisma.order.findMany({
-      where: { customerPhone: client.phone, source: 'OUTLET' },
+    const { number, phone, name } = req.query;
+    let where = { isActive: true };
+    if (number) where.clientNumber = number;
+    else if (phone) where.phone = { contains: phone };
+    else if (name) where.name = { contains: name, mode: 'insensitive' };
+    else return res.status(400).json({ message: 'Provide client number, phone, or name' });
+
+    const clients = await prisma.client.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
-      take: 3,
-      select: { id: true, orderNumber: true, createdAt: true, productDetails: true, totalPrice: true, advanceAmount: true, currentStage: true, engravingRequired: true, engravingText: true, engravingInstructions: true, logoRequired: true, engravingNames: true, engravingLogos: true, instructionNotes: true, orderDestination: true }
+      take: 20
     });
-    res.json({ client, recentOrders: recentOrders || [] });
+    if (clients.length === 0) return res.status(404).json({ message: 'Client not found' });
+
+    const result = clients.map(client => ({
+      client,
+      recentOrders: []
+    }));
+
+    for (const entry of result) {
+      const orders = await prisma.order.findMany({
+        where: { customerPhone: entry.client.phone, source: 'OUTLET' },
+        orderBy: { createdAt: 'desc' },
+        take: 3,
+        select: { id: true, orderNumber: true, createdAt: true, productDetails: true, totalPrice: true, advanceAmount: true, currentStage: true, sizeData: true, engravingRequired: true, engravingText: true, engravingInstructions: true, logoRequired: true, engravingNames: true, engravingLogos: true, instructionNotes: true, orderDestination: true }
+      });
+      entry.recentOrders = orders || [];
+    }
+
+    res.json({ clients: result });
   } catch (error) {
+    console.error('Lookup client error:', error);
     res.status(500).json({ message: 'Error looking up client', error: error.message });
   }
 };
