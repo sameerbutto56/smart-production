@@ -641,7 +641,7 @@ const OutletOrderEntry = () => {
                       {['Chest', 'Waist', 'Shoulder', 'Length', 'Sleeve', 'Bottom', 'Thigh', 'Mori'].map(m => (
                         <div key={m}>
                           <label className="text-[10px] text-gray-500">{m}</label>
-                          <input type="text" value={sizeData[`${idx}_${m}`] || ''} onChange={e => setSizeData({ ...sizeData, [`${idx}_${m}`]: e.target.value })}
+                          <input type="text" value={sizeData[p.name]?.[m] || ''} onChange={e => setSizeData({ ...sizeData, [p.name]: { ...(sizeData[p.name] || {}), [m]: e.target.value } })}
                             className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white outline-none" placeholder="in" />
                         </div>
                       ))}

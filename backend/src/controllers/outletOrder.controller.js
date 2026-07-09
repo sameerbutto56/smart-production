@@ -103,14 +103,18 @@ const createOutletOrder = async (req, res) => {
       });
     });
 
-    // Save sizeData to client profile if matched
+    // Save sizeData to client profile if matched (best-effort, don't block response)
     if (clientNumber && sizeData) {
-      const existingClient = await prisma.client.findUnique({ where: { clientNumber } });
-      if (existingClient) {
-        await prisma.client.update({
-          where: { clientNumber },
-          data: { sizeDetails: sizeData }
-        });
+      try {
+        const existingClient = await prisma.client.findUnique({ where: { clientNumber } });
+        if (existingClient) {
+          await prisma.client.update({
+            where: { clientNumber },
+            data: { sizeDetails: sizeData }
+          });
+        }
+      } catch (sdErr) {
+        console.error('Failed to save sizeDetails to client:', sdErr);
       }
     }
 
@@ -118,7 +122,7 @@ const createOutletOrder = async (req, res) => {
 
     res.status(201).json(order);
   } catch (error) {
-    console.error('Create outlet order error:', error);
+    console.error('Create outlet order error:', JSON.stringify({ message: error.message, stack: error.stack }, null, 2));
     res.status(500).json({ message: 'Error creating outlet order', error: error.message });
   }
 };
