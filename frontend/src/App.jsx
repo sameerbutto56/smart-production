@@ -32,6 +32,7 @@ const OutletPOSInventory = lazy(() => import('./pages/OutletPOSInventory'));
 const OutletTransfers = lazy(() => import('./pages/OutletTransfers'));
 const OrderTrack = lazy(() => import('./pages/OrderTrack'));
 const OutletOrderEntry = lazy(() => import('./pages/OutletOrderEntry'));
+const OutletDashboard = lazy(() => import('./pages/OutletDashboard'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -48,7 +49,7 @@ const AuthRedirectHandler = () => {
   
   if (role === 'SUPER_ADMIN' || role === 'ADMIN') return <Navigate to="/dashboard" replace={true} />;
   if (role === 'FAISAL' || role === 'ORDER_ENTRY') return <Navigate to="/dashboard" replace={true} />;
-  if (role === 'OUTLET') return <Navigate to="/outlet-requests" replace={true} />;
+  if (role === 'OUTLET') return <Navigate to="/outlet-dashboard" replace={true} />;
   if (role === 'PRODUCTION') return <Navigate to="/tasks" replace={true} />;
   if (role === 'DELIVERY_BOY') return <Navigate to="/delivery" replace={true} />;
   if (role === 'STORE') return <Navigate to="/warehouse" replace={true} />;
@@ -103,6 +104,7 @@ function App() {
                   <Route path="delivery-sheet" element={<DeliverySheet />} />
                   <Route path="warehouse" element={<WarehouseDashboard />} />
                   <Route path="outlet-requests" element={<OutletStockRequest />} />
+                  <Route path="outlet-dashboard" element={<OutletDashboard />} />
                   <Route path="edit-requests" element={<EditRequestDashboard />} />
                   <Route path="deleted-orders" element={<DeletedOrders />} />
                   <Route path="analytics" element={<UnifiedAnalytics />} />

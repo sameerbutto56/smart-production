@@ -99,8 +99,10 @@ model Order {
   namePrintingCharges Float?  @default(0)
   productionCost   Float?     @default(0)
   grossProfit      Float?     @default(0)
-  netProfit        Float?     @default(0)
-  auditLogs       AuditLog[]
+   netProfit        Float?     @default(0)
+   customerTakenAt  DateTime?
+   orderTakenBy     String?
+   auditLogs       AuditLog[]
    stages          OrderStage[]
    editRequests    OrderEditRequest[]
    deliveryAttempts DeliveryAttempt[]

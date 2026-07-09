@@ -50,7 +50,8 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
   };
 
   const navItems = [
-    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET'] },
+    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY'] },
+    { name: 'Outlet Dashboard', path: '/outlet-dashboard', icon: LayoutDashboard, roles: ['OUTLET'] },
     { name: 'Branches', path: '/pos-inventory', icon: Building2, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Orders', path: '/orders', icon: ClipboardList, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'OUTLET'] },
     { name: 'Transfers', path: '/transfers', icon: ArrowRightLeft, roles: ['SUPER_ADMIN', 'ADMIN', 'OUTLET'] },
@@ -84,7 +85,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     
     // 2. Extra safety for Outlets
     if (userRole === 'OUTLET') {
-      return ['Dashboard', 'Orders', 'Transfers', 'Order Entry', 'Outlet Requests', 'Delivery Sheet', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry'].includes(item.name);
+      return ['Outlet Dashboard', 'Orders', 'Transfers', 'Order Entry', 'Outlet Requests', 'Delivery Sheet', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry'].includes(item.name);
     }
     
     // 3. Explicit Restriction for Delivery Boy

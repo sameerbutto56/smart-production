@@ -90,20 +90,28 @@ const OutletOrderEntry = () => {
   /* ─── Lookup Client ─── */
   const handleLookup = useCallback(async () => {
     const q = searchQuery.trim();
-    if (!q) return toast.error('Enter client number, phone, or name');
+    if (!q) return toast.error('Enter client number, phone, name, or order number');
     setLookupLoading(true);
     setLookedUp(false);
     setClientData(null);
     setRecentOrders([]);
     setShowResults(false);
     try {
+      const isOrderNumber = /^[A-Za-z]{2,4}-\d+$/.test(q);
       const isNumber = /^\d{4,5}$/.test(q);
       const isPhone = /^[\d\-+ ]{7,}$/.test(q);
-      const params = isNumber ? { number: q } : isPhone ? { phone: q } : { name: q };
+      const params = isOrderNumber ? { orderNumber: q } : isNumber ? { number: q } : isPhone ? { phone: q } : { name: q };
       const res = await api.get('/api/outlet-orders/lookup', { params });
       const { clients } = res.data;
       if (clients.length === 1) {
         selectClient(clients[0].client, clients[0].recentOrders);
+        // If looked up by order number, also load sizeData from that order
+        if (isOrderNumber && res.data.clients[0].sizeData) {
+          try {
+            const raw = typeof res.data.clients[0].sizeData === 'string' ? JSON.parse(res.data.clients[0].sizeData) : res.data.clients[0].sizeData;
+            if (raw && typeof raw === 'object' && Object.keys(raw).length > 0) setSizeData(raw);
+          } catch {}
+        }
       } else {
         setSearchResults(clients);
         setShowResults(true);
@@ -352,7 +360,7 @@ const OutletOrderEntry = () => {
             <p className="text-sm font-bold text-gray-400">Search by client number, phone number, or name.</p>
             <div className="flex gap-2">
               <input value={searchQuery} onChange={e => { setSearchQuery(e.target.value); setLookedUp(false); setShowResults(false); }}
-                placeholder="Client #, Phone, or Name"
+                placeholder="Client #, Phone, Name, or Order#"
                 className="flex-1 bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-lg font-black text-white placeholder-gray-500 focus:border-amber-500 outline-none" />
               <button onClick={handleLookup} disabled={lookupLoading || !searchQuery.trim()}
                 className="bg-amber-600 hover:bg-amber-500 text-white font-black px-6 py-3 rounded-xl disabled:opacity-50">

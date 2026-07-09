@@ -133,12 +133,69 @@ const createOutletOrder = async (req, res) => {
 
 const lookupClientByNumber = async (req, res) => {
   try {
-    const { number, phone, name } = req.query;
+    const { number, phone, name, orderNumber } = req.query;
+
+    // Support order number lookup: find the order, then look up client by phone
+    if (orderNumber) {
+      const order = await prisma.order.findUnique({
+        where: { orderNumber },
+        select: { customerPhone: true, customerName: true, sizeData: true, id: true, orderNumber: true, createdAt: true, productDetails: true, totalPrice: true, advanceAmount: true, currentStage: true }
+      });
+      if (!order) return res.status(404).json({ message: 'Order not found' });
+
+      // Find client by phone
+      const clients = order.customerPhone ? await prisma.client.findMany({
+        where: { phone: { contains: order.customerPhone }, isActive: true },
+        orderBy: { createdAt: 'desc' },
+        take: 20
+      }) : [];
+
+      // Build result with sizeData from the found order
+      const result = clients.length > 0 ? clients.map(client => ({
+        client,
+        recentOrders: [],
+        sizeData: order.sizeData
+      })) : [];
+
+      // If no client found, return order info as fallback
+      if (result.length === 0) {
+        return res.json({
+          clients: [{
+            client: {
+              name: order.customerName,
+              phone: order.customerPhone || '',
+              permanentAddress: '',
+              city: '',
+              clientNumber: null,
+              isActive: true,
+              standardSizes: [],
+              sizeDetails: order.sizeData
+            },
+            recentOrders: [order],
+            sizeData: order.sizeData
+          }]
+        });
+      }
+
+      // Fetch recent orders for found clients
+      for (const entry of result) {
+        const orders = await prisma.order.findMany({
+          where: { customerPhone: entry.client.phone, source: 'OUTLET' },
+          orderBy: { createdAt: 'desc' },
+          take: 3,
+          select: { id: true, orderNumber: true, createdAt: true, productDetails: true, totalPrice: true, advanceAmount: true, currentStage: true, sizeData: true, engravingRequired: true, engravingText: true, engravingInstructions: true, logoRequired: true, engravingNames: true, engravingLogos: true, instructionNotes: true, orderDestination: true }
+        });
+        entry.recentOrders = orders || [];
+      }
+
+      return res.json({ clients: result });
+    }
+
     let where = { isActive: true };
     if (number) where.clientNumber = number;
     else if (phone) where.phone = { contains: phone };
     else if (name) where.name = { contains: name, mode: 'insensitive' };
-    else return res.status(400).json({ message: 'Provide client number, phone, or name' });
+    else return res.status(400).json({ message: 'Provide client number, phone, name, or orderNumber' });
 
     const clients = await prisma.client.findMany({
       where,
@@ -262,4 +319,165 @@ const receiveOutletReturn = async (req, res) => {
   }
 };
 
-module.exports = { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn };
+// Outlet Dashboard: total/pending/completed with date range
+const getOutletDashboardStats = async (req, res) => {
+  try {
+    const outletName = getOutletName(req) || 'Unknown Outlet';
+    const { dateFrom, dateTo } = req.query;
+
+    const dateFilter = {};
+    if (dateFrom) dateFilter.createdAt = { ...dateFilter.createdAt, gte: new Date(dateFrom) };
+    if (dateTo) dateFilter.createdAt = { ...dateFilter.createdAt, lte: new Date(dateTo) };
+
+    const where = { source: 'OUTLET', outletName, ...dateFilter };
+
+    const [totalOrders, pendingOrders, completedOrders, cancelledOrders] = await Promise.all([
+      prisma.order.count({ where }),
+      prisma.order.count({ where: { ...where, status: { in: ['PENDING', 'IN_PROGRESS', 'WAITING_PAYMENT'] } } }),
+      prisma.order.count({ where: { ...where, status: 'COMPLETED' } }),
+      prisma.order.count({ where: { ...where, status: { in: ['CANCELLED', 'REJECTED'] } } })
+    ]);
+
+    res.json({ totalOrders, pendingOrders, completedOrders, cancelledOrders });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching dashboard stats', error: error.message });
+  }
+};
+
+// Mark outlet order as customer taken (final action)
+const customerTaken = async (req, res) => {
+  const { orderId } = req.params;
+  try {
+    const outletName = getOutletName(req) || 'Unknown Outlet';
+    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: true } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (order.outletName !== outletName) return res.status(403).json({ message: 'Order belongs to a different outlet' });
+    if (order.currentStage !== 'OUTLET_RECEIVE') return res.status(400).json({ message: 'Order must be in OUTLET_RECEIVE stage' });
+
+    const activeStage = order.stages.find(s => s.stageName === 'OUTLET_RECEIVE' && ['PENDING', 'IN_PROGRESS'].includes(s.status));
+    if (activeStage) {
+      await prisma.orderStage.update({
+        where: { id: activeStage.id },
+        data: { status: 'COMPLETED', completedAt: new Date() }
+      });
+    }
+
+    await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        currentStage: 'ORDER_ENTRY',
+        status: 'COMPLETED',
+        customerTakenAt: new Date(),
+        orderTakenBy: req.user?.name || 'Outlet Staff'
+      }
+    });
+
+    await createAuditLog(orderId, 'CUSTOMER_TAKEN', `Customer taken by outlet ${outletName}`, req.user?.id || 'SYSTEM');
+
+    const io = req.app.get('io');
+    if (io) io.emit('order-updated', { orderId });
+
+    res.json({ message: 'Order marked as customer taken' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error marking customer taken', error: error.message });
+  }
+};
+
+// Send outlet order for delivery (from Outlet final actions)
+const sendOutletForDelivery = async (req, res) => {
+  const { orderId } = req.params;
+  try {
+    const outletName = getOutletName(req) || 'Unknown Outlet';
+    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: true } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (order.outletName !== outletName) return res.status(403).json({ message: 'Order belongs to a different outlet' });
+    if (order.currentStage !== 'OUTLET_RECEIVE') return res.status(400).json({ message: 'Order must be in OUTLET_RECEIVE stage' });
+
+    const activeStage = order.stages.find(s => s.stageName === 'OUTLET_RECEIVE' && ['PENDING', 'IN_PROGRESS'].includes(s.status));
+    if (activeStage) {
+      await prisma.orderStage.update({
+        where: { id: activeStage.id },
+        data: { status: 'COMPLETED', completedAt: new Date() }
+      });
+    }
+
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { deliveryType: 'IN_CITY', currentStage: 'OUT_FOR_DELIVERY', status: 'IN_PROGRESS' }
+    });
+
+    await prisma.orderStage.create({
+      data: { orderId, stageName: 'OUT_FOR_DELIVERY', status: 'PENDING' }
+    });
+
+    await createAuditLog(orderId, 'SENT_FOR_DELIVERY', `Outlet order sent for delivery from ${outletName}`, req.user?.id || 'SYSTEM');
+
+    const io = req.app.get('io');
+    if (io) io.emit('order-updated', { orderId });
+
+    res.json({ message: 'Order sent for delivery' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error sending for delivery', error: error.message });
+  }
+};
+
+// Get outlet tasks: orders in OUTLET_RECEIVE stage with full info
+const getOutletTasks = async (req, res) => {
+  try {
+    const outletName = getOutletName(req) || 'Unknown Outlet';
+    const orders = await prisma.order.findMany({
+      where: { source: 'OUTLET', outletName, currentStage: 'OUTLET_RECEIVE', status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED'] } },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: {
+        id: true, orderNumber: true, customerName: true, customerPhone: true,
+        productDetails: true, totalPrice: true, advanceAmount: true,
+        currentStage: true, orderDestination: true, createdAt: true,
+        engravingRequired: true, status: true, sizeData: true, instructionNotes: true
+      }
+    });
+    const parsed = orders.map(o => ({
+      ...o,
+      productDetails: (() => { try { return JSON.parse(o.productDetails); } catch { return []; } })()
+    }));
+    res.json(parsed);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching tasks', error: error.message });
+  }
+};
+
+// In-House Delivery (mark as delivered without dispatch workflow)
+const inHouseDelivery = async (req, res) => {
+  const { orderId } = req.params;
+  try {
+    const outletName = getOutletName(req) || 'Unknown Outlet';
+    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: true } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (order.outletName !== outletName) return res.status(403).json({ message: 'Order belongs to a different outlet' });
+    if (order.currentStage !== 'OUTLET_RECEIVE') return res.status(400).json({ message: 'Order must be in OUTLET_RECEIVE stage' });
+
+    const activeStage = order.stages.find(s => s.stageName === 'OUTLET_RECEIVE' && ['PENDING', 'IN_PROGRESS'].includes(s.status));
+    if (activeStage) {
+      await prisma.orderStage.update({
+        where: { id: activeStage.id },
+        data: { status: 'COMPLETED', completedAt: new Date() }
+      });
+    }
+
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { currentStage: 'ORDER_ENTRY', status: 'COMPLETED', deliveryType: 'IN_CITY', deliveredAt: new Date() }
+    });
+
+    await createAuditLog(orderId, 'IN_HOUSE_DELIVERED', `In-house delivery completed by outlet ${outletName}`, req.user?.id || 'SYSTEM');
+
+    const io = req.app.get('io');
+    if (io) io.emit('order-updated', { orderId });
+
+    res.json({ message: 'Order delivered in-house' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error delivering order', error: error.message });
+  }
+};
+
+module.exports = { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery };
