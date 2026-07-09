@@ -116,6 +116,19 @@ const OutletPOS = () => {
   const [employeeLoggedIn, setEmployeeLoggedIn] = useState(() => localStorage.getItem('pos_employee_logged_in') === 'true');
   const employees = { Junaid: 'J170', Sajawal: 'S170', Zain: 'Z170', Gull: 'G170' };
 
+  // Balance Payment state
+  const [balanceInvoices, setBalanceInvoices] = useState([]);
+  const [balanceInvoicesLoading, setBalanceInvoicesLoading] = useState(false);
+  const [selectedBalanceInvoice, setSelectedBalanceInvoice] = useState(null);
+  const [showPayBalanceModal, setShowPayBalanceModal] = useState(false);
+  const [payAmount, setPayAmount] = useState(0);
+  const [paying, setPaying] = useState(false);
+  const [balanceCollectionRange, setBalanceCollectionRange] = useState('today');
+  const [balanceCollectionData, setBalanceCollectionData] = useState(null);
+  const [balanceHistory, setBalanceHistory] = useState([]);
+  const [showBalanceHistoryModal, setShowBalanceHistoryModal] = useState(false);
+  const [lastBalancePayment, setLastBalancePayment] = useState(null);
+
   // Persist ephemeral state to localStorage
   useEffect(() => { localStorage.setItem('pos_cart', JSON.stringify(cart)); }, [cart]);
   useEffect(() => { localStorage.setItem('pos_discount_pct', discountPct.toString()); }, [discountPct]);
@@ -774,6 +787,124 @@ const OutletPOS = () => {
     toast.success('Dashboard Excel downloaded');
   }, [dashboard, selectedOutlet]);
 
+  /* ─── Balance Payment Functions ─── */
+  const fetchBalanceInvoices = useCallback(async () => {
+    setBalanceInvoicesLoading(true);
+    try {
+      const res = await api.get(`/api/pos/balance-invoices?outlet=${selectedOutlet}`);
+      setBalanceInvoices(res.data);
+    } catch (e) {
+      console.error('Failed to fetch balance invoices:', e);
+    } finally {
+      setBalanceInvoicesLoading(false);
+    }
+  }, [selectedOutlet]);
+
+  const fetchBalanceCollections = useCallback(async (range) => {
+    try {
+      const params = { outlet: selectedOutlet };
+      if (range) params.range = range;
+      const res = await api.get('/api/pos/balance-collections', { params });
+      setBalanceCollectionData(res.data);
+    } catch (e) {
+      console.error('Failed to fetch balance collections:', e);
+    }
+  }, [selectedOutlet]);
+
+  useEffect(() => {
+    if (tab === 'dashboard') {
+      fetchBalanceInvoices();
+      fetchBalanceCollections(balanceCollectionRange);
+    }
+  }, [tab, dashboardRange, dashboardDateFrom, dashboardDateTo, balanceCollectionRange, fetchBalanceInvoices, fetchBalanceCollections]);
+
+  const handlePayBalanceOpen = async (invoice) => {
+    try {
+      const res = await api.get(`/api/pos/balance-invoices/${invoice.id}?outlet=${selectedOutlet}`);
+      setSelectedBalanceInvoice(res.data);
+      setPayAmount(Math.ceil(res.data.remaining));
+      setShowPayBalanceModal(true);
+    } catch (e) {
+      toast.error('Failed to load invoice details');
+    }
+  };
+
+  const handlePayBalance = async () => {
+    if (!selectedBalanceInvoice || payAmount <= 0) return toast.error('Enter a valid amount');
+    if (payAmount > selectedBalanceInvoice.remaining) return toast.error(`Amount exceeds remaining balance of ₨${selectedBalanceInvoice.remaining.toLocaleString()}`);
+    setPaying(true);
+    try {
+      const res = await api.post(`/api/pos/balance-invoices/${selectedBalanceInvoice.id}/pay`, {
+        amountPaidNow: payAmount,
+        paymentMethod: 'CASH'
+      });
+      setLastBalancePayment(res.data);
+      setShowPayBalanceModal(false);
+      toast.success('Balance payment recorded');
+      fetchBalanceInvoices();
+      fetchBalanceCollections(balanceCollectionRange);
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Payment failed');
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  const printBalanceReceipt = () => {
+    if (!lastBalancePayment) return;
+    const bp = lastBalancePayment;
+    const w = window.open('', '_blank', 'width=400,height=700');
+    w.document.write(`<html><head><title>Balance Receipt</title><style>
+      body{font-family:'Courier New',monospace;margin:0;padding:16px;font-size:14px;text-align:center;width:300px;background:#fff;color:#000;}
+      h2{font-size:18px;font-weight:900;margin:0 0 4px;color:#000;text-transform:uppercase;}
+      .sub{font-size:10px;color:#666;margin-bottom:12px;}
+      hr{border:1px dashed #ccc;margin:10px 0;}
+      table{width:100%;font-size:12px;border-collapse:collapse;}
+      td{padding:4px 2px;text-align:left;}
+      td:last-child{text-align:right;font-weight:900;}
+      .label{color:#666;font-size:10px;}
+      .total-row td{border-top:2px solid #000;padding-top:6px;font-size:14px;font-weight:900;}
+      .zero{color:#059669;font-weight:900;}
+      .footer{font-size:9px;color:#999;margin-top:12px;}
+    </style></head><body>
+      <h2>Remaining Balance Payment</h2>
+      <p class="sub">Payment Receipt</p>
+      <hr/>
+      <table>
+        <tr><td class="label">Receipt #</td><td>${bp.receiptNumber}</td></tr>
+        <tr><td class="label">Original Invoice</td><td>${bp.originalInvoiceNumber}</td></tr>
+        <tr><td class="label">Customer</td><td>${selectedBalanceInvoice?.customerName || 'N/A'}</td></tr>
+        <tr><td class="label">Date</td><td>${new Date(bp.paidAt || new Date()).toLocaleString()}</td></tr>
+        <tr><td class="label">Cashier</td><td>${bp.cashierName || 'Cashier'}</td></tr>
+      </table>
+      <hr/>
+      <table>
+        <tr><td>Original Invoice Total</td><td>₨${(bp.originalInvoiceTotal || 0).toLocaleString()}</td></tr>
+        <tr><td>Previously Paid</td><td>₨${(bp.previouslyPaidAmount || 0).toLocaleString()}</td></tr>
+        <tr><td>Remaining Balance</td><td>₨${(bp.remainingBalanceBeforePayment || 0).toLocaleString()}</td></tr>
+        <tr><td>Amount Paid Now</td><td>₨${(bp.amountPaidNow || 0).toLocaleString()}</td></tr>
+        <tr class="total-row"><td>Current Outstanding</td><td class="${bp.outstandingBalanceAfterPayment <= 0 ? 'zero' : ''}">₨${(bp.outstandingBalanceAfterPayment || 0).toLocaleString()}</td></tr>
+      </table>
+      ${bp.outstandingBalanceAfterPayment <= 0 ? '<p style="color:#059669;font-weight:900;font-size:14px;margin-top:10px;">✓ FULLY PAID</p>' : ''}
+      <hr/>
+      <p class="footer">Software is developed by Sameer Butt</p>
+    </body></html>`);
+    w.document.close();
+    setTimeout(() => w.print(), 300);
+  };
+
+  const handleViewBalanceHistory = async (invoice) => {
+    try {
+      const res = await api.get(`/api/pos/balance-invoices/${invoice.id}/history`);
+      setBalanceHistory(res.data);
+      const detailRes = await api.get(`/api/pos/balance-invoices/${invoice.id}`);
+      setSelectedBalanceInvoice(detailRes.data);
+      setShowBalanceHistoryModal(true);
+    } catch (e) {
+      toast.error('Failed to load payment history');
+    }
+  };
+
   if (tab === 'history') {
     const filteredSales = receiptSearch
       ? sales.filter(s => s.receiptNumber?.toLowerCase().includes(receiptSearch.toLowerCase()))
@@ -1135,6 +1266,46 @@ const OutletPOS = () => {
               })}
             </div>
 
+            {/* Balance Collection Card */}
+            <div className="bg-gradient-to-br from-violet-600 to-indigo-600 p-[1px] rounded-2xl shadow-lg">
+              <div className="bg-gray-950/90 rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest flex items-center gap-1.5">
+                    <DollarSign size={14} className="text-violet-400" />
+                    Balance Collections
+                  </h3>
+                  <div className="flex gap-1">
+                    {['today', 'yesterday', 'month', 'custom'].map(r => (
+                      <button key={r} onClick={() => setBalanceCollectionRange(r)}
+                        className={`text-[9px] font-bold px-2 py-1 rounded-lg transition-all ${balanceCollectionRange === r ? 'bg-violet-600 text-white' : 'bg-gray-800 text-gray-500 hover:text-white'}`}>
+                        {r === 'today' ? 'Today' : r === 'yesterday' ? 'Yest' : r === 'month' ? 'Month' : r.charAt(0).toUpperCase() + r.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {balanceCollectionData ? (
+                  <div className="flex items-end justify-between">
+                    <div>
+                      <p className="text-2xl font-black text-white">{formatCurrency(balanceCollectionData.totalCollected)}</p>
+                      <p className="text-[10px] text-gray-400 font-bold mt-1">{balanceCollectionData.count} payment{balanceCollectionData.count !== 1 ? 's' : ''}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] text-gray-500">Collected on:</p>
+                      <p className="text-xs font-bold text-violet-400">
+                        {balanceCollectionRange === 'today' ? 'Today' :
+                         balanceCollectionRange === 'yesterday' ? 'Yesterday' :
+                         balanceCollectionRange === 'month' ? 'This Month' : 'Custom'}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-12 flex items-center">
+                    <RefreshCw className="animate-spin text-gray-600" size={20} />
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Payment Method Breakdown — always show all 3 */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {['CASH', 'CARD', 'ONLINE'].map(method => {
@@ -1246,30 +1417,46 @@ const OutletPOS = () => {
                 </div>
               </div>
 
-              {/* Balance Orders — advance payment orders */}
+              {/* Remaining Balance — unpaid/partially-paid invoices */}
               <div className="bg-gray-900 border border-amber-800/50 rounded-2xl p-4">
-                <h3 className="text-xs font-black text-amber-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                  <CreditCard size={14} />
-                  Balance Orders (Advance + POS)
-                </h3>
-                {dashboard.balanceOrders && dashboard.balanceOrders.length > 0 ? (
-                <div className="space-y-2 max-h-72 overflow-y-auto">
-                  {dashboard.balanceOrders.map(bo => (
-                    <div key={bo.id} className="flex items-center justify-between bg-gray-950 p-2.5 rounded-xl border border-gray-800 text-xs">
-                      <div>
-                        <p className="font-black text-white">{bo.receiptNumber}</p>
-                        <p className="text-[10px] text-gray-500">{bo.customerName || 'No name'} &bull; {bo.paymentMethod}</p>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xs font-black text-amber-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <CreditCard size={14} />
+                    Remaining Balance
+                  </h3>
+                  <span className="text-[10px] font-bold text-gray-500 bg-gray-800 px-2 py-0.5 rounded-lg">{balanceInvoices.length} invoice{balanceInvoices.length !== 1 ? 's' : ''}</span>
+                </div>
+                {balanceInvoicesLoading ? (
+                  <div className="flex justify-center py-8">
+                    <RefreshCw className="animate-spin text-gray-500" size={20} />
+                  </div>
+                ) : balanceInvoices.length > 0 ? (
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {balanceInvoices.map(inv => (
+                    <div key={inv.id} className="bg-gray-950 p-2.5 rounded-xl border border-gray-800 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-black text-white">{inv.receiptNumber}</p>
+                          <p className="text-[10px] text-gray-500">{inv.customerName || 'No name'} &bull; {inv.paymentMethod}</p>
+                        </div>
+                        <div className="text-right space-y-0.5">
+                          <p className="font-black text-amber-400">Due: {formatCurrency(inv.remaining)}</p>
+                          <p className="text-[9px] text-gray-500">Total: {formatCurrency(inv.grandTotal)}</p>
+                        </div>
                       </div>
-                      <div className="text-right space-y-0.5">
-                        <p className="font-black text-emerald-400">{formatCurrency(bo.paid)} (POS)</p>
-                        <p className="text-[9px] text-amber-400">Advance: {formatCurrency(bo.advanceAmount)}</p>
-                        <p className="text-[9px] text-gray-500">Total: {formatCurrency(bo.totalWithAdvance)}</p>
+                      <div className="flex gap-1.5 mt-2">
+                        <button onClick={() => handlePayBalanceOpen(inv)} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 rounded-lg text-[10px] transition-all">
+                          Pay Remaining ₨{inv.remaining.toLocaleString()}
+                        </button>
+                        <button onClick={() => handleViewBalanceHistory(inv)} className="px-2 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded-lg text-[10px] transition-all">
+                          History
+                        </button>
                       </div>
                     </div>
                   ))}
                 </div>
                 ) : (
-                  <p className="text-center text-gray-500 font-bold py-4 text-xs">No balance payment records in this range</p>
+                  <p className="text-center text-gray-500 font-bold py-4 text-xs">No outstanding balances</p>
                 )}
               </div>
 
@@ -1733,6 +1920,109 @@ const OutletPOS = () => {
               </button>
               <button onClick={() => setShowCheckout(false)} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-black py-3 rounded-xl text-sm">Done</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pay Remaining Balance Modal */}
+      {showPayBalanceModal && selectedBalanceInvoice && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => setShowPayBalanceModal(false)}>
+          <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-black text-white mb-1">Pay Remaining Balance</h3>
+            <p className="text-xs text-gray-400 mb-4">Invoice #{selectedBalanceInvoice.receiptNumber}</p>
+
+            <div className="space-y-3 bg-gray-950 rounded-xl p-4 mb-4">
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-500">Customer</span>
+                <span className="font-bold text-white">{selectedBalanceInvoice.customerName || 'N/A'}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-500">Original Total</span>
+                <span className="font-bold text-white">{formatCurrency(selectedBalanceInvoice.grandTotal)}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-500">Previously Paid</span>
+                <span className="font-bold text-emerald-400">{formatCurrency(selectedBalanceInvoice.totalPaid - selectedBalanceInvoice.remaining)}</span>
+              </div>
+              <div className="flex justify-between text-xs border-t border-gray-800 pt-2">
+                <span className="font-bold text-amber-400">Remaining Balance</span>
+                <span className="font-bold text-amber-400">{formatCurrency(selectedBalanceInvoice.remaining)}</span>
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="text-xs font-bold text-gray-400 block mb-1">Amount to Pay</label>
+              <input type="number" value={payAmount} onChange={e => setPayAmount(parseFloat(e.target.value) || 0)}
+                className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-lg font-black text-white focus:border-emerald-500 outline-none"
+                min="1" max={selectedBalanceInvoice.remaining} />
+            </div>
+
+            <div className="flex gap-2">
+              <button onClick={() => setShowPayBalanceModal(false)} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-bold py-3 rounded-xl text-sm">Cancel</button>
+              <button onClick={handlePayBalance} disabled={paying || payAmount <= 0}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black py-3 rounded-xl text-sm">
+                {paying ? 'Processing...' : `Pay ${formatCurrency(payAmount)}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Balance Payment Success + Receipt */}
+      {lastBalancePayment && !showPayBalanceModal && !showBalanceHistoryModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => { setLastBalancePayment(null); }}>
+          <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-6 w-full max-w-sm text-center" onClick={e => e.stopPropagation()}>
+            <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 size={32} className="text-emerald-400" />
+            </div>
+            <h3 className="text-xl font-black text-white mb-1">Balance Payment</h3>
+            <p className="text-sm font-bold text-gray-400 mb-1">{lastBalancePayment.receiptNumber}</p>
+            <p className="text-2xl font-black text-emerald-400 mb-4">{formatCurrency(lastBalancePayment.amountPaidNow)}</p>
+            {lastBalancePayment.outstandingBalanceAfterPayment <= 0 && (
+              <p className="text-xs font-bold text-emerald-500 mb-4">✓ Invoice Fully Paid</p>
+            )}
+            <div className="flex gap-2">
+              <button onClick={() => { printBalanceReceipt(); }} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2">
+                <Printer size={16} />Print Receipt
+              </button>
+              <button onClick={() => setLastBalancePayment(null)} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-black py-3 rounded-xl text-sm">Done</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Balance Payment History Modal */}
+      {showBalanceHistoryModal && selectedBalanceInvoice && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => setShowBalanceHistoryModal(false)}>
+          <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-black text-white mb-1">Payment History</h3>
+            <p className="text-xs text-gray-400 mb-4">Invoice #{selectedBalanceInvoice.receiptNumber} — {selectedBalanceInvoice.customerName || 'N/A'}</p>
+
+            <div className="bg-gray-950 rounded-xl p-3 mb-4 space-y-1 text-xs">
+              <div className="flex justify-between"><span className="text-gray-500">Original Total:</span><span className="font-bold text-white">{formatCurrency(selectedBalanceInvoice.grandTotal)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Total Paid:</span><span className="font-bold text-emerald-400">{formatCurrency(selectedBalanceInvoice.totalPaid - selectedBalanceInvoice.remaining)}</span></div>
+              <div className="flex justify-between border-t border-gray-800 pt-1"><span className="text-amber-400">Remaining:</span><span className="font-bold text-amber-400">{formatCurrency(selectedBalanceInvoice.remaining)}</span></div>
+            </div>
+
+            {balanceHistory.length > 0 ? (
+              <div className="space-y-2">
+                {balanceHistory.map(p => (
+                  <div key={p.id} className="bg-gray-950 p-3 rounded-xl border border-gray-800 text-xs">
+                    <div className="flex justify-between">
+                      <span className="font-bold text-white">{p.receiptNumber}</span>
+                      <span className="text-emerald-400 font-bold">{formatCurrency(p.amountPaidNow)}</span>
+                    </div>
+                    <div className="flex justify-between text-[10px] text-gray-500 mt-1">
+                      <span>{p.paymentMethod} &bull; {p.cashierName || 'Cashier'}</span>
+                      <span>{new Date(p.paidAt).toLocaleString()}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-center text-gray-500 font-bold py-4 text-xs">No balance payments yet</p>
+            )}
+            <button onClick={() => setShowBalanceHistoryModal(false)} className="w-full mt-4 bg-gray-800 hover:bg-gray-700 text-white font-bold py-2.5 rounded-xl text-sm">Close</button>
           </div>
         </div>
       )}

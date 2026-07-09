@@ -507,12 +507,32 @@ model PosSale {
   faisalTakenAt    DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
-  items            PosSaleItem[]
-  returns          PosReturn[]
+   items            PosSaleItem[]
+   returns          PosReturn[]
+   balancePayments  PosBalancePayment[]
 
   @@index([receiptNumber])
   @@index([outletName])
   @@index([createdAt])
+}
+
+model PosBalancePayment {
+  id              String   @id @default(uuid())
+  posSaleId       String
+  posSale         PosSale  @relation(fields: [posSaleId], references: [id])
+  receiptNumber   String   @unique
+  originalInvoiceNumber  String
+  originalInvoiceTotal   Float
+  previouslyPaidAmount   Float
+  remainingBalanceBeforePayment Float
+  amountPaidNow          Float
+  outstandingBalanceAfterPayment Float
+  paymentMethod          String   @default("CASH")
+  cashierName            String?
+  paidAt                 DateTime @default(now())
+
+  @@index([posSaleId])
+  @@index([paidAt])
 }
 
 model PosSaleItem {

@@ -10,7 +10,12 @@ const {
   lookupBarcode, orderLookup, getAllOutletsView,
   createPosProduct,
   updateProduct,
-  initializeInventory
+  initializeInventory,
+  getBalanceInvoices,
+  getInvoiceBalance,
+  payBalance,
+  getBalanceCollections,
+  getBalancePaymentHistory
 } = require('../controllers/pos.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 
@@ -53,5 +58,12 @@ router.get('/order-lookup', authenticate, orderLookup);
 
 // Bulk inventory initialization (admin only)
 router.post('/initialize-inventory', authenticate, authorize('STORE', 'ADMIN', 'SUPER_ADMIN'), initializeInventory);
+
+// Balance Payment
+router.get('/balance-invoices', authenticate, getBalanceInvoices);
+router.get('/balance-invoices/:saleId', authenticate, getInvoiceBalance);
+router.post('/balance-invoices/:saleId/pay', authenticate, payBalance);
+router.get('/balance-collections', authenticate, getBalanceCollections);
+router.get('/balance-invoices/:saleId/history', authenticate, getBalancePaymentHistory);
 
 module.exports = router;

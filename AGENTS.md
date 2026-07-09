@@ -160,7 +160,7 @@
 - Barcode print (Jul 3): Changed JsBarcode from `width:2.2, height:28, margin:0` to `width:1.8, height:48, margin:12` — adds critical quiet zone (12px each side ≈ 10× X-dimension) for scanner readability. Removed viewBox stretching; SVG keeps natural dimensions with `max-width/max-height` CSS. Removed unused `sizeInfo` variable.
 
 ## Critical Context
-- Latest commit includes: Auto-load order items into cart on lookup, customer phone field, balance orders always visible in dashboard.
+- Latest commit includes: POS Balance Payment & Remaining Amount Enhancements — `PosBalancePayment` model, balance invoicing/payment/collections/history endpoints, payment-date-based revenue methodology, Balance Collection Card, Pay Remaining Balance flow, Balance Payment History.
 - Build passes with 0 errors.
 - `isAccessory` uses substring matching (`catUpper.includes('COAT')`).
 - `calculateAndRecordRevenue` at line 2482 of `order.controller.js` is idempotent.
@@ -178,15 +178,22 @@
 - **`PosSale` now has fields**: `advanceAmount`, `orderId`, `cardChargesPct`, `cardChargesAmount`, `customerPhone`
 - **Order lookup**: auto-detects phone vs order number via regex; sets advance, customer name, phone; auto-loads cart items matched by name/color/size
 - **Balance Orders dashboard section**: always visible even when empty, shows all order-linked POS sales with paid/advance/total breakdown
+- **`PosBalancePayment` model**: Tracks partial balance payments against POS invoices with `posSaleId`, `orderId`, `amount`, `paymentMethod`, `paidAt`, `notes`
+- **Revenue calculation**: Payment-date-based methodology — advance amounts counted on sale date, balance payments counted on their payment dates
+- **Balance Collection Card**: Shows total balance amount collected within selected period (Today/Yesterday/Month/Custom)
+- **Pay Remaining Balance flow**: Payable from invoice list with full or partial amount, generates balance receipt
+- **`printBalanceReceipt`**: Receipt showing BALANCE PAYMENT header, original sale info, remaining balance, payment details
 
 ## Relevant Files
 - `backend/src/controllers/pos.controller.js`: `getPosInventory` now loops all 3 outlets for variant creation; new `initializeInventory` bulk endpoint; `generateBarcode` exported; `createSale` accepts `customerPhone`, `advanceAmount`, `orderId`, `cardChargesPct`; `getSalesDashboard` returns `balanceOrders`; `orderLookup` by orderNumber or phone
 - `backend/src/routes/pos.routes.js`: Added `POST /initialize-inventory` route with `authorize('STORE', 'ADMIN', 'SUPER_ADMIN')`; `GET /api/pos/order-lookup`
-- `backend/prisma/schema.prisma`: PosSale model — added `advanceAmount`, `orderId`, `cardChargesPct`, `cardChargesAmount`, `customerPhone`
+- `backend/prisma/schema.prisma`: PosSale model — added `advanceAmount`, `orderId`, `cardChargesPct`, `cardChargesAmount`, `customerPhone`; added `PosBalancePayment` model
 - `backend/prisma/backup-inventory.js`: backup script for inventory tables
 - `backend/src/utils/cache.js`: POS_TTL reduced 10min→2min
+- `backend/src/controllers/pos.controller.js`: Added `getBalanceInvoices`, `getInvoiceBalance`, `payBalance`, `getBalanceCollections`, `getBalancePaymentHistory`; updated `getSalesDashboard` for payment-date-based revenue
+- `backend/src/routes/pos.routes.js`: 5 new routes: `GET /balance-invoices`, `GET /invoice-balance/:saleId`, `POST /pay-balance`, `GET /balance-collections`, `GET /balance-payment-history`
 - `frontend/src/pages/OutletPOSInventory.jsx`: Full rewrite — init modal, outlet labels, background pre-fetch, OUTLET CRUD on own outlet
 - `frontend/src/hooks/useCache.js`: Reverted aggressive data reset; exports `setCache` for external cache seeding
 - `frontend/src/pages/WarehouseDashboard.jsx`: Fixed `storeLoading` ReferenceError
 - `frontend/src/components/ErrorBoundary.jsx`: Error message visible in production
-- `frontend/src/pages/OutletPOS.jsx`: receipt print (QR, headings, advance/balance, card charges, phone, customer phone), cart UI (order lookup, advance input, card charges input, scroll fix, phone input), dashboard (payment cards, balance orders section, ORDER badge)
+- `frontend/src/pages/OutletPOS.jsx`: receipt print (QR, headings, advance/balance, card charges, phone, customer phone), cart UI (order lookup, advance input, card charges input, scroll fix, phone input), dashboard (payment cards, balance orders section, ORDER badge, Balance Collection Card, Remaining Balance section with Pay action, Pay Remaining Balance modal, Balance Payment Success/Receipt modal, Balance Payment History modal)

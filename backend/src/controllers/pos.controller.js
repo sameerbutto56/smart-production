@@ -598,19 +598,41 @@ const getSalesDashboard = async (req, res) => {
       })
     ]);
 
-    const totalSales = salesAgg._sum.grandTotal || 0;
+    // Calculate total sales by actual payment dates
+    // For each sale: count advanceAmount on sale date (or full grandTotal if fully paid upfront)
+    // Balance payments are counted on their payment dates (handled above in salesByDay)
+    let totalSales = 0;
+    allSales.forEach(s => {
+      totalSales += s.advanceAmount >= s.grandTotal ? s.grandTotal : s.advanceAmount;
+    });
+    balancePayments.forEach(bp => {
+      totalSales += bp.amountPaidNow;
+    });
     const totalOrders = salesAgg._count || 0;
     const totalReturns = returnsAgg._count || 0;
     const refundAmount = returnsAgg._sum.refundAmount || 0;
     const netRevenue = totalSales - refundAmount;
     const totalDiscount = discountAgg._sum.discountAmount || 0;
 
-    // Payment method breakdown
-    const salesByMethod = await prisma.posSale.groupBy({
-      by: ['paymentMethod'],
-      where: whereClause,
-      _sum: { grandTotal: true }
+    // Payment method breakdown — by actual payment received (not invoice total)
+    // For original sales: count advanceAmount (or full grandTotal if paid upfront) by sale's paymentMethod
+    // For balance payments: count amountPaidNow by balance payment's paymentMethod
+    const paymentTotals = {};
+    allSales.forEach(s => {
+      const method = ['CASH', 'CARD', 'ONLINE'].includes(s.paymentMethod) ? s.paymentMethod : 'CASH';
+      const received = s.advanceAmount >= s.grandTotal ? s.grandTotal : s.advanceAmount;
+      paymentTotals[method] = (paymentTotals[method] || 0) + received;
     });
+    // Add balance payments by their payment method
+    const bpWithMethod = saleIds.length > 0 ? await prisma.posBalancePayment.findMany({
+      where: { posSaleId: { in: saleIds } },
+      select: { amountPaidNow: true, paymentMethod: true }
+    }) : [];
+    bpWithMethod.forEach(bp => {
+      const method = ['CASH', 'CARD', 'ONLINE'].includes(bp.paymentMethod) ? bp.paymentMethod : 'CASH';
+      paymentTotals[method] = (paymentTotals[method] || 0) + bp.amountPaidNow;
+    });
+
     const returnsWithSale = await prisma.posReturn.findMany({
       where: {
         ...(outlet ? { outletName: outlet } : {}),
@@ -625,8 +647,7 @@ const getSalesDashboard = async (req, res) => {
       returnsByMethod[method] = (returnsByMethod[method] || 0) + r.refundAmount;
     });
     const paymentBreakdown = ['CASH', 'CARD', 'ONLINE'].map(method => {
-      const found = salesByMethod.find(sm => sm.paymentMethod === method);
-      const gross = found?._sum.grandTotal || 0;
+      const gross = paymentTotals[method] || 0;
       const ret = returnsByMethod[method] || 0;
       return { method, gross, returns: ret, net: gross - ret };
     });
@@ -650,18 +671,35 @@ const getSalesDashboard = async (req, res) => {
     ]);
 
     // 3. Fetch all sales for trend charts & peak day analysis
+    // Revenue is calculated by actual payment date, not invoice date
     const allSales = await prisma.posSale.findMany({
       where: whereClause,
-      select: { createdAt: true, grandTotal: true, receiptNumber: true, outletName: true }
+      select: { id: true, createdAt: true, grandTotal: true, advanceAmount: true, receiptNumber: true, outletName: true }
     });
+
+    // Fetch all balance payments for these sales
+    const saleIds = allSales.map(s => s.id);
+    const balancePayments = saleIds.length > 0 ? await prisma.posBalancePayment.findMany({
+      where: { posSaleId: { in: saleIds } },
+      select: { posSaleId: true, amountPaidNow: true, paidAt: true }
+    }) : [];
 
     const salesByDay = {};
     const ordersByDay = {};
-    
+
     allSales.forEach(s => {
       const day = s.createdAt.toISOString().split('T')[0];
-      salesByDay[day] = (salesByDay[day] || 0) + s.grandTotal;
+      // For fully paid sales (advance = grandTotal), count full amount on sale date
+      // For partial payment sales, count only the advance amount on sale date
+      const saleRevenue = s.advanceAmount >= s.grandTotal ? s.grandTotal : s.advanceAmount;
+      salesByDay[day] = (salesByDay[day] || 0) + saleRevenue;
       ordersByDay[day] = (ordersByDay[day] || 0) + 1;
+    });
+
+    // Add balance payments by their payment dates
+    balancePayments.forEach(bp => {
+      const day = bp.paidAt.toISOString().split('T')[0];
+      salesByDay[day] = (salesByDay[day] || 0) + bp.amountPaidNow;
     });
 
     let highestSalesDay = { date: 'N/A', amount: 0 };
@@ -1076,6 +1114,219 @@ const orderLookup = async (req, res) => {
   }
 };
 
+/* ─── Balance Payment ─── */
+
+// Generate receipt number for balance payments
+const generateBalanceReceiptNumber = async () => {
+  const d = new Date();
+  const prefix = `BP-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-`;
+  let isUnique = false;
+  let receiptNumber;
+  while (!isUnique) {
+    const seq = Math.floor(1000 + Math.random() * 9000);
+    receiptNumber = `${prefix}${seq}`;
+    const existing = await prisma.posBalancePayment.findUnique({ where: { receiptNumber }, select: { id: true } });
+    if (!existing) isUnique = true;
+  }
+  return receiptNumber;
+};
+
+// List invoices with outstanding balance
+const getBalanceInvoices = async (req, res) => {
+  try {
+    const outlet = getOutletName(req);
+    const where = { faisalTake: false };
+    if (outlet) where.outletName = outlet;
+
+    const sales = await prisma.posSale.findMany({
+      where,
+      include: { balancePayments: { select: { amountPaidNow: true } } },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const invoices = sales
+      .map(s => {
+        const totalPaid = s.advanceAmount + s.balancePayments.reduce((sum, bp) => sum + bp.amountPaidNow, 0);
+        const remaining = s.grandTotal - totalPaid;
+        return {
+          id: s.id,
+          receiptNumber: s.receiptNumber,
+          customerName: s.customerName,
+          customerPhone: s.customerPhone,
+          grandTotal: s.grandTotal,
+          advanceAmount: s.advanceAmount,
+          totalPaid,
+          remaining,
+          paymentMethod: s.paymentMethod,
+          createdAt: s.createdAt,
+          paymentCount: s.balancePayments.length
+        };
+      })
+      .filter(inv => inv.remaining > 0.01)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    res.json(invoices);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch balance invoices', error: error.message });
+  }
+};
+
+// Get detailed invoice with payment history
+const getInvoiceBalance = async (req, res) => {
+  try {
+    const { saleId } = req.params;
+    const sale = await prisma.posSale.findUnique({
+      where: { id: saleId },
+      include: {
+        balancePayments: { orderBy: { paidAt: 'asc' } }
+      }
+    });
+    if (!sale) return res.status(404).json({ message: 'Invoice not found' });
+
+    const totalPaidFromPayments = sale.balancePayments.reduce((sum, bp) => sum + bp.amountPaidNow, 0);
+    const totalPaid = sale.advanceAmount + totalPaidFromPayments;
+    const remaining = sale.grandTotal - totalPaid;
+
+    res.json({
+      id: sale.id,
+      receiptNumber: sale.receiptNumber,
+      customerName: sale.customerName,
+      customerPhone: sale.customerPhone,
+      grandTotal: sale.grandTotal,
+      advanceAmount: sale.advanceAmount,
+      totalPaid,
+      remaining: Math.max(0, remaining),
+      paymentMethod: sale.paymentMethod,
+      createdAt: sale.createdAt,
+      cashierName: sale.cashierName,
+      paymentHistory: sale.balancePayments.map(bp => ({
+        id: bp.id,
+        receiptNumber: bp.receiptNumber,
+        amountPaidNow: bp.amountPaidNow,
+        remainingBalanceBeforePayment: bp.remainingBalanceBeforePayment,
+        outstandingBalanceAfterPayment: bp.outstandingBalanceAfterPayment,
+        paymentMethod: bp.paymentMethod,
+        cashierName: bp.cashierName,
+        paidAt: bp.paidAt
+      }))
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch invoice details', error: error.message });
+  }
+};
+
+// Pay remaining balance
+const payBalance = async (req, res) => {
+  try {
+    const { saleId } = req.params;
+    const { amountPaidNow, paymentMethod } = req.body;
+    const outletName = getOutletName(req);
+
+    if (!amountPaidNow || amountPaidNow <= 0) return res.status(400).json({ message: 'Amount must be greater than 0' });
+
+    const sale = await prisma.posSale.findUnique({
+      where: { id: saleId },
+      include: { balancePayments: { select: { amountPaidNow: true } } }
+    });
+    if (!sale) return res.status(404).json({ message: 'Invoice not found' });
+    if (sale.faisalTake) return res.status(400).json({ message: 'Cannot pay balance on Faisal Take' });
+
+    const totalPaidFromPayments = sale.balancePayments.reduce((sum, bp) => sum + bp.amountPaidNow, 0);
+    const totalPaid = sale.advanceAmount + totalPaidFromPayments;
+    const remaining = sale.grandTotal - totalPaid;
+
+    if (remaining <= 0.01) return res.status(400).json({ message: 'Invoice is already fully paid' });
+    if (amountPaidNow > remaining + 0.01) return res.status(400).json({ message: `Amount exceeds remaining balance of ₨${remaining.toFixed(2)}` });
+
+    const receiptNumber = await generateBalanceReceiptNumber();
+    const outstandingAfter = Math.max(0, remaining - amountPaidNow);
+
+    const payment = await prisma.posBalancePayment.create({
+      data: {
+        posSaleId: saleId,
+        receiptNumber,
+        originalInvoiceNumber: sale.receiptNumber,
+        originalInvoiceTotal: sale.grandTotal,
+        previouslyPaidAmount: totalPaid,
+        remainingBalanceBeforePayment: remaining,
+        amountPaidNow,
+        outstandingBalanceAfterPayment: outstandingAfter,
+        paymentMethod: paymentMethod || 'CASH',
+        cashierName: req.user?.name || 'Cashier',
+        paidAt: new Date()
+      }
+    });
+
+    cache.delPattern(CACHE_KEY_PREFIX);
+    if (req.app.get('io')) req.app.get('io').emit('inventory-updated', { source: 'pos', outletName, balancePayment: true });
+
+    res.status(201).json(payment);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to process balance payment', error: error.message });
+  }
+};
+
+// Balance collections dashboard card data
+const getBalanceCollections = async (req, res) => {
+  try {
+    const outlet = getOutletName(req);
+    const { dateFrom, dateTo, range } = req.query;
+
+    const now = new Date();
+    let startLimit = null;
+    let endLimit = null;
+
+    if (dateFrom) startLimit = new Date(dateFrom);
+    if (dateTo) { endLimit = new Date(dateTo); endLimit.setHours(23, 59, 59, 999); }
+
+    if (!startLimit && !endLimit) {
+      if (range === 'today') { startLimit = new Date(now); startLimit.setHours(0, 0, 0, 0); }
+      else if (range === 'yesterday') {
+        startLimit = new Date(now); startLimit.setDate(startLimit.getDate() - 1); startLimit.setHours(0, 0, 0, 0);
+        endLimit = new Date(startLimit); endLimit.setHours(23, 59, 59, 999);
+      }
+      else if (range === 'month') { startLimit = new Date(now); startLimit.setMonth(startLimit.getMonth() - 1); startLimit.setHours(0, 0, 0, 0); }
+    }
+
+    const where = {};
+    if (outlet) {
+      where.posSale = { outletName: outlet };
+    }
+    if (startLimit || endLimit) {
+      where.paidAt = {};
+      if (startLimit) where.paidAt.gte = startLimit;
+      if (endLimit) where.paidAt.lte = endLimit;
+    }
+
+    const payments = await prisma.posBalancePayment.findMany({
+      where,
+      include: { posSale: { select: { customerName: true, receiptNumber: true, outletName: true } } },
+      orderBy: { paidAt: 'desc' }
+    });
+
+    const totalCollected = payments.reduce((sum, p) => sum + p.amountPaidNow, 0);
+    const count = payments.length;
+
+    res.json({ totalCollected, count, payments });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch balance collections', error: error.message });
+  }
+};
+
+// Payment history for a single invoice
+const getBalancePaymentHistory = async (req, res) => {
+  try {
+    const { saleId } = req.params;
+    const payments = await prisma.posBalancePayment.findMany({
+      where: { posSaleId: saleId },
+      orderBy: { paidAt: 'desc' }
+    });
+    res.json(payments);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch payment history', error: error.message });
+  }
+};
+
 module.exports = {
   getPosInventory,
   getProducts,
@@ -1088,6 +1339,11 @@ module.exports = {
   createPosProduct,
   updateProduct,
   generateBarcode,
-  initializeInventory
+  initializeInventory,
+  getBalanceInvoices,
+  getInvoiceBalance,
+  payBalance,
+  getBalanceCollections,
+  getBalancePaymentHistory
 };
 
