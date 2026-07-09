@@ -4,7 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Search, Clock, CheckCircle, XCircle,
   Package, Truck, UserCheck, Send,
-  RefreshCcw, Calendar, ListChecks, BarChart3, DollarSign
+  RefreshCcw, Calendar, ListChecks, BarChart3, DollarSign,
+  ChevronDown
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -122,6 +123,7 @@ const OutletDashboard = () => {
   const { user } = useAuth();
   const outletName = getOutletName(user);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [showTabDropdown, setShowTabDropdown] = useState(false);
   const [datePreset, setDatePreset] = useState('');
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(false);
@@ -169,6 +171,13 @@ const OutletDashboard = () => {
     if (activeTab === 'dashboard') fetchStats(datePreset);
     if (activeTab === 'tasks') fetchTasks();
   }, [activeTab, datePreset, fetchStats, fetchTasks]);
+
+  useEffect(() => {
+    if (!showTabDropdown) return;
+    const handler = () => setShowTabDropdown(false);
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, [showTabDropdown]);
 
   const handleTrackOrder = async (e) => {
     e.preventDefault();
@@ -220,22 +229,31 @@ const OutletDashboard = () => {
           <LayoutDashboard className="text-blue-400" size={24} />
           {outletName} — Dashboard
         </h1>
-        <div className="flex gap-2">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                activeTab === tab.id ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-              }`}
-            >
-              <tab.icon size={14} />
-              {tab.label}
-              {tab.badge > 0 && (
-                <span className="bg-amber-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{tab.badge}</span>
-              )}
-            </button>
-          ))}
+        <div className="relative">
+          <div className="flex items-center gap-2 bg-gray-800 rounded-xl px-4 py-2 cursor-pointer" onClick={e => { e.stopPropagation(); setShowTabDropdown(!showTabDropdown); }}>
+            {(() => {
+              const t = tabs.find(t => t.id === activeTab);
+              if (!t) return null;
+              const Icon = t.icon;
+              return <><Icon size={14} className="text-blue-400" /><span className="text-xs font-bold text-white">{t.label}</span></>;
+            })()}
+            <ChevronDown size={14} className="text-gray-500" />
+          </div>
+          {showTabDropdown && (
+            <div className="absolute right-0 top-full mt-1 bg-gray-900 border border-gray-800 rounded-xl shadow-xl z-50 min-w-[180px] overflow-hidden" onClick={e => e.stopPropagation()}>
+              {tabs.map(tab => {
+                const Icon = tab.icon;
+                return (
+                  <button key={tab.id} onClick={() => { setActiveTab(tab.id); setShowTabDropdown(false); }}
+                    className={`flex items-center gap-3 w-full px-4 py-2.5 text-xs font-bold transition-all hover:bg-gray-800 ${activeTab === tab.id ? 'text-blue-400 bg-blue-500/10' : 'text-gray-400'}`}>
+                    <Icon size={14} />
+                    {tab.label}
+                    {tab.badge > 0 && <span className="ml-auto bg-amber-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{tab.badge}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
