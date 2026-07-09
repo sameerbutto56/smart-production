@@ -129,6 +129,8 @@ const OutletPOS = () => {
   const [payAmount, setPayAmount] = useState(0);
   const [paying, setPaying] = useState(false);
   const [balanceCollectionRange, setBalanceCollectionRange] = useState('today');
+  const [balanceCollectionDateFrom, setBalanceCollectionDateFrom] = useState('');
+  const [balanceCollectionDateTo, setBalanceCollectionDateTo] = useState('');
   const [balanceCollectionData, setBalanceCollectionData] = useState(null);
   const [balanceHistory, setBalanceHistory] = useState([]);
   const [showBalanceHistoryModal, setShowBalanceHistoryModal] = useState(false);
@@ -809,10 +811,12 @@ const OutletPOS = () => {
     }
   }, [selectedOutlet]);
 
-  const fetchBalanceCollections = useCallback(async (range) => {
+  const fetchBalanceCollections = useCallback(async (range, dateFrom, dateTo) => {
     try {
       const params = { outlet: selectedOutlet };
       if (range) params.range = range;
+      if (range === 'custom' && dateFrom) params.dateFrom = dateFrom;
+      if (range === 'custom' && dateTo) params.dateTo = dateTo;
       const res = await api.get('/api/pos/balance-collections', { params });
       setBalanceCollectionData(res.data);
     } catch (e) {
@@ -823,9 +827,9 @@ const OutletPOS = () => {
   useEffect(() => {
     if (tab === 'dashboard') {
       fetchBalanceInvoices();
-      fetchBalanceCollections(balanceCollectionRange);
+      fetchBalanceCollections(balanceCollectionRange, balanceCollectionDateFrom, balanceCollectionDateTo);
     }
-  }, [tab, dashboardRange, dashboardDateFrom, dashboardDateTo, balanceCollectionRange, fetchBalanceInvoices, fetchBalanceCollections]);
+  }, [tab, dashboardRange, dashboardDateFrom, dashboardDateTo, balanceCollectionRange, balanceCollectionDateFrom, balanceCollectionDateTo, fetchBalanceInvoices, fetchBalanceCollections]);
 
   const handlePayBalanceOpen = async (invoice) => {
     try {
@@ -851,7 +855,7 @@ const OutletPOS = () => {
       setShowPayBalanceModal(false);
       toast.success('Balance payment recorded');
       fetchBalanceInvoices();
-      fetchBalanceCollections(balanceCollectionRange);
+      fetchBalanceCollections(balanceCollectionRange, balanceCollectionDateFrom, balanceCollectionDateTo);
     } catch (e) {
       toast.error(e.response?.data?.message || 'Payment failed');
     } finally {
@@ -1300,6 +1304,17 @@ const OutletPOS = () => {
                     ))}
                   </div>
                 </div>
+                {balanceCollectionRange === 'custom' && (
+                  <div className="flex items-center gap-2 mb-3">
+                    <input type="date" value={balanceCollectionDateFrom}
+                      onChange={e => setBalanceCollectionDateFrom(e.target.value)}
+                      className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-[10px] text-white flex-1" />
+                    <span className="text-gray-500 text-[9px]">to</span>
+                    <input type="date" value={balanceCollectionDateTo}
+                      onChange={e => setBalanceCollectionDateTo(e.target.value)}
+                      className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-[10px] text-white flex-1" />
+                  </div>
+                )}
                 {balanceCollectionData ? (
                   <div className="flex items-end justify-between">
                     <div>

@@ -1276,7 +1276,7 @@ const getBalanceCollections = async (req, res) => {
         startLimit = new Date(now); startLimit.setDate(startLimit.getDate() - 1); startLimit.setHours(0, 0, 0, 0);
         endLimit = new Date(startLimit); endLimit.setHours(23, 59, 59, 999);
       }
-      else if (range === 'month') { startLimit = new Date(now); startLimit.setMonth(startLimit.getMonth() - 1); startLimit.setHours(0, 0, 0, 0); }
+      else if (range === 'month') { startLimit = new Date(now.getFullYear(), now.getMonth(), 1); endLimit = new Date(now); endLimit.setHours(23, 59, 59, 999); }
     }
 
     const where = {};

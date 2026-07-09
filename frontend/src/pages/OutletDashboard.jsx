@@ -4,10 +4,12 @@ import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Search, Clock, CheckCircle, XCircle,
   Package, Truck, UserCheck, Send,
-  RefreshCcw, Calendar, ListChecks
+  RefreshCcw, Calendar, ListChecks, BarChart3, DollarSign
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import OutletPOSDashboard from '../components/OutletPOSDashboard';
+import OutletInvoiceHistory from '../components/OutletInvoiceHistory';
 
 const getOutletName = (user) => {
   const n = String(user?.name || '').toLowerCase();
@@ -205,6 +207,8 @@ const OutletDashboard = () => {
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'pos-dashboard', label: 'POS Dashboard', icon: BarChart3 },
+    { id: 'invoices', label: 'Total Invoices', icon: DollarSign },
     { id: 'tracking', label: 'Order Track', icon: Search },
     { id: 'tasks', label: 'Tasks', icon: ListChecks, badge: tasks.length }
   ];
@@ -257,6 +261,14 @@ const OutletDashboard = () => {
             </div>
           )}
         </div>
+      )}
+
+      {activeTab === 'pos-dashboard' && (
+        <OutletPOSDashboard outlet={outletName} />
+      )}
+
+      {activeTab === 'invoices' && (
+        <OutletInvoiceHistory outlet={outletName} />
       )}
 
       {activeTab === 'tracking' && (
