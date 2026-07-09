@@ -81,6 +81,7 @@ app.use('/api/clients', clientRoutes);
 app.use('/api/bi', biRoutes);
 app.use('/api/pos', posRoutes);
 app.use('/api/transfers', transferRoutes);
+app.use('/api/outlet-orders', require('./routes/outletOrder.routes'));
 
 // Global error handler (must be last)
 app.use(errorHandler);

@@ -24,6 +24,7 @@ import {
   RotateCcw,
   UserPlus,
   ShoppingCart,
+  ShoppingBag,
   ArrowRightLeft,
   ArrowLeft,
 } from 'lucide-react';
@@ -62,6 +63,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     { name: 'Warehouse', path: '/warehouse', icon: Warehouse, roles: ['STORE'] },
     { name: 'POS Inventory', path: '/pos-inventory', icon: Package, roles: ['STORE', 'OUTLET'] },
     { name: 'Outlet Requests', path: '/outlet-requests', icon: Building2, roles: ['OUTLET'] },
+    { name: 'Outlet Order Entry', path: '/outlet-order-entry', icon: ShoppingBag, roles: ['OUTLET'] },
     { name: 'Delivery Sheet', path: '/delivery-sheet', icon: ClipboardList, roles: ['OUTLET', 'FAISAL'] },
     { name: 'Order Track', path: '/order-track', icon: Search, roles: ['INVENTORY_VIEW', 'FAISAL', 'OUTLET'] },
     { name: 'Deliveries', path: '/delivery', icon: Truck, roles: ['DELIVERY_BOY'] },
@@ -82,7 +84,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     
     // 2. Extra safety for Outlets
     if (userRole === 'OUTLET') {
-      return ['Dashboard', 'Orders', 'Transfers', 'Order Entry', 'Outlet Requests', 'Delivery Sheet', 'Client Registration', 'POS', 'POS Inventory'].includes(item.name);
+      return ['Dashboard', 'Orders', 'Transfers', 'Order Entry', 'Outlet Requests', 'Delivery Sheet', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry'].includes(item.name);
     }
     
     // 3. Explicit Restriction for Delivery Boy

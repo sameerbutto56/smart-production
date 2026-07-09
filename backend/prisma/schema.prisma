@@ -80,6 +80,10 @@ model Order {
   storeAcceptedAt   DateTime?
   instructionNotes String?
   shopifyOrderDate  DateTime?
+  orderDestination  String?    // STORE / LOGO_DESIGN / PRODUCTION
+  engravingRequired Boolean   @default(false)
+  engravingText     String?
+  engravingInstructions String?
   // Delivery enhancement fields
   riderAcceptedAt   DateTime?
   noResponseCount   Int          @default(0)
