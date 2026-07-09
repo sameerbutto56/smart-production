@@ -521,11 +521,49 @@ const getOutletAnalytics = async (req, res) => {
       prisma.order.count({ where: { ...orderWhere, status: { in: ['CANCELLED', 'REJECTED'] } } })
     ]);
 
-    // 2. Payment status breakdown
-    const [paidOrders, pendingPaymentOrders] = await Promise.all([
-      prisma.order.count({ where: { ...orderWhere, paymentStatus: 'PAID' } }),
-      prisma.order.count({ where: { ...orderWhere, paymentStatus: 'PENDING' } })
-    ]);
+    // 2. Payment status breakdown — use real data from linked PosSales
+    const orderIds = (await prisma.order.findMany({
+      where: orderWhere,
+      select: { id: true, paymentStatus: true, totalPrice: true }
+    }));
+
+    const linkedPosSales = await prisma.posSale.findMany({
+      where: { orderId: { in: orderIds.map(o => o.id).filter(Boolean) } },
+      select: { id: true, orderId: true, grandTotal: true, advanceAmount: true }
+    });
+    const linkedPosMap = {};
+    linkedPosSales.forEach(ps => { linkedPosMap[ps.orderId] = ps; });
+
+    // Also fetch balance payments for linked PosSales
+    const bpSales = await prisma.posBalancePayment.findMany({
+      where: { posSaleId: { in: linkedPosSales.map(ps => ps.id) } },
+      select: { posSaleId: true, amountPaidNow: true }
+    });
+    const bpMap = {};
+    bpSales.forEach(bp => {
+      if (!bpMap[bp.posSaleId]) bpMap[bp.posSaleId] = 0;
+      bpMap[bp.posSaleId] += Number(bp.amountPaidNow || 0);
+    });
+
+    let paidOrders = 0;
+    let pendingPaymentOrders = 0;
+    let totalRevenue = 0;
+
+    orderIds.forEach(o => {
+      const ps = linkedPosMap[o.id];
+      const totalPaid = (ps ? Number(ps.advanceAmount || 0) + (bpMap[ps.id] || 0) : 0);
+      const isPaid = ['PAID', 'FULL_PAID'].includes(o.paymentStatus) ||
+        (ps && totalPaid >= Number(o.totalPrice || 0));
+      const isPending = ['PENDING', 'PARTIAL_PAID'].includes(o.paymentStatus) &&
+        !(ps && totalPaid >= Number(o.totalPrice || 0));
+
+      if (isPaid) {
+        paidOrders++;
+        totalRevenue += Number(o.totalPrice || 0);
+      } else {
+        pendingPaymentOrders++;
+      }
+    });
 
     // 3. Order type distribution
     const [orders, posSalesData] = await Promise.all([
@@ -542,19 +580,25 @@ const getOutletAnalytics = async (req, res) => {
 
     // Order type distribution
     const typeDist = {};
-    let totalRevenue = 0;
     orders.forEach(o => {
       const t = o.type || 'STANDARD';
       typeDist[t] = (typeDist[t] || 0) + 1;
-      if (o.paymentStatus === 'PAID') totalRevenue += Number(o.totalPrice || 0);
     });
     const orderTypeDistribution = Object.entries(typeDist).map(([name, count]) => ({ name, count }));
 
     // 4. Daily revenue + order trends
+    const paymentStatusMap = {};
+    orderIds.forEach(o => {
+      const ps = linkedPosMap[o.id];
+      const totalPaid = (ps ? Number(ps.advanceAmount || 0) + (bpMap[ps.id] || 0) : 0);
+      paymentStatusMap[o.id] = ['PAID', 'FULL_PAID'].includes(o.paymentStatus) ||
+        (ps && totalPaid >= Number(o.totalPrice || 0));
+    });
+
     const dailyTrend = {};
     const orderTrend = {};
     orders.forEach(o => {
-      if (o.totalPrice && o.paymentStatus === 'PAID') {
+      if (o.totalPrice && paymentStatusMap[o.id]) {
         const day = o.createdAt.toISOString().split('T')[0];
         dailyTrend[day] = (dailyTrend[day] || 0) + Number(o.totalPrice);
       }

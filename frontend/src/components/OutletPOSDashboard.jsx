@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../services/api';
 import useCache from '../hooks/useCache';
+import toast from 'react-hot-toast';
 import {
   DollarSign, ShoppingCart, RefreshCw, TrendingDown, RotateCcw,
   CheckCircle, Clock, XCircle, CreditCard, Globe, Award, Package,
-  AlertTriangle, BarChart3
+  AlertTriangle, BarChart3, Download, Printer
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -72,6 +73,69 @@ const OutletPOSDashboard = ({ outlet }) => {
               className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs">Apply</button>
           </div>
         )}
+        <button onClick={() => {
+          if (!dashboard) return;
+          const rows = [];
+          rows.push(['POS Dashboard Export', new Date().toISOString().split('T')[0]].join(','));
+          rows.push('');
+          rows.push(['KPI', 'Value'].join(','));
+          rows.push(['Total Sales', dashboard.totalSales || 0].join(','));
+          rows.push(['Net Revenue', dashboard.netRevenue || 0].join(','));
+          rows.push(['Total Discount', dashboard.totalDiscount || 0].join(','));
+          rows.push(['Returned Orders', dashboard.returnedOrders || 0].join(','));
+          rows.push(['Completed', dashboard.completedOrders || 0].join(','));
+          rows.push(['Pending', dashboard.pendingOrders || 0].join(','));
+          rows.push(['Cancelled', dashboard.cancelledOrders || 0].join(','));
+          rows.push('');
+          rows.push(['Payment Method', 'Gross', 'Net'].join(','));
+          (dashboard.paymentBreakdown || []).forEach(p => rows.push([p.method, p.gross, p.net].join(',')));
+          rows.push('');
+          rows.push(['Date', 'Sales'].join(','));
+          (dashboard.reportData || []).forEach(d => rows.push([d.date, d.sales].join(',')));
+          rows.push('');
+          rows.push(['Top Products', 'Quantity'].join(','));
+          (dashboard.bestSellingProducts || []).forEach(p => rows.push([p.name, p.qty].join(',')));
+          const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = `pos-dashboard-${outlet}-${new Date().toISOString().split('T')[0]}.csv`;
+          link.click();
+          URL.revokeObjectURL(link.href);
+          toast.success('CSV exported');
+        }} disabled={!dashboard} title="Download CSV"
+          className="p-2 bg-gray-800 hover:bg-gray-700 text-blue-400 rounded-lg transition-all disabled:opacity-40">
+          <Download size={14} />
+        </button>
+        <button onClick={() => {
+          if (!dashboard) return;
+          const printW = window.open('', '_blank');
+          if (!printW) return;
+          const pmRows = (dashboard.paymentBreakdown || []).map(p => `<tr><td>${p.method}</td><td>₨${(p.gross || 0).toLocaleString()}</td><td>₨${(p.net || 0).toLocaleString()}</td></tr>`).join('');
+          const trendRows = (dashboard.reportData || []).map(d => `<tr><td>${d.date}</td><td>₨${(d.sales || 0).toLocaleString()}</td></tr>`).join('');
+          const topRows = (dashboard.bestSellingProducts || []).map(p => `<tr><td>${p.name}</td><td>${p.qty}</td></tr>`).join('');
+          printW.document.write(`<!DOCTYPE html><html><head><title>POS Dashboard - ${outlet}</title>
+            <style>body{font-family:Arial,sans-serif;padding:20px;color:#333}h1{font-size:18px;margin-bottom:4px}.sub{color:#666;font-size:12px;margin-bottom:16px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}.card{border:1px solid #ddd;border-radius:4px;padding:8px;text-align:center}.label{font-size:10px;color:#666}.val{font-size:14px;font-weight:700;margin-top:2px}table{width:100%;border-collapse:collapse;margin-bottom:16px}th,td{padding:6px 8px;text-align:left;font-size:11px;border-bottom:1px solid #ddd}th{background:#f5f5f5;font-weight:700}h2{font-size:14px;margin:16px 0 8px;border-bottom:2px solid #333;padding-bottom:4px}@media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}</style></head><body>
+            <h1>${outlet} — POS Dashboard</h1>
+            <p class="sub">${new Date().toLocaleString('en-PK')} | ${range} range</p>
+            <div class="grid">
+              <div class="card"><div class="label">Total Sales</div><div class="val">₨${(dashboard.totalSales || 0).toLocaleString()}</div></div>
+              <div class="card"><div class="label">Net Revenue</div><div class="val">₨${(dashboard.netRevenue || 0).toLocaleString()}</div></div>
+              <div class="card"><div class="label">Orders</div><div class="val">${dashboard.totalOrders || 0}</div></div>
+              <div class="card"><div class="label">Returned</div><div class="val">${dashboard.returnedOrders || 0}</div></div>
+            </div>
+            <h2>Payment Methods</h2>
+            <table><tr><th>Method</th><th>Gross</th><th>Net</th></tr>${pmRows}</table>
+            <h2>Sales Trend</h2>
+            <table><tr><th>Date</th><th>Sales</th></tr>${trendRows}</table>
+            <h2>Top Products</h2>
+            <table><tr><th>Product</th><th>Quantity</th></tr>${topRows}</table>
+            <p class="sub" style="margin-top:24px">Generated by Smart Production POS Dashboard</p></body></html>`);
+          printW.document.close();
+          setTimeout(() => { printW.focus(); printW.print(); }, 500);
+        }} disabled={!dashboard} title="Print Dashboard"
+          className="p-2 bg-gray-800 hover:bg-gray-700 text-cyan-400 rounded-lg transition-all disabled:opacity-40">
+          <Printer size={14} />
+        </button>
         <button onClick={refresh} className="ml-auto p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded-lg transition-all">
           <RefreshCw size={14} />
         </button>

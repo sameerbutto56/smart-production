@@ -7,7 +7,8 @@ import {
   RefreshCcw, Calendar, ListChecks, BarChart3, DollarSign,
   ChevronDown, TrendingUp, ShoppingCart, AlertTriangle,
   CreditCard, Globe, Layers, Award, TrendingDown,
-  ArrowUpRight, ArrowDownRight, Activity, Eye, Phone, MapPin
+  ArrowUpRight, ArrowDownRight, Activity, Eye, Phone, MapPin,
+  Download, Printer
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -267,6 +268,78 @@ const OutletDashboard = () => {
 
   const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 
+  const exportAnalyticsCSV = () => {
+    if (!analytics) return;
+    const rows = [];
+    rows.push(['Outlet Dashboard Export', new Date().toISOString().split('T')[0]].join(','));
+    rows.push('');
+    rows.push(['KPI', 'Value'].join(','));
+    rows.push(['Total Orders', (orderStats.totalOrders || 0)].join(','));
+    rows.push(['Outlet Revenue', (orderStats.totalRevenue || 0)].join(','));
+    rows.push(['POS Sales', (posSummary.totalSales || 0)].join(','));
+    rows.push(['POS Transactions', (posSummary.orderCount || 0)].join(','));
+    rows.push(['Paid Orders', (paymentBD.paidOrders || 0)].join(','));
+    rows.push(['Pending Payment', (paymentBD.pendingPaymentOrders || 0)].join(','));
+    rows.push('');
+    rows.push(['Date', 'Revenue', 'Orders'].join(','));
+    const allDates = [...new Set([...salesTrend.map(s => s.date), ...ordersTrend.map(o => o.date)])].sort();
+    allDates.forEach(d => {
+      const rev = salesTrend.find(s => s.date === d);
+      const ord = ordersTrend.find(o => o.date === d);
+      rows.push([d, rev?.revenue || 0, ord?.count || 0].join(','));
+    });
+    rows.push('');
+    rows.push(['Top Products', 'Quantity Sold'].join(','));
+    topProducts.slice(0, 10).forEach(p => rows.push([p.name, p.qty].join(',')));
+    rows.push('');
+    rows.push(['Order Type', 'Count'].join(','));
+    orderTypeDist.forEach(t => rows.push([t.name, t.count].join(',')));
+    rows.push('');
+    rows.push(['Inventory', 'Count'].join(','));
+    rows.push(['In Stock', invOverview.inStock || 0].join(','));
+    rows.push(['Low Stock', invOverview.lowStock || 0].join(','));
+    rows.push(['Out of Stock', invOverview.outOfStock || 0].join(','));
+    rows.push('');
+    rows.push(['Recent Orders', 'Customer', 'Status', 'Total', 'Date'].join(','));
+    recentOrders.forEach(o => rows.push([o.orderNumber || '', o.customerName || '', o.status || '', o.totalPrice || '', o.createdAt ? new Date(o.createdAt).toLocaleDateString('en-PK') : ''].join(',')));
+
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `outlet-dashboard-${outletName.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    toast.success('CSV exported');
+  };
+
+  const printDashboard = () => {
+    const printW = window.open('', '_blank');
+    if (!printW) { window.print(); return; }
+    printW.document.write(`<!DOCTYPE html><html><head><title>Dashboard - ${outletName}</title>
+      <style>body{font-family:Arial,sans-serif;padding:20px;color:#333}h1{font-size:18px;margin-bottom:4px}.sub{color:#666;font-size:12px;margin-bottom:16px}table{width:100%;border-collapse:collapse;margin-bottom:16px}th,td{padding:6px 8px;text-align:left;font-size:11px;border-bottom:1px solid #ddd}th{background:#f5f5f5;font-weight:700}h2{font-size:14px;margin:16px 0 8px;border-bottom:2px solid #333;padding-bottom:4px}.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}.kpi-card{border:1px solid #ddd;border-radius:4px;padding:8px;text-align:center}.kpi-label{font-size:10px;color:#666}.kpi-value{font-size:16px;font-weight:700;margin-top:2px}@media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}</style></head><body>
+      <h1>${outletName} — Dashboard Report</h1>
+      <p class="sub">${new Date().toLocaleString('en-PK')} | ${datePreset || 'All Time'} range</p>
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label">Total Orders</div><div class="kpi-value">${orderStats.totalOrders || 0}</div></div>
+        <div class="kpi-card"><div class="kpi-label">Outlet Revenue</div><div class="kpi-value">₨${(orderStats.totalRevenue || 0).toLocaleString()}</div></div>
+        <div class="kpi-card"><div class="kpi-label">POS Sales</div><div class="kpi-value">₨${(posSummary.totalSales || 0).toLocaleString()}</div></div>
+        <div class="kpi-card"><div class="kpi-label">Paid / Pending</div><div class="kpi-value">${paymentBD.paidOrders || 0} / ${paymentBD.pendingPaymentOrders || 0}</div></div>
+      </div>
+      <h2>Revenue Trend</h2>
+      <table><tr><th>Date</th><th>Revenue</th><th>Orders</th></tr>
+      ${allDates.map(d => { const rev = salesTrend.find(s => s.date === d); const ord = ordersTrend.find(o => o.date === d); return `<tr><td>${d}</td><td>₨${(rev?.revenue || 0).toLocaleString()}</td><td>${ord?.count || 0}</td></tr>`; }).join('')}</table>
+      <h2>Top Products</h2>
+      <table><tr><th>Product</th><th>Quantity</th></tr>${topProducts.slice(0,10).map(p => `<tr><td>${p.name}</td><td>${p.qty}</td></tr>`).join('')}</table>
+      <h2>Order Types</h2>
+      <table><tr><th>Type</th><th>Count</th></tr>${orderTypeDist.map(t => `<tr><td>${t.name}</td><td>${t.count}</td></tr>`).join('')}</table>
+      <h2>Recent Orders</h2>
+      <table><tr><th>Order #</th><th>Customer</th><th>Status</th><th>Total</th><th>Date</th></tr>${recentOrders.map(o => `<tr><td>${o.orderNumber || ''}</td><td>${o.customerName || ''}</td><td>${o.status || ''}</td><td>${o.totalPrice ? '₨' + o.totalPrice.toLocaleString() : '-'}</td><td>${o.createdAt ? new Date(o.createdAt).toLocaleDateString('en-PK') : ''}</td></tr>`).join('')}</table>
+      <p class="sub" style="margin-top:24px">Generated by Smart Production Dashboard</p>
+    </body></html>`);
+    printW.document.close();
+    setTimeout(() => { printW.focus(); printW.print(); }, 500);
+  };
+
   const a = analytics || {};
   const orderStats = a.orderStats || {};
   const paymentBD = a.paymentBreakdown || {};
@@ -300,7 +373,7 @@ const OutletDashboard = () => {
       {/* Date & Summary Bar */}
       <motion.div variants={itemVariants} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <DatePresetButtons value={datePreset} onChange={setDatePreset} />
-        <div className="flex items-center gap-4 text-xs">
+        <div className="flex items-center gap-2 text-xs">
           <div className="flex items-center gap-2 bg-gray-800/80 px-4 py-2 rounded-xl border border-gray-700/50">
             <Activity size={14} className="text-blue-400" />
             <span className="text-gray-400 font-semibold">Total Revenue:</span>
@@ -311,6 +384,14 @@ const OutletDashboard = () => {
             <span className="text-gray-400 font-semibold">Orders:</span>
             <span className="text-white font-black">{combinedOrders}</span>
           </div>
+          <button onClick={exportAnalyticsCSV} disabled={!analytics} title="Download CSV"
+            className="p-2.5 bg-gray-800/80 border border-gray-700/50 rounded-xl hover:bg-gray-700 transition-all disabled:opacity-40">
+            <Download size={14} className="text-blue-400" />
+          </button>
+          <button onClick={printDashboard} disabled={!analytics} title="Print Dashboard"
+            className="p-2.5 bg-gray-800/80 border border-gray-700/50 rounded-xl hover:bg-gray-700 transition-all disabled:opacity-40">
+            <Printer size={14} className="text-cyan-400" />
+          </button>
         </div>
       </motion.div>
 

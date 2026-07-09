@@ -501,6 +501,7 @@ const createSale = async (req, res) => {
 
     // Selective cache invalidation — clear only affected caches
     cache.delKeys(`${CACHE_KEY_PREFIX}products:${outletName}`, `${CACHE_KEY_PREFIX}inventory:${outletName}`, `${CACHE_KEY_PREFIX}inventory:all-outlets-view`, `${CACHE_KEY_PREFIX}dashboard:${outletName || 'all'}`, `${CACHE_KEY_PREFIX}sales:${outletName || 'all'}`);
+    cache.delPattern(`outlet:analytics:${outletName}`);
     if (req.app.get('io')) req.app.get('io').emit('inventory-updated', { source: 'pos', outletName, saleId: sale.id });
     res.status(201).json(sale);
   } catch (error) {
@@ -1292,6 +1293,7 @@ const payBalance = async (req, res) => {
     });
 
     cache.delPattern(CACHE_KEY_PREFIX);
+    cache.delPattern(`outlet:analytics:${outletName}`);
     if (req.app.get('io')) req.app.get('io').emit('inventory-updated', { source: 'pos', outletName, balancePayment: true });
 
     res.status(201).json(payment);
