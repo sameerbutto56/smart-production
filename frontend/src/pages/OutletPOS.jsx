@@ -33,7 +33,8 @@ const OutletPOS = () => {
   const [dashboardDateTo, setDashboardDateTo] = useState('');
 
   const productsKey = `pos:products:${selectedOutlet}`;
-  const dashboardKey = `pos:dashboard:${selectedOutlet}:${dashboardRange}:${dashboardDateFrom}:${dashboardDateTo}`;
+  const DASHBOARD_CACHE_VERSION = 'v2';
+  const dashboardKey = `pos:dashboard:${DASHBOARD_CACHE_VERSION}:${selectedOutlet}:${dashboardRange}:${dashboardDateFrom}:${dashboardDateTo}`;
   const salesKey = `pos:sales:${selectedOutlet}`;
   const returnsKey = `pos:returns:${selectedOutlet}`;
 
@@ -41,7 +42,7 @@ const OutletPOS = () => {
     fetcher: () => api.get(`/api/pos/products?outlet=${selectedOutlet}`).then(r => r.data),
     ttl: 5 * 60 * 1000,
   });
-  const { data: dashboard = null, loading: dashboardLoading, refresh: refreshDashboard } = useCache(dashboardKey, {
+  const { data: dashboard = null, loading: dashboardLoading, error: dashboardError, refresh: refreshDashboard } = useCache(dashboardKey, {
     fetcher: () => api.get('/api/pos/sales/dashboard', {
       params: {
         outlet: selectedOutlet,
@@ -52,6 +53,7 @@ const OutletPOS = () => {
     }).then(r => r.data),
     ttl: 30000,
   });
+  if (dashboardError) console.error('[POS Dashboard Error]', dashboardError);
   const [salesRange, setSalesRange] = useState('all');
   const [salesDateFrom, setSalesDateFrom] = useState('');
   const [salesDateTo, setSalesDateTo] = useState('');
@@ -1250,7 +1252,15 @@ const OutletPOS = () => {
           <div className="py-20 flex justify-center items-center">
             <RefreshCw className="animate-spin text-blue-500" size={32} />
           </div>
-        ) : dashboard && (
+        ) : dashboardError ? (
+          <div className="py-20 flex flex-col items-center justify-center text-center">
+            <p className="text-red-400 font-black text-sm mb-2">Failed to load dashboard</p>
+            <p className="text-gray-500 text-xs mb-4 max-w-md">{dashboardError.message}</p>
+            <button onClick={refreshDashboard} className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded-lg text-xs">
+              Retry
+            </button>
+          </div>
+        ) : dashboard ? (
           <div className="space-y-6">
             {/* KPIs Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -1518,7 +1528,7 @@ const OutletPOS = () => {
               </div>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
     );
   }
