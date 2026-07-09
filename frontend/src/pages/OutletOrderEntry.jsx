@@ -360,13 +360,18 @@ const OutletOrderEntry = () => {
             {showResults && searchResults.length > 1 && (
               <div className="space-y-2">
                 <p className="text-xs font-bold text-gray-400">{searchResults.length} clients found — select one:</p>
-                {searchResults.map(({ client, recentOrders }, i) => (
-                  <button key={i} onClick={() => selectClient(client, recentOrders)}
-                    className="w-full bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-xl p-3 text-left">
-                    <p className="text-sm font-black text-white">{client.name} <span className="text-blue-400 text-xs">#{client.clientNumber}</span></p>
-                    <p className="text-xs text-gray-400">{client.phone}{client.city ? ` — ${client.city}` : ''}</p>
-                  </button>
-                ))}
+                <div className="max-h-64 overflow-y-auto space-y-2">
+                  {searchResults.map(({ client, recentOrders }, i) => (
+                    <button key={i} onClick={() => selectClient(client, recentOrders)}
+                      className="w-full bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-xl p-3 text-left">
+                      <p className="text-sm font-black text-white">{client.name} <span className="text-blue-400 text-xs">#{client.clientNumber}</span></p>
+                      <p className="text-xs text-gray-400">{client.phone}{client.city ? ` — ${client.city}` : ''}</p>
+                      {recentOrders.length > 0 && (
+                        <p className="text-[10px] text-gray-500 mt-1">Orders: {recentOrders.map(o => o.orderNumber).join(', ')}</p>
+                      )}
+                    </button>
+                  ))}
+                </div>
                 <button onClick={handleManualEntry} className="text-xs font-bold text-amber-400 hover:text-amber-300 underline">
                   Not listed — enter manually
                 </button>
