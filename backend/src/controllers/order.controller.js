@@ -2510,12 +2510,15 @@ const acceptTask = async (req, res) => {
       ['PENDING'].includes(s.status) && getRolesForStage(s.stageName).includes(req.user.role)
     );
     if (!pendingStage) return res.status(400).json({ message: 'No pending task found for your role' });
-    if (pendingStage.startedAt) return res.status(400).json({ message: 'Task already accepted' });
 
     const acceptedAt = new Date();
+    // If stage already has startedAt (auto-created), preserve it; otherwise set it now
+    const stageUpdateData = pendingStage.startedAt
+      ? { status: 'IN_PROGRESS' }
+      : { startedAt: acceptedAt, status: 'IN_PROGRESS' };
     await prisma.orderStage.update({
       where: { id: pendingStage.id },
-      data: { startedAt: acceptedAt, status: 'IN_PROGRESS' }
+      data: stageUpdateData
     });
 
     await createAuditLog(orderId, 'STAGE_ACCEPTED',
