@@ -99,6 +99,9 @@ const OutletPOS = () => {
   const [showCheckout, setShowCheckout] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [lastSale, setLastSale] = useState(null);
+  const [showPrintOptions, setShowPrintOptions] = useState(false);
+  const [pendingPrintSale, setPendingPrintSale] = useState(null);
+  const [printOpts, setPrintOpts] = useState({ invoice: true, gatePass: true });
   const [lookedUpOrder, setLookedUpOrder] = useState(null);
   const [faisalTake, setFaisalTake] = useState(false);
   const [tab, setTab] = useState('pos');
@@ -519,7 +522,7 @@ const OutletPOS = () => {
   }, [cart, products, customerName, customerPhone, altCharges, discountPct, discountFixed, advanceAmount, cardChargesPct, lookedUpOrder, paymentMethod, orderNumber, selectedOutlet, refreshProducts, invalidateProducts, refreshDashboard, refreshSales, refreshReturns]);
 
   /* ─── Receipt Print ─── */
-  const printReceipt = async (sale) => {
+  const printReceipt = async (sale, { includeInvoice = true, includeGatePass = true } = {}) => {
     const isFT = sale.isFaisalTake;
     let logoUrl = window.location.origin + '/logo.png';
     try {
@@ -573,6 +576,7 @@ const OutletPOS = () => {
     </style></head><body>`;
     const w = window.open('', '_blank');
     w.document.write(receiptStyle);
+    if (includeInvoice) {
     w.document.write(`<div class="header"><img src="${logoUrl}" alt="ENAMELS" style="height:80px;margin-bottom:4px;"><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p>${isFT ? '<p style="font-size:22px;font-weight:900;color:#c00;margin:6px 0;text-transform:uppercase;letter-spacing:3px;">FAISAL TAKE — NO CHARGE</p>' : ''}<p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}${sale.customerPhone ? `<p>Phone: ${sale.customerPhone}</p>` : ''}</div>`);
     w.document.write('<hr><div class="items"><div class="items-heading"><span class="col-item">ITEM</span><span class="col-qty">QTY × PRICE</span><span class="col-total">TOTAL</span></div>');
     (sale.items || []).forEach(item => {
@@ -628,6 +632,8 @@ const OutletPOS = () => {
     w.document.write(`<div style="text-align:center;margin:6px 0 0;padding:3px;"><img src="${qrDataUrl || 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(reviewUrl)}" width="150" height="150" alt="Review QR" style="display:inline-block;"><p style="font-size:8px;margin:3px 0 0;font-weight:bold;">Scan to Review us and Avail Special Offers</p><p style="font-size:13px;font-weight:900;margin:4px 0 0;">Thank you for shopping! Visit Again!</p></div>`);
     w.document.write('<hr><p style="text-align:center;font-size:9px;margin-top:4px;">Software is develop by Sameer Butt</p>');
     w.document.write('<br><br>');
+    }
+    if (includeGatePass) {
     w.document.write('<hr style="border-top:2px dashed #000;"><div style="text-align:center;margin:6px 0 0;padding:4px;background:#ffd700;border:2px solid #000;border-radius:4px;">');
     w.document.write('<p style="font-size:18px;font-weight:900;margin:0 0 4px;text-transform:uppercase;">Gate Pass</p>');
     w.document.write(`<p style="font-size:11px;font-weight:bold;margin:0 0 4px;">${new Date(sale.createdAt).toLocaleDateString()} | Invoice: ${sale.receiptNumber}</p>`);
@@ -637,6 +643,7 @@ const OutletPOS = () => {
     w.document.write(`<tr><td style="text-align:left;padding:2px 4px;">Paid Amount</td><td style="text-align:right;padding:2px 4px;">${pf(gpPaid)}</td></tr>`);
     w.document.write(`<tr><td style="text-align:left;padding:2px 4px;">Balance Amount</td><td style="text-align:right;padding:2px 4px;">${pf(gpBalance)}</td></tr>`);
     w.document.write('</table></div>');
+    }
     w.document.write('</body></html>');
     w.document.close();
     w.focus();
@@ -978,7 +985,7 @@ const OutletPOS = () => {
               </div>
               <div className="flex items-center justify-between text-xs text-gray-500 font-bold">
                 <span>Cashier: {s.cashierName || 'N/A'} {s.customerName ? `| Customer: ${s.customerName}` : ''}</span>
-                <button onClick={() => printReceipt(s)} className="text-purple-400 hover:text-purple-300 bg-purple-500/10 px-3 py-1.5 rounded-xl"><Printer size={12} className="inline mr-1" />Reprint</button>
+                <button onClick={() => { setPendingPrintSale(s); setPrintOpts({ invoice: true, gatePass: true }); setShowPrintOptions(true); }} className="text-purple-400 hover:text-purple-300 bg-purple-500/10 px-3 py-1.5 rounded-xl"><Printer size={12} className="inline mr-1" />Reprint</button>
               </div>
             </div>
           ))}
@@ -1915,10 +1922,46 @@ const OutletPOS = () => {
             <p className="text-sm font-bold text-gray-400 mb-2">{lastSale.receiptNumber}</p>
             <p className={`text-3xl font-black mb-4 ${lastSale.isFaisalTake ? 'text-red-400' : 'text-emerald-400'}`}>{lastSale.isFaisalTake ? '₨0 — NO CHARGE' : formatCurrency(lastSale.grandTotal)}</p>
             <div className="flex gap-2">
-              <button onClick={() => printReceipt(lastSale)} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2">
+              <button onClick={() => { setPendingPrintSale(lastSale); setPrintOpts({ invoice: true, gatePass: true }); setShowPrintOptions(true); }} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2">
                 <Printer size={16} />Print Receipt
               </button>
               <button onClick={() => setShowCheckout(false)} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-black py-3 rounded-xl text-sm">Done</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Print Options Modal */}
+      {showPrintOptions && pendingPrintSale && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => setShowPrintOptions(false)}>
+          <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-black text-white mb-4 flex items-center gap-2"><Printer size={18} />Print Options</h3>
+            <p className="text-xs font-bold text-gray-400 mb-4">Select what to print:</p>
+            <div className="space-y-3 mb-6">
+              <label className="flex items-center gap-3 bg-gray-800 rounded-xl p-4 cursor-pointer hover:bg-gray-750">
+                <input type="checkbox" checked={printOpts.invoice} onChange={e => setPrintOpts(p => ({ ...p, invoice: e.target.checked }))}
+                  className="accent-blue-500 w-5 h-5" />
+                <div>
+                  <p className="text-sm font-black text-white">Complete Invoice</p>
+                  <p className="text-[10px] font-bold text-gray-500">Full invoice with items, summary, and QR</p>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 bg-gray-800 rounded-xl p-4 cursor-pointer hover:bg-gray-750">
+                <input type="checkbox" checked={printOpts.gatePass} onChange={e => setPrintOpts(p => ({ ...p, gatePass: e.target.checked }))}
+                  className="accent-amber-500 w-5 h-5" />
+                <div>
+                  <p className="text-sm font-black text-white">Gate Pass</p>
+                  <p className="text-[10px] font-bold text-gray-500">Gate pass with amount summary</p>
+                </div>
+              </label>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setShowPrintOptions(false)} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-bold py-3 rounded-xl text-sm">Cancel</button>
+              <button onClick={() => { setShowPrintOptions(false); printReceipt(pendingPrintSale, { includeInvoice: printOpts.invoice, includeGatePass: printOpts.gatePass }); }}
+                className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2"
+                disabled={!printOpts.invoice && !printOpts.gatePass}>
+                <Printer size={16} />Print
+              </button>
             </div>
           </div>
         </div>

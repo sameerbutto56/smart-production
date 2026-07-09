@@ -28,6 +28,8 @@ const OutletOrderEntry = () => {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [createdOrder, setCreatedOrder] = useState(null);
+  const [isOrderNumberSearch, setIsOrderNumberSearch] = useState(false);
+  const [manualOrderNumber, setManualOrderNumber] = useState('');
 
   const [customer, setCustomer] = useState({
     name: '', phone: '', address: '', city: '', notes: ''
@@ -97,7 +99,9 @@ const OutletOrderEntry = () => {
     setRecentOrders([]);
     setShowResults(false);
     try {
-      const isOrderNumber = /^[A-Za-z]{2,4}-\d+$/.test(q);
+      const orderNumPattern = /^[A-Za-z]{2,4}-\d+$/;
+      const isOrderNumber = orderNumPattern.test(q);
+      setIsOrderNumberSearch(isOrderNumber);
       const isNumber = /^\d{4,5}$/.test(q);
       const isPhone = /^[\d\-+ ]{7,}$/.test(q);
       const params = isOrderNumber ? { orderNumber: q } : isNumber ? { number: q } : isPhone ? { phone: q } : { name: q };
@@ -226,6 +230,7 @@ const OutletOrderEntry = () => {
     setSubmitting(true);
     try {
       const payload = {
+        orderNumber: (manualOrderNumber && manualOrderNumber.trim()) ? manualOrderNumber.trim() : undefined,
         clientNumber: clientData?.clientNumber || null,
         customerName: customer.name,
         customerPhone: customer.phone,
@@ -282,6 +287,8 @@ const OutletOrderEntry = () => {
     setClientData(null);
     setRecentOrders([]);
     setLookedUp(false);
+    setIsOrderNumberSearch(false);
+    setManualOrderNumber('');
     setCustomer({ name: '', phone: '', address: '', city: '', notes: '' });
     setProducts([]);
     setEngravingRequired(false);
@@ -404,6 +411,15 @@ const OutletOrderEntry = () => {
             {clientData && (
               <div className="bg-blue-900/20 border border-blue-700 rounded-xl p-3">
                 <p className="text-xs font-bold text-blue-400">Client #{clientData.clientNumber} — {clientData.name}</p>
+              </div>
+            )}
+            {!clientData && lookedUp && isOrderNumberSearch && (
+              <div className="bg-amber-900/20 border border-amber-700 rounded-xl p-3">
+                <label className="text-xs font-bold text-amber-400 block mb-1">Order Number</label>
+                <p className="text-[10px] font-bold text-gray-500 mb-2">Enter a new Order Number for this customer (e.g., JT-123456). Leave empty for auto-generation.</p>
+                <input value={manualOrderNumber} onChange={e => setManualOrderNumber(e.target.value)}
+                  className="w-full bg-gray-800 border-2 border-amber-600 rounded-xl px-4 py-3 text-sm font-black text-white placeholder-gray-500 focus:border-amber-500 outline-none"
+                  placeholder="e.g. JT-123456" />
               </div>
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
