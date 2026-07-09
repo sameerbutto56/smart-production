@@ -491,9 +491,9 @@ const createSale = async (req, res) => {
 const getSales = async (req, res) => {
   try {
     const outlet = getOutletName(req);
-    const { range, search, dateFrom, dateTo } = req.query;
+    const { range, search, dateFrom, dateTo, statusFilter } = req.query;
     const skip = req.query.skipCache === 'true';
-    const cacheKey = `${CACHE_KEY_PREFIX}sales:${outlet || 'all'}:${range || 'all'}${dateFrom ? `:${dateFrom}` : ''}${dateTo ? `:${dateTo}` : ''}${search ? `:${search}` : ''}`;
+    const cacheKey = `${CACHE_KEY_PREFIX}sales:${outlet || 'all'}:${range || 'all'}${dateFrom ? `:${dateFrom}` : ''}${dateTo ? `:${dateTo}` : ''}${search ? `:${search}` : ''}${statusFilter ? `:${statusFilter}` : ''}`;
 
     if (!skip) {
       const cached = cache.get(cacheKey);
@@ -516,11 +516,30 @@ const getSales = async (req, res) => {
     if (outlet) where.outletName = outlet;
     if (search) where.receiptNumber = { contains: search, mode: 'insensitive' };
 
-    const sales = await prisma.posSale.findMany({
+    let sales = await prisma.posSale.findMany({
       where,
-      include: { items: true, returns: true },
+      include: { items: true, returns: true, balancePayments: { select: { amountPaidNow: true } } },
       orderBy: { createdAt: 'desc' }
     });
+
+    sales = sales.map(s => {
+      const totalAdvance = s.advanceAmount || 0;
+      const totalBalancePayments = s.balancePayments.reduce((sum, bp) => sum + bp.amountPaidNow, 0);
+      const totalReceived = totalAdvance + totalBalancePayments;
+      const remaining = Math.max(0, s.grandTotal - totalReceived);
+      const { balancePayments, ...saleData } = s;
+      return {
+        ...saleData,
+        _balanceRemaining: remaining,
+        _balanceStatus: remaining > 0.01 ? 'balance' : 'paid'
+      };
+    });
+
+    if (statusFilter === 'paid') {
+      sales = sales.filter(s => s._balanceStatus === 'paid');
+    } else if (statusFilter === 'balance') {
+      sales = sales.filter(s => s._balanceStatus === 'balance');
+    }
 
     cache.set(cacheKey, sales, cache.DASHBOARD_TTL);
     res.json(sales);

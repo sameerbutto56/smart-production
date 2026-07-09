@@ -22,7 +22,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [search, setSearch] = useState('');
-  const [paymentFilter, setPaymentFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -30,7 +30,6 @@ const OutletInvoiceHistory = ({ outlet }) => {
   const [printing, setPrinting] = useState(null);
 
   /* ─── Balance Payment Modals ─── */
-  const [balanceInvoices, setBalanceInvoices] = useState([]);
   const [showPayModal, setShowPayModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [payAmount, setPayAmount] = useState(0);
@@ -48,6 +47,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
       let url = `/api/pos/sales?outlet=${outlet}&range=${range}`;
       if (dateFrom) url += `&dateFrom=${dateFrom}`;
       if (dateTo) url += `&dateTo=${dateTo}`;
+      if (statusFilter !== 'all') url += `&statusFilter=${statusFilter}`;
       const res = await api.get(url);
       setSales(res.data);
     } catch (e) {
@@ -55,18 +55,9 @@ const OutletInvoiceHistory = ({ outlet }) => {
     } finally {
       setLoading(false);
     }
-  }, [outlet, range, dateFrom, dateTo]);
+  }, [outlet, range, dateFrom, dateTo, statusFilter]);
 
-  const fetchBalanceInvoices = useCallback(async () => {
-    try {
-      const res = await api.get(`/api/pos/balance-invoices?outlet=${outlet}`);
-      setBalanceInvoices(res.data);
-    } catch (e) {
-      console.error('Balance invoices error:', e);
-    }
-  }, [outlet]);
-
-  useEffect(() => { fetchSales(); fetchBalanceInvoices(); }, [fetchSales, fetchBalanceInvoices]);
+  useEffect(() => { fetchSales(); }, [fetchSales]);
 
   /* ─── Print Receipt ─── */
   const printReceipt = async (sale) => {
@@ -209,9 +200,8 @@ const OutletInvoiceHistory = ({ outlet }) => {
       });
       setLastPayment(res.data);
       setShowPayModal(false);
-      toast.success('Balance payment recorded');
+      toast.success('Balance payment recorded — invoice status will update automatically');
       fetchSales();
-      fetchBalanceInvoices();
     } catch (e) {
       toast.error(e.response?.data?.message || 'Payment failed');
     } finally {
@@ -282,7 +272,8 @@ const OutletInvoiceHistory = ({ outlet }) => {
       'Grand Total': s.grandTotal || 0,
       'Payment': s.paymentMethod || '',
       'Advance': s.advanceAmount || 0,
-      'Order #': s.orderId || ''
+      'Balance': s._balanceRemaining || 0,
+      'Status': s._balanceStatus || 'paid'
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -298,21 +289,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
     return (s.receiptNumber || '').toLowerCase().includes(q)
         || (s.customerName || '').toLowerCase().includes(q)
         || (s.cashierName || '').toLowerCase().includes(q);
-  }).filter(s => {
-    if (paymentFilter === 'all') return true;
-    if (paymentFilter === 'paid') return parseFloat(s.advanceAmount || 0) >= (s.grandTotal || 0);
-    if (paymentFilter === 'partial') return parseFloat(s.advanceAmount || 0) > 0 && parseFloat(s.advanceAmount || 0) < (s.grandTotal || 0);
-    if (paymentFilter === 'pending') return parseFloat(s.advanceAmount || 0) === 0;
-    return true;
   });
-
-  const getBalanceInfo = (sale) => {
-    const adv = parseFloat(sale.advanceAmount) || 0;
-    const total = sale.grandTotal || 0;
-    const bi = balanceInvoices.find(b => b.id === sale.id);
-    const remaining = bi ? bi.remaining : Math.max(0, total - adv);
-    return { remaining, hasBalance: remaining > 0, paid: total - remaining, adv };
-  };
 
   return (
     <div className="space-y-6">
@@ -343,13 +320,18 @@ const OutletInvoiceHistory = ({ outlet }) => {
             onChange={e => setSearch(e.target.value)}
             className="w-full bg-gray-800 border border-gray-700 rounded-xl py-2 pl-9 pr-4 text-xs text-white font-bold focus:outline-none focus:border-blue-500/50" />
         </div>
-        <select value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)}
-          className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white">
-          <option value="all">All Payments</option>
-          <option value="paid">Fully Paid</option>
-          <option value="partial">Partial</option>
-          <option value="pending">Unpaid</option>
-        </select>
+        <div className="flex bg-gray-800 rounded-xl p-0.5">
+          {[
+            { value: 'all', label: 'All Invoices' },
+            { value: 'paid', label: 'Paid' },
+            { value: 'balance', label: 'Balance' }
+          ].map(f => (
+            <button key={f.value} onClick={() => setStatusFilter(f.value)}
+              className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${statusFilter === f.value ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}>
+              {f.label}
+            </button>
+          ))}
+        </div>
         <button onClick={fetchSales} className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded-xl transition-all">
           <RefreshCw size={14} />
         </button>
@@ -357,6 +339,17 @@ const OutletInvoiceHistory = ({ outlet }) => {
           <Download size={14} /> Excel
         </button>
       </div>
+
+      {/* Summary counts */}
+      {!loading && !error && filteredSales.length > 0 && (
+        <div className="flex items-center gap-3 text-[10px] text-gray-500">
+          <span>{filteredSales.length} invoice{filteredSales.length !== 1 ? 's' : ''}</span>
+          <span className="text-gray-700">|</span>
+          <span className="text-emerald-400 font-bold">{filteredSales.filter(s => s._balanceStatus === 'paid').length} Paid</span>
+          <span className="text-gray-700">|</span>
+          <span className="text-amber-400 font-bold">{filteredSales.filter(s => s._balanceStatus === 'balance').length} Balance</span>
+        </div>
+      )}
 
       {/* Loading / Error / Empty */}
       {loading ? (
@@ -370,14 +363,14 @@ const OutletInvoiceHistory = ({ outlet }) => {
       ) : filteredSales.length === 0 ? (
         <div className="py-16 text-center">
           <Clock className="mx-auto text-gray-600 mb-3" size={40} />
-          <p className="text-gray-500 font-bold">No sales found</p>
+          <p className="text-gray-500 font-bold">No invoices found</p>
         </div>
       ) : (
         /* Sales list */
         <div className="space-y-3">
           {filteredSales.map(sale => {
             const isExpanded = expandedId === sale.id;
-            const bi = getBalanceInfo(sale);
+            const isBalance = sale._balanceStatus === 'balance';
             const adv = parseFloat(sale.advanceAmount) || 0;
             return (
               <div key={sale.id} className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
@@ -388,7 +381,8 @@ const OutletInvoiceHistory = ({ outlet }) => {
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-sm font-black text-white truncate">{sale.receiptNumber}</span>
                         {sale.isFaisalTake && <span className="text-[9px] bg-red-600 text-white px-1.5 py-0.5 rounded-full font-bold">FT</span>}
-                        {bi.hasBalance && <span className="text-[9px] bg-amber-600 text-white px-1.5 py-0.5 rounded-full font-bold">BAL</span>}
+                        {isBalance && <span className="text-[9px] bg-amber-600 text-white px-1.5 py-0.5 rounded-full font-bold">BAL</span>}
+                        {!isBalance && <span className="text-[9px] bg-emerald-600 text-white px-1.5 py-0.5 rounded-full font-bold">PAID</span>}
                         {!!sale.orderId && <span className="text-[9px] bg-purple-600 text-white px-1.5 py-0.5 rounded-full font-bold">ORD</span>}
                       </div>
                       <p className="text-xs text-gray-400">{sale.customerName || 'Walk-in'} {sale.customerPhone ? `(${sale.customerPhone})` : ''}</p>
@@ -401,7 +395,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
                     </div>
                     <div className="text-right ml-4">
                       <p className="text-base font-black text-white">{formatCurrency(sale.grandTotal)}</p>
-                      {bi.hasBalance && <p className="text-[10px] text-amber-400 font-bold">Rem: {formatCurrency(bi.remaining)}</p>}
+                      {isBalance && <p className="text-[10px] text-amber-400 font-bold">Rem: {formatCurrency(sale._balanceRemaining)}</p>}
                     </div>
                   </div>
                 </div>
@@ -465,7 +459,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
                         className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">
                         {printing === sale.id ? <RefreshCcw className="animate-spin" size={12} /> : <Printer size={12} />} Print
                       </button>
-                      {bi.hasBalance && (
+                      {isBalance && (
                         <button onClick={() => handlePayOpen(sale)}
                           className="flex items-center gap-1.5 px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-xl transition-all">
                           <DollarSign size={12} /> Pay Balance
@@ -523,12 +517,12 @@ const OutletInvoiceHistory = ({ outlet }) => {
                 <DollarSign size={24} className="text-emerald-400" />
               </div>
               <h3 className="text-sm font-black text-white">Payment Successful</h3>
-              <p className="text-[10px] text-gray-500 mt-1">Balance payment recorded</p>
+              <p className="text-[10px] text-gray-500 mt-1">Balance payment recorded — status updated automatically</p>
             </div>
             <div className="text-xs bg-gray-950 p-3 rounded-xl space-y-1.5">
               <p className="flex justify-between"><span className="text-gray-500">Amount</span><span className="font-bold text-emerald-400">{formatCurrency(lastPayment.amount)}</span></p>
               <p className="flex justify-between"><span className="text-gray-500">Remaining</span><span className="font-bold text-white">{formatCurrency(lastPayment.remaining)}</span></p>
-              {lastPayment.remaining <= 0 && <p className="text-[10px] text-emerald-400 font-bold text-center mt-1">✓ Fully Paid</p>}
+              {lastPayment.remaining <= 0 && <p className="text-[10px] text-emerald-400 font-bold text-center mt-1">✓ Fully Paid — Invoice moved to Paid</p>}
               <p className="flex justify-between"><span className="text-gray-500">Method</span><span className="font-bold text-white">{lastPayment.paymentMethod || 'CASH'}</span></p>
               <p className="flex justify-between"><span className="text-gray-500">Date</span><span className="font-bold text-white">{new Date(lastPayment.paidAt || lastPayment.createdAt).toLocaleString()}</span></p>
             </div>
