@@ -523,6 +523,10 @@ const getSales = async (req, res) => {
     });
 
     sales = sales.map(s => {
+      if (!s.orderId) {
+        const { balancePayments, ...saleData } = s;
+        return { ...saleData, _balanceRemaining: 0, _balanceStatus: 'paid' };
+      }
       const totalAdvance = s.advanceAmount || 0;
       const totalBalancePayments = s.balancePayments.reduce((sum, bp) => sum + bp.amountPaidNow, 0);
       const totalReceived = totalAdvance + totalBalancePayments;
