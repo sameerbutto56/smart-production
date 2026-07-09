@@ -58,7 +58,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     { name: 'Analytics', path: '/analytics', icon: BarChart3, roles: ['SUPER_ADMIN', 'ADMIN'] },
 
     // Operational roles links (hidden from Admin to keep it simplified)
-    { name: 'Order Entry', path: '/order-entry', icon: ClipboardList, roles: ['ORDER_ENTRY', 'FAISAL', 'OUTLET'] },
+    { name: 'Order Entry', path: '/order-entry', icon: ClipboardList, roles: ['ORDER_ENTRY', 'FAISAL'] },
     { name: 'Edit Request', path: '/edit-requests', icon: FileEdit, roles: [] },
     { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['STORE', 'PRODUCTION', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'] },
     { name: 'Warehouse', path: '/warehouse', icon: Warehouse, roles: ['STORE'] },
@@ -85,7 +85,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     
     // 2. Extra safety for Outlets
     if (userRole === 'OUTLET') {
-      return ['Outlet Dashboard', 'Orders', 'Transfers', 'Order Entry', 'Outlet Requests', 'Delivery Sheet', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry'].includes(item.name);
+      return ['Outlet Dashboard', 'Orders', 'Transfers', 'Outlet Requests', 'Delivery Sheet', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry'].includes(item.name);
     }
     
     // 3. Explicit Restriction for Delivery Boy
