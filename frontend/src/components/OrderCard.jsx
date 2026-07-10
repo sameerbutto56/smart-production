@@ -2482,7 +2482,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 {(() => {
                   const en = order.engravingNames ? (typeof order.engravingNames === 'string' ? (() => { try { return JSON.parse(order.engravingNames); } catch { return []; } })() : order.engravingNames) : [];
                   const el = order.engravingLogos ? (typeof order.engravingLogos === 'string' ? (() => { try { return JSON.parse(order.engravingLogos); } catch { return []; } })() : order.engravingLogos) : [];
-                  const hasEng = order.engravingRequired && (en.length > 0 || el.length > 0 || order.engravingText || order.engravingInstructions || order.logoRequired);
+                  const hasEng = order.engravingRequired && (en.length > 0 || el.length > 0 || order.engravingText || order.engravingInstructions || order.logoRequired) || order.instructionNotes;
                   if (!hasEng) return null;
                   return (
                     <section className="bg-purple-600/5 p-4 md:p-8 rounded-xl md:rounded-[2rem] border border-purple-500/10 mt-4">
