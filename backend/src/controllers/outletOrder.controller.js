@@ -492,6 +492,10 @@ const getOutletAnalytics = async (req, res) => {
     const outletName = getOutletName(req) || 'Unknown Outlet';
     const { range = 'all', dateFrom, dateTo } = req.query;
 
+    const cacheKey = `outlet:analytics:${outletName}:${range}:${dateFrom || ''}:${dateTo || ''}`;
+    const cached = cache.get(cacheKey);
+    if (cached) return res.json(cached);
+
     const now = new Date();
     let startDate = null;
     let endDate = null;
@@ -648,8 +652,8 @@ const getOutletAnalytics = async (req, res) => {
     const lowStock = inventory.filter(i => i.stock > 0 && i.stock <= 5).length;
     const outOfStock = inventory.filter(i => i.stock === 0).length;
 
-    // Cache result for 2 minutes
-    const cacheKey = `outlet:analytics:${outletName}:${range}:${dateFrom || ''}:${dateTo || ''}`;
+    // Cache — longer for 'all' since aggregate data rarely changes
+    const ttl = range === 'all' ? 600 : 120;
     cache.set(cacheKey, {
       orderStats: { totalOrders, pendingOrders, inProgressOrders, completedOrders, cancelledOrders, totalRevenue },
       paymentBreakdown: { paidOrders, pendingPaymentOrders },
@@ -659,7 +663,7 @@ const getOutletAnalytics = async (req, res) => {
       topProducts,
       posSummary: { totalSales: posTotal, orderCount: posCount },
       inventoryOverview: { inStock, lowStock, outOfStock, total: inventory.length }
-    }, 5);
+    }, ttl);
 
     res.json({
       orderStats: { totalOrders, pendingOrders, inProgressOrders, completedOrders, cancelledOrders, totalRevenue },
