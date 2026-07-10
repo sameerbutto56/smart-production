@@ -584,8 +584,9 @@ const getSales = async (req, res) => {
       sales = sales.filter(s => s._balanceStatus === 'balance');
     }
 
-    cache.set(cacheKey, sales, cache.DASHBOARD_TTL);
     res.json(sales);
+    const salesTtl = range === 'all' ? 300000 : cache.DASHBOARD_TTL;
+    cache.set(cacheKey, sales, salesTtl);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch sales', error: error.message });
   }
