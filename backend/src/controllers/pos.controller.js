@@ -71,7 +71,8 @@ const getPosInventory = async (req, res) => {
     const where = outlet ? { outletName: outlet } : {};
     const items = await prisma.outletInventory.findMany({
       where,
-      orderBy: { name: 'asc' }
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, category: true, color: true, size: true, fabric: true, stock: true, price: true, imageUrl: true, barcode: true, variants: true, outletName: true, createdAt: true, updatedAt: true }
     });
 
     const result = items.map(item => {
@@ -151,7 +152,8 @@ const getProducts = async (req, res) => {
     const where = outlet ? { outletName: outlet } : {};
     const items = await prisma.outletInventory.findMany({
       where,
-      orderBy: { name: 'asc' }
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, category: true, color: true, size: true, fabric: true, stock: true, price: true, imageUrl: true, barcode: true, variants: true, outletName: true }
     });
 
     const products = items.map(item => {

@@ -143,6 +143,9 @@ const OutletPOS = () => {
   useEffect(() => { localStorage.setItem('pos_customer_name', customerName); }, [customerName]);
   useEffect(() => { localStorage.setItem('pos_customer_phone', customerPhone); }, [customerPhone]);
   useEffect(() => { localStorage.setItem('pos_payment_method', paymentMethod); }, [paymentMethod]);
+  useEffect(() => {
+    setCardChargesPct(paymentMethod === 'CARD' ? 2 : 0);
+  }, [paymentMethod]);
   useEffect(() => { localStorage.setItem('pos_active_category', activeCategory); }, [activeCategory]);
   useEffect(() => { localStorage.setItem('pos_employee_name', employeeLoggedIn ? employeeName : ''); }, [employeeLoggedIn, employeeName]);
   useEffect(() => { localStorage.setItem('pos_employee_logged_in', employeeLoggedIn ? 'true' : 'false'); }, [employeeLoggedIn]);
@@ -436,25 +439,19 @@ const OutletPOS = () => {
     setCart(copy);
   };
 
-  /* ─── Checkout (try fast path, fallback to sync queue) ─── */
+  /* ─── Checkout (fast path with local stock pre-check) ─── */
   const handleCheckout = useCallback(async () => {
     if (cart.length === 0) return;
     if (!employeeLoggedIn) return toast.error('Please select employee and enter password first');
     if (!faisalTake && !customerPhone.trim()) return toast.error('Customer phone is required');
-    // Fetch fresh stock before checkout to avoid stale-cache rejections
-    let stockData;
-    try {
-      const fresh = await api.get(`/api/pos/products?outlet=${selectedOutlet}&skipCache=true`);
-      stockData = fresh.data;
-      // Update frontend caches with fresh data
-      setCache(productsKey, stockData);
-    } catch {
-      stockData = products; // fallback to cached
-    }
+    // Show processing UI immediately
+    setCheckoutLoading(true);
+    // Quick stock pre-check from local cache (no fresh fetch — backend validates atomically)
     for (const c of cart) {
-      const pr = stockData.find(p => p.id === c.variantId);
-      if (!pr) return toast.error(`"${c.productName}" not found in outlet inventory`);
+      const pr = products.find(p => p.id === c.variantId);
+      if (!pr) { setCheckoutLoading(false); return toast.error(`"${c.productName}" not found in outlet inventory`); }
       if (pr.stock != null && pr.stock < c.qty) {
+        setCheckoutLoading(false);
         return toast.error(`"${c.productName}" has only ${pr.stock} in stock (need ${c.qty})`);
       }
     }
@@ -474,7 +471,6 @@ const OutletPOS = () => {
       cashierName: employeeName,
       faisalTake
     };
-    setCheckoutLoading(true);
     try {
       const res = await api.post(`/api/pos/sales?outlet=${selectedOutlet}`, payload);
       if (faisalTake) {
@@ -484,14 +480,13 @@ const OutletPOS = () => {
         setDiscountPct(0);
         setDiscountFixed(0);
         setAdvanceAmount(0);
-        setCardChargesPct(0);
         setLookedUpOrder(null);
         setCustomerName('');
         setCustomerPhone('');
         setOrderNumber('');
         setFaisalTake(false);
-        refreshProducts();
-        refreshDashboard();
+        invalidateKey(productsKey);
+        invalidateKey(dashboardKey);
         toast.success('Faisal Take recorded!');
         setCheckoutLoading(false);
         return;
@@ -502,15 +497,14 @@ const OutletPOS = () => {
       setDiscountPct(0);
       setDiscountFixed(0);
       setAdvanceAmount(0);
-      setCardChargesPct(0);
       setLookedUpOrder(null);
       setCustomerName('');
       setCustomerPhone('');
       setOrderNumber('');
-      refreshProducts();
-      refreshDashboard();
-      refreshSales();
-      refreshReturns();
+      invalidateKey(productsKey);
+      invalidateKey(dashboardKey);
+      invalidateKey(salesKey);
+      invalidateKey(returnsKey);
       toast.success('Sale completed!');
     } catch (err) {
       const msg = err.response?.data?.message || err.message;
@@ -518,12 +512,13 @@ const OutletPOS = () => {
       if (err.response?.status === 400) {
         console.error('Checkout validation error:', msg);
         invalidateProducts();
+        setCheckoutLoading(false);
         return;
       }
       await enqueue('sale', 'create', payload);
     }
     setCheckoutLoading(false);
-  }, [cart, products, customerName, customerPhone, altCharges, discountPct, discountFixed, advanceAmount, cardChargesPct, lookedUpOrder, paymentMethod, orderNumber, selectedOutlet, refreshProducts, invalidateProducts, refreshDashboard, refreshSales, refreshReturns]);
+  }, [cart, products, customerName, customerPhone, discountPct, discountFixed, advanceAmount, cardChargesPct, lookedUpOrder, paymentMethod, orderNumber, selectedOutlet, employeeLoggedIn, faisalTake, employeeName, productsKey, dashboardKey, salesKey, returnsKey]);
 
   /* ─── Receipt Print ─── */
   const printReceipt = async (sale, { includeInvoice = true, includeGatePass = true } = {}) => {
@@ -692,14 +687,13 @@ const OutletPOS = () => {
       }
     }
     if (!v) return toast.error(`Barcode not found: ${code}`);
-    if (v.stock <= 0) return toast.error('No stock to return');
     const existing = returnCart.find(i => i.variantId === v.id);
     if (existing) {
       setReturnCart(returnCart.map(i => i.variantId === v.id ? { ...i, qty: i.qty + 1 } : i));
     } else {
       setReturnCart([...returnCart, {
         variantId: v.id, productName: v.productName, color: v.color, size: v.size,
-        barcode: code, unitPrice: v.price, qty: 1, maxQty: v.stock
+        barcode: code, unitPrice: v.price, qty: 1, maxQty: 9999
       }]);
     }
     toast.success(`${v.productName} added to return cart`);
@@ -1574,21 +1568,15 @@ const OutletPOS = () => {
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..."
           className="flex-1 bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none max-w-xs" />
         <div className="flex items-center gap-1">
-          <span className="text-xs font-bold text-gray-500 mr-1">Pay:</span>
-          <select value={paymentMethod} onChange={e => { setPaymentMethod(e.target.value); if (e.target.value !== 'CARD') setCardChargesPct(0); }}
-            className="bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:border-blue-500 outline-none">
-            <option value="CASH">Cash</option>
-            <option value="CARD">Card</option>
-            <option value="ONLINE">Online</option>
-          </select>
-          {paymentMethod === 'CARD' && (
-            <div className="flex items-center gap-1 ml-2">
-              <span className="text-[9px] text-gray-500">Charges:</span>
-              <input type="number" value={cardChargesPct} onChange={e => setCardChargesPct(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
-                className="w-14 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white text-center focus:border-blue-500 outline-none" min="0" max="100" />
-              <span className="text-[9px] text-gray-500">%</span>
-            </div>
-          )}
+          <span className="text-xs font-bold text-gray-500 mr-1">Pay via:</span>
+          <div className="flex gap-1">
+            {['CASH','CARD','ONLINE'].map(m => (
+              <button key={m} onClick={() => setPaymentMethod(m)}
+                className={`px-2 py-1.5 rounded-lg text-[10px] font-black border-2 ${paymentMethod === m ? (m === 'CARD' ? 'border-purple-500 bg-purple-600/20 text-purple-300' : m === 'ONLINE' ? 'border-blue-500 bg-blue-600/20 text-blue-300' : 'border-emerald-500 bg-emerald-600/20 text-emerald-300') : 'border-gray-700 text-gray-500 hover:border-gray-500'}`}>
+                {m}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

@@ -293,7 +293,7 @@ const DispatchDashboard = () => {
                   return (
                     <div key={idx} className="flex items-center justify-between theme-bg-subtle rounded-xl px-3 py-2">
                       <div className="flex-1 min-w-0">
-                        <p className="font-black text-sm theme-text-primary">{p.productType || '—'}</p>
+                        <p className="font-black text-sm theme-text-primary">{p.productType || p.name || p.productName || '—'}</p>
                         <p className="text-xs theme-text-muted font-bold">
                           {[p.fabricType, p.color, p.size, p.gender].filter(Boolean).join(' • ')}
                           {extras ? ` | ${extras}` : ''}
