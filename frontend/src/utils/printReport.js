@@ -1327,6 +1327,12 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:2px">${sec.specialNote}</p>`);
           win.document.write(`<p style="font-size:22px;font-style:italic;color:#000">${order.engravingInstructions}</p></div>`);
         }
+        if (order.instructionNotes) {
+          const notesDisplay = isUrdu ? romanToUrdu(order.instructionNotes) : order.instructionNotes;
+          win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px;margin-top:6px">`);
+          win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${sec.instructionNotes}</p>`);
+          win.document.write(`<p style="font-size:22px;font-weight:700;color:#000"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
+        }
         win.document.write(`</div>`);
       }
     }

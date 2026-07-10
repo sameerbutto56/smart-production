@@ -2520,6 +2520,12 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             <p className="text-sm text-yellow-300 font-medium italic">{order.engravingInstructions}</p>
                           </div>
                         )}
+                        {order.instructionNotes && (
+                          <div className="bg-yellow-900/20 border border-yellow-500/20 rounded-lg p-3 mt-2">
+                            <p className="text-xs font-black text-yellow-400 uppercase mb-1">Instruction Notes:</p>
+                            <p className="text-sm text-yellow-300 font-medium italic">{order.instructionNotes}</p>
+                          </div>
+                        )}
                       </div>
                     </section>
                   );
