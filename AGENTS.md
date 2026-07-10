@@ -68,6 +68,14 @@ Add POS Dashboard and Total Invoices tabs to Outlet Dashboard; fix Balance Colle
 - **Backend `getSales` balance computation**: Added `balancePayments` to `include`; computes `_balanceRemaining` (= max(0, grandTotal − advanceAmount − sum(balancePayments))) and `_balanceStatus` ('paid' / 'balance'); accepts `statusFilter` query param (`all` | `paid` | `balance`) to filter sales server-side.
 - **Frontend `OutletInvoiceHistory.jsx` rewrite**: Uses backend-computed `_balanceRemaining`/`_balanceStatus`; removed separate `balanceInvoices` state + fallback `getBalanceInfo`; filter buttons replaced by All Invoices / Paid / Balance toggle that sends `statusFilter` to backend; summary counts (Paid / Balance) shown below filters.
 - Build passes with 0 errors across all commits.
+- **Fixed `instructionNotes` not showing** — added to `hasEng`/`outHasEngraving` guard so engraving section renders even without other engraving data
+- **Removed duplicate `instructionNotes`** from top-level Job Sheet display (was showing twice)
+- **Fixed `Icon is not defined` ReferenceError** in `OutletPOSDashboard.jsx` payment breakdown
+- **Fixed 504 timeout on outlet analytics** — added cache-first read (was write-only), increased TTL from 5ms to 600s (all) / 120s (other)
+- **Fixed POS dashboard 504** — added `cashier` to cache key, adaptive TTL (300s for all, 30s default)
+- **Fixed analytics TTL unit bug** — was passing seconds instead of milliseconds to `cache.set()`
+- **SUPER FAST checkout** — skip stock decrement for Faisal Takes, send response before async cache invalidation (`setImmediate`)
+- **SUPER FAST dashboards** — `getSales` now adaptive TTL (300s for all), response before `cache.set`; all 3 POS dashboard endpoints cache-first with long TTL for `range=all`
 
 ### In Progress
 - (none)
@@ -94,7 +102,7 @@ Add POS Dashboard and Total Invoices tabs to Outlet Dashboard; fix Balance Colle
 - (none — all current work is complete)
 
 ## Critical Context
-- Latest commits: `9f98887` — dropdown tab menu; `eec65d0` — POS Dashboard + Invoice History tabs + Balance Collection filter fix
+- Latest commits: `9f98887` — dropdown tab menu; `eec65d0` — POS Dashboard + Invoice History tabs + Balance Collection filter fix; `7499484` — SUPER FAST dashboards + checkout
 - Build passes with 0 errors.
 - `isAccessory` uses substring matching (`catUpper.includes('COAT')`).
 - `calculateAndRecordRevenue` at line 2482 of `order.controller.js` is idempotent.
