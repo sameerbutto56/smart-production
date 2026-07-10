@@ -23,11 +23,17 @@ const OutletInvoiceHistory = ({ outlet }) => {
   const [dateTo, setDateTo] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [cashier, setCashier] = useState('');
+  const [employees, setEmployees] = useState([]);
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
   const [printing, setPrinting] = useState(null);
+
+  useEffect(() => {
+    api.get(`/api/pos/employees?outlet=${outlet}`).then(r => setEmployees(r.data)).catch(() => {});
+  }, [outlet]);
 
   /* ─── Balance Payment Modals ─── */
   const [showPayModal, setShowPayModal] = useState(false);
@@ -48,6 +54,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
       if (dateFrom) url += `&dateFrom=${dateFrom}`;
       if (dateTo) url += `&dateTo=${dateTo}`;
       if (statusFilter !== 'all') url += `&statusFilter=${statusFilter}`;
+      if (cashier) url += `&cashier=${encodeURIComponent(cashier)}`;
       const res = await api.get(url);
       setSales(res.data);
     } catch (e) {
@@ -55,7 +62,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
     } finally {
       setLoading(false);
     }
-  }, [outlet, range, dateFrom, dateTo, statusFilter]);
+  }, [outlet, range, dateFrom, dateTo, statusFilter, cashier]);
 
   useEffect(() => { fetchSales(); }, [fetchSales]);
 
@@ -332,6 +339,11 @@ const OutletInvoiceHistory = ({ outlet }) => {
             </button>
           ))}
         </div>
+        <select value={cashier} onChange={e => setCashier(e.target.value)}
+          className="bg-gray-800 border border-gray-700 rounded-xl px-2.5 py-2 text-[10px] text-white font-bold focus:outline-none focus:border-blue-500/50">
+          <option value="">All Employees</option>
+          {employees.map(e => <option key={e} value={e}>{e}</option>)}
+        </select>
         <button onClick={fetchSales} className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded-xl transition-all">
           <RefreshCw size={14} />
         </button>

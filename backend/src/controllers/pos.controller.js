@@ -525,9 +525,9 @@ const createSale = async (req, res) => {
 const getSales = async (req, res) => {
   try {
     const outlet = getOutletName(req);
-    const { range, search, dateFrom, dateTo, statusFilter } = req.query;
+    const { range, search, dateFrom, dateTo, statusFilter, cashier } = req.query;
     const skip = req.query.skipCache === 'true';
-    const cacheKey = `${CACHE_KEY_PREFIX}sales:${outlet || 'all'}:${range || 'all'}${dateFrom ? `:${dateFrom}` : ''}${dateTo ? `:${dateTo}` : ''}${search ? `:${search}` : ''}${statusFilter ? `:${statusFilter}` : ''}`;
+    const cacheKey = `${CACHE_KEY_PREFIX}sales:${outlet || 'all'}:${range || 'all'}${dateFrom ? `:${dateFrom}` : ''}${dateTo ? `:${dateTo}` : ''}${search ? `:${search}` : ''}${statusFilter ? `:${statusFilter}` : ''}${cashier ? `:${cashier}` : ''}`;
 
     if (!skip) {
       const cached = cache.get(cacheKey);
@@ -549,6 +549,7 @@ const getSales = async (req, res) => {
     const where = { ...dateFilter };
     if (outlet) where.outletName = outlet;
     if (search) where.receiptNumber = { contains: search, mode: 'insensitive' };
+    if (cashier) where.cashierName = cashier;
 
     let sales = await prisma.posSale.findMany({
       where,
@@ -589,7 +590,7 @@ const getSales = async (req, res) => {
 const getSalesDashboard = async (req, res) => {
   try {
     const outlet = getOutletName(req);
-    const { dateFrom, dateTo, range = 'all' } = req.query;
+    const { dateFrom, dateTo, range = 'all', cashier } = req.query;
     
     // We bypass cache if custom dates or skipCache are requested
     const skip = req.query.skipCache === 'true' || dateFrom || dateTo;
@@ -631,6 +632,9 @@ const getSalesDashboard = async (req, res) => {
     if (outlet) {
       whereClause.outletName = outlet;
     }
+    if (cashier) {
+      whereClause.cashierName = cashier;
+    }
     if (startLimit || endLimit) {
       whereClause.createdAt = {};
       if (startLimit) whereClause.createdAt.gte = startLimit;
@@ -658,7 +662,7 @@ const getSalesDashboard = async (req, res) => {
     // 3. Fetch all sales for trend charts & revenue calculation
     const allSales = await prisma.posSale.findMany({
       where: whereClause,
-      select: { id: true, createdAt: true, grandTotal: true, advanceAmount: true, receiptNumber: true, outletName: true, paymentMethod: true, orderId: true }
+      select: { id: true, createdAt: true, grandTotal: true, advanceAmount: true, receiptNumber: true, outletName: true, paymentMethod: true, orderId: true, cashierName: true, cashAmount: true, onlineAmount: true }
     });
     const saleIds = allSales.map(s => s.id);
     const balancePayments = saleIds.length > 0 ? await prisma.posBalancePayment.findMany({
@@ -686,15 +690,16 @@ const getSalesDashboard = async (req, res) => {
     // Payment method breakdown — by actual payment received (not invoice total)
     // For original sales: count advanceAmount (or full grandTotal if paid upfront) by sale's paymentMethod
     // For balance payments: count amountPaidNow by balance payment's paymentMethod
+    const KNOWN_METHODS = ['CASH', 'CARD', 'ONLINE', 'CASH_ONLINE'];
     const paymentTotals = {};
     allSales.forEach(s => {
-      const method = ['CASH', 'CARD', 'ONLINE'].includes(s.paymentMethod) ? s.paymentMethod : 'CASH';
+      const method = KNOWN_METHODS.includes(s.paymentMethod) ? s.paymentMethod : 'CASH';
       const received = saleRevenue(s);
       paymentTotals[method] = (paymentTotals[method] || 0) + received;
     });
     // Add balance payments by their payment method
     balancePayments.forEach(bp => {
-      const method = ['CASH', 'CARD', 'ONLINE'].includes(bp.paymentMethod) ? bp.paymentMethod : 'CASH';
+      const method = KNOWN_METHODS.includes(bp.paymentMethod) ? bp.paymentMethod : 'CASH';
       paymentTotals[method] = (paymentTotals[method] || 0) + bp.amountPaidNow;
     });
 
@@ -708,10 +713,11 @@ const getSalesDashboard = async (req, res) => {
     });
     const returnsByMethod = {};
     returnsWithSale.forEach(r => {
-      const method = r.sale?.paymentMethod || 'CASH';
+      const rawMethod = r.sale?.paymentMethod || 'CASH';
+      const method = KNOWN_METHODS.includes(rawMethod) ? rawMethod : 'CASH';
       returnsByMethod[method] = (returnsByMethod[method] || 0) + r.refundAmount;
     });
-    const paymentBreakdown = ['CASH', 'CARD', 'ONLINE'].map(method => {
+    const paymentBreakdown = KNOWN_METHODS.map(method => {
       const gross = paymentTotals[method] || 0;
       const ret = returnsByMethod[method] || 0;
       return { method, gross, returns: ret, net: gross - ret };
@@ -1376,6 +1382,23 @@ const getBalancePaymentHistory = async (req, res) => {
   }
 };
 
+const getEmployees = async (req, res) => {
+  try {
+    const outlet = getOutletName(req);
+    const where = { cashierName: { not: null } };
+    if (outlet) where.outletName = outlet;
+    const records = await prisma.posSale.findMany({
+      where,
+      distinct: ['cashierName'],
+      select: { cashierName: true },
+      orderBy: { cashierName: 'asc' }
+    });
+    res.json(records.map(r => r.cashierName));
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch employees', error: error.message });
+  }
+};
+
 module.exports = {
   getPosInventory,
   getProducts,
@@ -1393,6 +1416,7 @@ module.exports = {
   getInvoiceBalance,
   payBalance,
   getBalanceCollections,
-  getBalancePaymentHistory
+  getBalancePaymentHistory,
+  getEmployees
 };
 
