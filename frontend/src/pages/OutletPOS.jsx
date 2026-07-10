@@ -16,6 +16,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
 const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
+const formatPaymentMethod = (m) => m === 'CASH_ONLINE' ? 'Cash+Online' : m === 'CASH' ? 'Cash' : m === 'CARD' ? 'Card' : m === 'ONLINE' ? 'Online' : m || '—';
 
 const OutletPOS = () => {
   const { user } = useAuth();
@@ -97,7 +98,9 @@ const OutletPOS = () => {
   const [cardChargesPct, setCardChargesPct] = useState(0);
   const [customerName, setCustomerName] = useState(() => localStorage.getItem('pos_customer_name') || '');
   const [customerPhone, setCustomerPhone] = useState(() => localStorage.getItem('pos_customer_phone') || '');
-  const [paymentMethod, setPaymentMethod] = useState(() => localStorage.getItem('pos_payment_method') || 'CASH');
+  const [paymentMethod, setPaymentMethod] = useState(() => localStorage.getItem('pos_payment_method') || '');
+  const [cashAmount, setCashAmount] = useState(0);
+  const [onlineAmount, setOnlineAmount] = useState(0);
   const [showCheckout, setShowCheckout] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [lastSale, setLastSale] = useState(null);
@@ -145,6 +148,7 @@ const OutletPOS = () => {
   useEffect(() => { localStorage.setItem('pos_payment_method', paymentMethod); }, [paymentMethod]);
   useEffect(() => {
     setCardChargesPct(paymentMethod === 'CARD' ? 2 : 0);
+    if (paymentMethod !== 'CASH_ONLINE') { setCashAmount(0); setOnlineAmount(0); }
   }, [paymentMethod]);
   useEffect(() => { localStorage.setItem('pos_active_category', activeCategory); }, [activeCategory]);
   useEffect(() => { localStorage.setItem('pos_employee_name', employeeLoggedIn ? employeeName : ''); }, [employeeLoggedIn, employeeName]);
@@ -444,6 +448,12 @@ const OutletPOS = () => {
     if (cart.length === 0) return;
     if (!employeeLoggedIn) return toast.error('Please select employee and enter password first');
     if (!faisalTake && !customerPhone.trim()) return toast.error('Customer phone is required');
+    if (!paymentMethod) return toast.error('Please select a payment method before completing the checkout');
+    if (paymentMethod === 'CASH_ONLINE') {
+      const cash = parseFloat(cashAmount) || 0;
+      const online = parseFloat(onlineAmount) || 0;
+      if (cash + online !== grandTotal) return toast.error(`Cash+Online total (₨${(cash + online).toLocaleString()}) must equal invoice amount (₨${grandTotal.toLocaleString()})`);
+    }
     // Show processing UI immediately
     setCheckoutLoading(true);
     // Quick stock pre-check from local cache (no fresh fetch — backend validates atomically)
@@ -469,7 +479,9 @@ const OutletPOS = () => {
       receiptNumber: orderNumber || undefined,
       outlet: selectedOutlet,
       cashierName: employeeName,
-      faisalTake
+      faisalTake,
+      cashAmount: parseFloat(cashAmount) || 0,
+      onlineAmount: parseFloat(onlineAmount) || 0
     };
     try {
       const res = await api.post(`/api/pos/sales?outlet=${selectedOutlet}`, payload);
@@ -485,6 +497,7 @@ const OutletPOS = () => {
         setCustomerPhone('');
         setOrderNumber('');
         setFaisalTake(false);
+        setCashAmount(0); setOnlineAmount(0);
         invalidateKey(productsKey);
         invalidateKey(dashboardKey);
         toast.success('Faisal Take recorded!');
@@ -497,6 +510,7 @@ const OutletPOS = () => {
       setDiscountPct(0);
       setDiscountFixed(0);
       setAdvanceAmount(0);
+      setCashAmount(0); setOnlineAmount(0);
       setLookedUpOrder(null);
       setCustomerName('');
       setCustomerPhone('');
@@ -518,7 +532,7 @@ const OutletPOS = () => {
       await enqueue('sale', 'create', payload);
     }
     setCheckoutLoading(false);
-  }, [cart, products, customerName, customerPhone, discountPct, discountFixed, advanceAmount, cardChargesPct, lookedUpOrder, paymentMethod, orderNumber, selectedOutlet, employeeLoggedIn, faisalTake, employeeName, productsKey, dashboardKey, salesKey, returnsKey]);
+  }, [cart, products, customerName, customerPhone, discountPct, discountFixed, advanceAmount, cardChargesPct, lookedUpOrder, paymentMethod, cashAmount, onlineAmount, orderNumber, selectedOutlet, employeeLoggedIn, faisalTake, employeeName, productsKey, dashboardKey, salesKey, returnsKey]);
 
   /* ─── Receipt Print ─── */
   const printReceipt = async (sale, { includeInvoice = true, includeGatePass = true } = {}) => {
@@ -625,7 +639,14 @@ const OutletPOS = () => {
       if (adv > 0) w.document.write(`<tr><td>Advance</td><td class="value">-${pf(adv)}</td></tr>`);
       if (adv > 0) w.document.write(`<tr style="font-size:17px;font-weight:900;"><td>Balance</td><td class="value">${pf(balance)}</td></tr>`);
     }
-    w.document.write(`<tr><td>Payment</td><td class="value">${sale.paymentMethod}</td></tr></table>`);
+    if (sale.paymentMethod === 'CASH_ONLINE') {
+      w.document.write(`<tr><td>Cash Amount</td><td class="value">${pf(sale.cashAmount)}</td></tr>`);
+      w.document.write(`<tr><td>Online Amount</td><td class="value">${pf(sale.onlineAmount)}</td></tr>`);
+      w.document.write(`<tr><td>Payment</td><td class="value">Cash + Online</td></tr></table>`);
+    } else {
+      const pmLabel = sale.paymentMethod === 'CASH' ? 'Cash' : sale.paymentMethod === 'CARD' ? 'Card' : sale.paymentMethod === 'ONLINE' ? 'Online' : sale.paymentMethod;
+      w.document.write(`<tr><td>Payment</td><td class="value">${pmLabel}</td></tr></table>`);
+    }
     }
     w.document.write('<div style="font-size:11px;font-weight:bold;margin:6px 0 0;border-top:2px solid #000;padding-top:4px;"><p style="font-size:12px;font-weight:900;text-align:center;margin:0 0 3px;">TERMS &amp; CONDITIONS</p><p style="margin:2px 0;text-align:center;">Exchanges are allowed only within 7 days with original tags and invoice.</p></div>');
     w.document.write(`<div style="text-align:center;margin:6px 0 0;padding:3px;"><img src="${qrDataUrl || 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(reviewUrl)}" width="150" height="150" alt="Review QR" style="display:inline-block;"><p style="font-size:8px;margin:3px 0 0;font-weight:bold;">Scan to Review us and Avail Special Offers</p><p style="font-size:13px;font-weight:900;margin:4px 0 0;">Thank you for shopping! Visit Again!</p></div>`);
@@ -742,8 +763,10 @@ const OutletPOS = () => {
       'Subtotal': s.subtotal || 0,
       'Discount': s.discountAmount || 0,
       'Card Charges': s.cardChargesAmount || 0,
+      'Cash Amount': s.cashAmount || 0,
+      'Online Amount': s.onlineAmount || 0,
       'Grand Total': s.grandTotal || 0,
-      'Payment': s.paymentMethod || '',
+      'Payment': formatPaymentMethod(s.paymentMethod),
       'Advance': s.advanceAmount || 0,
       'Order #': s.orderId || ''
     }));
@@ -970,7 +993,7 @@ const OutletPOS = () => {
                       <>
                         <p className="text-lg font-black text-emerald-400">{formatCurrency(netAmount)}</p>
                         {hasReturn && <p className="text-[9px] text-red-400 font-bold line-through opacity-60">{formatCurrency(s.grandTotal)}</p>}
-                        <p className="text-[10px] text-gray-500 font-bold">{s.paymentMethod}</p>
+                        <p className="text-[10px] text-gray-500 font-bold">{formatPaymentMethod(s.paymentMethod)}</p>
                       </>
                     );
                   })()}
@@ -1463,7 +1486,7 @@ const OutletPOS = () => {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="font-black text-white">{inv.receiptNumber}</p>
-                          <p className="text-[10px] text-gray-500">{inv.customerName || 'No name'} &bull; {inv.paymentMethod}</p>
+                          <p className="text-[10px] text-gray-500">{inv.customerName || 'No name'} &bull; {formatPaymentMethod(inv.paymentMethod)}</p>
                         </div>
                         <div className="text-right space-y-0.5">
                           <p className="font-black text-amber-400">Due: {formatCurrency(inv.remaining)}</p>
@@ -1528,7 +1551,7 @@ const OutletPOS = () => {
                       </div>
                       <div className="text-right">
                         <p className="font-black text-emerald-400">{formatCurrency(s.grandTotal)}</p>
-                        <p className="text-[10px] text-gray-500">{s.paymentMethod}</p>
+                        <p className="text-[10px] text-gray-500">{formatPaymentMethod(s.paymentMethod)}</p>
                       </div>
                     </div>
                   ))}
@@ -1570,10 +1593,10 @@ const OutletPOS = () => {
         <div className="flex items-center gap-1">
           <span className="text-xs font-bold text-gray-500 mr-1">Pay via:</span>
           <div className="flex gap-1">
-            {['CASH','CARD','ONLINE'].map(m => (
+            {['CASH','CARD','ONLINE','CASH_ONLINE'].map(m => (
               <button key={m} onClick={() => setPaymentMethod(m)}
-                className={`px-2 py-1.5 rounded-lg text-[10px] font-black border-2 ${paymentMethod === m ? (m === 'CARD' ? 'border-purple-500 bg-purple-600/20 text-purple-300' : m === 'ONLINE' ? 'border-blue-500 bg-blue-600/20 text-blue-300' : 'border-emerald-500 bg-emerald-600/20 text-emerald-300') : 'border-gray-700 text-gray-500 hover:border-gray-500'}`}>
-                {m}
+                className={`px-2 py-1.5 rounded-lg text-[10px] font-black border-2 ${paymentMethod === m ? (m === 'CARD' ? 'border-purple-500 bg-purple-600/20 text-purple-300' : m === 'CASH_ONLINE' ? 'border-amber-500 bg-amber-600/20 text-amber-300' : m === 'ONLINE' ? 'border-blue-500 bg-blue-600/20 text-blue-300' : 'border-emerald-500 bg-emerald-600/20 text-emerald-300') : 'border-gray-700 text-gray-500 hover:border-gray-500'}`}>
+                {m.replace('_', ' + ')}
               </button>
             ))}
           </div>
@@ -1780,6 +1803,27 @@ const OutletPOS = () => {
                   <span>+{formatCurrency(cardChargesAmt)}</span>
                 </div>
               )}
+              {paymentMethod === 'CASH_ONLINE' && (
+                <div className="bg-amber-900/10 border border-amber-800/50 rounded-xl px-3 py-2 space-y-2">
+                  <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Split Payment</p>
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-bold text-gray-400">Cash Amount</label>
+                    <input type="number" value={cashAmount} onChange={e => setCashAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                      className="w-28 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white text-right focus:border-amber-500 outline-none" min="0" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-bold text-gray-400">Online Amount</label>
+                    <input type="number" value={onlineAmount} onChange={e => setOnlineAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                      className="w-28 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white text-right focus:border-amber-500 outline-none" min="0" />
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] font-black border-t border-amber-800/50 pt-1.5">
+                    <span className="text-gray-400">Total</span>
+                    <span className={parseFloat(cashAmount || 0) + parseFloat(onlineAmount || 0) === grandTotal ? 'text-emerald-400' : 'text-red-400'}>
+                      {formatCurrency((parseFloat(cashAmount) || 0) + (parseFloat(onlineAmount) || 0))} / {formatCurrency(grandTotal)}
+                    </span>
+                  </div>
+                </div>
+              )}
               <input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Customer name (optional)"
                 className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
               <input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="Customer phone *required"
@@ -1853,9 +1897,9 @@ const OutletPOS = () => {
                   <span className="text-amber-400">{formatCurrency(grandTotal - parseFloat(advanceAmount))}</span>
                 </div>
               )}
-              <button onClick={handleCheckout} disabled={cart.length === 0 || checkoutLoading || !employeeLoggedIn}
+              <button onClick={handleCheckout} disabled={cart.length === 0 || checkoutLoading || !employeeLoggedIn || !paymentMethod}
                 className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2 mt-2">
-                {checkoutLoading ? 'Processing...' : !employeeLoggedIn ? 'Login Employee First' : faisalTake ? 'Record Faisal Take' : lookedUpOrder ? `Pay Balance ${formatCurrency(grandTotal)}` : `Checkout ${formatCurrency(grandTotal)}`}
+                {checkoutLoading ? 'Processing...' : !employeeLoggedIn ? 'Login Employee First' : !paymentMethod ? 'Select Payment Method' : faisalTake ? 'Record Faisal Take' : lookedUpOrder ? `Pay Balance ${formatCurrency(grandTotal)}` : `Checkout ${formatCurrency(grandTotal)}`}
               </button>
               <div className="flex gap-2">
                 <button onClick={() => setTab('dashboard')} className="flex-1 text-[10px] font-bold text-gray-500 hover:text-white bg-gray-800 py-2 rounded-xl text-center">Dashboard</button>
@@ -2069,7 +2113,7 @@ const OutletPOS = () => {
                       <span className="text-emerald-400 font-bold">{formatCurrency(p.amountPaidNow)}</span>
                     </div>
                     <div className="flex justify-between text-[10px] text-gray-500 mt-1">
-                      <span>{p.paymentMethod} &bull; {p.cashierName || 'Cashier'}</span>
+                      <span>{formatPaymentMethod(p.paymentMethod)} &bull; {p.cashierName || 'Cashier'}</span>
                       <span>{new Date(p.paidAt).toLocaleString()}</span>
                     </div>
                   </div>

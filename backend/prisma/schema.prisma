@@ -503,6 +503,8 @@ model PosSale {
   cardChargesPct   Float    @default(0)
   cardChargesAmount Float   @default(0)
   paymentMethod    String   @default("CASH")
+  cashAmount       Float    @default(0)
+  onlineAmount     Float    @default(0)
   faisalTake       Boolean  @default(false)
   faisalTakenAt    DateTime?
   createdAt        DateTime @default(now())

@@ -381,7 +381,7 @@ const updateVariant = async (req, res) => {
 /* ─── Sales ─── */
 const createSale = async (req, res) => {
   try {
-    const { items, customerName, customerPhone, extraCharges, discountPercent, discountFixed, paymentMethod, advanceAmount, cardChargesPct, orderId, receiptNumber: manualReceipt, cashierName, faisalTake } = req.body;
+    const { items, customerName, customerPhone, extraCharges, discountPercent, discountFixed, paymentMethod, advanceAmount, cardChargesPct, orderId, receiptNumber: manualReceipt, cashierName, faisalTake, cashAmount, onlineAmount } = req.body;
     if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'At least one item is required' });
 
     const outletName = getOutletName(req);
@@ -460,6 +460,15 @@ const createSale = async (req, res) => {
 
     const isFaisalTake = faisalTake === true || faisalTake === 'true';
 
+    // Validate CASH_ONLINE split amounts
+    if (paymentMethod === 'CASH_ONLINE') {
+      const cash = parseFloat(cashAmount || 0);
+      const online = parseFloat(onlineAmount || 0);
+      if (cash + online !== grandTotal) {
+        return res.status(400).json({ message: `Cash+Online total (${cash + online}) must equal invoice amount (${grandTotal})` });
+      }
+    }
+
     const sale = await prisma.$transaction(async (tx) => {
       // Parallel stock updates with atomic check (no overselling)
       await Promise.all(saleItems.map(si =>
@@ -493,6 +502,8 @@ const createSale = async (req, res) => {
           cardChargesPct: isFaisalTake ? 0 : cardPct,
           cardChargesAmount: isFaisalTake ? 0 : cardChargesAmount,
           paymentMethod: isFaisalTake ? 'FAISAL_TAKE' : (paymentMethod || 'CASH'),
+          cashAmount: isFaisalTake ? 0 : (parseFloat(cashAmount || 0)),
+          onlineAmount: isFaisalTake ? 0 : (parseFloat(onlineAmount || 0)),
           faisalTake: isFaisalTake,
           faisalTakenAt: isFaisalTake ? new Date() : null,
           items: { create: saleItems.map(si => ({ ...si, lineTotal: isFaisalTake ? 0 : si.lineTotal })) }
