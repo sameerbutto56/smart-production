@@ -1383,20 +1383,7 @@ const getBalancePaymentHistory = async (req, res) => {
 };
 
 const getEmployees = async (req, res) => {
-  try {
-    const outlet = getOutletName(req);
-    const where = { cashierName: { not: null } };
-    if (outlet) where.outletName = outlet;
-    const records = await prisma.posSale.findMany({
-      where,
-      distinct: ['cashierName'],
-      select: { cashierName: true },
-      orderBy: { cashierName: 'asc' }
-    });
-    res.json(records.map(r => r.cashierName));
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch employees', error: error.message });
-  }
+  res.json(['Gull', 'Junaid', 'Sajawal', 'Zain']);
 };
 
 module.exports = {

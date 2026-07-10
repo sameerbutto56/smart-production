@@ -298,6 +298,28 @@ const OutletInvoiceHistory = ({ outlet }) => {
         || (s.cashierName || '').toLowerCase().includes(q);
   });
 
+  /* ─── Payment Summary ─── */
+  const paymentSummary = filteredSales.reduce((acc, s) => {
+    const method = s.paymentMethod || 'CASH';
+    if (method === 'CASH_ONLINE') {
+      acc.CASH = (acc.CASH || 0) + (parseFloat(s.cashAmount) || 0);
+      acc.ONLINE = (acc.ONLINE || 0) + (parseFloat(s.onlineAmount) || 0);
+      acc.CASH_ONLINE = (acc.CASH_ONLINE || 0) + s.grandTotal;
+    } else if (['CASH', 'ONLINE', 'CARD'].includes(method)) {
+      acc[method] = (acc[method] || 0) + s.grandTotal;
+    } else {
+      acc.CASH = (acc.CASH || 0) + s.grandTotal;
+    }
+    return acc;
+  }, {});
+
+  const paymentMethods = [
+    { key: 'CASH', label: 'Cash', color: 'from-emerald-600 to-green-600' },
+    { key: 'ONLINE', label: 'Online', color: 'from-blue-600 to-indigo-600' },
+    { key: 'CARD', label: 'Card', color: 'from-purple-600 to-violet-600' },
+    { key: 'CASH_ONLINE', label: 'Cash+Online', color: 'from-cyan-600 to-teal-600' },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Date Range */}
@@ -360,6 +382,23 @@ const OutletInvoiceHistory = ({ outlet }) => {
           <span className="text-emerald-400 font-bold">{filteredSales.filter(s => s._balanceStatus === 'paid').length} Paid</span>
           <span className="text-gray-700">|</span>
           <span className="text-amber-400 font-bold">{filteredSales.filter(s => s._balanceStatus === 'balance').length} Balance</span>
+        </div>
+      )}
+
+      {/* Payment Method Summary */}
+      {!loading && !error && filteredSales.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          {paymentMethods.map(pm => {
+            const total = paymentSummary[pm.key] || 0;
+            return (
+              <div key={pm.key} className={`bg-gradient-to-br ${pm.color} p-[1px] rounded-xl`}>
+                <div className="bg-gray-950 rounded-xl p-3">
+                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{pm.label}</p>
+                  <p className="text-sm font-black text-white mt-1">{formatCurrency(total)}</p>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
