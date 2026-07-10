@@ -4,9 +4,9 @@ const compression = require('compression');
 const dotenv = require('dotenv');
 const path = require('path');
 const multer = require('multer');
-const prisma = require('./prisma');
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
+const prisma = require('./prisma');
 
 const app = express();
 const frontendUrl = process.env.FRONTEND_URL || "*";
