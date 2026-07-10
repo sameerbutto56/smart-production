@@ -470,15 +470,17 @@ const createSale = async (req, res) => {
     }
 
     const sale = await prisma.$transaction(async (tx) => {
-      // Parallel stock updates with atomic check (no overselling)
-      await Promise.all(saleItems.map(si =>
-        tx.outletInventory.updateMany({
-          where: { id: si.outletVariantId, stock: { gte: si.quantity } },
-          data: { stock: { decrement: si.quantity } }
-        }).then(result => {
-          if (result.count === 0) throw new Error(`Stock conflict for ${si.productName} - please retry`);
-        })
-      ));
+      // Skip stock decrement for Faisal Takes (zero-cost, no inventory impact)
+      if (!isFaisalTake) {
+        await Promise.all(saleItems.map(si =>
+          tx.outletInventory.updateMany({
+            where: { id: si.outletVariantId, stock: { gte: si.quantity } },
+            data: { stock: { decrement: si.quantity } }
+          }).then(result => {
+            if (result.count === 0) throw new Error(`Stock conflict for ${si.productName} - please retry`);
+          })
+        ));
+      }
       if (orderId) {
         await tx.order.update({
           where: { id: orderId },
@@ -512,11 +514,13 @@ const createSale = async (req, res) => {
       });
     });
 
-    // Selective cache invalidation — clear only affected caches
-    cache.delKeys(`${CACHE_KEY_PREFIX}products:${outletName}`, `${CACHE_KEY_PREFIX}inventory:${outletName}`, `${CACHE_KEY_PREFIX}inventory:all-outlets-view`, `${CACHE_KEY_PREFIX}dashboard:${outletName || 'all'}`, `${CACHE_KEY_PREFIX}sales:${outletName || 'all'}`);
-    cache.delPattern(`outlet:analytics:${outletName}`);
-    if (req.app.get('io')) req.app.get('io').emit('inventory-updated', { source: 'pos', outletName, saleId: sale.id });
+    // Respond immediately, invalidate caches asynchronously
     res.status(201).json(sale);
+    setImmediate(() => {
+      cache.delKeys(`${CACHE_KEY_PREFIX}products:${outletName}`, `${CACHE_KEY_PREFIX}inventory:${outletName}`, `${CACHE_KEY_PREFIX}inventory:all-outlets-view`, `${CACHE_KEY_PREFIX}dashboard:${outletName || 'all'}`, `${CACHE_KEY_PREFIX}sales:${outletName || 'all'}`);
+      cache.delPattern(`outlet:analytics:${outletName}`);
+      if (req.app.get('io')) req.app.get('io').emit('inventory-updated', { source: 'pos', outletName, saleId: sale.id });
+    });
   } catch (error) {
     res.status(500).json({ message: 'Failed to create sale', error: error.message });
   }
