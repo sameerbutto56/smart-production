@@ -854,9 +854,6 @@ const AllOrders = () => {
                       </span>
                     )}
                   </p>
-                  {selectedOrder.instructionNotes && (
-                    <p className="mt-2 text-xs text-amber-400/80 font-medium italic max-w-md leading-snug">📋 {selectedOrder.instructionNotes}</p>
-                  )}
                 </div>
                 <button 
                   onClick={() => setShowModal(false)}

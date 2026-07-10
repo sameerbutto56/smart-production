@@ -1141,14 +1141,6 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   });
   win.document.write(`</div>`);
 
-  // ─── INSTRUCTION NOTES ───
-  if (order.instructionNotes) {
-    const notesDisplay = isUrdu ? romanToUrdu(order.instructionNotes) : order.instructionNotes;
-    win.document.write(`<div style="background:#fef3c7;border:2px solid #f59e0b;border-radius:8px;padding:8px 12px;margin-bottom:8px;page-break-inside:avoid">`);
-    win.document.write(`<p style="font-size:20px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px"${isUrdu ? ' class="urdu"' : ''}>${sec.instructionNotes}</p>`);
-    win.document.write(`<p style="font-size:26px;font-weight:700;color:#000"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
-  }
-
   // ─── PRODUCTS TABLE ───
   win.document.write(`<div class="section-title" style="font-size:26px">${sec.products}</div>`);
   if (isMultiItem) {

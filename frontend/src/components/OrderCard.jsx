@@ -2648,12 +2648,6 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 <div>
                   <h4 className="text-xs md:text-sm font-black text-yellow-500 uppercase tracking-[0.3em] mb-6">{t('04. Design Notes & Special Requests')}</h4>
                   <div className="h-full min-h-[200px] bg-yellow-500/5 p-4 md:p-8 rounded-3xl border border-yellow-500/10 text-gray-300 leading-relaxed text-sm shadow-inner">
-                    {order?.instructionNotes && (
-                      <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-                        <p className="text-xs font-black text-amber-400 uppercase tracking-widest mb-1">{t('📋 Instruction Notes')}</p>
-                        <p className="text-sm font-bold text-amber-200">{order.instructionNotes}</p>
-                      </div>
-                    )}
                     {custom?.designNotes ? (
                       <p className="italic mb-4">{custom.designNotes}</p>
                     ) : (
