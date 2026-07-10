@@ -192,14 +192,14 @@ const OutletPOSDashboard = ({ outlet }) => {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {['CASH', 'CARD', 'ONLINE', 'CASH_ONLINE'].map(method => {
               const pm = dashboard.paymentBreakdown?.find(p => p.method === method) || { method, gross: 0, returns: 0, net: 0 };
-              const icons = { CASH: DollarSign, ONLINE: Globe, CARD: CreditCard, CASH_ONLINE: DollarSign };
+              const PaymentIcon = { CASH: DollarSign, ONLINE: Globe, CARD: CreditCard, CASH_ONLINE: DollarSign }[pm.method] || DollarSign;
               const colors = { CASH: 'from-emerald-600 to-green-600', ONLINE: 'from-blue-600 to-indigo-600', CARD: 'from-purple-600 to-violet-600', CASH_ONLINE: 'from-cyan-600 to-teal-600' };
               return (
                 <div key={pm.method} className={`bg-gradient-to-br ${colors[pm.method] || 'from-gray-600 to-slate-600'} p-[1px] rounded-2xl shadow-lg`}>
                   <div className="bg-gray-950/90 rounded-2xl p-4">
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
-                        <Icon size={14} /> {pm.method === 'CASH_ONLINE' ? 'CASH+ONLINE' : pm.method}
+                        <PaymentIcon size={14} /> {pm.method === 'CASH_ONLINE' ? 'CASH+ONLINE' : pm.method}
                       </span>
                     </div>
                     <p className="text-lg font-black text-white">{formatCurrency(pm.net)}</p>
