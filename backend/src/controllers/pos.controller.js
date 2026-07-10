@@ -594,7 +594,7 @@ const getSalesDashboard = async (req, res) => {
     
     // We bypass cache if custom dates or skipCache are requested
     const skip = req.query.skipCache === 'true' || dateFrom || dateTo;
-    const cacheKey = `${CACHE_KEY_PREFIX}dashboard:${outlet || 'all'}:${range}`;
+    const cacheKey = `${CACHE_KEY_PREFIX}dashboard:${outlet || 'all'}:${range}:${cashier || 'all'}`;
 
     if (!skip) {
       const cached = cache.get(cacheKey);
@@ -863,7 +863,8 @@ const getSalesDashboard = async (req, res) => {
     };
 
     if (!skip) {
-      cache.set(cacheKey, result, cache.DASHBOARD_TTL);
+      const ttl = range === 'all' ? 300000 : cache.DASHBOARD_TTL;
+      cache.set(cacheKey, result, ttl);
     }
     
     res.json(result);

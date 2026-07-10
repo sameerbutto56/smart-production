@@ -653,7 +653,7 @@ const getOutletAnalytics = async (req, res) => {
     const outOfStock = inventory.filter(i => i.stock === 0).length;
 
     // Cache — longer for 'all' since aggregate data rarely changes
-    const ttl = range === 'all' ? 600 : 120;
+    const ttl = range === 'all' ? 600000 : 120000;
     cache.set(cacheKey, {
       orderStats: { totalOrders, pendingOrders, inProgressOrders, completedOrders, cancelledOrders, totalRevenue },
       paymentBreakdown: { paidOrders, pendingPaymentOrders },
