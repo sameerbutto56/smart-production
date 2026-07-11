@@ -152,6 +152,11 @@ const UnifiedAnalytics = () => {
   const [detailModal, setDetailModal] = useState(null);
   const [detailData, setDetailData] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [paymentDetailModal, setPaymentDetailModal] = useState(null);
+  const [paymentDetailData, setPaymentDetailData] = useState(null);
+  const [paymentDetailLoading, setPaymentDetailLoading] = useState(false);
+  const [cashierInvoices, setCashierInvoices] = useState(null);
+  const [cashierInvoiceLoading, setCashierInvoiceLoading] = useState(false);
 
   const isOnlineSource = source === 'online';
   const isBranchSource = outletForSource(source) !== null;
@@ -282,6 +287,52 @@ const UnifiedAnalytics = () => {
       setOrderListTitle(label);
     } catch { setOrderList([]); setOrderListTitle(label); }
   };
+
+  const PAYMENT_METHOD_LABELS = {
+    CASH: 'Cash Received',
+    CARD: 'Card Payments',
+    ONLINE: 'Online Payments',
+    CASH_ONLINE: 'Hybrid (Cash + Online)'
+  };
+
+  const openPaymentDetail = async (method) => {
+    setPaymentDetailModal(method);
+    setPaymentDetailLoading(true);
+    try {
+      const dr = getDateRange();
+      const params = new URLSearchParams({ limit: '200' });
+      if (dr.startDate) params.set('dateFrom', dr.startDate);
+      if (dr.endDate) params.set('dateTo', dr.endDate);
+      if (selectedOutlet) params.set('outlet', selectedOutlet);
+      if (branchCashier) params.set('cashier', branchCashier);
+      if (method) params.set('paymentMethod', method);
+      const res = await api.get(`/api/pos/sales?${params}`);
+      setPaymentDetailData(res.data);
+    } catch { setPaymentDetailData([]); }
+    setPaymentDetailLoading(false);
+  };
+
+  // Fetch cashier invoices when branch + cashier selected
+  useEffect(() => {
+    if (isBranchSource && branchCashier) {
+      (async () => {
+        setCashierInvoiceLoading(true);
+        try {
+          const dr = getDateRange();
+          const params = new URLSearchParams({ limit: '500' });
+          if (dr.startDate) params.set('dateFrom', dr.startDate);
+          if (dr.endDate) params.set('dateTo', dr.endDate);
+          if (selectedOutlet) params.set('outlet', selectedOutlet);
+          params.set('cashier', branchCashier);
+          const res = await api.get(`/api/pos/sales?${params}`);
+          setCashierInvoices(res.data);
+        } catch { setCashierInvoices([]); }
+        setCashierInvoiceLoading(false);
+      })();
+    } else {
+      setCashierInvoices(null);
+    }
+  }, [isBranchSource, branchCashier, getDateRange, selectedOutlet]);
 
   // CSV download
   const handleDownloadPosCSV = () => {
@@ -635,11 +686,12 @@ const UnifiedAnalytics = () => {
               <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Payment Breakdown</p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {posData.paymentBreakdown.map(pm => (
-                  <div key={pm.method} className="bg-gray-800/40 rounded-xl p-2.5">
-                    <p className="text-[9px] font-black text-gray-500 uppercase tracking-wider">{pm.method}</p>
+                  <button key={pm.method} onClick={isBranchSource ? () => openPaymentDetail(pm.method) : undefined}
+                    className={`bg-gray-800/40 rounded-xl p-2.5 border border-gray-700/30 text-left w-full transition-all ${isBranchSource ? 'cursor-pointer hover:border-purple-500/50 hover:bg-gray-800/60' : 'cursor-default'}`}>
+                    <p className="text-[9px] font-black text-gray-500 uppercase tracking-wider">{PAYMENT_METHOD_LABELS[pm.method] || pm.method}</p>
                     <p className="text-sm font-black text-white">{fmt(pm.gross)}</p>
                     <p className="text-[9px] text-gray-500">Returns: {fmt(pm.returns)} | Net: {fmt(pm.net)}</p>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -685,6 +737,133 @@ const UnifiedAnalytics = () => {
                     {ft.receiptNumber} — {ft.items?.[0]?.productName || 'N/A'}
                   </span>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Cashier Invoice History — shown when branch + cashier selected */}
+          {isBranchSource && branchCashier && cashierInvoices && cashierInvoices.length > 0 && (
+            <div className="mt-4 bg-gray-900/50 rounded-2xl border border-gray-800 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Users size={14} className="text-blue-400" />
+                  <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest">{branchCashier}'s Invoice History</h3>
+                  {cashierInvoiceLoading && <RefreshCcw size={12} className="animate-spin text-gray-500" />}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button onClick={() => {
+                    const rows = [['Invoice#', 'Date', 'Customer', 'Products', 'Qty', 'Amount', 'Discount', 'Payment', 'Status', 'Branch']];
+                    cashierInvoices.forEach(s => {
+                      const items = s.items?.map(it => it.productName).join('; ') || '';
+                      const qty = s.items?.reduce((sum, it) => sum + (it.quantity || 0), 0) || 0;
+                      rows.push([s.receiptNumber || '', new Date(s.createdAt).toLocaleDateString(), s.customerName || 'Walk-in', items, qty, s.grandTotal, s.discountAmount || 0, s.paymentMethod || '', s._balanceStatus || 'paid', s.outletName || '']);
+                    });
+                    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+                    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a'); a.href = url; a.download = `cashier_${branchCashier}_${new Date().toISOString().slice(0, 10)}.csv`;
+                    a.click(); URL.revokeObjectURL(url);
+                  }} className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"><FileText size={11} /> CSV</button>
+                  <button onClick={() => {
+                    const w = window.open('', '_blank');
+                    if (!w) return;
+                    w.document.write(`<html><head><title>Cashier Report - ${branchCashier}</title><style>
+                      body{font-family:Arial,sans-serif;padding:20px;color:#333}
+                      h2{color:#6366f1}table{width:100%;border-collapse:collapse;margin:10px 0}
+                      th,td{padding:6px 10px;text-align:left;border:1px solid #ddd;font-size:12px}
+                      th{background:#f0f0f0;font-weight:bold}
+                      .summary{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0}
+                      .summary-item{background:#f5f5f5;padding:10px 15px;border-radius:8px}
+                      .summary-label{font-size:10px;color:#666;text-transform:uppercase}
+                      .summary-value{font-size:16px;font-weight:bold;color:#111}
+                    </style></head><body>`);
+                    w.document.write(`<h2>Cashier Invoice Report — ${branchCashier}</h2>`);
+                    w.document.write(`<p>Branch: ${selectedOutlet} | Period: ${getDateRange().startDate || 'All'} → ${getDateRange().endDate || 'All'}</p>`);
+                    const totalSales = cashierInvoices.reduce((s, inv) => s + (inv.grandTotal || 0), 0);
+                    const totalDiscount = cashierInvoices.reduce((s, inv) => s + (inv.discountAmount || 0), 0);
+                    const totalQty = cashierInvoices.reduce((s, inv) => s + (inv.items?.reduce((q, it) => q + (it.quantity || 0), 0) || 0), 0);
+                    w.document.write('<div class="summary">');
+                    w.document.write(`<div class="summary-item"><div class="summary-label">Total Invoices</div><div class="summary-value">${cashierInvoices.length}</div></div>`);
+                    w.document.write(`<div class="summary-item"><div class="summary-label">Total Sales</div><div class="summary-value">₨${totalSales.toLocaleString()}</div></div>`);
+                    w.document.write(`<div class="summary-item"><div class="summary-label">Total Items</div><div class="summary-value">${totalQty}</div></div>`);
+                    w.document.write(`<div class="summary-item"><div class="summary-label">Total Discount</div><div class="summary-value">₨${totalDiscount.toLocaleString()}</div></div>`);
+                    w.document.write('</div>');
+                    w.document.write('<table><thead><tr><th>Invoice#</th><th>Date</th><th>Customer</th><th>Products</th><th>Qty</th><th>Amount</th><th>Discount</th><th>Payment</th><th>Status</th></tr></thead><tbody>');
+                    cashierInvoices.forEach(inv => {
+                      const items = inv.items?.map(it => it.productName).join(', ') || '';
+                      const qty = inv.items?.reduce((sum, it) => sum + (it.quantity || 0), 0) || 0;
+                      w.document.write(`<tr><td>${inv.receiptNumber || ''}</td><td>${new Date(inv.createdAt).toLocaleDateString()}</td><td>${inv.customerName || 'Walk-in'}</td><td>${items}</td><td>${qty}</td><td>₨${(inv.grandTotal || 0).toLocaleString()}</td><td>₨${(inv.discountAmount || 0).toLocaleString()}</td><td>${inv.paymentMethod || ''}</td><td>${inv._balanceStatus || 'paid'}</td></tr>`);
+                    });
+                    w.document.write('</tbody></table>');
+                    w.document.write(`<p>Generated: ${new Date().toLocaleString()} | Branch: ${selectedOutlet} | Cashier: ${branchCashier}</p>`);
+                    w.document.write('</body></html>');
+                    w.document.close(); w.print();
+                  }} className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"><Printer size={11} /> Print</button>
+                </div>
+              </div>
+
+              {/* Cashier Summary */}
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
+                <div className="bg-gray-800/30 rounded-xl p-2.5 border border-gray-700/30">
+                  <p className="text-[9px] font-black text-gray-500 uppercase tracking-wider">Invoices</p>
+                  <p className="text-lg font-black text-white">{cashierInvoices.length}</p>
+                </div>
+                <div className="bg-gray-800/30 rounded-xl p-2.5 border border-gray-700/30">
+                  <p className="text-[9px] font-black text-gray-500 uppercase tracking-wider">Total Sales</p>
+                  <p className="text-lg font-black text-emerald-400">{fmt(cashierInvoices.reduce((s, inv) => s + (inv.grandTotal || 0), 0))}</p>
+                </div>
+                <div className="bg-gray-800/30 rounded-xl p-2.5 border border-gray-700/30">
+                  <p className="text-[9px] font-black text-gray-500 uppercase tracking-wider">Discounts</p>
+                  <p className="text-lg font-black text-amber-400">{fmt(cashierInvoices.reduce((s, inv) => s + (inv.discountAmount || 0), 0))}</p>
+                </div>
+                <div className="bg-gray-800/30 rounded-xl p-2.5 border border-gray-700/30">
+                  <p className="text-[9px] font-black text-gray-500 uppercase tracking-wider">Cash Payments</p>
+                  <p className="text-lg font-black text-white">{fmt(cashierInvoices.filter(inv => inv.paymentMethod === 'CASH').reduce((s, inv) => s + (inv.grandTotal || 0), 0))}</p>
+                </div>
+                <div className="bg-gray-800/30 rounded-xl p-2.5 border border-gray-700/30">
+                  <p className="text-[9px] font-black text-gray-500 uppercase tracking-wider">Card + Online</p>
+                  <p className="text-lg font-black text-white">{fmt(cashierInvoices.filter(inv => inv.paymentMethod === 'CARD' || inv.paymentMethod === 'ONLINE' || inv.paymentMethod === 'CASH_ONLINE').reduce((s, inv) => s + (inv.grandTotal || 0), 0))}</p>
+                </div>
+              </div>
+
+              {/* Cashier Invoice Table */}
+              <div className="overflow-x-auto max-h-64 overflow-y-auto">
+                <table className="w-full text-left text-[10px]">
+                  <thead className="sticky top-0 bg-gray-900/95">
+                    <tr className="font-black text-gray-500 uppercase tracking-wider border-b border-gray-800">
+                      <th className="py-2 pr-2">Invoice</th>
+                      <th className="py-2 pr-2">Date</th>
+                      <th className="py-2 pr-2">Customer</th>
+                      <th className="py-2 pr-2">Products</th>
+                      <th className="py-2 pr-2 text-right">Qty</th>
+                      <th className="py-2 pr-2 text-right">Amount</th>
+                      <th className="py-2 pr-2 text-right">Discount</th>
+                      <th className="py-2 pr-2">Payment</th>
+                      <th className="py-2 pr-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cashierInvoices.map((inv, i) => (
+                      <tr key={inv.id || i} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                        <td className="py-1.5 pr-2 font-bold text-white">{inv.receiptNumber || '—'}</td>
+                        <td className="py-1.5 pr-2 text-gray-400">{inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : '—'}</td>
+                        <td className="py-1.5 pr-2 text-gray-300 max-w-[100px] truncate">{inv.customerName || 'Walk-in'}</td>
+                        <td className="py-1.5 pr-2 text-gray-400 max-w-[120px] truncate">{inv.items?.map(it => it.productName).join(', ') || '—'}</td>
+                        <td className="py-1.5 pr-2 text-right text-white">{inv.items?.reduce((sum, it) => sum + (it.quantity || 0), 0) || 0}</td>
+                        <td className="py-1.5 pr-2 text-right font-bold text-emerald-400">{fmt(inv.grandTotal)}</td>
+                        <td className="py-1.5 pr-2 text-right text-amber-400">{fmt(inv.discountAmount || 0)}</td>
+                        <td className="py-1.5 pr-2">
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-800 text-gray-300">{inv.paymentMethod || '—'}</span>
+                        </td>
+                        <td className="py-1.5 pr-2">
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${inv._balanceStatus === 'balance' ? 'bg-amber-800/40 text-amber-400' : 'bg-emerald-800/40 text-emerald-400'}`}>
+                            {inv._balanceStatus === 'balance' ? 'BAL' : 'PAID'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
@@ -938,6 +1117,83 @@ const UnifiedAnalytics = () => {
             </div>
           ) : (
             <p className="text-center text-gray-500 py-8 text-sm font-bold">No records found</p>
+          )}
+        </DetailModal>
+      )}
+
+      {/* Payment Detail Modal */}
+      {paymentDetailModal && (
+        <DetailModal
+          title={`${PAYMENT_METHOD_LABELS[paymentDetailModal] || paymentDetailModal} — ${selectedOutlet || 'All Branches'}`}
+          onClose={() => { setPaymentDetailModal(null); setPaymentDetailData(null); }}
+        >
+          {paymentDetailLoading ? (
+            <div className="flex items-center justify-center py-12"><RefreshCcw size={24} className="animate-spin text-purple-500" /></div>
+          ) : paymentDetailData && paymentDetailData.length > 0 ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-400">{paymentDetailData.length} invoices</p>
+                <button onClick={() => {
+                  const rows = [['Invoice#', 'Date', 'Customer', 'Cashier', 'Branch', 'Products', 'Qty', 'Amount', 'Discount', 'Payment', 'Payment Breakdown']];
+                  paymentDetailData.forEach(s => {
+                    const items = s.items?.map(it => `${it.productName}×${it.quantity}`).join('; ') || '';
+                    const qty = s.items?.reduce((sum, it) => sum + (it.quantity || 0), 0) || 0;
+                    const breakdown = s.paymentMethod === 'CASH_ONLINE' ? `Cash: ${fmt(s.cashAmount)} / Online: ${fmt(s.onlineAmount)}` : '';
+                    rows.push([s.receiptNumber || '', new Date(s.createdAt).toLocaleDateString(), s.customerName || 'Walk-in', s.cashierName || '', s.outletName || '', items, qty, s.grandTotal, s.discountAmount || 0, s.paymentMethod || '', breakdown]);
+                  });
+                  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+                  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a'); a.href = url; a.download = `payment_${paymentDetailModal}_${new Date().toISOString().slice(0, 10)}.csv`;
+                  a.click(); URL.revokeObjectURL(url);
+                }} className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"><FileText size={11} /> CSV</button>
+              </div>
+              <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                <table className="w-full text-left text-[10px]">
+                  <thead className="sticky top-0 bg-gray-900/95">
+                    <tr className="font-black text-gray-500 uppercase tracking-wider border-b border-gray-800">
+                      <th className="py-2 pr-2">Invoice</th>
+                      <th className="py-2 pr-2">Date</th>
+                      <th className="py-2 pr-2">Customer</th>
+                      <th className="py-2 pr-2">Cashier</th>
+                      <th className="py-2 pr-2">Branch</th>
+                      <th className="py-2 pr-2">Products</th>
+                      <th className="py-2 pr-2 text-right">Qty</th>
+                      <th className="py-2 pr-2 text-right">Amount</th>
+                      <th className="py-2 pr-2 text-right">Discount</th>
+                      <th className="py-2 pr-2">Payment</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paymentDetailData.map((s, i) => {
+                      const qty = s.items?.reduce((sum, it) => sum + (it.quantity || 0), 0) || 0;
+                      const items = s.items?.map(it => it.productName).join(', ') || '—';
+                      return (
+                        <tr key={s.id || i} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                          <td className="py-2 pr-2 font-bold text-white">{s.receiptNumber || '—'}</td>
+                          <td className="py-2 pr-2 text-gray-400">{s.createdAt ? new Date(s.createdAt).toLocaleString() : '—'}</td>
+                          <td className="py-2 pr-2 text-gray-300 max-w-[80px] truncate">{s.customerName || 'Walk-in'}</td>
+                          <td className="py-2 pr-2 text-gray-400">{s.cashierName || '—'}</td>
+                          <td className="py-2 pr-2 text-gray-400">{s.outletName || '—'}</td>
+                          <td className="py-2 pr-2 text-gray-400 max-w-[100px] truncate" title={items}>{items}</td>
+                          <td className="py-2 pr-2 text-right text-white">{qty}</td>
+                          <td className="py-2 pr-2 text-right font-bold text-emerald-400">{fmt(s.grandTotal)}</td>
+                          <td className="py-2 pr-2 text-right text-amber-400">{fmt(s.discountAmount || 0)}</td>
+                          <td className="py-2 pr-2">
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-800 text-gray-300">{s.paymentMethod || '—'}</span>
+                            {s.paymentMethod === 'CASH_ONLINE' && (
+                              <span className="text-[8px] text-gray-500 block">Cash: {fmt(s.cashAmount)} / Online: {fmt(s.onlineAmount)}</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <p className="text-center text-gray-500 py-8 text-sm font-bold">No invoices found for this payment method</p>
           )}
         </DetailModal>
       )}
