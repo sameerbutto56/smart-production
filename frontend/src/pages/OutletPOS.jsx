@@ -122,7 +122,9 @@ const OutletPOS = () => {
   const [employeeName, setEmployeeName] = useState(() => localStorage.getItem('pos_employee_name') || '');
   const [employeePassword, setEmployeePassword] = useState('');
   const [employeeLoggedIn, setEmployeeLoggedIn] = useState(() => localStorage.getItem('pos_employee_logged_in') === 'true');
-  const employees = { Junaid: 'J170', Sajawal: 'S170', Zain: 'Z170', Gull: 'G170' };
+  const employees = selectedOutlet === 'Jail Road'
+    ? { Junaid: 'J170', Ibrar: 'I170', Amir: 'A170' }
+    : { Junaid: 'J170', Sajawal: 'S170', Zain: 'Z170', Gull: 'G170' };
 
   // Balance Payment state
   const [balanceInvoices, setBalanceInvoices] = useState([]);

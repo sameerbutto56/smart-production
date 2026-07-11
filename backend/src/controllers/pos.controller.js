@@ -1389,6 +1389,8 @@ const getBalancePaymentHistory = async (req, res) => {
 };
 
 const getEmployees = async (req, res) => {
+  const outlet = getOutletName(req);
+  if (outlet === 'Jail Road') return res.json(['Junaid', 'Ibrar', 'Amir']);
   res.json(['Gull', 'Junaid', 'Sajawal', 'Zain']);
 };
 
