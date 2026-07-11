@@ -1083,37 +1083,82 @@ const UnifiedAnalytics = () => {
           {detailLoading ? (
             <div className="flex items-center justify-center py-12"><RefreshCcw size={24} className="animate-spin text-purple-500" /></div>
           ) : detailData && detailData.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="font-black text-gray-500 uppercase tracking-wider border-b border-gray-800">
-                    <th className="py-2 pr-3">Invoice</th>
-                    <th className="py-2 pr-3">Date</th>
-                    <th className="py-2 pr-3">Customer</th>
-                    <th className="py-2 pr-3">Cashier</th>
-                    <th className="py-2 pr-3">Products</th>
-                    <th className="py-2 pr-3 text-right">Qty</th>
-                    <th className="py-2 pr-3 text-right">Amount</th>
-                    <th className="py-2 pr-3">Payment</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detailData.slice(0, 50).map((s, i) => (
-                    <tr key={s.id || i} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                      <td className="py-2 pr-3 font-bold text-white">{s.receiptNumber || '—'}</td>
-                      <td className="py-2 pr-3 text-gray-400">{s.createdAt ? new Date(s.createdAt).toLocaleDateString() : '—'}</td>
-                      <td className="py-2 pr-3 text-gray-300">{s.customerName || 'Walk-in'}</td>
-                      <td className="py-2 pr-3 text-gray-400">{s.cashierName || '—'}</td>
-                      <td className="py-2 pr-3 text-gray-400">{s.items?.length || 0} items</td>
-                      <td className="py-2 pr-3 text-right text-white">{s.items?.reduce((sum, it) => sum + (it.quantity || 0), 0) || 0}</td>
-                      <td className="py-2 pr-3 text-right font-bold text-emerald-400">{fmt(s.grandTotal)}</td>
-                      <td className="py-2 pr-3">
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-800 text-gray-300">{s.paymentMethod || '—'}</span>
-                      </td>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-400">{detailData.length} invoices</p>
+                <div className="flex items-center gap-1.5">
+                  <button onClick={() => {
+                    const rows = [['Invoice#', 'Date', 'Customer', 'Cashier', 'Branch', 'Products', 'Qty', 'Amount', 'Payment']];
+                    detailData.forEach(s => {
+                      const items = s.items?.map(it => it.productName).join('; ') || '';
+                      const qty = s.items?.reduce((sum, it) => sum + (it.quantity || 0), 0) || 0;
+                      rows.push([s.receiptNumber || '', new Date(s.createdAt).toLocaleDateString(), s.customerName || 'Walk-in', s.cashierName || '', s.outletName || '', items, qty, s.grandTotal, s.paymentMethod || '']);
+                    });
+                    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+                    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a'); a.href = url; a.download = `sales_history_${selectedOutlet || 'all'}_${new Date().toISOString().slice(0, 10)}.csv`;
+                    a.click(); URL.revokeObjectURL(url);
+                  }} className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"><FileText size={11} /> CSV</button>
+                  <button onClick={() => {
+                    const w = window.open('', '_blank');
+                    if (!w) return;
+                    w.document.write(`<html><head><title>${detailModal === 'sales' ? 'Sales History' : detailModal === 'revenue' ? 'Revenue Breakdown' : 'Transaction History'}</title><style>
+                      body{font-family:Arial,sans-serif;padding:20px;color:#333}
+                      h2{color:#6366f1}table{width:100%;border-collapse:collapse;margin:10px 0}
+                      th,td{padding:6px 10px;text-align:left;border:1px solid #ddd;font-size:11px}
+                      th{background:#f0f0f0;font-weight:bold}
+                    </style></head><body>`);
+                    w.document.write(`<h2>${detailModal === 'sales' ? 'Sales History' : detailModal === 'revenue' ? 'Revenue Breakdown' : 'Transaction History'}${selectedOutlet ? ` — ${selectedOutlet}` : ''}</h2>`);
+                    w.document.write('<table><thead><tr><th>Invoice#</th><th>Date</th><th>Customer</th><th>Cashier</th><th>Products</th><th>Qty</th><th>Amount</th><th>Payment</th></tr></thead><tbody>');
+                    detailData.forEach(s => {
+                      const items = s.items?.map(it => it.productName).join(', ') || '';
+                      const qty = s.items?.reduce((sum, it) => sum + (it.quantity || 0), 0) || 0;
+                      w.document.write(`<tr><td>${s.receiptNumber || ''}</td><td>${new Date(s.createdAt).toLocaleDateString()}</td><td>${s.customerName || 'Walk-in'}</td><td>${s.cashierName || ''}</td><td>${items}</td><td>${qty}</td><td>₨${(s.grandTotal || 0).toLocaleString()}</td><td>${s.paymentMethod || ''}</td></tr>`);
+                    });
+                    w.document.write('</tbody></table>');
+                    w.document.write(`<p>Generated: ${new Date().toLocaleString()} | Total: ${detailData.length} invoices</p>`);
+                    w.document.write('</body></html>');
+                    w.document.close(); w.print();
+                  }} className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"><Printer size={11} /> Print</button>
+                </div>
+              </div>
+              <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="sticky top-0 bg-gray-900/95">
+                    <tr className="font-black text-gray-500 uppercase tracking-wider border-b border-gray-800">
+                      <th className="py-2 pr-3">Invoice</th>
+                      <th className="py-2 pr-3">Date</th>
+                      <th className="py-2 pr-3">Customer</th>
+                      <th className="py-2 pr-3">Cashier</th>
+                      <th className="py-2 pr-3">Products</th>
+                      <th className="py-2 pr-3 text-right">Qty</th>
+                      <th className="py-2 pr-3 text-right">Amount</th>
+                      <th className="py-2 pr-3">Payment</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {detailData.map((s, i) => {
+                      const items = s.items?.map(it => it.productName).join(', ') || '—';
+                      const qty = s.items?.reduce((sum, it) => sum + (it.quantity || 0), 0) || 0;
+                      return (
+                        <tr key={s.id || i} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                          <td className="py-2 pr-3 font-bold text-white">{s.receiptNumber || '—'}</td>
+                          <td className="py-2 pr-3 text-gray-400">{s.createdAt ? new Date(s.createdAt).toLocaleDateString() : '—'}</td>
+                          <td className="py-2 pr-3 text-gray-300">{s.customerName || 'Walk-in'}</td>
+                          <td className="py-2 pr-3 text-gray-400">{s.cashierName || '—'}</td>
+                          <td className="py-2 pr-3 text-gray-400 max-w-[120px] truncate" title={items}>{items}</td>
+                          <td className="py-2 pr-3 text-right text-white">{qty}</td>
+                          <td className="py-2 pr-3 text-right font-bold text-emerald-400">{fmt(s.grandTotal)}</td>
+                          <td className="py-2 pr-3">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-800 text-gray-300">{s.paymentMethod || '—'}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           ) : (
             <p className="text-center text-gray-500 py-8 text-sm font-bold">No records found</p>
