@@ -98,7 +98,7 @@ const OutletPOS = () => {
   const [cardChargesPct, setCardChargesPct] = useState(0);
   const [customerName, setCustomerName] = useState(() => localStorage.getItem('pos_customer_name') || '');
   const [customerPhone, setCustomerPhone] = useState(() => localStorage.getItem('pos_customer_phone') || '');
-  const [paymentMethod, setPaymentMethod] = useState(() => localStorage.getItem('pos_payment_method') || '');
+  const [paymentMethod, setPaymentMethod] = useState('');
   const [cashAmount, setCashAmount] = useState(0);
   const [onlineAmount, setOnlineAmount] = useState(0);
   const [showCheckout, setShowCheckout] = useState(false);
@@ -147,7 +147,7 @@ const OutletPOS = () => {
   useEffect(() => { localStorage.setItem('pos_discount_fixed', discountFixed.toString()); }, [discountFixed]);
   useEffect(() => { localStorage.setItem('pos_customer_name', customerName); }, [customerName]);
   useEffect(() => { localStorage.setItem('pos_customer_phone', customerPhone); }, [customerPhone]);
-  useEffect(() => { localStorage.setItem('pos_payment_method', paymentMethod); }, [paymentMethod]);
+  // paymentMethod intentionally NOT persisted to localStorage — must always start unselected
   useEffect(() => {
     setCardChargesPct(paymentMethod === 'CARD' ? 2 : 0);
     if (paymentMethod !== 'CASH_ONLINE') { setCashAmount(0); setOnlineAmount(0); }
@@ -500,6 +500,7 @@ const OutletPOS = () => {
         setOrderNumber('');
         setFaisalTake(false);
         setCashAmount(0); setOnlineAmount(0);
+        setPaymentMethod('');
         invalidateKey(productsKey);
         invalidateKey(dashboardKey);
         toast.success('Faisal Take recorded!');
@@ -513,6 +514,7 @@ const OutletPOS = () => {
       setDiscountFixed(0);
       setAdvanceAmount(0);
       setCashAmount(0); setOnlineAmount(0);
+      setPaymentMethod('');
       setLookedUpOrder(null);
       setCustomerName('');
       setCustomerPhone('');
