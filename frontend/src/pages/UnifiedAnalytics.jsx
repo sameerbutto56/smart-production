@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   BarChart3, TrendingUp, DollarSign, RefreshCcw, ChevronRight, X, Search,
   ShoppingCart, CheckCircle2, RotateCcw, Clock, Filter, Calendar,
-  CreditCard, Banknote, Landmark, AlertTriangle, ArrowLeft, Eye, FileText, Store, Award
+  CreditCard, Banknote, Landmark, AlertTriangle, ArrowLeft, Eye, FileText, Printer, Store, Award
 } from 'lucide-react';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -164,6 +164,18 @@ const UnifiedAnalytics = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [posData, setPosData] = useState(null);
   const [posLoading, setPosLoading] = useState(false);
+  const [selectedBranch, setSelectedBranch] = useState(null);
+  const [branchCashier, setBranchCashier] = useState('');
+  const [branchPosData, setBranchPosData] = useState(null);
+  const [branchPosLoading, setBranchPosLoading] = useState(false);
+  const [branchSales, setBranchSales] = useState(null);
+  const [branchSalesLoading, setBranchSalesLoading] = useState(false);
+
+  const getBranchEmployees = (branch) => {
+    const name = branch?.toLowerCase() || '';
+    if (name.includes('jail')) return ['Junaid', 'Ibrar', 'Amir'];
+    return ['Gull', 'Junaid', 'Sajawal', 'Zain'];
+  };
 
   const getDateRange = useCallback(() => {
     const d = parseInt(datePreset);
@@ -219,6 +231,40 @@ const UnifiedAnalytics = () => {
 
   useEffect(() => { fetchPosData(); }, [fetchPosData]);
 
+  useEffect(() => {
+    if (selectedBranch) fetchBranchData(selectedBranch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branchCashier, selectedBranch]);
+
+  const fetchBranchData = useCallback(async (branch) => {
+    if (!branch) return;
+    setSelectedBranch(branch);
+    setBranchPosLoading(true);
+    setBranchSalesLoading(true);
+    try {
+      const dr = getDateRange();
+      const dashParams = new URLSearchParams({ outlet: branch, ...dr });
+      if (branchCashier) dashParams.set('cashier', branchCashier);
+      const salesParams = new URLSearchParams({ outlet: branch, ...dr, limit: '50' });
+      if (branchCashier) salesParams.set('cashier', branchCashier);
+      const [dashRes, salesRes] = await Promise.all([
+        api.get(`/api/pos/sales/dashboard?${dashParams}`),
+        api.get(`/api/pos/sales?${salesParams}`)
+      ]);
+      setBranchPosData(dashRes.data);
+      setBranchSales(salesRes.data);
+    } catch { setBranchPosData(null); setBranchSales(null); }
+    setBranchPosLoading(false);
+    setBranchSalesLoading(false);
+  }, [branchCashier, getDateRange]);
+
+  const handleBackToAllBranches = () => {
+    setSelectedBranch(null);
+    setBranchPosData(null);
+    setBranchSales(null);
+    setBranchCashier('');
+  };
+
   const fetchOrders = async (type, label) => {
     try {
       const dr = getDateRange();
@@ -230,6 +276,47 @@ const UnifiedAnalytics = () => {
       setOrderList(res.data);
       setOrderListTitle(label);
     } catch { setOrderList([]); setOrderListTitle(label); }
+  };
+
+  const handleDownloadPosCSV = () => {
+    if (!posData) return;
+    const rows = [['Metric', 'Value']];
+    rows.push(['Total POS Sales', posData.totalSales || 0]);
+    rows.push(['Total Orders', posData.totalOrders || 0]);
+    rows.push(['Total Returns', posData.returnedOrders || 0]);
+    rows.push(['Net Revenue', posData.netRevenue || 0]);
+    rows.push(['Total Discount', posData.totalDiscount || 0]);
+    if (posData.branchPerformance) {
+      rows.push(['']);
+      rows.push(['--- Branch Performance ---', '']);
+      posData.branchPerformance.forEach(bp => {
+        rows.push([`${bp.branch} Revenue`, bp.revenue || 0]);
+        rows.push([`${bp.branch} Orders`, bp.orders || 0]);
+      });
+    }
+    if (posData.bestSellingProducts) {
+      rows.push(['']);
+      rows.push(['--- Best Selling Products ---', '']);
+      posData.bestSellingProducts.forEach(p => rows.push([p.name, p.qty]));
+    }
+    if (posData.paymentBreakdown) {
+      rows.push(['']);
+      rows.push(['--- Payment Breakdown ---', '']);
+      posData.paymentBreakdown.forEach(p => {
+        rows.push([`${p.method} Gross`, p.gross || 0]);
+        rows.push([`${p.method} Returns`, p.returns || 0]);
+        rows.push([`${p.method} Net`, p.net || 0]);
+      });
+    }
+    const csv = rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `pos_analytics_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  const handlePrint = () => {
+    window.print();
   };
 
   const handleExportExcel = async () => {
@@ -521,11 +608,19 @@ const UnifiedAnalytics = () => {
         </div>
         <div className="flex items-center gap-2">
           {mainTab === 'overview' && (
-            <button onClick={handleExportExcel} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-900/30">
-              <FileText size={14} /> Export Excel
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button onClick={handleDownloadPosCSV} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-900/30">
+                <FileText size={14} /> CSV
+              </button>
+              <button onClick={handlePrint} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-lg">
+                <Printer size={14} /> Print
+              </button>
+              <button onClick={handleExportExcel} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-900/30">
+                <FileText size={14} /> Excel
+              </button>
+            </div>
           )}
-          <button onClick={() => { fetchData(); fetchPosData(); }} className="p-2 bg-gray-900 border border-gray-700 rounded-xl hover:bg-gray-800 transition-colors">
+          <button onClick={() => { fetchData(); fetchPosData(); if (selectedBranch) fetchBranchData(selectedBranch); }} className="p-2 bg-gray-900 border border-gray-700 rounded-xl hover:bg-gray-800 transition-colors">
             <RefreshCcw size={14} className={`text-gray-400 ${loading || posLoading ? 'animate-spin' : ''}`} />
           </button>
         </div>
@@ -601,19 +696,123 @@ const UnifiedAnalytics = () => {
                     </div>
                     {posData.branchPerformance && posData.branchPerformance.length > 0 && (
                       <div className="mb-3">
-                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Branch Performance</p>
+                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Branch Performance {!selectedBranch && '(click to drill down)'}</p>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                           {posData.branchPerformance.map((bp) => (
-                            <div key={bp.branch} className="bg-gray-800/30 rounded-xl p-3 border border-gray-700/30">
+                            <button key={bp.branch} onClick={() => fetchBranchData(bp.branch)}
+                              className="bg-gray-800/30 rounded-xl p-3 border border-gray-700/30 hover:border-purple-500/50 transition-all text-left cursor-pointer">
                               <p className="text-xs font-black text-white">{bp.branch}</p>
                               <p className="text-sm font-black text-emerald-400">{fmt(bp.revenue)}</p>
                               <p className="text-[10px] text-gray-500">{bp.orders} orders</p>
-                            </div>
+                            </button>
                           ))}
                         </div>
                       </div>
                     )}
-                    {posData.bestSellingProducts && posData.bestSellingProducts.length > 0 && (
+                    {/* Branch Drill-Down */}
+                    {selectedBranch && (
+                      <div className="bg-gray-800/20 rounded-xl border border-purple-500/30 p-4 mb-3">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <button onClick={handleBackToAllBranches} className="p-1.5 bg-gray-800 rounded-xl hover:bg-gray-700"><ArrowLeft size={12} /></button>
+                            <h3 className="text-xs font-black text-purple-400 uppercase tracking-widest">{selectedBranch} — Drill Down</h3>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black text-gray-500 uppercase">Cashier:</span>
+                            <select value={branchCashier} onChange={e => setBranchCashier(e.target.value)}
+                              className="bg-gray-800 border border-gray-700 text-white rounded-lg px-2 py-1.5 text-[10px] font-bold">
+                              <option value="">All Cashiers</option>
+                              {getBranchEmployees(selectedBranch).map(emp => (
+                                <option key={emp} value={emp}>{emp}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                        {branchPosLoading ? (
+                          <div className="flex items-center justify-center py-8"><RefreshCcw size={20} className="animate-spin text-purple-500" /></div>
+                        ) : branchPosData ? (
+                          <>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                              <div className="bg-gray-800/40 rounded-xl p-3">
+                                <p className="text-[10px] font-black text-gray-500 uppercase">Revenue</p>
+                                <p className="text-lg font-black text-emerald-400">{fmt(branchPosData.totalSales)}</p>
+                                <p className="text-[10px] text-gray-500">{branchPosData.totalOrders} orders</p>
+                              </div>
+                              <div className="bg-gray-800/40 rounded-xl p-3">
+                                <p className="text-[10px] font-black text-gray-500 uppercase">Orders</p>
+                                <p className="text-lg font-black text-white">{branchPosData.totalOrders}</p>
+                                <p className="text-[10px] text-gray-500">{branchPosData.completedOrders} completed</p>
+                              </div>
+                              <div className="bg-gray-800/40 rounded-xl p-3">
+                                <p className="text-[10px] font-black text-gray-500 uppercase">Returns</p>
+                                <p className="text-lg font-black text-red-400">{branchPosData.returnedOrders}</p>
+                                <p className="text-[10px] text-gray-500">{fmt(branchPosData.totalSales - branchPosData.netRevenue)} refunded</p>
+                              </div>
+                              <div className="bg-gray-800/40 rounded-xl p-3">
+                                <p className="text-[10px] font-black text-gray-500 uppercase">Net Revenue</p>
+                                <p className="text-lg font-black text-amber-400">{fmt(branchPosData.netRevenue)}</p>
+                              </div>
+                            </div>
+                            {branchPosData.paymentBreakdown && branchPosData.paymentBreakdown.length > 0 && (
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                                {branchPosData.paymentBreakdown.map(pm => (
+                                  <div key={pm.method} className="bg-gray-800/40 rounded-xl p-2.5">
+                                    <p className="text-[9px] font-black text-gray-500 uppercase tracking-wider">{pm.method}</p>
+                                    <p className="text-sm font-black text-white">{fmt(pm.gross)}</p>
+                                    <p className="text-[9px] text-gray-500">Net: {fmt(pm.net)}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {branchPosData.bestSellingProducts && branchPosData.bestSellingProducts.length > 0 && (
+                              <div className="mb-3">
+                                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Best Sellers @ {selectedBranch}</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {branchPosData.bestSellingProducts.map((p, i) => (
+                                    <span key={i} className="text-[10px] font-bold text-white bg-gray-800/60 px-2.5 py-1 rounded-lg border border-gray-700/30">
+                                      {i + 1}. {p.name} <span className="text-emerald-400">({p.qty} sold)</span>
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {branchPosData.reportData && branchPosData.reportData.length > 0 && (
+                              <div className="mb-3">
+                                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Daily Trend @ {selectedBranch}</p>
+                                <ResponsiveContainer width="100%" height={140}>
+                                  <AreaChart data={branchPosData.reportData}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                                    <XAxis dataKey="date" tick={{ fill: '#9ca3af', fontSize: 8 }} />
+                                    <YAxis tick={{ fill: '#9ca3af', fontSize: 8 }} />
+                                    <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 12, fontSize: 10 }} formatter={(v) => fmt(v)} />
+                                    <Area type="monotone" dataKey="sales" stroke="#a855f7" fill="#a855f7" fillOpacity={0.15} strokeWidth={2} />
+                                  </AreaChart>
+                                </ResponsiveContainer>
+                              </div>
+                            )}
+                            {/* Branch Sales List */}
+                            <div>
+                              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Recent Sales @ {selectedBranch}</p>
+                              {branchSalesLoading ? (
+                                <RefreshCcw size={14} className="animate-spin text-gray-500" />
+                              ) : branchSales && branchSales.length > 0 ? (
+                                <div className="max-h-48 overflow-y-auto space-y-1">
+                                  {branchSales.slice(0, 20).map((s, i) => (
+                                    <div key={s.id || i} className="flex items-center justify-between bg-gray-800/30 rounded-lg px-3 py-2 text-xs">
+                                      <span className="font-bold text-gray-300">{s.receiptNumber || '—'}</span>
+                                      <span className="text-gray-400">{s.customerName || 'Walk-in'}</span>
+                                      <span className="font-bold text-emerald-400">{fmt(s.grandTotal)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : <p className="text-xs text-gray-600">No sales for this period</p>}
+                            </div>
+                          </>
+                        ) : <p className="text-xs text-gray-600 text-center py-4">No data for this branch</p>}
+                      </div>
+                    )}
+
+                    {posData.bestSellingProducts && posData.bestSellingProducts.length > 0 && !selectedBranch && (
                       <div>
                         <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Best Selling Products</p>
                         <div className="flex flex-wrap gap-1.5">
@@ -625,7 +824,7 @@ const UnifiedAnalytics = () => {
                         </div>
                       </div>
                     )}
-                    {posData.reportData && posData.reportData.length > 0 && (
+                    {posData.reportData && posData.reportData.length > 0 && !selectedBranch && (
                       <div className="mt-3">
                         <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Daily POS Sales Trend</p>
                         <ResponsiveContainer width="100%" height={160}>

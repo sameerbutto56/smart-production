@@ -1,8 +1,10 @@
 const prisma = require('../prisma');
 
+const LOCATIONS = ['Johar Town', 'Jail Road', 'Abbottabad'];
+
 const getDashboard = async (req, res) => {
   try {
-    const { startDate, endDate, source, category } = req.query;
+    const { startDate, endDate, source, branch, category } = req.query;
 
     const dateFilter = {};
     if (startDate) dateFilter.gte = new Date(startDate);
@@ -10,14 +12,16 @@ const getDashboard = async (req, res) => {
     const createdAtFilter = Object.keys(dateFilter).length ? { createdAt: dateFilter } : {};
     const sourceFilter = source && source !== 'all' ? { source } : {};
 
-    // 1. INVENTORY VALUATION
+    // Branch filter for per-location breakdown
+    const branchFilter = branch && branch !== 'all' ? { outletName: branch } : {};
+
+    // 1. INVENTORY VALUATION — Master warehouse
     const inventoryItems = await prisma.inventoryItem.findMany({
       select: { id: true, name: true, category: true, stock: true, price: true, variants: true }
     });
 
     let totalValue = 0, totalQuantity = 0, totalProducts = 0, totalVariants = 0;
     const categoryValues = {};
-    const itemPrices = {};
 
     for (const item of inventoryItems) {
       totalProducts++;
@@ -39,16 +43,30 @@ const getDashboard = async (req, res) => {
       totalQuantity += itemQty;
       totalValue += itemValue;
       categoryValues[item.category] = (categoryValues[item.category] || 0) + itemValue;
-      itemPrices[item.id] = totalQuantity > 0 ? totalValue / totalQuantity : 0;
     }
 
     const avgPrice = totalQuantity > 0 ? totalValue / totalQuantity : 0;
 
-    // 2. ORDER CONSUMPTION (from productDetails where inventoryDeducted)
-    const sourceOrderFilter = { ...createdAtFilter, ...sourceFilter };
-    if (source && source !== 'all' && !['ONLINE', 'INTERNAL', 'OUTLET'].includes(source)) {
-      delete sourceOrderFilter.source;
+    // 2. PER-LOCATION INVENTORY (OutletInventory)
+    const outletInvItems = await prisma.outletInventory.findMany({
+      select: { outletName: true, stock: true, price: true, name: true, category: true }
+    });
+    const perLocationInventory = {};
+    for (const loc of LOCATIONS) {
+      const locItems = outletInvItems.filter(i => i.outletName && i.outletName.toLowerCase().includes(loc.toLowerCase()));
+      let locValue = 0, locQty = 0;
+      const locCategoryMap = {};
+      for (const item of locItems) {
+        const qty = item.stock || 0;
+        const val = qty * (item.price || 0);
+        locQty += qty;
+        locValue += val;
+        locCategoryMap[item.category] = (locCategoryMap[item.category] || 0) + val;
+      }
+      perLocationInventory[loc] = { value: locValue, quantity: locQty, categoryDistribution: Object.entries(locCategoryMap).filter(([, v]) => v > 0).map(([name, v]) => ({ name, value: v })).sort((a, b) => b.value - a.value) };
     }
+
+    // 3. ORDER CONSUMPTION
     const sourceOrderConsumption = async (sourceVal) => {
       const sourceWhere = {};
       if (sourceVal) {
@@ -75,17 +93,35 @@ const getDashboard = async (req, res) => {
       return { quantity: qty, value: val };
     };
 
+    // Per-location outlet consumption (from PosSale)
+    const perLocationConsumption = {};
+    for (const loc of LOCATIONS) {
+      const locSales = await prisma.posSale.findMany({
+        where: { ...createdAtFilter, outletName: { contains: loc, mode: 'insensitive' }, faisalTake: { not: true } },
+        select: { grandTotal: true, subtotal: true, discountAmount: true, advanceAmount: true, id: true, orderId: true }
+      });
+      let consValue = 0, consQty = 0, rev = 0;
+      for (const s of locSales) {
+        const revAmount = s.orderId ? (s.advanceAmount >= s.grandTotal ? s.grandTotal : s.advanceAmount) : s.grandTotal;
+        consValue += s.grandTotal || 0;
+        consQty++;
+        rev += revAmount;
+      }
+      perLocationConsumption[loc] = { consumption: consValue, orders: consQty, revenue: rev };
+    }
+
     const [onlineConsumption, outletConsumption] = await Promise.all([
       sourceOrderConsumption(['ONLINE', 'INTERNAL']),
       sourceOrderConsumption('OUTLET')
     ]);
 
-    // 3. ALLOCATION CONSUMPTION
+    // 4. ALLOCATION ANALYTICS
     const allocations = await prisma.allocation.findMany({
       where: { ...createdAtFilter, status: { notIn: ['CANCELLED'] } },
-      select: { quantity: true, itemId: true, itemName: true }
+      select: { quantity: true, itemId: true, itemName: true, status: true, createdAt: true }
     });
     let allocQty = 0, allocVal = 0;
+    const allocByStatus = { PENDING: 0, APPROVED: 0, COMPLETED: 0, REJECTED: 0 };
     for (const a of allocations) {
       const q = a.quantity || 0;
       allocQty += q;
@@ -94,8 +130,7 @@ const getDashboard = async (req, res) => {
         if (item) {
           const variants = typeof item.variants === 'string' ? JSON.parse(item.variants) : (item.variants || []);
           if (Array.isArray(variants) && variants.length > 0) {
-            const vPrice = parseFloat(variants[0].price) || avgPrice;
-            allocVal += q * vPrice;
+            allocVal += q * (parseFloat(variants[0].price) || avgPrice);
           } else {
             allocVal += q * (item.price || avgPrice);
           }
@@ -105,14 +140,17 @@ const getDashboard = async (req, res) => {
       } else {
         allocVal += q * avgPrice;
       }
+      if (allocByStatus[a.status] !== undefined) allocByStatus[a.status] += q;
     }
 
-    // 4. DEMAND CONSUMPTION
+    // 5. DEMAND ANALYTICS
     const demands = await prisma.outletDemandRequest.findMany({
       where: { ...createdAtFilter, status: { in: ['APPROVED', 'COMPLETED'] } },
-      select: { items: true }
+      select: { items: true, status: true, outletName: true }
     });
     let demandQty = 0, demandVal = 0;
+    const demandByLocation = {};
+    const demandByStatus = { PENDING: 0, APPROVED: 0, COMPLETED: 0, REJECTED: 0 };
     for (const d of demands) {
       const items = typeof d.items === 'string' ? JSON.parse(d.items) : (d.items || []);
       if (Array.isArray(items)) {
@@ -120,11 +158,15 @@ const getDashboard = async (req, res) => {
           const q = parseInt(item.quantity) || 0;
           demandQty += q;
           demandVal += q * (parseFloat(item.price) || avgPrice);
+          const loc = d.outletName || 'Unknown';
+          if (!demandByLocation[loc]) demandByLocation[loc] = 0;
+          demandByLocation[loc] += q;
         }
       }
+      if (demandByStatus[d.status] !== undefined) demandByStatus[d.status] += 1;
     }
 
-    // 5. REJECTED INVENTORY
+    // 6. REJECTED INVENTORY
     const rejectedRecords = await prisma.productionRecord.findMany({
       where: { ...createdAtFilter },
       select: { quantity: true, totalCost: true }
@@ -132,7 +174,7 @@ const getDashboard = async (req, res) => {
     const rejectedQty = rejectedRecords.reduce((s, r) => s + (r.quantity || 0), 0);
     const rejectedVal = rejectedRecords.reduce((s, r) => s + (r.totalCost || 0), 0);
 
-    // 6. PROFIT TRACKING
+    // 7. PROFIT TRACKING — per location
     const revenueRecords = await prisma.revenueRecord.findMany({
       where: createdAtFilter,
       select: { totalRevenue: true, totalProfit: true, productCost: true, source: true }
@@ -149,12 +191,29 @@ const getDashboard = async (req, res) => {
     }
     const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
 
-    // 7. INVENTORY STATUS SUMMARY
+    // Per-location financials from PosSale
+    const perLocationFinancials = {};
+    for (const loc of LOCATIONS) {
+      const locSalesAll = await prisma.posSale.findMany({
+        where: { ...createdAtFilter, outletName: { contains: loc, mode: 'insensitive' }, faisalTake: { not: true } },
+        select: { grandTotal: true, subtotal: true, discountAmount: true, advanceAmount: true, orderId: true }
+      });
+      let rev = 0, cost = 0, count = 0;
+      for (const s of locSalesAll) {
+        const revAmount = s.orderId ? (s.advanceAmount >= s.grandTotal ? s.grandTotal : s.advanceAmount) : s.grandTotal;
+        rev += revAmount;
+        cost += (s.subtotal || 0);
+        count++;
+      }
+      perLocationFinancials[loc] = { revenue: rev, cost, profit: rev - cost, orders: count };
+    }
+
+    // 8. INVENTORY STATUS SUMMARY
     const totalConsumedValue = onlineConsumption.value + outletConsumption.value + allocVal + demandVal;
     const remainingValue = Math.max(0, totalValue);
     const totalInventoryEverAdded = totalValue + totalConsumedValue + rejectedVal;
 
-    // 8. CHARTS
+    // 9. CHARTS
     const inventoryDistribution = Object.entries(categoryValues)
       .filter(([, v]) => v > 0)
       .map(([name, value]) => ({ name, value }))
@@ -165,8 +224,17 @@ const getDashboard = async (req, res) => {
       { name: 'Outlet Orders', value: outletRevenue }
     ].filter(r => r.value > 0);
 
+    // Branch-filtered profit trend
+    const revenueWhere = { ...createdAtFilter };
+    if (branch && branch !== 'all') {
+      revenueWhere.OR = [
+        { source: { contains: branch, mode: 'insensitive' } },
+        { source: branch === 'Jail Road' ? 'OUTLET' : branch === 'Johar Town' ? 'OUTLET' : branch }
+      ];
+    }
+
     const monthlyRecords = await prisma.revenueRecord.findMany({
-      where: createdAtFilter,
+      where: revenueWhere,
       select: { totalRevenue: true, totalProfit: true, createdAt: true }
     });
     const monthlyTrend = {};
@@ -182,17 +250,40 @@ const getDashboard = async (req, res) => {
 
     res.json({
       inventoryValuation: { totalValue, totalQuantity, totalProducts, totalVariants },
+      perLocationInventory,
       consumption: {
         onlineOrders: onlineConsumption,
         outletOrders: outletConsumption,
         demandOrders: { quantity: demandQty, value: demandVal },
         allocation: { quantity: allocQty, value: allocVal },
         rejected: { quantity: rejectedQty, value: rejectedVal },
-        totalConsumed: { quantity: onlineConsumption.quantity + outletConsumption.quantity + demandQty + allocQty, value: totalConsumedValue }
+        totalConsumed: { quantity: onlineConsumption.quantity + outletConsumption.quantity + demandQty + allocQty, value: totalConsumedValue },
+        perLocationConsumption
+      },
+      allocationAnalytics: {
+        totalQuantity: allocQty,
+        totalValue: allocVal,
+        byStatus: allocByStatus
+      },
+      demandAnalytics: {
+        totalQuantity: demandQty,
+        totalValue: demandVal,
+        byStatus: demandByStatus,
+        byLocation: demandByLocation
       },
       remainingValue,
       profitAnalytics: { totalRevenue, totalCost, grossProfit: totalProfit, profitMargin },
-      charts: { inventoryDistribution, revenueSources, profitTrend }
+      perLocationFinancials,
+      charts: { inventoryDistribution, revenueSources, profitTrend },
+      perLocationCharts: {
+        inventoryDistribution: Object.fromEntries(LOCATIONS.map(loc => [loc, perLocationInventory[loc]?.categoryDistribution || []])),
+        revenueSources: Object.fromEntries(LOCATIONS.map(loc => {
+          const fin = perLocationFinancials[loc] || { revenue: 0 };
+          return [loc, [
+            { name: 'POS Sales', value: fin.revenue || 0 }
+          ].filter(r => r.value > 0)];
+        }))
+      }
     });
 
   } catch (error) {
