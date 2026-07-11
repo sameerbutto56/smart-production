@@ -2,9 +2,9 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import {
-  BarChart3, TrendingUp, DollarSign, RefreshCcw, ChevronRight, X, Search,
-  ShoppingCart, CheckCircle2, RotateCcw, Clock, Filter, Calendar,
-  CreditCard, Banknote, Landmark, AlertTriangle, ArrowLeft, Eye, FileText, Printer, Store, Award
+  BarChart3, TrendingUp, DollarSign, RefreshCcw, X, Search,
+  ShoppingCart, CheckCircle2, RotateCcw, Clock, Filter,
+  CreditCard, Banknote, Landmark, ArrowLeft, Eye, FileText, Printer, Store, Award, Receipt, Users
 } from 'lucide-react';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -12,7 +12,6 @@ import {
 } from 'recharts';
 import { PageLoader } from '../components/LoadingSpinner';
 import BiSection from '../components/BiSection';
-import OutletAnalytics from '../components/OutletAnalytics';
 
 const outletForSource = (sourceId) => {
   if (sourceId === 'jail_road') return 'Jail Road';
@@ -22,8 +21,6 @@ const outletForSource = (sourceId) => {
 };
 
 const CHART_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
-const PIE_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
-
 const fmt = (v) => `₨${(v || 0).toLocaleString()}`;
 
 const DATE_PRESETS = [
@@ -38,6 +35,15 @@ const SOURCE_TABS = [
   { id: 'jail_road', label: 'Jail Road', icon: Landmark },
   { id: 'johar_town', label: 'Johar Town', icon: Landmark },
   { id: 'abbottabad', label: 'Abbottabad', icon: Landmark }
+];
+
+const PAYMENT_METHODS = [
+  { value: 'all', label: 'All Payments' },
+  { value: 'CASH', label: 'Cash' },
+  { value: 'CARD', label: 'Card' },
+  { value: 'ONLINE', label: 'Online' },
+  { value: 'CASH_ONLINE', label: 'Hybrid' },
+  { value: 'advance', label: 'Advance Payment' }
 ];
 
 const StageBadge = React.memo(({ stage }) => {
@@ -58,8 +64,21 @@ const StageBadge = React.memo(({ stage }) => {
   );
 });
 
+const DetailModal = React.memo(({ title, children, onClose }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+    <div className="bg-gray-900 rounded-2xl border border-gray-700 w-full max-w-4xl max-h-[85vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="flex items-center justify-between p-4 border-b border-gray-800">
+        <h2 className="text-sm font-black text-white uppercase tracking-widest">{title}</h2>
+        <button onClick={onClose} className="p-1.5 bg-gray-800 rounded-xl hover:bg-gray-700"><X size={14} /></button>
+      </div>
+      <div className="overflow-y-auto max-h-[70vh] p-4">{children}</div>
+    </div>
+  </div>
+));
+
 const KpiCard = React.memo(({ label, value, sub, color, icon: Icon, onClick, active }) => (
-  <button onClick={onClick} className={`relative overflow-hidden bg-gradient-to-br ${color} p-[1px] rounded-2xl transition-all hover:scale-[1.02] active:scale-95 shadow-lg ${active ? 'ring-2 ring-white/30 scale-[1.02]' : ''}`}>
+  <button onClick={onClick}
+    className={`relative overflow-hidden bg-gradient-to-br ${color} p-[1px] rounded-2xl transition-all hover:scale-[1.02] active:scale-95 shadow-lg ${active ? 'ring-2 ring-white/30 scale-[1.02]' : ''} ${onClick ? 'cursor-pointer' : 'cursor-default'}`}>
     <div className="bg-gray-950/90 backdrop-blur-sm rounded-2xl p-4 h-full flex flex-col items-start text-left">
       <div className="flex items-center justify-between w-full mb-2">
         <span className="text-[10px] md:text-xs font-black uppercase tracking-widest text-gray-400">{label}</span>
@@ -71,62 +90,26 @@ const KpiCard = React.memo(({ label, value, sub, color, icon: Icon, onClick, act
   </button>
 ));
 
-const OrderListModal = React.memo(({ title, orders, onClose }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
-    <div className="bg-gray-900 rounded-2xl border border-gray-700 w-full max-w-3xl max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
-      <div className="flex items-center justify-between p-4 border-b border-gray-800">
-        <h2 className="text-sm font-black text-white uppercase tracking-widest">{title}</h2>
-        <button onClick={onClose} className="p-1.5 bg-gray-800 rounded-xl hover:bg-gray-700"><X size={14} /></button>
-      </div>
-      <div className="overflow-y-auto max-h-[65vh] p-4 space-y-2">
-        {orders.length === 0 ? (
-          <p className="text-center text-gray-500 py-8 text-sm font-bold">No orders found</p>
-        ) : orders.map((o, i) => (
-          <div key={o.id || i} className="flex items-center justify-between bg-gray-800/50 rounded-xl px-4 py-3 text-xs">
-            <div className="flex items-center gap-3">
-              <span className="font-black text-white">#{o.orderNumber}</span>
-              <span className="text-gray-300 truncate max-w-[180px]">{o.customerName}</span>
-              <span className="text-gray-500">{o.city || '—'}</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="font-black text-emerald-400">{fmt(o.totalPrice)}</span>
-              <span className="text-gray-500">{o.paymentMethod || '—'}</span>
-              <StageBadge stage={o.currentStage} />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  </div>
+const POS_KpiCard = React.memo(({ label, value, icon: Icon, color, onClick }) => (
+  <button onClick={onClick}
+    className={`bg-gray-800/40 rounded-xl p-3 border border-gray-700/30 ${onClick ? 'cursor-pointer hover:border-purple-500/50 hover:bg-gray-800/60' : 'cursor-default'} transition-all text-left w-full`}>
+    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{label}</p>
+    <p className={`text-lg font-black ${color}`}>{fmt(value)}</p>
+  </button>
 ));
 
-const DrillDetail = React.memo(({ title, items, onBack, onViewOrders }) => (
-  <div className="space-y-2">
-    <div className="flex items-center gap-2">
-      <button onClick={onBack} className="p-1.5 bg-gray-800 rounded-xl hover:bg-gray-700"><ArrowLeft size={12} /></button>
-      <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">{title}</h3>
-    </div>
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-      {items.map((item, i) => (
-        <div key={i} className="bg-gray-800/60 rounded-xl p-3 border border-gray-700/50">
-          <p className="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">{item.label}</p>
-          <p className="text-sm font-black text-white">{item.value}</p>
-          {item.sub && <p className="text-[10px] text-gray-500 mt-0.5">{item.sub}</p>}
-          {item.onViewOrders && (
-            <button onClick={item.onViewOrders} className="mt-2 flex items-center gap-1 text-[10px] font-bold text-blue-400 hover:text-blue-300">
-              <Eye size={10} /> View Orders
-            </button>
-          )}
-        </div>
-      ))}
-    </div>
+const BranchStatCard = React.memo(({ label, value, sub, color }) => (
+  <div className="bg-gray-800/40 rounded-xl p-3 border border-gray-700/30">
+    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{label}</p>
+    <p className={`text-lg font-black ${color}`}>{value}</p>
+    {sub && <p className="text-[10px] text-gray-500">{sub}</p>}
   </div>
 ));
 
 const ANALYTICS_TABS = [
   { id: 'overview', label: 'Overview', icon: BarChart3 },
   { id: 'bi', label: 'Business Intelligence', icon: TrendingUp },
-  { id: 'outlet', label: 'Outlet Analytics', icon: Store },
+  { id: 'business', label: 'Business Analytics', icon: Award },
 ];
 
 const UnifiedAnalytics = () => {
@@ -146,6 +129,7 @@ const UnifiedAnalytics = () => {
     }
     return 'all';
   })();
+
   const [mainTab, setMainTab] = useState('overview');
   const [source, setSource] = useState(initialSource);
   const [data, setData] = useState(null);
@@ -157,23 +141,30 @@ const UnifiedAnalytics = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [cityFilter, setCityFilter] = useState('');
   const [deliveryStatus, setDeliveryStatus] = useState('all');
-  const [drillView, setDrillView] = useState(null); // 'delivered' | 'returns' | 'pending'
-  const [subDrill, setSubDrill] = useState(null); // 'delivered-cod' | etc
+  const [drillView, setDrillView] = useState(null);
+  const [subDrill, setSubDrill] = useState(null);
   const [orderList, setOrderList] = useState(null);
   const [orderListTitle, setOrderListTitle] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [posData, setPosData] = useState(null);
   const [posLoading, setPosLoading] = useState(false);
-  const [selectedBranch, setSelectedBranch] = useState(null);
   const [branchCashier, setBranchCashier] = useState('');
-  const [branchPosData, setBranchPosData] = useState(null);
-  const [branchPosLoading, setBranchPosLoading] = useState(false);
-  const [branchSales, setBranchSales] = useState(null);
-  const [branchSalesLoading, setBranchSalesLoading] = useState(false);
+  const [detailModal, setDetailModal] = useState(null);
+  const [detailData, setDetailData] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const isOnlineSource = source === 'online';
+  const isBranchSource = outletForSource(source) !== null;
+  const isAllSources = source === 'all';
+  const selectedOutlet = outletForSource(source);
+  const showOnlineSection = isAllSources || isOnlineSource;
+  const showPOSSection = isAllSources || isBranchSource;
 
   const getBranchEmployees = (branch) => {
     const name = branch?.toLowerCase() || '';
     if (name.includes('jail')) return ['Junaid', 'Ibrar', 'Amir'];
+    if (name.includes('johar')) return ['Gull', 'Junaid', 'Sajawal', 'Zain'];
+    if (name.includes('abbottabad')) return ['Gull', 'Junaid', 'Sajawal', 'Zain'];
     return ['Gull', 'Junaid', 'Sajawal', 'Zain'];
   };
 
@@ -192,7 +183,9 @@ const UnifiedAnalytics = () => {
     return { startDate: start.toISOString().split('T')[0], endDate: end.toISOString().split('T')[0] };
   }, [datePreset, customStart, customEnd]);
 
+  // Online Orders data
   const fetchData = useCallback(async () => {
+    if (!showOnlineSection) { setData(null); return; }
     setLoading(true);
     try {
       const dr = getDateRange();
@@ -201,68 +194,79 @@ const UnifiedAnalytics = () => {
       if (statusFilter !== 'all') params.set('status', statusFilter);
       if (cityFilter) params.set('city', cityFilter);
       if (deliveryStatus !== 'all') params.set('deliveryStatus', deliveryStatus);
-      const res = await api.get(`/api/analytics/source/${source}?${params}`);
+      const src = isAllSources ? 'all' : 'online';
+      const res = await api.get(`/api/analytics/source/${src}?${params}`);
       setData(res.data);
     } catch { setData(null); }
     setLoading(false);
-  }, [source, datePreset, customStart, customEnd, paymentMethod, statusFilter, cityFilter, deliveryStatus, getDateRange]);
+  }, [source, datePreset, customStart, customEnd, paymentMethod, statusFilter, cityFilter, deliveryStatus, getDateRange, showOnlineSection, isAllSources]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // POS data
   const fetchPosData = useCallback(async () => {
-    const outlet = outletForSource(source);
-    if (!outlet && source !== 'all') { setPosData(null); return; }
+    if (!showPOSSection) { setPosData(null); return; }
     setPosLoading(true);
     try {
-      const dayRange = outletForSource(source) ? {} : (() => {
-        const dr = getDateRange();
-        const params = {};
-        if (dr.startDate) params.startDate = dr.startDate;
-        if (dr.endDate) params.endDate = dr.endDate;
-        return params;
-      })();
-      const params = new URLSearchParams(dayRange);
-      if (outlet) params.set('outlet', outlet);
+      const dr = getDateRange();
+      const params = new URLSearchParams();
+      if (dr.startDate) params.set('startDate', dr.startDate);
+      if (dr.endDate) params.set('endDate', dr.endDate);
+      if (selectedOutlet) params.set('outlet', selectedOutlet);
+      if (branchCashier) params.set('cashier', branchCashier);
+      if (paymentMethod !== 'all' && paymentMethod !== 'advance') {
+        if (paymentMethod === 'CASH_ONLINE') params.set('paymentMethod', 'CASH_ONLINE');
+        else params.set('paymentMethod', paymentMethod);
+      }
       const res = await api.get(`/api/pos/sales/dashboard?${params}`);
       setPosData(res.data);
     } catch { setPosData(null); }
     setPosLoading(false);
-  }, [source, getDateRange]);
+  }, [source, selectedOutlet, branchCashier, paymentMethod, getDateRange, showPOSSection]);
 
   useEffect(() => { fetchPosData(); }, [fetchPosData]);
 
-  useEffect(() => {
-    if (selectedBranch) fetchBranchData(selectedBranch);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [branchCashier, selectedBranch]);
-
-  const fetchBranchData = useCallback(async (branch) => {
-    if (!branch) return;
-    setSelectedBranch(branch);
-    setBranchPosLoading(true);
-    setBranchSalesLoading(true);
+  // Detail modal fetchers
+  const openSalesDetail = async () => {
+    setDetailModal('sales');
+    setDetailLoading(true);
     try {
       const dr = getDateRange();
-      const dashParams = new URLSearchParams({ outlet: branch, ...dr });
-      if (branchCashier) dashParams.set('cashier', branchCashier);
-      const salesParams = new URLSearchParams({ outlet: branch, ...dr, limit: '50' });
-      if (branchCashier) salesParams.set('cashier', branchCashier);
-      const [dashRes, salesRes] = await Promise.all([
-        api.get(`/api/pos/sales/dashboard?${dashParams}`),
-        api.get(`/api/pos/sales?${salesParams}`)
-      ]);
-      setBranchPosData(dashRes.data);
-      setBranchSales(salesRes.data);
-    } catch { setBranchPosData(null); setBranchSales(null); }
-    setBranchPosLoading(false);
-    setBranchSalesLoading(false);
-  }, [branchCashier, getDateRange]);
+      const params = new URLSearchParams({ ...dr, limit: '100' });
+      if (selectedOutlet) params.set('outlet', selectedOutlet);
+      if (branchCashier) params.set('cashier', branchCashier);
+      const res = await api.get(`/api/pos/sales?${params}`);
+      setDetailData(res.data);
+    } catch { setDetailData([]); }
+    setDetailLoading(false);
+  };
 
-  const handleBackToAllBranches = () => {
-    setSelectedBranch(null);
-    setBranchPosData(null);
-    setBranchSales(null);
-    setBranchCashier('');
+  const openRevenueDetail = async () => {
+    setDetailModal('revenue');
+    setDetailLoading(true);
+    try {
+      const dr = getDateRange();
+      const params = new URLSearchParams({ ...dr, limit: '100' });
+      if (selectedOutlet) params.set('outlet', selectedOutlet);
+      if (branchCashier) params.set('cashier', branchCashier);
+      const res = await api.get(`/api/pos/sales?${params}`);
+      setDetailData(res.data);
+    } catch { setDetailData([]); }
+    setDetailLoading(false);
+  };
+
+  const openTransactionDetail = async () => {
+    setDetailModal('transactions');
+    setDetailLoading(true);
+    try {
+      const dr = getDateRange();
+      const params = new URLSearchParams({ ...dr, limit: '100' });
+      if (selectedOutlet) params.set('outlet', selectedOutlet);
+      if (branchCashier) params.set('cashier', branchCashier);
+      const res = await api.get(`/api/pos/sales?${params}`);
+      setDetailData(res.data);
+    } catch { setDetailData([]); }
+    setDetailLoading(false);
   };
 
   const fetchOrders = async (type, label) => {
@@ -272,12 +276,14 @@ const UnifiedAnalytics = () => {
       if (paymentMethod !== 'all') params.set('paymentMethod', paymentMethod);
       if (statusFilter !== 'all') params.set('status', statusFilter);
       if (cityFilter) params.set('city', cityFilter);
-      const res = await api.get(`/api/analytics/source/${source}/orders?${params}`);
+      const src = isAllSources ? 'all' : 'online';
+      const res = await api.get(`/api/analytics/source/${src}/orders?${params}`);
       setOrderList(res.data);
       setOrderListTitle(label);
     } catch { setOrderList([]); setOrderListTitle(label); }
   };
 
+  // CSV download
   const handleDownloadPosCSV = () => {
     if (!posData) return;
     const rows = [['Metric', 'Value']];
@@ -315,29 +321,23 @@ const UnifiedAnalytics = () => {
     a.click(); URL.revokeObjectURL(url);
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
+  const handlePrint = () => { window.print(); };
 
+  // Download Online Orders Excel
   const handleExportExcel = async () => {
     try {
       const dr = getDateRange();
-      const params = new URLSearchParams({ ...dr, source });
+      const params = new URLSearchParams({ ...dr, source: isAllSources ? 'all' : 'online' });
       if (paymentMethod !== 'all') params.set('paymentMethod', paymentMethod);
       if (statusFilter !== 'all') params.set('status', statusFilter);
       if (cityFilter) params.set('city', cityFilter);
       if (deliveryStatus !== 'all') params.set('deliveryStatus', deliveryStatus);
-
       const response = await api.get(`/api/analytics/export-excel?${params}`, { responseType: 'blob' });
       const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `analytics_report_${source}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      const a = document.createElement('a'); a.href = url;
+      a.download = `analytics_${source}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Export analytics failed:', error);
       alert('Failed to export analytics: ' + (error.response?.data?.message || error.message));
@@ -350,18 +350,16 @@ const UnifiedAnalytics = () => {
   const pa = data?.pendingAnalytics || {};
   const fin = useMemo(() => data?.financials || {}, [data?.financials]);
   const trends = useMemo(() => data?.trends?.monthly || [], [data?.trends?.monthly]);
-  const totalVal = s.totalOrders || 0;
-  const deliveredVal = s.deliveredOrders || 0;
-  const returnedVal = s.returnedOrders || 0;
-  const pendingVal = s.pendingOrders || 0;
 
   const handleSourceClick = (id) => {
     setSource(id);
     setDrillView(null);
     setSubDrill(null);
     setOrderList(null);
+    setBranchCashier('');
   };
 
+  // ─── Page-level Source Tabs ───
   const renderSourceTabs = () => (
     <div className="flex gap-1.5 overflow-x-auto pb-1">
       {filteredTabs.map(t => (
@@ -376,6 +374,7 @@ const UnifiedAnalytics = () => {
     </div>
   );
 
+  // ─── Page-level Date / Payment Filters ───
   const renderFilters = () => (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-1.5">
@@ -405,93 +404,101 @@ const UnifiedAnalytics = () => {
         <div className="flex flex-wrap gap-2 p-3 bg-gray-900/80 rounded-xl border border-gray-800">
           <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
             className="bg-gray-800 border border-gray-700 text-white rounded-lg px-2 py-1.5 text-[10px] font-bold">
-            <option value="all">All Payments</option>
-            <option value="CASH">Cash</option>
-            <option value="ONLINE">Online</option>
-            <option value="HALF_CASH_HALF_ONLINE">Half & Half</option>
+            {PAYMENT_METHODS.map(pm => (
+              <option key={pm.value} value={pm.value}>{pm.label}</option>
+            ))}
           </select>
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-            className="bg-gray-800 border border-gray-700 text-white rounded-lg px-2 py-1.5 text-[10px] font-bold">
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="COMPLETED">Completed</option>
-            <option value="CANCELLED">Cancelled</option>
-          </select>
-          <select value={deliveryStatus} onChange={e => setDeliveryStatus(e.target.value)}
-            className="bg-gray-800 border border-gray-700 text-white rounded-lg px-2 py-1.5 text-[10px] font-bold">
-            <option value="all">All Delivery</option>
-            <option value="out_for_delivery">Out for Delivery</option>
-            <option value="delivered">Delivered</option>
-            <option value="returned">Returned</option>
-          </select>
-          <div className="flex items-center gap-1">
-            <Search size={10} className="text-gray-500" />
-            <input type="text" placeholder="City..." value={cityFilter} onChange={e => setCityFilter(e.target.value)}
-              className="bg-gray-800 border border-gray-700 text-white rounded-lg px-2 py-1.5 text-[10px] font-bold w-24" />
-          </div>
+          {showOnlineSection && (
+            <>
+              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+                className="bg-gray-800 border border-gray-700 text-white rounded-lg px-2 py-1.5 text-[10px] font-bold">
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="COMPLETED">Completed</option>
+                <option value="CANCELLED">Cancelled</option>
+              </select>
+              <select value={deliveryStatus} onChange={e => setDeliveryStatus(e.target.value)}
+                className="bg-gray-800 border border-gray-700 text-white rounded-lg px-2 py-1.5 text-[10px] font-bold">
+                <option value="all">All Delivery</option>
+                <option value="out_for_delivery">Out for Delivery</option>
+                <option value="delivered">Delivered</option>
+                <option value="returned">Returned</option>
+              </select>
+              <div className="flex items-center gap-1">
+                <Search size={10} className="text-gray-500" />
+                <input type="text" placeholder="City..." value={cityFilter} onChange={e => setCityFilter(e.target.value)}
+                  className="bg-gray-800 border border-gray-700 text-white rounded-lg px-2 py-1.5 text-[10px] font-bold w-24" />
+              </div>
+            </>
+          )}
+          {isBranchSource && (
+            <div className="flex items-center gap-1.5">
+              <Users size={10} className="text-gray-500" />
+              <select value={branchCashier} onChange={e => setBranchCashier(e.target.value)}
+                className="bg-gray-800 border border-gray-700 text-white rounded-lg px-2 py-1.5 text-[10px] font-bold">
+                <option value="">All Cashiers</option>
+                {getBranchEmployees(selectedOutlet).map(emp => (
+                  <option key={emp} value={emp}>{emp}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 
-  const renderSummaryCards = () => (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-      <KpiCard label="Total Orders" value={totalVal.toLocaleString()} sub={`${source === 'all' ? 'All Sources' : SOURCE_TABS.find(t => t.id === source)?.label}`} color="from-blue-600 to-indigo-600" icon={BarChart3}
-        onClick={() => { setDrillView(null); setSubDrill(null); }} active={!drillView} />
-      <KpiCard label="Delivered" value={deliveredVal.toLocaleString()} sub={`${totalVal ? Math.round(deliveredVal / totalVal * 100) : 0}% delivery rate`} color="from-emerald-600 to-teal-600" icon={CheckCircle2}
-        onClick={() => { setDrillView('delivered'); setSubDrill(null); setOrderList(null); }} active={drillView === 'delivered' && !subDrill} />
-      <KpiCard label="Returned" value={returnedVal.toLocaleString()} sub={`${totalVal ? Math.round(returnedVal / totalVal * 100) : 0}% return rate`} color="from-rose-600 to-red-600" icon={RotateCcw}
-        onClick={() => { setDrillView('returns'); setSubDrill(null); setOrderList(null); }} active={drillView === 'returns' && !subDrill} />
-      <KpiCard label="Pending" value={pendingVal.toLocaleString()} sub={`Value: ${fmt(pa.totalValue)}`} color="from-amber-600 to-orange-600" icon={Clock}
-        onClick={() => { setDrillView('pending'); setSubDrill(null); setOrderList(null); }} active={drillView === 'pending' && !subDrill} />
+  // ─── Online Order Summary Cards ───
+  const renderOnlineSummary = () => {
+    const totalVal = s.totalOrders || 0;
+    const deliveredVal = s.deliveredOrders || 0;
+    const returnedVal = s.returnedOrders || 0;
+    const pendingVal = s.pendingOrders || 0;
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <KpiCard label="Total Orders" value={totalVal.toLocaleString()} sub={`${source === 'all' ? 'All Sources' : SOURCE_TABS.find(t => t.id === source)?.label}`} color="from-blue-600 to-indigo-600" icon={BarChart3}
+          onClick={() => { setDrillView(null); setSubDrill(null); }} active={!drillView} />
+        <KpiCard label="Delivered" value={deliveredVal.toLocaleString()} sub={`${totalVal ? Math.round(deliveredVal / totalVal * 100) : 0}% delivery rate`} color="from-emerald-600 to-teal-600" icon={CheckCircle2}
+          onClick={() => { setDrillView('delivered'); setSubDrill(null); setOrderList(null); }} active={drillView === 'delivered' && !subDrill} />
+        <KpiCard label="Returned" value={returnedVal.toLocaleString()} sub={`${totalVal ? Math.round(returnedVal / totalVal * 100) : 0}% return rate`} color="from-rose-600 to-red-600" icon={RotateCcw}
+          onClick={() => { setDrillView('returns'); setSubDrill(null); setOrderList(null); }} active={drillView === 'returns' && !subDrill} />
+        <KpiCard label="Pending" value={pendingVal.toLocaleString()} sub={`Value: ${fmt(pa.totalValue)}`} color="from-amber-600 to-orange-600" icon={Clock}
+          onClick={() => { setDrillView('pending'); setSubDrill(null); setOrderList(null); }} active={drillView === 'pending' && !subDrill} />
+      </div>
+    );
+  };
+
+  const renderDeliveredDrill = () => (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+      <BranchStatCard label="Cash on Delivery" value={`${db.cod.count} orders`} sub={`Amount: ${fmt(db.cod.amount)}`} color="text-white" />
+      <BranchStatCard label="Online Payment" value={`${db.online.count} orders`} sub={`Amount: ${fmt(db.online.amount)}`} color="text-white" />
+      <BranchStatCard label="Prepaid Orders" value={`${db.prepaid.count} orders`} sub={`Revenue: ${fmt(db.prepaid.amount)}`} color="text-white" />
     </div>
   );
 
-  const renderDeliveredDrill = () => (
-    <DrillDetail title="Delivered Orders Breakdown" onBack={() => { setDrillView(null); setSubDrill(null); }}
-      items={[
-        { label: 'Cash on Delivery', value: `${db.cod.count} orders`, sub: `Amount: ${fmt(db.cod.amount)}`, onViewOrders: () => fetchOrders('delivered-cod', 'COD Delivered Orders') },
-        { label: 'Online Payment', value: `${db.online.count} orders`, sub: `Amount: ${fmt(db.online.amount)}`, onViewOrders: () => fetchOrders('delivered-online', 'Online Payment Orders') },
-        { label: 'Prepaid Orders', value: `${db.prepaid.count} orders`, sub: `Revenue: ${fmt(db.prepaid.amount)}`, onViewOrders: () => fetchOrders('delivered-prepaid', 'Prepaid Orders') }
-      ]}
-    />
-  );
-
   const renderReturnsDrill = () => (
-    <DrillDetail title="Return Analytics" onBack={() => { setDrillView(null); setSubDrill(null); }}
-      items={[
-        { label: 'Returned Paid Orders', value: `${ra.paidReturns.count} orders`, sub: `Refunded: ${fmt(ra.paidReturns.refundAmount)}\nCompleted: ${ra.paidReturns.completedRefunds} | Pending: ${ra.paidReturns.pendingRefunds}`, onViewOrders: () => fetchOrders('returned-paid', 'Returned Paid Orders') },
-        { label: 'Returned COD Orders', value: `${ra.codReturns.count} orders`, sub: `Impact: ${fmt(ra.codReturns.amountImpact)}`, onViewOrders: () => fetchOrders('returned-cod', 'Returned COD Orders') },
-        { label: 'Financial Impact', value: fmt(ra.financialImpact.totalRefunded), sub: `Net Revenue Loss: ${fmt(ra.financialImpact.netRevenueLoss)}` }
-      ]}
-    />
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+      <BranchStatCard label="Returned Paid" value={`${ra.paidReturns.count} orders`} sub={`Refunded: ${fmt(ra.paidReturns.refundAmount)}`} color="text-red-400" />
+      <BranchStatCard label="Returned COD" value={`${ra.codReturns.count} orders`} sub={`Impact: ${fmt(ra.codReturns.amountImpact)}`} color="text-red-400" />
+      <BranchStatCard label="Financial Impact" value={fmt(ra.financialImpact.totalRefunded)} sub={`Net Loss: ${fmt(ra.financialImpact.netRevenueLoss)}`} color="text-red-400" />
+    </div>
   );
 
   const renderPendingDrill = () => {
-    const stageItems = Object.entries(pa.byStage).filter(([,c]) => c > 0);
+    const stageItems = Object.entries(pa.byStage).filter(([, c]) => c > 0);
     return (
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <button onClick={() => { setDrillView(null); setSubDrill(null); }} className="p-1.5 bg-gray-800 rounded-xl hover:bg-gray-700"><ArrowLeft size={12} /></button>
-          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Pending Orders by Stage</h3>
-          <span className="text-xs text-gray-500 ml-auto">Total Value: {fmt(pa.totalValue)}</span>
-        </div>
-        <div className="space-y-1.5">
-          {stageItems.length === 0 ? (
-            <p className="text-xs text-gray-600 text-center py-4">No pending orders</p>
-          ) : stageItems.map(([stage, count]) => (
-            <div key={stage} className="flex items-center gap-2 bg-gray-800/40 rounded-lg px-3 py-2">
-              <StageBadge stage={stage} />
-              <div className="flex-1 bg-gray-800 rounded-full h-1.5">
-                <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${(count / Math.max(...stageItems.map(([,c]) => c), 1)) * 100}%` }} />
-              </div>
-              <span className="text-xs font-black text-white w-6 text-right">{count}</span>
+      <div className="space-y-1.5">
+        {stageItems.length === 0 ? (
+          <p className="text-xs text-gray-600 text-center py-4">No pending orders</p>
+        ) : stageItems.map(([stage, count]) => (
+          <div key={stage} className="flex items-center gap-2 bg-gray-800/40 rounded-lg px-3 py-2">
+            <StageBadge stage={stage} />
+            <div className="flex-1 bg-gray-800 rounded-full h-1.5">
+              <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${(count / Math.max(...stageItems.map(([, c]) => c), 1)) * 100}%` }} />
             </div>
-          ))}
-        </div>
-        <button onClick={() => fetchOrders('pending', 'All Pending Orders')} className="flex items-center gap-1 text-[10px] font-bold text-blue-400 hover:text-blue-300">
-          <Eye size={10} /> View All Pending Orders
-        </button>
+            <span className="text-xs font-black text-white w-6 text-right">{count}</span>
+          </div>
+        ))}
       </div>
     );
   };
@@ -500,32 +507,12 @@ const UnifiedAnalytics = () => {
     <div className="bg-gray-900/50 rounded-2xl border border-gray-800 p-4">
       <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-3">Financial Overview</h3>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-gray-800/40 rounded-xl p-3">
-          <p className="text-[10px] font-black text-gray-500 uppercase">Total Revenue</p>
-          <p className="text-lg font-black text-emerald-400">{fmt(fin.totalRevenue)}</p>
-        </div>
-        <div className="bg-gray-800/40 rounded-xl p-3">
-          <p className="text-[10px] font-black text-gray-500 uppercase">COD Revenue</p>
-          <p className="text-lg font-black text-white">{fmt(fin.codRevenue)}</p>
-        </div>
-        <div className="bg-gray-800/40 rounded-xl p-3">
-          <p className="text-[10px] font-black text-gray-500 uppercase">Online Revenue</p>
-          <p className="text-lg font-black text-white">{fmt(fin.onlineRevenue)}</p>
-        </div>
-        <div className="bg-gray-800/40 rounded-xl p-3">
-          <p className="text-[10px] font-black text-gray-500 uppercase">Prepaid Revenue</p>
-          <p className="text-lg font-black text-white">{fmt(fin.prepaidRevenue)}</p>
-        </div>
-        <div className="bg-gray-800/40 rounded-xl p-3">
-          <p className="text-[10px] font-black text-gray-500 uppercase">Total Refunded</p>
-          <p className="text-lg font-black text-red-400">{fmt(fin.totalRefunded)}</p>
-          <p className="text-[10px] text-gray-500">{fin.refundedCount} orders ({fin.pendingRefundCount} pending)</p>
-        </div>
-        <div className="bg-gray-800/40 rounded-xl p-3 col-span-1 sm:col-span-3">
-          <p className="text-[10px] font-black text-gray-500 uppercase">Net Revenue</p>
-          <p className="text-2xl font-black text-emerald-400">{fmt(fin.netRevenue)}</p>
-          <p className="text-[10px] text-gray-500">{fmt(fin.totalRevenue)} – {fmt(fin.totalRefunded)} (refunds)</p>
-        </div>
+        <BranchStatCard label="Total Revenue" value={fmt(fin.totalRevenue)} color="text-emerald-400" />
+        <BranchStatCard label="COD Revenue" value={fmt(fin.codRevenue)} color="text-white" />
+        <BranchStatCard label="Online Revenue" value={fmt(fin.onlineRevenue)} color="text-white" />
+        <BranchStatCard label="Prepaid Revenue" value={fmt(fin.prepaidRevenue)} color="text-white" />
+        <BranchStatCard label="Total Refunded" value={fmt(fin.totalRefunded)} sub={`${fin.refundedCount} orders (${fin.pendingRefundCount} pending)`} color="text-red-400" />
+        <BranchStatCard label="Net Revenue" value={fmt(fin.netRevenue)} sub={`${fmt(fin.totalRevenue)} – ${fmt(fin.totalRefunded)} (refunds)`} color="text-emerald-400" />
       </div>
     </div>
   );
@@ -596,6 +583,118 @@ const UnifiedAnalytics = () => {
     );
   }, [pieData]);
 
+  // ─── POS Section ───
+  const renderPOSSection = () => (
+    <div className="bg-gray-900/30 rounded-2xl border border-gray-800/50 p-4 mt-4">
+      <div className="flex items-center gap-2 mb-3">
+        <Store size={16} className="text-purple-500" />
+        <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest">
+          {selectedOutlet ? `${selectedOutlet} POS Analytics` : 'Point of Sale Analytics'}
+        </h3>
+        {posLoading && <RefreshCcw size={12} className="animate-spin text-gray-500" />}
+      </div>
+      {posData ? (
+        <>
+          {/* POS KPI Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+            <POS_KpiCard label="POS Sales" value={posData.totalSales} icon={Store} color="text-purple-400" onClick={isBranchSource ? openSalesDetail : null} />
+            <POS_KpiCard label="POS Transactions" value={posData.totalOrders} icon={Receipt} color="text-white" onClick={isBranchSource ? openTransactionDetail : null} />
+            <POS_KpiCard label="POS Returns" value={posData.returnedOrders} icon={RotateCcw} color="text-red-400" />
+            <POS_KpiCard label="Total Discount" value={posData.totalDiscount} icon={DollarSign} color="text-amber-400" />
+          </div>
+
+          {/* Branch Performance — only in All Sources, NOT clickable */}
+          {isAllSources && posData.branchPerformance && posData.branchPerformance.length > 0 && (
+            <div className="mb-3">
+              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Branch Performance</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {posData.branchPerformance.map((bp) => (
+                  <div key={bp.branch} className="bg-gray-800/30 rounded-xl p-3 border border-gray-700/30">
+                    <p className="text-xs font-black text-white">{bp.branch}</p>
+                    <p className="text-sm font-black text-emerald-400">{fmt(bp.revenue)}</p>
+                    <p className="text-[10px] text-gray-500">{bp.orders} orders</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Branch-specific Net Revenue */}
+          {isBranchSource && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+              <POS_KpiCard label="Net Revenue" value={posData.netRevenue} icon={TrendingUp} color="text-emerald-400" onClick={isBranchSource ? openRevenueDetail : null} />
+              <POS_KpiCard label="Completed" value={posData.completedOrders} icon={CheckCircle2} color="text-emerald-400" />
+              <POS_KpiCard label="Cancelled" value={posData.cancelledOrders} icon={X} color="text-red-400" />
+              <POS_KpiCard label="Highest Day" value={posData.highestSalesDay?.amount} icon={Award} color="text-amber-400" sub={posData.highestSalesDay?.date} />
+            </div>
+          )}
+
+          {/* Payment Breakdown */}
+          {posData.paymentBreakdown && posData.paymentBreakdown.length > 0 && (
+            <div className="mb-3">
+              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Payment Breakdown</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {posData.paymentBreakdown.map(pm => (
+                  <div key={pm.method} className="bg-gray-800/40 rounded-xl p-2.5">
+                    <p className="text-[9px] font-black text-gray-500 uppercase tracking-wider">{pm.method}</p>
+                    <p className="text-sm font-black text-white">{fmt(pm.gross)}</p>
+                    <p className="text-[9px] text-gray-500">Returns: {fmt(pm.returns)} | Net: {fmt(pm.net)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Best Selling Products */}
+          {posData.bestSellingProducts && posData.bestSellingProducts.length > 0 && (
+            <div className="mb-3">
+              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Best Selling Products</p>
+              <div className="flex flex-wrap gap-1.5">
+                {posData.bestSellingProducts.map((p, i) => (
+                  <span key={i} className="text-[10px] font-bold text-white bg-gray-800/60 px-2.5 py-1 rounded-lg border border-gray-700/30">
+                    {i + 1}. {p.name} <span className="text-emerald-400">({p.qty} sold)</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Daily Trend */}
+          {posData.reportData && posData.reportData.length > 0 && (
+            <div className="mt-3">
+              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Daily POS Sales Trend</p>
+              <ResponsiveContainer width="100%" height={160}>
+                <AreaChart data={posData.reportData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                  <XAxis dataKey="date" tick={{ fill: '#9ca3af', fontSize: 8 }} />
+                  <YAxis tick={{ fill: '#9ca3af', fontSize: 8 }} />
+                  <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 12, fontSize: 10 }} formatter={(v) => fmt(v)} />
+                  <Area type="monotone" dataKey="sales" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.15} name="Sales" strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Faisal Takes */}
+          {posData.faisalTakes && posData.faisalTakes.length > 0 && (
+            <div className="mt-3">
+              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Faisal Takes</p>
+              <div className="flex flex-wrap gap-1.5">
+                {posData.faisalTakes.slice(0, 5).map((ft, i) => (
+                  <span key={i} className="text-[10px] font-bold text-white bg-amber-800/40 px-2.5 py-1 rounded-lg border border-amber-700/30">
+                    {ft.receiptNumber} — {ft.items?.[0]?.productName || 'N/A'}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <p className="text-xs text-gray-600 text-center py-4">No POS data for selected period</p>
+      )}
+    </div>
+  );
+
   return (
     <div className="p-2 md:p-4 max-w-7xl mx-auto space-y-3">
       {/* Header */}
@@ -603,7 +702,7 @@ const UnifiedAnalytics = () => {
         <div>
           <h1 className="text-lg md:text-xl font-black text-white tracking-tight">Analytics</h1>
           <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
-            {mainTab === 'overview' ? 'Source-Wise Performance Dashboard' : mainTab === 'bi' ? 'Business Intelligence' : 'Outlet Analytics'}
+            {mainTab === 'overview' ? 'Performance Dashboard' : mainTab === 'bi' ? 'Business Intelligence' : 'Business Analytics'}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -615,18 +714,26 @@ const UnifiedAnalytics = () => {
               <button onClick={handlePrint} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-lg">
                 <Printer size={14} /> Print
               </button>
-              <button onClick={handleExportExcel} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-900/30">
-                <FileText size={14} /> Excel
-              </button>
+              {showOnlineSection && (
+                <button onClick={handleExportExcel} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-900/30">
+                  <FileText size={14} /> Excel
+                </button>
+              )}
             </div>
           )}
-          <button onClick={() => { fetchData(); fetchPosData(); if (selectedBranch) fetchBranchData(selectedBranch); }} className="p-2 bg-gray-900 border border-gray-700 rounded-xl hover:bg-gray-800 transition-colors">
+          <button onClick={() => { fetchData(); fetchPosData(); }} className="p-2 bg-gray-900 border border-gray-700 rounded-xl hover:bg-gray-800 transition-colors">
             <RefreshCcw size={14} className={`text-gray-400 ${loading || posLoading ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
 
-      {/* Analytics Main Tabs */}
+      {/* PAGE-LEVEL SOURCE TABS */}
+      {renderSourceTabs()}
+
+      {/* PAGE-LEVEL DATE / PAYMENT / EMPLOYEE FILTERS */}
+      {renderFilters()}
+
+      {/* MAIN TABS */}
       <div className="flex gap-1.5 overflow-x-auto pb-1">
         {ANALYTICS_TABS.map(t => (
           <button key={t.id} onClick={() => setMainTab(t.id)}
@@ -639,222 +746,200 @@ const UnifiedAnalytics = () => {
         ))}
       </div>
 
+      {/* ── OVERVIEW TAB ── */}
       {mainTab === 'overview' && (
         <>
-          {/* Source Tabs */}
-          {renderSourceTabs()}
-          {/* Filters */}
-          {renderFilters()}
-          {/* Main Content */}
-          {loading ? (
+          {loading && showOnlineSection ? (
             <PageLoader text="Loading Analytics..." />
           ) : (
             <div className="space-y-3">
-              {renderSummaryCards()}
-              {drillView === 'delivered' && renderDeliveredDrill()}
-              {drillView === 'returns' && renderReturnsDrill()}
-              {drillView === 'pending' && renderPendingDrill()}
-              {!drillView && (
+              {/* Online Order Section — only for All Sources or Online */}
+              {showOnlineSection && (
                 <>
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                    <div className="lg:col-span-2">{renderFinancials()}</div>
-                    {revenuePie}
-                  </div>
-                  {trendsChart}
+                  {renderOnlineSummary()}
+                  {drillView === 'delivered' && renderDeliveredDrill()}
+                  {drillView === 'returns' && renderReturnsDrill()}
+                  {drillView === 'pending' && renderPendingDrill()}
+                  {!drillView && (
+                    <>
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                        <div className="lg:col-span-2">{renderFinancials()}</div>
+                        {revenuePie}
+                      </div>
+                      {trendsChart}
+                    </>
+                  )}
                 </>
               )}
-              {/* POS Analytics Section */}
-              <div className="bg-gray-900/30 rounded-2xl border border-gray-800/50 p-4 mt-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Store size={16} className="text-purple-500" />
-                  <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest">Point of Sale Analytics</h3>
-                  {posLoading && <RefreshCcw size={12} className="animate-spin text-gray-500" />}
-                </div>
-                {posData ? (
-                  <>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-                      <div className="bg-gray-800/40 rounded-xl p-3">
-                        <p className="text-[10px] font-black text-gray-500 uppercase">POS Sales</p>
-                        <p className="text-lg font-black text-purple-400">{fmt(posData.totalSales)}</p>
-                        <p className="text-[10px] text-gray-500">{posData.totalOrders} orders</p>
-                      </div>
-                      <div className="bg-gray-800/40 rounded-xl p-3">
-                        <p className="text-[10px] font-black text-gray-500 uppercase">POS Orders</p>
-                        <p className="text-lg font-black text-white">{posData.totalOrders}</p>
-                        <p className="text-[10px] text-gray-500">{posData.completedOrders} completed</p>
-                      </div>
-                      <div className="bg-gray-800/40 rounded-xl p-3">
-                        <p className="text-[10px] font-black text-gray-500 uppercase">POS Returns</p>
-                        <p className="text-lg font-black text-red-400">{posData.returnedOrders}</p>
-                        <p className="text-[10px] text-gray-500">{fmt(posData.totalSales - posData.netRevenue)} refunded</p>
-                      </div>
-                      <div className="bg-gray-800/40 rounded-xl p-3">
-                        <p className="text-[10px] font-black text-gray-500 uppercase">POS Discount</p>
-                        <p className="text-lg font-black text-amber-400">{fmt(posData.totalDiscount)}</p>
-                        <p className="text-[10px] text-gray-500">given on sales</p>
-                      </div>
-                    </div>
-                    {posData.branchPerformance && posData.branchPerformance.length > 0 && (
-                      <div className="mb-3">
-                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Branch Performance {!selectedBranch && '(click to drill down)'}</p>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                          {posData.branchPerformance.map((bp) => (
-                            <button key={bp.branch} onClick={() => fetchBranchData(bp.branch)}
-                              className="bg-gray-800/30 rounded-xl p-3 border border-gray-700/30 hover:border-purple-500/50 transition-all text-left cursor-pointer">
-                              <p className="text-xs font-black text-white">{bp.branch}</p>
-                              <p className="text-sm font-black text-emerald-400">{fmt(bp.revenue)}</p>
-                              <p className="text-[10px] text-gray-500">{bp.orders} orders</p>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {/* Branch Drill-Down */}
-                    {selectedBranch && (
-                      <div className="bg-gray-800/20 rounded-xl border border-purple-500/30 p-4 mb-3">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            <button onClick={handleBackToAllBranches} className="p-1.5 bg-gray-800 rounded-xl hover:bg-gray-700"><ArrowLeft size={12} /></button>
-                            <h3 className="text-xs font-black text-purple-400 uppercase tracking-widest">{selectedBranch} — Drill Down</h3>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-black text-gray-500 uppercase">Cashier:</span>
-                            <select value={branchCashier} onChange={e => setBranchCashier(e.target.value)}
-                              className="bg-gray-800 border border-gray-700 text-white rounded-lg px-2 py-1.5 text-[10px] font-bold">
-                              <option value="">All Cashiers</option>
-                              {getBranchEmployees(selectedBranch).map(emp => (
-                                <option key={emp} value={emp}>{emp}</option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-                        {branchPosLoading ? (
-                          <div className="flex items-center justify-center py-8"><RefreshCcw size={20} className="animate-spin text-purple-500" /></div>
-                        ) : branchPosData ? (
-                          <>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-                              <div className="bg-gray-800/40 rounded-xl p-3">
-                                <p className="text-[10px] font-black text-gray-500 uppercase">Revenue</p>
-                                <p className="text-lg font-black text-emerald-400">{fmt(branchPosData.totalSales)}</p>
-                                <p className="text-[10px] text-gray-500">{branchPosData.totalOrders} orders</p>
-                              </div>
-                              <div className="bg-gray-800/40 rounded-xl p-3">
-                                <p className="text-[10px] font-black text-gray-500 uppercase">Orders</p>
-                                <p className="text-lg font-black text-white">{branchPosData.totalOrders}</p>
-                                <p className="text-[10px] text-gray-500">{branchPosData.completedOrders} completed</p>
-                              </div>
-                              <div className="bg-gray-800/40 rounded-xl p-3">
-                                <p className="text-[10px] font-black text-gray-500 uppercase">Returns</p>
-                                <p className="text-lg font-black text-red-400">{branchPosData.returnedOrders}</p>
-                                <p className="text-[10px] text-gray-500">{fmt(branchPosData.totalSales - branchPosData.netRevenue)} refunded</p>
-                              </div>
-                              <div className="bg-gray-800/40 rounded-xl p-3">
-                                <p className="text-[10px] font-black text-gray-500 uppercase">Net Revenue</p>
-                                <p className="text-lg font-black text-amber-400">{fmt(branchPosData.netRevenue)}</p>
-                              </div>
-                            </div>
-                            {branchPosData.paymentBreakdown && branchPosData.paymentBreakdown.length > 0 && (
-                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-                                {branchPosData.paymentBreakdown.map(pm => (
-                                  <div key={pm.method} className="bg-gray-800/40 rounded-xl p-2.5">
-                                    <p className="text-[9px] font-black text-gray-500 uppercase tracking-wider">{pm.method}</p>
-                                    <p className="text-sm font-black text-white">{fmt(pm.gross)}</p>
-                                    <p className="text-[9px] text-gray-500">Net: {fmt(pm.net)}</p>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                            {branchPosData.bestSellingProducts && branchPosData.bestSellingProducts.length > 0 && (
-                              <div className="mb-3">
-                                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Best Sellers @ {selectedBranch}</p>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {branchPosData.bestSellingProducts.map((p, i) => (
-                                    <span key={i} className="text-[10px] font-bold text-white bg-gray-800/60 px-2.5 py-1 rounded-lg border border-gray-700/30">
-                                      {i + 1}. {p.name} <span className="text-emerald-400">({p.qty} sold)</span>
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            {branchPosData.reportData && branchPosData.reportData.length > 0 && (
-                              <div className="mb-3">
-                                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Daily Trend @ {selectedBranch}</p>
-                                <ResponsiveContainer width="100%" height={140}>
-                                  <AreaChart data={branchPosData.reportData}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                                    <XAxis dataKey="date" tick={{ fill: '#9ca3af', fontSize: 8 }} />
-                                    <YAxis tick={{ fill: '#9ca3af', fontSize: 8 }} />
-                                    <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 12, fontSize: 10 }} formatter={(v) => fmt(v)} />
-                                    <Area type="monotone" dataKey="sales" stroke="#a855f7" fill="#a855f7" fillOpacity={0.15} strokeWidth={2} />
-                                  </AreaChart>
-                                </ResponsiveContainer>
-                              </div>
-                            )}
-                            {/* Branch Sales List */}
-                            <div>
-                              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Recent Sales @ {selectedBranch}</p>
-                              {branchSalesLoading ? (
-                                <RefreshCcw size={14} className="animate-spin text-gray-500" />
-                              ) : branchSales && branchSales.length > 0 ? (
-                                <div className="max-h-48 overflow-y-auto space-y-1">
-                                  {branchSales.slice(0, 20).map((s, i) => (
-                                    <div key={s.id || i} className="flex items-center justify-between bg-gray-800/30 rounded-lg px-3 py-2 text-xs">
-                                      <span className="font-bold text-gray-300">{s.receiptNumber || '—'}</span>
-                                      <span className="text-gray-400">{s.customerName || 'Walk-in'}</span>
-                                      <span className="font-bold text-emerald-400">{fmt(s.grandTotal)}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : <p className="text-xs text-gray-600">No sales for this period</p>}
-                            </div>
-                          </>
-                        ) : <p className="text-xs text-gray-600 text-center py-4">No data for this branch</p>}
-                      </div>
-                    )}
 
-                    {posData.bestSellingProducts && posData.bestSellingProducts.length > 0 && !selectedBranch && (
-                      <div>
-                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Best Selling Products</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {posData.bestSellingProducts.map((p, i) => (
-                            <span key={i} className="text-[10px] font-bold text-white bg-gray-800/60 px-2.5 py-1 rounded-lg border border-gray-700/30">
-                              {i + 1}. {p.name} <span className="text-emerald-400">({p.qty} sold)</span>
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {posData.reportData && posData.reportData.length > 0 && !selectedBranch && (
-                      <div className="mt-3">
-                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Daily POS Sales Trend</p>
-                        <ResponsiveContainer width="100%" height={160}>
-                          <AreaChart data={posData.reportData}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                            <XAxis dataKey="date" tick={{ fill: '#9ca3af', fontSize: 8 }} />
-                            <YAxis tick={{ fill: '#9ca3af', fontSize: 8 }} />
-                            <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 12, fontSize: 10 }} formatter={(v) => fmt(v)} />
-                            <Area type="monotone" dataKey="sales" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.15} name="POS Sales" strokeWidth={2} />
-                          </AreaChart>
-                        </ResponsiveContainer>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <p className="text-xs text-gray-600 text-center py-4">No POS data for selected period</p>
-                )}
-              </div>
+              {/* POS Section — only for All Sources or Branches */}
+              {showPOSSection && renderPOSSection()}
             </div>
           )}
         </>
       )}
 
-      {mainTab === 'bi' && <BiSection />}
+      {/* ── BUSINESS INTELLIGENCE TAB ── */}
+      {mainTab === 'bi' && (
+        <BiSection
+          source={source}
+          startDate={getDateRange().startDate}
+          endDate={getDateRange().endDate}
+        />
+      )}
 
-      {mainTab === 'outlet' && <OutletAnalytics />}
+      {/* ── BUSINESS ANALYTICS TAB ── */}
+      {mainTab === 'business' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-amber-500/10 rounded-2xl"><Award className="text-amber-400" size={20} /></div>
+            <div>
+              <h2 className="text-xl font-black text-white uppercase tracking-tight">Business Analytics</h2>
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">
+                {isAllSources ? 'All Sources' : isOnlineSource ? 'Online Orders' : selectedOutlet}
+              </p>
+            </div>
+          </div>
 
-      {/* Order List Modal */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* POS Orders */}
+            <div className="glass rounded-2xl p-5 border border-gray-800">
+              <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">POS Orders</p>
+              {posData ? (
+                <>
+                  <p className="text-3xl font-black text-white">{posData.totalOrders}</p>
+                  <p className="text-xs text-gray-500 mt-1">{posData.totalOrders} total | {posData.completedOrders} completed</p>
+                </>
+              ) : <p className="text-gray-600 text-sm">No data</p>}
+            </div>
+
+            {/* Revenue */}
+            <div className="glass rounded-2xl p-5 border border-gray-800">
+              <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Total Revenue</p>
+              <p className="text-3xl font-black text-emerald-400">
+                {isOnlineSource || isAllSources ? fmt(fin.totalRevenue || 0) : fmt(posData?.totalSales || 0)}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                {isOnlineSource || isAllSources ? 'Online + POS combined' : `${selectedOutlet} POS`}
+              </p>
+            </div>
+
+            {/* Returns */}
+            <div className="glass rounded-2xl p-5 border border-gray-800">
+              <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Returns</p>
+              <p className="text-3xl font-black text-red-400">
+                {isOnlineSource || isAllSources ? fmt(fin.totalRefunded || 0) : fmt(posData?.totalSales - posData?.netRevenue || 0)}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                {isOnlineSource || isAllSources ? `${fin.refundedCount || 0} orders refunded` : `${posData?.returnedOrders || 0} returns`}
+              </p>
+            </div>
+
+            {/* Discounts */}
+            <div className="glass rounded-2xl p-5 border border-gray-800">
+              <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Discounts Given</p>
+              <p className="text-3xl font-black text-amber-400">{fmt(posData?.totalDiscount || 0)}</p>
+              <p className="text-xs text-gray-500 mt-1">Total discount on POS sales</p>
+            </div>
+
+            {/* Products */}
+            <div className="glass rounded-2xl p-5 border border-gray-800">
+              <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Best Selling Products</p>
+              {posData?.bestSellingProducts?.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {posData.bestSellingProducts.slice(0, 3).map((p, i) => (
+                    <span key={i} className="text-[10px] font-bold text-white bg-gray-800/60 px-2 py-1 rounded-lg">
+                      {i + 1}. {p.name} <span className="text-emerald-400">({p.qty})</span>
+                    </span>
+                  ))}
+                </div>
+              ) : <p className="text-gray-600 text-sm mt-2">No product data</p>}
+            </div>
+
+            {/* Quick Invoice Report */}
+            <div className="glass rounded-2xl p-5 border border-gray-800">
+              <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Quick Invoice Report</p>
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-xs"><span className="text-gray-400">Total Invoices</span><span className="font-bold text-white">{posData?.totalOrders || 0}</span></div>
+                <div className="flex justify-between text-xs"><span className="text-gray-400">Total Sales</span><span className="font-bold text-emerald-400">{fmt(posData?.totalSales || 0)}</span></div>
+                <div className="flex justify-between text-xs"><span className="text-gray-400">Avg per Invoice</span><span className="font-bold text-white">{fmt(posData?.totalOrders > 0 ? (posData.totalSales / posData.totalOrders) : 0)}</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Online Order List Modal */}
       {orderList && (
-        <OrderListModal title={orderListTitle} orders={orderList} onClose={() => setOrderList(null)} />
+        <DetailModal title={orderListTitle} onClose={() => setOrderList(null)}>
+          <div className="space-y-2">
+            {orderList.length === 0 ? (
+              <p className="text-center text-gray-500 py-8 text-sm font-bold">No orders found</p>
+            ) : orderList.map((o, i) => (
+              <div key={o.id || i} className="flex items-center justify-between bg-gray-800/50 rounded-xl px-4 py-3 text-xs">
+                <div className="flex items-center gap-3">
+                  <span className="font-black text-white">#{o.orderNumber}</span>
+                  <span className="text-gray-300 truncate max-w-[180px]">{o.customerName}</span>
+                  <span className="text-gray-500">{o.city || '—'}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="font-black text-emerald-400">{fmt(o.totalPrice)}</span>
+                  <span className="text-gray-500">{o.paymentMethod || '—'}</span>
+                  <StageBadge stage={o.currentStage} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </DetailModal>
+      )}
+
+      {/* POS Detail Modals */}
+      {detailModal && (
+        <DetailModal
+          title={detailModal === 'sales' ? `Sales History ${selectedOutlet ? `- ${selectedOutlet}` : ''}`
+            : detailModal === 'revenue' ? `Revenue Breakdown ${selectedOutlet ? `- ${selectedOutlet}` : ''}`
+            : `Transaction History ${selectedOutlet ? `- ${selectedOutlet}` : ''}`}
+          onClose={() => { setDetailModal(null); setDetailData(null); }}
+        >
+          {detailLoading ? (
+            <div className="flex items-center justify-center py-12"><RefreshCcw size={24} className="animate-spin text-purple-500" /></div>
+          ) : detailData && detailData.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="font-black text-gray-500 uppercase tracking-wider border-b border-gray-800">
+                    <th className="py-2 pr-3">Invoice</th>
+                    <th className="py-2 pr-3">Date</th>
+                    <th className="py-2 pr-3">Customer</th>
+                    <th className="py-2 pr-3">Cashier</th>
+                    <th className="py-2 pr-3">Products</th>
+                    <th className="py-2 pr-3 text-right">Qty</th>
+                    <th className="py-2 pr-3 text-right">Amount</th>
+                    <th className="py-2 pr-3">Payment</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detailData.slice(0, 50).map((s, i) => (
+                    <tr key={s.id || i} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                      <td className="py-2 pr-3 font-bold text-white">{s.receiptNumber || '—'}</td>
+                      <td className="py-2 pr-3 text-gray-400">{s.createdAt ? new Date(s.createdAt).toLocaleDateString() : '—'}</td>
+                      <td className="py-2 pr-3 text-gray-300">{s.customerName || 'Walk-in'}</td>
+                      <td className="py-2 pr-3 text-gray-400">{s.cashierName || '—'}</td>
+                      <td className="py-2 pr-3 text-gray-400">{s.items?.length || 0} items</td>
+                      <td className="py-2 pr-3 text-right text-white">{s.items?.reduce((sum, it) => sum + (it.quantity || 0), 0) || 0}</td>
+                      <td className="py-2 pr-3 text-right font-bold text-emerald-400">{fmt(s.grandTotal)}</td>
+                      <td className="py-2 pr-3">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-800 text-gray-300">{s.paymentMethod || '—'}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-center text-gray-500 py-8 text-sm font-bold">No records found</p>
+          )}
+        </DetailModal>
       )}
     </div>
   );

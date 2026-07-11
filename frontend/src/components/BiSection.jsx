@@ -67,7 +67,22 @@ const LocationCard = ({ location, inventory, consumption, financial }) => {
   );
 };
 
-const BiSection = () => {
+const outletForSource = (sourceId) => {
+  if (sourceId === 'jail_road') return 'Johar Town';
+  if (sourceId === 'johar_town') return 'Johar Town';
+  if (sourceId === 'abbottabad') return 'Abbottabad';
+  if (sourceId === 'online') return null;
+  return null;
+};
+
+const sourceToBranch = (sourceId) => {
+  if (sourceId === 'jail_road') return 'Jail Road';
+  if (sourceId === 'johar_town') return 'Johar Town';
+  if (sourceId === 'abbottabad') return 'Abbottabad';
+  return null;
+};
+
+const BiSection = ({ source: parentSource, startDate: parentStartDate, endDate: parentEndDate }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [datePreset, setDatePreset] = useState('all');
@@ -75,30 +90,42 @@ const BiSection = () => {
   const [customTo, setCustomTo] = useState('');
   const [source, setSource] = useState('all');
   const [branchFilter, setBranchFilter] = useState('all');
-  const [selectedLocation, setSelectedLocation] = useState(null);
   const printRef = useRef(null);
 
-  const fetchData = useCallback(async (preset, from, to, src, branch) => {
+  // When parent provides source/date, use those instead of internal state
+  const effectiveSource = (parentSource && parentSource !== 'all' && parentSource !== 'online') ? 'OUTLET' : (source === 'all' ? 'all' : source);
+  const effectiveBranch = parentSource ? sourceToBranch(parentSource) : branchFilter;
+  const hasParentProps = parentSource !== undefined;
+
+  const fetchData = useCallback(async (preset, from, to, src, branch, parentSrc, parentSd, parentEd) => {
     setLoading(true);
     try {
       const params = {};
-      const now = new Date();
-      if (preset === 'today') {
-        params.startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-      } else if (preset === 'week') {
-        const start = new Date(now);
-        start.setDate(now.getDate() - now.getDay());
-        params.startDate = start.toISOString();
-      } else if (preset === 'month') {
-        params.startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-      } else if (preset === 'year') {
-        params.startDate = new Date(now.getFullYear(), 0, 1).toISOString();
-      } else if (preset === 'custom' && from) {
-        params.startDate = new Date(from).toISOString();
-        if (to) params.endDate = new Date(to).toISOString();
+      if (parentSd || parentEd) {
+        if (parentSd) params.startDate = new Date(parentSd).toISOString();
+        if (parentEd) params.endDate = new Date(parentEd + 'T23:59:59.999Z').toISOString();
+      } else {
+        const now = new Date();
+        if (preset === 'today') {
+          params.startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+        } else if (preset === 'week') {
+          const start = new Date(now);
+          start.setDate(now.getDate() - now.getDay());
+          params.startDate = start.toISOString();
+        } else if (preset === 'month') {
+          params.startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+        } else if (preset === 'year') {
+          params.startDate = new Date(now.getFullYear(), 0, 1).toISOString();
+        } else if (preset === 'custom' && from) {
+          params.startDate = new Date(from).toISOString();
+          if (to) params.endDate = new Date(to).toISOString();
+        }
       }
       if (src && src !== 'all') params.source = src;
-      if (branch && branch !== 'all') params.branch = branch;
+      // Map parent source to BI branch parameter
+      const pb = sourceToBranch(parentSrc);
+      if (pb) params.branch = pb;
+      else if (branch && branch !== 'all') params.branch = branch;
       const res = await api.get('/api/bi/dashboard', { params });
       setData(res.data);
     } catch (err) {
@@ -109,10 +136,14 @@ const BiSection = () => {
   }, []);
 
   useEffect(() => {
-    fetchData(datePreset, customFrom, customTo, source, branchFilter);
-  }, [datePreset, source, branchFilter, fetchData]);
+    if (hasParentProps) {
+      fetchData(datePreset, customFrom, customTo, effectiveSource, effectiveBranch, parentSource, parentStartDate, parentEndDate);
+    } else {
+      fetchData(datePreset, customFrom, customTo, source, branchFilter, null, null, null);
+    }
+  }, [datePreset, source, branchFilter, effectiveSource, effectiveBranch, parentSource, parentStartDate, parentEndDate, fetchData, hasParentProps]);
 
-  const applyCustom = () => fetchData('custom', customFrom, customTo, source, branchFilter);
+  const applyCustom = () => fetchData('custom', customFrom, customTo, source, branchFilter, parentSource, parentStartDate, parentEndDate);
 
   const handlePrint = () => {
     const w = window.open('', '_blank');
@@ -233,38 +264,42 @@ const BiSection = () => {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        {DATE_PRESETS.map(p => (
-          <button key={p.key} onClick={() => setDatePreset(p.key)}
-            className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${datePreset === p.key ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-900 text-gray-500 hover:text-gray-300'}`}>{p.label}</button>
-        ))}
-        {datePreset === 'custom' && (
-          <div className="flex items-center gap-2">
-            <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
-              className="bg-gray-950 border-2 border-gray-800 rounded-xl py-2 px-3 text-xs font-bold text-white outline-none focus:border-blue-500" />
-            <span className="text-gray-600 text-xs">—</span>
-            <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
-              className="bg-gray-950 border-2 border-gray-800 rounded-xl py-2 px-3 text-xs font-bold text-white outline-none focus:border-blue-500" />
-            <button onClick={applyCustom} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black uppercase hover:bg-blue-500 transition-all">Apply</button>
-          </div>
-        )}
-      </div>
+      {!parentStartDate && (
+        <div className="flex flex-wrap items-center gap-2">
+          {DATE_PRESETS.map(p => (
+            <button key={p.key} onClick={() => setDatePreset(p.key)}
+              className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${datePreset === p.key ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-900 text-gray-500 hover:text-gray-300'}`}>{p.label}</button>
+          ))}
+          {datePreset === 'custom' && (
+            <div className="flex items-center gap-2">
+              <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
+                className="bg-gray-950 border-2 border-gray-800 rounded-xl py-2 px-3 text-xs font-bold text-white outline-none focus:border-blue-500" />
+              <span className="text-gray-600 text-xs">—</span>
+              <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
+                className="bg-gray-950 border-2 border-gray-800 rounded-xl py-2 px-3 text-xs font-bold text-white outline-none focus:border-blue-500" />
+              <button onClick={applyCustom} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black uppercase hover:bg-blue-500 transition-all">Apply</button>
+            </div>
+          )}
+        </div>
+      )}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Filter size={14} className="text-gray-500" />
-        <span className="text-[10px] font-black text-gray-500 uppercase tracking-wider mr-1">Source:</span>
-        {[{ value: 'all', label: 'All Sources' }, { value: 'ONLINE', label: 'Online Orders' }, { value: 'OUTLET', label: 'Outlet Orders' }].map(s => (
-          <button key={s.value} onClick={() => setSource(s.value)}
-            className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${source === s.value ? 'bg-indigo-600 text-white shadow-lg' : 'bg-gray-900 text-gray-500 hover:text-gray-300'}`}>{s.label}</button>
-        ))}
-        <span className="text-[10px] font-black text-gray-500 uppercase tracking-wider ml-2 mr-1">Branch:</span>
-        <button onClick={() => setBranchFilter('all')}
-          className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${branchFilter === 'all' ? 'bg-purple-600 text-white shadow-lg' : 'bg-gray-900 text-gray-500 hover:text-gray-300'}`}>All</button>
-        {LOCATIONS.map(loc => (
-          <button key={loc} onClick={() => setBranchFilter(branchFilter === loc ? 'all' : loc)}
-            className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${branchFilter === loc ? 'bg-purple-600 text-white shadow-lg' : 'bg-gray-900 text-gray-500 hover:text-gray-300'}`}>{loc}</button>
-        ))}
-      </div>
+      {!parentSource && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Filter size={14} className="text-gray-500" />
+          <span className="text-[10px] font-black text-gray-500 uppercase tracking-wider mr-1">Source:</span>
+          {[{ value: 'all', label: 'All Sources' }, { value: 'ONLINE', label: 'Online Orders' }, { value: 'OUTLET', label: 'Outlet Orders' }].map(s => (
+            <button key={s.value} onClick={() => setSource(s.value)}
+              className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${source === s.value ? 'bg-indigo-600 text-white shadow-lg' : 'bg-gray-900 text-gray-500 hover:text-gray-300'}`}>{s.label}</button>
+          ))}
+          <span className="text-[10px] font-black text-gray-500 uppercase tracking-wider ml-2 mr-1">Branch:</span>
+          <button onClick={() => setBranchFilter('all')}
+            className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${branchFilter === 'all' ? 'bg-purple-600 text-white shadow-lg' : 'bg-gray-900 text-gray-500 hover:text-gray-300'}`}>All</button>
+          {LOCATIONS.map(loc => (
+            <button key={loc} onClick={() => setBranchFilter(branchFilter === loc ? 'all' : loc)}
+              className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${branchFilter === loc ? 'bg-purple-600 text-white shadow-lg' : 'bg-gray-900 text-gray-500 hover:text-gray-300'}`}>{loc}</button>
+          ))}
+        </div>
+      )}
 
       {/* Overall KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
