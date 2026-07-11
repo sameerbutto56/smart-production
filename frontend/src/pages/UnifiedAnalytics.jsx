@@ -1088,11 +1088,13 @@ const UnifiedAnalytics = () => {
                 <p className="text-xs text-gray-400">{detailData.length} invoices</p>
                 <div className="flex items-center gap-1.5">
                   <button onClick={() => {
-                    const rows = [['Invoice#', 'Date', 'Customer', 'Cashier', 'Branch', 'Products', 'Qty', 'Amount', 'Payment']];
+                    const rows = [['Invoice#', 'Date', 'Customer', 'Cashier', 'Branch', 'Products', 'Qty', 'Amount', 'Payment', 'Returns Qty', 'Refund Amount']];
                     detailData.forEach(s => {
                       const items = s.items?.map(it => it.productName).join('; ') || '';
                       const qty = s.items?.reduce((sum, it) => sum + (it.quantity || 0), 0) || 0;
-                      rows.push([s.receiptNumber || '', new Date(s.createdAt).toLocaleDateString(), s.customerName || 'Walk-in', s.cashierName || '', s.outletName || '', items, qty, s.grandTotal, s.paymentMethod || '']);
+                      const retQty = s.returns?.reduce((sum, r) => sum + (r.quantity || 0), 0) || 0;
+                      const retAmt = s.returns?.reduce((sum, r) => sum + (r.refundAmount || 0), 0) || 0;
+                      rows.push([s.receiptNumber || '', new Date(s.createdAt).toLocaleDateString(), s.customerName || 'Walk-in', s.cashierName || '', s.outletName || '', items, qty, s.grandTotal, s.paymentMethod || '', retQty, retAmt]);
                     });
                     const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
                     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -1110,11 +1112,12 @@ const UnifiedAnalytics = () => {
                       th{background:#f0f0f0;font-weight:bold}
                     </style></head><body>`);
                     w.document.write(`<h2>${detailModal === 'sales' ? 'Sales History' : detailModal === 'revenue' ? 'Revenue Breakdown' : 'Transaction History'}${selectedOutlet ? ` — ${selectedOutlet}` : ''}</h2>`);
-                    w.document.write('<table><thead><tr><th>Invoice#</th><th>Date</th><th>Customer</th><th>Cashier</th><th>Products</th><th>Qty</th><th>Amount</th><th>Payment</th></tr></thead><tbody>');
+                    w.document.write('<table><thead><tr><th>Invoice#</th><th>Date</th><th>Customer</th><th>Cashier</th><th>Products</th><th>Qty</th><th>Amount</th><th>Payment</th><th>Returns</th></tr></thead><tbody>');
                     detailData.forEach(s => {
                       const items = s.items?.map(it => it.productName).join(', ') || '';
                       const qty = s.items?.reduce((sum, it) => sum + (it.quantity || 0), 0) || 0;
-                      w.document.write(`<tr><td>${s.receiptNumber || ''}</td><td>${new Date(s.createdAt).toLocaleDateString()}</td><td>${s.customerName || 'Walk-in'}</td><td>${s.cashierName || ''}</td><td>${items}</td><td>${qty}</td><td>₨${(s.grandTotal || 0).toLocaleString()}</td><td>${s.paymentMethod || ''}</td></tr>`);
+                      const retTxt = s.returns?.length > 0 ? `${s.returns.reduce((sum, r) => sum + (r.quantity || 0), 0)} items (₨${(s.returns.reduce((sum, r) => sum + (r.refundAmount || 0), 0)).toLocaleString()})` : '—';
+                      w.document.write(`<tr><td>${s.receiptNumber || ''}</td><td>${new Date(s.createdAt).toLocaleDateString()}</td><td>${s.customerName || 'Walk-in'}</td><td>${s.cashierName || ''}</td><td>${items}</td><td>${qty}</td><td>₨${(s.grandTotal || 0).toLocaleString()}</td><td>${s.paymentMethod || ''}</td><td>${retTxt}</td></tr>`);
                     });
                     w.document.write('</tbody></table>');
                     w.document.write(`<p>Generated: ${new Date().toLocaleString()} | Total: ${detailData.length} invoices</p>`);
@@ -1135,12 +1138,16 @@ const UnifiedAnalytics = () => {
                       <th className="py-2 pr-3 text-right">Qty</th>
                       <th className="py-2 pr-3 text-right">Amount</th>
                       <th className="py-2 pr-3">Payment</th>
+                      <th className="py-2 pr-3 text-right">Returns</th>
                     </tr>
                   </thead>
                   <tbody>
                     {detailData.map((s, i) => {
                       const items = s.items?.map(it => it.productName).join(', ') || '—';
                       const qty = s.items?.reduce((sum, it) => sum + (it.quantity || 0), 0) || 0;
+                      const hasReturns = s.returns?.length > 0;
+                      const retQty = s.returns?.reduce((sum, r) => sum + (r.quantity || 0), 0) || 0;
+                      const retAmt = s.returns?.reduce((sum, r) => sum + (r.refundAmount || 0), 0) || 0;
                       return (
                         <tr key={s.id || i} className="border-b border-gray-800/50 hover:bg-gray-800/30">
                           <td className="py-2 pr-3 font-bold text-white">{s.receiptNumber || '—'}</td>
@@ -1152,6 +1159,13 @@ const UnifiedAnalytics = () => {
                           <td className="py-2 pr-3 text-right font-bold text-emerald-400">{fmt(s.grandTotal)}</td>
                           <td className="py-2 pr-3">
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-800 text-gray-300">{s.paymentMethod || '—'}</span>
+                          </td>
+                          <td className="py-2 pr-3 text-right">
+                            {hasReturns ? (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-900/40 text-red-400" title={s.returns.map(r => `${r.reason || 'N/A'} (₨${(r.refundAmount||0).toLocaleString()})`).join(' | ')}>
+                                {retQty} (₨{retAmt.toLocaleString()})
+                              </span>
+                            ) : <span className="text-gray-600">—</span>}
                           </td>
                         </tr>
                       );
