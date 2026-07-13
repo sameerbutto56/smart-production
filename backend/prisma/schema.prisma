@@ -623,3 +623,29 @@ model OutletTransferItem {
   @@index([outletVariantId])
   @@index([outletInventoryId])
 }
+
+model OutletEmployee {
+  id         String   @id @default(uuid())
+  name       String
+  outletName String
+  password   String
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([name, outletName])
+  @@index([outletName])
+}
+
+model JournalEntry {
+  id            String   @id @default(uuid())
+  employeeName  String
+  outletName    String
+  expenseTitle  String
+  amount        Float
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  @@index([outletName])
+  @@index([createdAt])
+}

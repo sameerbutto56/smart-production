@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import {
   DollarSign, ShoppingCart, RefreshCw, TrendingDown, RotateCcw,
   CheckCircle, Clock, XCircle, CreditCard, Globe, Award, Package,
-  AlertTriangle, BarChart3, Download, Printer
+  AlertTriangle, BarChart3, Download, Printer, FileText, User
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -47,6 +47,28 @@ const OutletPOSDashboard = ({ outlet }) => {
     fetcher: () => api.get(`/api/pos/sales?outlet=${outlet}`).then(r => r.data),
     ttl: 5 * 60 * 1000,
   });
+
+  const [journalEntries, setJournalEntries] = useState([]);
+  const [cashSummary, setCashSummary] = useState(null);
+  const [journalLoading, setJournalLoading] = useState(false);
+
+  const fetchJournal = useCallback(async () => {
+    setJournalLoading(true);
+    try {
+      const [entriesRes, cashRes] = await Promise.all([
+        api.get(`/api/journal?outlet=${outlet}`),
+        api.get(`/api/journal/cash-summary?outlet=${outlet}`)
+      ]);
+      setJournalEntries(entriesRes.data);
+      setCashSummary(cashRes.data);
+    } catch (e) {
+      // silently fail
+    } finally {
+      setJournalLoading(false);
+    }
+  }, [outlet]);
+
+  useEffect(() => { fetchJournal(); }, [fetchJournal]);
 
   const kpis = dashboard ? [
     { icon: DollarSign, label: 'Total Sales', value: formatCurrency(dashboard.totalSales), sub: `${dashboard.totalOrders || 0} orders`, color: 'from-blue-600 to-cyan-600' },
@@ -319,6 +341,52 @@ const OutletPOSDashboard = ({ outlet }) => {
               </div>
             </div>
           )}
+
+          {/* Journal Entries */}
+          <div className="bg-gray-900 border border-blue-800/50 rounded-2xl p-4">
+            <h3 className="text-xs font-black text-blue-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+              <FileText size={14} /> Journal Entries — Cash Expenses
+            </h3>
+            {cashSummary && (
+              <div className="flex items-center gap-3 mb-3 bg-gray-950 rounded-xl p-3 border border-gray-800">
+                <DollarSign size={14} className="text-emerald-400" />
+                <span className="text-xs text-gray-400 font-bold">Available Cash:</span>
+                <span className={`text-sm font-black ${cashSummary.availableCash >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {formatCurrency(cashSummary.availableCash)}
+                </span>
+                <span className="text-[10px] text-gray-600">(Expenses: {formatCurrency(cashSummary.totalExpenses)})</span>
+              </div>
+            )}
+            {journalLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <RefreshCw className="animate-spin text-gray-500" size={20} />
+              </div>
+            ) : journalEntries.length === 0 ? (
+              <p className="text-center text-gray-500 font-bold py-6 text-xs">No journal entries recorded</p>
+            ) : (
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {journalEntries.slice(0, 10).map(entry => (
+                  <div key={entry.id} className="bg-gray-950 p-2.5 rounded-xl border border-gray-800 text-xs">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <User size={12} className="text-blue-400" />
+                        <p className="font-black text-white">{entry.employeeName}</p>
+                      </div>
+                      <p className="text-[9px] text-gray-500">{new Date(entry.createdAt).toLocaleString('en-PK')}</p>
+                    </div>
+                    <div className="mt-1.5 flex items-center justify-between">
+                      <span className="text-[10px] text-gray-400">{entry.expenseTitle}</span>
+                      <span className="font-black text-red-400">-{formatCurrency(entry.amount)}</span>
+                    </div>
+                    {entry.notes && <p className="text-[9px] text-gray-600 italic mt-0.5">{entry.notes}</p>}
+                  </div>
+                ))}
+                {journalEntries.length > 10 && (
+                  <p className="text-center text-[10px] text-gray-600 pt-1">+ {journalEntries.length - 10} more entries</p>
+                )}
+              </div>
+            )}
+          </div>
         </>
       ) : null}
     </div>

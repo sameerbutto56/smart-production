@@ -8,7 +8,7 @@ import {
   ChevronDown, TrendingUp, ShoppingCart, AlertTriangle,
   CreditCard, Globe, Layers, Award, TrendingDown,
   ArrowUpRight, ArrowDownRight, Activity, Eye, Phone, MapPin,
-  Download, Printer
+  Download, Printer, FileText
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,6 +18,7 @@ import {
 } from 'recharts';
 import OutletPOSDashboard from '../components/OutletPOSDashboard';
 import OutletInvoiceHistory from '../components/OutletInvoiceHistory';
+import OutletJournal from '../components/OutletJournal';
 
 const COLORS = { emerald: '#10b981', amber: '#f59e0b', blue: '#3b82f6', red: '#ef4444', purple: '#8b5cf6', cyan: '#06b6d4', pink: '#ec4899' };
 const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6'];
@@ -358,7 +359,8 @@ const OutletDashboard = () => {
     { id: 'pos-dashboard', label: 'POS Dashboard', icon: BarChart3 },
     { id: 'invoices', label: 'Total Invoices', icon: DollarSign },
     { id: 'tracking', label: 'Order Track', icon: Search },
-    { id: 'tasks', label: 'Tasks', icon: ListChecks, badge: tasks.length }
+    { id: 'tasks', label: 'Tasks', icon: ListChecks, badge: tasks.length },
+    { id: 'journal', label: 'Journal Entries', icon: FileText }
   ];
 
   const statusData = [
@@ -660,6 +662,8 @@ const OutletDashboard = () => {
       {activeTab === 'pos-dashboard' && <OutletPOSDashboard outlet={outletName} />}
 
       {activeTab === 'invoices' && <OutletInvoiceHistory outlet={outletName} />}
+
+      {activeTab === 'journal' && <OutletJournal outlet={outletName} />}
 
       {activeTab === 'tracking' && (
         <div className="space-y-6">

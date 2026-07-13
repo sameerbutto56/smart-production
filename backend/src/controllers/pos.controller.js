@@ -1432,9 +1432,19 @@ const getBalancePaymentHistory = async (req, res) => {
 };
 
 const getEmployees = async (req, res) => {
-  const outlet = getOutletName(req);
-  if (outlet === 'Jail Road') return res.json(['Junaid', 'Ibrar', 'Amir']);
-  res.json(['Gull', 'Junaid', 'Sajawal', 'Zain']);
+  try {
+    const outlet = getOutletName(req);
+    const emps = await prisma.outletEmployee.findMany({
+      where: { outletName: outlet, isActive: true },
+      select: { name: true },
+      orderBy: { name: 'asc' }
+    });
+    res.json(emps.map(e => e.name));
+  } catch {
+    const outlet = getOutletName(req);
+    if (outlet === 'Jail Road') return res.json(['Junaid', 'Ibrar', 'Aamir']);
+    res.json(['Gul', 'Junaid', 'Sajawal', 'Zain']);
+  }
 };
 
 module.exports = {
