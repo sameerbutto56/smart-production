@@ -1067,7 +1067,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const shMap = { 'long':'Long', 'short':'Short', 'regular':'Regular' };
   const femSlMap = { 'full':'Full', 'half':'Half', 'medium':'Medium' };
   const femShMap = { 'long':'Long', 'short':'Short' };
-  const urduSlMap = { 'full':'فل بازو', 'half':'آدھی بازو', 'three-quarter':'کوارٹر', 'quarter':'کوارٹر' };
+  const urduSlMap = { 'full':'فل بازو', 'half':'ہاف', 'three-quarter':'کوارٹر', 'quarter':'کوارٹر' };
   const urduShMap = { 'long':'لمبی بازو', 'short':'چھوٹی بازو', 'regular':'باقاعدہ' };
   const urduFemSlMap = { 'full':'فل بازو', 'half':'آدھی بازو', 'medium':'درمیانی' };
   const urduFemShMap = { 'long':'لمبی بازو', 'short':'چھوٹی بازو' };
