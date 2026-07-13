@@ -526,7 +526,7 @@ function romanToUrdu(text) {
     'double': 'ڈبل',
     'qty': 'تعداد', 'quantity': 'تعداد',
     'total': 'کل',
-    'half': 'آدھا', 'aadha': 'آدھا', 'aadhi': 'آدھی',
+    'half': 'ہاف', 'aadha': 'آدھا', 'aadhi': 'آدھی',
     'full': 'پورا', 'poora': 'پورا',
     'all': 'تمام',
     'some': 'کچھ',
