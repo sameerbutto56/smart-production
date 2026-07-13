@@ -135,47 +135,55 @@ const acceptTransfer = async (req, res) => {
       return res.status(400).json({ message: 'Can only accept transfers that are in DISPATCHED status.' });
     }
 
-    // Process stock updates within a single transaction
-    const completed = await prisma.$transaction(async (tx) => {
-      for (const item of transfer.items) {
-        // 1. Decrement source stock
-        const sourceOv = await tx.outletInventory.findUnique({
-          where: { id: item.outletVariantId }
-        });
-        if (!sourceOv || sourceOv.stock < item.quantity) {
-          throw new Error(`Insufficient stock for ${item.productName} in source outlet`);
-        }
-        await tx.outletInventory.update({
+    // Process stock updates — validate first, then execute outside interactive transaction
+    // (interactive $transaction is incompatible with PgBouncer transaction mode)
+    const sourceOvs = [];
+    for (const item of transfer.items) {
+      const sourceOv = await prisma.outletInventory.findUnique({
+        where: { id: item.outletVariantId }
+      });
+      if (!sourceOv || sourceOv.stock < item.quantity) {
+        return res.status(400).json({ message: `Insufficient stock for ${item.productName} in source outlet` });
+      }
+      sourceOvs.push(sourceOv);
+    }
+    // All stock checks passed — execute updates in parallel
+    const updates = [];
+    for (let i = 0; i < transfer.items.length; i++) {
+      const item = transfer.items[i];
+      const sourceOv = sourceOvs[i];
+      updates.push(
+        prisma.outletInventory.update({
           where: { id: item.outletVariantId },
           data: { stock: { decrement: item.quantity } }
-        });
-
-        // 2. Increment destination stock or create inventory record
-        const destOv = await tx.outletInventory.findFirst({
-          where: {
-            name: sourceOv.name,
-            category: sourceOv.category,
-            outletName: transfer.toOutlet,
-            color: sourceOv.color,
-            size: sourceOv.size,
-            fabric: sourceOv.fabric
-          }
-        });
-
-        if (destOv) {
-          await tx.outletInventory.update({
+        })
+      );
+      const destOv = await prisma.outletInventory.findFirst({
+        where: {
+          name: sourceOv.name,
+          category: sourceOv.category,
+          outletName: transfer.toOutlet,
+          color: sourceOv.color,
+          size: sourceOv.size,
+          fabric: sourceOv.fabric
+        }
+      });
+      if (destOv) {
+        updates.push(
+          prisma.outletInventory.update({
             where: { id: destOv.id },
             data: { stock: { increment: item.quantity } }
-          });
-        } else {
-          // Auto-create destination inventory record if it doesn't exist
-          let barcode = item.barcode;
-          let attempt = 0;
-          while (await tx.outletInventory.findFirst({ where: { barcode, outletName: transfer.toOutlet } })) {
-            attempt++;
-            barcode = generateBarcode(sourceOv.id, item.size, item.color, attempt);
-          }
-          await tx.outletInventory.create({
+          })
+        );
+      } else {
+        let barcode = item.barcode;
+        let attempt = 0;
+        while (await prisma.outletInventory.findFirst({ where: { barcode, outletName: transfer.toOutlet } })) {
+          attempt++;
+          barcode = generateBarcode(sourceOv.id, item.size, item.color, attempt);
+        }
+        updates.push(
+          prisma.outletInventory.create({
             data: {
               name: sourceOv.name,
               category: sourceOv.category,
@@ -188,19 +196,20 @@ const acceptTransfer = async (req, res) => {
               price: item.unitPrice || null,
               metadata: JSON.stringify({ sourceStoreItemId: sourceOv.id })
             }
-          });
-        }
+          })
+        );
       }
+    }
+    await Promise.all(updates);
 
-      return tx.outletTransfer.update({
-        where: { id },
-        data: {
-          status: 'COMPLETED',
-          completedById: req.user?.id || null,
-          completedAt: new Date()
-        },
-        include: { items: true }
-      });
+    const completed = await prisma.outletTransfer.update({
+      where: { id },
+      data: {
+        status: 'COMPLETED',
+        completedById: req.user?.id || null,
+        completedAt: new Date()
+      },
+      include: { items: true }
     });
 
     cache.delPattern('pos:');
