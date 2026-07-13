@@ -470,17 +470,15 @@ const createSale = async (req, res) => {
     }
 
     const sale = await prisma.$transaction(async (tx) => {
-      // Skip stock decrement for Faisal Takes (zero-cost, no inventory impact)
-      if (!isFaisalTake) {
-        await Promise.all(saleItems.map(si =>
-          tx.outletInventory.updateMany({
-            where: { id: si.outletVariantId, stock: { gte: si.quantity } },
-            data: { stock: { decrement: si.quantity } }
-          }).then(result => {
-            if (result.count === 0) throw new Error(`Stock conflict for ${si.productName} - please retry`);
-          })
-        ));
-      }
+      // Always decrement stock (Faisal Takes still consume inventory)
+      await Promise.all(saleItems.map(si =>
+        tx.outletInventory.updateMany({
+          where: { id: si.outletVariantId, stock: { gte: si.quantity } },
+          data: { stock: { decrement: si.quantity } }
+        }).then(result => {
+          if (result.count === 0) throw new Error(`Stock conflict for ${si.productName} - please retry`);
+        })
+      ));
       if (orderId) {
         await tx.order.update({
           where: { id: orderId },
