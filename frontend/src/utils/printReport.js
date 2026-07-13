@@ -34,18 +34,20 @@ const PRINT_CSS = `
     width: 100%;
     border-collapse: collapse;
     margin-bottom: 8px;
-    font-size: 16px;
+    font-size: 18px;
   }
   th {
     background: #000;
     color: #fff;
-    padding: 5px 8px;
+    padding: 6px 10px;
     text-align: left;
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 900;
     text-transform: uppercase;
-    border: 1px solid #333;
+    border: 2px solid #222;
     letter-spacing: 0.5px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   td {
     padding: 3px 6px;
