@@ -137,40 +137,35 @@ const acceptTransfer = async (req, res) => {
 
     // Process stock updates — run sequentially to avoid PgBouncer connection pool issues
     for (const item of transfer.items) {
+      const srcVariantId = item.outletVariantId || item.outletInventoryId;
+      if (!srcVariantId) {
+        return res.status(400).json({ message: `Missing source inventory reference for ${item.productName}` });
+      }
       const sourceOv = await prisma.outletInventory.findUnique({
-        where: { id: item.outletVariantId }
+        where: { id: srcVariantId }
       });
       if (!sourceOv || sourceOv.stock < item.quantity) {
         return res.status(400).json({ message: `Insufficient stock for ${item.productName} in source outlet` });
       }
       // Decrement source stock
       await prisma.outletInventory.update({
-        where: { id: item.outletVariantId },
+        where: { id: srcVariantId },
         data: { stock: { decrement: item.quantity } }
       });
-      // Find or create destination inventory
-      const destOv = await prisma.outletInventory.findFirst({
-        where: {
-          name: sourceOv.name,
-          category: sourceOv.category,
-          outletName: transfer.toOutlet,
-          color: sourceOv.color,
-          size: sourceOv.size,
-          fabric: sourceOv.fabric
-        }
-      });
+      // Find or create destination inventory — use item fields directly (not sourceOv) for lookup
+      const whereDest = { outletName: transfer.toOutlet, name: sourceOv.name };
+      if (item.color) whereDest.color = item.color;
+      if (item.size) whereDest.size = item.size;
+      const destOv = await prisma.outletInventory.findFirst({ where: whereDest });
       if (destOv) {
         await prisma.outletInventory.update({
           where: { id: destOv.id },
           data: { stock: { increment: item.quantity } }
         });
       } else {
-        let barcode = item.barcode;
-        let attempt = 0;
-        while (await prisma.outletInventory.findFirst({ where: { barcode, outletName: transfer.toOutlet } })) {
-          attempt++;
-          barcode = generateBarcode(sourceOv.id, item.size, item.color, attempt);
-        }
+        const destBarcode = item.barcode;
+        const barcodeUnique = await prisma.outletInventory.findFirst({ where: { barcode: destBarcode, outletName: transfer.toOutlet } });
+        const barcode = barcodeUnique ? generateBarcode(sourceOv.id, item.size, item.color, 1) : destBarcode;
         await prisma.outletInventory.create({
           data: {
             name: sourceOv.name,
