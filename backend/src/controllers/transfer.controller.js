@@ -152,20 +152,26 @@ const acceptTransfer = async (req, res) => {
         where: { id: srcVariantId },
         data: { stock: { decrement: item.quantity } }
       });
-      // Find or create destination inventory — use item fields directly (not sourceOv) for lookup
-      const whereDest = { outletName: transfer.toOutlet, name: sourceOv.name };
-      if (item.color) whereDest.color = item.color;
-      if (item.size) whereDest.size = item.size;
-      const destOv = await prisma.outletInventory.findFirst({ where: whereDest });
+      // Find or create destination inventory — match by barcode first, then name+color+size
+      let destOv = await prisma.outletInventory.findFirst({
+        where: { barcode: item.barcode, outletName: transfer.toOutlet }
+      });
+      if (!destOv) {
+        destOv = await prisma.outletInventory.findFirst({
+          where: {
+            outletName: transfer.toOutlet,
+            name: sourceOv.name,
+            color: item.color || null,
+            size: item.size || null
+          }
+        });
+      }
       if (destOv) {
         await prisma.outletInventory.update({
           where: { id: destOv.id },
           data: { stock: { increment: item.quantity } }
         });
       } else {
-        const destBarcode = item.barcode;
-        const barcodeUnique = await prisma.outletInventory.findFirst({ where: { barcode: destBarcode, outletName: transfer.toOutlet } });
-        const barcode = barcodeUnique ? generateBarcode(sourceOv.id, item.size, item.color, 1) : destBarcode;
         await prisma.outletInventory.create({
           data: {
             name: sourceOv.name,
@@ -174,7 +180,7 @@ const acceptTransfer = async (req, res) => {
             color: item.color || null,
             size: item.size || null,
             fabric: sourceOv.fabric,
-            barcode,
+            barcode: item.barcode,
             stock: item.quantity,
             price: item.unitPrice || null,
             metadata: JSON.stringify({ sourceStoreItemId: sourceOv.id })
