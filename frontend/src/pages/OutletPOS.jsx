@@ -339,16 +339,14 @@ const OutletPOS = () => {
         if (key.toUpperCase() === upper) { v = val; break; }
       }
     }
-    // If not in local map, try API lookup (cache may be stale)
-    if (!v) {
-      try {
-        const res = await api.get(`/api/pos/barcode/${encodeURIComponent(code)}?outlet=${selectedOutlet}`);
-        if (res.data) {
-          v = { id: res.data.id, productName: res.data.productName, color: res.data.color, size: res.data.size, price: res.data.price || 0, stock: res.data.stock };
-        }
-      } catch (e) {
-        console.warn(`Barcode API lookup failed for "${code}":`, e?.response?.data || e.message);
+    // Always hit API for fresh stock (local map may be stale)
+    try {
+      const res = await api.get(`/api/pos/barcode/${encodeURIComponent(code)}?outlet=${selectedOutlet}`);
+      if (res.data) {
+        v = { id: res.data.id, productName: res.data.productName, color: res.data.color, size: res.data.size, price: res.data.price || 0, stock: res.data.stock };
       }
+    } catch (e) {
+      console.warn(`Barcode API lookup failed for "${code}":`, e?.response?.data || e.message);
     }
     if (!v) return toast.error(`Barcode not found: ${code}`);
     if (v.stock != null && v.stock < 1) return toast.error(`"${v.productName}" is out of stock`);

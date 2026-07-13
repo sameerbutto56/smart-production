@@ -987,11 +987,7 @@ const lookupBarcode = async (req, res) => {
     const barcode = req.params.barcode.toUpperCase();
     const outlet = getOutletName(req);
     if (!outlet) return res.status(400).json({ message: 'Outlet required' });
-    const cacheKey = `${CACHE_KEY_PREFIX}barcode:${outlet}:${barcode}`;
-
-    const cached = cache.get(cacheKey);
-    if (cached) return res.json(cached);
-
+    // Barcode lookups skip cache to always return real-time stock
     let inv = await prisma.outletInventory.findFirst({
       where: { barcode: { equals: barcode, mode: 'insensitive' }, outletName: outlet }
     });
@@ -1014,7 +1010,6 @@ const lookupBarcode = async (req, res) => {
       price: inv.price || 0
     };
 
-    cache.set(cacheKey, result, cache.BARCODE_TTL);
     res.json(result);
   } catch (error) {
     res.status(500).json({ message: 'Failed to lookup barcode', error: error.message });
