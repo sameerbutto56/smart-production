@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Search, ShoppingCart, Plus, Minus, X, Trash2, Printer, Barcode, RotateCcw, CreditCard, DollarSign, Package, Tag, Grid3X3, List, ChevronDown, ChevronUp, AlertCircle, BarChart3, RefreshCw, Calendar, TrendingUp, Award, Clock, CheckCircle2, Globe, Download } from 'lucide-react';
+import { Search, ShoppingCart, Plus, Minus, X, Trash2, Printer, Barcode, RotateCcw, CreditCard, DollarSign, Package, Tag, Grid3X3, List, ChevronDown, ChevronUp, AlertCircle, BarChart3, RefreshCw, Calendar, TrendingUp, Award, Clock, CheckCircle2, Globe, Download, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import JsBarcode from 'jsbarcode';
 import QRCode from 'qrcode';
@@ -12,6 +12,7 @@ import { normalizeInventoryEvent } from '../utils/normalizeEvents';
 import socket from '../socket';
 import { debounce } from '../utils/debounce';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import OutletJournal from '../components/OutletJournal';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -1700,6 +1701,14 @@ const OutletPOS = () => {
     );
   }
 
+  if (tab === 'journal') {
+    return (
+      <div className="h-full overflow-y-auto p-4">
+        <OutletJournal outlet={selectedOutlet} />
+      </div>
+    );
+  }
+
   return (
     <div className="h-[calc(100vh-80px)] flex flex-col">
       {/* Top Bar */}
@@ -1708,6 +1717,7 @@ const OutletPOS = () => {
         <button onClick={() => setTab('dashboard')} className={`text-xs font-bold px-3 py-2 rounded-xl ${tab === 'dashboard' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}><BarChart3 size={14} className="inline mr-1" />Dashboard</button>
         <button onClick={() => setTab('returns')} className={`text-xs font-bold px-3 py-2 rounded-xl ${tab === 'returns' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}><RotateCcw size={14} className="inline mr-1" />Returns</button>
         <button onClick={() => setTab('history')} className={`text-xs font-bold px-3 py-2 rounded-xl ${tab === 'history' ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}><Clock size={14} className="inline mr-1" />History</button>
+        <button onClick={() => setTab('journal')} className={`text-xs font-bold px-3 py-2 rounded-xl ${tab === 'journal' ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}><FileText size={14} className="inline mr-1" />Journal</button>
         <button onClick={() => {
           invalidateKey(productsKey);
           invalidateKey(dashboardKey);
