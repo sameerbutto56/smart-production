@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { ArrowRightLeft, ArrowUp, ArrowDown, Plus, Minus, X, Search, ChevronDown, ChevronUp, Printer, Package, Building2 } from 'lucide-react';
+import { ArrowRightLeft, ArrowUp, ArrowDown, Plus, Minus, X, Search, ChevronDown, ChevronUp, Printer, Package, Building2, Barcode } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const OUTLETS = ['Johar Town', 'Jail Road', 'Abbottabad'];
@@ -38,6 +38,7 @@ const OutletTransfers = () => {
   const [pickupMethod, setPickupMethod] = useState('RIDER');
   const [transferItems, setTransferItems] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [barcodeInput, setBarcodeInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
   const [actionLoading, setActionLoading] = useState(null);
@@ -71,9 +72,20 @@ const OutletTransfers = () => {
     if (tab === 'new' && fromOutlet) fetchInventory(fromOutlet);
   }, [tab, fromOutlet]);
 
+  const barcodeMap = useMemo(() => {
+    const map = new Map();
+    for (const p of inventory) {
+      if (p.barcode) map.set(p.barcode, p);
+    }
+    return map;
+  }, [inventory]);
+
   const filteredInventory = useMemo(() => {
     let items = inventory;
-    if (searchTerm) items = items.filter(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      items = items.filter(i => i.name.toLowerCase().includes(q) || (i.barcode && i.barcode.toLowerCase().includes(q)));
+    }
     return items;
   }, [inventory, searchTerm]);
 
@@ -110,6 +122,33 @@ const OutletTransfers = () => {
   };
 
   const removeTransferItem = (key) => setTransferItems(transferItems.filter(t => t.key !== key));
+
+  const handleBarcodeLookup = (code) => {
+    if (!code) return;
+    code = code.trim();
+    let v = barcodeMap.get(code);
+    if (!v) {
+      const upper = code.toUpperCase();
+      for (const [key, val] of barcodeMap) {
+        if (key.toUpperCase() === upper) { v = val; break; }
+      }
+    }
+    if (!v) return toast.error(`Barcode not found in ${fromOutlet} inventory: ${code}`);
+    if (v.stock != null && v.stock < 1) return toast.error(`"${v.name}" is out of stock`);
+    addTransferItem(v);
+    toast.success(`${v.name} added via barcode`);
+  };
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === 'Enter' && barcodeInput) {
+        handleBarcodeLookup(barcodeInput);
+        setBarcodeInput('');
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [barcodeInput]);
 
   const handleCreateTransfer = async () => {
     if (!destOutlet) return toast.error('Select destination outlet');
@@ -384,9 +423,14 @@ const OutletTransfers = () => {
 
           <div className="bg-gray-900 border-2 border-gray-800 rounded-2xl p-4">
             <h2 className="text-sm font-black text-white mb-3 flex items-center gap-2"><Package size={16} />{fromOutlet ? `${fromOutlet} Inventory` : 'Select source outlet'}</h2>
-            <div className="relative mb-3">
+            <div className="relative mb-2">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-              <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search products..."
+              <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search by name or barcode..."
+                className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
+            </div>
+            <div className="relative mb-3">
+              <Barcode size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+              <input value={barcodeInput} onChange={e => setBarcodeInput(e.target.value)} placeholder="Scan barcode..."
                 className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
             </div>
             <div className="space-y-1 max-h-[400px] overflow-y-auto">
