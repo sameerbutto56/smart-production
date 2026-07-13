@@ -37,17 +37,15 @@ const PRINT_CSS = `
     font-size: 18px;
   }
   th {
-    background: #000;
-    color: #fff;
+    background: none;
+    color: #000;
     padding: 6px 10px;
     text-align: left;
     font-size: 18px;
     font-weight: 900;
     text-transform: uppercase;
-    border: 2px solid #222;
+    border-bottom: 3px solid #000;
     letter-spacing: 0.5px;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
   }
   td {
     padding: 3px 6px;
