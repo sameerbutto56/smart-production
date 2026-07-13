@@ -381,7 +381,7 @@ const updateVariant = async (req, res) => {
 /* ─── Sales ─── */
 const createSale = async (req, res) => {
   try {
-    const { items, customerName, customerPhone, extraCharges, discountPercent, discountFixed, paymentMethod, advanceAmount, cardChargesPct, orderId, receiptNumber: manualReceipt, cashierName, faisalTake, cashAmount, onlineAmount } = req.body;
+    const { items, customerName, customerPhone, extraCharges, discountPercent, discountFixed, paymentMethod, advanceAmount, deliveryCharges, cardChargesPct, orderId, receiptNumber: manualReceipt, cashierName, faisalTake, cashAmount, onlineAmount } = req.body;
     if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'At least one item is required' });
 
     const outletName = getOutletName(req);
@@ -449,6 +449,7 @@ const createSale = async (req, res) => {
       return res.status(400).json({ message: `Insufficient stock for: ${stockErrors.join('; ')}` });
     }
 
+    const deliveryCharge = parseFloat(deliveryCharges || 0);
     const globalPct = parseFloat(discountPercent || 0);
     const globalFixed = parseFloat(discountFixed || 0);
     const globalDiscountAmt = (netAfterItems * globalPct / 100) + globalFixed;
@@ -456,7 +457,7 @@ const createSale = async (req, res) => {
     const netAfterGlobal = netAfterItems - globalDiscountAmt;
     const cardPct = parseFloat(cardChargesPct || 0);
     const cardChargesAmount = (netAfterItems * cardPct) / 100;
-    const grandTotal = netAfterGlobal + cardChargesAmount;
+    const grandTotal = netAfterGlobal + cardChargesAmount + deliveryCharge;
 
     const isFaisalTake = faisalTake === true || faisalTake === 'true';
 
@@ -498,6 +499,7 @@ const createSale = async (req, res) => {
           discountAmount: isFaisalTake ? 0 : discountAmount,
           grandTotal: isFaisalTake ? 0 : grandTotal,
           advanceAmount: isFaisalTake ? 0 : (parseFloat(advanceAmount || 0)),
+          deliveryCharges: isFaisalTake ? 0 : deliveryCharge,
           orderId: isFaisalTake ? null : (orderId || null),
           cardChargesPct: isFaisalTake ? 0 : cardPct,
           cardChargesAmount: isFaisalTake ? 0 : cardChargesAmount,

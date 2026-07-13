@@ -95,6 +95,7 @@ const OutletPOS = () => {
   });
   const [orderNumber, setOrderNumber] = useState('');
   const [advanceAmount, setAdvanceAmount] = useState(0);
+  const [deliveryEnabled, setDeliveryEnabled] = useState(false);
   const [cardChargesPct, setCardChargesPct] = useState(0);
   const [customerName, setCustomerName] = useState(() => localStorage.getItem('pos_customer_name') || '');
   const [customerPhone, setCustomerPhone] = useState(() => localStorage.getItem('pos_customer_phone') || '');
@@ -305,13 +306,17 @@ const OutletPOS = () => {
   const subtotal = useMemo(() => cart.reduce((s, i) => s + i.unitPrice * i.qty, 0), [cart]);
   const altCharges = useMemo(() => cart.reduce((s, i) => s + (i.alterationAmount || 0), 0), [cart]);
   const custCharges = useMemo(() => cart.reduce((s, i) => s + (i.customization1 ? 500 : 0) + (i.customization2 ? 1000 : 0) + (i.nameEngrave ? 300 : 0), 0), [cart]);
+  const cust1Total = useMemo(() => cart.reduce((s, i) => s + (i.customization1 ? 500 : 0), 0), [cart]);
+  const cust2Total = useMemo(() => cart.reduce((s, i) => s + (i.customization2 ? 1000 : 0), 0), [cart]);
+  const engraveTotal = useMemo(() => cart.reduce((s, i) => s + (i.nameEngrave ? 300 : 0), 0), [cart]);
   const perItemDiscount = useMemo(() => cart.reduce((s, i) => {
     const base = i.unitPrice * i.qty;
     const dpct = parseFloat(i.discountPct) || 0;
     const dfixed = parseFloat(i.discountFixed) || 0;
     return s + (base * dpct / 100) + dfixed;
   }, 0), [cart]);
-  const netBeforeGlobal = subtotal - perItemDiscount + altCharges + custCharges;
+  const deliveryCharge = deliveryEnabled ? 250 : 0;
+  const netBeforeGlobal = subtotal - perItemDiscount + altCharges + custCharges + deliveryCharge;
   const globalDiscountAmt = netBeforeGlobal * discountPct / 100 + discountFixed;
   const cardChargesAmt = paymentMethod === 'CARD' ? (netBeforeGlobal * cardChargesPct) / 100 : 0;
   const grandTotal = faisalTake ? 0 : (netBeforeGlobal - globalDiscountAmt + cardChargesAmt);
@@ -473,6 +478,7 @@ const OutletPOS = () => {
       discountPercent: discountPct,
       discountFixed: discountFixed,
       advanceAmount: parseFloat(advanceAmount) || 0,
+      deliveryCharges: deliveryCharge,
       cardChargesPct: parseFloat(cardChargesPct) || 0,
       orderId: lookedUpOrder?.id || null,
       paymentMethod,
@@ -492,6 +498,7 @@ const OutletPOS = () => {
         setDiscountPct(0);
         setDiscountFixed(0);
         setAdvanceAmount(0);
+        setDeliveryEnabled(false);
         setLookedUpOrder(null);
         setCustomerName('');
         setCustomerPhone('');
@@ -511,6 +518,7 @@ const OutletPOS = () => {
       setDiscountPct(0);
       setDiscountFixed(0);
       setAdvanceAmount(0);
+      setDeliveryEnabled(false);
       setCashAmount(0); setOnlineAmount(0);
       setPaymentMethod('');
       setLookedUpOrder(null);
@@ -624,6 +632,7 @@ const OutletPOS = () => {
     w.document.write('</div><div class="section-label">SUMMARY</div>');
     w.document.write(`<table class="summary"><tr class="sub"><td>Subtotal</td><td class="value">${pf(sale.subtotal)}</td></tr>`);
     if (sale.alterationCharges > 0) w.document.write(`<tr><td>Alteration</td><td class="value">${pf(sale.alterationCharges)}</td></tr>`);
+    if (sale.deliveryCharges > 0) w.document.write(`<tr><td>Delivery Charges</td><td class="value">${pf(sale.deliveryCharges)}</td></tr>`);
     const receiptCustTotal = (sale.items || []).reduce((s, i) => s + (i.customizationCharges || 0), 0);
     if (receiptCustTotal > 0) w.document.write(`<tr><td>Customization</td><td class="value">${pf(receiptCustTotal)}</td></tr>`);
     const receiptOtherTotal = (sale.items || []).reduce((s, i) => s + (parseFloat(i.otherCharges) || 0), 0);
@@ -1779,16 +1788,34 @@ const OutletPOS = () => {
                   <span>{formatCurrency(altCharges)}</span>
                 </div>
               )}
-              {custCharges > 0 && (
+              {cust1Total > 0 && (
                 <div className="flex items-center justify-between text-xs text-purple-400">
-                  <span>Discount</span>
-                  <span>{formatCurrency(custCharges)}</span>
+                  <span>Customization 1</span>
+                  <span>{formatCurrency(cust1Total)}</span>
+                </div>
+              )}
+              {cust2Total > 0 && (
+                <div className="flex items-center justify-between text-xs text-purple-400">
+                  <span>Customization 2</span>
+                  <span>{formatCurrency(cust2Total)}</span>
+                </div>
+              )}
+              {engraveTotal > 0 && (
+                <div className="flex items-center justify-between text-xs text-purple-400">
+                  <span>Name Engraving</span>
+                  <span>{formatCurrency(engraveTotal)}</span>
                 </div>
               )}
               {perItemDiscount > 0 && (
                 <div className="flex items-center justify-between text-xs text-blue-400">
                   <span>Item Discounts</span>
                   <span>-{formatCurrency(perItemDiscount)}</span>
+                </div>
+              )}
+              {deliveryCharge > 0 && (
+                <div className="flex items-center justify-between text-xs text-orange-400">
+                  <span>Delivery Charges</span>
+                  <span>{formatCurrency(deliveryCharge)}</span>
                 </div>
               )}
               <div className="flex items-center gap-2">
@@ -1830,6 +1857,11 @@ const OutletPOS = () => {
                 className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
               <input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="Customer phone *required"
                 className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
+              <label className="flex items-center gap-2 bg-gray-800/50 rounded-lg px-3 py-2 cursor-pointer">
+                <input type="checkbox" checked={deliveryEnabled} onChange={e => setDeliveryEnabled(e.target.checked)}
+                  className="accent-orange-500 w-4 h-4" />
+                <span className="text-[10px] font-bold text-orange-400">Delivery (+₨250)</span>
+              </label>
               <div className="flex items-center justify-between bg-gray-800/50 rounded-lg px-3 py-2">
                 <label className="text-[10px] font-bold text-gray-400">Advance ₨</label>
                 <input type="number" value={advanceAmount} onChange={e => setAdvanceAmount(Math.max(0, parseFloat(e.target.value) || 0))}
