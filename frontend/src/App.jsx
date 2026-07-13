@@ -33,6 +33,7 @@ const OutletTransfers = lazy(() => import('./pages/OutletTransfers'));
 const OrderTrack = lazy(() => import('./pages/OrderTrack'));
 const OutletOrderEntry = lazy(() => import('./pages/OutletOrderEntry'));
 const OutletDashboard = lazy(() => import('./pages/OutletDashboard'));
+const OutletJournalPage = lazy(() => import('./pages/OutletJournalPage'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -115,6 +116,7 @@ function App() {
                   <Route path="pos-inventory" element={<OutletPOSInventory />} />
                   <Route path="transfers" element={<OutletTransfers />} />
                   <Route path="order-track" element={<OrderTrack />} />
+                  <Route path="journal" element={<OutletJournalPage />} />
                 </Route>
               </Routes>
               </ErrorBoundary>

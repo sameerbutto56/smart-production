@@ -27,6 +27,7 @@ import {
   ShoppingBag,
   ArrowRightLeft,
   ArrowLeft,
+  FileText,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import socket from '../socket';
@@ -72,7 +73,8 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     { name: 'Production', path: '/production', icon: Factory, roles: ['PRODUCTION'] },
     { name: 'Refund Management', path: '/refund-management', icon: RotateCcw, roles: ['DELIVERY_BOY'] },
     { name: 'Client Registration', path: '/clients', icon: UserPlus, roles: ['OUTLET'] },
-    { name: 'POS', path: '/pos', icon: ShoppingCart, roles: ['OUTLET'] }
+    { name: 'POS', path: '/pos', icon: ShoppingCart, roles: ['OUTLET'] },
+    { name: 'General Entries', path: '/journal', icon: FileText, roles: ['OUTLET'] }
   ];
   
   const isBigScreen = user?.role === 'MAIN_EMPLOYEE';
@@ -85,7 +87,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     
     // 2. Extra safety for Outlets
     if (userRole === 'OUTLET') {
-      return ['Outlet Dashboard', 'Orders', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry'].includes(item.name);
+      return ['Outlet Dashboard', 'Orders', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'General Entries'].includes(item.name);
     }
     
     // 3. Explicit Restriction for Delivery Boy
