@@ -927,7 +927,7 @@ function fmtDateTime(d) {
 /** Urdu labels for production sections */
 const urduSection = {
   products: 'آرٹیکلز',
-  engraving: 'اینگرونگ',
+  engraving: 'کڑھائی',
   measurements: 'پیمائش',
   instructionNotes: 'ہدایات (نوٹس)',
   product: 'آرٹیکل',
@@ -947,7 +947,7 @@ const urduSection = {
   orderEntryDate: 'آرڈر انٹری کی تاریخ',
   shopifyDate: 'شاپیفائے آرڈر کی تاریخ',
   orderDate: 'آرڈر کی تاریخ',
-  engravingType: 'اینگرونگ کی قسم',
+  engravingType: 'کڑھائی کی قسم',
   directEngraving: 'ڈائریکٹ اینگرونگ',
   patchEngraving: 'پیچ اینگرونگ',
   customAttributes: 'کسٹم ایٹریبیوٹس',
@@ -976,7 +976,7 @@ const urduSection = {
   standard: 'اسٹینڈرڈ',
   readyLogo: 'ریڈی لوگو',
   male: 'مرد',
-  female: 'خاتون',
+  female: 'عورت',
   dupatta: 'دوپٹہ',
   extra: 'اضافی',
 };
@@ -1062,8 +1062,13 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const shMap = { 'long':'Long', 'short':'Short', 'regular':'Regular' };
   const femSlMap = { 'full':'Full', 'half':'Half', 'medium':'Medium' };
   const femShMap = { 'long':'Long', 'short':'Short' };
-  const slDisplay = (v) => v ? (slMap[v] || v) : '';
-  const shDisplay = (v) => v ? (shMap[v] || v) : '';
+  const urduSlMap = { 'full':'فل بازو', 'half':'آدھی بازو', 'three-quarter':'کوارٹر', 'quarter':'کوارٹر' };
+  const urduShMap = { 'long':'لمبی بازو', 'short':'چھوٹی بازو', 'regular':'باقاعدہ' };
+  const urduFemSlMap = { 'full':'فل بازو', 'half':'آدھی بازو', 'medium':'درمیانی' };
+  const urduFemShMap = { 'long':'لمبی بازو', 'short':'چھوٹی بازو' };
+  const slDisplay = (v) => v ? (isUrdu ? (urduSlMap[v] || v) : (slMap[v] || v)) : '';
+  const shDisplay = (v) => v ? (isUrdu ? (urduShMap[v] || v) : (shMap[v] || v)) : '';
+  const genDisplay = (g) => g ? (isUrdu ? (g === 'Male' ? 'مرد' : g === 'Female' ? 'عورت' : g) : g) : '';
   const sec = lang === 'en' ? enSection : urduSection;
   const isUrdu = lang === 'ur';
   const ru = (t) => isUrdu && t ? romanToUrdu(t) : t;
@@ -1162,7 +1167,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       if (p.alteration?.sleeveLength) altParts.push(`Sleeve ${p.alteration.sleeveLength}"`);
       const altStr = altParts.length > 0 ? ` | Alt: ${altParts.join(' ')}` : '';
       const altStyle = altParts.length > 0 ? 'background-color:#fbbf24;color:#000;font-weight:700;padding:2px 6px;border-radius:4px;' : '';
-      const genStr = p.gender ? `${p.gender}` : '';
+      const genStr = genDisplay(p.gender);
       const szStr = p.size ? `Size ${p.size}` : 'Custom';
       win.document.write(`<td>${szStr}${genStr ? ` • ${genStr}` : ''}${extras ? ` • ${extras}` : ''}${altStr ? `<br><span style="${altStyle}">${altStr}</span>` : ''}</td>`);
       win.document.write(`<td style="text-align:center;font-weight:700">${item.quantity || 1}</td>`);
@@ -1188,7 +1193,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     const altStr = altParts.length > 0 ? ` | Alt: ${altParts.join(' ')}` : '';
     const altStyle = altParts.length > 0 ? 'background-color:#fbbf24;color:#000;font-weight:700;padding:2px 6px;border-radius:4px;' : '';
     win.document.write(`<td>${firstProduct.size || 'Custom'}</td>`);
-    win.document.write(`<td>${firstProduct.gender || '—'}${extras ? ` ${extras}` : ''}${altStr ? `<br><span style="${altStyle}">${altStr}</span>` : ''}</td>`);
+      win.document.write(`<td>${genDisplay(firstProduct.gender) || '—'}${extras ? ` ${extras}` : ''}${altStr ? `<br><span style="${altStyle}">${altStr}</span>` : ''}</td>`);
     win.document.write(`<td style="text-align:center;font-weight:700">${order.quantity || 1}</td>`);
     if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;color:#000">${capQty || '—'}</td>`);
     win.document.write(`<td style="text-align:right;font-weight:700">${priceDisplay(order.totalPrice)}</td>`);
