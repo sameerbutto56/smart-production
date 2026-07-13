@@ -566,7 +566,8 @@ const getSales = async (req, res) => {
       const totalAdvance = s.advanceAmount || 0;
       const totalBalancePayments = s.balancePayments.reduce((sum, bp) => sum + bp.amountPaidNow, 0);
       const totalReceived = totalAdvance + totalBalancePayments;
-      const remaining = Math.max(0, s.grandTotal - totalReceived);
+      // If no advance and no balance payments, the invoice was fully paid at checkout
+      const remaining = (totalAdvance === 0 && s.balancePayments.length === 0) ? 0 : Math.max(0, s.grandTotal - totalReceived);
       const { balancePayments, ...saleData } = s;
       return {
         ...saleData,
@@ -1248,7 +1249,8 @@ const getBalanceInvoices = async (req, res) => {
     const invoices = sales
       .map(s => {
         const totalPaid = s.advanceAmount + s.balancePayments.reduce((sum, bp) => sum + bp.amountPaidNow, 0);
-        const remaining = s.grandTotal - totalPaid;
+        // If no advance and no balance payments, the invoice was fully paid at checkout
+        const remaining = (s.advanceAmount === 0 && s.balancePayments.length === 0) ? 0 : Math.max(0, s.grandTotal - totalPaid);
         return {
           id: s.id,
           receiptNumber: s.receiptNumber,
