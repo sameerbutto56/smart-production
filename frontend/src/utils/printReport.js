@@ -385,6 +385,8 @@ function romanToUrdu(text) {
     'beige': 'بیج',
     'magenta': 'میجنٹا',
     'turquoise': 'فیروزی',
+    'olive': 'اولیو',
+    'emboss': 'ایمبوس',
 
     // Body parts (tailoring)
     'chest': 'چھاتی', 'seena': 'سینہ', 'sina': 'سینہ',
