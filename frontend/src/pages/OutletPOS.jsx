@@ -120,6 +120,10 @@ const OutletPOS = () => {
   const [refundPaymentMethod, setRefundPaymentMethod] = useState('CASH');
   const [returnLoading, setReturnLoading] = useState(false);
   const [receiptSearch, setReceiptSearch] = useState('');
+  const [invoiceReturnInput, setInvoiceReturnInput] = useState('');
+  const [invoiceReturnLoading, setInvoiceReturnLoading] = useState(false);
+  const [lookedUpReturnSale, setLookedUpReturnSale] = useState(null);
+  const [refundLoading, setRefundLoading] = useState(false);
   const [employeeName, setEmployeeName] = useState(() => localStorage.getItem('pos_employee_name') || '');
   const [employeePassword, setEmployeePassword] = useState('');
   const [employeeLoggedIn, setEmployeeLoggedIn] = useState(() => localStorage.getItem('pos_employee_logged_in') === 'true');
@@ -133,6 +137,7 @@ const OutletPOS = () => {
   const [selectedBalanceInvoice, setSelectedBalanceInvoice] = useState(null);
   const [showPayBalanceModal, setShowPayBalanceModal] = useState(false);
   const [payAmount, setPayAmount] = useState(0);
+  const [balancePaymentMethod, setBalancePaymentMethod] = useState('CASH');
   const [paying, setPaying] = useState(false);
   const [balanceCollectionRange, setBalanceCollectionRange] = useState('today');
   const [balanceCollectionDateFrom, setBalanceCollectionDateFrom] = useState('');
@@ -567,10 +572,12 @@ const OutletPOS = () => {
     const adv = parseFloat(sale.advanceAmount) || 0;
     const isOrderSale = !!sale.orderId;
     const totalQty = (sale.items || []).reduce((s, i) => s + (i.quantity || 0), 0);
+    const isPartialPayment = !isFT && adv > 0 && adv < sale.grandTotal;
+    const isRefunded = !!sale.refundedAt;
     let gpPaid, gpBalance;
     if (isFT) { gpPaid = 0; gpBalance = 0; }
     else if (isOrderSale) { gpPaid = sale.grandTotal + adv; gpBalance = 0; }
-    else if (adv > 0) { gpPaid = adv; gpBalance = sale.grandTotal - adv; }
+    else if (isPartialPayment) { gpPaid = adv; gpBalance = sale.grandTotal - adv; }
     else { gpPaid = sale.grandTotal; gpBalance = 0; }
     const receiptStyle = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt</title><style>
       @page { margin: 0; size: 80mm auto; }
@@ -640,15 +647,27 @@ const OutletPOS = () => {
     if (sale.extraCharges > 0) w.document.write(`<tr><td>Extra Charges</td><td class="value">${pf(sale.extraCharges)}</td></tr>`);
     if (sale.discountPercent > 0 || sale.discountAmount > 0) w.document.write(`<tr><td>Discount${sale.discountPercent > 0 ? ` (${sale.discountPercent}%)` : ''}</td><td class="value">-${pf(sale.discountAmount)}</td></tr>`);
     if (sale.cardChargesPct > 0) w.document.write(`<tr><td>Card Charges (${sale.cardChargesPct}%)</td><td class="value">+${pf(sale.cardChargesAmount)}</td></tr>`);
-    if (isOrderSale && adv > 0) {
-      w.document.write(`<tr class="final"><td>Current Payment</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
-      w.document.write(`<tr><td>Advance (Order)</td><td class="value">${pf(adv)}</td></tr>`);
-      w.document.write(`<tr style="font-size:17px;font-weight:900;"><td>Total Paid</td><td class="value">${pf(sale.grandTotal + adv)}</td></tr>`);
+    const balance = sale.grandTotal - adv;
+    if (isFT) {
+      // no summary
+    } else if (isRefunded) {
+      w.document.write(`<tr style="font-size:17px;font-weight:900;color:#c00;"><td>Refunded</td><td class="value">-${pf(sale.grandTotal)}</td></tr>`);
+    } else if (isOrderSale) {
+      w.document.write(`<tr class="final"><td>Total</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
+      w.document.write(`<tr><td>Paid (This Transaction)</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
+      w.document.write(`<tr><td>Advance (Previous)</td><td class="value">${pf(adv)}</td></tr>`);
+      w.document.write(`<tr style="font-size:17px;font-weight:900;"><td>Cumulative Paid</td><td class="value">${pf(sale.grandTotal + adv)}</td></tr>`);
+      w.document.write(`<tr><td style="font-size:11px;color:#070;font-weight:900;">Status</td><td class="value" style="font-size:11px;color:#070;font-weight:900;">Fully Paid</td></tr>`);
+    } else if (isPartialPayment) {
+      w.document.write(`<tr class="final"><td>Total Bill</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
+      w.document.write(`<tr><td>Paid</td><td class="value">${pf(adv)}</td></tr>`);
+      w.document.write(`<tr style="font-size:17px;font-weight:900;color:#c00;"><td>Balance</td><td class="value" style="color:#c00;">${pf(balance)}</td></tr>`);
+      w.document.write(`<tr><td style="font-size:11px;color:#c00;font-weight:900;">Status</td><td class="value" style="font-size:11px;color:#c00;font-weight:900;">Partially Paid</td></tr>`);
     } else {
-      const balance = sale.grandTotal - adv;
-      w.document.write(`<tr class="final"><td>Final Amount</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
-      if (adv > 0) w.document.write(`<tr><td>Advance</td><td class="value">-${pf(adv)}</td></tr>`);
-      if (adv > 0) w.document.write(`<tr style="font-size:17px;font-weight:900;"><td>Balance</td><td class="value">${pf(balance)}</td></tr>`);
+      w.document.write(`<tr class="final"><td>Total Bill</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
+      w.document.write(`<tr><td>Paid</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
+      w.document.write(`<tr><td>Balance</td><td class="value">₨0</td></tr>`);
+      w.document.write(`<tr><td style="font-size:11px;color:#070;font-weight:900;">Status</td><td class="value" style="font-size:11px;color:#070;font-weight:900;">Fully Paid</td></tr>`);
     }
     if (sale.paymentMethod === 'CASH_ONLINE') {
       w.document.write(`<tr><td>Cash Amount</td><td class="value">${pf(sale.cashAmount)}</td></tr>`);
@@ -761,6 +780,56 @@ const OutletPOS = () => {
       toast.error(err.response?.data?.message || 'Return failed');
     }
     setReturnLoading(false);
+  };
+
+  /* ─── Return by Invoice Number ─── */
+  const handleInvoiceLookup = async () => {
+    const input = invoiceReturnInput.trim();
+    if (!input) return;
+    setInvoiceReturnLoading(true);
+    setLookedUpReturnSale(null);
+    try {
+      const res = await api.get(`/api/pos/sales?outlet=${selectedOutlet}&search=${encodeURIComponent(input)}`);
+      const sale = res.data?.[0];
+      if (!sale) return toast.error('Invoice not found');
+      setLookedUpReturnSale(sale);
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed to look up invoice');
+    }
+    setInvoiceReturnLoading(false);
+  };
+
+  const handleRefundInvoice = async (sale) => {
+    if (!window.confirm(`Refund full invoice ${sale.receiptNumber} for ${formatCurrency(sale.grandTotal)}? This cannot be undone.`)) return;
+    setRefundLoading(true);
+    try {
+      await api.post(`/api/pos/sales/${sale.id}/refund`);
+      toast.success('Invoice fully refunded');
+      setLookedUpReturnSale(null);
+      setInvoiceReturnInput('');
+      refreshProducts();
+      refreshDashboard();
+      refreshSales();
+      refreshReturns();
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Refund failed');
+    }
+    setRefundLoading(false);
+  };
+
+  /* ─── Refund from Sales History ─── */
+  const handleRefundInvoiceFromHistory = async (sale) => {
+    if (!window.confirm(`Refund full invoice ${sale.receiptNumber} for ${formatCurrency(sale.grandTotal)}? All items will be returned to inventory.`)) return;
+    try {
+      await api.post(`/api/pos/sales/${sale.id}/refund`);
+      toast.success('Invoice fully refunded');
+      refreshProducts();
+      refreshDashboard();
+      refreshSales();
+      refreshReturns();
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Refund failed');
+    }
   };
 
   const downloadExcel = useCallback(() => {
@@ -877,7 +946,7 @@ const OutletPOS = () => {
     try {
       const res = await api.post(`/api/pos/balance-invoices/${selectedBalanceInvoice.id}/pay`, {
         amountPaidNow: payAmount,
-        paymentMethod: 'CASH'
+        paymentMethod: balancePaymentMethod
       });
       setLastBalancePayment(res.data);
       setShowPayBalanceModal(false);
@@ -1019,7 +1088,14 @@ const OutletPOS = () => {
               </div>
               <div className="flex items-center justify-between text-xs text-gray-500 font-bold">
                 <span>Cashier: {s.cashierName || 'N/A'} {s.customerName ? `| Customer: ${s.customerName}` : ''}</span>
-                <button onClick={() => { setPendingPrintSale(s); setPrintOpts({ invoice: true, gatePass: true }); setShowPrintOptions(true); }} className="text-purple-400 hover:text-purple-300 bg-purple-500/10 px-3 py-1.5 rounded-xl"><Printer size={12} className="inline mr-1" />Reprint</button>
+                <div className="flex items-center gap-1">
+                  {!s.refundedAt && !s.faisalTake && (
+                    <button onClick={() => handleRefundInvoiceFromHistory(s)}
+                      className="text-red-400 hover:text-red-300 bg-red-500/10 px-3 py-1.5 rounded-xl"><RotateCcw size={12} className="inline mr-1" />Refund</button>
+                  )}
+                  {s.refundedAt && <span className="text-[10px] font-bold text-red-500 mr-2">Refunded</span>}
+                  <button onClick={() => { setPendingPrintSale(s); setPrintOpts({ invoice: true, gatePass: true }); setShowPrintOptions(true); }} className="text-purple-400 hover:text-purple-300 bg-purple-500/10 px-3 py-1.5 rounded-xl"><Printer size={12} className="inline mr-1" />Reprint</button>
+                </div>
               </div>
             </div>
           ))}
@@ -1035,6 +1111,7 @@ const OutletPOS = () => {
           <h1 className="text-2xl font-black text-white flex items-center gap-2"><RotateCcw size={24} />Returns</h1>
           <div className="flex gap-2">
             <button onClick={() => setReturnTab('scan')} className={`text-xs font-bold px-3 py-1.5 rounded-xl ${returnTab === 'scan' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'}`}>Scan Barcode</button>
+            <button onClick={() => setReturnTab('invoice')} className={`text-xs font-bold px-3 py-1.5 rounded-xl ${returnTab === 'invoice' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'}`}>By Invoice</button>
             <button onClick={() => setReturnTab('sales')} className={`text-xs font-bold px-3 py-1.5 rounded-xl ${returnTab === 'sales' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'}`}>From Sales</button>
             <button onClick={() => setReturnTab('history')} className={`text-xs font-bold px-3 py-1.5 rounded-xl ${returnTab === 'history' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'}`}>History</button>
           </div>
@@ -1052,6 +1129,53 @@ const OutletPOS = () => {
                     className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl pl-9 pr-3 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-red-500 outline-none" />
                 </div>
                 <p className="text-[10px] text-gray-600 mt-2">Scan a product barcode to add it to the return cart</p>
+              </div>
+            )}
+
+            {returnTab === 'invoice' && (
+              <div className="glass p-4 rounded-2xl border-2 border-gray-700">
+                <h2 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Return by Invoice Number</h2>
+                <div className="relative mb-3">
+                  <input value={invoiceReturnInput} onChange={e => setInvoiceReturnInput(e.target.value)}
+                    placeholder="Enter invoice / receipt number..." autoFocus
+                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-red-500 outline-none" />
+                </div>
+                <div className="flex gap-2 mb-3">
+                  <button onClick={handleInvoiceLookup} disabled={!invoiceReturnInput.trim() || invoiceReturnLoading}
+                    className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl text-xs">Search</button>
+                  <button onClick={() => { setInvoiceReturnInput(''); setLookedUpReturnSale(null); }}
+                    className="bg-gray-800 hover:bg-gray-700 text-gray-400 font-bold px-4 py-2.5 rounded-xl text-xs">Clear</button>
+                </div>
+                {invoiceReturnLoading && <p className="text-center text-gray-500 text-xs py-4">Searching...</p>}
+                {lookedUpReturnSale && (
+                  <div className="bg-gray-800/80 rounded-xl p-3 border border-red-800/50">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <p className="text-sm font-bold text-white">{lookedUpReturnSale.receiptNumber}</p>
+                        <p className="text-[10px] text-gray-400">{lookedUpReturnSale.customerName || 'No customer'} &bull; {new Date(lookedUpReturnSale.createdAt).toLocaleDateString()}</p>
+                      </div>
+                      <span className="text-xs font-bold text-emerald-400">{formatCurrency(lookedUpReturnSale.grandTotal)}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mb-3">
+                      {(lookedUpReturnSale.items || []).map((item, idx) => (
+                        <span key={idx} className="text-[9px] text-gray-500 bg-gray-900 px-1.5 py-0.5 rounded">
+                          {item.productName} {item.color ? `(${item.color})` : ''} x{item.quantity}
+                        </span>
+                      ))}
+                    </div>
+                    {lookedUpReturnSale.refundedAt ? (
+                      <p className="text-center text-[10px] font-bold text-red-500 py-2">Already Refunded</p>
+                    ) : (
+                      <button onClick={() => handleRefundInvoice(lookedUpReturnSale)}
+                        className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2">
+                        <RotateCcw size={14} /> Refund Full Invoice (-{formatCurrency(lookedUpReturnSale.grandTotal)})
+                      </button>
+                    )}
+                  </div>
+                )}
+                {!lookedUpReturnSale && !invoiceReturnLoading && (
+                  <p className="text-[10px] text-gray-600 mt-2">Enter an invoice number to load and refund the entire invoice.</p>
+                )}
               </div>
             )}
 
@@ -2084,6 +2208,17 @@ const OutletPOS = () => {
               </div>
             </div>
 
+            <div className="mb-4">
+              <label className="text-xs font-bold text-gray-400 block mb-2">Payment Method</label>
+              <div className="flex gap-2">
+                {['CASH', 'CARD', 'ONLINE'].map(m => (
+                  <button key={m} onClick={() => setBalancePaymentMethod(m)}
+                    className={`flex-1 px-3 py-2 rounded-xl text-xs font-bold border-2 ${balancePaymentMethod === m ? 'border-emerald-500 bg-emerald-600/20 text-emerald-300' : 'border-gray-700 text-gray-500'}`}>
+                    {m === 'CASH' ? 'Cash' : m === 'CARD' ? 'Card' : 'Online'}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="mb-4">
               <label className="text-xs font-bold text-gray-400 block mb-1">Amount to Pay</label>
               <input type="number" value={payAmount} onChange={e => setPayAmount(parseFloat(e.target.value) || 0)}

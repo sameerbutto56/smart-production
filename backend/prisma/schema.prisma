@@ -508,11 +508,13 @@ model PosSale {
   onlineAmount     Float    @default(0)
   faisalTake       Boolean  @default(false)
   faisalTakenAt    DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-   items            PosSaleItem[]
-   returns          PosReturn[]
-   balancePayments  PosBalancePayment[]
+   createdAt        DateTime @default(now())
+   updatedAt        DateTime @updatedAt
+   refundedAt       DateTime?
+   refundReason     String?
+    items            PosSaleItem[]
+    returns          PosReturn[]
+    balancePayments  PosBalancePayment[]
 
   @@index([receiptNumber])
   @@index([outletName])

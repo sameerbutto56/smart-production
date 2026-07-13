@@ -675,7 +675,7 @@ const getSalesDashboard = async (req, res) => {
     // Calculate total sales by actual payment dates
     // Regular sales (no orderId): full grandTotal counted on sale date
     // Advance/balance sales: only advanceAmount counted on sale date (balance tracked via PosBalancePayment)
-    const saleRevenue = (s) => s.orderId ? (s.advanceAmount >= s.grandTotal ? s.grandTotal : s.advanceAmount) : s.grandTotal;
+    const saleRevenue = (s) => s.advanceAmount > 0 ? Math.min(s.advanceAmount, s.grandTotal) : s.grandTotal;
     let totalSales = 0;
     allSales.forEach(s => {
       totalSales += saleRevenue(s);
@@ -939,6 +939,55 @@ const getReturns = async (req, res) => {
     res.json(mapped);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch returns', error: error.message });
+  }
+};
+
+/* ─── Full Invoice Refund ─── */
+const refundInvoice = async (req, res) => {
+  try {
+    const { saleId } = req.params;
+    const outlet = getOutletName(req);
+
+    const sale = await prisma.posSale.findUnique({
+      where: { id: saleId },
+      include: { items: true }
+    });
+    if (!sale) return res.status(404).json({ message: 'Sale not found' });
+    if (sale.refundedAt) return res.status(400).json({ message: 'Invoice already refunded' });
+    if (sale.faisalTake) return res.status(400).json({ message: 'Cannot refund Faisal Take' });
+
+    // Restore inventory and create return records for each item
+    for (const item of sale.items) {
+      if (item.outletVariantId) {
+        await prisma.outletInventory.update({
+          where: { id: item.outletVariantId },
+          data: { stock: { increment: item.quantity } }
+        });
+      }
+      const refundAmount = item.lineTotal;
+      await prisma.posReturn.create({
+        data: {
+          outletVariantId: item.outletVariantId,
+          outletName: outlet || sale.outletName || 'Johar Town',
+          saleId: sale.id,
+          reason: 'Full invoice refund',
+          quantity: item.quantity,
+          refundAmount,
+          refundPaymentMethod: sale.paymentMethod
+        }
+      });
+    }
+
+    // Mark sale as refunded
+    await prisma.posSale.update({
+      where: { id: saleId },
+      data: { refundedAt: new Date(), refundReason: 'Full invoice refund' }
+    });
+
+    cache.delPattern(CACHE_KEY_PREFIX);
+    res.json({ message: 'Invoice fully refunded', saleId });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to refund invoice', error: error.message });
   }
 };
 
@@ -1404,6 +1453,7 @@ module.exports = {
   payBalance,
   getBalanceCollections,
   getBalancePaymentHistory,
-  getEmployees
+  getEmployees,
+  refundInvoice
 };
 
