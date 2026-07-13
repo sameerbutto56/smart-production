@@ -152,19 +152,19 @@ const acceptTransfer = async (req, res) => {
         where: { id: srcVariantId },
         data: { stock: { decrement: item.quantity } }
       });
-      // Find or create destination inventory — match by barcode first, then name+color+size
+      // Find or create destination inventory — match by barcode, then name+color+size via JS
       let destOv = await prisma.outletInventory.findFirst({
         where: { barcode: item.barcode, outletName: transfer.toOutlet }
       });
       if (!destOv) {
-        destOv = await prisma.outletInventory.findFirst({
-          where: {
-            outletName: transfer.toOutlet,
-            name: sourceOv.name,
-            color: item.color || null,
-            size: item.size || null
-          }
+        // Use findMany + JS filter to avoid Prisma nullable where clause mismatches
+        const candidates = await prisma.outletInventory.findMany({
+          where: { outletName: transfer.toOutlet, name: sourceOv.name }
         });
+        destOv = candidates.find(r =>
+          (item.color ? r.color === item.color : !r.color) &&
+          (item.size ? r.size === item.size : !r.size)
+        );
       }
       if (destOv) {
         await prisma.outletInventory.update({
