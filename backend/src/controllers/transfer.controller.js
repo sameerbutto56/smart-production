@@ -135,9 +135,7 @@ const acceptTransfer = async (req, res) => {
       return res.status(400).json({ message: 'Can only accept transfers that are in DISPATCHED status.' });
     }
 
-    // Process stock updates — validate first, then execute outside interactive transaction
-    // (interactive $transaction is incompatible with PgBouncer transaction mode)
-    const sourceOvs = [];
+    // Process stock updates — run sequentially to avoid PgBouncer connection pool issues
     for (const item of transfer.items) {
       const sourceOv = await prisma.outletInventory.findUnique({
         where: { id: item.outletVariantId }
@@ -145,19 +143,12 @@ const acceptTransfer = async (req, res) => {
       if (!sourceOv || sourceOv.stock < item.quantity) {
         return res.status(400).json({ message: `Insufficient stock for ${item.productName} in source outlet` });
       }
-      sourceOvs.push(sourceOv);
-    }
-    // All stock checks passed — execute updates in parallel
-    const updates = [];
-    for (let i = 0; i < transfer.items.length; i++) {
-      const item = transfer.items[i];
-      const sourceOv = sourceOvs[i];
-      updates.push(
-        prisma.outletInventory.update({
-          where: { id: item.outletVariantId },
-          data: { stock: { decrement: item.quantity } }
-        })
-      );
+      // Decrement source stock
+      await prisma.outletInventory.update({
+        where: { id: item.outletVariantId },
+        data: { stock: { decrement: item.quantity } }
+      });
+      // Find or create destination inventory
       const destOv = await prisma.outletInventory.findFirst({
         where: {
           name: sourceOv.name,
@@ -169,12 +160,10 @@ const acceptTransfer = async (req, res) => {
         }
       });
       if (destOv) {
-        updates.push(
-          prisma.outletInventory.update({
-            where: { id: destOv.id },
-            data: { stock: { increment: item.quantity } }
-          })
-        );
+        await prisma.outletInventory.update({
+          where: { id: destOv.id },
+          data: { stock: { increment: item.quantity } }
+        });
       } else {
         let barcode = item.barcode;
         let attempt = 0;
@@ -182,25 +171,22 @@ const acceptTransfer = async (req, res) => {
           attempt++;
           barcode = generateBarcode(sourceOv.id, item.size, item.color, attempt);
         }
-        updates.push(
-          prisma.outletInventory.create({
-            data: {
-              name: sourceOv.name,
-              category: sourceOv.category,
-              outletName: transfer.toOutlet,
-              color: item.color || null,
-              size: item.size || null,
-              fabric: sourceOv.fabric,
-              barcode,
-              stock: item.quantity,
-              price: item.unitPrice || null,
-              metadata: JSON.stringify({ sourceStoreItemId: sourceOv.id })
-            }
-          })
-        );
+        await prisma.outletInventory.create({
+          data: {
+            name: sourceOv.name,
+            category: sourceOv.category,
+            outletName: transfer.toOutlet,
+            color: item.color || null,
+            size: item.size || null,
+            fabric: sourceOv.fabric,
+            barcode,
+            stock: item.quantity,
+            price: item.unitPrice || null,
+            metadata: JSON.stringify({ sourceStoreItemId: sourceOv.id })
+          }
+        });
       }
     }
-    await Promise.all(updates);
 
     const completed = await prisma.outletTransfer.update({
       where: { id },
