@@ -566,10 +566,6 @@ const getSales = async (req, res) => {
       const totalAdvance = s.advanceAmount || 0;
       const totalBalancePayments = s.balancePayments.reduce((sum, bp) => sum + bp.amountPaidNow, 0);
       const totalReceived = totalAdvance + totalBalancePayments;
-      if (totalReceived === 0) {
-        const { balancePayments, ...saleData } = s;
-        return { ...saleData, _balanceRemaining: 0, _balanceStatus: 'paid' };
-      }
       const remaining = Math.max(0, s.grandTotal - totalReceived);
       const { balancePayments, ...saleData } = s;
       return {
@@ -1191,7 +1187,7 @@ const generateBalanceReceiptNumber = async () => {
 const getBalanceInvoices = async (req, res) => {
   try {
     const outlet = getOutletName(req);
-    const where = { faisalTake: { not: true }, orderId: { not: null } };
+    const where = { faisalTake: { not: true } };
     if (outlet) where.outletName = outlet;
 
     const sales = await prisma.posSale.findMany({
