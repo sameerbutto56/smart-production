@@ -39,12 +39,13 @@ const PRINT_CSS = `
   th {
     background: #000;
     color: #fff;
-    padding: 4px 6px;
+    padding: 5px 8px;
     text-align: left;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 900;
     text-transform: uppercase;
     border: 1px solid #333;
+    letter-spacing: 0.5px;
   }
   td {
     padding: 3px 6px;
@@ -57,9 +58,10 @@ const PRINT_CSS = `
     font-weight: 900;
     margin: 12px 0 6px;
     text-transform: uppercase;
-    border-bottom: 3px solid #999;
+    color: #000;
+    border-bottom: 3px solid #444;
     padding-bottom: 3px;
-    letter-spacing: 0.5px;
+    letter-spacing: 1px;
   }
   .summary-grid {
     display: grid;
@@ -147,6 +149,7 @@ const customDict = {
   'sage': 'سیج',
   'sage green': 'سیج گرین',
   'olive green': 'اولیو گرین',
+  'olive emboss': 'اولیو ایمبوس',
   'ivy green': 'آئیوی گرین',
   'sea green': 'سی گرین',
   'bell bottom sea-green': 'بیل باٹم سی گرین',
@@ -1094,7 +1097,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   // ─── HEADER (always LTR – customer data is English) ───
   win.document.write(`<div dir="ltr" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;border-bottom:3px solid #111;padding-bottom:8px">`);
   win.document.write(`<div>`);
-  win.document.write(`<h1 style="font-size:28px;font-weight:900;text-transform:uppercase;letter-spacing:-0.5px">${sec.jobSheet}</h1>`);
+  win.document.write(`<h1 style="font-size:28px;font-weight:900;text-transform:uppercase;letter-spacing:1px;color:#000">${sec.jobSheet}</h1>`);
   win.document.write(`<p style="font-size:20px;color:#000;margin-top:3px;font-weight:700">${isUrdu ? 'آرڈر' : 'Order'} ${order.orderNumber || order.id?.slice(0, 8)}</p>`);
   win.document.write(`</div>`);
   win.document.write(`<div style="text-align:right">`);
