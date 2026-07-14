@@ -171,7 +171,11 @@ const OutletInvoiceHistory = ({ outlet }) => {
         if (adv > 0) w.document.write(`<tr><td>Advance</td><td class="value">-${pf(adv)}</td></tr>`);
         if (adv > 0) w.document.write(`<tr style="font-size:17px;font-weight:900;"><td>Balance</td><td class="value">${pf(balance)}</td></tr>`);
       }
-      w.document.write(`<tr><td>Payment</td><td class="value">${sale.paymentMethod}</td></tr></table>`);
+      if (sale.paymentMethod === 'CASH_ONLINE') {
+        w.document.write(`<tr><td>Cash Amount</td><td class="value">${pf(sale.cashAmount)}</td></tr>`);
+        w.document.write(`<tr><td>Online Amount</td><td class="value">${pf(sale.onlineAmount)}</td></tr>`);
+      }
+      w.document.write(`<tr><td>Payment</td><td class="value">${sale.paymentMethod === 'CASH_ONLINE' ? 'Cash+Online' : sale.paymentMethod}</td></tr></table>`);
     }
     w.document.write('<div style="font-size:11px;font-weight:bold;margin:6px 0 0;border-top:2px solid #000;padding-top:4px;"><p style="font-size:12px;font-weight:900;text-align:center;margin:0 0 3px;">TERMS &amp; CONDITIONS</p><p style="margin:2px 0;text-align:center;">Exchanges are allowed only within 7 days with original tags and invoice.</p></div>');
     w.document.write(`<div style="text-align:center;margin:6px 0 0;padding:3px;"><img src="${qrDataUrl || 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(reviewUrl)}" width="150" height="150" alt="Review QR" style="display:inline-block;"><p style="font-size:8px;margin:3px 0 0;font-weight:bold;">Scan to Review us and Avail Special Offers</p><p style="font-size:13px;font-weight:900;margin:4px 0 0;">Thank you for shopping! Visit Again!</p></div>`);
@@ -440,7 +444,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
                       <div className="flex items-center gap-3 text-[10px] text-gray-600 mt-1">
                         <span>{new Date(sale.createdAt).toLocaleDateString()}</span>
                         <span>{sale.cashierName || ''}</span>
-                        <span>{sale.paymentMethod}</span>
+                        <span>{sale.paymentMethod === 'CASH_ONLINE' ? 'Cash+Online' : sale.paymentMethod}</span>
                         <span>{(sale.items || []).length} items</span>
                       </div>
                     </div>
@@ -497,6 +501,18 @@ const OutletInvoiceHistory = ({ outlet }) => {
                           <p className="text-gray-500">Advance Paid</p>
                           <p className="font-bold text-emerald-400">{formatCurrency(adv)}</p>
                         </div>
+                      )}
+                      {sale.paymentMethod === 'CASH_ONLINE' && (
+                        <>
+                          <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800">
+                            <p className="text-gray-500">Cash Amount</p>
+                            <p className="font-bold text-emerald-400">{formatCurrency(sale.cashAmount)}</p>
+                          </div>
+                          <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800">
+                            <p className="text-gray-500">Online Amount</p>
+                            <p className="font-bold text-blue-400">{formatCurrency(sale.onlineAmount)}</p>
+                          </div>
+                        </>
                       )}
                       <div className="bg-gray-950 p-2.5 rounded-xl border border-gray-800 col-span-2">
                         <p className="text-gray-500">Grand Total</p>
