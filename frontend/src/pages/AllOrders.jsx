@@ -22,7 +22,7 @@ import {
   Grid
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { printJobSheet } from '../utils/printReport';
+import { printJobSheet, romanToUrdu } from '../utils/printReport';
 import socket from '../socket';
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
@@ -680,7 +680,7 @@ const AllOrders = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm font-bold theme-text-primary">
-                        {product?.productType || product?.name || 'Standard Item'}
+                        {isUrdu ? romanToUrdu(product?.productType || product?.name || 'Standard Item') : (product?.productType || product?.name || 'Standard Item')}
                         {isMultiItem && <span className="ml-2 text-purple-400 text-xs md:text-sm font-black bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">+{rawPd.length - 1} more</span>}
                         {order.quantity > 1 && <span className="ml-2 text-blue-400">x{order.quantity}</span>}
                       </div>
@@ -904,7 +904,7 @@ const AllOrders = () => {
                                 <tr key={idx} className="border-b theme-border last:border-0 hover:bg-white/5 font-bold">
                                   <td className="py-4 pl-4 font-mono theme-text-muted">{idx + 1}</td>
                                   <td className="py-4 text-white">
-                                    <span className="text-sm font-black">{p.productType || p.name}</span>
+                                    <span className="text-sm font-black">{isUrdu ? romanToUrdu(p.productType || p.name) : (p.productType || p.name)}</span>
                                     {p.femaleOptions?.dupatta && (
                                       <span className="ml-2 bg-pink-500/20 text-pink-400 border border-pink-500/30 text-xs md:text-sm px-1.5 py-0.5 rounded font-black uppercase">Dupatta</span>
                                     )}
@@ -1047,7 +1047,7 @@ const AllOrders = () => {
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6">
                       {[
-                        { label: 'Product Base', val: product?.productType || product?.name },
+                        { label: 'Product Base', val: isUrdu ? romanToUrdu(product?.productType || product?.name) : (product?.productType || product?.name) },
                         { label: 'Fabric Type', val: product?.fabricType },
                         { label: 'Primary Color', val: product?.color },
                         { label: 'Order Size', val: product?.size },
@@ -1246,7 +1246,7 @@ const AllOrders = () => {
                           <div key={idx} className="bg-gray-900/50 p-4 md:p-6 rounded-2xl border border-gray-800/70">
                             <div className="flex items-center gap-3 mb-4">
                               <span className="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-black">#{idx + 1}</span>
-                              <span className="text-sm font-black text-white uppercase">{p.productType || `Item ${idx + 1}`}</span>
+                              <span className="text-sm font-black text-white uppercase">{isUrdu ? romanToUrdu(p.productType || `Item ${idx + 1}`) : (p.productType || `Item ${idx + 1}`)}</span>
                               {p.color && <span className="text-xs font-black text-gray-400">({p.color})</span>}
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

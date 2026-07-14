@@ -259,7 +259,7 @@ const customDict = {
   'socks': 'ساکس',
 };
 
-function romanToUrdu(text) {
+export function romanToUrdu(text) {
   try {
   if (!text) return '';
   if (/^[\d\s\-./#]+$/.test(text)) return text;
