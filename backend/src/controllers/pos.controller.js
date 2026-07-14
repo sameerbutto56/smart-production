@@ -743,9 +743,17 @@ const getSalesDashboard = async (req, res) => {
     const KNOWN_METHODS = ['CASH', 'CARD', 'ONLINE', 'CASH_ONLINE'];
     const paymentTotals = {};
     allSales.forEach(s => {
-      const method = KNOWN_METHODS.includes(s.paymentMethod) ? s.paymentMethod : 'CASH';
       const received = saleRevenue(s);
-      paymentTotals[method] = (paymentTotals[method] || 0) + received;
+      if (s.paymentMethod === 'CASH_ONLINE') {
+        const total = (s.cashAmount || 0) + (s.onlineAmount || 0);
+        const ratio = total > 0 ? received / total : 1;
+        paymentTotals['CASH'] = (paymentTotals['CASH'] || 0) + (s.cashAmount || 0) * ratio;
+        paymentTotals['ONLINE'] = (paymentTotals['ONLINE'] || 0) + (s.onlineAmount || 0) * ratio;
+        paymentTotals['CASH_ONLINE'] = (paymentTotals['CASH_ONLINE'] || 0) + received;
+      } else {
+        const method = KNOWN_METHODS.includes(s.paymentMethod) ? s.paymentMethod : 'CASH';
+        paymentTotals[method] = (paymentTotals[method] || 0) + received;
+      }
     });
     // Add balance payments by their payment method
     balancePayments.forEach(bp => {
@@ -759,13 +767,24 @@ const getSalesDashboard = async (req, res) => {
         ...(startLimit || endLimit ? { createdAt: { gte: startLimit || undefined, lte: endLimit || undefined } } : {}),
         saleId: { not: null }
       },
-      select: { refundAmount: true, sale: { select: { paymentMethod: true } } }
+      select: { refundAmount: true, sale: { select: { paymentMethod: true, cashAmount: true, onlineAmount: true } } }
     });
     const returnsByMethod = {};
     returnsWithSale.forEach(r => {
-      const rawMethod = r.sale?.paymentMethod || 'CASH';
-      const method = KNOWN_METHODS.includes(rawMethod) ? rawMethod : 'CASH';
-      returnsByMethod[method] = (returnsByMethod[method] || 0) + r.refundAmount;
+      if (r.sale?.paymentMethod === 'CASH_ONLINE') {
+        const cashAmt = r.sale?.cashAmount || 0;
+        const onlineAmt = r.sale?.onlineAmount || 0;
+        const total = cashAmt + onlineAmt;
+        const cashRatio = total > 0 ? cashAmt / total : 0.5;
+        const onlineRatio = total > 0 ? onlineAmt / total : 0.5;
+        returnsByMethod['CASH'] = (returnsByMethod['CASH'] || 0) + r.refundAmount * cashRatio;
+        returnsByMethod['ONLINE'] = (returnsByMethod['ONLINE'] || 0) + r.refundAmount * onlineRatio;
+        returnsByMethod['CASH_ONLINE'] = (returnsByMethod['CASH_ONLINE'] || 0) + r.refundAmount;
+      } else {
+        const rawMethod = r.sale?.paymentMethod || 'CASH';
+        const method = KNOWN_METHODS.includes(rawMethod) ? rawMethod : 'CASH';
+        returnsByMethod[method] = (returnsByMethod[method] || 0) + r.refundAmount;
+      }
     });
 
     // Fetch journal expenses for the same date range and deduct from CASH

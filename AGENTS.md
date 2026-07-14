@@ -94,12 +94,22 @@
   - **Navbar** (`Layout.jsx`): `Notes` nav item for `FAISAL`, `STORE`, `OUTLET` roles with `StickyNote` icon.
   - **Route** (`App.jsx`): `/notes` route with lazy-loaded `NotesPage`.
 - **Fix 17 – Store Profile "Complete Task" instead of "Accept Task"**: Root cause was old cleanup script deleted STAGE records from DB while leaving `order.currentStage` intact. 61 STORE, 37 PRODUCTION, 27 DISPATCH, 8 LOGO_DESIGN, 8 OUT_FOR_DELIVERY, 2 PRODUCTION_ACCEPTANCE, 1 STORE_RECEIVE stages re-created via `fix-missing-stages.js` (since deleted). Frontend safety net: `OrderCard.jsx:14` now creates a synthetic `{ stageName, status: 'PENDING', id: null }` when `order.stages` has no matching entry for `order.currentStage`, preventing wrong button rendering.
+- **Auto-reload on stale chunk** (`ErrorBoundary.jsx:16`): `componentDidCatch` detects `Failed to fetch dynamically imported module` / `ChunkLoadError` and calls `window.location.reload()` automatically after deployment (stale chunk). (commit `124a8b0`)
+- **Logo Design cart option**: Added `logoDesign` boolean to PosSaleItem schema (₨300/unit), cart init, toggle button, line total, custCharges useMemo, checkout payload, backend calculation, and financial summary. Mirrors Name Engrave exactly. (commit `033af46`)
+- **Job sheet Urdu labels – Half, Regular, Sleeves**: Updated `printReport.js` (section labels + 4 display maps), `OrderCard.jsx`, and `AllOrders.jsx` — `Half` → `Half ہاف`, `Regular` → `Regular ریگولر`, `Sleeves` → `Sleeves بازو`. (commits `76579d5` + `371b346`)
+- **Close Book sync with Dashboard**: Rewrote `getBookSummary` in `pos.book.controller.js` — uses `saleRevenue(s) = advanceAmount > 0 ? min(advanceAmount, grandTotal) : grandTotal` (same as `getSalesDashboard`), fetches `posBalancePayment` records within session range, adds `paymentBreakdown` array with gross/returns/journalExpenses/net per method. Payment methods and employee collections are clickable with drill-down modals. (commit `3bad1ba`)
 
 ### In Progress
 - (none)
 
 ### Blocked
 - (none)
+
+### Fixed This Session — Cash+Online Payment Allocation
+- **Root cause**: `getSalesDashboard` counted the full CASH_ONLINE sale revenue under a single `paymentTotals['CASH_ONLINE']` bucket instead of splitting `cashAmount` → CASH and `onlineAmount` → ONLINE. Dashboard CASH card and ONLINE card were under-counted by the split amounts.
+- **Fix 1** (`paymentTotals` loop in `getSalesDashboard`): CASH_ONLINE sales now split revenue proportionally: `(cashAmount / total) * received` added to CASH, `(onlineAmount / total) * received` added to ONLINE. The full received amount still tracked under CASH_ONLINE for the separate display card.
+- **Fix 2** (`returnsByMethod` loop in `getSalesDashboard`): CASH_ONLINE returns also split proportionally by `cashAmount`/`onlineAmount` ratio of the original sale. Added `cashAmount: true, onlineAmount: true` to the return's sale select.
+- **Consistency**: Both `getSalesDashboard` and `getBookSummary` now use the same `saleRevenue(s)` formula and split CASH_ONLINE amounts identically.
 
 ### Fixed This Session — Store Profile Duplicate Orders
 - **Root cause**: `storeRouteOrder` and `requestStageCompletion` are NOT wrapped in Prisma `$transaction`. If a database error occurs between "mark stage COMPLETED" and "update `order.currentStage`", the order ends up with `currentStage: 'STORE'` but a COMPLETED STORE stage — still picked up by `getStoreDashboardOrders` and `getUnseenOrders` which only check `currentStage`, not stage status.
@@ -130,7 +140,7 @@
 - (none — all current work is complete)
 
 ## Critical Context
-- Latest commits: `9f98887` — dropdown tab menu; `eec65d0` — POS Dashboard + Invoice History tabs + Balance Collection filter fix; `7499484` — SUPER FAST dashboards + checkout
+- Latest commits: `124a8b0` — auto-reload stale chunk; `033af46` — Logo Design cart option; `76579d5` + `371b346` — Urdu labels; `3bad1ba` — Close Book sync + drill-down
 - Build passes with 0 errors.
 - `isAccessory` uses substring matching (`catUpper.includes('COAT')`).
 - `calculateAndRecordRevenue` at line 2482 of `order.controller.js` is idempotent.
