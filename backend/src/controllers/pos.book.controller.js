@@ -253,13 +253,21 @@ const getBookSummary = async (req, res) => {
     const totalOnlineSales = paymentSummary.ONLINE + paymentSummary.CASH_ONLINE_ONLINE;
     const totalRevenueSales = sales.reduce((s, sale) => s + saleRevenue(sale), 0) + balancePayments.reduce((s, bp) => s + bp.amountPaidNow, 0);
 
-    // Available cash
+    // Cash actually collected (raw amounts, matches Dashboard's getCashSummary)
+    const rawCashCollected = sales
+      .filter(s => s.paymentMethod === 'CASH')
+      .reduce((sum, s) => sum + s.grandTotal, 0)
+      + sales
+        .filter(s => s.paymentMethod === 'CASH_ONLINE')
+        .reduce((sum, s) => sum + (s.cashAmount || 0), 0);
+
+    // Available cash — using raw cash amounts to match Dashboard
     const totalCashRefunded = returnSummary.CASH;
-    const availableCash = totalCashSales - totalJournalEntries - totalCashRefunded;
+    const availableCash = rawCashCollected - totalJournalEntries - totalCashRefunded;
 
     // Payment breakdown with journal deduction (matches dashboard)
     const paymentBreakdown = [
-      { method: 'CASH', gross: totalCashSales, returns: returnSummary.CASH, journalExpenses: totalJournalEntries, net: totalCashSales - totalJournalEntries - returnSummary.CASH },
+      { method: 'CASH', gross: rawCashCollected, returns: returnSummary.CASH, journalExpenses: totalJournalEntries, net: rawCashCollected - totalJournalEntries - returnSummary.CASH },
       { method: 'CARD', gross: totalCardSales, returns: returnSummary.CARD, journalExpenses: 0, net: totalCardSales - returnSummary.CARD },
       { method: 'ONLINE', gross: totalOnlineSales, returns: returnSummary.ONLINE, journalExpenses: 0, net: totalOnlineSales - returnSummary.ONLINE },
     ];
