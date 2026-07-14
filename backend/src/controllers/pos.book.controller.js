@@ -100,39 +100,38 @@ const getBookSummary = async (req, res) => {
     const startTime = session.openedAt;
     const endTime = session.closedAt || new Date();
 
-    const dateFilter = { gte: startTime, lte: endTime };
-    // Journal entries should use start of day (to match Dashboard cash summary)
+    // Use start of day for all queries (matches Dashboard's getCashSummary range)
     const dayStart = new Date(startTime);
     dayStart.setHours(0, 0, 0, 0);
-    const journalDateFilter = { gte: dayStart, lte: endTime };
+    const dayFilter = { gte: dayStart, lte: endTime };
 
     // Parallel queries
     const [sales, faisalTakes, returns, journals, balancePayments] = await Promise.all([
-      // Sales in range (non-Faisal, non-refunded)
+      // Sales in day range (matches Dashboard's cash summary)
       prisma.posSale.findMany({
-        where: { outletName: outlet, createdAt: dateFilter, faisalTake: { not: true }, refundedAt: null },
+        where: { outletName: outlet, createdAt: dayFilter, faisalTake: { not: true }, refundedAt: null },
         orderBy: { createdAt: 'asc' },
       }),
-      // Faisal Takes in range
+      // Faisal Takes in day range
       prisma.posSale.findMany({
-        where: { outletName: outlet, createdAt: dateFilter, faisalTake: true },
+        where: { outletName: outlet, createdAt: dayFilter, faisalTake: true },
         orderBy: { createdAt: 'asc' },
       }),
-      // Returns in range
+      // Returns in day range
       prisma.posReturn.findMany({
-        where: { outletName: outlet, createdAt: dateFilter, saleId: { not: null } },
+        where: { outletName: outlet, createdAt: dayFilter, saleId: { not: null } },
         include: { sale: { select: { paymentMethod: true, cashAmount: true, onlineAmount: true } } },
       }),
       // Journal entries from start of day (match Dashboard's getCashSummary range)
       prisma.journalEntry.findMany({
-        where: { outletName: outlet, createdAt: journalDateFilter },
+        where: { outletName: outlet, createdAt: dayFilter },
         orderBy: { createdAt: 'asc' },
       }),
-      // Balance payments in range
+      // Balance payments in day range
       prisma.posBalancePayment.findMany({
         where: {
           posSale: { outletName: outlet },
-          paidAt: dateFilter,
+          paidAt: dayFilter,
         },
         orderBy: { paidAt: 'asc' },
       }),
