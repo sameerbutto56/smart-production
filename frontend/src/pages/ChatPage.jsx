@@ -88,6 +88,7 @@ const ChatPage = () => {
   const audioChunksRef = useRef([]);
   const recordingTimerRef = useRef(null);
   const contextRef = useRef(null);
+  const pendingStatusRef = useRef({});
 
   const currentUserId = user?.id;
   const isAdmin = ADMIN_ROLES.includes((user?.role || '').toUpperCase());
@@ -115,10 +116,21 @@ const ChatPage = () => {
   }, [fetchMessages]);
 
   useEffect(() => {
+    const applyPendingStatus = (msgId) => {
+      const pending = pendingStatusRef.current[msgId];
+      if (!pending) return null;
+      delete pendingStatusRef.current[msgId];
+      return pending;
+    };
+
     const handleNewMessage = (msg) => {
       setMessages(prev => {
         if (prev.some(m => m.id === msg.id)) return prev;
-        const updated = [...prev, msg];
+        const pending = applyPendingStatus(msg.id);
+        const merged = pending
+          ? { ...msg, deliveredAt: msg.deliveredAt || pending.deliveredAt, readAt: msg.readAt || pending.readAt, playedAt: msg.playedAt || pending.playedAt }
+          : msg;
+        const updated = [...prev, merged];
         updated.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
         return updated;
       });
@@ -130,13 +142,21 @@ const ChatPage = () => {
     };
 
     const handleStatusUpdate = ({ messageId, status }) => {
-      setMessages(prev => prev.map(m => {
-        if (m.id !== messageId) return m;
-        if (status === 'delivered' && !m.deliveredAt) return { ...m, deliveredAt: new Date().toISOString() };
-        if (status === 'read' && !m.readAt) return { ...m, readAt: new Date().toISOString() };
-        if (status === 'played' && !m.playedAt) return { ...m, playedAt: new Date().toISOString() };
-        return m;
-      }));
+      setMessages(prev => {
+        const target = prev.find(m => m.id === messageId);
+        if (!target) {
+          const key = status === 'delivered' ? 'deliveredAt' : status === 'read' ? 'readAt' : 'playedAt';
+          pendingStatusRef.current[messageId] = { ...pendingStatusRef.current[messageId], [key]: new Date().toISOString() };
+          return prev;
+        }
+        return prev.map(m => {
+          if (m.id !== messageId) return m;
+          if (status === 'delivered' && !m.deliveredAt) return { ...m, deliveredAt: new Date().toISOString() };
+          if (status === 'read' && !m.readAt) return { ...m, readAt: new Date().toISOString() };
+          if (status === 'played' && !m.playedAt) return { ...m, playedAt: new Date().toISOString() };
+          return m;
+        });
+      });
     };
 
     const handlePinUpdate = (msg) => {
@@ -161,14 +181,11 @@ const ChatPage = () => {
   }, [currentUserId, scrollToBottom]);
 
   useEffect(() => {
-    if (messages.length > 0) {
-      const unreadOwn = messages.filter(m => m.senderId !== currentUserId && !m.readAt);
-      if (unreadOwn.length > 0) {
-        const ids = unreadOwn.map(m => m.id);
-        ids.forEach(id => {
-          api.post(`/api/chat/messages/${id}/read`).catch(() => {});
-        });
-      }
+    const unreadOthers = messages.filter(m => m.senderId !== currentUserId && !m.readAt);
+    if (unreadOthers.length > 0) {
+      unreadOthers.forEach(m => {
+        api.post(`/api/chat/messages/${m.id}/read`).catch(() => {});
+      });
     }
   }, [messages, currentUserId]);
 
@@ -192,7 +209,17 @@ const ChatPage = () => {
     setInput('');
     setSending(true);
     try {
-      await api.post('/api/chat/messages', { message: text });
+      const res = await api.post('/api/chat/messages', { message: text });
+      const newMsg = res.data;
+      if (newMsg && newMsg.id) {
+        setMessages(prev => {
+          if (prev.some(m => m.id === newMsg.id)) return prev;
+          const updated = [...prev, newMsg];
+          updated.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+          return updated;
+        });
+        scrollToBottom();
+      }
     } catch (err) {
       setInput(text);
     } finally {
@@ -230,8 +257,18 @@ const ChatPage = () => {
         const formData = new FormData();
         formData.append('audio', blob, `voice-${Date.now()}.webm`);
         try {
-          const uploadRes = await api.post('/api/chat/voice', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-          await api.post('/api/chat/messages', { voiceUrl: uploadRes.data.url });
+          const uploadRes = await api.post('/api/chat/voice', formData);
+          const msgRes = await api.post('/api/chat/messages', { voiceUrl: uploadRes.data.url });
+          const newVoiceMsg = msgRes.data;
+          if (newVoiceMsg && newVoiceMsg.id) {
+            setMessages(prev => {
+              if (prev.some(m => m.id === newVoiceMsg.id)) return prev;
+              const updated = [...prev, newVoiceMsg];
+              updated.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+              return updated;
+            });
+            scrollToBottom();
+          }
         } catch (err) {
           console.error('Voice upload failed');
         }

@@ -1,5 +1,6 @@
-## Goal
-Add POS Dashboard and Total Invoices tabs to Outlet Dashboard; fix Balance Collection filter + invoice balance status logic in POS module.
+## Goals
+1. Add POS Dashboard and Total Invoices tabs to Outlet Dashboard; fix Balance Collection filter + invoice balance status logic in POS module.
+2. Fix chat message status (single/double ticks) not updating and voice notes not sending.
 
 ## Constraints & Preferences
 - QR code on receipt must encode per-outlet Google Maps review URL (not receipt data)
@@ -76,6 +77,9 @@ Add POS Dashboard and Total Invoices tabs to Outlet Dashboard; fix Balance Colle
 - **Fixed analytics TTL unit bug** — was passing seconds instead of milliseconds to `cache.set()`
 - **SUPER FAST checkout** — skip stock decrement for Faisal Takes, send response before async cache invalidation (`setImmediate`)
 - **SUPER FAST dashboards** — `getSales` now adaptive TTL (300s for all), response before `cache.set`; all 3 POS dashboard endpoints cache-first with long TTL for `range=all`
+- **Fix 12 – Status never updating** (ChatPage.jsx): `sendTextMessage` now adds message to local state from API response (was relying solely on `chat:new-message` socket event, causing race when `chat:status-update` arrived first). Added `pendingStatusRef` queue — if `chat:status-update` arrives before the message is in state, the status is stored and applied in `handleNewMessage` when the message finally arrives. Removed unused `applied` variable.
+- **Fix 13 – Voice notes not sending** (ChatPage.jsx): Removed manual `Content-Type: multipart/form-data` header from voice upload Axios call (was overriding Axios's boundary detection, causing multer rejection). Voice message response now also added to local state (same race fix as text messages).
+- **Fix 14 – Auto-read firing for sender** (ChatPage.jsx): read-receipt `useEffect` already filtered `m.senderId !== currentUserId` — unchanged but confirmed correct (no longer runs on every `messages` change, only when unread others exist).
 
 ### In Progress
 - (none)
@@ -127,6 +131,11 @@ Add POS Dashboard and Total Invoices tabs to Outlet Dashboard; fix Balance Colle
 - **`getBalanceCollections` month range**: `startLimit = 1st of current month`, `endLimit = now` — returns collections from start of current month only.
 - **Balance Collection custom range**: Frontend `balanceCollectionDateFrom`/`balanceCollectionDateTo` states passed as `dateFrom`/`dateTo` query params only when `range === 'custom'`; date inputs appear inline in the card.
 
+## Critical Context
+- `sendTextMessage` now adds message to local state from API response — eliminates race with `chat:status-update`.
+- `pendingStatusRef` (useRef) stores status updates for messages not yet in state; applied in `handleNewMessage`.
+- Voice upload must NOT set `Content-Type: multipart/form-data` manually — Axios sets boundary automatically.
+
 ## Relevant Files
 - `backend/prisma/schema.prisma`: PosSale + PosBalancePayment models; Client model with `measurementChart`, `sizeDetails`, `standardSizes`
 - `backend/src/controllers/pos.controller.js`: `getSales` (now includes `balancePayments`, computes `_balanceRemaining`/`_balanceStatus`, filters by `statusFilter`), `getBalanceInvoices`, `getInvoiceBalance`, `payBalance`, `getBalanceCollections` (month range fixed), `getBalancePaymentHistory`, `getSalesDashboard` — all with fixes (TDZ, faisalTake NULL, revenue calc)
@@ -147,3 +156,6 @@ Add POS Dashboard and Total Invoices tabs to Outlet Dashboard; fix Balance Colle
 - `frontend/src/pages/OutletDashboard.jsx`: State-based tab switching with dropdown menu — Dashboard, POS Dashboard, Total Invoices, Order Track, Tasks tabs
 - `frontend/src/components/OutletPOSDashboard.jsx`: Standalone POS dashboard component (KPIs, charts, payment breakdown, top products, recent sales, Faisal Takes, date presets + custom range)
 - `frontend/src/components/OutletInvoiceHistory.jsx`: Standalone invoice history (search, date range, All/Paid/Balance filters, expanded details, Print, Pay Balance modal, Payment History modal, receipt modals, Excel download; uses backend-computed `_balanceRemaining`/`_balanceStatus`)
+- `frontend/src/pages/ChatPage.jsx`: Main chat page — `sendTextMessage` adds message to local state, `pendingStatusRef` queue for status-update race, voice upload without manual Content-Type header, StatusIcon component for single/double/blue ticks, right-click context menu, Message Info modal
+- `backend/src/controllers/chat.controller.js`: `sendMessage` (returns full message), `uploadVoice` (writes file), `markDelivered`/`markRead`/`markPlayed` (updates DB + broadcasts via socket), `getReceipts`
+- `backend/src/routes/chat.routes.js`: All chat route definitions (GET messages, POST message, POST voice, PATCH pin, DELETE, delivery/read/played status, GET receipts)
