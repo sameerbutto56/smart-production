@@ -1,17 +1,21 @@
 const prisma = require('../prisma');
 const cache = require('../utils/cache');
 
-const generateTransferNumber = (() => {
-  let counter = 0;
-  const startDate = new Date().toISOString().slice(0, 10);
-  return () => {
-    counter++;
-    const d = new Date();
-    const dayKey = d.toISOString().slice(0, 10);
-    if (dayKey !== startDate) { counter = 1; }
-    return `TRF-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(counter).padStart(5, '0')}`;
-  };
-})();
+const generateTransferNumber = async () => {
+  const d = new Date();
+  const dayPrefix = `TRF-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  const last = await prisma.outletDemandRequest.findFirst({
+    where: { transferNumber: { startsWith: dayPrefix } },
+    orderBy: { transferNumber: 'desc' },
+    select: { transferNumber: true }
+  });
+  let nextNum = 1;
+  if (last) {
+    const parts = last.transferNumber.split('-');
+    nextNum = parseInt(parts[parts.length - 1], 10) + 1;
+  }
+  return `${dayPrefix}-${String(nextNum).padStart(5, '0')}`;
+};
 
 const createDemandRequest = async (req, res) => {
   try {
@@ -38,7 +42,7 @@ const createDemandRequest = async (req, res) => {
         })),
         notes: notes || '',
         status: 'PENDING',
-        transferNumber: generateTransferNumber()
+        transferNumber: await generateTransferNumber()
       }
     });
     res.status(201).json(demand);
