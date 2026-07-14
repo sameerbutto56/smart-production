@@ -1,6 +1,7 @@
 ## Goals
 1. Add POS Dashboard and Total Invoices tabs to Outlet Dashboard; fix Balance Collection filter + invoice balance status logic in POS module.
 2. Fix chat message status (single/double ticks) not updating and voice notes not sending.
+3. Fix real-time chat synchronization (socket blocked in production) + Personal Notes module.
 
 ## Constraints & Preferences
 - QR code on receipt must encode per-outlet Google Maps review URL (not receipt data)
@@ -80,6 +81,13 @@
 - **Fix 12 – Status never updating** (ChatPage.jsx): `sendTextMessage` now adds message to local state from API response (was relying solely on `chat:new-message` socket event, causing race when `chat:status-update` arrived first). Added `pendingStatusRef` queue — if `chat:status-update` arrives before the message is in state, the status is stored and applied in `handleNewMessage` when the message finally arrives. Removed unused `applied` variable.
 - **Fix 13 – Voice notes not sending** (ChatPage.jsx): Removed manual `Content-Type: multipart/form-data` header from voice upload Axios call (was overriding Axios's boundary detection, causing multer rejection). Voice message response now also added to local state (same race fix as text messages).
 - **Fix 14 – Auto-read firing for sender** (ChatPage.jsx): read-receipt `useEffect` already filtered `m.senderId !== currentUserId` — unchanged but confirmed correct (no longer runs on every `messages` change, only when unread others exist).
+- **Fix 15 – Socket blocked in production** (`socket.js`): Removed `canWebSocket` gatekeeper that only allowed connections on localhost — now always connects when token is present.
+- **Fix 16 – Socket auth middleware** (`server.js`): Added JWT verification middleware on socket connections for security.
+- **PersonalNote model** (`schema.prisma`): New model with `id`, `userId`, `title`, `content`, `createdAt`, `updatedAt` — indexed by `userId`.
+- **Backend Notes API** (`notes.controller.js` + `notes.routes.js`): Password verification endpoint (`POST /verify-password`), full CRUD (`GET /`, `POST /`, `PUT /:id`, `DELETE /:id`) — all scoped to `req.user.id`.
+- **NotesPage.jsx**: Frontend notes component — password-gated (lock screen with show/hide), create/edit/delete notes, title/content, created/updated timestamps, empty state, responsive.
+- **Navbar integration** (`Layout.jsx`): Added `Notes` nav item for `FAISAL`, `STORE`, `OUTLET` roles with `StickyNote` icon; added to OUTLET whitelist.
+- **Route** (`App.jsx`): Added `/notes` route with lazy-loaded `NotesPage`.
 
 ### In Progress
 - (none)

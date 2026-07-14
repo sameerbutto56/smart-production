@@ -459,6 +459,17 @@ model OutletDemandRequest {
   @@index([createdAt])
 }
 
+model PersonalNote {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String   @default("")
+  content   String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
 model ChatMessage {
   id           String   @id @default(uuid())
   senderId     String

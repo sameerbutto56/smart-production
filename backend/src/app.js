@@ -66,6 +66,7 @@ const posRoutes = require('./routes/pos.routes');
 const transferRoutes = require('./routes/transfer.routes');
 const journalRoutes = require('./routes/journal.routes');
 const chatRoutes = require('./routes/chat.routes');
+const notesRoutes = require('./routes/notes.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
@@ -86,6 +87,7 @@ app.use('/api/transfers', transferRoutes);
 app.use('/api/outlet-orders', require('./routes/outletOrder.routes'));
 app.use('/api/journal', journalRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/notes', notesRoutes);
 
 // Global error handler (must be last)
 app.use(errorHandler);

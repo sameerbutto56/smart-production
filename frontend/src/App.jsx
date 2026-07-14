@@ -35,6 +35,7 @@ const OutletOrderEntry = lazy(() => import('./pages/OutletOrderEntry'));
 const OutletDashboard = lazy(() => import('./pages/OutletDashboard'));
 const OutletJournalPage = lazy(() => import('./pages/OutletJournalPage'));
 const ChatPage = lazy(() => import('./pages/ChatPage'));
+const NotesPage = lazy(() => import('./pages/NotesPage'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -119,6 +120,7 @@ function App() {
                   <Route path="order-track" element={<OrderTrack />} />
                   <Route path="journal" element={<OutletJournalPage />} />
                   <Route path="chat" element={<ChatPage />} />
+                  <Route path="notes" element={<NotesPage />} />
                 </Route>
               </Routes>
               </ErrorBoundary>

@@ -14,10 +14,7 @@ function createStub() {
   return { on: () => createStub(), off: () => createStub(), emit: () => createStub(), connect: () => {}, disconnect: () => {}, id: null, connected: false };
 }
 
-// Only attempt WebSocket if we have a token and WebSockets are explicitly configured or running locally
-const canWebSocket = import.meta.env.VITE_WS_URL || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-
-const socket = token && canWebSocket
+const socket = token
   ? io(WS_URL, {
       auth: { token },
       reconnection: true,
