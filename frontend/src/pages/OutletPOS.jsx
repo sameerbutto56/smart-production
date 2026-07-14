@@ -347,10 +347,11 @@ const OutletPOS = () => {
 
   const subtotal = useMemo(() => cart.reduce((s, i) => s + i.unitPrice * i.qty, 0), [cart]);
   const altCharges = useMemo(() => cart.reduce((s, i) => s + (i.alterationAmount || 0), 0), [cart]);
-  const custCharges = useMemo(() => cart.reduce((s, i) => s + (i.customization1 ? 500 : 0) + (i.customization2 ? 1000 : 0) + (i.nameEngrave ? 300 : 0), 0), [cart]);
-  const cust1Total = useMemo(() => cart.reduce((s, i) => s + (i.customization1 ? 500 : 0), 0), [cart]);
-  const cust2Total = useMemo(() => cart.reduce((s, i) => s + (i.customization2 ? 1000 : 0), 0), [cart]);
-  const engraveTotal = useMemo(() => cart.reduce((s, i) => s + (i.nameEngrave ? 300 : 0), 0), [cart]);
+  const custCharges = useMemo(() => cart.reduce((s, i) => s + ((i.customization1 ? 500 : 0) + (i.customization2 ? 1000 : 0) + (i.nameEngrave ? 300 : 0)) * i.qty, 0), [cart]);
+  const cust1Total = useMemo(() => cart.reduce((s, i) => s + (i.customization1 ? 500 * i.qty : 0), 0), [cart]);
+  const cust2Total = useMemo(() => cart.reduce((s, i) => s + (i.customization2 ? 1000 * i.qty : 0), 0), [cart]);
+  const engraveTotal = useMemo(() => cart.reduce((s, i) => s + (i.nameEngrave ? 300 * i.qty : 0), 0), [cart]);
+  const otherChargesTotal = useMemo(() => cart.reduce((s, i) => s + (parseFloat(i.otherCharges) || 0), 0), [cart]);
   const perItemDiscount = useMemo(() => cart.reduce((s, i) => {
     const base = i.unitPrice * i.qty;
     const dpct = parseFloat(i.discountPct) || 0;
@@ -358,7 +359,7 @@ const OutletPOS = () => {
     return s + (base * dpct / 100) + dfixed;
   }, 0), [cart]);
   const deliveryCharge = deliveryEnabled ? 250 : 0;
-  const netBeforeGlobal = subtotal - perItemDiscount + altCharges + custCharges + deliveryCharge;
+  const netBeforeGlobal = subtotal - perItemDiscount + altCharges + custCharges + deliveryCharge + otherChargesTotal;
   const globalDiscountAmt = netBeforeGlobal * discountPct / 100 + discountFixed;
   const cardChargesAmt = paymentMethod === 'CARD' ? (netBeforeGlobal * cardChargesPct) / 100 : 0;
   const grandTotal = faisalTake ? 0 : (netBeforeGlobal - globalDiscountAmt + cardChargesAmt);
@@ -2179,7 +2180,7 @@ const OutletPOS = () => {
                     <span className="px-2 text-xs font-bold text-white min-w-[20px] text-center">{item.qty}</span>
                     <button onClick={() => updateQty(i, item.qty + 1)} className="p-1.5 hover:text-white text-gray-500"><Plus size={12} /></button>
                   </div>
-                  <span className="text-xs font-black text-white ml-auto">{formatCurrency(item.unitPrice * item.qty + (item.customization1 ? 500 : 0) + (item.customization2 ? 1000 : 0) + (item.nameEngrave ? 300 : 0) + (parseFloat(item.otherCharges) || 0))}</span>
+                  <span className="text-xs font-black text-white ml-auto">{formatCurrency(item.unitPrice * item.qty + ((item.customization1 ? 500 : 0) + (item.customization2 ? 1000 : 0) + (item.nameEngrave ? 300 : 0)) * item.qty + (parseFloat(item.otherCharges) || 0))}</span>
                 </div>
 
                 <div className="flex flex-wrap gap-1 mt-1.5">
@@ -2246,6 +2247,12 @@ const OutletPOS = () => {
                 <div className="flex items-center justify-between text-xs text-purple-400">
                   <span>Name Engraving</span>
                   <span>{formatCurrency(engraveTotal)}</span>
+                </div>
+              )}
+              {otherChargesTotal > 0 && (
+                <div className="flex items-center justify-between text-xs text-orange-400">
+                  <span>Other Charges</span>
+                  <span>{formatCurrency(otherChargesTotal)}</span>
                 </div>
               )}
               {perItemDiscount > 0 && (
