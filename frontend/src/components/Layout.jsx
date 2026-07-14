@@ -28,6 +28,7 @@ import {
   ArrowRightLeft,
   ArrowLeft,
   FileText,
+  MessageCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import socket from '../socket';
@@ -44,6 +45,28 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [showThemePicker, setShowThemePicker] = useState(false);
+  const [chatUnread, setChatUnread] = useState(() => parseInt(sessionStorage.getItem('chatUnread') || '0'));
+
+  useEffect(() => {
+    if (location.pathname === '/chat') {
+      setChatUnread(0);
+      sessionStorage.setItem('chatUnread', '0');
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const handler = () => {
+      if (location.pathname !== '/chat') {
+        setChatUnread(prev => {
+          const next = prev + 1;
+          sessionStorage.setItem('chatUnread', String(next));
+          return next;
+        });
+      }
+    };
+    socket.on('chat:new-message', handler);
+    return () => socket.off('chat:new-message', handler);
+  }, [location.pathname]);
 
   const handleLogout = () => {
     logout();
@@ -74,7 +97,8 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     { name: 'Refund Management', path: '/refund-management', icon: RotateCcw, roles: ['DELIVERY_BOY'] },
     { name: 'Client Registration', path: '/clients', icon: UserPlus, roles: ['OUTLET'] },
     { name: 'POS', path: '/pos', icon: ShoppingCart, roles: ['OUTLET'] },
-    { name: 'General Entries', path: '/journal', icon: FileText, roles: ['OUTLET'] }
+    { name: 'General Entries', path: '/journal', icon: FileText, roles: ['OUTLET'] },
+    { name: 'Chat', path: '/chat', icon: MessageCircle, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET', 'STORE', 'PRODUCTION', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY', 'DELIVERY_BOY'] }
   ];
   
   const isBigScreen = user?.role === 'MAIN_EMPLOYEE';
@@ -87,12 +111,12 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     
     // 2. Extra safety for Outlets
     if (userRole === 'OUTLET') {
-      return ['Outlet Dashboard', 'Orders', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'General Entries'].includes(item.name);
+      return ['Outlet Dashboard', 'Orders', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'General Entries', 'Chat'].includes(item.name);
     }
     
     // 3. Explicit Restriction for Delivery Boy
     if (userRole === 'DELIVERY_BOY') {
-      return item.name === 'Deliveries';
+      return item.name === 'Deliveries' || item.name === 'Chat';
     }
     
     return true;
@@ -153,7 +177,14 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
               title={isCollapsed ? t(item.name) : ""}
             >
               <item.icon size={16} className={location.pathname === item.path ? 'text-white' : 'group-hover:text-blue-400'} />
-              {!isCollapsed && <span className="font-bold text-xs tracking-wide">{t(item.name)}</span>}
+              {!isCollapsed && (
+                <span className="font-bold text-xs tracking-wide flex-1">{t(item.name)}</span>
+              )}
+              {!isCollapsed && item.name === 'Chat' && chatUnread > 0 && (
+                <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-tight shadow-lg shadow-red-500/30">
+                  {chatUnread > 99 ? '99+' : chatUnread}
+                </span>
+              )}
             </Link>
           ))}
         </nav>

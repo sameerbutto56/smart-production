@@ -26,6 +26,7 @@ if (!isServerless) {
 
   io.on('connection', (socket) => {
     console.log('New client connected:', socket.id);
+    socket.join('chat:global');
     socket.on('join-room', (room) => {
       socket.join(room);
       console.log(`User joined room: ${room}`);

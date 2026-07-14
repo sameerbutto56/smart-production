@@ -457,7 +457,21 @@ model OutletDemandRequest {
   @@index([status])
   @@index([outletName])
   @@index([createdAt])
-  @@index([transferNumber])
+}
+
+model ChatMessage {
+  id          String   @id @default(uuid())
+  senderId    String
+  senderName  String
+  senderRole  String
+  senderBranch String  @default("")
+  message     String   @default("")
+  voiceUrl    String?
+  isPinned    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([isPinned])
 }
 
 model Client {
