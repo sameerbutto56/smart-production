@@ -295,6 +295,7 @@ const getBookSummary = async (req, res) => {
         cashOnlineCash: paymentSummary.CASH_ONLINE_CASH,
         cashOnlineOnline: paymentSummary.CASH_ONLINE_ONLINE,
         cashOnlineTotal: paymentSummary.CASH_ONLINE_TOTAL,
+        cashCollected: rawCashCollected,
         grandTotal: totalRevenueSales,
       },
       paymentBreakdown,
