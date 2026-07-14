@@ -131,6 +131,7 @@ const PRINT_CSS = `
  */
 /** Custom phonetic dictionary — checked before patterns/dictionary */
 const customDict = {
+  'aspire': 'اسپائر',
   // Colors (phonetic — not literal)
   'purple': 'پرپل', 'black': 'بلیک', 'white': 'وائٹ', 'blue': 'بلیو',
   'red': 'ریڈ', 'green': 'گرین', 'yellow': 'یلو', 'pink': 'پنک',

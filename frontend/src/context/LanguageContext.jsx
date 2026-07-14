@@ -5,6 +5,7 @@ const LanguageContext = createContext();
 export const useLanguage = () => useContext(LanguageContext);
 
 const DICT = {
+  'Aspire': 'اسپائر',
   // Layout & General
   'Admin Portal': 'ایڈمن پورٹل',
   'Control Center': 'کنٹرول سینٹر',
