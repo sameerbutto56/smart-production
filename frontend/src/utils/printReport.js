@@ -131,7 +131,6 @@ const PRINT_CSS = `
  */
 /** Custom phonetic dictionary — checked before patterns/dictionary */
 const customDict = {
-  'aspire': 'اسپائر',
   // Colors (phonetic — not literal)
   'purple': 'پرپل', 'black': 'بلیک', 'white': 'وائٹ', 'blue': 'بلیو',
   'red': 'ریڈ', 'green': 'گرین', 'yellow': 'یلو', 'pink': 'پنک',
@@ -427,12 +426,9 @@ function romanToUrdu(text) {
     'below': 'نیچے',
 
     // Fabrics
-    'fabric': 'کپڑا', 'kapra': 'کپڑا', 'cloth': 'کپڑا',
     'cotton': 'سوتی', 'suti': 'سوتی',
-    'lawn': 'لان',
-    'khadi': 'کھادی',
-    'linen': 'لینن',
     'silk': 'ریشم', 'resham': 'ریشم',
+    'aspire': 'اسپائر',
     'polyester': 'پالئیےسٹر',
     'jersey': 'جرسی',
     'denim': 'ڈینم',
