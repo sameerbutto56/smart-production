@@ -941,7 +941,7 @@ const urduSection = {
   sizeGender: 'سائز اور جنس',
   qty: 'تعداد',
   cap: 'کیپ',
-  sleeves: 'آستین',
+  sleeves: 'Sleeves بازو',
   length: 'لمبائی',
   nameLines: 'نام کی لائنیں',
   logos: 'لوگو',
@@ -998,7 +998,7 @@ const enSection = {
   sizeGender: 'Size & Gender',
   qty: 'Qty',
   cap: 'Cap',
-  sleeves: 'Sleeves',
+  sleeves: 'Sleeves بازو',
   length: 'Length',
   nameLines: 'Name Lines',
   logos: 'Logos',
@@ -1064,13 +1064,13 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const showPrice = ['SUPER_ADMIN', 'ADMIN'].includes(userRole);
   const priceDisplay = (v) => showPrice ? currency(v) : '★ ★ ★';
 
-  const slMap = { 'full':'Full', 'half':'Half', 'three-quarter':'3 Quarter' };
-  const shMap = { 'long':'Long', 'short':'Short', 'regular':'Regular' };
-  const femSlMap = { 'full':'Full', 'half':'Half', 'medium':'Medium' };
+  const slMap = { 'full':'Full', 'half':'Half ہاف', 'three-quarter':'3 Quarter' };
+  const shMap = { 'long':'Long', 'short':'Short', 'regular':'Regular ریگولر' };
+  const femSlMap = { 'full':'Full', 'half':'Half ہاف', 'medium':'Medium' };
   const femShMap = { 'long':'Long', 'short':'Short' };
-  const urduSlMap = { 'full':'فل بازو', 'half':'ہاف', 'three-quarter':'کوارٹر', 'quarter':'کوارٹر' };
-  const urduShMap = { 'long':'لمبی بازو', 'short':'چھوٹی بازو', 'regular':'باقاعدہ' };
-  const urduFemSlMap = { 'full':'فل بازو', 'half':'آدھی بازو', 'medium':'درمیانی' };
+  const urduSlMap = { 'full':'فل بازو', 'half':'Half ہاف', 'three-quarter':'کوارٹر', 'quarter':'کوارٹر' };
+  const urduShMap = { 'long':'لمبی بازو', 'short':'چھوٹی بازو', 'regular':'Regular ریگولر' };
+  const urduFemSlMap = { 'full':'فل بازو', 'half':'Half ہاف', 'medium':'درمیانی' };
   const urduFemShMap = { 'long':'لمبی بازو', 'short':'چھوٹی بازو' };
   const slDisplay = (v) => v ? (isUrdu ? (urduSlMap[v] || v) : (slMap[v] || v)) : '';
   const shDisplay = (v) => v ? (isUrdu ? (urduShMap[v] || v) : (shMap[v] || v)) : '';
