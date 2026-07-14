@@ -51,18 +51,20 @@ const OutletPOSDashboard = ({ outlet }) => {
   const [journalEntries, setJournalEntries] = useState([]);
   const [cashSummary, setCashSummary] = useState(null);
   const [journalLoading, setJournalLoading] = useState(false);
+  const journalRef = useRef(null);
 
   const fetchJournal = useCallback(async () => {
+    const cacheBust = Date.now();
     setJournalLoading(true);
     try {
       const [entriesRes, cashRes] = await Promise.all([
-        api.get(`/api/journal?outlet=${outlet}`),
-        api.get(`/api/journal/cash-summary?outlet=${outlet}`)
+        api.get(`/api/journal?outlet=${outlet}&_=${cacheBust}`),
+        api.get(`/api/journal/cash-summary?outlet=${outlet}&_=${cacheBust}`)
       ]);
       setJournalEntries(entriesRes.data);
       setCashSummary(cashRes.data);
     } catch (e) {
-      // silently fail
+      console.error('Journal/ cash fetch error:', e);
     } finally {
       setJournalLoading(false);
     }
@@ -70,10 +72,28 @@ const OutletPOSDashboard = ({ outlet }) => {
 
   useEffect(() => { fetchJournal(); }, [fetchJournal]);
 
+  // Re-fetch when tab becomes visible or window regains focus (covers navigation back)
   useEffect(() => {
     const handler = () => fetchJournal();
     window.addEventListener('journal-entry-saved', handler);
-    return () => window.removeEventListener('journal-entry-saved', handler);
+    window.addEventListener('focus', handler);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') handler(); });
+    return () => {
+      window.removeEventListener('journal-entry-saved', handler);
+      window.removeEventListener('focus', handler);
+    };
+  }, [fetchJournal]);
+
+  // Cross-tab sync via BroadcastChannel
+  useEffect(() => {
+    try {
+      const bc = new BroadcastChannel('smart-production');
+      bc.onmessage = (e) => {
+        if (e.data === 'journal-entry-saved' || e.data?.type === 'journal-entry-saved') fetchJournal();
+      };
+      journalRef.current = bc;
+    } catch (_) {}
+    return () => { try { journalRef.current?.close(); } catch (_) {} };
   }, [fetchJournal]);
 
   const kpis = dashboard ? [

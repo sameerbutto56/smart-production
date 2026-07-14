@@ -61,30 +61,33 @@ const getJournalEntries = async (req, res) => {
   }
 };
 
-// Get cash summary for an outlet — today's cash only
+// Get cash summary for an outlet — today's cash only (or custom range)
 const getCashSummary = async (req, res) => {
   try {
     const outlet = getOutletName(req);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    // Total cash from CASH sales today (non-refunded, non-Faisal)
+    // Accept optional dateFrom/dateTo query params
+    const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom) : today;
+    const dateTo = req.query.dateTo ? new Date(req.query.dateTo) : new Date();
+    // Total cash from CASH sales in range (non-refunded, non-Faisal)
     const cashSalesAgg = await prisma.posSale.aggregate({
-      where: { outletName: outlet, paymentMethod: 'CASH', refundedAt: null, faisalTake: { not: true }, createdAt: { gte: today } },
+      where: { outletName: outlet, paymentMethod: 'CASH', refundedAt: null, faisalTake: { not: true }, createdAt: { gte: dateFrom, lte: dateTo } },
       _sum: { grandTotal: true }
     });
-    // Total cash from CASH_ONLINE split payments today
+    // Total cash from CASH_ONLINE split payments in range
     const cashOnlineAgg = await prisma.posSale.aggregate({
-      where: { outletName: outlet, paymentMethod: 'CASH_ONLINE', refundedAt: null, faisalTake: { not: true }, createdAt: { gte: today } },
+      where: { outletName: outlet, paymentMethod: 'CASH_ONLINE', refundedAt: null, faisalTake: { not: true }, createdAt: { gte: dateFrom, lte: dateTo } },
       _sum: { cashAmount: true }
     });
-    // Total cash refunded today
+    // Total cash refunded in range
     const cashRefundedAgg = await prisma.posReturn.aggregate({
-      where: { outletName: outlet, refundPaymentMethod: 'CASH', createdAt: { gte: today } },
+      where: { outletName: outlet, refundPaymentMethod: 'CASH', createdAt: { gte: dateFrom, lte: dateTo } },
       _sum: { refundAmount: true }
     });
-    // Total journal expenses today
+    // Total journal expenses in range
     const journalAgg = await prisma.journalEntry.aggregate({
-      where: { outletName: outlet, createdAt: { gte: today } },
+      where: { outletName: outlet, createdAt: { gte: dateFrom, lte: dateTo } },
       _sum: { amount: true }
     });
     const totalCashCollected = (cashSalesAgg._sum.grandTotal || 0) + (cashOnlineAgg._sum.cashAmount || 0);
@@ -92,6 +95,7 @@ const getCashSummary = async (req, res) => {
     const totalExpenses = journalAgg._sum.amount || 0;
     const netCash = totalCashCollected - totalCashRefunded;
     const availableCash = netCash - totalExpenses;
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.json({ totalCashCollected, totalCashRefunded, totalExpenses, netCash, availableCash });
   } catch (error) {
     res.status(500).json({ message: 'Failed to get cash summary', error: error.message });

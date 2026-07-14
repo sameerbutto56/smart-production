@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
 import { Lock, User, DollarSign, FileText, Clock, RefreshCw, AlertTriangle, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -31,6 +31,7 @@ const OutletJournal = ({ outlet }) => {
 
   // Cash summary
   const [cashSummary, setCashSummary] = useState(null);
+  const bcRef = useRef(null);
 
   useEffect(() => {
     api.get(`/api/pos/employees?outlet=${outlet}`).then(r => setEmployees(r.data)).catch(() => {});
@@ -112,10 +113,19 @@ const OutletJournal = ({ outlet }) => {
       fetchEntries();
       fetchCashSummary();
       window.dispatchEvent(new CustomEvent('journal-entry-saved'));
+      // Broadcast to other tabs/windows
+      try {
+        if (!bcRef.current) bcRef.current = new BroadcastChannel('smart-production');
+        bcRef.current.postMessage('journal-entry-saved');
+      } catch (_) {}
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to save entry');
     }
   };
+
+  useEffect(() => {
+    return () => { try { bcRef.current?.close(); } catch (_) {} };
+  }, []);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
