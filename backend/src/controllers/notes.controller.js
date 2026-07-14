@@ -1,8 +1,20 @@
 const prisma = require('../prisma');
 
+const getOutletName = (req) => {
+  if (req.query.outlet) return req.query.outlet;
+  if (req.body.outlet) return req.body.outlet;
+  const n = String(req.user?.name || '').toLowerCase();
+  if (n.includes('johar')) return 'Johar Town';
+  if (n.includes('jail')) return 'Jail Road';
+  if (n.includes('abbottabad')) return 'Abbottabad';
+  return req.user?.name || 'Outlet';
+};
+
 const getNotes = async (req, res) => {
   try {
+    const outlet = getOutletName(req);
     const notes = await prisma.personalNote.findMany({
+      where: { outletName: outlet },
       orderBy: { createdAt: 'desc' },
     });
     res.json(notes);
@@ -16,9 +28,10 @@ const createNote = async (req, res) => {
     const { employeeName, content } = req.body;
     if (!employeeName) return res.status(400).json({ message: 'employeeName required' });
     if (!content) return res.status(400).json({ message: 'content required' });
+    const outlet = getOutletName(req);
 
     const note = await prisma.personalNote.create({
-      data: { ownerName: employeeName, content: content || '', title: '' },
+      data: { ownerName: employeeName, outletName: outlet, content: content || '', title: '' },
     });
     res.status(201).json(note);
   } catch (error) {

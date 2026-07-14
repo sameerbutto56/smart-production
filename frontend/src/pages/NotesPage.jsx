@@ -1,8 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { Plus, X, Clock, User, FileText } from 'lucide-react';
 
 const NotesPage = () => {
+  const { user } = useAuth();
+  const outletName = (() => {
+    const n = (user?.name || '').toLowerCase();
+    if (n.includes('jail')) return 'Jail Road';
+    if (n.includes('abbottabad')) return 'Abbottabad';
+    return 'Johar Town';
+  })();
+
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -13,7 +22,7 @@ const NotesPage = () => {
   const fetchNotes = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/api/notes');
+      const res = await api.get(`/api/notes?outlet=${outletName}`);
       setNotes(res.data || []);
     } catch {
       setNotes([]);
@@ -22,13 +31,13 @@ const NotesPage = () => {
     }
   };
 
-  useEffect(() => { fetchNotes(); }, []);
+  useEffect(() => { fetchNotes(); }, [outletName]);
 
   const handleSave = async () => {
     if (!employeeName.trim() || !content.trim()) return;
     setSaving(true);
     try {
-      await api.post('/api/notes', { employeeName: employeeName.trim(), content: content.trim() });
+      await api.post('/api/notes', { employeeName: employeeName.trim(), content: content.trim(), outlet: outletName });
       setShowForm(false);
       setEmployeeName('');
       setContent('');

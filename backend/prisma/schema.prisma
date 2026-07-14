@@ -460,14 +460,16 @@ model OutletDemandRequest {
 }
 
 model PersonalNote {
-  id        String   @id @default(uuid())
-  ownerName String
-  title     String   @default("")
-  content   String   @default("")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(uuid())
+  ownerName   String
+  outletName  String   @default("")
+  title       String   @default("")
+  content     String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([ownerName])
+  @@index([outletName])
 }
 
 model ChatMessage {
