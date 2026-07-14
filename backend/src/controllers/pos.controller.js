@@ -933,6 +933,7 @@ const getSalesDashboard = async (req, res) => {
       returnedOrders: totalReturns,
       netRevenue,
       totalDiscount,
+      totalJournalExpenses,
       paymentBreakdown,
       balanceOrders,
       highestSalesDay,

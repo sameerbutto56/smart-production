@@ -103,7 +103,8 @@ const OutletPOSDashboard = ({ outlet }) => {
     { icon: RotateCcw, label: 'Returned Orders', value: dashboard.returnedOrders || 0, sub: 'Items returned', color: 'from-red-600 to-rose-600' },
     { icon: CheckCircle, label: 'Completed Orders', value: (dashboard.completedOrders || 0), sub: 'POS + Standard Completed', color: 'from-emerald-600 to-teal-600' },
     { icon: Clock, label: 'Pending Orders', value: dashboard.pendingOrders || 0, sub: 'Awaiting production/dispatch', color: 'from-amber-600 to-orange-600' },
-    { icon: XCircle, label: 'Cancelled Orders', value: dashboard.cancelledOrders || 0, sub: 'Rejected / Cancelled', color: 'from-red-600 to-pink-600' }
+    { icon: XCircle, label: 'Cancelled Orders', value: dashboard.cancelledOrders || 0, sub: 'Rejected / Cancelled', color: 'from-red-600 to-pink-600' },
+    { icon: FileText, label: 'General Entry Deduction', value: formatCurrency(dashboard.totalJournalExpenses || 0), sub: `Available Cash: ${formatCurrency((dashboard.totalSales || 0) - (dashboard.totalJournalExpenses || 0))}`, color: 'from-orange-600 to-red-600' }
   ] : [];
 
   return (

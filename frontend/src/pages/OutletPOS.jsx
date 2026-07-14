@@ -973,17 +973,16 @@ const OutletPOS = () => {
       lines.push('');
       lines.push(`Faisal Takes: ${formatCurrency(summary.totalFaisalTake)}`);
     }
-    lines.push('');
-    lines.push('DEDUCTIONS');
-    lines.push('─'.repeat(32));
-    lines.push(`Journal Entries: ${formatCurrency(summary.totalJournalEntries)}`);
-    lines.push(`Returns:         ${formatCurrency(summary.totalReturns)}`);
+    const { availableCash: avail } = summary;
+    const transferred = parseFloat(transferCashAmount) || 0;
+    const remaining = avail - transferred;
     lines.push('');
     lines.push('CASH SUMMARY');
     lines.push('─'.repeat(32));
-    const avail = summary.availableCash;
-    const transferred = parseFloat(transferCashAmount) || 0;
-    const remaining = avail - transferred;
+    lines.push(`Today's Total:   ${formatCurrency(summary.paymentSummary.grandTotal)}`);
+    lines.push(`Cash Sales:      ${formatCurrency(summary.paymentSummary.cash)}`);
+    lines.push(`Gen Entry:      -${formatCurrency(summary.totalJournalEntries)}`);
+    lines.push(`Cash Returns:   -${formatCurrency(summary.returnSummary.cash)}`);
     lines.push(`Available Cash:  ${formatCurrency(avail)}`);
     if (transferred > 0) {
       lines.push(`Transfer to Sys: ${formatCurrency(transferred)}`);
@@ -1051,16 +1050,28 @@ const OutletPOS = () => {
         </table>
         ${summary.totalFaisalTake > 0 ? `<p><strong>Faisal Takes:</strong> ${formatCurrency(summary.totalFaisalTake)}</p>` : ''}
 
-        <h2>Deductions</h2>
+        <h2>General Entry Deduction</h2>
         <table>
           <tr><td>Journal Entries</td><td class="right">${formatCurrency(summary.totalJournalEntries)}</td></tr>
-          <tr><td>Returns</td><td class="right">${formatCurrency(summary.totalReturns)}</td></tr>
+          ${(summary.journalEntries || []).map(j => `<tr><td style="padding-left:20px;font-size:12px;color:#666;">${j.expenseTitle} — ${j.employeeName}</td><td class="right">${formatCurrency(j.amount)}</td></tr>`).join('')}
+        </table>
+
+        <h2>Returns &amp; Refunds</h2>
+        <table>
+          <tr><td>Cash Returns</td><td class="right">${formatCurrency(summary.returnSummary.cash)}</td></tr>
+          <tr><td>Card Returns</td><td class="right">${formatCurrency(summary.returnSummary.card)}</td></tr>
+          <tr><td>Online Returns</td><td class="right">${formatCurrency(summary.returnSummary.online)}</td></tr>
+          <tr class="total"><td>Total Returns</td><td class="right">${formatCurrency(summary.totalReturns)}</td></tr>
         </table>
 
         <h2>Cash Summary</h2>
         <table>
-          <tr><td>Available Cash</td><td class="right">${formatCurrency(avail)}</td></tr>
-          ${transferred > 0 ? `<tr><td>Transfer to System</td><td class="right">${formatCurrency(transferred)}</td></tr><tr class="total"><td>Remaining Cash in Locker</td><td class="right">${formatCurrency(remaining)}</td></tr>` : ''}
+          <tr><td>Today's Total Sales</td><td class="right">${formatCurrency(summary.paymentSummary.grandTotal)}</td></tr>
+          <tr><td>Cash Sales</td><td class="right">${formatCurrency(summary.paymentSummary.cash)}</td></tr>
+          <tr><td>General Entry Deduction</td><td class="right">-${formatCurrency(summary.totalJournalEntries)}</td></tr>
+          <tr><td>Cash Returns</td><td class="right">-${formatCurrency(summary.returnSummary.cash)}</td></tr>
+          <tr class="total"><td>Available Cash</td><td class="right">${formatCurrency(avail)}</td></tr>
+          ${transferred > 0 ? `<tr><td>Transfer to System</td><td class="right">-${formatCurrency(transferred)}</td></tr><tr class="total"><td>Remaining Cash in Locker</td><td class="right">${formatCurrency(remaining)}</td></tr>` : ''}
         </table>
 
         <div class="footer">BOOK CLOSED</div>
@@ -2767,22 +2778,32 @@ const OutletPOS = () => {
                   </div>
                 )}
 
-                {/* Deductions */}
-                <div className="bg-gray-800 rounded-xl p-4">
-                  <h3 className="text-sm font-black text-gray-300 uppercase tracking-widest mb-3">Deductions</h3>
+                {/* General Entry Deduction */}
+                <div className="bg-gray-800 rounded-xl p-4 border border-orange-800/50">
+                  <h3 className="text-sm font-black text-gray-300 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                    <FileText size={14} className="text-orange-400" /> General Entry Deduction
+                  </h3>
+                  <div className="flex justify-between text-xs mb-2">
+                    <span className="text-gray-400">Total Deducted</span>
+                    <span className="font-bold text-red-400">-{formatCurrency(closeBookSummary.totalJournalEntries)}</span>
+                  </div>
+                  {closeBookSummary.totalJournalCount > 0 && (
+                    <div className="pl-2 text-[10px] text-gray-600 space-y-0.5 border-t border-gray-700/50 pt-2">
+                      {(closeBookSummary.journalEntries || []).map((j, idx) => (
+                        <div key={idx} className="flex justify-between">
+                          <span>{j.expenseTitle} — {j.employeeName}</span>
+                          <span className="text-red-400/70">{formatCurrency(j.amount)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Returns & Refunds */}
+                <div className="bg-gray-800 rounded-xl p-4 border border-red-800/30">
+                  <h3 className="text-sm font-black text-gray-300 uppercase tracking-widest mb-3">Returns & Refunds</h3>
                   <div className="space-y-2 text-xs">
-                    <div className="flex justify-between"><span className="text-gray-400">Journal Entries</span><span className="font-bold text-red-400">{formatCurrency(closeBookSummary.totalJournalEntries)}</span></div>
-                    {closeBookSummary.totalJournalCount > 0 && (
-                      <div className="pl-2 text-[10px] text-gray-600 space-y-0.5">
-                        {(closeBookSummary.journalEntries || []).map((j, idx) => (
-                          <div key={idx} className="flex justify-between">
-                            <span>{j.expenseTitle} — {j.employeeName}</span>
-                            <span className="text-red-400/70">{formatCurrency(j.amount)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <div className="flex justify-between"><span className="text-gray-400">Returns</span><span className="font-bold text-red-400">{formatCurrency(closeBookSummary.totalReturns)}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-400">Total Returns</span><span className="font-bold text-red-400">{formatCurrency(closeBookSummary.totalReturns)}</span></div>
                     {closeBookSummary.totalReturnsCount > 0 && (
                       <div className="pl-2 text-[10px] text-gray-600 space-y-0.5">
                         <div className="flex justify-between"><span className="text-gray-500">Cash Returns:</span><span className="text-red-400/70">{formatCurrency(closeBookSummary.returnSummary.cash)}</span></div>
@@ -2793,12 +2814,13 @@ const OutletPOS = () => {
                   </div>
                 </div>
 
-                {/* Cash Summary */}
+                {/* Cash Summary — from today's total sales down to available cash */}
                 <div className="bg-gray-800 rounded-xl p-4 border-2 border-emerald-800/50">
                   <h3 className="text-sm font-black text-gray-300 uppercase tracking-widest mb-3">Cash Summary</h3>
                   <div className="space-y-2 text-xs">
+                    <div className="flex justify-between pb-2 border-b border-gray-700"><span className="font-bold text-white">Today's Total Sales</span><span className="font-bold text-white">{formatCurrency(closeBookSummary.paymentSummary.grandTotal)}</span></div>
                     <div className="flex justify-between"><span className="text-gray-400">Cash Sales</span><span className="font-bold text-emerald-400">{formatCurrency(closeBookSummary.paymentSummary.cash)}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-400">Journal Entries</span><span className="font-bold text-red-400">-{formatCurrency(closeBookSummary.totalJournalEntries)}</span></div>
+                    <div className="flex justify-between"><span className="text-orange-400 font-bold">General Entry Deduction</span><span className="font-bold text-red-400">-{formatCurrency(closeBookSummary.totalJournalEntries)}</span></div>
                     <div className="flex justify-between"><span className="text-gray-400">Cash Returns</span><span className="font-bold text-red-400">-{formatCurrency(closeBookSummary.returnSummary.cash)}</span></div>
                     <div className="flex justify-between border-t border-gray-700 pt-2 mt-2">
                       <span className="font-bold text-white">Available Cash</span>
