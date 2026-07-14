@@ -461,7 +461,8 @@ const createSale = async (req, res) => {
       const cust1 = item.customization1 ? 500 : 0;
       const cust2 = item.customization2 ? 1000 : 0;
       const engrave = item.nameEngrave ? 300 : 0;
-      const custCharges = cust1 + cust2 + engrave;
+      const logo = item.logoDesign ? 300 : 0;
+      const custCharges = cust1 + cust2 + engrave + logo;
       const otherCharges = parseFloat(item.otherCharges || 0);
       const dpct = parseFloat(item.discountPct || 0);
       const dfixed = parseFloat(item.discountFixed || 0);
@@ -482,6 +483,7 @@ const createSale = async (req, res) => {
         customization1: item.customization1 || false,
         customization2: item.customization2 || false,
         nameEngrave: item.nameEngrave || false,
+        logoDesign: item.logoDesign || false,
         customizationCharges: custCharges,
         otherCharges,
         discountPct: dpct,

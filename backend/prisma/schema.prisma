@@ -601,6 +601,7 @@ model PosSaleItem {
   customization1    Boolean  @default(false)
   customization2    Boolean  @default(false)
   nameEngrave       Boolean  @default(false)
+  logoDesign        Boolean  @default(false)
   customizationCharges Float @default(0)
   otherCharges      Float    @default(0)
   discountPct       Float    @default(0)

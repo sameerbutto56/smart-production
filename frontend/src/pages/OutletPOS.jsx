@@ -348,10 +348,11 @@ const OutletPOS = () => {
 
   const subtotal = useMemo(() => cart.reduce((s, i) => s + i.unitPrice * i.qty, 0), [cart]);
   const altCharges = useMemo(() => cart.reduce((s, i) => s + (i.alterationAmount || 0), 0), [cart]);
-  const custCharges = useMemo(() => cart.reduce((s, i) => s + ((i.customization1 ? 500 : 0) + (i.customization2 ? 1000 : 0) + (i.nameEngrave ? 300 : 0)) * i.qty, 0), [cart]);
+  const custCharges = useMemo(() => cart.reduce((s, i) => s + ((i.customization1 ? 500 : 0) + (i.customization2 ? 1000 : 0) + (i.nameEngrave ? 300 : 0) + (i.logoDesign ? 300 : 0)) * i.qty, 0), [cart]);
   const cust1Total = useMemo(() => cart.reduce((s, i) => s + (i.customization1 ? 500 * i.qty : 0), 0), [cart]);
   const cust2Total = useMemo(() => cart.reduce((s, i) => s + (i.customization2 ? 1000 * i.qty : 0), 0), [cart]);
   const engraveTotal = useMemo(() => cart.reduce((s, i) => s + (i.nameEngrave ? 300 * i.qty : 0), 0), [cart]);
+  const logoDesignTotal = useMemo(() => cart.reduce((s, i) => s + (i.logoDesign ? 300 * i.qty : 0), 0), [cart]);
   const otherChargesTotal = useMemo(() => cart.reduce((s, i) => s + (parseFloat(i.otherCharges) || 0), 0), [cart]);
   const perItemDiscount = useMemo(() => cart.reduce((s, i) => {
     const base = i.unitPrice * i.qty;
@@ -407,7 +408,7 @@ const OutletPOS = () => {
         variantId: v.id, productName: v.productName,
         size: v.size, color: v.color, unitPrice: v.price || 0,
         qty: 1, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0,
-        customization1: false, customization2: false, nameEngrave: false, otherCharges: 0
+        customization1: false, customization2: false, nameEngrave: false, logoDesign: false, otherCharges: 0
       }]);
     }
     toast.success(`${v.productName} added via barcode`);
@@ -429,7 +430,7 @@ const OutletPOS = () => {
         variantId: product.id, productName: product.name,
         size: product.size || null, color: product.color || null, unitPrice: product.price || 0,
         qty: 1, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0,
-        customization1: false, customization2: false, nameEngrave: false, otherCharges: 0
+        customization1: false, customization2: false, nameEngrave: false, logoDesign: false, otherCharges: 0
       }]);
       toast.success(`${product.name} added`);
     }
@@ -462,7 +463,7 @@ const OutletPOS = () => {
       variantId: variant.id, productName: product.name,
       size: variant.size, color: variant.color, unitPrice: variant.price || product.price || 0,
       qty: selectedQty, alterationAmount: 0, alterationLabel: '', discountPct: 0, discountFixed: 0,
-      customization1: false, customization2: false, nameEngrave: false, otherCharges: 0
+      customization1: false, customization2: false, nameEngrave: false, logoDesign: false, otherCharges: 0
     }]);
     setShowConfig(null);
     toast.success(`${product.name} added`);
@@ -515,7 +516,7 @@ const OutletPOS = () => {
       }
     }
     const payload = {
-      items: cart.map(i => ({ variantId: i.variantId, quantity: i.qty, unitPrice: i.unitPrice, alterationCharges: i.alterationAmount, discountPct: parseFloat(i.discountPct) || 0, discountFixed: parseFloat(i.discountFixed) || 0, customization1: i.customization1 || false, customization2: i.customization2 || false, nameEngrave: i.nameEngrave || false, otherCharges: parseFloat(i.otherCharges) || 0 })),
+      items: cart.map(i => ({ variantId: i.variantId, quantity: i.qty, unitPrice: i.unitPrice, alterationCharges: i.alterationAmount, discountPct: parseFloat(i.discountPct) || 0, discountFixed: parseFloat(i.discountFixed) || 0, customization1: i.customization1 || false, customization2: i.customization2 || false, nameEngrave: i.nameEngrave || false, logoDesign: i.logoDesign || false, otherCharges: parseFloat(i.otherCharges) || 0 })),
       customerName: customerName || null,
       customerPhone: customerPhone || null,
       extraCharges: 0,
@@ -2190,7 +2191,7 @@ const OutletPOS = () => {
                     <span className="px-2 text-xs font-bold text-white min-w-[20px] text-center">{item.qty}</span>
                     <button onClick={() => updateQty(i, item.qty + 1)} className="p-1.5 hover:text-white text-gray-500"><Plus size={12} /></button>
                   </div>
-                  <span className="text-xs font-black text-white ml-auto">{formatCurrency(item.unitPrice * item.qty + ((item.customization1 ? 500 : 0) + (item.customization2 ? 1000 : 0) + (item.nameEngrave ? 300 : 0)) * item.qty + (parseFloat(item.otherCharges) || 0))}</span>
+                   <span className="text-xs font-black text-white ml-auto">{formatCurrency(item.unitPrice * item.qty + ((item.customization1 ? 500 : 0) + (item.customization2 ? 1000 : 0) + (item.nameEngrave ? 300 : 0) + (item.logoDesign ? 300 : 0)) * item.qty + (parseFloat(item.otherCharges) || 0))}</span>
                 </div>
 
                 <div className="flex flex-wrap gap-1 mt-1.5">
@@ -2205,6 +2206,10 @@ const OutletPOS = () => {
                   <button onClick={() => updateCartCustomization(i, 'nameEngrave')}
                     className={`px-2 py-1 rounded-lg text-[9px] font-bold border ${item.nameEngrave ? 'border-purple-500 bg-purple-600/20 text-purple-300' : 'border-gray-700 text-gray-500'}`}>
                     Name Engrave (+₨300)
+                  </button>
+                  <button onClick={() => updateCartCustomization(i, 'logoDesign')}
+                    className={`px-2 py-1 rounded-lg text-[9px] font-bold border ${item.logoDesign ? 'border-purple-500 bg-purple-600/20 text-purple-300' : 'border-gray-700 text-gray-500'}`}>
+                    Logo Design (+₨300)
                   </button>
                 </div>
                 <div className="mt-1.5 flex items-center gap-2">
@@ -2257,6 +2262,12 @@ const OutletPOS = () => {
                 <div className="flex items-center justify-between text-xs text-purple-400">
                   <span>Name Engraving</span>
                   <span>{formatCurrency(engraveTotal)}</span>
+                </div>
+              )}
+              {logoDesignTotal > 0 && (
+                <div className="flex items-center justify-between text-xs text-purple-400">
+                  <span>Logo Design</span>
+                  <span>{formatCurrency(logoDesignTotal)}</span>
                 </div>
               )}
               {otherChargesTotal > 0 && (
