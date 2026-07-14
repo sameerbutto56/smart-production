@@ -267,98 +267,100 @@ const acceptDemandRequest = async (req, res) => {
       return res.status(400).json({ message: 'Already accepted. Cannot accept again.' });
     }
 
-    const items = typeof existing.items === 'string' ? JSON.parse(existing.items) : existing.items;
-    const results = [];
-
-    for (const it of items) {
-      if (!it.approvedQty || it.approvedQty <= 0) continue;
-
-      // Find inventory item — prefer direct ID match, fallback to name
-      let inv = null;
-      if (it.inventoryItemId) {
-        inv = await prisma.inventoryItem.findUnique({
-          where: { id: it.inventoryItemId }
-        });
-      }
-      if (!inv) {
-        const invItems = await prisma.inventoryItem.findMany({
-          where: { name: { contains: it.productName, mode: 'insensitive' } }
-        });
-        inv = invItems[0] || null;
-      }
-      if (!inv) {
-        results.push({ productName: it.productName, status: 'SKIPPED', reason: 'No warehouse product found' });
-        continue;
-      }
-
-      // Find or create the matching OutletInventory for THIS outlet only
-      let oi = await prisma.outletInventory.findFirst({
-        where: {
-          outletName: existing.outletName,
-          name: inv.name,
-          category: inv.category,
-          color: it.color || null,
-          size: it.size || null
-        }
-      });
-      if (!oi) {
-        let bc = generateBarcode(inv.id, it.size, it.color);
-        let a = 0;
-        while (await prisma.outletInventory.findFirst({ where: { barcode: bc, outletName: existing.outletName } })) {
-          a++;
-          bc = generateBarcode(inv.id, it.size, it.color, a);
-        }
-        oi = await prisma.outletInventory.create({
-          data: {
-            outletName: existing.outletName,
-            name: inv.name,
-            category: inv.category || '',
-            color: it.color || null,
-            size: it.size || null,
-            fabric: inv.fabric || null,
-            barcode: bc,
-            stock: parseInt(it.approvedQty) || 0,
-            price: null,
-            metadata: JSON.stringify({ sourceStoreItemId: inv.id })
-          }
-        });
-      } else {
-        // Add stock to existing OutletInventory record
-        await prisma.outletInventory.update({
-          where: { id: oi.id },
-          data: { stock: { increment: parseInt(it.approvedQty) || 0 } }
-        });
-      }
-
-      // Deduct from warehouse inventory
-      await deductWarehouseStock(inv.id, it.color || null, it.size || null, parseInt(it.approvedQty) || 0);
-
-      results.push({
-        productName: it.productName,
-        color: it.color,
-        size: it.size,
-        status: 'ACCEPTED',
-        qty: it.approvedQty
-      });
-    }
-
-    // Mark demand as accepted
+    // Mark accepted immediately so the button won't re-trigger
     await prisma.outletDemandRequest.update({
       where: { id },
       data: { acceptedAt: new Date(), acceptedById: req.user.id }
     });
 
-    await prisma.auditLog.create({
-      data: {
-        orderId: null,
-        action: 'DEMAND_REQUEST_ACCEPTED',
-        details: `Demand request ${id} (${existing.transferNumber || ''}) from ${existing.outletName} accepted — ${results.length} items processed, warehouse deducted`,
-        performedBy: req.user.id
+    res.json({ message: 'Demand accepted. Processing items in background.' });
+
+    // Process items asynchronously (respond first to avoid 504 timeout)
+    setImmediate(async () => {
+      try {
+        const items = typeof existing.items === 'string' ? JSON.parse(existing.items) : existing.items;
+        const results = [];
+
+        for (const it of items) {
+          if (!it.approvedQty || it.approvedQty <= 0) continue;
+
+          let inv = null;
+          if (it.inventoryItemId) {
+            inv = await prisma.inventoryItem.findUnique({ where: { id: it.inventoryItemId } });
+          }
+          if (!inv) {
+            const invItems = await prisma.inventoryItem.findMany({
+              where: { name: { contains: it.productName, mode: 'insensitive' } }
+            });
+            inv = invItems[0] || null;
+          }
+          if (!inv) {
+            results.push({ productName: it.productName, status: 'SKIPPED', reason: 'No warehouse product found' });
+            continue;
+          }
+
+          let oi = await prisma.outletInventory.findFirst({
+            where: {
+              outletName: existing.outletName,
+              name: inv.name,
+              category: inv.category,
+              color: it.color || null,
+              size: it.size || null
+            }
+          });
+          if (!oi) {
+            let bc = generateBarcode(inv.id, it.size, it.color);
+            let a = 0;
+            while (await prisma.outletInventory.findFirst({ where: { barcode: bc, outletName: existing.outletName } })) {
+              a++;
+              bc = generateBarcode(inv.id, it.size, it.color, a);
+            }
+            await prisma.outletInventory.create({
+              data: {
+                outletName: existing.outletName,
+                name: inv.name,
+                category: inv.category || '',
+                color: it.color || null,
+                size: it.size || null,
+                fabric: inv.fabric || null,
+                barcode: bc,
+                stock: parseInt(it.approvedQty) || 0,
+                price: null,
+                metadata: JSON.stringify({ sourceStoreItemId: inv.id })
+              }
+            });
+          } else {
+            await prisma.outletInventory.update({
+              where: { id: oi.id },
+              data: { stock: { increment: parseInt(it.approvedQty) || 0 } }
+            });
+          }
+
+          await deductWarehouseStock(inv.id, it.color || null, it.size || null, parseInt(it.approvedQty) || 0);
+          results.push({
+            productName: it.productName,
+            color: it.color,
+            size: it.size,
+            status: 'ACCEPTED',
+            qty: it.approvedQty
+          });
+        }
+
+        await prisma.auditLog.create({
+          data: {
+            orderId: null,
+            action: 'DEMAND_REQUEST_ACCEPTED',
+            details: `Demand request ${id} (${existing.transferNumber || ''}) from ${existing.outletName} accepted — ${results.length} items processed, warehouse deducted`,
+            performedBy: req.user.id
+          }
+        });
+
+        cache.delPattern('pos:');
+        console.log(`Demand ${id} background processing complete: ${results.length} items`);
+      } catch (bgErr) {
+        console.error('Background demand processing error:', bgErr);
       }
     });
-
-    cache.delPattern('pos:');
-    res.json({ message: 'Demand accepted. Outlet stock added, warehouse deducted.', results });
   } catch (error) {
     res.status(500).json({ message: 'Error accepting demand request', error: error.message });
   }
