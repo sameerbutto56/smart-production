@@ -100,7 +100,7 @@ const History = () => {
         'Size': product.size || '',
         'Quantity': order.quantity || 1,
         'Payment Method': parseFloat(order.advanceAmount) > 0 ? 'Advance Paid' : 'COD',
-        'Advance Amount': order.advanceAmount ? `PKR ${order.advanceAmount}` : '—',
+        'Advance Amount': order.advanceAmount ? `₨${order.advanceAmount}` : '—',
         'Amount (PKR)': order.totalPrice || 0,
         'Delivery Status': order.status,
         'Source': order.source || '',

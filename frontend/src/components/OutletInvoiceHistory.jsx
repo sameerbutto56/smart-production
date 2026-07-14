@@ -5,7 +5,7 @@ import QRCode from 'qrcode';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 
-const formatCurrency = (n) => `PKR ${(n || 0).toLocaleString()}`;
+const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 
 const datePresets = [
   { label: 'All Time', value: 'all' },
@@ -196,7 +196,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
 
   const handlePayBalance = async () => {
     if (!selectedInvoice || payAmount <= 0) return toast.error('Enter a valid amount');
-    if (payAmount > selectedInvoice.remaining) return toast.error(`Amount exceeds remaining balance of PKR ${selectedInvoice.remaining.toLocaleString()}`);
+    if (payAmount > selectedInvoice.remaining) return toast.error(`Amount exceeds remaining balance of ₨${selectedInvoice.remaining.toLocaleString()}`);
     setPaying(true);
     try {
       const res = await api.post(`/api/pos/pay-balance`, {

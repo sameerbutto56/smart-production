@@ -16,7 +16,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
 
   const isFaisal = ['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET'].includes(userRole);
   const showPrice = ['SUPER_ADMIN', 'ADMIN'].includes(userRole);
-  const priceDisplay = (v) => showPrice ? `PKR ${(v || 0).toLocaleString()}` : '★ ★ ★';
+  const priceDisplay = (v) => showPrice ? `₨${(v || 0).toLocaleString()}` : '★ ★ ★';
   const [timeLeft, setTimeLeft] = useState('');
   const [isDelayed, setIsDelayed] = useState(false);
   const [showFullSheet, setShowFullSheet] = useState(false);
@@ -706,7 +706,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     const hasAdvance = parseFloat(order.advanceAmount || 0) > 0;
                     const remainingAmt = Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0));
                     if (isPaid) return <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black tracking-tighter bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">PAID</span>;
-                    if (hasAdvance) return <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black tracking-tighter bg-orange-500/20 text-orange-400 border border-orange-500/30">REMAINING COD: PKR {remainingAmt.toLocaleString()}</span>;
+                    if (hasAdvance) return <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black tracking-tighter bg-orange-500/20 text-orange-400 border border-orange-500/30">REMAINING COD: ₨{remainingAmt.toLocaleString()}</span>;
                     return <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black tracking-tighter bg-red-500/20 text-red-400 border border-red-500/30">CASH ON DELIVERY</span>;
                   })()}
                 </div>
@@ -719,7 +719,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   )}
                   {order.totalPrice > 0 && (
                     <span className={`text-xs md:text-sm font-black flex items-center gap-1 px-1.5 py-0.5 rounded-md border ${showPrice ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 'text-gray-500 bg-gray-800/50 border-gray-700/30'}`}>
-                      {showPrice ? <><span>PKR </span><span>{order.totalPrice.toLocaleString()}</span></> : '★ ★ ★'}
+                      {showPrice ? <><span>₨</span><span>{order.totalPrice.toLocaleString()}</span></> : '★ ★ ★'}
                     </span>
                   )}
                 </div>
@@ -842,20 +842,20 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               )}
               <span className="text-[9px] md:text-[10px] font-black text-blue-400 bg-blue-900/30 px-2 py-0.5 rounded-md">Qty: {order.quantity || 1}</span>
               {order.logoCharges > 0 && (
-                <span className="text-[9px] md:text-[10px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-md">Logo: {showPrice ? `PKR ${Number(order.logoCharges).toLocaleString()}` : '★ ★ ★'}</span>
+                <span className="text-[9px] md:text-[10px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-md">Logo: {showPrice ? `₨${Number(order.logoCharges).toLocaleString()}` : '★ ★ ★'}</span>
               )}
               {order.namePrintingCharges > 0 && (
-                <span className="text-[9px] md:text-[10px] font-black text-purple-400 bg-purple-900/30 px-2 py-0.5 rounded-md">Name: {showPrice ? `PKR ${Number(order.namePrintingCharges).toLocaleString()}` : '★ ★ ★'}</span>
+                <span className="text-[9px] md:text-[10px] font-black text-purple-400 bg-purple-900/30 px-2 py-0.5 rounded-md">Name: {showPrice ? `₨${Number(order.namePrintingCharges).toLocaleString()}` : '★ ★ ★'}</span>
               )}
               {order.customizationPrice > 0 && (
-                <span className="text-[9px] md:text-[10px] font-black text-emerald-400 bg-emerald-900/30 px-2 py-0.5 rounded-md">Custom: {showPrice ? `PKR ${Number(order.customizationPrice).toLocaleString()}` : '★ ★ ★'}</span>
+                <span className="text-[9px] md:text-[10px] font-black text-emerald-400 bg-emerald-900/30 px-2 py-0.5 rounded-md">Custom: {showPrice ? `₨${Number(order.customizationPrice).toLocaleString()}` : '★ ★ ★'}</span>
               )}
               {order.paymentStatus === 'PAID' && (
                 <span className="text-[9px] md:text-[10px] font-black px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400">PAID</span>
               )}
               {order.courierDetails?.payments?.length > 0 && (
                 <span className="text-[6px] md:text-[9px] font-bold text-gray-500">
-                  {showPrice ? `PKR ${order.courierDetails.payments.reduce((s, p) => s + (p.amount || 0), 0).toLocaleString()} / PKR ${(order.totalPrice || 0).toLocaleString()}` : '★ ★ ★'}
+                  {showPrice ? `₨${order.courierDetails.payments.reduce((s, p) => s + (p.amount || 0), 0).toLocaleString()} / ₨${(order.totalPrice || 0).toLocaleString()}` : '★ ★ ★'}
                 </span>
               )}
               {order.deliveryType && (
@@ -1008,7 +1008,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   <div><span className="text-gray-500">Order Type:</span> <span className="text-white font-bold">{order.type || 'STANDARD'}</span></div>
                   <div><span className="text-gray-500">Priority:</span> <span className="text-white font-bold">{order.priority || 'NORMAL'}</span></div>
                   <div><span className="text-gray-500">Source:</span> <span className="text-white font-bold">{order.outletName || order.source || '—'}</span></div>
-                  <div><span className="text-gray-500">Payment:</span> <span className="text-white font-bold">{order.paymentStatus === 'PAID' ? 'PAID' : parseFloat(order.advanceAmount || 0) > 0 ? `Advance: PKR ${parseFloat(order.advanceAmount).toLocaleString()}` : 'COD'}</span></div>
+                  <div><span className="text-gray-500">Payment:</span> <span className="text-white font-bold">{order.paymentStatus === 'PAID' ? 'PAID' : parseFloat(order.advanceAmount || 0) > 0 ? `Advance: ₨${parseFloat(order.advanceAmount).toLocaleString()}` : 'COD'}</span></div>
                   <div><span className="text-gray-500">Date:</span> <span className="text-white font-bold">{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : '—'}</span></div>
                 </div>
               </div>
@@ -2432,9 +2432,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             ...(product?.designSourceProduct ? [{ label: 'Design Required', val: product.designSourceProduct }] : []),
                             ...(product?.sizeSourceProduct ? [{ label: 'Size Required', val: product.sizeSourceProduct }] : []),
                             ...(product?.additionalProductRef ? [{ label: 'Additional Ref', val: product.additionalProductRef }] : []),
-                            ...(['SUPER_ADMIN', 'ADMIN'].includes(userRole) && order.logoCharges > 0 ? [{ label: 'Logo Charge', val: showPrice ? `PKR ${order.logoCharges}` : '★ ★ ★' }] : []),
-                            ...(['SUPER_ADMIN', 'ADMIN'].includes(userRole) && order.namePrintingCharges > 0 ? [{ label: 'Name Printing', val: showPrice ? `PKR ${order.namePrintingCharges}` : '★ ★ ★' }] : []),
-                            ...(['SUPER_ADMIN', 'ADMIN'].includes(userRole) ? [{ label: 'Customization Charge', val: showPrice ? `PKR ${order.customizationPrice || 0}` : '★ ★ ★' }] : []),
+                            ...(['SUPER_ADMIN', 'ADMIN'].includes(userRole) && order.logoCharges > 0 ? [{ label: 'Logo Charge', val: showPrice ? `₨${order.logoCharges}` : '★ ★ ★' }] : []),
+                            ...(['SUPER_ADMIN', 'ADMIN'].includes(userRole) && order.namePrintingCharges > 0 ? [{ label: 'Name Printing', val: showPrice ? `₨${order.namePrintingCharges}` : '★ ★ ★' }] : []),
+                            ...(['SUPER_ADMIN', 'ADMIN'].includes(userRole) ? [{ label: 'Customization Charge', val: showPrice ? `₨${order.customizationPrice || 0}` : '★ ★ ★' }] : []),
                             ...(['SUPER_ADMIN', 'ADMIN'].includes(userRole) ? [{ label: 'Payment', val: order.paymentStatus }] : [])
                           ].filter(i => i.val).map((item, i) => (
                             <tr key={i} className="border-b border-gray-800/30 hover:bg-gray-900/20">
@@ -2876,9 +2876,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
 
               {(order.type === 'FULL_CUSTOM' || order.type === 'READY_LOGO') && currentStage?.stageName === 'STORE' && (
                 <div className="space-y-3">
-                  <label className="text-xs md:text-sm font-black text-emerald-500 uppercase tracking-widest ml-1">Add Customization Amount (PKR )</label>
+                  <label className="text-xs md:text-sm font-black text-emerald-500 uppercase tracking-widest ml-1">Add Customization Amount (₨)</label>
                   <div className="relative">
-                    <span className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-500 font-black">PKR </span>
+                    <span className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-500 font-black">₨</span>
                     <input 
                       type="number"
                       value={customizationAmount}
@@ -3183,7 +3183,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               )}
 
               <div>
-                <label className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">Amount (PKR )</label>
+                <label className="text-xs md:text-sm font-black text-gray-500 uppercase tracking-widest">Amount (₨)</label>
                 <input
                   type="number"
                   value={paymentAmount}

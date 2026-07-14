@@ -737,8 +737,8 @@ const WarehouseDashboard = () => {
                           </div>
                           {item.orderId && <p className="text-[9px] theme-text-muted font-mono mb-2">Order: {item.orderId.slice(0, 8)}...</p>}
                           <div className="grid grid-cols-3 gap-2 pt-2 border-t theme-border text-center text-[10px]">
-                            <div><p className="font-black theme-text-muted uppercase">Cost</p><p className="font-bold theme-text-primary">PKR {item.productionCost?.toLocaleString()}</p></div>
-                            <div><p className="font-black theme-text-muted uppercase">Value</p><p className="font-bold text-emerald-400">PKR {item.sellingValue?.toLocaleString()}</p></div>
+                            <div><p className="font-black theme-text-muted uppercase">Cost</p><p className="font-bold theme-text-primary">₨{item.productionCost?.toLocaleString()}</p></div>
+                            <div><p className="font-black theme-text-muted uppercase">Value</p><p className="font-bold text-emerald-400">₨{item.sellingValue?.toLocaleString()}</p></div>
                             <div><p className="font-black theme-text-muted uppercase">Margin</p><p className={`font-bold ${item.profitMargin >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{item.profitMargin?.toFixed(1)}%</p></div>
                           </div>
                           <p className="text-[9px] font-bold theme-text-muted mt-2">{new Date(item.productionDate).toLocaleDateString()}</p>

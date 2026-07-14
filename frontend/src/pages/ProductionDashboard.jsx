@@ -189,7 +189,7 @@ const ProductionDashboard = () => {
                     <div className="p-3 bg-emerald-500/10 rounded-xl"><DollarSign className="text-emerald-400" size={20} /></div>
                     <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Total</span>
                   </div>
-                  <p className="text-xl md:text-3xl font-black theme-text-primary">PKR {dashboard.totalEarnings.toLocaleString()}</p>
+                  <p className="text-xl md:text-3xl font-black theme-text-primary">₨{dashboard.totalEarnings.toLocaleString()}</p>
                   <p className="text-xs font-bold theme-text-muted uppercase tracking-wider mt-1">Total Earnings</p>
                 </motion.div>
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
@@ -198,7 +198,7 @@ const ProductionDashboard = () => {
                     <div className="p-3 bg-blue-500/10 rounded-xl"><TrendingUp className="text-blue-400" size={20} /></div>
                     <span className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-wider">Total</span>
                   </div>
-                  <p className="text-xl md:text-3xl font-black text-emerald-400">PKR {dashboard.totalProfit.toLocaleString()}</p>
+                  <p className="text-xl md:text-3xl font-black text-emerald-400">₨{dashboard.totalProfit.toLocaleString()}</p>
                   <p className="text-xs font-bold theme-text-muted uppercase tracking-wider mt-1">Total Profit</p>
                 </motion.div>
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
@@ -235,8 +235,8 @@ const ProductionDashboard = () => {
                         <span className="font-bold theme-text-primary">Online Orders</span>
                       </div>
                       <div className="text-right">
-                        <p className="font-black text-blue-400">PKR {dashboard.onlineEarnings.toLocaleString()}</p>
-                        <p className="text-xs md:text-sm font-bold text-emerald-400">Profit: PKR {dashboard.onlineProfit.toLocaleString()}</p>
+                        <p className="font-black text-blue-400">₨{dashboard.onlineEarnings.toLocaleString()}</p>
+                        <p className="text-xs md:text-sm font-bold text-emerald-400">Profit: ₨{dashboard.onlineProfit.toLocaleString()}</p>
                       </div>
                     </div>
                     <div className="flex items-center justify-between p-4 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
@@ -245,8 +245,8 @@ const ProductionDashboard = () => {
                         <span className="font-bold theme-text-primary">Outlet Orders</span>
                       </div>
                       <div className="text-right">
-                        <p className="font-black text-emerald-400">PKR {dashboard.outletEarnings.toLocaleString()}</p>
-                        <p className="text-xs md:text-sm font-bold text-blue-400">Profit: PKR {dashboard.outletProfit.toLocaleString()}</p>
+                        <p className="font-black text-emerald-400">₨{dashboard.outletEarnings.toLocaleString()}</p>
+                        <p className="text-xs md:text-sm font-bold text-blue-400">Profit: ₨{dashboard.outletProfit.toLocaleString()}</p>
                       </div>
                     </div>
                     <div className="flex items-center justify-between p-4 bg-gray-800/50 rounded-xl border border-gray-700">
@@ -254,7 +254,7 @@ const ProductionDashboard = () => {
                         <DollarSign className="text-gray-400" size={20} />
                         <span className="font-bold theme-text-primary">Total Cost</span>
                       </div>
-                      <p className="font-black text-gray-400">PKR {dashboard.totalCost.toLocaleString()}</p>
+                      <p className="font-black text-gray-400">₨{dashboard.totalCost.toLocaleString()}</p>
                     </div>
                   </div>
                 </div>
@@ -276,7 +276,7 @@ const ProductionDashboard = () => {
                                 <span className="theme-text-secondary">{month.name}</span>
                                 <div className="flex space-x-4">
                                   <span className="text-emerald-400">{month.quantity} units</span>
-                                  <span className="text-blue-400">PKR {month.profit.toLocaleString()}</span>
+                                  <span className="text-blue-400">₨{month.profit.toLocaleString()}</span>
                                 </div>
                               </div>
                               <div className="relative h-6 bg-gray-900 rounded-lg overflow-hidden">
@@ -316,10 +316,10 @@ const ProductionDashboard = () => {
                             <td className="py-3 px-2 font-bold theme-text-primary">{p.productName}</td>
                             <td className="py-3 px-2 text-right font-bold theme-text-primary">{p.quantity}</td>
                             <td className="py-3 px-2 text-right font-bold theme-text-secondary">{p.count}</td>
-                            <td className="py-3 px-2 text-right font-bold text-gray-400">PKR {p.totalCost.toLocaleString()}</td>
-                            <td className="py-3 px-2 text-right font-bold text-emerald-400">PKR {p.sellingValue.toLocaleString()}</td>
+                            <td className="py-3 px-2 text-right font-bold text-gray-400">₨{p.totalCost.toLocaleString()}</td>
+                            <td className="py-3 px-2 text-right font-bold text-emerald-400">₨{p.sellingValue.toLocaleString()}</td>
                             <td className={`py-3 px-2 text-right font-bold ${p.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                              PKR {p.profit.toLocaleString()}
+                              ₨{p.profit.toLocaleString()}
                             </td>
                           </tr>
                         ))}
@@ -385,20 +385,20 @@ const ProductionDashboard = () => {
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t theme-border">
                         <div>
                           <p className="text-xs font-black theme-text-muted uppercase tracking-wider">Raw Material</p>
-                          <p className="font-bold text-sm theme-text-primary">PKR {record.rawMaterialCost?.toLocaleString()}</p>
+                          <p className="font-bold text-sm theme-text-primary">₨{record.rawMaterialCost?.toLocaleString()}</p>
                         </div>
                         <div>
                           <p className="text-xs font-black theme-text-muted uppercase tracking-wider">Production</p>
-                          <p className="font-bold text-sm theme-text-primary">PKR {record.productionCost?.toLocaleString()}</p>
+                          <p className="font-bold text-sm theme-text-primary">₨{record.productionCost?.toLocaleString()}</p>
                         </div>
                         <div>
                           <p className="text-xs font-black theme-text-muted uppercase tracking-wider">Total Cost</p>
-                          <p className="font-bold text-sm text-gray-400">PKR {record.totalCost?.toLocaleString()}</p>
+                          <p className="font-bold text-sm text-gray-400">₨{record.totalCost?.toLocaleString()}</p>
                         </div>
                         <div>
                           <p className="text-xs font-black theme-text-muted uppercase tracking-wider">Profit</p>
                           <p className={`font-bold text-sm ${record.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                            PKR {record.profit?.toLocaleString()}
+                            ₨{record.profit?.toLocaleString()}
                           </p>
                         </div>
                       </div>
@@ -465,11 +465,11 @@ const ProductionDashboard = () => {
                       <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t theme-border text-center">
                         <div>
                           <p className="text-xs font-black theme-text-muted uppercase">Cost</p>
-                          <p className="font-bold text-xs theme-text-primary">PKR {item.productionCost?.toLocaleString()}</p>
+                          <p className="font-bold text-xs theme-text-primary">₨{item.productionCost?.toLocaleString()}</p>
                         </div>
                         <div>
                           <p className="text-xs font-black theme-text-muted uppercase">Value</p>
-                          <p className="font-bold text-xs text-emerald-400">PKR {item.sellingValue?.toLocaleString()}</p>
+                          <p className="font-bold text-xs text-emerald-400">₨{item.sellingValue?.toLocaleString()}</p>
                         </div>
                         <div>
                           <p className="text-xs font-black theme-text-muted uppercase">Margin</p>
@@ -529,19 +529,19 @@ const ProductionDashboard = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Raw Material Cost (PKR )</label>
+                    <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Raw Material Cost (₨)</label>
                     <input type="number" min="0" step="0.01" value={formData.rawMaterialCost} onChange={(e) => setFormData({...formData, rawMaterialCost: e.target.value})}
                       placeholder="0"
                       className="w-full theme-input rounded-xl py-3 px-4 focus:border-emerald-500 outline-none font-medium mt-1" />
                   </div>
                   <div>
-                    <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Production Cost (PKR )</label>
+                    <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Production Cost (₨)</label>
                     <input type="number" min="0" step="0.01" value={formData.productionCost} onChange={(e) => setFormData({...formData, productionCost: e.target.value})}
                       placeholder="0"
                       className="w-full theme-input rounded-xl py-3 px-4 focus:border-emerald-500 outline-none font-medium mt-1" />
                   </div>
                   <div className="md:col-span-2">
-                    <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Selling Value (PKR )</label>
+                    <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest">Selling Value (₨)</label>
                     <input type="number" min="0" step="0.01" value={formData.sellingValue} onChange={(e) => setFormData({...formData, sellingValue: e.target.value})}
                       placeholder="0"
                       className="w-full theme-input rounded-xl py-3 px-4 focus:border-emerald-500 outline-none font-medium mt-1" />

@@ -7,7 +7,7 @@ import useCache, { setCache } from '../hooks/useCache';
 
 const ALL_OUTLETS = ['Johar Town', 'Jail Road', 'Abbottabad', 'Warehouse'];
 const OUTLET_SHORT = { 'Johar Town': 'JT', 'Jail Road': 'JR', 'Abbottabad': 'AB', 'Warehouse': 'WH' };
-const formatCurrency = (n) => `PKR ${(n || 0).toLocaleString()}`;
+const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 
 /* ─── VIEW-ONLY: unified outlet stock at a glance (OUTLET) ─── */
 const ViewOnlyInventory = () => {
@@ -166,7 +166,7 @@ const ViewOnlyInventory = () => {
                           <span className="text-[11px] font-bold text-gray-300 truncate block">{[v.color, v.size].filter(Boolean).join(' • ') || 'Default'}</span>
                           <span className="text-[9px] font-mono text-gray-600">{v.barcode}</span>
                         </div>
-                        <span className="text-[11px] font-bold text-emerald-400 text-center w-16">PKR {(v.price || 0).toLocaleString()}</span>
+                        <span className="text-[11px] font-bold text-emerald-400 text-center w-16">₨{(v.price || 0).toLocaleString()}</span>
                         <div className="flex items-center gap-1.5 justify-end w-36">
                           {ALL_OUTLETS.map(o => {
                             const stk = v.outletStock[o] || 0;
@@ -897,7 +897,7 @@ const ManagementInventory = () => {
                             <span>{sp.name} <span className="text-[10px] opacity-60 uppercase">({sp.category})</span></span>
                             {formData.selectedProductId === sp.id && (
                               <span className="text-[10px] mt-0.5 opacity-80">
-                                Color: {colorLabel} | Size: {sizeLabel} | Price: PKR {priceLabel}
+                                Color: {colorLabel} | Size: {sizeLabel} | Price: ₨{priceLabel}
                               </span>
                             )}
                           </div>
@@ -933,7 +933,7 @@ const ManagementInventory = () => {
                           </div>
                           <div className="col-span-3">
                             <div className="relative">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500 font-bold">PKR </span>
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500 font-bold">₨</span>
                               <input type="number" min="0" step="0.01" value={v.price}
                                 onChange={(e) => updateVariantField(vi, 'price', parseFloat(e.target.value) || 0)}
                                 className="w-full bg-gray-900 border border-gray-700 rounded-lg py-2.5 pl-5 pr-2 text-xs font-bold text-white outline-none focus:border-blue-500" />
@@ -1035,7 +1035,7 @@ const ManagementInventory = () => {
                       </div>
                       <div className="col-span-3">
                         <div className="relative">
-                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500 font-bold">PKR </span>
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500 font-bold">₨</span>
                           <input type="number" min="0" step="0.01" value={v.price}
                             onChange={(e) => handleEditVariantChange(v._key, 'price', parseFloat(e.target.value) || 0)}
                             className="w-full bg-gray-900 border border-gray-700 rounded-lg py-1.5 pl-5 pr-2 text-[10px] font-bold text-white outline-none focus:border-blue-500" />

@@ -79,10 +79,10 @@ const OrderTrack = () => {
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div><span className="text-gray-500 font-bold uppercase">Outlet:</span> <span className="text-white font-bold">{order.outletName || '—'}</span></div>
               <div><span className="text-gray-500 font-bold uppercase">Order Type:</span> <span className="text-white font-bold">{order.orderType || '—'}</span></div>
-              <div><span className="text-gray-500 font-bold uppercase">Total:</span> <span className="text-emerald-400 font-black">PKR {order.totalPrice?.toLocaleString() || '0'}</span></div>
+              <div><span className="text-gray-500 font-bold uppercase">Total:</span> <span className="text-emerald-400 font-black">₨{order.totalPrice?.toLocaleString() || '0'}</span></div>
               <div><span className="text-gray-500 font-bold uppercase">Delivery:</span> <span className="text-white font-bold">{order.deliveryMethod || order.deliveryType || '—'}</span></div>
             </div>
-            {order.advanceAmount > 0 && <p className="text-xs text-orange-400 font-bold mt-2">Advance Paid: PKR {order.advanceAmount}</p>}
+            {order.advanceAmount > 0 && <p className="text-xs text-orange-400 font-bold mt-2">Advance Paid: ₨{order.advanceAmount}</p>}
           </div>
 
           <div className="bg-gray-900/60 rounded-2xl border border-gray-800/50 p-4">

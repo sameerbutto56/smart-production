@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-const formatCurrency = (n) => `PKR ${(n || 0).toLocaleString()}`;
+const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 
 const datePresets = [
   { label: 'All Time', value: 'all' },
@@ -144,16 +144,16 @@ const OutletPOSDashboard = ({ outlet }) => {
           if (!dashboard) return;
           const printW = window.open('', '_blank');
           if (!printW) return;
-          const pmRows = (dashboard.paymentBreakdown || []).map(p => `<tr><td>${p.method === 'CASH_ONLINE' ? 'CASH+ONLINE' : p.method}</td><td>PKR ${(p.gross || 0).toLocaleString()}</td><td>PKR ${(p.net || 0).toLocaleString()}</td></tr>`).join('');
-          const trendRows = (dashboard.reportData || []).map(d => `<tr><td>${d.date}</td><td>PKR ${(d.sales || 0).toLocaleString()}</td></tr>`).join('');
+          const pmRows = (dashboard.paymentBreakdown || []).map(p => `<tr><td>${p.method === 'CASH_ONLINE' ? 'CASH+ONLINE' : p.method}</td><td>₨${(p.gross || 0).toLocaleString()}</td><td>₨${(p.net || 0).toLocaleString()}</td></tr>`).join('');
+          const trendRows = (dashboard.reportData || []).map(d => `<tr><td>${d.date}</td><td>₨${(d.sales || 0).toLocaleString()}</td></tr>`).join('');
           const topRows = (dashboard.bestSellingProducts || []).map(p => `<tr><td>${p.name}</td><td>${p.qty}</td></tr>`).join('');
           printW.document.write(`<!DOCTYPE html><html><head><title>POS Dashboard - ${outlet}</title>
             <style>body{font-family:Arial,sans-serif;padding:20px;color:#333}h1{font-size:18px;margin-bottom:4px}.sub{color:#666;font-size:12px;margin-bottom:16px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}.card{border:1px solid #ddd;border-radius:4px;padding:8px;text-align:center}.label{font-size:10px;color:#666}.val{font-size:14px;font-weight:700;margin-top:2px}table{width:100%;border-collapse:collapse;margin-bottom:16px}th,td{padding:6px 8px;text-align:left;font-size:11px;border-bottom:1px solid #ddd}th{background:#f5f5f5;font-weight:700}h2{font-size:14px;margin:16px 0 8px;border-bottom:2px solid #333;padding-bottom:4px}@media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}</style></head><body>
             <h1>${outlet} — POS Dashboard</h1>
             <p class="sub">${new Date().toLocaleString('en-PK')} | ${range} range</p>
             <div class="grid">
-              <div class="card"><div class="label">Total Sales</div><div class="val">PKR ${(dashboard.totalSales || 0).toLocaleString()}</div></div>
-              <div class="card"><div class="label">Net Revenue</div><div class="val">PKR ${(dashboard.netRevenue || 0).toLocaleString()}</div></div>
+              <div class="card"><div class="label">Total Sales</div><div class="val">₨${(dashboard.totalSales || 0).toLocaleString()}</div></div>
+              <div class="card"><div class="label">Net Revenue</div><div class="val">₨${(dashboard.netRevenue || 0).toLocaleString()}</div></div>
               <div class="card"><div class="label">Orders</div><div class="val">${dashboard.totalOrders || 0}</div></div>
               <div class="card"><div class="label">Returned</div><div class="val">${dashboard.returnedOrders || 0}</div></div>
             </div>
@@ -274,7 +274,7 @@ const OutletPOSDashboard = ({ outlet }) => {
                     <defs><linearGradient id="salesGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient></defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                     <XAxis dataKey="date" stroke="#9ca3af" fontSize={10} tickLine={false} />
-                    <YAxis stroke="#9ca3af" fontSize={10} tickLine={false} tickFormatter={(v) => `PKR ${(v/1000)}k`} />
+                    <YAxis stroke="#9ca3af" fontSize={10} tickLine={false} tickFormatter={(v) => `₨${(v/1000)}k`} />
                     <Tooltip contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', borderRadius: '12px' }} formatter={(v) => formatCurrency(v)} labelStyle={{ color: '#fff' }} />
                     <Area type="monotone" dataKey="sales" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#salesGrad)" />
                   </AreaChart>

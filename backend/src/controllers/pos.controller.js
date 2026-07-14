@@ -1384,7 +1384,7 @@ const payBalance = async (req, res) => {
     const remaining = sale.grandTotal - totalPaid;
 
     if (remaining <= 0.01) return res.status(400).json({ message: 'Invoice is already fully paid' });
-    if (amountPaidNow > remaining + 0.01) return res.status(400).json({ message: `Amount exceeds remaining balance of PKR ${remaining.toFixed(2)}` });
+    if (amountPaidNow > remaining + 0.01) return res.status(400).json({ message: `Amount exceeds remaining balance of ₨${remaining.toFixed(2)}` });
 
     const receiptNumber = await generateBalanceReceiptNumber();
     const outstandingAfter = Math.max(0, remaining - amountPaidNow);

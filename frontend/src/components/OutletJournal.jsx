@@ -3,7 +3,7 @@ import api from '../services/api';
 import { Lock, User, DollarSign, FileText, Clock, RefreshCw, AlertTriangle, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const formatCurrency = (n) => `PKR ${(n || 0).toLocaleString()}`;
+const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 
 const EXPENSE_TITLES = [
   'Pen', 'Electricity Bill', 'Internet Bill', 'Cleaning Supplies',

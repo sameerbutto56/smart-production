@@ -439,7 +439,7 @@ const InventoryManagement = () => {
     if (!count || count < 1) return;
 
     const barcode = generateBarcode(item.id, variant.size, variant.color);
-    const formatCurr = (n) => `PKR ${(n || 0).toLocaleString()}`;
+    const formatCurr = (n) => `₨${(n || 0).toLocaleString()}`;
 
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     JsBarcode(svg, barcode, {
@@ -951,7 +951,7 @@ const InventoryManagement = () => {
                           <Printer size={12} />
                         </button>
                         <span className="text-sm font-black theme-text-primary">{v.stock}</span>
-                        {v.price > 0 && <span className="text-xs md:text-sm font-bold text-emerald-500">PKR {v.price}</span>}
+                        {v.price > 0 && <span className="text-xs md:text-sm font-bold text-emerald-500">₨{v.price}</span>}
                       </div>
                     </div>
                   ))}
@@ -976,7 +976,7 @@ const InventoryManagement = () => {
                         <Printer size={12} />
                       </button>
                       <span className="text-sm font-black theme-text-primary">{item.stock}</span>
-                      {item.price > 0 && <span className="text-xs md:text-sm font-bold text-emerald-500">PKR {item.price}</span>}
+                      {item.price > 0 && <span className="text-xs md:text-sm font-bold text-emerald-500">₨{item.price}</span>}
                     </div>
                   </div>
                 </>

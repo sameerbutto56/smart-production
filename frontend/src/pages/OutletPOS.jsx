@@ -15,7 +15,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
-const formatCurrency = (n) => `PKR ${(n || 0).toLocaleString()}`;
+const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 const formatPaymentMethod = (m) => m === 'CASH_ONLINE' ? 'Cash+Online' : m === 'CASH' ? 'Cash' : m === 'CARD' ? 'Card' : m === 'ONLINE' ? 'Online' : m || '—';
 
 const OutletPOS = () => {
@@ -501,7 +501,7 @@ const OutletPOS = () => {
     if (paymentMethod === 'CASH_ONLINE') {
       const cash = parseFloat(cashAmount) || 0;
       const online = parseFloat(onlineAmount) || 0;
-      if (cash + online !== grandTotal) return toast.error(`Cash+Online total (PKR ${(cash + online).toLocaleString()}) must equal invoice amount (PKR ${grandTotal.toLocaleString()})`);
+      if (cash + online !== grandTotal) return toast.error(`Cash+Online total (₨${(cash + online).toLocaleString()}) must equal invoice amount (₨${grandTotal.toLocaleString()})`);
     }
     // Show processing UI immediately
     setCheckoutLoading(true);
@@ -705,7 +705,7 @@ const OutletPOS = () => {
     } else {
       w.document.write(`<tr class="final"><td>Total Bill</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
       w.document.write(`<tr><td>Paid</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
-      w.document.write(`<tr><td>Balance</td><td class="value">PKR 0</td></tr>`);
+      w.document.write(`<tr><td>Balance</td><td class="value">₨0</td></tr>`);
       w.document.write(`<tr><td style="font-size:11px;color:#070;font-weight:900;">Status</td><td class="value" style="font-size:11px;color:#070;font-weight:900;">Fully Paid</td></tr>`);
     }
     if (sale.paymentMethod === 'CASH_ONLINE') {
@@ -1156,7 +1156,7 @@ const OutletPOS = () => {
 
   const handlePayBalance = async () => {
     if (!selectedBalanceInvoice || payAmount <= 0) return toast.error('Enter a valid amount');
-    if (payAmount > selectedBalanceInvoice.remaining) return toast.error(`Amount exceeds remaining balance of PKR ${selectedBalanceInvoice.remaining.toLocaleString()}`);
+    if (payAmount > selectedBalanceInvoice.remaining) return toast.error(`Amount exceeds remaining balance of ₨${selectedBalanceInvoice.remaining.toLocaleString()}`);
     setPaying(true);
     try {
       const res = await api.post(`/api/pos/balance-invoices/${selectedBalanceInvoice.id}/pay`, {
@@ -1204,11 +1204,11 @@ const OutletPOS = () => {
       </table>
       <hr/>
       <table>
-        <tr><td>Original Invoice Total</td><td>PKR ${(bp.originalInvoiceTotal || 0).toLocaleString()}</td></tr>
-        <tr><td>Previously Paid</td><td>PKR ${(bp.previouslyPaidAmount || 0).toLocaleString()}</td></tr>
-        <tr><td>Remaining Balance</td><td>PKR ${(bp.remainingBalanceBeforePayment || 0).toLocaleString()}</td></tr>
-        <tr><td>Amount Paid Now</td><td>PKR ${(bp.amountPaidNow || 0).toLocaleString()}</td></tr>
-        <tr class="total-row"><td>Current Outstanding</td><td class="${bp.outstandingBalanceAfterPayment <= 0 ? 'zero' : ''}">PKR ${(bp.outstandingBalanceAfterPayment || 0).toLocaleString()}</td></tr>
+        <tr><td>Original Invoice Total</td><td>₨${(bp.originalInvoiceTotal || 0).toLocaleString()}</td></tr>
+        <tr><td>Previously Paid</td><td>₨${(bp.previouslyPaidAmount || 0).toLocaleString()}</td></tr>
+        <tr><td>Remaining Balance</td><td>₨${(bp.remainingBalanceBeforePayment || 0).toLocaleString()}</td></tr>
+        <tr><td>Amount Paid Now</td><td>₨${(bp.amountPaidNow || 0).toLocaleString()}</td></tr>
+        <tr class="total-row"><td>Current Outstanding</td><td class="${bp.outstandingBalanceAfterPayment <= 0 ? 'zero' : ''}">₨${(bp.outstandingBalanceAfterPayment || 0).toLocaleString()}</td></tr>
       </table>
       ${bp.outstandingBalanceAfterPayment <= 0 ? '<p style="color:#059669;font-weight:900;font-size:14px;margin-top:10px;">✓ FULLY PAID</p>' : ''}
       <hr/>
@@ -1848,7 +1848,7 @@ const OutletPOS = () => {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                       <XAxis dataKey="date" stroke="#9ca3af" fontSize={10} tickLine={false} />
-                      <YAxis stroke="#9ca3af" fontSize={10} tickLine={false} tickFormatter={(v) => `PKR ${(v/1000)}k`} />
+                      <YAxis stroke="#9ca3af" fontSize={10} tickLine={false} tickFormatter={(v) => `₨${(v/1000)}k`} />
                       <Tooltip contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', borderRadius: '12px' }} formatter={(v) => formatCurrency(v)} labelStyle={{ color: '#fff', fontWeight: 'bold' }} />
                       <Area type="monotone" dataKey="sales" name="Sales" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#salesGrad)" />
                     </AreaChart>
@@ -1904,7 +1904,7 @@ const OutletPOS = () => {
                       <div className="flex gap-1.5 mt-2">
                         <button onClick={() => handlePayBalanceOpen(inv)} disabled={loadingBalanceAction}
                           className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-1.5 rounded-lg text-[10px] transition-all">
-                          {loadingBalanceAction ? 'Loading...' : `Pay Remaining PKR ${inv.remaining.toLocaleString()}`}
+                          {loadingBalanceAction ? 'Loading...' : `Pay Remaining ₨${inv.remaining.toLocaleString()}`}
                         </button>
                         <button onClick={() => handleViewBalanceHistory(inv)} disabled={loadingBalanceAction}
                           className="px-2 py-1.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-400 rounded-lg text-[10px] transition-all">
@@ -2196,19 +2196,19 @@ const OutletPOS = () => {
                 <div className="flex flex-wrap gap-1 mt-1.5">
                   <button onClick={() => updateCartCustomization(i, 'customization1')}
                     className={`px-2 py-1 rounded-lg text-[9px] font-bold border ${item.customization1 ? 'border-purple-500 bg-purple-600/20 text-purple-300' : 'border-gray-700 text-gray-500'}`}>
-                    Custom 1 (+PKR 500)
+                    Custom 1 (+₨500)
                   </button>
                   <button onClick={() => updateCartCustomization(i, 'customization2')}
                     className={`px-2 py-1 rounded-lg text-[9px] font-bold border ${item.customization2 ? 'border-purple-500 bg-purple-600/20 text-purple-300' : 'border-gray-700 text-gray-500'}`}>
-                    Custom 2 (+PKR 1000)
+                    Custom 2 (+₨1000)
                   </button>
                   <button onClick={() => updateCartCustomization(i, 'nameEngrave')}
                     className={`px-2 py-1 rounded-lg text-[9px] font-bold border ${item.nameEngrave ? 'border-purple-500 bg-purple-600/20 text-purple-300' : 'border-gray-700 text-gray-500'}`}>
-                    Name Engrave (+PKR 300)
+                    Name Engrave (+₨300)
                   </button>
                 </div>
                 <div className="mt-1.5 flex items-center gap-2">
-                  <span className="text-[10px] font-bold text-orange-400">Other Charges PKR </span>
+                  <span className="text-[10px] font-bold text-orange-400">Other Charges ₨</span>
                   <input type="number" value={item.otherCharges || 0} onChange={e => updateCartDiscount(i, 'otherCharges', Math.max(0, parseFloat(e.target.value) || 0))}
                     className="w-20 bg-gray-900 border border-gray-700 rounded-lg px-1.5 py-1 text-[10px] font-bold text-white text-center focus:border-orange-500 outline-none" min="0" />
                 </div>
@@ -2216,7 +2216,7 @@ const OutletPOS = () => {
                   <span className="text-[10px] font-bold text-blue-400">%</span>
                   <input type="number" value={item.discountPct || 0} onChange={e => updateCartDiscount(i, 'discountPct', Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
                     className="w-14 bg-gray-900 border border-gray-700 rounded-lg px-1.5 py-1 text-[10px] font-bold text-white text-center focus:border-blue-500 outline-none" min="0" max="100" />
-                  <span className="text-[10px] font-bold text-blue-400">PKR </span>
+                  <span className="text-[10px] font-bold text-blue-400">₨</span>
                   <input type="number" value={item.discountFixed || 0} onChange={e => updateCartDiscount(i, 'discountFixed', Math.max(0, parseFloat(e.target.value) || 0))}
                     className="w-16 bg-gray-900 border border-gray-700 rounded-lg px-1.5 py-1 text-[10px] font-bold text-white text-center focus:border-blue-500 outline-none" min="0" />
                 </div>
@@ -2319,10 +2319,10 @@ const OutletPOS = () => {
               <label className="flex items-center gap-2 bg-gray-800/50 rounded-lg px-3 py-2 cursor-pointer">
                 <input type="checkbox" checked={deliveryEnabled} onChange={e => setDeliveryEnabled(e.target.checked)}
                   className="accent-orange-500 w-4 h-4" />
-                <span className="text-[10px] font-bold text-orange-400">Delivery (+PKR 250)</span>
+                <span className="text-[10px] font-bold text-orange-400">Delivery (+₨250)</span>
               </label>
               <div className="flex items-center justify-between bg-gray-800/50 rounded-lg px-3 py-2">
-                <label className="text-[10px] font-bold text-gray-400">Advance PKR </label>
+                <label className="text-[10px] font-bold text-gray-400">Advance ₨</label>
                 <input type="number" value={advanceAmount} onChange={e => setAdvanceAmount(Math.max(0, parseFloat(e.target.value) || 0))}
                   className="w-24 bg-transparent border-b border-gray-600 px-1 py-1 text-xs font-bold text-white text-right focus:border-blue-500 outline-none" min="0" />
               </div>
@@ -2471,7 +2471,7 @@ const OutletPOS = () => {
             <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4"><ShoppingCart size={32} className="text-emerald-400" /></div>
             <h3 className="text-xl font-black text-white mb-1">{lastSale.isFaisalTake ? 'Faisal Take' : 'Sale Complete!'}</h3>
             <p className="text-sm font-bold text-gray-400 mb-2">{lastSale.receiptNumber}</p>
-            <p className={`text-3xl font-black mb-4 ${lastSale.isFaisalTake ? 'text-red-400' : 'text-emerald-400'}`}>{lastSale.isFaisalTake ? 'PKR 0 — NO CHARGE' : formatCurrency(lastSale.grandTotal)}</p>
+            <p className={`text-3xl font-black mb-4 ${lastSale.isFaisalTake ? 'text-red-400' : 'text-emerald-400'}`}>{lastSale.isFaisalTake ? '₨0 — NO CHARGE' : formatCurrency(lastSale.grandTotal)}</p>
             <div className="flex gap-2">
               <button onClick={() => { setPendingPrintSale(lastSale); setPrintOpts({ invoice: true, gatePass: true }); setShowPrintOptions(true); }} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2">
                 <Printer size={16} />Print Receipt
