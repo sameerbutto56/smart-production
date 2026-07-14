@@ -101,6 +101,10 @@ const getBookSummary = async (req, res) => {
     const endTime = session.closedAt || new Date();
 
     const dateFilter = { gte: startTime, lte: endTime };
+    // Journal entries should use start of day (to match Dashboard cash summary)
+    const dayStart = new Date(startTime);
+    dayStart.setHours(0, 0, 0, 0);
+    const journalDateFilter = { gte: dayStart, lte: endTime };
 
     // Parallel queries
     const [sales, faisalTakes, returns, journals, balancePayments] = await Promise.all([
@@ -119,9 +123,9 @@ const getBookSummary = async (req, res) => {
         where: { outletName: outlet, createdAt: dateFilter, saleId: { not: null } },
         include: { sale: { select: { paymentMethod: true, cashAmount: true, onlineAmount: true } } },
       }),
-      // Journal entries in range
+      // Journal entries from start of day (match Dashboard's getCashSummary range)
       prisma.journalEntry.findMany({
-        where: { outletName: outlet, createdAt: dateFilter },
+        where: { outletName: outlet, createdAt: journalDateFilter },
         orderBy: { createdAt: 'asc' },
       }),
       // Balance payments in range
