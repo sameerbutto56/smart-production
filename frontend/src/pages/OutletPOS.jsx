@@ -2050,6 +2050,30 @@ const OutletPOS = () => {
         </div>
       )}
 
+      {/* Locked state — no open book */}
+      {tab === 'pos' && !currentBook && !bookLoading && (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center max-w-sm px-6">
+            <div className="mx-auto w-20 h-20 bg-emerald-900/30 rounded-full flex items-center justify-center mb-6 border-2 border-emerald-700/50">
+              <BookOpen size={40} className="text-emerald-400" />
+            </div>
+            <h2 className="text-2xl font-black text-white mb-2">Open Book Required</h2>
+            <p className="text-sm text-gray-400 mb-6">You must open the book before using the POS. This ensures all transactions are recorded in the current session.</p>
+            {bookLoading ? (
+              <div className="text-gray-500 font-bold text-sm">Checking book status...</div>
+            ) : (
+              <button onClick={handleOpenBook} disabled={openBookLoading}
+                className="px-8 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black text-lg flex items-center gap-3 mx-auto transition-all active:scale-95">
+                <BookOpen size={20} />
+                {openBookLoading ? 'Opening...' : 'Open Book'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Normal POS content — book is open or other tabs */}
+      {(tab !== 'pos' || currentBook || bookLoading) && (
       <div className="flex flex-1 overflow-hidden">
         {/* Product Grid */}
         <div className="flex-1 overflow-y-auto p-3">
@@ -2363,6 +2387,7 @@ const OutletPOS = () => {
           </div>
         </div>
       </div>
+      )}
 
       {/* Product Config Modal */}
       {showConfig && (
