@@ -875,9 +875,9 @@ const OutletPOS = () => {
     try {
       const res = await api.post('/api/pos/book/open', { outlet: selectedOutlet, employeeName });
       setCurrentBook(res.data);
-      toast.success('Book opened successfully');
+      toast.success('Register opened successfully');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to open book');
+      toast.error(err.response?.data?.message || 'Failed to open register');
     }
     setOpenBookLoading(false);
   };
@@ -907,13 +907,13 @@ const OutletPOS = () => {
       setShowCloseBook(false);
       setCurrentBook(null);
       setTransferCashAmount(0);
-      toast.success('Book closed successfully');
+      toast.success('Register closed successfully');
       // Print if user wants
       if (bookPrintOpts.thermal || bookPrintOpts.a4) {
         printCloseBook(summary, bookPrintOpts);
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to close book');
+      toast.error(err.response?.data?.message || 'Failed to close register');
     }
     setCloseBookLoading(false);
   };
@@ -2025,17 +2025,17 @@ const OutletPOS = () => {
         <div className={`flex items-center justify-between px-4 py-1.5 flex-shrink-0 border-b ${currentBook ? 'bg-emerald-900/30 border-emerald-800/50' : 'bg-red-900/20 border-red-800/30'}`}>
           <div className="flex items-center gap-2">
             {currentBook ? (
-              <><BookOpen size={14} className="text-emerald-400" /><span className="text-[11px] font-bold text-emerald-300">Book Open</span><span className="text-[10px] text-emerald-500/70">since {new Date(currentBook.openedAt).toLocaleString()}</span></>
+              <><BookOpen size={14} className="text-emerald-400" /><span className="text-[11px] font-bold text-emerald-300">Register Open</span><span className="text-[10px] text-emerald-500/70">since {new Date(currentBook.openedAt).toLocaleString()}</span></>
             ) : (
-              <><Book size={14} className="text-red-400" /><span className="text-[11px] font-bold text-red-300">No Open Book</span></>
+              <><Book size={14} className="text-red-400" /><span className="text-[11px] font-bold text-red-300">No Open Register</span></>
             )}
           </div>
           <div className="flex items-center gap-2">
             {currentBook ? (
-              <button onClick={handleFetchCloseBookSummary} className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white">Close Book</button>
+              <button onClick={handleFetchCloseBookSummary} className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white">Close Register</button>
             ) : (
               <button onClick={handleOpenBook} disabled={openBookLoading} className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white">
-                {openBookLoading ? 'Opening...' : 'Open Book'}
+                {openBookLoading ? 'Opening...' : 'Open Register'}
               </button>
             )}
           </div>
@@ -2045,7 +2045,7 @@ const OutletPOS = () => {
       {/* 9 PM Reminder */}
       {showBookReminder && currentBook && (
         <div className="bg-amber-900/30 border-b border-amber-700/50 px-4 py-2 flex items-center justify-between flex-shrink-0">
-          <span className="text-xs font-bold text-amber-300">Time to Close the Book</span>
+          <span className="text-xs font-bold text-amber-300">Time to Close the Register</span>
           <button onClick={() => setShowBookReminder(false)} className="text-[10px] text-amber-400 hover:text-amber-300 underline">Dismiss</button>
         </div>
       )}
@@ -2057,15 +2057,15 @@ const OutletPOS = () => {
             <div className="mx-auto w-20 h-20 bg-emerald-900/30 rounded-full flex items-center justify-center mb-6 border-2 border-emerald-700/50">
               <BookOpen size={40} className="text-emerald-400" />
             </div>
-            <h2 className="text-2xl font-black text-white mb-2">Open Book Required</h2>
-            <p className="text-sm text-gray-400 mb-6">You must open the book before using the POS. This ensures all transactions are recorded in the current session.</p>
+            <h2 className="text-2xl font-black text-white mb-2">Open Register Required</h2>
+            <p className="text-sm text-gray-400 mb-6">You must open the register before using the POS. This ensures all transactions are recorded in the current session.</p>
             {bookLoading ? (
               <div className="text-gray-500 font-bold text-sm">Checking book status...</div>
             ) : (
               <button onClick={handleOpenBook} disabled={openBookLoading}
                 className="px-8 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black text-lg flex items-center gap-3 mx-auto transition-all active:scale-95">
                 <BookOpen size={20} />
-                {openBookLoading ? 'Opening...' : 'Open Book'}
+                {openBookLoading ? 'Opening...' : 'Open Register'}
               </button>
             )}
           </div>
@@ -2620,7 +2620,7 @@ const OutletPOS = () => {
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 overflow-y-auto" onClick={() => { if (!closeBookLoading) setShowCloseBook(false); }}>
           <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto my-8" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-black text-white flex items-center gap-2"><Book size={20} className="text-emerald-400" />Close Book</h2>
+              <h2 className="text-xl font-black text-white flex items-center gap-2"><Book size={20} className="text-emerald-400" />Close Register</h2>
               {!closeBookLoading && (
                 <button onClick={() => { setShowCloseBook(false); setCloseBookSummary(null); }} className="text-gray-500 hover:text-white"><X size={20} /></button>
               )}
@@ -2753,7 +2753,7 @@ const OutletPOS = () => {
                   </div>
                   <button onClick={handleCloseBook} disabled={closeBookLoading}
                     className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black text-sm flex items-center gap-2">
-                    {closeBookLoading ? 'Closing...' : <><CheckCircle2 size={16} /> Done / Close Book</>}
+                    {closeBookLoading ? 'Closing...' : <><CheckCircle2 size={16} /> Done / Close Register</>}
                   </button>
                 </div>
               </div>

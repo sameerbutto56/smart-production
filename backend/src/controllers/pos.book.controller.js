@@ -56,7 +56,7 @@ const openBook = async (req, res) => {
     });
     res.status(201).json(session);
   } catch (error) {
-    res.status(500).json({ message: 'Failed to open book', error: error.message });
+    res.status(500).json({ message: 'Failed to open register', error: error.message });
   }
 };
 
@@ -71,7 +71,7 @@ const getCurrentBook = async (req, res) => {
     });
     res.json(session);
   } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch current book', error: error.message });
+    res.status(500).json({ message: 'Failed to fetch current register', error: error.message });
   }
 };
 
@@ -265,7 +265,7 @@ const closeBook = async (req, res) => {
     });
     res.json(updated);
   } catch (error) {
-    res.status(500).json({ message: 'Failed to close book', error: error.message });
+    res.status(500).json({ message: 'Failed to close register', error: error.message });
   }
 };
 
