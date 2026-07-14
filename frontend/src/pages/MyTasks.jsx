@@ -118,6 +118,7 @@ const MyTasks = () => {
     }
   };
 
+  // Manual refetch — called after user actions or via Refresh button
   const refreshTasks = () => {
     if (hasTaskFilters) {
       refreshUnseen();
@@ -126,50 +127,21 @@ const MyTasks = () => {
       refreshOrders();
     }
   };
-  const taskTimerRef = useRef(null);
-  const queueTaskRefresh = () => {
-    if (taskTimerRef.current) clearTimeout(taskTimerRef.current);
-    taskTimerRef.current = setTimeout(refreshTasks, 100);
-  };
 
+  // Listen for stage-rejected toasts only (no auto-refresh)
   useEffect(() => {
-    const onOrderUpdated = () => queueTaskRefresh();
     const onStageRejected = (data) => {
-      queueTaskRefresh();
       toast.error(`Task Rejected: Order #${data.orderId.substring(0, 8)}`, {
         duration: 8000,
         icon: <AlertCircle className="text-red-500" />
       });
     };
-    const onNewOrder = () => queueTaskRefresh();
-    const onStageCompletionRequested = () => queueTaskRefresh();
-    const onPaymentUpdated = () => queueTaskRefresh();
-
-    socket.on('order-updated', onOrderUpdated);
     socket.on('stage-rejected', onStageRejected);
-    socket.on('new-order', onNewOrder);
-    socket.on('stage-completion-requested', onStageCompletionRequested);
-    socket.on('payment-updated', onPaymentUpdated);
-    socket.on('stage-accepted', () => queueTaskRefresh());
-
-    return () => {
-      socket.off('order-updated', onOrderUpdated);
-      socket.off('stage-rejected', onStageRejected);
-      socket.off('new-order', onNewOrder);
-      socket.off('stage-completion-requested', onStageCompletionRequested);
-      socket.off('payment-updated', onPaymentUpdated);
-      socket.off('stage-accepted');
-    };
-  }, [queueTaskRefresh]);
-
-  // Refresh unseen + production on mount
-  useEffect(() => { refreshTasks(); }, []);
-
-  // Polling fallback every 120 seconds
-  useEffect(() => {
-    const pollInterval = setInterval(() => refreshTasks(), 120000);
-    return () => clearInterval(pollInterval);
+    return () => { socket.off('stage-rejected', onStageRejected); };
   }, []);
+
+  // Refresh once on mount
+  useEffect(() => { refreshTasks(); }, []);
 
   const fetchUnseenTasks = () => refreshUnseen();
 
@@ -343,6 +315,13 @@ const MyTasks = () => {
             )}
           </div>
         ) : null}
+        <button
+          onClick={refreshTasks}
+          className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest text-gray-400 transition-all"
+        >
+          <RefreshCcw size={14} />
+          Refresh
+        </button>
         <button
           onClick={() => { fetchRoutingHistory(); setShowRoutingHistory(true); }}
           className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest text-gray-400 transition-all"
