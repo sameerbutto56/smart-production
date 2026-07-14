@@ -564,7 +564,9 @@ const createSale = async (req, res) => {
     // Respond immediately, invalidate caches asynchronously
     res.status(201).json(sale);
     setImmediate(() => {
-      cache.delKeys(`${CACHE_KEY_PREFIX}products:${outletName}`, `${CACHE_KEY_PREFIX}inventory:${outletName}`, `${CACHE_KEY_PREFIX}inventory:all-outlets-view`, `${CACHE_KEY_PREFIX}dashboard:${outletName || 'all'}`, `${CACHE_KEY_PREFIX}sales:${outletName || 'all'}`);
+      cache.delKeys(`${CACHE_KEY_PREFIX}products:${outletName}`, `${CACHE_KEY_PREFIX}inventory:${outletName}`, `${CACHE_KEY_PREFIX}inventory:all-outlets-view`);
+      cache.delPattern(`${CACHE_KEY_PREFIX}dashboard:${outletName || 'all'}`);
+      cache.delPattern(`${CACHE_KEY_PREFIX}sales:${outletName || 'all'}`);
       cache.delPattern(`outlet:analytics:${outletName}`);
       if (req.app.get('io')) req.app.get('io').emit('inventory-updated', { source: 'pos', outletName, saleId: sale.id });
     });

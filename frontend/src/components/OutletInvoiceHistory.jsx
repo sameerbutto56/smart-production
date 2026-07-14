@@ -30,6 +30,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
   const [error, setError] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
   const [printing, setPrinting] = useState(null);
+  const [refunding, setRefunding] = useState(null);
 
   useEffect(() => {
     api.get(`/api/pos/employees?outlet=${outlet}`).then(r => setEmployees(r.data)).catch(() => {});
@@ -186,10 +187,26 @@ const OutletInvoiceHistory = ({ outlet }) => {
     setTimeout(() => { w.print(); if (logoUrl.startsWith('blob:')) URL.revokeObjectURL(logoUrl); setPrinting(null); }, 500);
   };
 
+  /* ─── Refund Invoice ─── */
+  const handleReturnInvoice = async (sale) => {
+    if (sale.refundedAt) return toast.error('Invoice already refunded');
+    if (sale.isFaisalTake) return toast.error('Cannot refund Faisal Take');
+    if (!window.confirm(`Refund full invoice ${sale.receiptNumber} for ${formatCurrency(sale.grandTotal)}? All items will be returned to inventory. This cannot be undone.`)) return;
+    setRefunding(sale.id);
+    try {
+      await api.post(`/api/pos/sales/${sale.id}/refund`);
+      toast.success('Invoice fully refunded');
+      fetchSales();
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Refund failed');
+    }
+    setRefunding(null);
+  };
+
   /* ─── Pay Balance ─── */
   const handlePayOpen = async (sale) => {
     try {
-      const res = await api.get(`/api/pos/invoice-balance/${sale.id}?outlet=${outlet}`);
+      const res = await api.get(`/api/pos/balance-invoices/${sale.id}`);
       setSelectedInvoice(res.data);
       setPayAmount(Math.ceil(res.data.remaining));
       setShowPayModal(true);
@@ -203,11 +220,9 @@ const OutletInvoiceHistory = ({ outlet }) => {
     if (payAmount > selectedInvoice.remaining) return toast.error(`Amount exceeds remaining balance of ₨${selectedInvoice.remaining.toLocaleString()}`);
     setPaying(true);
     try {
-      const res = await api.post(`/api/pos/pay-balance`, {
-        posSaleId: selectedInvoice.id,
-        amount: payAmount,
-        paymentMethod: 'CASH',
-        outlet
+      const res = await api.post(`/api/pos/balance-invoices/${selectedInvoice.id}/pay`, {
+        amountPaidNow: payAmount,
+        paymentMethod: 'CASH'
       });
       setLastPayment(res.data);
       setShowPayModal(false);
@@ -243,7 +258,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
     w.document.write(`<tr><td class="label">Customer</td><td>${bp.posSale?.customerName || bp.customerName || ''}</td></tr>`);
     w.document.write(`<tr><td class="label">Original Total</td><td>${formatCurrency(bp.posSale?.grandTotal || bp.grandTotal || 0)}</td></tr>`);
     w.document.write(`<tr><td class="label">Total Paid</td><td>${formatCurrency(bp.totalPaid || (bp.posSale?.grandTotal || 0))}</td></tr>`);
-    w.document.write(`<tr class="total-row"><td>Amount Paid Now</td><td>${formatCurrency(bp.amount || 0)}</td></tr>`);
+    w.document.write(`<tr class="total-row"><td>Amount Paid Now</td><td>${formatCurrency(bp.amountPaidNow || bp.amount || 0)}</td></tr>`);
     w.document.write(`<tr><td class="label">Remaining</td><td class="${(bp.remaining || 0) <= 0 ? 'zero' : ''}">${(bp.remaining || 0) <= 0 ? 'FULLY PAID' : formatCurrency(bp.remaining)}</td></tr>`);
     w.document.write(`<tr><td class="label">Payment Method</td><td>${bp.paymentMethod || 'CASH'}</td></tr>`);
     w.document.write('</table><hr>');
@@ -259,7 +274,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
     setShowPayHistory(true);
     setPayHistoryLoading(true);
     try {
-      const res = await api.get(`/api/pos/balance-payment-history?posSaleId=${sale.id}&outlet=${outlet}`);
+      const res = await api.get(`/api/pos/balance-invoices/${sale.id}/history`);
       setPayHistory(res.data);
     } catch (e) {
       toast.error('Failed to load payment history');
@@ -526,6 +541,13 @@ const OutletInvoiceHistory = ({ outlet }) => {
                         className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">
                         {printing === sale.id ? <RefreshCcw className="animate-spin" size={12} /> : <Printer size={12} />} Print
                       </button>
+                      {!sale.refundedAt && !sale.isFaisalTake && (
+                        <button onClick={() => handleReturnInvoice(sale)} disabled={refunding === sale.id}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">
+                          {refunding === sale.id ? <RefreshCcw className="animate-spin" size={12} /> : <RotateCcw size={12} />} Return
+                        </button>
+                      )}
+                      {sale.refundedAt && <span className="text-[10px] text-red-400 font-bold flex items-center gap-1"><RotateCcw size={12} /> Refunded</span>}
                       {isBalance && (
                         <button onClick={() => handlePayOpen(sale)}
                           className="flex items-center gap-1.5 px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-xl transition-all">
@@ -616,20 +638,20 @@ const OutletInvoiceHistory = ({ outlet }) => {
               <p className="text-center text-gray-500 font-bold py-8">No balance payments recorded</p>
             ) : (
               <div className="space-y-2 overflow-y-auto flex-1">
-                {payHistory.map((ph, i) => (
-                  <div key={i} className="bg-gray-950 p-3 rounded-xl border border-gray-800 text-xs">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-bold text-emerald-400">{formatCurrency(ph.amount)}</span>
-                      <span className="text-[10px] text-gray-500">{new Date(ph.paidAt || ph.createdAt).toLocaleString()}</span>
+                  {payHistory.map((ph, i) => (
+                    <div key={i} className="bg-gray-950 p-3 rounded-xl border border-gray-800 text-xs">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold text-emerald-400">{formatCurrency(ph.amountPaidNow || ph.amount)}</span>
+                        <span className="text-[10px] text-gray-500">{new Date(ph.paidAt || ph.createdAt).toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                        <span>Method: {ph.paymentMethod || 'CASH'}</span>
+                        {ph.remaining > 0 && <span className="text-amber-400">Rem: {formatCurrency(ph.remaining)}</span>}
+                        {ph.remaining <= 0 && <span className="text-emerald-400">Fully Paid</span>}
+                      </div>
+                      {ph.notes && <p className="text-[10px] text-gray-600 mt-1">Note: {ph.notes}</p>}
                     </div>
-                    <div className="flex items-center gap-2 text-[10px] text-gray-500">
-                      <span>Method: {ph.paymentMethod || 'CASH'}</span>
-                      {ph.remaining > 0 && <span className="text-amber-400">Rem: {formatCurrency(ph.remaining)}</span>}
-                      {ph.remaining <= 0 && <span className="text-emerald-400">Fully Paid</span>}
-                    </div>
-                    {ph.notes && <p className="text-[10px] text-gray-600 mt-1">Note: {ph.notes}</p>}
-                  </div>
-                ))}
+                  ))}
               </div>
             )}
             <button onClick={() => setShowPayHistory(false)}

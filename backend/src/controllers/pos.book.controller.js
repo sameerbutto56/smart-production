@@ -351,4 +351,23 @@ const closeBook = async (req, res) => {
   }
 };
 
-module.exports = { openBook, getCurrentBook, getBookById, getBookSummary, closeBook };
+// List all closed book sessions for an outlet
+const getBookHistory = async (req, res) => {
+  try {
+    const outlet = getOutletName(req);
+    const sessions = await prisma.posBookSession.findMany({
+      where: { outletName: outlet, status: 'CLOSED' },
+      orderBy: { closedAt: 'desc' },
+    });
+    // Parse stored summary JSON
+    const result = sessions.map(s => ({
+      ...s,
+      summary: typeof s.summary === 'string' ? JSON.parse(s.summary) : s.summary,
+    }));
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch register history', error: error.message });
+  }
+};
+
+module.exports = { openBook, getCurrentBook, getBookById, getBookSummary, closeBook, getBookHistory };
