@@ -669,6 +669,20 @@ model OutletTransferItem {
   @@index([outletInventoryId])
 }
 
+model PosBookSession {
+  id              String    @id @default(uuid())
+  outletName      String
+  openedBy        String?
+  openedAt        DateTime  @default(now())
+  closedAt        DateTime?
+  closedBy        String?
+  summary         String?   // JSON — full close book summary
+  status          String    @default("OPEN") // OPEN, CLOSED
+
+  @@index([outletName, status])
+  @@index([outletName])
+}
+
 model OutletEmployee {
   id         String   @id @default(uuid())
   name       String

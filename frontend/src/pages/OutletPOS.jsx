@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Search, ShoppingCart, Plus, Minus, X, Trash2, Printer, Barcode, RotateCcw, CreditCard, DollarSign, Package, Tag, Grid3X3, List, ChevronDown, ChevronUp, AlertCircle, BarChart3, RefreshCw, Calendar, TrendingUp, Award, Clock, CheckCircle2, Globe, Download } from 'lucide-react';
+import { Search, ShoppingCart, Plus, Minus, X, Trash2, Printer, Barcode, RotateCcw, CreditCard, DollarSign, Package, Tag, Grid3X3, List, ChevronDown, ChevronUp, AlertCircle, BarChart3, RefreshCw, Calendar, TrendingUp, Award, Clock, CheckCircle2, Globe, Download, BookOpen, Book, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import JsBarcode from 'jsbarcode';
 import QRCode from 'qrcode';
@@ -128,6 +128,18 @@ const OutletPOS = () => {
   const [employeeName, setEmployeeName] = useState(() => localStorage.getItem('pos_employee_name') || '');
   const [employeePassword, setEmployeePassword] = useState('');
   const [employeeLoggedIn, setEmployeeLoggedIn] = useState(() => localStorage.getItem('pos_employee_logged_in') === 'true');
+
+  // Open Book / Close Book
+  const [currentBook, setCurrentBook] = useState(null);
+  const [bookLoading, setBookLoading] = useState(true);
+  const [openBookLoading, setOpenBookLoading] = useState(false);
+  const [showCloseBook, setShowCloseBook] = useState(false);
+  const [closeBookSummary, setCloseBookSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [transferCashAmount, setTransferCashAmount] = useState(0);
+  const [closeBookLoading, setCloseBookLoading] = useState(false);
+  const [showBookReminder, setShowBookReminder] = useState(false);
+
   const employees = selectedOutlet === 'Jail Road'
     ? { Junaid: 'J170', Ibrar: 'I170', Amir: 'A170' }
     : { Junaid: 'J170', Sajawal: 'S170', Zain: 'Z170', Gull: 'G170' };
@@ -243,6 +255,30 @@ const OutletPOS = () => {
     window.addEventListener('focus', onFocus);
     return () => { socket.off('inventory-updated', handleInventoryUpdate); window.removeEventListener('focus', onFocus); };
   }, [selectedOutlet, dashboardRange, dashboardDateFrom, dashboardDateTo, refreshProducts, refreshDashboard, refreshSales, refreshReturns]);
+
+  // Fetch current open book on mount and when outlet changes
+  const fetchCurrentBook = useCallback(async () => {
+    setBookLoading(true);
+    try {
+      const res = await api.get(`/api/pos/book/current?outlet=${selectedOutlet}`);
+      setCurrentBook(res.data);
+    } catch { setCurrentBook(null); }
+    setBookLoading(false);
+  }, [selectedOutlet]);
+
+  useEffect(() => { fetchCurrentBook(); }, [fetchCurrentBook]);
+
+  // 9 PM reminder check
+  useEffect(() => {
+    if (!currentBook || currentBook.status !== 'OPEN') return;
+    const checkTime = () => {
+      const now = new Date();
+      if (now.getHours() >= 21) setShowBookReminder(true);
+    };
+    checkTime();
+    const interval = setInterval(checkTime, 60000);
+    return () => clearInterval(interval);
+  }, [currentBook]);
 
   const categories = useMemo(() => {
     const cats = [...new Set(products.map(p => p.category).filter(Boolean))];
@@ -830,6 +866,178 @@ const OutletPOS = () => {
       refreshReturns();
     } catch (e) {
       toast.error(e.response?.data?.message || 'Refund failed');
+    }
+  };
+
+  /* ─── Open Book ─── */
+  const handleOpenBook = async () => {
+    setOpenBookLoading(true);
+    try {
+      const res = await api.post('/api/pos/book/open', { outlet: selectedOutlet, employeeName });
+      setCurrentBook(res.data);
+      toast.success('Book opened successfully');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to open book');
+    }
+    setOpenBookLoading(false);
+  };
+
+  /* ─── Close Book ─── */
+  const handleFetchCloseBookSummary = async () => {
+    if (!currentBook) return;
+    setSummaryLoading(true);
+    setShowCloseBook(true);
+    try {
+      const res = await api.get(`/api/pos/book/${currentBook.id}/summary?outlet=${selectedOutlet}`);
+      setCloseBookSummary(res.data);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to fetch summary');
+      setShowCloseBook(false);
+    }
+    setSummaryLoading(false);
+  };
+
+  const handleCloseBook = async () => {
+    if (!currentBook || !closeBookSummary) return;
+    setCloseBookLoading(true);
+    try {
+      const summary = { ...closeBookSummary, transferredCash: parseFloat(transferCashAmount) || 0, remainingCash: closeBookSummary.availableCash - (parseFloat(transferCashAmount) || 0) };
+      const res = await api.post(`/api/pos/book/${currentBook.id}/close`, { closedBy: employeeName || user?.name || 'Unknown', summary });
+      setCloseBookSummary(null);
+      setShowCloseBook(false);
+      setCurrentBook(null);
+      setTransferCashAmount(0);
+      toast.success('Book closed successfully');
+      // Print if user wants
+      if (bookPrintOpts.thermal || bookPrintOpts.a4) {
+        printCloseBook(summary, bookPrintOpts);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to close book');
+    }
+    setCloseBookLoading(false);
+  };
+
+  const [bookPrintOpts, setBookPrintOpts] = useState({ thermal: false, a4: false });
+
+  const printCloseBook = (summary, opts) => {
+    const outlet = selectedOutlet;
+    const now = new Date();
+    const openedAt = currentBook ? new Date(currentBook.openedAt) : now;
+    const closedAt = now;
+    const lines = [];
+
+    const header = `${outlet.toUpperCase()}\nCLOSE BOOK REPORT\n${closedAt.toLocaleDateString()}\n`;
+    lines.push(header);
+    lines.push('─'.repeat(32));
+    lines.push(`Open: ${openedAt.toLocaleString()}`);
+    lines.push(`Close: ${closedAt.toLocaleString()}`);
+    if (currentBook?.openedBy) lines.push(`Opened by: ${currentBook.openedBy}`);
+    lines.push('');
+    lines.push('PAYMENT SUMMARY');
+    lines.push('─'.repeat(32));
+    lines.push(`Cash:         ${formatCurrency(summary.paymentSummary.cash)}`);
+    lines.push(`Card:         ${formatCurrency(summary.paymentSummary.card)}`);
+    lines.push(`Online:       ${formatCurrency(summary.paymentSummary.online)}`);
+    lines.push(`Cash+Online:  ${formatCurrency(summary.paymentSummary.cashOnlineTotal)}`);
+    lines.push(`Grand Total:  ${formatCurrency(summary.paymentSummary.grandTotal)}`);
+    lines.push('');
+    lines.push('EMPLOYEE COLLECTIONS');
+    lines.push('─'.repeat(32));
+    (summary.employeeCollections || []).forEach(e => {
+      lines.push(`${e.name}`);
+      lines.push(`  Cash: ${formatCurrency(e.cash)}  Card: ${formatCurrency(e.card)}`);
+      lines.push(`  Online: ${formatCurrency(e.online)}  Total: ${formatCurrency(e.total)}`);
+    });
+    if (summary.totalFaisalTake > 0) {
+      lines.push('');
+      lines.push(`Faisal Takes: ${formatCurrency(summary.totalFaisalTake)}`);
+    }
+    lines.push('');
+    lines.push('DEDUCTIONS');
+    lines.push('─'.repeat(32));
+    lines.push(`Journal Entries: ${formatCurrency(summary.totalJournalEntries)}`);
+    lines.push(`Returns:         ${formatCurrency(summary.totalReturns)}`);
+    lines.push('');
+    lines.push('CASH SUMMARY');
+    lines.push('─'.repeat(32));
+    const avail = summary.availableCash;
+    const transferred = parseFloat(transferCashAmount) || 0;
+    const remaining = avail - transferred;
+    lines.push(`Available Cash:  ${formatCurrency(avail)}`);
+    if (transferred > 0) {
+      lines.push(`Transfer to Sys: ${formatCurrency(transferred)}`);
+      lines.push(`Remaining:       ${formatCurrency(remaining)}`);
+    }
+    lines.push('');
+    lines.push('─'.repeat(32));
+    lines.push('   BOOK CLOSED');
+    lines.push('─'.repeat(32));
+
+    const text = lines.join('\n');
+
+    if (opts.thermal) {
+      const w = window.open('', '_blank', 'width=400,height=600');
+      if (!w) return toast.error('Popup blocked');
+      w.document.write(`<pre style="font-family:monospace;font-size:12px;padding:16px;margin:0;">${text}</pre>`);
+      w.document.close();
+      w.focus();
+      w.print();
+    }
+    if (opts.a4) {
+      const w = window.open('', '_blank', 'width=800,height=900');
+      if (!w) return toast.error('Popup blocked');
+      w.document.write(`<html><head><style>
+        body { font-family: Arial, sans-serif; padding: 40px; font-size: 14px; }
+        h1 { text-align: center; font-size: 20px; }
+        h2 { font-size: 16px; margin-top: 20px; border-bottom: 2px solid #333; padding-bottom: 4px; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        th, td { padding: 6px 10px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f5f5f5; font-weight: bold; }
+        .total { font-weight: bold; font-size: 15px; }
+        .right { text-align: right; }
+        .footer { margin-top: 30px; text-align: center; font-size: 16px; font-weight: bold; }
+      </style></head><body>
+        <h1>${outlet.toUpperCase()}</h1>
+        <p style="text-align:center;font-size:16px;font-weight:bold;">CLOSE BOOK REPORT</p>
+        <p style="text-align:center;">${closedAt.toLocaleDateString()}</p>
+        <p><strong>Open:</strong> ${openedAt.toLocaleString()} ${currentBook?.openedBy ? '| <strong>Opened by:</strong> ' + currentBook.openedBy : ''}</p>
+        <p><strong>Close:</strong> ${closedAt.toLocaleString()}</p>
+
+        <h2>Payment Summary</h2>
+        <table>
+          <tr><th>Method</th><th class="right">Amount</th></tr>
+          <tr><td>Cash</td><td class="right">${formatCurrency(summary.paymentSummary.cash)}</td></tr>
+          <tr><td>Card</td><td class="right">${formatCurrency(summary.paymentSummary.card)}</td></tr>
+          <tr><td>Online</td><td class="right">${formatCurrency(summary.paymentSummary.online)}</td></tr>
+          <tr><td>Cash + Online</td><td class="right">${formatCurrency(summary.paymentSummary.cashOnlineTotal)}</td></tr>
+          <tr class="total"><td>Grand Total</td><td class="right">${formatCurrency(summary.paymentSummary.grandTotal)}</td></tr>
+        </table>
+
+        <h2>Employee Collections</h2>
+        <table>
+          <tr><th>Employee</th><th class="right">Cash</th><th class="right">Card</th><th class="right">Online</th><th class="right">Total</th></tr>
+          ${(summary.employeeCollections || []).map(e => `<tr><td>${e.name}</td><td class="right">${formatCurrency(e.cash)}</td><td class="right">${formatCurrency(e.card)}</td><td class="right">${formatCurrency(e.online)}</td><td class="right">${formatCurrency(e.total)}</td></tr>`).join('')}
+        </table>
+        ${summary.totalFaisalTake > 0 ? `<p><strong>Faisal Takes:</strong> ${formatCurrency(summary.totalFaisalTake)}</p>` : ''}
+
+        <h2>Deductions</h2>
+        <table>
+          <tr><td>Journal Entries</td><td class="right">${formatCurrency(summary.totalJournalEntries)}</td></tr>
+          <tr><td>Returns</td><td class="right">${formatCurrency(summary.totalReturns)}</td></tr>
+        </table>
+
+        <h2>Cash Summary</h2>
+        <table>
+          <tr><td>Available Cash</td><td class="right">${formatCurrency(avail)}</td></tr>
+          ${transferred > 0 ? `<tr><td>Transfer to System</td><td class="right">${formatCurrency(transferred)}</td></tr><tr class="total"><td>Remaining Cash in Locker</td><td class="right">${formatCurrency(remaining)}</td></tr>` : ''}
+        </table>
+
+        <div class="footer">BOOK CLOSED</div>
+      </body></html>`);
+      w.document.close();
+      w.focus();
+      w.print();
     }
   };
 
@@ -1812,6 +2020,36 @@ const OutletPOS = () => {
         </div>
       )}
 
+      {/* Book Status Bar */}
+      {tab === 'pos' && (
+        <div className={`flex items-center justify-between px-4 py-1.5 flex-shrink-0 border-b ${currentBook ? 'bg-emerald-900/30 border-emerald-800/50' : 'bg-red-900/20 border-red-800/30'}`}>
+          <div className="flex items-center gap-2">
+            {currentBook ? (
+              <><BookOpen size={14} className="text-emerald-400" /><span className="text-[11px] font-bold text-emerald-300">Book Open</span><span className="text-[10px] text-emerald-500/70">since {new Date(currentBook.openedAt).toLocaleString()}</span></>
+            ) : (
+              <><Book size={14} className="text-red-400" /><span className="text-[11px] font-bold text-red-300">No Open Book</span></>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {currentBook ? (
+              <button onClick={handleFetchCloseBookSummary} className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white">Close Book</button>
+            ) : (
+              <button onClick={handleOpenBook} disabled={openBookLoading} className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white">
+                {openBookLoading ? 'Opening...' : 'Open Book'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 9 PM Reminder */}
+      {showBookReminder && currentBook && (
+        <div className="bg-amber-900/30 border-b border-amber-700/50 px-4 py-2 flex items-center justify-between flex-shrink-0">
+          <span className="text-xs font-bold text-amber-300">Time to Close the Book</span>
+          <button onClick={() => setShowBookReminder(false)} className="text-[10px] text-amber-400 hover:text-amber-300 underline">Dismiss</button>
+        </div>
+      )}
+
       <div className="flex flex-1 overflow-hidden">
         {/* Product Grid */}
         <div className="flex-1 overflow-y-auto p-3">
@@ -2348,6 +2586,153 @@ const OutletPOS = () => {
               <p className="text-center text-gray-500 font-bold py-4 text-xs">No balance payments yet</p>
             )}
             <button onClick={() => setShowBalanceHistoryModal(false)} className="w-full mt-4 bg-gray-800 hover:bg-gray-700 text-white font-bold py-2.5 rounded-xl text-sm">Close</button>
+          </div>
+        </div>
+      )}
+
+      {/* Close Book Modal */}
+      {showCloseBook && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 overflow-y-auto" onClick={() => { if (!closeBookLoading) setShowCloseBook(false); }}>
+          <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto my-8" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-black text-white flex items-center gap-2"><Book size={20} className="text-emerald-400" />Close Book</h2>
+              {!closeBookLoading && (
+                <button onClick={() => { setShowCloseBook(false); setCloseBookSummary(null); }} className="text-gray-500 hover:text-white"><X size={20} /></button>
+              )}
+            </div>
+
+            {summaryLoading ? (
+              <div className="text-center py-12 text-gray-400 font-bold">Loading summary...</div>
+            ) : closeBookSummary ? (
+              <div className="space-y-4">
+                {/* Session Info */}
+                <div className="bg-gray-800 rounded-xl p-4 text-xs">
+                  <div className="flex justify-between mb-1"><span className="text-gray-500">Opened</span><span className="text-white font-bold">{new Date(currentBook?.openedAt).toLocaleString()}</span></div>
+                  <div className="flex justify-between mb-1"><span className="text-gray-500">Opened by</span><span className="text-white font-bold">{currentBook?.openedBy || 'Unknown'}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Total Sales</span><span className="text-white font-bold">{closeBookSummary.totalSales} transactions</span></div>
+                </div>
+
+                {/* Payment Summary */}
+                <div className="bg-gray-800 rounded-xl p-4">
+                  <h3 className="text-sm font-black text-gray-300 uppercase tracking-widest mb-3">Payment Summary</h3>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between"><span className="text-gray-400">Cash</span><span className="font-bold text-emerald-400">{formatCurrency(closeBookSummary.paymentSummary.cash)}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-400">Card</span><span className="font-bold text-purple-400">{formatCurrency(closeBookSummary.paymentSummary.card)}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-400">Online</span><span className="font-bold text-blue-400">{formatCurrency(closeBookSummary.paymentSummary.online)}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-400">Cash + Online</span><span className="font-bold text-amber-400">{formatCurrency(closeBookSummary.paymentSummary.cashOnlineTotal)}</span></div>
+                    <div className="flex justify-between border-t border-gray-700 pt-2 mt-2"><span className="font-bold text-white">Grand Total</span><span className="font-black text-lg text-white">{formatCurrency(closeBookSummary.paymentSummary.grandTotal)}</span></div>
+                  </div>
+                </div>
+
+                {/* Employee-wise Collections */}
+                <div className="bg-gray-800 rounded-xl p-4">
+                  <h3 className="text-sm font-black text-gray-300 uppercase tracking-widest mb-3">Employee Collections</h3>
+                  <div className="space-y-2">
+                    {closeBookSummary.employeeCollections.length === 0 ? (
+                      <p className="text-xs text-gray-500 text-center py-2">No collections</p>
+                    ) : (
+                      closeBookSummary.employeeCollections.map((emp, i) => (
+                        <div key={i} className="bg-gray-850 rounded-lg p-3 border border-gray-700/50">
+                          <p className="text-xs font-bold text-indigo-400 mb-2">{emp.name} <span className="text-gray-500 font-normal">({emp.salesCount} sale{emp.salesCount !== 1 ? 's' : ''})</span></p>
+                          <div className="grid grid-cols-2 gap-1 text-[10px]">
+                            <span className="text-gray-500">Cash:</span><span className="font-bold text-emerald-400 text-right">{formatCurrency(emp.cash)}</span>
+                            <span className="text-gray-500">Card:</span><span className="font-bold text-purple-400 text-right">{formatCurrency(emp.card)}</span>
+                            <span className="text-gray-500">Online:</span><span className="font-bold text-blue-400 text-right">{formatCurrency(emp.online)}</span>
+                            <span className="text-gray-400 font-bold">Total:</span><span className="font-bold text-white text-right">{formatCurrency(emp.total)}</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Faisal Takes */}
+                {closeBookSummary.totalFaisalTake > 0 && (
+                  <div className="bg-gray-800 rounded-xl p-4">
+                    <h3 className="text-sm font-black text-gray-300 uppercase tracking-widest mb-3">Faisal Takes</h3>
+                    <p className="text-xs font-bold text-amber-400">Total: {formatCurrency(closeBookSummary.totalFaisalTake)} ({closeBookSummary.totalFaisalTakesCount} transaction{closeBookSummary.totalFaisalTakesCount !== 1 ? 's' : ''})</p>
+                  </div>
+                )}
+
+                {/* Deductions */}
+                <div className="bg-gray-800 rounded-xl p-4">
+                  <h3 className="text-sm font-black text-gray-300 uppercase tracking-widest mb-3">Deductions</h3>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between"><span className="text-gray-400">Journal Entries</span><span className="font-bold text-red-400">{formatCurrency(closeBookSummary.totalJournalEntries)}</span></div>
+                    {closeBookSummary.totalJournalCount > 0 && (
+                      <div className="pl-2 text-[10px] text-gray-600 space-y-0.5">
+                        {(closeBookSummary.journalEntries || []).map((j, idx) => (
+                          <div key={idx} className="flex justify-between">
+                            <span>{j.expenseTitle} — {j.employeeName}</span>
+                            <span className="text-red-400/70">{formatCurrency(j.amount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex justify-between"><span className="text-gray-400">Returns</span><span className="font-bold text-red-400">{formatCurrency(closeBookSummary.totalReturns)}</span></div>
+                    {closeBookSummary.totalReturnsCount > 0 && (
+                      <div className="pl-2 text-[10px] text-gray-600 space-y-0.5">
+                        <div className="flex justify-between"><span className="text-gray-500">Cash Returns:</span><span className="text-red-400/70">{formatCurrency(closeBookSummary.returnSummary.cash)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-500">Card Returns:</span><span className="text-red-400/70">{formatCurrency(closeBookSummary.returnSummary.card)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-500">Online Returns:</span><span className="text-red-400/70">{formatCurrency(closeBookSummary.returnSummary.online)}</span></div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Cash Summary */}
+                <div className="bg-gray-800 rounded-xl p-4 border-2 border-emerald-800/50">
+                  <h3 className="text-sm font-black text-gray-300 uppercase tracking-widest mb-3">Cash Summary</h3>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between"><span className="text-gray-400">Cash Sales</span><span className="font-bold text-emerald-400">{formatCurrency(closeBookSummary.paymentSummary.cash)}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-400">Journal Entries</span><span className="font-bold text-red-400">-{formatCurrency(closeBookSummary.totalJournalEntries)}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-400">Cash Returns</span><span className="font-bold text-red-400">-{formatCurrency(closeBookSummary.returnSummary.cash)}</span></div>
+                    <div className="flex justify-between border-t border-gray-700 pt-2 mt-2">
+                      <span className="font-bold text-white">Available Cash</span>
+                      <span className="font-black text-lg text-emerald-400">{formatCurrency(closeBookSummary.availableCash)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Transfer Cash */}
+                <div className="bg-gray-800 rounded-xl p-4">
+                  <h3 className="text-sm font-black text-gray-300 uppercase tracking-widest mb-3">Transfer Cash to System</h3>
+                  <input type="number" value={transferCashAmount} onChange={e => setTransferCashAmount(parseFloat(e.target.value) || 0)}
+                    placeholder="Enter amount to transfer..."
+                    className="w-full bg-gray-950 border-2 border-gray-700 rounded-xl px-4 py-3 text-lg font-black text-white placeholder-gray-500 focus:border-emerald-500 outline-none mb-2" />
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500">Cash in Locker</span>
+                    <span className="font-bold text-emerald-400">{formatCurrency(closeBookSummary.availableCash)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs mt-1">
+                    <span className="text-gray-500">Transfer to System</span>
+                    <span className="font-bold text-amber-400">-{formatCurrency(parseFloat(transferCashAmount) || 0)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs mt-1 border-t border-gray-700 pt-2">
+                    <span className="font-bold text-white">Remaining Cash in Locker</span>
+                    <span className="font-bold text-white">{formatCurrency(closeBookSummary.availableCash - (parseFloat(transferCashAmount) || 0))}</span>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2 pt-2">
+                  <div className="flex gap-1 mr-auto">
+                    <button onClick={() => setBookPrintOpts(p => ({ ...p, thermal: !p.thermal }))}
+                      className={`px-3 py-2 rounded-xl text-[10px] font-bold border-2 ${bookPrintOpts.thermal ? 'border-blue-500 bg-blue-600/20 text-blue-300' : 'border-gray-700 text-gray-500'}`}>
+                      <Printer size={12} className="inline mr-1" />Thermal
+                    </button>
+                    <button onClick={() => setBookPrintOpts(p => ({ ...p, a4: !p.a4 }))}
+                      className={`px-3 py-2 rounded-xl text-[10px] font-bold border-2 ${bookPrintOpts.a4 ? 'border-purple-500 bg-purple-600/20 text-purple-300' : 'border-gray-700 text-gray-500'}`}>
+                      <FileText size={12} className="inline mr-1" />A4
+                    </button>
+                  </div>
+                  <button onClick={handleCloseBook} disabled={closeBookLoading}
+                    className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black text-sm flex items-center gap-2">
+                    {closeBookLoading ? 'Closing...' : <><CheckCircle2 size={16} /> Done / Close Book</>}
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       )}

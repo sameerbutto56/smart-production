@@ -2,6 +2,7 @@
 1. Add **POS Inventory** option to **Faisal Profile** (view-only access) with POS Inventory nav item.
 2. Add **Variant Search** inside each product's variant list (per-product, filtering by color/size/barcode).
 3. Display **Warehouse stock** column alongside outlet stocks (JT/JR/AB/WH) in unified inventory view.
+4. Implement **POS Open Book / Close Book** workflow for daily cashier shift management and end-of-day reconciliation.
 
 ## Constraints & Preferences
 - QR code on receipt must encode per-outlet Google Maps review URL (not receipt data)
@@ -137,7 +138,9 @@
 - **Auto-generated order number**: Displayed as read-only badge in Customer Details step; falls back to manual input only if generation endpoint fails.
 - **`DESTINATION_STAGES`**: Maps to `PENDING` (not `IN_PROGRESS`).
 - **POS Dashboard fixes applied**: TDZ fixed, faisalTake NULL handling, regular sale revenue count, useCache race guard, cache version v3.
-- `formatCurrency` defined locally in OutletPOS.jsx as `₨${(n || 0).toLocaleString()}`.
+- `formatCurrency` defined locally in OutletPOS.jsx as `PKR ${(n || 0).toLocaleString()}`.
+- **PosBookSession**: Session tracked in DB by `outletName` and `status`. Only one OPEN book per outlet at a time. Summary computed server-side from sales/journal/returns within session time range. Available cash = cash sales − journal entries − cash returns. Remaining cash = available cash − transferred cash.
+- **Close Book modal** in OutletPOS.jsx fetches summary from `GET /api/pos/book/:id/summary`, displays all breakdowns, lets user enter transfer amount, then posts to `POST /api/pos/book/:id/close` with full summary. Print buttons (Thermal + A4) toggle before closing.
 - Print functions (`printReceipt`, `printBalanceReceipt`) are defined inline in OutletPOS.jsx — not extracted to utilities.
 - **Balance status calculation** (backend `getSales`): `_balanceRemaining = max(0, grandTotal − advanceAmount − sum(balancePayments.amountPaidNow))`; `_balanceStatus = remaining > 0.01 ? 'balance' : 'paid'`.
 - **`getBalanceCollections` month range**: `startLimit = 1st of current month`, `endLimit = now` — returns collections from start of current month only.
@@ -171,3 +174,7 @@
 - `frontend/src/pages/ChatPage.jsx`: Main chat page — `sendTextMessage` adds message to local state, `pendingStatusRef` queue for status-update race, voice upload without manual Content-Type header, StatusIcon component for single/double/blue ticks, right-click context menu, Message Info modal
 - `backend/src/controllers/chat.controller.js`: `sendMessage` (returns full message), `uploadVoice` (writes file), `markDelivered`/`markRead`/`markPlayed` (updates DB + broadcasts via socket), `getReceipts`
 - `backend/src/routes/chat.routes.js`: All chat route definitions (GET messages, POST message, POST voice, PATCH pin, DELETE, delivery/read/played status, GET receipts)
+- **PosBookSession model** (`backend/prisma/schema.prisma`): New model with `id`, `outletName`, `openedBy`, `openedAt`, `closedAt`, `closedBy`, `summary` (JSON), `status` (OPEN/CLOSED).
+- **Backend Book endpoints** (`pos.book.controller.js` + `pos.book.routes.js`): `POST /api/pos/book/open` (create session), `GET /api/pos/book/current` (get open session), `GET /api/pos/book/:id/summary` (compute payment breakdown, employee collections, journals, returns), `POST /api/pos/book/:id/close` (save summary, mark CLOSED).
+- **Frontend** (`OutletPOS.jsx`): Book status bar (Open/Close indicator in POS tab), Open Book button, Close Book modal with full payment summary, employee-wise collections, journal/return deductions, cash-in-locker calculation, transfer-to-system field, Thermal + A4 print options, 9 PM reminder.
+- **Summary computation** (server-side `getBookSummary`): Queries all sales (non-Faisal), Faisal Takes, returns, and journal entries within the session's open/close time range; computes payment totals, per-employee breakdowns, deductions, and available cash.
