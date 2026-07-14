@@ -119,6 +119,7 @@ const OutletPOS = () => {
   const [returnReason, setReturnReason] = useState('Customer return');
   const [refundPaymentMethod, setRefundPaymentMethod] = useState('CASH');
   const [returnLoading, setReturnLoading] = useState(false);
+  const [returnProductSearch, setReturnProductSearch] = useState('');
   const [receiptSearch, setReceiptSearch] = useState('');
   const [invoiceReturnInput, setInvoiceReturnInput] = useState('');
   const [invoiceReturnLoading, setInvoiceReturnLoading] = useState(false);
@@ -1112,6 +1113,7 @@ const OutletPOS = () => {
           <div className="flex gap-2">
             <button onClick={() => setReturnTab('scan')} className={`text-xs font-bold px-3 py-1.5 rounded-xl ${returnTab === 'scan' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'}`}>Scan Barcode</button>
             <button onClick={() => setReturnTab('invoice')} className={`text-xs font-bold px-3 py-1.5 rounded-xl ${returnTab === 'invoice' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'}`}>By Invoice</button>
+            <button onClick={() => setReturnTab('product')} className={`text-xs font-bold px-3 py-1.5 rounded-xl ${returnTab === 'product' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'}`}>Select Product</button>
             <button onClick={() => setReturnTab('sales')} className={`text-xs font-bold px-3 py-1.5 rounded-xl ${returnTab === 'sales' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'}`}>From Sales</button>
             <button onClick={() => setReturnTab('history')} className={`text-xs font-bold px-3 py-1.5 rounded-xl ${returnTab === 'history' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'}`}>History</button>
           </div>
@@ -1176,6 +1178,60 @@ const OutletPOS = () => {
                 {!lookedUpReturnSale && !invoiceReturnLoading && (
                   <p className="text-[10px] text-gray-600 mt-2">Enter an invoice number to load and refund the entire invoice.</p>
                 )}
+              </div>
+            )}
+
+            {returnTab === 'product' && (
+              <div className="glass p-4 rounded-2xl border-2 border-gray-700">
+                <h2 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Search Products to Return</h2>
+                <div className="relative mb-3">
+                  <input value={returnProductSearch} onChange={e => setReturnProductSearch(e.target.value)}
+                    placeholder="Search by product name or SKU..." autoFocus
+                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-red-500 outline-none" />
+                </div>
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {products
+                    .filter(p => p.name.toLowerCase().includes(returnProductSearch.toLowerCase()) || (p.barcode && p.barcode.toLowerCase().includes(returnProductSearch.toLowerCase())))
+                    .slice(0, 100)
+                    .map(p => {
+                      const alreadyInCart = returnCart.find(i => i.variantId === p.id);
+                      return (
+                        <div key={p.id} className="bg-gray-800/50 rounded-xl p-3 flex items-center gap-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-white truncate">{p.name}</p>
+                            <p className="text-[9px] text-gray-400">
+                              {[p.color, p.size].filter(Boolean).join(' • ') || 'Standard'}
+                              {p.stock != null && <span className="ml-2 text-gray-500">Stock: {p.stock}</span>}
+                              {p.barcode && <span className="ml-2 text-gray-600">#{p.barcode}</span>}
+                            </p>
+                            {p.price ? <p className="text-[10px] font-bold text-emerald-400">{formatCurrency(p.price)}</p> : null}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-gray-500">{formatCurrency(p.price)}</span>
+                            <button onClick={() => {
+                              const existing = returnCart.find(i => i.variantId === p.id);
+                              if (existing) {
+                                setReturnCart(returnCart.map(i => i.variantId === p.id ? { ...i, qty: i.qty + 1 } : i));
+                              } else {
+                                setReturnCart([...returnCart, {
+                                  variantId: p.id, productName: p.name,
+                                  color: p.color, size: p.size, barcode: p.barcode || '',
+                                  unitPrice: p.price || 0, qty: 1, maxQty: 9999
+                                }]);
+                              }
+                              toast.success(`${p.name} added to return cart`);
+                            }} className="text-[10px] font-bold text-red-400 hover:text-red-300 bg-gray-800 px-2 py-1 rounded-lg">
+                              {alreadyInCart ? `+${alreadyInCart.qty + 1}` : 'Add'}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  {products.length === 0 && <p className="text-center text-gray-500 py-4 font-bold">No products available</p>}
+                  {returnProductSearch && products.filter(p => p.name.toLowerCase().includes(returnProductSearch.toLowerCase())).length === 0 && (
+                    <p className="text-center text-gray-500 py-4 font-bold">No matching products</p>
+                  )}
+                </div>
               </div>
             )}
 

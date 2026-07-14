@@ -86,11 +86,12 @@
 - **Fix 14 – Auto-read firing for sender** (ChatPage.jsx): read-receipt `useEffect` already filtered `m.senderId !== currentUserId` — unchanged but confirmed correct (no longer runs on every `messages` change, only when unread others exist).
 - **Fix 15 – Socket blocked in production** (`socket.js`): Removed `canWebSocket` gatekeeper that only allowed connections on localhost — now always connects when token is present.
 - **Fix 16 – Socket auth middleware** (`server.js`): Added JWT verification middleware on socket connections for security.
-- **PersonalNote model** (`schema.prisma`): New model with `id`, `userId`, `title`, `content`, `createdAt`, `updatedAt` — indexed by `userId`.
-- **Backend Notes API** (`notes.controller.js` + `notes.routes.js`): Password verification endpoint (`POST /verify-password`), full CRUD (`GET /`, `POST /`, `PUT /:id`, `DELETE /:id`) — all scoped to `req.user.id`.
-- **NotesPage.jsx**: Frontend notes component — password-gated (lock screen with show/hide), create/edit/delete notes, title/content, created/updated timestamps, empty state, responsive.
-- **Navbar integration** (`Layout.jsx`): Added `Notes` nav item for `FAISAL`, `STORE`, `OUTLET` roles with `StickyNote` icon; added to OUTLET whitelist.
-- **Route** (`App.jsx`): Added `/notes` route with lazy-loaded `NotesPage`.
+- **Notes Module (simplified)**: No auth/password. Notes are read-only after saving — shared notice board.
+  - **PersonalNote model** (`schema.prisma`): `id`, `ownerName` (employee name), `content`, `createdAt`, `updatedAt` — indexed by `ownerName`.
+  - **Backend** (`notes.controller.js` + `notes.routes.js`): `GET /api/notes` (all notes, newest first), `POST /api/notes` (create with `employeeName` + `content`). No update, no delete, no password verification.
+  - **NotesPage.jsx**: Opens directly (no login). "New Note" button shows form with Employee Name + Content fields. Saved notes display employee name, date/time, and content. No edit/delete buttons.
+  - **Navbar** (`Layout.jsx`): `Notes` nav item for `FAISAL`, `STORE`, `OUTLET` roles with `StickyNote` icon.
+  - **Route** (`App.jsx`): `/notes` route with lazy-loaded `NotesPage`.
 
 ### In Progress
 - (none)
