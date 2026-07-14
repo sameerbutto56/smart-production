@@ -98,6 +98,9 @@
 - **Logo Design cart option**: Added `logoDesign` boolean to PosSaleItem schema (₨300/unit), cart init, toggle button, line total, custCharges useMemo, checkout payload, backend calculation, and financial summary. Mirrors Name Engrave exactly. (commit `033af46`)
 - **Job sheet Urdu labels – Half, Regular, Sleeves**: Updated `printReport.js` (section labels + 4 display maps), `OrderCard.jsx`, and `AllOrders.jsx` — `Half` → `Half ہاف`, `Regular` → `Regular ریگولر`, `Sleeves` → `Sleeves بازو`. (commits `76579d5` + `371b346`)
 - **Close Book sync with Dashboard**: Rewrote `getBookSummary` in `pos.book.controller.js` — uses `saleRevenue(s) = advanceAmount > 0 ? min(advanceAmount, grandTotal) : grandTotal` (same as `getSalesDashboard`), fetches `posBalancePayment` records within session range, adds `paymentBreakdown` array with gross/returns/journalExpenses/net per method. Payment methods and employee collections are clickable with drill-down modals. (commit `3bad1ba`)
+- **Close Book summary sync fix** (`pos.book.controller.js`): Fixed returns query to include sale relation for CASH_ONLINE split; made CASH_ONLINE payment amounts proportional to `saleRevenue(s)` (previously used raw `cashAmount`/`onlineAmount` which over-counted for advance/balance sales); split CASH_ONLINE returns proportionally by original sale's `cashAmount`/`onlineAmount` ratio — now matches `getSalesDashboard` exactly.
+- **Register Open/Close with Employee Auth** (`OutletPOS.jsx`): Added auth modal requiring Employee Name + Password before opening or closing the register. Verified against hardcoded employee map. `openedBy`/`closedBy` tracked on the session. `verifiedCloser` state used in print.
+- **Print Register Information** (`printCloseBook` in `OutletPOS.jsx`): Thermal and A4 reports now include Register Information section at top with Opened by, Open Date, Open Time, Closed by, Close Date, Close Time.
 
 ### In Progress
 - (none)
@@ -140,7 +143,7 @@
 - (none — all current work is complete)
 
 ## Critical Context
-- Latest commits: `124a8b0` — auto-reload stale chunk; `033af46` — Logo Design cart option; `76579d5` + `371b346` — Urdu labels; `3bad1ba` — Close Book sync + drill-down
+- Latest commits: `124a8b0` — auto-reload stale chunk; `033af46` — Logo Design cart option; `76579d5` + `371b346` — Urdu labels; `3bad1ba` — Close Book sync + drill-down; `fcac5a7` — summary sync fix, employee auth for Open/Close, print register info
 - Build passes with 0 errors.
 - `isAccessory` uses substring matching (`catUpper.includes('COAT')`).
 - `calculateAndRecordRevenue` at line 2482 of `order.controller.js` is idempotent.
