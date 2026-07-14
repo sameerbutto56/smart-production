@@ -210,6 +210,7 @@ const customDict = {
   'women': 'ویمن',
   // Full product names
   'accessories': 'ایکسسریز',
+  'plain surgical caps': 'پلین سرجیکل کیپس',
   'inner tees': 'انر ٹیز',
   'sleeves': 'سلیوز',
   'bottle': 'باٹل',
@@ -429,6 +430,9 @@ function romanToUrdu(text) {
     'cotton': 'سوتی', 'suti': 'سوتی',
     'silk': 'ریشم', 'resham': 'ریشم',
     'aspire': 'اسپائر',
+    'surgical': 'سرجیکل',
+    'plain': 'پلین',
+    'caps': 'کیپس',
     'polyester': 'پالئیےسٹر',
     'jersey': 'جرسی',
     'denim': 'ڈینم',
