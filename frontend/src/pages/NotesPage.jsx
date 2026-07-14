@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
-import { Lock, Plus, Pencil, Trash2, Clock, FileText, Eye, EyeOff } from 'lucide-react';
+import { Lock, Plus, Pencil, Trash2, Clock, FileText, Eye, EyeOff, User, LogIn } from 'lucide-react';
 
 const NotesPage = () => {
   const { user } = useAuth();
-  const [authenticated, setAuthenticated] = useState(false);
+  const [step, setStep] = useState('select'); // select → password → authenticated
+  const [employees, setEmployees] = useState([]);
+  const [employeeName, setEmployeeName] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState('');
@@ -18,10 +20,18 @@ const NotesPage = () => {
   const [content, setContent] = useState('');
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    api.get('/api/notes/employees').then(res => {
+      setEmployees(res.data || []);
+    }).catch(() => {
+      setEmployees([]);
+    });
+  }, []);
+
   const fetchNotes = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/api/notes');
+      const res = await api.get('/api/notes', { params: { employeeName } });
       setNotes(res.data || []);
     } catch {
       setNotes([]);
@@ -31,18 +41,20 @@ const NotesPage = () => {
   };
 
   useEffect(() => {
-    if (authenticated) fetchNotes();
-  }, [authenticated]);
+    if (step === 'authenticated' && employeeName) fetchNotes();
+  }, [step, employeeName]);
 
   const handleVerify = async (e) => {
     e.preventDefault();
     setAuthError('');
     setAuthLoading(true);
     try {
-      await api.post('/api/notes/verify-password', { password });
-      setAuthenticated(true);
-    } catch {
-      setAuthError('Wrong password');
+      const res = await api.post('/api/notes/verify-password', { employeeName, password });
+      if (res.data?.success) {
+        setStep('authenticated');
+      }
+    } catch (err) {
+      setAuthError(err.response?.data?.message || 'Wrong password');
     } finally {
       setAuthLoading(false);
     }
@@ -64,16 +76,15 @@ const NotesPage = () => {
     setSaving(true);
     try {
       if (editingNote === 'new') {
-        await api.post('/api/notes', { title, content });
+        await api.post('/api/notes', { employeeName, title, content });
       } else {
-        await api.put(`/api/notes/${editingNote}`, { title, content });
+        await api.put(`/api/notes/${editingNote}`, { employeeName, title, content });
       }
       setEditingNote(null);
       setTitle('');
       setContent('');
       await fetchNotes();
     } catch {
-      // silent
     } finally {
       setSaving(false);
     }
@@ -82,7 +93,7 @@ const NotesPage = () => {
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this note?')) return;
     try {
-      await api.delete(`/api/notes/${id}`);
+      await api.delete(`/api/notes/${id}`, { params: { employeeName } });
       if (editingNote === id) {
         setEditingNote(null);
         setTitle('');
@@ -90,7 +101,6 @@ const NotesPage = () => {
       }
       await fetchNotes();
     } catch {
-      // silent
     }
   };
 
@@ -101,7 +111,47 @@ const NotesPage = () => {
       ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  if (!authenticated) {
+  const handleBack = () => {
+    setStep('select');
+    setEmployeeName('');
+    setPassword('');
+    setAuthError('');
+  };
+
+  if (step === 'select') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-900 p-4">
+        <div className="bg-gray-800 rounded-xl p-8 w-full max-w-md shadow-2xl border border-gray-700">
+          <div className="text-center mb-6">
+            <div className="mx-auto w-16 h-16 bg-indigo-500/20 rounded-full flex items-center justify-center mb-4">
+              <User className="w-8 h-8 text-indigo-400" />
+            </div>
+            <h2 className="text-xl font-bold text-white">Personal Notes</h2>
+            <p className="text-gray-400 text-sm mt-1">Select your name to continue</p>
+          </div>
+
+          <div className="space-y-2">
+            {employees.map(name => (
+              <button
+                key={name}
+                onClick={() => { setEmployeeName(name); setStep('password'); setPassword(''); setAuthError(''); }}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-gray-700 hover:bg-gray-600 border border-gray-600 text-white transition-colors text-left"
+              >
+                <User size={18} className="text-gray-400 shrink-0" />
+                <span>{name}</span>
+              </button>
+            ))}
+          </div>
+
+          {employees.length === 0 && (
+            <p className="text-gray-400 text-center py-4">No employees available</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 'password') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-900 p-4">
         <div className="bg-gray-800 rounded-xl p-8 w-full max-w-md shadow-2xl border border-gray-700">
@@ -109,8 +159,8 @@ const NotesPage = () => {
             <div className="mx-auto w-16 h-16 bg-indigo-500/20 rounded-full flex items-center justify-center mb-4">
               <Lock className="w-8 h-8 text-indigo-400" />
             </div>
-            <h2 className="text-xl font-bold text-white">Personal Notes</h2>
-            <p className="text-gray-400 text-sm mt-1">Enter your password to access your private notes</p>
+            <h2 className="text-xl font-bold text-white">Welcome, {employeeName}</h2>
+            <p className="text-gray-400 text-sm mt-1">Enter your password to access notes</p>
           </div>
 
           <form onSubmit={handleVerify}>
@@ -141,7 +191,15 @@ const NotesPage = () => {
               disabled={!password || authLoading}
               className="w-full py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium transition-colors"
             >
-              {authLoading ? 'Verifying...' : 'Unlock Notes'}
+              {authLoading ? 'Verifying...' : 'Login'}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleBack}
+              className="w-full py-2 mt-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
+            >
+              Back
             </button>
           </form>
         </div>
@@ -154,18 +212,30 @@ const NotesPage = () => {
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-white">My Notes</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-white">My Notes</h1>
+              <span className="px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-sm font-medium">{employeeName}</span>
+            </div>
             <p className="text-gray-400 text-sm">{notes.length} note{notes.length !== 1 ? 's' : ''}</p>
           </div>
-          {editingNote !== 'new' && (
+          <div className="flex gap-2">
+            {editingNote !== 'new' && (
+              <button
+                onClick={handleCreate}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
+              >
+                <Plus size={18} />
+                New Note
+              </button>
+            )}
             <button
-              onClick={handleCreate}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
+              onClick={handleBack}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
+              title="Switch employee"
             >
-              <Plus size={18} />
-              New Note
+              <LogIn size={18} />
             </button>
-          )}
+          </div>
         </div>
 
         {editingNote && (
