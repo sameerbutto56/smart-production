@@ -100,47 +100,53 @@ const getBookSummary = async (req, res) => {
     const startTime = session.openedAt;
     const endTime = session.closedAt || new Date();
 
-    // Sales in range (non-Faisal, non-refunded)
-    const sales = await prisma.posSale.findMany({
-      where: {
-        outletName: outlet,
-        createdAt: { gte: startTime, lte: endTime },
-        faisalTake: { not: true },
-        refundedAt: null,
-      },
-      orderBy: { createdAt: 'asc' },
-    });
+    const dateFilter = { gte: startTime, lte: endTime };
 
-    // Faisal Takes in range
-    const faisalTakes = await prisma.posSale.findMany({
-      where: {
-        outletName: outlet,
-        createdAt: { gte: startTime, lte: endTime },
-        faisalTake: true,
-      },
-      orderBy: { createdAt: 'asc' },
-    });
+    // Parallel queries
+    const [sales, faisalTakes, returns, journals, balancePayments] = await Promise.all([
+      // Sales in range (non-Faisal, non-refunded)
+      prisma.posSale.findMany({
+        where: { outletName: outlet, createdAt: dateFilter, faisalTake: { not: true }, refundedAt: null },
+        orderBy: { createdAt: 'asc' },
+      }),
+      // Faisal Takes in range
+      prisma.posSale.findMany({
+        where: { outletName: outlet, createdAt: dateFilter, faisalTake: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      // Returns in range
+      prisma.posReturn.findMany({
+        where: { outletName: outlet, createdAt: dateFilter },
+      }),
+      // Journal entries in range
+      prisma.journalEntry.findMany({
+        where: { outletName: outlet, createdAt: dateFilter },
+        orderBy: { createdAt: 'asc' },
+      }),
+      // Balance payments in range
+      prisma.posBalancePayment.findMany({
+        where: {
+          posSale: { outletName: outlet },
+          paidAt: dateFilter,
+        },
+        orderBy: { paidAt: 'asc' },
+      }),
+    ]);
 
-    // Returns in range
-    const returns = await prisma.posReturn.findMany({
-      where: { outletName: outlet, createdAt: { gte: startTime, lte: endTime } },
-    });
+    // Revenue calculation matching getSalesDashboard
+    const saleRevenue = (s) => s.advanceAmount > 0 ? Math.min(s.advanceAmount, s.grandTotal) : s.grandTotal;
 
-    // Journal entries in range
-    const journals = await prisma.journalEntry.findMany({
-      where: { outletName: outlet, createdAt: { gte: startTime, lte: endTime } },
-      orderBy: { createdAt: 'asc' },
-    });
-
-    // Payment summary
+    // Payment summary — by revenue received (not invoice total)
     const paymentSummary = { CASH: 0, CARD: 0, ONLINE: 0, CASH_ONLINE_CASH: 0, CASH_ONLINE_ONLINE: 0, CASH_ONLINE_TOTAL: 0 };
     const employeeMap = {};
 
     for (const s of sales) {
       const cashier = s.cashierName || 'Unknown';
       if (!employeeMap[cashier]) {
-        employeeMap[cashier] = { CASH: 0, CARD: 0, ONLINE: 0, CASH_ONLINE_CASH: 0, CASH_ONLINE_ONLINE: 0, CASH_ONLINE_TOTAL: 0, total: 0, salesCount: 0 };
+        employeeMap[cashier] = { CASH: 0, CARD: 0, ONLINE: 0, CASH_ONLINE_CASH: 0, CASH_ONLINE_ONLINE: 0, CASH_ONLINE_TOTAL: 0, total: 0, revenue: 0, salesCount: 0, sales: [] };
       }
+
+      const revenue = saleRevenue(s);
 
       if (s.paymentMethod === 'CASH_ONLINE') {
         const c = s.cashAmount || 0;
@@ -154,14 +160,54 @@ const getBookSummary = async (req, res) => {
       } else {
         const method = s.paymentMethod;
         if (paymentSummary[method] !== undefined) {
-          paymentSummary[method] += s.grandTotal;
+          paymentSummary[method] += revenue;
         }
         if (employeeMap[cashier][method] !== undefined) {
-          employeeMap[cashier][method] += s.grandTotal;
+          employeeMap[cashier][method] += revenue;
         }
       }
-      employeeMap[cashier].total += s.grandTotal;
+      employeeMap[cashier].total += revenue;
+      employeeMap[cashier].revenue += revenue;
       employeeMap[cashier].salesCount += 1;
+      employeeMap[cashier].sales.push({
+        id: s.id,
+        receiptNumber: s.receiptNumber,
+        customerName: s.customerName,
+        grandTotal: s.grandTotal,
+        paymentMethod: s.paymentMethod,
+        cashAmount: s.cashAmount,
+        onlineAmount: s.onlineAmount,
+        createdAt: s.createdAt,
+        advanceAmount: s.advanceAmount,
+        revenue,
+      });
+    }
+
+    // Add balance payments to totals and employee map
+    for (const bp of balancePayments) {
+      const cashier = bp.cashierName || 'Unknown';
+      if (!employeeMap[cashier]) {
+        employeeMap[cashier] = { CASH: 0, CARD: 0, ONLINE: 0, CASH_ONLINE_CASH: 0, CASH_ONLINE_ONLINE: 0, CASH_ONLINE_TOTAL: 0, total: 0, revenue: 0, salesCount: 0, sales: [] };
+      }
+      const method = bp.paymentMethod;
+      if (paymentSummary[method] !== undefined) paymentSummary[method] += bp.amountPaidNow;
+      if (employeeMap[cashier][method] !== undefined) employeeMap[cashier][method] += bp.amountPaidNow;
+      employeeMap[cashier].total += bp.amountPaidNow;
+      employeeMap[cashier].revenue += bp.amountPaidNow;
+      employeeMap[cashier].salesCount += 1;
+      employeeMap[cashier].sales.push({
+        id: bp.posSaleId,
+        receiptNumber: `BAL-${bp.posSaleId?.slice(0, 6)}`,
+        customerName: `Balance Payment (${bp.paymentMethod})`,
+        grandTotal: bp.amountPaidNow,
+        paymentMethod: bp.paymentMethod,
+        cashAmount: bp.paymentMethod === 'CASH' ? bp.amountPaidNow : 0,
+        onlineAmount: bp.paymentMethod === 'ONLINE' ? bp.amountPaidNow : 0,
+        createdAt: bp.paidAt,
+        advanceAmount: 0,
+        revenue: bp.amountPaidNow,
+        isBalancePayment: true,
+      });
     }
 
     // Faisal Takes total
@@ -189,11 +235,18 @@ const getBookSummary = async (req, res) => {
     const totalCashSales = paymentSummary.CASH + paymentSummary.CASH_ONLINE_CASH;
     const totalCardSales = paymentSummary.CARD;
     const totalOnlineSales = paymentSummary.ONLINE + paymentSummary.CASH_ONLINE_ONLINE;
-    const grandTotalSales = sales.reduce((s, sale) => s + sale.grandTotal, 0);
+    const totalRevenueSales = sales.reduce((s, sale) => s + saleRevenue(sale), 0) + balancePayments.reduce((s, bp) => s + bp.amountPaidNow, 0);
 
     // Available cash
     const totalCashRefunded = returnSummary.CASH;
     const availableCash = totalCashSales - totalJournalEntries - totalCashRefunded;
+
+    // Payment breakdown with journal deduction (matches dashboard)
+    const paymentBreakdown = [
+      { method: 'CASH', gross: totalCashSales, returns: returnSummary.CASH, journalExpenses: totalJournalEntries, net: totalCashSales - totalJournalEntries - returnSummary.CASH },
+      { method: 'CARD', gross: totalCardSales, returns: returnSummary.CARD, journalExpenses: 0, net: totalCardSales - returnSummary.CARD },
+      { method: 'ONLINE', gross: totalOnlineSales, returns: returnSummary.ONLINE, journalExpenses: 0, net: totalOnlineSales - returnSummary.ONLINE },
+    ];
 
     const employeeCollections = Object.entries(employeeMap).map(([name, data]) => ({
       name,
@@ -203,7 +256,9 @@ const getBookSummary = async (req, res) => {
       cashOnlineCash: data.CASH_ONLINE_CASH,
       cashOnlineOnline: data.CASH_ONLINE_ONLINE,
       total: data.total,
+      revenue: data.revenue,
       salesCount: data.salesCount,
+      sales: data.sales,
     }));
 
     const summary = {
@@ -216,8 +271,9 @@ const getBookSummary = async (req, res) => {
         cashOnlineCash: paymentSummary.CASH_ONLINE_CASH,
         cashOnlineOnline: paymentSummary.CASH_ONLINE_ONLINE,
         cashOnlineTotal: paymentSummary.CASH_ONLINE_TOTAL,
-        grandTotal: grandTotalSales,
+        grandTotal: totalRevenueSales,
       },
+      paymentBreakdown,
       employeeCollections,
       totalFaisalTake,
       faisalTakeEmployees: Object.entries(faiEmployees).map(([name, amount]) => ({ name, amount })),
@@ -235,6 +291,8 @@ const getBookSummary = async (req, res) => {
       totalFaisalTakesCount: faisalTakes.length,
       totalReturnsCount: returns.length,
       totalJournalCount: journals.length,
+      totalBalancePaymentCount: balancePayments.length,
+      sales, // full sale objects for drill-down
     };
 
     res.json(summary);

@@ -139,6 +139,8 @@ const OutletPOS = () => {
   const [transferCashAmount, setTransferCashAmount] = useState(0);
   const [closeBookLoading, setCloseBookLoading] = useState(false);
   const [showBookReminder, setShowBookReminder] = useState(false);
+  const [showPaymentDetail, setShowPaymentDetail] = useState(null); // { method, sales[] }
+  const [showEmployeeDetail, setShowEmployeeDetail] = useState(null); // { name, sales[] }
 
   const employees = selectedOutlet === 'Jail Road'
     ? { Junaid: 'J170', Ibrar: 'I170', Amir: 'A170' }
@@ -2681,12 +2683,32 @@ const OutletPOS = () => {
                 <div className="bg-gray-800 rounded-xl p-4">
                   <h3 className="text-sm font-black text-gray-300 uppercase tracking-widest mb-3">Payment Summary</h3>
                   <div className="space-y-2 text-xs">
-                    <div className="flex justify-between"><span className="text-gray-400">Cash</span><span className="font-bold text-emerald-400">{formatCurrency(closeBookSummary.paymentSummary.cash)}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-400">Card</span><span className="font-bold text-purple-400">{formatCurrency(closeBookSummary.paymentSummary.card)}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-400">Online</span><span className="font-bold text-blue-400">{formatCurrency(closeBookSummary.paymentSummary.online)}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-400">Cash + Online</span><span className="font-bold text-amber-400">{formatCurrency(closeBookSummary.paymentSummary.cashOnlineTotal)}</span></div>
+                    <button onClick={() => setShowPaymentDetail({ method: 'Cash', sales: (closeBookSummary.sales || []).filter(s => s.paymentMethod === 'CASH') })}
+                      className="w-full flex justify-between items-center hover:bg-gray-750 rounded-lg px-2 py-1.5 -mx-2 transition-colors">
+                      <span className="text-gray-400">Cash</span>
+                      <span className="font-bold text-emerald-400">{formatCurrency(closeBookSummary.paymentSummary.cash)}</span>
+                    </button>
+                    <button onClick={() => setShowPaymentDetail({ method: 'Card', sales: (closeBookSummary.sales || []).filter(s => s.paymentMethod === 'CARD') })}
+                      className="w-full flex justify-between items-center hover:bg-gray-750 rounded-lg px-2 py-1.5 -mx-2 transition-colors">
+                      <span className="text-gray-400">Card</span>
+                      <span className="font-bold text-purple-400">{formatCurrency(closeBookSummary.paymentSummary.card)}</span>
+                    </button>
+                    <button onClick={() => setShowPaymentDetail({ method: 'Online', sales: (closeBookSummary.sales || []).filter(s => s.paymentMethod === 'ONLINE') })}
+                      className="w-full flex justify-between items-center hover:bg-gray-750 rounded-lg px-2 py-1.5 -mx-2 transition-colors">
+                      <span className="text-gray-400">Online</span>
+                      <span className="font-bold text-blue-400">{formatCurrency(closeBookSummary.paymentSummary.online)}</span>
+                    </button>
+                    <button onClick={() => setShowPaymentDetail({ method: 'Cash+Online', sales: (closeBookSummary.sales || []).filter(s => s.paymentMethod === 'CASH_ONLINE') })}
+                      className="w-full flex justify-between items-center hover:bg-gray-750 rounded-lg px-2 py-1.5 -mx-2 transition-colors">
+                      <span className="text-gray-400">Cash + Online</span>
+                      <span className="font-bold text-amber-400">{formatCurrency(closeBookSummary.paymentSummary.cashOnlineTotal)}</span>
+                    </button>
                     <div className="flex justify-between border-t border-gray-700 pt-2 mt-2"><span className="font-bold text-white">Grand Total</span><span className="font-black text-lg text-white">{formatCurrency(closeBookSummary.paymentSummary.grandTotal)}</span></div>
                   </div>
+                  {/* Net after deductions */}
+                  {(closeBookSummary.paymentBreakdown || []).map(pb => (
+                    <div key={pb.method} className="flex justify-between text-[10px] mt-1 text-gray-500"><span>{pb.method} Net</span><span className={pb.net >= 0 ? 'text-emerald-400/70' : 'text-red-400/70'}>{formatCurrency(pb.net)}</span></div>
+                  ))}
                 </div>
 
                 {/* Employee-wise Collections */}
@@ -2697,7 +2719,7 @@ const OutletPOS = () => {
                       <p className="text-xs text-gray-500 text-center py-2">No collections</p>
                     ) : (
                       closeBookSummary.employeeCollections.map((emp, i) => (
-                        <div key={i} className="bg-gray-850 rounded-lg p-3 border border-gray-700/50">
+                        <button key={i} onClick={() => setShowEmployeeDetail(emp)} className="w-full bg-gray-850 rounded-lg p-3 border border-gray-700/50 hover:border-indigo-500/50 transition-colors text-left">
                           <p className="text-xs font-bold text-indigo-400 mb-2">{emp.name} <span className="text-gray-500 font-normal">({emp.salesCount} sale{emp.salesCount !== 1 ? 's' : ''})</span></p>
                           <div className="grid grid-cols-2 gap-1 text-[10px]">
                             <span className="text-gray-500">Cash:</span><span className="font-bold text-emerald-400 text-right">{formatCurrency(emp.cash)}</span>
@@ -2705,7 +2727,7 @@ const OutletPOS = () => {
                             <span className="text-gray-500">Online:</span><span className="font-bold text-blue-400 text-right">{formatCurrency(emp.online)}</span>
                             <span className="text-gray-400 font-bold">Total:</span><span className="font-bold text-white text-right">{formatCurrency(emp.total)}</span>
                           </div>
-                        </div>
+                        </button>
                       ))
                     )}
                   </div>
@@ -2798,6 +2820,81 @@ const OutletPOS = () => {
                 </div>
               </div>
             ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* Payment Detail Modal */}
+      {showPaymentDetail && (
+        <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4" onClick={() => setShowPaymentDetail(null)}>
+          <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-black text-white">{showPaymentDetail.method} Transactions <span className="text-gray-500 font-normal text-sm">({showPaymentDetail.sales.length})</span></h3>
+              <button onClick={() => setShowPaymentDetail(null)} className="text-gray-500 hover:text-white"><X size={20} /></button>
+            </div>
+            {showPaymentDetail.sales.length === 0 ? (
+              <p className="text-center text-gray-500 font-bold py-4 text-xs">No transactions</p>
+            ) : (
+              <div className="space-y-2">
+                {showPaymentDetail.sales.map((s, i) => (
+                  <div key={i} className="bg-gray-800 rounded-lg p-3 border border-gray-700/50">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-xs font-bold text-white">{s.receiptNumber || 'N/A'}</p>
+                        <p className="text-[10px] text-gray-400">{s.customerName || 'Walk-in'}</p>
+                      </div>
+                      <span className="text-xs font-black text-emerald-400">{formatCurrency(s.revenue || s.grandTotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-[10px] text-gray-500 mt-1">
+                      <span>{s.cashierName || 'Unknown'}</span>
+                      <span>{new Date(s.createdAt).toLocaleString()}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Employee Detail Modal */}
+      {showEmployeeDetail && (
+        <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4" onClick={() => setShowEmployeeDetail(null)}>
+          <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-black text-white">{showEmployeeDetail.name} <span className="text-gray-500 font-normal text-sm">({showEmployeeDetail.salesCount} sales)</span></h3>
+              <button onClick={() => setShowEmployeeDetail(null)} className="text-gray-500 hover:text-white"><X size={20} /></button>
+            </div>
+            {/* Totals */}
+            <div className="grid grid-cols-2 gap-2 mb-4 text-xs">
+              <div className="bg-gray-800 rounded-lg p-2 border border-emerald-800/30"><span className="text-gray-500">Cash</span><p className="font-bold text-emerald-400">{formatCurrency(showEmployeeDetail.cash)}</p></div>
+              <div className="bg-gray-800 rounded-lg p-2 border border-purple-800/30"><span className="text-gray-500">Card</span><p className="font-bold text-purple-400">{formatCurrency(showEmployeeDetail.card)}</p></div>
+              <div className="bg-gray-800 rounded-lg p-2 border border-blue-800/30"><span className="text-gray-500">Online</span><p className="font-bold text-blue-400">{formatCurrency(showEmployeeDetail.online)}</p></div>
+              <div className="bg-gray-800 rounded-lg p-2 border border-gray-700"><span className="text-gray-500">Total</span><p className="font-bold text-white">{formatCurrency(showEmployeeDetail.total)}</p></div>
+            </div>
+            {/* Transactions */}
+            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Transactions</h4>
+            {(showEmployeeDetail.sales || []).length === 0 ? (
+              <p className="text-center text-gray-500 font-bold py-4 text-xs">No transactions</p>
+            ) : (
+              <div className="space-y-2">
+                {(showEmployeeDetail.sales || []).map((s, i) => (
+                  <div key={i} className="bg-gray-800 rounded-lg p-3 border border-gray-700/50">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-xs font-bold text-white">{s.receiptNumber || 'N/A'}</p>
+                        <p className="text-[10px] text-gray-400">{s.customerName || 'Walk-in'}</p>
+                      </div>
+                      <span className="text-xs font-black" style={{ color: s.paymentMethod === 'CASH' ? '#34d399' : s.paymentMethod === 'CARD' ? '#a78bfa' : s.paymentMethod === 'ONLINE' ? '#60a5fa' : '#fbbf24' }}>{formatCurrency(s.revenue || s.grandTotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-[10px] text-gray-500 mt-1">
+                      <span className="font-medium">{formatPaymentMethod(s.paymentMethod)}</span>
+                      <span>{new Date(s.createdAt).toLocaleString()}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
