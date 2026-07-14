@@ -765,10 +765,23 @@ const getSalesDashboard = async (req, res) => {
       const method = KNOWN_METHODS.includes(rawMethod) ? rawMethod : 'CASH';
       returnsByMethod[method] = (returnsByMethod[method] || 0) + r.refundAmount;
     });
+
+    // Fetch journal expenses for the same date range and deduct from CASH
+    const journalAgg = await prisma.journalEntry.aggregate({
+      where: {
+        ...(outlet ? { outletName: outlet } : {}),
+        ...(startLimit || endLimit ? { createdAt: { gte: startLimit || undefined, lte: endLimit || undefined } } : {}),
+      },
+      _sum: { amount: true }
+    });
+    const totalJournalExpenses = journalAgg._sum.amount || 0;
+
     const paymentBreakdown = KNOWN_METHODS.map(method => {
       const gross = paymentTotals[method] || 0;
       const ret = returnsByMethod[method] || 0;
-      return { method, gross, returns: ret, net: gross - ret };
+      let net = gross - ret;
+      if (method === 'CASH') net -= totalJournalExpenses;
+      return { method, gross, returns: ret, net };
     });
 
     // 2. Balance orders — POS sales linked to orders with advance payments
