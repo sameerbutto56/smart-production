@@ -11,7 +11,8 @@ import toast from 'react-hot-toast';
 const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSeen, selected, onToggleSelect }) => {
   const { t, isUrdu, LanguageToggle } = useLanguage();
   const [localInventoryAdded, setLocalInventoryAdded] = useState(false);
-  const currentStage = order.stages?.find(s => s.stageName === order.currentStage) || order.stages?.[0];
+  const stageFromDb = order.stages?.find(s => s.stageName === order.currentStage);
+  const currentStage = stageFromDb || (order.currentStage ? { stageName: order.currentStage, status: 'PENDING', id: null } : null) || order.stages?.[0];
 
   const isFaisal = ['FAISAL', 'SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY', 'OUTLET'].includes(userRole);
   const showPrice = ['SUPER_ADMIN', 'ADMIN'].includes(userRole);

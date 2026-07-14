@@ -93,6 +93,7 @@
   - **NotesPage.jsx**: Opens directly (no login). "New Note" button shows form with Employee Name + Content fields. Saved notes display employee name, date/time, and content. No edit/delete buttons.
   - **Navbar** (`Layout.jsx`): `Notes` nav item for `FAISAL`, `STORE`, `OUTLET` roles with `StickyNote` icon.
   - **Route** (`App.jsx`): `/notes` route with lazy-loaded `NotesPage`.
+- **Fix 17 – Store Profile "Complete Task" instead of "Accept Task"**: Root cause was old cleanup script deleted STAGE records from DB while leaving `order.currentStage` intact. 61 STORE, 37 PRODUCTION, 27 DISPATCH, 8 LOGO_DESIGN, 8 OUT_FOR_DELIVERY, 2 PRODUCTION_ACCEPTANCE, 1 STORE_RECEIVE stages re-created via `fix-missing-stages.js` (since deleted). Frontend safety net: `OrderCard.jsx:14` now creates a synthetic `{ stageName, status: 'PENDING', id: null }` when `order.stages` has no matching entry for `order.currentStage`, preventing wrong button rendering.
 
 ### In Progress
 - (none)
@@ -100,7 +101,17 @@
 ### Blocked
 - (none)
 
+### Fixed This Session — Store Profile Duplicate Orders
+- **Root cause**: `storeRouteOrder` and `requestStageCompletion` are NOT wrapped in Prisma `$transaction`. If a database error occurs between "mark stage COMPLETED" and "update `order.currentStage`", the order ends up with `currentStage: 'STORE'` but a COMPLETED STORE stage — still picked up by `getStoreDashboardOrders` and `getUnseenOrders` which only check `currentStage`, not stage status.
+- **Fix 1** (`getStoreDashboardOrders`): Added `stages: { some: { stageName: 'STORE', status: { in: ['PENDING', 'IN_PROGRESS'] } } }` to the base query — only orders with a genuinely active STORE stage appear.
+- **Fix 2** (`getUnseenOrders`): Same `stages: { some }` filter for the unseen-tasks endpoint.
+- **Fix 3** (`storeRouteOrder`): Wrapped core routing (stage COMPLETED → create new stage → update currentStage) in `prisma.$transaction`. `RETURN_TO_SOURCE` path also atomized.
+- **Fix 4** (`requestStageCompletion`): Moved stage completion from BEFORE validation to AFTER validation — previously, a validation failure would leave the stage COMPLETED but `currentStage` unchanged (order stuck).
+- **Diagnostic script** (`backend/prisma/fix-stuck-store-orders.js`): Finds orders stuck at STORE with no active stage and auto-fixes them (advances to next pending stage, or creates a fresh PENDING STORE stage).
+
 ## Key Decisions
+- Store dashboard and unseen-tasks endpoints now require an active (PENDING/IN_PROGRESS) stage record matching the role's stage — prevents orders with completed/inactive stages from appearing.
+- `requestStageCompletion` validates transitions BEFORE marking stage COMPLETED — eliminates inconsistent state from validation failures.
 - Balance revenue uses payment-date-based methodology (advance on sale date, balance payments on their dates) for accurate daily tracking.
 - `printReceipt` accepts options parameter instead of creating separate functions for invoice vs gate pass.
 - Client measurements stored flat in `clientMeasurements` state; per-product nesting built dynamically when product is added to cart.
@@ -146,10 +157,10 @@
 - **`getBalanceCollections` month range**: `startLimit = 1st of current month`, `endLimit = now` — returns collections from start of current month only.
 - **Balance Collection custom range**: Frontend `balanceCollectionDateFrom`/`balanceCollectionDateTo` states passed as `dateFrom`/`dateTo` query params only when `range === 'custom'`; date inputs appear inline in the card.
 
-## Critical Context
 - `sendTextMessage` now adds message to local state from API response — eliminates race with `chat:status-update`.
 - `pendingStatusRef` (useRef) stores status updates for messages not yet in state; applied in `handleNewMessage`.
 - Voice upload must NOT set `Content-Type: multipart/form-data` manually — Axios sets boundary automatically.
+- **OrderCard.jsx:14 stage fallback**: When `order.stages` has no entry matching `order.currentStage`, creates synthetic `{ stageName: order.currentStage, status: 'PENDING', id: null }` to prevent wrong button rendering. Old cleanup script deleted ~142 stage records from DB — recreated via one-time script (since deleted).
 
 ## Relevant Files
 - `backend/prisma/schema.prisma`: PosSale + PosBalancePayment models; Client model with `measurementChart`, `sizeDetails`, `standardSizes`
@@ -157,7 +168,8 @@
 - `backend/src/routes/pos.routes.js`: 5 balance routes + existing POS routes
 - `backend/src/controllers/outletOrder.controller.js`: Destination stage PENDING; `createOutletOrder` with optional `orderNumber`, auto-generate; write-back removed; `generateOrderNumberEndpoint` (GET /generate-number)
 - `backend/src/routes/outletOrder.routes.js`: Added `GET /generate-number` route with auth
-- `backend/src/controllers/order.controller.js`: `calculateAndRecordRevenue` at line 2482
+- `backend/src/controllers/order.controller.js`: `calculateAndRecordRevenue` at line 2482, `storeRouteOrder` transaction at line 2722, `requestStageCompletion` validation-before-complete at line 698
+- `backend/prisma/fix-stuck-store-orders.js`: Diagnostic script to find and fix orders stuck at STORE with completed/inactive stage records
 - `backend/src/controllers/route.controller.js`: `manualRouteOrder`, `requestStageCompletion`
 - `frontend/src/pages/OutletPOS.jsx`: Dashboard, cart, checkout, receipt print (with print options), balance cards/modals/history, Balance Collection card with custom date inputs, `printReceipt`, `printBalanceReceipt`, `formatCurrency`
 - `frontend/src/pages/OutletOrderEntry.jsx`: Order lookup, sizing mode toggles, client select with measurement normalization (`FIELD_NAME_MAP` fix), auto-populate on product add, Size Chart, auto-generated order number
@@ -167,7 +179,7 @@
 - `frontend/src/components/ErrorBoundary.jsx`: Error message visible in production
 - `frontend/src/utils/printReport.js`: `printJobSheet` — now flattens Outlet per-product sizeData and displays measurement values grid
 - `frontend/src/pages/AllOrders.jsx`: Job Sheet modal — Outlet per-product sizeData flattening, clean filter, per-product name lookup for multi-item inline
-- `frontend/src/components/OrderCard.jsx`: Full Sheet modal + PRODUCTION card — Outlet per-product flattening, dynamic measurement table (replaced hardcoded 6-field)
+- `frontend/src/components/OrderCard.jsx`: Full Sheet modal + PRODUCTION card — Outlet per-product flattening, dynamic measurement table (replaced hardcoded 6-field). Stage fallback at line 14 creates synthetic stage when DB has no entry matching `order.currentStage`.
 - `frontend/src/pages/OutletDashboard.jsx`: State-based tab switching with dropdown menu — Dashboard, POS Dashboard, Total Invoices, Order Track, Tasks tabs
 - `frontend/src/components/OutletPOSDashboard.jsx`: Standalone POS dashboard component (KPIs, charts, payment breakdown, top products, recent sales, Faisal Takes, date presets + custom range)
 - `frontend/src/components/OutletInvoiceHistory.jsx`: Standalone invoice history (search, date range, All/Paid/Balance filters, expanded details, Print, Pay Balance modal, Payment History modal, receipt modals, Excel download; uses backend-computed `_balanceRemaining`/`_balanceStatus`)

@@ -695,12 +695,6 @@ const requestStageCompletion = async (req, res) => {
       }
     }
 
-    // Mark current stage as completed
-    await prisma.orderStage.update({
-      where: { id: stageId },
-      data: { status: 'COMPLETED', completedAt: new Date() }
-    });
-
     // Determine next stage — use manual route if provided, else auto-advance via pipeline
     let actualNextStage = manualNextStage || null;
     if (!actualNextStage) {
@@ -729,6 +723,12 @@ const requestStageCompletion = async (req, res) => {
         return res.status(400).json({ message: validation.message, expectedNext: validation.expected });
       }
     }
+
+    // Mark current stage as completed (AFTER validation to prevent inconsistent state)
+    await prisma.orderStage.update({
+      where: { id: stageId },
+      data: { status: 'COMPLETED', completedAt: new Date() }
+    });
 
     if (actualNextStage) {
       const durations = await getStageDurations(order.priority);
@@ -2383,7 +2383,8 @@ const getUnseenOrders = async (req, res) => {
     const orders = await prisma.order.findMany({
       where: {
         currentStage: { in: relevantStages },
-        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
+        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] },
+        stages: { some: { stageName: { in: relevantStages }, status: { in: ['PENDING', 'IN_PROGRESS'] } } }
       },
       include: {
         stages: { orderBy: { createdAt: 'desc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
@@ -2702,54 +2703,54 @@ const storeRouteOrder = async (req, res) => {
       return res.status(400).json({ message: 'Store stage not found' });
     }
 
-    await prisma.orderStage.update({
-      where: { id: storeStage.id },
-      data: { status: 'COMPLETED', completedAt: new Date(), rejectionReason: `Routed to ${destinationStage} by ${req.user.name}` }
-    });
-
     if (destinationStage === 'RETURN_TO_SOURCE') {
-      const sourceStage = order.source === 'OUTLET' ? 'ORDER_ENTRY' : 'ORDER_ENTRY';
+      const sourceStage = 'ORDER_ENTRY';
+      await prisma.orderStage.update({
+        where: { id: storeStage.id },
+        data: { status: 'COMPLETED', completedAt: new Date(), rejectionReason: `Routed to ${destinationStage} by ${req.user.name}` }
+      });
       await prisma.order.update({
         where: { id: orderId },
         data: { currentStage: sourceStage, status: 'PENDING', storeAcceptedAt: null }
       });
-
       await createAuditLog(orderId, 'STORE_RETURN_TO_SOURCE', `Order returned to ${sourceStage} by ${req.user.name}`, req.user.id);
-
       const io = req.app.get('io');
       io.emit('order-updated', { orderId });
-
       return res.json({ message: 'Order returned to source' });
     }
 
-    const durations = await getStageDurations(order.priority);
-    const deadline = calculateDeadline(new Date(), durations[destinationStage] || 24);
-    await prisma.orderStage.create({
-      data: { orderId, stageName: destinationStage, status: 'PENDING', deadlineAt: deadline }
-    });
+    await prisma.$transaction(async (tx) => {
+      await tx.orderStage.update({
+        where: { id: storeStage.id },
+        data: { status: 'COMPLETED', completedAt: new Date(), rejectionReason: `Routed to ${destinationStage} by ${req.user.name}` }
+      });
+      const durations = await getStageDurations(order.priority);
+      const deadline = calculateDeadline(new Date(), durations[destinationStage] || 24);
+      await tx.orderStage.create({
+        data: { orderId, stageName: destinationStage, status: 'PENDING', deadlineAt: deadline }
+      });
+      await tx.order.update({
+        where: { id: orderId },
+        data: { currentStage: destinationStage, status: 'IN_PROGRESS' }
+      });
 
-    await prisma.order.update({
-      where: { id: orderId },
-      data: { currentStage: destinationStage, status: 'IN_PROGRESS' }
+      const recipientUsers = await prisma.user.findMany({
+        where: { role: { in: getRolesForStage(destinationStage) } },
+        select: { id: true }
+      });
+      await tx.routingHistory.create({
+        data: {
+          orderId, sentByUserId: req.user.id, sentToStage: destinationStage,
+          sentToUserIds: JSON.stringify(recipientUsers.map(u => u.id)),
+          previousStage: storeStage.stageName, newStage: destinationStage,
+          remarks: remarks || `Routed from ${storeStage.stageName} by ${req.user.name}`,
+          createdAt: new Date()
+        }
+      });
+      await tx.seenTask.deleteMany({
+        where: { userId: { in: recipientUsers.map(u => u.id) }, orderId, stageName: destinationStage }
+      });
     });
-
-    const recipientUsers = await prisma.user.findMany({
-      where: { role: { in: getRolesForStage(destinationStage) } },
-      select: { id: true }
-    });
-    await prisma.routingHistory.create({
-      data: {
-        orderId, sentByUserId: req.user.id, sentToStage: destinationStage,
-        sentToUserIds: JSON.stringify(recipientUsers.map(u => u.id)),
-        previousStage: storeStage.stageName, newStage: destinationStage,
-        remarks: remarks || `Routed from ${storeStage.stageName} by ${req.user.name}`,
-        createdAt: new Date()
-      }
-    });
-
-    await prisma.seenTask.deleteMany({
-      where: { userId: { in: recipientUsers.map(u => u.id) }, orderId, stageName: destinationStage }
-    }).catch(() => {});
 
     await createAuditLog(orderId, 'STORE_ROUTE', `Routed from Store to ${destinationStage} by ${req.user.name}`, req.user.id);
 
@@ -2911,7 +2912,8 @@ const getStoreDashboardOrders = async (req, res) => {
   try {
     const whereStore = {
       currentStage: 'STORE',
-      status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
+      status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] },
+      stages: { some: { stageName: 'STORE', status: { in: ['PENDING', 'IN_PROGRESS'] } } }
     };
     if (sourceFilter !== 'ALL') {
       if (sourceFilter === 'ONLINE') {
