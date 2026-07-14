@@ -1,7 +1,7 @@
 ## Goals
-1. Add POS Dashboard and Total Invoices tabs to Outlet Dashboard; fix Balance Collection filter + invoice balance status logic in POS module.
-2. Fix chat message status (single/double ticks) not updating and voice notes not sending.
-3. Fix real-time chat synchronization (socket blocked in production) + Personal Notes module.
+1. Add **POS Inventory** option to **Faisal Profile** (view-only access) with POS Inventory nav item.
+2. Add **Variant Search** inside each product's variant list (per-product, filtering by color/size/barcode).
+3. Display **Warehouse stock** column alongside outlet stocks (JT/JR/AB/WH) in unified inventory view.
 
 ## Constraints & Preferences
 - QR code on receipt must encode per-outlet Google Maps review URL (not receipt data)
@@ -23,6 +23,9 @@
 
 ## Progress
 ### Done
+- **POS Inventory for Faisal**: Added `'FAISAL'` to nav item roles in `Layout.jsx`; Faisal gets read-only `ViewOnlyInventory` (not management CRUD).
+- **Per-product variant search**: Removed global variant search bar; added search input inside each product's variant list (both ViewOnlyInventory and ManagementInventory) that filters by color/size/barcode in real-time.
+- **Warehouse stock column**: Backend `getAllOutletsView` now fetches `InventoryItem` records and includes them as `outletName: 'Warehouse'` with expanded variant arrays; frontend displays **WH** column alongside JT/JR/AB.
 - Ran cleanup script `prisma/seed-cleanup.js` then deleted it — removed 7 orders, 75 audit logs, 30 stages, 17 routing entries, 5 production records (Inventory/Users preserved).
 - Restored Cap Quantity section in both Female and Male tailoring in `OrderEntry.jsx`.
 - Fixed CAPS category not showing branding tab — added `'CAPS'` to `isAccessory` / `isCustomizableProduct` arrays (DB stores `CAPS`, not `CAP`).

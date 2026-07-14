@@ -14,8 +14,8 @@ const ViewOnlyInventory = () => {
   const [allData, setAllData] = useState({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [variantSearch, setVariantSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('');
+  const [productVariantSearch, setProductVariantSearch] = useState({});
 
   const fetchAll = async () => {
     setLoading(true);
@@ -76,15 +76,9 @@ const ViewOnlyInventory = () => {
 
   const filteredProducts = crossOutletData.products.filter(p => {
     if (activeCategory && p.category !== activeCategory) return false;
-    if (search || variantSearch) {
+    if (search) {
       const q = search.toLowerCase();
-      const vq = variantSearch.toLowerCase();
-      if (search && !p.name.toLowerCase().includes(q)) return false;
-      if (variantSearch && !p.variants.some(v =>
-        v.color.toLowerCase().includes(vq) ||
-        v.size.toLowerCase().includes(vq) ||
-        (v.barcode && v.barcode.toLowerCase().includes(vq))
-      )) return false;
+      if (!p.name.toLowerCase().includes(q)) return false;
     }
     return true;
   });
@@ -117,17 +111,10 @@ const ViewOnlyInventory = () => {
         ))}
       </div>
 
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by product name..."
-            className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl pl-10 pr-4 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
-        </div>
-        <div className="relative flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-          <input value={variantSearch} onChange={e => setVariantSearch(e.target.value)} placeholder="Search by variant (color, size, barcode)..."
-            className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl pl-10 pr-4 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-purple-500 outline-none" />
-        </div>
+      <div className="relative">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by product name..."
+          className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl pl-10 pr-4 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
       </div>
 
       {loading ? (
@@ -137,7 +124,7 @@ const ViewOnlyInventory = () => {
           {filteredProducts.length === 0 && (
             <div className="text-center py-12 text-gray-500 font-bold">
               <Warehouse size={40} className="mx-auto mb-3 text-gray-700" />
-              <p>No products found{search || variantSearch ? ' matching your search' : ''}.</p>
+              <p>No products found{search ? ' matching your search' : ''}.</p>
             </div>
           )}
           {filteredProducts.map(product => {
@@ -154,12 +141,24 @@ const ViewOnlyInventory = () => {
                   </div>
                 </div>
                 <div className="divide-y divide-gray-800/50">
+                  <div className="px-4 py-2">
+                    <div className="relative">
+                      <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
+                      <input value={productVariantSearch[product.name] || ''} onChange={e => setProductVariantSearch(prev => ({ ...prev, [product.name]: e.target.value }))}
+                        placeholder="Search variants (color, size, barcode)..."
+                        className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-8 pr-3 py-1.5 text-[10px] font-bold text-white placeholder-gray-500 focus:border-purple-500 outline-none" />
+                    </div>
+                  </div>
                   <div className="grid grid-cols-[1fr_auto_auto] gap-2 px-4 py-1.5 text-[9px] font-black text-gray-600 uppercase tracking-wider items-center">
                     <span className="pl-1">Variant</span>
                     <span className="text-center">Price</span>
                     <span className="text-center">Stock / JT · JR · AB · WH</span>
                   </div>
-                  {product.variants.map(v => {
+                  {product.variants.filter(v => {
+                    const vq = (productVariantSearch[product.name] || '').toLowerCase();
+                    if (!vq) return true;
+                    return v.color.toLowerCase().includes(vq) || v.size.toLowerCase().includes(vq) || (v.barcode && v.barcode.toLowerCase().includes(vq));
+                  }).map(v => {
                     const vkey = `${v.name}||${v.category}||${v.color}||${v.size}`;
                     return (
                       <div key={vkey} className="grid grid-cols-[1fr_auto_auto] gap-2 px-4 py-2 items-center">
@@ -199,8 +198,8 @@ const ManagementInventory = () => {
   const [selectedOutlet, setSelectedOutlet] = useState(defaultOutlet);
   const [expandedId, setExpandedId] = useState(null);
   const [search, setSearch] = useState('');
-  const [variantSearch, setVariantSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('');
+  const [productVariantSearch, setProductVariantSearch] = useState({});
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -393,16 +392,7 @@ const ManagementInventory = () => {
 
   const filtered = items.filter(i => {
     if (activeCategory && i.category !== activeCategory) return false;
-    if (search || variantSearch) {
-      const q = search.toLowerCase();
-      const vq = variantSearch.toLowerCase();
-      if (search && !i.name.toLowerCase().includes(q)) return false;
-      if (variantSearch && !(
-        (i.color || '').toLowerCase().includes(vq) ||
-        (i.size || '').toLowerCase().includes(vq) ||
-        (i.barcode || '').toLowerCase().includes(vq)
-      )) return false;
-    }
+    if (search && !i.name.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
@@ -714,17 +704,10 @@ const ManagementInventory = () => {
         ))}
       </div>
 
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by product name..."
-            className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl pl-10 pr-4 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
-        </div>
-        <div className="relative flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-          <input value={variantSearch} onChange={e => setVariantSearch(e.target.value)} placeholder="Search by variant (color, size, barcode)..."
-            className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl pl-10 pr-4 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-purple-500 outline-none" />
-        </div>
+      <div className="relative">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by product name..."
+          className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl pl-10 pr-4 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
       </div>
 
       {loading ? (
@@ -734,7 +717,7 @@ const ManagementInventory = () => {
           {grouped.length === 0 && (
             <div className="text-center py-12 text-gray-500 font-bold">
               <Warehouse size={40} className="mx-auto mb-3 text-gray-700" />
-              <p>No products found{search || variantSearch ? ' matching your search' : ''}.</p>
+              <p>No products found{search ? ' matching your search' : ''}.</p>
               <p className="text-[10px] mt-1">Click <span className="text-violet-400">Init All</span> to pre-populate all outlets with opening stock.</p>
             </div>
           )}
@@ -774,7 +757,17 @@ const ManagementInventory = () => {
                 </button>
                 {isExpanded && (
                   <div className="px-4 pb-3 border-t border-gray-700/50 pt-2 space-y-1.5">
-                    {group.variants.map(v => (
+                    <div className="relative">
+                      <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
+                      <input value={productVariantSearch[groupId] || ''} onChange={e => setProductVariantSearch(prev => ({ ...prev, [groupId]: e.target.value }))}
+                        placeholder="Search variants (color, size, barcode)..."
+                        className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-8 pr-3 py-1.5 text-[10px] font-bold text-white placeholder-gray-500 focus:border-purple-500 outline-none" />
+                    </div>
+                    {group.variants.filter(v => {
+                      const vq = (productVariantSearch[groupId] || '').toLowerCase();
+                      if (!vq) return true;
+                      return (v.color || '').toLowerCase().includes(vq) || (v.size || '').toLowerCase().includes(vq) || (v.barcode || '').toLowerCase().includes(vq);
+                    }).map(v => (
                       <div key={v.id} className="flex items-center gap-2 bg-gray-800/50 rounded-lg px-3 py-2 text-xs">
                         <span className="font-bold text-gray-300 min-w-[80px]">{[v.color, v.size].filter(Boolean).join(' • ') || 'Default'}</span>
                         <span className="text-[10px] font-mono text-gray-500 flex-1">{v.barcode || 'N/A'}</span>
