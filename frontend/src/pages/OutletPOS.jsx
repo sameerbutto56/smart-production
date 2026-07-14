@@ -159,6 +159,7 @@ const OutletPOS = () => {
   const [balanceHistory, setBalanceHistory] = useState([]);
   const [showBalanceHistoryModal, setShowBalanceHistoryModal] = useState(false);
   const [lastBalancePayment, setLastBalancePayment] = useState(null);
+  const [loadingBalanceAction, setLoadingBalanceAction] = useState(false);
 
   // Persist ephemeral state to localStorage
   useEffect(() => { localStorage.setItem('pos_cart', JSON.stringify(cart)); }, [cart]);
@@ -1139,13 +1140,17 @@ const OutletPOS = () => {
   }, [tab, dashboardRange, dashboardDateFrom, dashboardDateTo, balanceCollectionRange, balanceCollectionDateFrom, balanceCollectionDateTo, fetchBalanceInvoices, fetchBalanceCollections]);
 
   const handlePayBalanceOpen = async (invoice) => {
+    setLoadingBalanceAction(true);
     try {
-      const res = await api.get(`/api/pos/balance-invoices/${invoice.id}?outlet=${selectedOutlet}`);
+      const res = await api.get(`/api/pos/balance-invoices/${invoice.id}`);
       setSelectedBalanceInvoice(res.data);
       setPayAmount(Math.ceil(res.data.remaining));
       setShowPayBalanceModal(true);
     } catch (e) {
+      console.error('PayBalanceOpen error:', e);
       toast.error('Failed to load invoice details');
+    } finally {
+      setLoadingBalanceAction(false);
     }
   };
 
@@ -1214,14 +1219,17 @@ const OutletPOS = () => {
   };
 
   const handleViewBalanceHistory = async (invoice) => {
+    setLoadingBalanceAction(true);
     try {
-      const res = await api.get(`/api/pos/balance-invoices/${invoice.id}/history`);
-      setBalanceHistory(res.data);
       const detailRes = await api.get(`/api/pos/balance-invoices/${invoice.id}`);
       setSelectedBalanceInvoice(detailRes.data);
+      setBalanceHistory(detailRes.data.paymentHistory || []);
       setShowBalanceHistoryModal(true);
     } catch (e) {
+      console.error('ViewBalanceHistory error:', e);
       toast.error('Failed to load payment history');
+    } finally {
+      setLoadingBalanceAction(false);
     }
   };
 
@@ -1894,11 +1902,13 @@ const OutletPOS = () => {
                         </div>
                       </div>
                       <div className="flex gap-1.5 mt-2">
-                        <button onClick={() => handlePayBalanceOpen(inv)} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 rounded-lg text-[10px] transition-all">
-                          Pay Remaining PKR {inv.remaining.toLocaleString()}
+                        <button onClick={() => handlePayBalanceOpen(inv)} disabled={loadingBalanceAction}
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-1.5 rounded-lg text-[10px] transition-all">
+                          {loadingBalanceAction ? 'Loading...' : `Pay Remaining PKR ${inv.remaining.toLocaleString()}`}
                         </button>
-                        <button onClick={() => handleViewBalanceHistory(inv)} className="px-2 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded-lg text-[10px] transition-all">
-                          History
+                        <button onClick={() => handleViewBalanceHistory(inv)} disabled={loadingBalanceAction}
+                          className="px-2 py-1.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-400 rounded-lg text-[10px] transition-all">
+                          {loadingBalanceAction ? 'Loading...' : 'History'}
                         </button>
                       </div>
                     </div>
@@ -2525,8 +2535,8 @@ const OutletPOS = () => {
                 <span className="font-bold text-white">{formatCurrency(selectedBalanceInvoice.grandTotal)}</span>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-gray-500">Previously Paid</span>
-                <span className="font-bold text-emerald-400">{formatCurrency(selectedBalanceInvoice.totalPaid - selectedBalanceInvoice.remaining)}</span>
+                <span className="text-gray-500">Amount Already Paid</span>
+                <span className="font-bold text-emerald-400">{formatCurrency(selectedBalanceInvoice.totalPaid)}</span>
               </div>
               <div className="flex justify-between text-xs border-t border-gray-800 pt-2">
                 <span className="font-bold text-amber-400">Remaining Balance</span>
@@ -2590,31 +2600,43 @@ const OutletPOS = () => {
       {showBalanceHistoryModal && selectedBalanceInvoice && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => setShowBalanceHistoryModal(false)}>
           <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-black text-white mb-1">Payment History</h3>
-            <p className="text-xs text-gray-400 mb-4">Invoice #{selectedBalanceInvoice.receiptNumber} — {selectedBalanceInvoice.customerName || 'N/A'}</p>
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-lg font-black text-white">Payment History</h3>
+              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${selectedBalanceInvoice.remaining <= 0.01 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                {selectedBalanceInvoice.remaining <= 0.01 ? 'PAID' : 'BALANCE'}
+              </span>
+            </div>
+            <p className="text-xs text-gray-400 mb-4">Invoice #{selectedBalanceInvoice.receiptNumber} &mdash; {selectedBalanceInvoice.customerName || 'N/A'}</p>
 
-            <div className="bg-gray-950 rounded-xl p-3 mb-4 space-y-1 text-xs">
-              <div className="flex justify-between"><span className="text-gray-500">Original Total:</span><span className="font-bold text-white">{formatCurrency(selectedBalanceInvoice.grandTotal)}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Total Paid:</span><span className="font-bold text-emerald-400">{formatCurrency(selectedBalanceInvoice.totalPaid - selectedBalanceInvoice.remaining)}</span></div>
-              <div className="flex justify-between border-t border-gray-800 pt-1"><span className="text-amber-400">Remaining:</span><span className="font-bold text-amber-400">{formatCurrency(selectedBalanceInvoice.remaining)}</span></div>
+            <div className="bg-gray-950 rounded-xl p-3 mb-4 space-y-1.5 text-xs">
+              <div className="flex justify-between"><span className="text-gray-500">Total Bill Amount</span><span className="font-bold text-white">{formatCurrency(selectedBalanceInvoice.grandTotal)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Initial Payment (Advance)</span><span className="font-bold text-white">{formatCurrency(selectedBalanceInvoice.advanceAmount || 0)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Total Paid</span><span className="font-bold text-emerald-400">{formatCurrency(selectedBalanceInvoice.totalPaid)}</span></div>
+              {selectedBalanceInvoice.remaining > 0.01 && (
+                <div className="flex justify-between border-t border-gray-800 pt-1.5"><span className="text-amber-400 font-bold">Remaining Balance</span><span className="font-bold text-amber-400">{formatCurrency(selectedBalanceInvoice.remaining)}</span></div>
+              )}
             </div>
 
-            {balanceHistory.length > 0 ? (
-              <div className="space-y-2">
-                {balanceHistory.map(p => (
-                  <div key={p.id} className="bg-gray-950 p-3 rounded-xl border border-gray-800 text-xs">
-                    <div className="flex justify-between">
-                      <span className="font-bold text-white">{p.receiptNumber}</span>
-                      <span className="text-emerald-400 font-bold">{formatCurrency(p.amountPaidNow)}</span>
+            {balanceHistory.length > 0 && (
+              <>
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Payment History</p>
+                <div className="space-y-2">
+                  {balanceHistory.map(p => (
+                    <div key={p.id} className="bg-gray-950 p-3 rounded-xl border border-gray-800 text-xs">
+                      <div className="flex justify-between">
+                        <span className="font-bold text-white">{p.receiptNumber}</span>
+                        <span className="text-emerald-400 font-bold">{formatCurrency(p.amountPaidNow)}</span>
+                      </div>
+                      <div className="flex justify-between text-[10px] text-gray-500 mt-1">
+                        <span>{formatPaymentMethod(p.paymentMethod)} &bull; {p.cashierName || 'Cashier'}</span>
+                        <span>{new Date(p.paidAt).toLocaleString()}</span>
+                      </div>
                     </div>
-                    <div className="flex justify-between text-[10px] text-gray-500 mt-1">
-                      <span>{formatPaymentMethod(p.paymentMethod)} &bull; {p.cashierName || 'Cashier'}</span>
-                      <span>{new Date(p.paidAt).toLocaleString()}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
+                  ))}
+                </div>
+              </>
+            )}
+            {balanceHistory.length === 0 && (
               <p className="text-center text-gray-500 font-bold py-4 text-xs">No balance payments yet</p>
             )}
             <button onClick={() => setShowBalanceHistoryModal(false)} className="w-full mt-4 bg-gray-800 hover:bg-gray-700 text-white font-bold py-2.5 rounded-xl text-sm">Close</button>
