@@ -142,6 +142,14 @@ const OutletPOS = () => {
   const [showPaymentDetail, setShowPaymentDetail] = useState(null); // { method, sales[] }
   const [showEmployeeDetail, setShowEmployeeDetail] = useState(null); // { name, sales[] }
 
+  // Register Auth modals
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState(null); // 'open' | 'close'
+  const [authEmployee, setAuthEmployee] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [verifiedCloser, setVerifiedCloser] = useState(null);
+
   const employees = selectedOutlet === 'Jail Road'
     ? { Junaid: 'J170', Ibrar: 'I170', Amir: 'A170' }
     : { Junaid: 'J170', Sajawal: 'S170', Zain: 'Z170', Gull: 'G170' };
@@ -875,10 +883,10 @@ const OutletPOS = () => {
   };
 
   /* ─── Open Book ─── */
-  const handleOpenBook = async () => {
+  const handleOpenBook = async (openedBy) => {
     setOpenBookLoading(true);
     try {
-      const res = await api.post('/api/pos/book/open', { outlet: selectedOutlet, employeeName });
+      const res = await api.post('/api/pos/book/open', { outlet: selectedOutlet, employeeName: openedBy });
       setCurrentBook(res.data);
       toast.success('Register opened successfully');
     } catch (err) {
@@ -888,8 +896,9 @@ const OutletPOS = () => {
   };
 
   /* ─── Close Book ─── */
-  const handleFetchCloseBookSummary = async () => {
+  const handleFetchCloseBookSummary = async (closedBy) => {
     if (!currentBook) return;
+    setVerifiedCloser(closedBy);
     setSummaryLoading(true);
     setShowCloseBook(true);
     try {
@@ -906,16 +915,18 @@ const OutletPOS = () => {
     if (!currentBook || !closeBookSummary) return;
     setCloseBookLoading(true);
     try {
+      const closedBy = verifiedCloser || user?.name || 'Unknown';
       const summary = { ...closeBookSummary, transferredCash: parseFloat(transferCashAmount) || 0, remainingCash: closeBookSummary.availableCash - (parseFloat(transferCashAmount) || 0) };
-      const res = await api.post(`/api/pos/book/${currentBook.id}/close`, { closedBy: employeeName || user?.name || 'Unknown', summary });
+      const res = await api.post(`/api/pos/book/${currentBook.id}/close`, { closedBy, summary });
       setCloseBookSummary(null);
       setShowCloseBook(false);
       setCurrentBook(null);
       setTransferCashAmount(0);
+      setVerifiedCloser(null);
       toast.success('Register closed successfully');
       // Print if user wants
       if (bookPrintOpts.thermal || bookPrintOpts.a4) {
-        printCloseBook(summary, bookPrintOpts);
+        printCloseBook(summary, { ...bookPrintOpts, closedBy });
       }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to close register');
@@ -932,12 +943,16 @@ const OutletPOS = () => {
     const closedAt = now;
     const lines = [];
 
-    const header = `${outlet.toUpperCase()}\nCLOSE BOOK REPORT\n${closedAt.toLocaleDateString()}\n`;
+    const header = `${outlet.toUpperCase()}\nCLOSE BOOK REPORT\n`;
     lines.push(header);
+    lines.push('REGISTER INFORMATION');
     lines.push('─'.repeat(32));
-    lines.push(`Open: ${openedAt.toLocaleString()}`);
-    lines.push(`Close: ${closedAt.toLocaleString()}`);
-    if (currentBook?.openedBy) lines.push(`Opened by: ${currentBook.openedBy}`);
+    if (currentBook?.openedBy) lines.push(`Opened by:  ${currentBook.openedBy}`);
+    lines.push(`Open Date:  ${openedAt.toLocaleDateString()}`);
+    lines.push(`Open Time:  ${openedAt.toLocaleTimeString()}`);
+    if (opts.closedBy) lines.push(`Closed by:  ${opts.closedBy}`);
+    lines.push(`Close Date: ${closedAt.toLocaleDateString()}`);
+    lines.push(`Close Time: ${closedAt.toLocaleTimeString()}`);
     lines.push('');
     lines.push('PAYMENT SUMMARY');
     lines.push('─'.repeat(32));
@@ -1002,12 +1017,22 @@ const OutletPOS = () => {
         .total { font-weight: bold; font-size: 15px; }
         .right { text-align: right; }
         .footer { margin-top: 30px; text-align: center; font-size: 16px; font-weight: bold; }
+        .section { margin-top: 24px; }
+        .section h3 { font-size: 14px; font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 2px; }
       </style></head><body>
         <h1>${outlet.toUpperCase()}</h1>
         <p style="text-align:center;font-size:16px;font-weight:bold;">CLOSE BOOK REPORT</p>
-        <p style="text-align:center;">${closedAt.toLocaleDateString()}</p>
-        <p><strong>Open:</strong> ${openedAt.toLocaleString()} ${currentBook?.openedBy ? '| <strong>Opened by:</strong> ' + currentBook.openedBy : ''}</p>
-        <p><strong>Close:</strong> ${closedAt.toLocaleString()}</p>
+        <div class="section">
+          <h3>Register Information</h3>
+          <table>
+            ${currentBook?.openedBy ? `<tr><td>Opened by</td><td><strong>${currentBook.openedBy}</strong></td></tr>` : ''}
+            <tr><td>Open Date</td><td><strong>${openedAt.toLocaleDateString()}</strong></td></tr>
+            <tr><td>Open Time</td><td><strong>${openedAt.toLocaleTimeString()}</strong></td></tr>
+            ${opts.closedBy ? `<tr><td>Closed by</td><td><strong>${opts.closedBy}</strong></td></tr>` : ''}
+            <tr><td>Close Date</td><td><strong>${closedAt.toLocaleDateString()}</strong></td></tr>
+            <tr><td>Close Time</td><td><strong>${closedAt.toLocaleTimeString()}</strong></td></tr>
+          </table>
+        </div>
 
         <h2>Payment Summary</h2>
         <table>
@@ -2046,9 +2071,9 @@ const OutletPOS = () => {
           </div>
           <div className="flex items-center gap-2">
             {currentBook ? (
-              <button onClick={handleFetchCloseBookSummary} className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white">Close Register</button>
+              <button onClick={() => { setAuthMode('close'); setShowAuthModal(true); }} className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white">Close Register</button>
             ) : (
-              <button onClick={handleOpenBook} disabled={openBookLoading} className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white">
+              <button onClick={() => { setAuthMode('open'); setShowAuthModal(true); }} disabled={openBookLoading} className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white">
                 {openBookLoading ? 'Opening...' : 'Open Register'}
               </button>
             )}
@@ -2076,7 +2101,7 @@ const OutletPOS = () => {
             {bookLoading ? (
               <div className="text-gray-500 font-bold text-sm">Checking book status...</div>
             ) : (
-              <button onClick={handleOpenBook} disabled={openBookLoading}
+              <button onClick={() => { setAuthMode('open'); setShowAuthModal(true); }} disabled={openBookLoading}
                 className="px-8 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black text-lg flex items-center gap-3 mx-auto transition-all active:scale-95">
                 <BookOpen size={20} />
                 {openBookLoading ? 'Opening...' : 'Open Register'}
@@ -2676,6 +2701,7 @@ const OutletPOS = () => {
                 <div className="bg-gray-800 rounded-xl p-4 text-xs">
                   <div className="flex justify-between mb-1"><span className="text-gray-500">Opened</span><span className="text-white font-bold">{new Date(currentBook?.openedAt).toLocaleString()}</span></div>
                   <div className="flex justify-between mb-1"><span className="text-gray-500">Opened by</span><span className="text-white font-bold">{currentBook?.openedBy || 'Unknown'}</span></div>
+                  <div className="flex justify-between mb-1"><span className="text-gray-500">Closing by</span><span className="text-white font-bold text-amber-400">{verifiedCloser || '—'}</span></div>
                   <div className="flex justify-between"><span className="text-gray-500">Total Sales</span><span className="text-white font-bold">{closeBookSummary.totalSales} transactions</span></div>
                 </div>
 
@@ -2820,6 +2846,58 @@ const OutletPOS = () => {
                 </div>
               </div>
             ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* Auth Modal */}
+      {showAuthModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => { setShowAuthModal(false); setAuthError(''); }}>
+          <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-black text-white flex items-center gap-2">
+                {authMode === 'open' ? <BookOpen size={18} className="text-emerald-400" /> : <Book size={18} className="text-amber-400" />}
+                {authMode === 'open' ? 'Open Register' : 'Close Register'}
+              </h2>
+              <button onClick={() => { setShowAuthModal(false); setAuthError(''); }} className="text-gray-500 hover:text-white"><X size={20} /></button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 block mb-1">Employee Name</label>
+                <select value={authEmployee} onChange={e => { setAuthEmployee(e.target.value); setAuthError(''); }}
+                  className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2.5 text-xs font-bold text-white focus:border-emerald-500 outline-none">
+                  <option value="">Select Employee</option>
+                  {Object.keys(employees).map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 block mb-1">Password</label>
+                <input type="password" value={authPassword} onChange={e => { setAuthPassword(e.target.value); setAuthError(''); }}
+                  placeholder="Enter password"
+                  className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2.5 text-xs font-bold text-white placeholder-gray-500 focus:border-emerald-500 outline-none" />
+              </div>
+
+              {authError && <p className="text-[10px] font-bold text-red-400 text-center">{authError}</p>}
+
+              <button onClick={() => {
+                if (!authEmployee) { setAuthError('Select an employee'); return; }
+                if (!authPassword) { setAuthError('Enter password'); return; }
+                if (employees[authEmployee] !== authPassword) { setAuthError('Wrong password'); return; }
+                setAuthError('');
+                setShowAuthModal(false);
+                if (authMode === 'open') {
+                  handleOpenBook(authEmployee);
+                } else if (authMode === 'close') {
+                  handleFetchCloseBookSummary(authEmployee);
+                }
+                setAuthEmployee('');
+                setAuthPassword('');
+              }}
+                className="w-full py-2.5 rounded-xl font-black text-sm bg-emerald-600 hover:bg-emerald-500 text-white transition-all active:scale-[0.98]">
+                {authMode === 'open' ? 'Open Register' : 'View Close Summary'}
+              </button>
+            </div>
           </div>
         </div>
       )}

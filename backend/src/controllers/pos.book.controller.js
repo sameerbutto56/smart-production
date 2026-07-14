@@ -116,7 +116,8 @@ const getBookSummary = async (req, res) => {
       }),
       // Returns in range
       prisma.posReturn.findMany({
-        where: { outletName: outlet, createdAt: dateFilter },
+        where: { outletName: outlet, createdAt: dateFilter, saleId: { not: null } },
+        include: { sale: { select: { paymentMethod: true, cashAmount: true, onlineAmount: true } } },
       }),
       // Journal entries in range
       prisma.journalEntry.findMany({
@@ -149,14 +150,16 @@ const getBookSummary = async (req, res) => {
       const revenue = saleRevenue(s);
 
       if (s.paymentMethod === 'CASH_ONLINE') {
-        const c = s.cashAmount || 0;
-        const o = s.onlineAmount || 0;
-        paymentSummary.CASH_ONLINE_CASH += c;
-        paymentSummary.CASH_ONLINE_ONLINE += o;
-        paymentSummary.CASH_ONLINE_TOTAL += c + o;
-        employeeMap[cashier].CASH_ONLINE_CASH += c;
-        employeeMap[cashier].CASH_ONLINE_ONLINE += o;
-        employeeMap[cashier].CASH_ONLINE_TOTAL += c + o;
+        const totalCashOnline = (s.cashAmount || 0) + (s.onlineAmount || 0);
+        const ratio = totalCashOnline > 0 ? revenue / totalCashOnline : 1;
+        const cashPortion = (s.cashAmount || 0) * ratio;
+        const onlinePortion = (s.onlineAmount || 0) * ratio;
+        paymentSummary.CASH_ONLINE_CASH += cashPortion;
+        paymentSummary.CASH_ONLINE_ONLINE += onlinePortion;
+        paymentSummary.CASH_ONLINE_TOTAL += revenue;
+        employeeMap[cashier].CASH_ONLINE_CASH += cashPortion;
+        employeeMap[cashier].CASH_ONLINE_ONLINE += onlinePortion;
+        employeeMap[cashier].CASH_ONLINE_TOTAL += revenue;
       } else {
         const method = s.paymentMethod;
         if (paymentSummary[method] !== undefined) {
@@ -221,10 +224,19 @@ const getBookSummary = async (req, res) => {
     }
 
     // Returns summary
-    const returnSummary = { CASH: 0, CARD: 0, ONLINE: 0, total: 0 };
+    const returnSummary = { CASH: 0, CARD: 0, ONLINE: 0, CASH_ONLINE: 0, total: 0 };
     for (const r of returns) {
-      const method = r.refundPaymentMethod;
-      if (returnSummary[method] !== undefined) returnSummary[method] += r.refundAmount;
+      if (r.sale?.paymentMethod === 'CASH_ONLINE' && (r.sale?.cashAmount || r.sale?.onlineAmount)) {
+        const total = (r.sale.cashAmount || 0) + (r.sale.onlineAmount || 0) || 1;
+        const cashRatio = (r.sale.cashAmount || 0) / total;
+        const onlineRatio = (r.sale.onlineAmount || 0) / total;
+        returnSummary.CASH += r.refundAmount * cashRatio;
+        returnSummary.ONLINE += r.refundAmount * onlineRatio;
+        returnSummary.CASH_ONLINE += r.refundAmount;
+      } else {
+        const method = r.refundPaymentMethod;
+        if (returnSummary[method] !== undefined) returnSummary[method] += r.refundAmount;
+      }
       returnSummary.total += r.refundAmount;
     }
 
