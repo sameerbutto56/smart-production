@@ -299,7 +299,7 @@ const DispatchDashboard = () => {
                           {extras ? ` | ${extras}` : ''}
                         </p>
                       </div>
-                      <span className="font-black text-sm theme-text-primary shrink-0 ml-2">{item.quantity || 1} × {item.totalPrice ? `₨${parseFloat(item.totalPrice).toLocaleString()}` : `₨${parseFloat(order.totalPrice || 0).toLocaleString()}`}</span>
+                      <span className="font-black text-sm theme-text-primary shrink-0 ml-2">{item.quantity || 1} × {item.totalPrice ? `PKR ${parseFloat(item.totalPrice).toLocaleString()}` : `PKR ${parseFloat(order.totalPrice || 0).toLocaleString()}`}</span>
                     </div>
                   );
                 })}
@@ -314,12 +314,12 @@ const DispatchDashboard = () => {
               <div className="theme-bg-subtle rounded-xl px-3 py-2">
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Payment</p>
                 <p className={`text-sm font-black ${order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? 'text-emerald-400' : 'text-amber-400'}`}>
-                  {order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? 'PAID' : (parseFloat(order.advanceAmount || 0) > 0 ? `ADV: ₨${parseFloat(order.advanceAmount).toLocaleString()}` : 'COD')}
+                  {order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? 'PAID' : (parseFloat(order.advanceAmount || 0) > 0 ? `ADV: PKR ${parseFloat(order.advanceAmount).toLocaleString()}` : 'COD')}
                 </p>
               </div>
               <div className="theme-bg-subtle rounded-xl px-3 py-2">
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Total</p>
-                <p className="text-sm font-black theme-text-primary">₨{parseFloat(order.totalPrice || 0).toLocaleString()}</p>
+                <p className="text-sm font-black theme-text-primary">PKR {parseFloat(order.totalPrice || 0).toLocaleString()}</p>
               </div>
               {order.instructionNotes && (
                 <div className="theme-bg-subtle rounded-xl px-3 py-2 col-span-2 md:col-span-4">

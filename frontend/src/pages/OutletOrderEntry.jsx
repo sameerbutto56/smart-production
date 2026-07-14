@@ -448,9 +448,9 @@ const OutletOrderEntry = () => {
           <p className="text-lg font-bold text-blue-400">{createdOrder?.orderNumber}</p>
           <p className="text-sm font-bold text-gray-400">Routed to: {destination}</p>
           <div className="bg-gray-800 rounded-xl p-4 space-y-1 text-sm">
-            <p className="text-gray-400">Total: <span className="text-white font-black">₨{totalAmount.toLocaleString()}</span></p>
-            {advance > 0 && <p className="text-gray-400">Advance: <span className="text-emerald-400 font-black">₨{advance.toLocaleString()}</span></p>}
-            <p className="text-gray-400">Balance: <span className="text-amber-400 font-black">₨{Math.max(0, balance).toLocaleString()}</span></p>
+            <p className="text-gray-400">Total: <span className="text-white font-black">PKR {totalAmount.toLocaleString()}</span></p>
+            {advance > 0 && <p className="text-gray-400">Advance: <span className="text-emerald-400 font-black">PKR {advance.toLocaleString()}</span></p>}
+            <p className="text-gray-400">Balance: <span className="text-amber-400 font-black">PKR {Math.max(0, balance).toLocaleString()}</span></p>
           </div>
           {saveAfterOrder && !clientData && (
             <p className="text-xs font-bold text-emerald-400">Customer saved to Client Registration</p>
@@ -613,7 +613,7 @@ const OutletOrderEntry = () => {
                         {items.map((item, i) => (
                           <p key={i} className="text-gray-400">{item.name} x{item.quantity} {item.color && `(${item.color})`}{item.size && ` / ${item.size}`}</p>
                         ))}
-                        <p className="text-gray-500 mt-1">Total: ₨{(o.totalPrice || 0).toLocaleString()} | Adv: ₨{(o.advanceAmount || 0).toLocaleString()}</p>
+                        <p className="text-gray-500 mt-1">Total: PKR {(o.totalPrice || 0).toLocaleString()} | Adv: PKR {(o.advanceAmount || 0).toLocaleString()}</p>
                       </div>
                     );
                   })}
@@ -685,7 +685,7 @@ const OutletOrderEntry = () => {
                       </div>
                     </div>
                     <div>
-                      <label className="text-[10px] text-gray-500">Unit Price (₨)</label>
+                      <label className="text-[10px] text-gray-500">Unit Price (PKR )</label>
                       <input type="number" value={p.unitPrice} onChange={e => updateProduct(idx, 'unitPrice', Math.max(0, parseFloat(e.target.value) || 0))}
                         className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white outline-none" min="0" />
                     </div>
@@ -935,7 +935,7 @@ const OutletOrderEntry = () => {
           <div className="space-y-4">
             <h2 className="text-lg font-black text-white flex items-center gap-2"><CreditCard size={18} />Payment Summary</h2>
             <div className="bg-gray-800 rounded-xl p-4 space-y-3">
-              <div className="flex justify-between text-sm"><span className="text-gray-400 font-bold">Total Amount</span><span className="text-white font-black">₨{totalAmount.toLocaleString()}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-gray-400 font-bold">Total Amount</span><span className="text-white font-black">PKR {totalAmount.toLocaleString()}</span></div>
               <div className="flex justify-between text-sm items-center">
                 <span className="text-gray-400 font-bold">Advance Received</span>
                 <input type="number" value={advanceAmount} onChange={e => setAdvanceAmount(Math.max(0, parseFloat(e.target.value) || 0))}
@@ -943,7 +943,7 @@ const OutletOrderEntry = () => {
               </div>
               <div className="border-t border-gray-700 pt-2 flex justify-between text-base">
                 <span className="text-gray-400 font-bold">Remaining Balance</span>
-                <span className={`font-black ${balance <= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>₨{Math.max(0, balance).toLocaleString()}</span>
+                <span className={`font-black ${balance <= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>PKR {Math.max(0, balance).toLocaleString()}</span>
               </div>
             </div>
           </div>
@@ -980,7 +980,7 @@ const OutletOrderEntry = () => {
                 {products.map((p, i) => (
                   <div key={p._tempId} className="bg-gray-900 rounded-lg px-3 py-2 mb-1 text-xs flex items-center justify-between">
                     <span className="text-white font-bold">{p.name}</span>
-                    <span className="text-gray-400">{p.color && `${p.color} / `}{p.size}{p.quantity > 1 && ` ×${p.quantity}`} — <span className="text-amber-400 font-black">₨{((p.unitPrice || 0) * (p.quantity || 1)).toLocaleString()}</span></span>
+                    <span className="text-gray-400">{p.color && `${p.color} / `}{p.size}{p.quantity > 1 && ` ×${p.quantity}`} — <span className="text-amber-400 font-black">PKR {((p.unitPrice || 0) * (p.quantity || 1)).toLocaleString()}</span></span>
                   </div>
                 ))}
               </div>
@@ -992,17 +992,17 @@ const OutletOrderEntry = () => {
               <p className="text-gray-400">Destination: <span className="text-white font-black">{DESTINATIONS.find(d => d.value === destination)?.label || destination}</span></p>
               <div className="border-t border-gray-700 pt-2 flex justify-between text-base">
                 <span className="text-gray-400 font-bold">Total</span>
-                <span className="text-white font-black">₨{totalAmount.toLocaleString()}</span>
+                <span className="text-white font-black">PKR {totalAmount.toLocaleString()}</span>
               </div>
               {advance > 0 && (
                 <div className="flex justify-between">
                   <span className="text-gray-400 font-bold">Advance</span>
-                  <span className="text-emerald-400 font-black">₨{advance.toLocaleString()}</span>
+                  <span className="text-emerald-400 font-black">PKR {advance.toLocaleString()}</span>
                 </div>
               )}
               <div className="flex justify-between text-lg border-t border-gray-700 pt-2">
                 <span className="text-gray-400 font-bold">Balance</span>
-                <span className={`font-black ${balance <= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>₨{Math.max(0, balance).toLocaleString()}</span>
+                <span className={`font-black ${balance <= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>PKR {Math.max(0, balance).toLocaleString()}</span>
               </div>
             </div>
             {saveAfterOrder && !clientData && (
@@ -1010,7 +1010,7 @@ const OutletOrderEntry = () => {
             )}
             <button onClick={handleSubmit} disabled={submitting}
               className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-2xl text-lg disabled:opacity-50 flex items-center justify-center gap-2">
-              {submitting ? 'Placing Order...' : `Place Order — ₨${totalAmount.toLocaleString()}`}
+              {submitting ? 'Placing Order...' : `Place Order — PKR ${totalAmount.toLocaleString()}`}
             </button>
           </div>
         )}

@@ -21,7 +21,7 @@ const DATE_PRESETS = [
 ];
 const COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#3b82f6', '#a855f7', '#14b8a6', '#f97316'];
 const LOCATION_COLORS = { 'Johar Town': '#6366f1', 'Jail Road': '#f59e0b', 'Abbottabad': '#22c55e' };
-const fmt = (v) => `₨${(v || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+const fmt = (v) => `PKR ${(v || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 const fmtNum = (v) => (v || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
 
 const KpiCard = ({ label, value, icon: Icon, color, prefix, sub, onClick }) => (
@@ -164,7 +164,7 @@ const BiSection = ({ source: parentSource, startDate: parentStartDate, endDate: 
     if (data) {
       const { inventoryValuation: iv, perLocationInventory, consumption: cons, allocationAnalytics, demandAnalytics, profitAnalytics: pa, perLocationFinancials } = data;
       w.document.write('<div class="section"><h2>Overall Inventory</h2><div class="kpi-grid">');
-      w.document.write(`<div class="kpi-item"><div class="kpi-label">Total Value</div><div class="kpi-value">₨${(iv?.totalValue||0).toLocaleString()}</div></div>`);
+      w.document.write(`<div class="kpi-item"><div class="kpi-label">Total Value</div><div class="kpi-value">PKR ${(iv?.totalValue||0).toLocaleString()}</div></div>`);
       w.document.write(`<div class="kpi-item"><div class="kpi-label">Total Quantity</div><div class="kpi-value">${(iv?.totalQuantity||0).toLocaleString()}</div></div>`);
       w.document.write('</div></div>');
       if (perLocationInventory) {
@@ -173,7 +173,7 @@ const BiSection = ({ source: parentSource, startDate: parentStartDate, endDate: 
           const inv = perLocationInventory[loc];
           if (inv) {
             w.document.write(`<h3>${loc}</h3><div class="kpi-grid">`);
-            w.document.write(`<div class="kpi-item"><div class="kpi-label">Value</div><div class="kpi-value">₨${(inv.value||0).toLocaleString()}</div></div>`);
+            w.document.write(`<div class="kpi-item"><div class="kpi-label">Value</div><div class="kpi-value">PKR ${(inv.value||0).toLocaleString()}</div></div>`);
             w.document.write(`<div class="kpi-item"><div class="kpi-label">Quantity</div><div class="kpi-value">${(inv.quantity||0).toLocaleString()}</div></div>`);
             w.document.write('</div>');
           }
@@ -184,14 +184,14 @@ const BiSection = ({ source: parentSource, startDate: parentStartDate, endDate: 
         w.document.write('<div class="section"><h2>Financial by Location</h2><table><tr><th>Location</th><th>Revenue</th><th>Cost</th><th>Profit</th></tr>');
         LOCATIONS.forEach(loc => {
           const f = perLocationFinancials[loc];
-          if (f) w.document.write(`<tr><td>${loc}</td><td>₨${(f.revenue||0).toLocaleString()}</td><td>₨${(f.cost||0).toLocaleString()}</td><td>₨${(f.profit||0).toLocaleString()}</td></tr>`);
+          if (f) w.document.write(`<tr><td>${loc}</td><td>PKR ${(f.revenue||0).toLocaleString()}</td><td>PKR ${(f.cost||0).toLocaleString()}</td><td>PKR ${(f.profit||0).toLocaleString()}</td></tr>`);
         });
         w.document.write('</table></div>');
       }
       w.document.write(`<div class="section"><h2>Profit Summary</h2><div class="kpi-grid">`);
-      w.document.write(`<div class="kpi-item"><div class="kpi-label">Total Revenue</div><div class="kpi-value">₨${(pa?.totalRevenue||0).toLocaleString()}</div></div>`);
-      w.document.write(`<div class="kpi-item"><div class="kpi-label">Total Cost</div><div class="kpi-value">₨${(pa?.totalCost||0).toLocaleString()}</div></div>`);
-      w.document.write(`<div class="kpi-item"><div class="kpi-label">Gross Profit</div><div class="kpi-value">₨${(pa?.grossProfit||0).toLocaleString()}</div></div>`);
+      w.document.write(`<div class="kpi-item"><div class="kpi-label">Total Revenue</div><div class="kpi-value">PKR ${(pa?.totalRevenue||0).toLocaleString()}</div></div>`);
+      w.document.write(`<div class="kpi-item"><div class="kpi-label">Total Cost</div><div class="kpi-value">PKR ${(pa?.totalCost||0).toLocaleString()}</div></div>`);
+      w.document.write(`<div class="kpi-item"><div class="kpi-label">Gross Profit</div><div class="kpi-value">PKR ${(pa?.grossProfit||0).toLocaleString()}</div></div>`);
       w.document.write(`<div class="kpi-item"><div class="kpi-label">Margin</div><div class="kpi-value">${(pa?.profitMargin||0).toFixed(1)}%</div></div>`);
       w.document.write('</div></div>');
     }
@@ -303,10 +303,10 @@ const BiSection = ({ source: parentSource, startDate: parentStartDate, endDate: 
 
       {/* Overall KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KpiCard label="Total Inventory Value" value={iv.totalValue} icon={DollarSign} color="bg-emerald-600" prefix="₨" />
+        <KpiCard label="Total Inventory Value" value={iv.totalValue} icon={DollarSign} color="bg-emerald-600" prefix="PKR " />
         <KpiCard label="Total Inventory Qty" value={iv.totalQuantity} icon={Package} color="bg-blue-600" />
-        <KpiCard label="Total Consumed Value" value={cons.totalConsumed?.value} icon={BarChart3} color="bg-rose-600" prefix="₨" />
-        <KpiCard label="Remaining Inventory" value={remainingValue} icon={Activity} color="bg-teal-600" prefix="₨" />
+        <KpiCard label="Total Consumed Value" value={cons.totalConsumed?.value} icon={BarChart3} color="bg-rose-600" prefix="PKR " />
+        <KpiCard label="Remaining Inventory" value={remainingValue} icon={Activity} color="bg-teal-600" prefix="PKR " />
       </div>
 
       {/* Per-Location Inventory Cards */}
@@ -328,10 +328,10 @@ const BiSection = ({ source: parentSource, startDate: parentStartDate, endDate: 
 
       {/* Consumption Breakdown */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KpiCard label="Online Consumed" value={cons.onlineOrders?.value} icon={ShoppingCart} color="bg-indigo-600" prefix="₨" sub={`${fmtNum(cons.onlineOrders?.quantity)} units`} />
-        <KpiCard label="Outlet Consumed" value={cons.outletOrders?.value} icon={Store} color="bg-purple-600" prefix="₨" sub={`${fmtNum(cons.outletOrders?.quantity)} units`} />
-        <KpiCard label="Allocation Consumed" value={cons.allocation?.value} icon={Archive} color="bg-amber-600" prefix="₨" sub={`${fmtNum(allocationAnalytics?.totalQuantity)} allocated`} />
-        <KpiCard label="Demand Consumed" value={cons.demandOrders?.value} icon={Truck} color="bg-orange-600" prefix="₨" sub={`${fmtNum(demandAnalytics?.totalQuantity)} demanded`} />
+        <KpiCard label="Online Consumed" value={cons.onlineOrders?.value} icon={ShoppingCart} color="bg-indigo-600" prefix="PKR " sub={`${fmtNum(cons.onlineOrders?.quantity)} units`} />
+        <KpiCard label="Outlet Consumed" value={cons.outletOrders?.value} icon={Store} color="bg-purple-600" prefix="PKR " sub={`${fmtNum(cons.outletOrders?.quantity)} units`} />
+        <KpiCard label="Allocation Consumed" value={cons.allocation?.value} icon={Archive} color="bg-amber-600" prefix="PKR " sub={`${fmtNum(allocationAnalytics?.totalQuantity)} allocated`} />
+        <KpiCard label="Demand Consumed" value={cons.demandOrders?.value} icon={Truck} color="bg-orange-600" prefix="PKR " sub={`${fmtNum(demandAnalytics?.totalQuantity)} demanded`} />
       </div>
 
       {/* Allocation Analytics */}
@@ -408,9 +408,9 @@ const BiSection = ({ source: parentSource, startDate: parentStartDate, endDate: 
 
       {/* Profit Analytics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KpiCard label="Total Revenue" value={pa.totalRevenue} icon={TrendingUp} color="bg-emerald-600" prefix="₨" />
-        <KpiCard label="Total Cost" value={pa.totalCost} icon={DollarSign} color="bg-red-600" prefix="₨" />
-        <KpiCard label="Gross Profit" value={pa.grossProfit} icon={Activity} color="bg-blue-600" prefix="₨" />
+        <KpiCard label="Total Revenue" value={pa.totalRevenue} icon={TrendingUp} color="bg-emerald-600" prefix="PKR " />
+        <KpiCard label="Total Cost" value={pa.totalCost} icon={DollarSign} color="bg-red-600" prefix="PKR " />
+        <KpiCard label="Gross Profit" value={pa.grossProfit} icon={Activity} color="bg-blue-600" prefix="PKR " />
         <KpiCard label="Profit Margin" value={pa.profitMargin ? pa.profitMargin.toFixed(2) + '%' : '0%'} icon={PieChart} color="bg-violet-600" />
       </div>
 

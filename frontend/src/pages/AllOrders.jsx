@@ -712,7 +712,7 @@ const AllOrders = () => {
                         </div>
                       )}
                       <div className="text-xs md:text-sm theme-text-muted mt-1">
-                        {order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? 'Fully Paid' : parseFloat(order.advanceAmount) > 0 ? `Remaining COD: ₨${Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0)).toLocaleString()}` : 'CASH ON DELIVERY'}
+                        {order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? 'Fully Paid' : parseFloat(order.advanceAmount) > 0 ? `Remaining COD: PKR ${Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0)).toLocaleString()}` : 'CASH ON DELIVERY'}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -744,7 +744,7 @@ const AllOrders = () => {
                         const _hasAdv = parseFloat(order.advanceAmount) > 0;
                         const _rem = Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0));
                         if (_isPaid) return <span className="text-xs md:text-sm font-black px-2 py-1 rounded-full uppercase border ml-2 bg-emerald-500/10 text-emerald-400 border-emerald-500/20">PAID</span>;
-                        if (_hasAdv) return <span className="text-xs md:text-sm font-black px-2 py-1 rounded-full border ml-2 bg-orange-500/10 text-orange-400 border-orange-500/20">REMAINING COD: ₨{_rem.toLocaleString()}</span>;
+                        if (_hasAdv) return <span className="text-xs md:text-sm font-black px-2 py-1 rounded-full border ml-2 bg-orange-500/10 text-orange-400 border-orange-500/20">REMAINING COD: PKR {_rem.toLocaleString()}</span>;
                         return <span className="text-xs md:text-sm font-black px-2 py-1 rounded-full uppercase border ml-2 bg-red-500/10 text-red-400 border-red-500/20">CASH ON DELIVERY</span>;
                       })()}
                     </td>
@@ -1036,7 +1036,7 @@ const AllOrders = () => {
                                       </span>
                                     )}
                                   </td>
-                                  <td className="py-4 text-right pr-4 text-emerald-400 font-black">₨{Number(item.totalPrice || 0).toLocaleString()}</td>
+                                  <td className="py-4 text-right pr-4 text-emerald-400 font-black">PKR {Number(item.totalPrice || 0).toLocaleString()}</td>
                                 </tr>
                               );
                             })}
@@ -1077,7 +1077,7 @@ const AllOrders = () => {
                               const _hasAdv = parseFloat(selectedOrder.advanceAmount || 0) > 0;
                               const _rem = Math.max(0, (selectedOrder.totalPrice || 0) - parseFloat(selectedOrder.advanceAmount || 0));
                               if (_isPaid) return <span className="text-lg font-black px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">PAID</span>;
-                              if (_hasAdv) return <span className="text-lg font-black px-3 py-1 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">REMAINING COD: ₨{_rem.toLocaleString()}</span>;
+                              if (_hasAdv) return <span className="text-lg font-black px-3 py-1 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">REMAINING COD: PKR {_rem.toLocaleString()}</span>;
                               return <span className="text-lg font-black px-3 py-1 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">CASH ON DELIVERY</span>;
                             })()
                           ) : item.label === 'Stock' ? (

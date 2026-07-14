@@ -21,7 +21,7 @@ const outletForSource = (sourceId) => {
 };
 
 const CHART_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
-const fmt = (v) => `₨${(v || 0).toLocaleString()}`;
+const fmt = (v) => `PKR ${(v || 0).toLocaleString()}`;
 
 const DATE_PRESETS = [
   { label: 'All Time', days: -2 }, { label: 'Today', days: 0 }, { label: 'Yesterday', days: 1 },
@@ -582,7 +582,7 @@ const UnifiedAnalytics = () => {
               <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 12, fontSize: 10 }} />
               <Legend wrapperStyle={{ fontSize: 9 }} />
               <Area yAxisId="left" type="monotone" dataKey="orders" stroke="#6366f1" fill="#6366f1" fillOpacity={0.15} name="Orders" strokeWidth={2} />
-              <Area yAxisId="right" type="monotone" dataKey="revenue" stroke="#10b981" fill="#10b981" fillOpacity={0.15} name="Revenue (₨)" strokeWidth={2} />
+              <Area yAxisId="right" type="monotone" dataKey="revenue" stroke="#10b981" fill="#10b981" fillOpacity={0.15} name="Revenue (PKR )" strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
         ) : (
@@ -784,15 +784,15 @@ const UnifiedAnalytics = () => {
                     const totalQty = cashierInvoices.reduce((s, inv) => s + (inv.items?.reduce((q, it) => q + (it.quantity || 0), 0) || 0), 0);
                     w.document.write('<div class="summary">');
                     w.document.write(`<div class="summary-item"><div class="summary-label">Total Invoices</div><div class="summary-value">${cashierInvoices.length}</div></div>`);
-                    w.document.write(`<div class="summary-item"><div class="summary-label">Total Sales</div><div class="summary-value">₨${totalSales.toLocaleString()}</div></div>`);
+                    w.document.write(`<div class="summary-item"><div class="summary-label">Total Sales</div><div class="summary-value">PKR ${totalSales.toLocaleString()}</div></div>`);
                     w.document.write(`<div class="summary-item"><div class="summary-label">Total Items</div><div class="summary-value">${totalQty}</div></div>`);
-                    w.document.write(`<div class="summary-item"><div class="summary-label">Total Discount</div><div class="summary-value">₨${totalDiscount.toLocaleString()}</div></div>`);
+                    w.document.write(`<div class="summary-item"><div class="summary-label">Total Discount</div><div class="summary-value">PKR ${totalDiscount.toLocaleString()}</div></div>`);
                     w.document.write('</div>');
                     w.document.write('<table><thead><tr><th>Invoice#</th><th>Date</th><th>Customer</th><th>Products</th><th>Qty</th><th>Amount</th><th>Discount</th><th>Payment</th><th>Status</th></tr></thead><tbody>');
                     cashierInvoices.forEach(inv => {
                       const items = inv.items?.map(it => it.productName).join(', ') || '';
                       const qty = inv.items?.reduce((sum, it) => sum + (it.quantity || 0), 0) || 0;
-                      w.document.write(`<tr><td>${inv.receiptNumber || ''}</td><td>${new Date(inv.createdAt).toLocaleDateString()}</td><td>${inv.customerName || 'Walk-in'}</td><td>${items}</td><td>${qty}</td><td>₨${(inv.grandTotal || 0).toLocaleString()}</td><td>₨${(inv.discountAmount || 0).toLocaleString()}</td><td>${inv.paymentMethod || ''}</td><td>${inv._balanceStatus || 'paid'}</td></tr>`);
+                      w.document.write(`<tr><td>${inv.receiptNumber || ''}</td><td>${new Date(inv.createdAt).toLocaleDateString()}</td><td>${inv.customerName || 'Walk-in'}</td><td>${items}</td><td>${qty}</td><td>PKR ${(inv.grandTotal || 0).toLocaleString()}</td><td>PKR ${(inv.discountAmount || 0).toLocaleString()}</td><td>${inv.paymentMethod || ''}</td><td>${inv._balanceStatus || 'paid'}</td></tr>`);
                     });
                     w.document.write('</tbody></table>');
                     w.document.write(`<p>Generated: ${new Date().toLocaleString()} | Branch: ${selectedOutlet} | Cashier: ${branchCashier}</p>`);
@@ -1116,8 +1116,8 @@ const UnifiedAnalytics = () => {
                     detailData.forEach(s => {
                       const items = s.items?.map(it => it.productName).join(', ') || '';
                       const qty = s.items?.reduce((sum, it) => sum + (it.quantity || 0), 0) || 0;
-                      const retTxt = s.returns?.length > 0 ? `${s.returns.reduce((sum, r) => sum + (r.quantity || 0), 0)} items (₨${(s.returns.reduce((sum, r) => sum + (r.refundAmount || 0), 0)).toLocaleString()})` : '—';
-                      w.document.write(`<tr><td>${s.receiptNumber || ''}</td><td>${new Date(s.createdAt).toLocaleDateString()}</td><td>${s.customerName || 'Walk-in'}</td><td>${s.cashierName || ''}</td><td>${items}</td><td>${qty}</td><td>₨${(s.grandTotal || 0).toLocaleString()}</td><td>${s.paymentMethod || ''}</td><td>${retTxt}</td></tr>`);
+                      const retTxt = s.returns?.length > 0 ? `${s.returns.reduce((sum, r) => sum + (r.quantity || 0), 0)} items (PKR ${(s.returns.reduce((sum, r) => sum + (r.refundAmount || 0), 0)).toLocaleString()})` : '—';
+                      w.document.write(`<tr><td>${s.receiptNumber || ''}</td><td>${new Date(s.createdAt).toLocaleDateString()}</td><td>${s.customerName || 'Walk-in'}</td><td>${s.cashierName || ''}</td><td>${items}</td><td>${qty}</td><td>PKR ${(s.grandTotal || 0).toLocaleString()}</td><td>${s.paymentMethod || ''}</td><td>${retTxt}</td></tr>`);
                     });
                     w.document.write('</tbody></table>');
                     w.document.write(`<p>Generated: ${new Date().toLocaleString()} | Total: ${detailData.length} invoices</p>`);
@@ -1162,8 +1162,8 @@ const UnifiedAnalytics = () => {
                           </td>
                           <td className="py-2 pr-3 text-right">
                             {hasReturns ? (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-900/40 text-red-400" title={s.returns.map(r => `${r.reason || 'N/A'} (₨${(r.refundAmount||0).toLocaleString()})`).join(' | ')}>
-                                {retQty} (₨{retAmt.toLocaleString()})
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-900/40 text-red-400" title={s.returns.map(r => `${r.reason || 'N/A'} (PKR ${(r.refundAmount||0).toLocaleString()})`).join(' | ')}>
+                                {retQty} (PKR {retAmt.toLocaleString()})
                               </span>
                             ) : <span className="text-gray-600">—</span>}
                           </td>

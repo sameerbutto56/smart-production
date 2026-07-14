@@ -1419,7 +1419,7 @@ const SmartOrderForm = () => {
                   if (diff === 0) return null;
                   return (
                     <span className={`font-black ${diff > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-                      ₨{diff > 0 ? '+' : ''}{diff.toLocaleString()}
+                      PKR {diff > 0 ? '+' : ''}{diff.toLocaleString()}
                     </span>
                   );
                 })()}
@@ -1500,7 +1500,7 @@ const SmartOrderForm = () => {
                               </p>
                               {d.fabricType && <p className="text-xs text-gray-500 mt-0.5">{d.fabricType}</p>}
                             </div>
-                            <span className="text-xs font-black text-red-400">₨{((parseFloat(item.totalPrice) || parseFloat(originalOrder.totalPrice) || 0) / (items.length || 1)).toLocaleString()}</span>
+                            <span className="text-xs font-black text-red-400">PKR {((parseFloat(item.totalPrice) || parseFloat(originalOrder.totalPrice) || 0) / (items.length || 1)).toLocaleString()}</span>
                           </div>
                           {/* Branding/Customization */}
                           {(cust.nameSpelling || originalOrder.logoDesign || cust.logos) && (
@@ -1526,7 +1526,7 @@ const SmartOrderForm = () => {
                 {/* Original Total */}
                 <div className="border-t border-red-500/10 pt-3 flex justify-between items-center">
                   <span className="text-xs font-black text-gray-400 uppercase">{useUrdu ? 'اصل کل' : 'Original Total'}</span>
-                  <span className="text-sm font-black text-red-400">₨{parseFloat(originalOrder.totalPrice || 0).toLocaleString()}</span>
+                  <span className="text-sm font-black text-red-400">PKR {parseFloat(originalOrder.totalPrice || 0).toLocaleString()}</span>
                 </div>
               </div>
 
@@ -1594,13 +1594,13 @@ const SmartOrderForm = () => {
                     </div>
                   <div className="grid grid-cols-2 gap-3 mt-3">
                     <div>
-                      <span className="text-gray-500 block mb-1">{useUrdu ? 'ایڈوانس رقم' : 'Advance Amount (₨)'}</span>
+                      <span className="text-gray-500 block mb-1">{useUrdu ? 'ایڈوانس رقم' : 'Advance Amount (PKR )'}</span>
                       <input type="number" min="0" value={formData.advanceAmount || ''} placeholder="e.g. 2000"
                         onChange={e => setFormData({...formData, advanceAmount: e.target.value})}
                         className="w-full bg-gray-900 border-2 border-emerald-500/30 rounded-xl py-2.5 px-4 text-sm font-bold text-emerald-400 focus:border-emerald-500 outline-none transition-all" />
                       {parseFloat(formData.advanceAmount) > 0 && (
                         <p className="text-xs text-emerald-400 font-bold mt-1">
-                          {useUrdu ? 'ایڈوانس وصول: ' : 'Advance Received: '}₨{parseFloat(formData.advanceAmount).toLocaleString()}
+                          {useUrdu ? 'ایڈوانس وصول: ' : 'Advance Received: '}PKR {parseFloat(formData.advanceAmount).toLocaleString()}
                         </p>
                       )}
                     </div>
@@ -1664,7 +1664,7 @@ const SmartOrderForm = () => {
                                       className="w-14 theme-input rounded-lg py-1 px-2 text-xs md:text-sm font-bold text-center" />
                                   </div>
                                   <div className="flex items-center gap-1">
-                                    <span className="text-[9px] text-gray-500 font-bold">₨:</span>
+                                    <span className="text-[9px] text-gray-500 font-bold">PKR :</span>
                                     <input type="number" min="0" value={item.totalPrice || 0}
                                       onChange={e => {
                                         const newCart = [...cartItems];
@@ -1702,7 +1702,7 @@ const SmartOrderForm = () => {
             <div className="glass rounded-[2rem] p-5 border-2 border-amber-500/20 bg-amber-500/5">
               <div className="text-center mb-4">
                 <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-1">{useUrdu ? 'اصل قیمت' : 'Actual Price'}</p>
-                <p className="text-2xl font-black text-red-400">₨{parseFloat(originalOrder.totalPrice || 0).toLocaleString()}</p>
+                <p className="text-2xl font-black text-red-400">PKR {parseFloat(originalOrder.totalPrice || 0).toLocaleString()}</p>
               </div>
               <div className="border-t border-amber-500/10 pt-3">
                 <p className="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-2">{useUrdu ? 'دیگر چارجز' : 'Other Charges'}</p>
@@ -1714,13 +1714,13 @@ const SmartOrderForm = () => {
                         <span className="font-semibold theme-text-muted truncate mr-2">
                           {d.productType || 'Item'} × {item.quantity || 1}
                         </span>
-                        <span className="font-black text-emerald-400 shrink-0">₨{(parseFloat(item.totalPrice) || 0).toLocaleString()}</span>
+                        <span className="font-black text-emerald-400 shrink-0">PKR {(parseFloat(item.totalPrice) || 0).toLocaleString()}</span>
                       </div>
                     );
                   })}
                   <div className="border-t border-amber-500/10 pt-1.5 flex justify-between items-center text-xs">
                     <span className="font-black text-gray-500 uppercase tracking-wider">{useUrdu ? 'کل' : 'Total'}</span>
-                    <span className="font-black text-emerald-400">₨{memoCartTotalPrice.toLocaleString()}</span>
+                    <span className="font-black text-emerald-400">PKR {memoCartTotalPrice.toLocaleString()}</span>
                   </div>
                 </div>
               </div>
@@ -1896,13 +1896,13 @@ const SmartOrderForm = () => {
                                 <span className="font-black text-xs">🚚</span>
                               </div>
                               <div className={`w-full theme-input rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} text-xl font-bold flex items-center ${isFree ? 'text-emerald-400' : 'text-amber-400'}`}>
-                                {isFree ? 'FREE' : '₨250'}
+                                {isFree ? 'FREE' : 'PKR 250'}
                               </div>
                             </div>
                             {isFree && (
                               <div className="flex items-center gap-2 mt-2 px-2">
                                 <span className="text-[10px] font-black text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-full tracking-wider uppercase">FREE DELIVERY</span>
-                                <span className="text-[10px] text-emerald-400/60">(Order &gt; ₨7,000)</span>
+                                <span className="text-[10px] text-emerald-400/60">(Order &gt; PKR 7,000)</span>
                               </div>
                             )}
                           </>
@@ -2037,14 +2037,14 @@ const SmartOrderForm = () => {
                   </div>
 
                   <div className="space-y-3">
-                    <label className="text-xs md:text-sm font-black uppercase theme-text-muted tracking-[0.2em]">{useUrdu ? 'ایڈوانس رقم' : 'Advance Amount (₨)'}</label>
+                    <label className="text-xs md:text-sm font-black uppercase theme-text-muted tracking-[0.2em]">{useUrdu ? 'ایڈوانس رقم' : 'Advance Amount (PKR )'}</label>
                     <div className="relative">
                       <input type="number" min="0" value={formData.advanceAmount || ''} placeholder="e.g. 2000"
                         onChange={e => setFormData({...formData, advanceAmount: e.target.value})}
                         className="w-full bg-gray-900 border-2 border-emerald-500/30 rounded-xl py-3 md:py-4 px-4 text-sm md:text-base font-bold text-emerald-400 focus:border-emerald-500 outline-none transition-all" />
                       {parseFloat(formData.advanceAmount) > 0 && (
                         <p className="text-xs text-emerald-400 font-bold mt-1.5">
-                          {useUrdu ? 'ایڈوانس وصول: ' : 'Advance Received: '}₨{parseFloat(formData.advanceAmount).toLocaleString()}
+                          {useUrdu ? 'ایڈوانس وصول: ' : 'Advance Received: '}PKR {parseFloat(formData.advanceAmount).toLocaleString()}
                         </p>
                       )}
                     </div>
@@ -2203,7 +2203,7 @@ const SmartOrderForm = () => {
                           )}
                           {(item.price > 0 || (item.variants && Array.isArray(item.variants) && item.variants.some(v => v.price))) && (
                             <span className="block text-xs font-black text-emerald-400">
-                              ₨{Number(
+                              PKR {Number(
                                 (item.variants && Array.isArray(item.variants) && item.variants.length > 0
                                   ? (item.variants.find(v => v.price)?.price || item.price)
                                   : item.price)
@@ -2484,7 +2484,7 @@ const SmartOrderForm = () => {
                               <button type="button" onClick={() => setFormData({...formData, matchingCapQty: (formData.matchingCapQty || 1) + 1})}
                                 className="w-8 h-8 rounded-lg bg-gray-800 text-gray-400 font-black hover:bg-gray-700 transition-all">+</button>
                             </div>
-                            <span className="text-xs text-rose-400 font-black">₨{(((formData.matchingCapQty || 0) * capUnitPrice)).toLocaleString()}</span>
+                            <span className="text-xs text-rose-400 font-black">PKR {(((formData.matchingCapQty || 0) * capUnitPrice)).toLocaleString()}</span>
                           </div>
                         )}
                       </div>
@@ -2707,7 +2707,7 @@ const SmartOrderForm = () => {
                 <p className="text-xs md:text-sm text-gray-500 font-bold uppercase tracking-wider mb-4">{useUrdu ? 'اگر لاگو ہو تو چارجز درج کریں، ورنہ خالی چھوڑ دیں' : 'Enter charges if applicable, leave blank if none'}</p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <label className="text-xs font-black theme-text-muted uppercase tracking-widest">{useUrdu ? 'لوگو چارج' : 'Logo Charge (₨)'}</label>
+                    <label className="text-xs font-black theme-text-muted uppercase tracking-widest">{useUrdu ? 'لوگو چارج' : 'Logo Charge (PKR )'}</label>
                     <input
                       type="number"
                       min="0"
@@ -2719,7 +2719,7 @@ const SmartOrderForm = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-black theme-text-muted uppercase tracking-widest">{useUrdu ? 'نام پرنٹنگ چارج' : 'Name Printing Charge (₨)'}</label>
+                    <label className="text-xs font-black theme-text-muted uppercase tracking-widest">{useUrdu ? 'نام پرنٹنگ چارج' : 'Name Printing Charge (PKR )'}</label>
                     <input
                       type="number"
                       min="0"
@@ -2731,7 +2731,7 @@ const SmartOrderForm = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-black theme-text-muted uppercase tracking-widest">{useUrdu ? 'کسٹمائزیشن چارج' : 'Customization Charge (₨)'}</label>
+                    <label className="text-xs font-black theme-text-muted uppercase tracking-widest">{useUrdu ? 'کسٹمائزیشن چارج' : 'Customization Charge (PKR )'}</label>
                     <input
                       type="number"
                       min="0"
@@ -2745,7 +2745,7 @@ const SmartOrderForm = () => {
                 </div>
                 <div className="border-t border-amber-500/10 pt-3 mt-4 flex justify-between items-center">
                   <span className="text-xs md:text-sm font-bold text-gray-400">{useUrdu ? 'برانڈنگ چارجز کل' : 'Total Branding Charges'}</span>
-                  <span className="font-black text-white">₨{(
+                  <span className="font-black text-white">PKR {(
                     (parseFloat(formData.logoCharges) || 0) +
                     (parseFloat(formData.namePrintingCharges) || 0) +
                     (parseFloat(formData.customizationPrice) || 0)
@@ -3247,9 +3247,9 @@ const SmartOrderForm = () => {
                     {(item.logoName || item.logoCharges || item.namePrintingCharges || item.customizationPrice) && (
                       <div className="flex flex-wrap gap-1 mt-1">
                         {item.logoName && <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">Logo: {item.logoName}</span>}
-                        {item.logoCharges > 0 && <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">Logo Fee: ₨{item.logoCharges}</span>}
-                        {item.namePrintingCharges > 0 && <span className="text-[9px] font-black text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">Name: ₨{item.namePrintingCharges}</span>}
-                        {item.customizationPrice > 0 && <span className="text-[9px] font-black text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded">Custom: ₨{item.customizationPrice}</span>}
+                        {item.logoCharges > 0 && <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">Logo Fee: PKR {item.logoCharges}</span>}
+                        {item.namePrintingCharges > 0 && <span className="text-[9px] font-black text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">Name: PKR {item.namePrintingCharges}</span>}
+                        {item.customizationPrice > 0 && <span className="text-[9px] font-black text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded">Custom: PKR {item.customizationPrice}</span>}
                         {item.productDetails?.alteration && (item.productDetails.alteration.trouserLength || item.productDetails.alteration.shirtLength || item.productDetails.alteration.sleeveLength) && (
                           <span className="text-[9px] font-black text-amber-400 bg-amber-500/20 border border-amber-500/30 px-1.5 py-0.5 rounded">
                             Alt: {[
@@ -3265,11 +3265,11 @@ const SmartOrderForm = () => {
                   <div className="text-right shrink-0">
                     {item.quantity > 1 && item.totalPrice > 0 && (
                       <p className="text-xs theme-text-muted font-bold">
-                        ₨{Number(item.totalPrice / item.quantity).toLocaleString()} × {item.quantity}
+                        PKR {Number(item.totalPrice / item.quantity).toLocaleString()} × {item.quantity}
                       </p>
                     )}
                     <p className="text-sm font-black text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-xl">
-                      ₨{Number(item.totalPrice).toLocaleString()}
+                      PKR {Number(item.totalPrice).toLocaleString()}
                     </p>
                   </div>
                 </div>
@@ -3366,7 +3366,7 @@ const SmartOrderForm = () => {
                   {formData.orderNumber && <span className="text-xs font-black px-2 py-1 bg-blue-900/30 text-blue-400 rounded-md uppercase">#{formData.orderNumber}</span>}
                   <span className="text-xs font-black px-2 py-1 bg-gray-900 rounded-md text-gray-300 uppercase">{cartItems[0]?.type}</span>
                   <span className="text-xs font-black px-2 py-1 bg-gray-900 rounded-md text-gray-300 uppercase">{cartItems[0]?.priority}</span>
-                  {parseFloat(cartItems[0]?.advanceAmount) > 0 && <span className="text-xs font-black px-2 py-1 bg-amber-900/30 rounded-md text-amber-400 uppercase">ADVANCE: ₨{parseFloat(cartItems[0]?.advanceAmount).toLocaleString()}</span>}
+                  {parseFloat(cartItems[0]?.advanceAmount) > 0 && <span className="text-xs font-black px-2 py-1 bg-amber-900/30 rounded-md text-amber-400 uppercase">ADVANCE: PKR {parseFloat(cartItems[0]?.advanceAmount).toLocaleString()}</span>}
                 </div>
               </div>
 
@@ -3421,9 +3421,9 @@ const SmartOrderForm = () => {
                             {/* Branding Charges */}
                             {(item.logoCharges > 0 || item.namePrintingCharges > 0 || item.customizationPrice > 0) && (
                               <div className="flex flex-wrap gap-1.5 mt-1.5">
-                                {item.logoCharges > 0 && <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">Logo Fee: ₨{item.logoCharges}</span>}
-                                {item.namePrintingCharges > 0 && <span className="text-[9px] font-black text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">Name Fee: ₨{item.namePrintingCharges}</span>}
-                                {item.customizationPrice > 0 && <span className="text-[9px] font-black text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20">Custom Fee: ₨{item.customizationPrice}</span>}
+                                {item.logoCharges > 0 && <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">Logo Fee: PKR {item.logoCharges}</span>}
+                                {item.namePrintingCharges > 0 && <span className="text-[9px] font-black text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">Name Fee: PKR {item.namePrintingCharges}</span>}
+                                {item.customizationPrice > 0 && <span className="text-[9px] font-black text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20">Custom Fee: PKR {item.customizationPrice}</span>}
                               </div>
                             )}
                             {hasCust && (
@@ -3491,7 +3491,7 @@ const SmartOrderForm = () => {
                             )}
                           </div>
                           <div className="text-right shrink-0 flex flex-col items-end gap-1.5">
-                            <span className="text-sm font-black text-emerald-400">₨{Number(item.totalPrice || 0).toLocaleString()}</span>
+                            <span className="text-sm font-black text-emerald-400">PKR {Number(item.totalPrice || 0).toLocaleString()}</span>
                             <div className="flex flex-wrap gap-1 justify-end">
                               <button
                                 type="button"
@@ -3533,7 +3533,7 @@ const SmartOrderForm = () => {
                 {cartItems.length > 0 && (
                   <div className="flex justify-end items-center gap-4 mt-3 pt-3 border-t border-gray-800/50">
                     <span className="text-xs md:text-sm text-gray-400 font-black uppercase tracking-wider">{useUrdu ? 'کل آئٹمز' : 'Total Items'}: <span className="text-white">{memoCartTotalItems}</span></span>
-                    <span className="text-sm font-black text-emerald-400">{useUrdu ? 'کل قیمت' : 'Total'}: ₨{(memoCartTotalPrice + (memoCartTotalPrice > 7000 ? 0 : 250)).toLocaleString()}</span>
+                    <span className="text-sm font-black text-emerald-400">{useUrdu ? 'کل قیمت' : 'Total'}: PKR {(memoCartTotalPrice + (memoCartTotalPrice > 7000 ? 0 : 250)).toLocaleString()}</span>
                   </div>
                 )}
               </div>
@@ -3543,7 +3543,7 @@ const SmartOrderForm = () => {
               {/* Financial Summary */}
               <div className="bg-gray-950/50 p-4 md:p-6 rounded-[2rem] border border-gray-800/50 mb-6">
                 <h3 className="text-xs md:text-sm font-black text-emerald-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
-                  ₨ {useUrdu ? 'مالیاتی خلاصہ' : 'Financial Summary'} <span className="text-[8px] text-gray-500 tracking-[0.3em]">CALCULATED / ADJUSTED</span>
+                  PKR  {useUrdu ? 'مالیاتی خلاصہ' : 'Financial Summary'} <span className="text-[8px] text-gray-500 tracking-[0.3em]">CALCULATED / ADJUSTED</span>
                 </h3>
 
                 <div className="overflow-x-auto">
@@ -3584,27 +3584,27 @@ const SmartOrderForm = () => {
                           <>
                             <tr className="border-b border-gray-800/30">
                               <td className="text-gray-300 font-bold py-1.5 pr-2">{useUrdu ? 'پروڈکٹ کی قیمت' : 'Product Price'}</td>
-                              <td className="text-right text-gray-300 font-black py-1.5 px-2">₨{calcProductPrice.toLocaleString()}</td>
+                              <td className="text-right text-gray-300 font-black py-1.5 px-2">PKR {calcProductPrice.toLocaleString()}</td>
                               <td className="text-right py-1.5 pl-2">{inp('adjProductPrice', calcProductPrice)}</td>
                             </tr>
                             <tr className="border-b border-gray-800/30">
                               <td className="text-amber-400 font-bold py-1.5 pr-2">{useUrdu ? 'لوگو چارجز' : 'Logo Charges'}</td>
-                              <td className="text-right text-amber-400 font-black py-1.5 px-2">₨{calcLogo.toLocaleString()}</td>
+                              <td className="text-right text-amber-400 font-black py-1.5 px-2">PKR {calcLogo.toLocaleString()}</td>
                               <td className="text-right py-1.5 pl-2">{inp('adjLogoCharges', calcLogo, 'amber-400')}</td>
                             </tr>
                             <tr className="border-b border-gray-800/30">
                               <td className="text-purple-400 font-bold py-1.5 pr-2">{useUrdu ? 'نام پرنٹنگ' : 'Name Printing'}</td>
-                              <td className="text-right text-purple-400 font-black py-1.5 px-2">₨{calcName.toLocaleString()}</td>
+                              <td className="text-right text-purple-400 font-black py-1.5 px-2">PKR {calcName.toLocaleString()}</td>
                               <td className="text-right py-1.5 pl-2">{inp('adjNamePrinting', calcName, 'purple-400')}</td>
                             </tr>
                             <tr className="border-b border-gray-800/30">
                               <td className="text-cyan-400 font-bold py-1.5 pr-2">{useUrdu ? 'کسٹمائزیشن چارجز' : 'Customization Charges'}</td>
-                              <td className="text-right text-cyan-400 font-black py-1.5 px-2">₨{calcCustomization.toLocaleString()}</td>
+                              <td className="text-right text-cyan-400 font-black py-1.5 px-2">PKR {calcCustomization.toLocaleString()}</td>
                               <td className="text-right py-1.5 pl-2">{inp('adjCustomization', calcCustomization, 'cyan-400')}</td>
                             </tr>
                             <tr className="border-b border-gray-800/30">
                               <td className="text-rose-400 font-bold py-1.5 pr-2">{useUrdu ? 'میچنگ کیپ چارجز' : 'Matching Cap Charges'}</td>
-                              <td className="text-right text-rose-400 font-black py-1.5 px-2">₨{calcCap.toLocaleString()}</td>
+                              <td className="text-right text-rose-400 font-black py-1.5 px-2">PKR {calcCap.toLocaleString()}</td>
                               <td className="text-right py-1.5 pl-2">{inp('adjCapCharges', calcCap, 'rose-400')}</td>
                             </tr>
                             <tr className="border-b border-gray-800/30">
@@ -3614,10 +3614,10 @@ const SmartOrderForm = () => {
                                   : (useUrdu ? 'ڈلیوری چارجز' : 'Delivery Charges')}
                               </td>
                               <td className={`text-right font-black py-1.5 px-2 ${calcDelivery === 0 ? 'text-emerald-500' : 'text-amber-400'}`}>
-                                {calcDelivery === 0 ? 'FREE' : `₨${calcDelivery.toLocaleString()}`}
+                                {calcDelivery === 0 ? 'FREE' : `PKR ${calcDelivery.toLocaleString()}`}
                               </td>
                               <td className="text-right py-1.5 pl-2">
-                                <span className={`font-black text-xs ${calcDelivery === 0 ? 'text-emerald-500' : 'text-amber-400'}`}>{calcDelivery === 0 ? 'FREE' : `₨${calcDelivery.toLocaleString()}`}</span>
+                                <span className={`font-black text-xs ${calcDelivery === 0 ? 'text-emerald-500' : 'text-amber-400'}`}>{calcDelivery === 0 ? 'FREE' : `PKR ${calcDelivery.toLocaleString()}`}</span>
                               </td>
                             </tr>
                             <tr className="border-b border-gray-800/30">
@@ -3631,18 +3631,18 @@ const SmartOrderForm = () => {
                             </tr>
                             <tr>
                               <td className="text-gray-200 font-black text-sm py-2 pr-2">{useUrdu ? 'گرینڈ ٹوٹل' : 'Grand Total'}</td>
-                              <td className="text-right text-gray-200 font-black text-sm py-2 px-2">₨{calcTotal.toLocaleString()}</td>
-                              <td className="text-right font-black text-white text-lg py-2 pl-2">₨{adjTotal.toLocaleString()}</td>
+                              <td className="text-right text-gray-200 font-black text-sm py-2 px-2">PKR {calcTotal.toLocaleString()}</td>
+                              <td className="text-right font-black text-white text-lg py-2 pl-2">PKR {adjTotal.toLocaleString()}</td>
                             </tr>
                             <tr>
                               <td className="text-emerald-400 font-bold py-1 pr-2">{useUrdu ? 'ایڈوانس وصول' : 'Advance Received'}</td>
-                              <td className="text-right text-emerald-400 font-black py-1 px-2">{advanceAmt > 0 ? '−' : ''}₨{advanceAmt.toLocaleString()}</td>
-                              <td className="text-right text-emerald-400 font-black py-1 pl-2">{advanceAmt > 0 ? '−' : ''}₨{advanceAmt.toLocaleString()}</td>
+                              <td className="text-right text-emerald-400 font-black py-1 px-2">{advanceAmt > 0 ? '−' : ''}PKR {advanceAmt.toLocaleString()}</td>
+                              <td className="text-right text-emerald-400 font-black py-1 pl-2">{advanceAmt > 0 ? '−' : ''}PKR {advanceAmt.toLocaleString()}</td>
                             </tr>
                             <tr>
                               <td className="text-orange-400 font-black text-sm py-2 pr-2">{useUrdu ? 'باقی رقم' : 'Remaining Balance'}</td>
-                              <td className="text-right text-orange-400 font-black text-sm py-2 px-2">₨{Math.max(0, calcTotal - advanceAmt).toLocaleString()}</td>
-                              <td className="text-right text-orange-400 font-black text-lg py-2 pl-2">₨{Math.max(0, remainingBalance).toLocaleString()}</td>
+                              <td className="text-right text-orange-400 font-black text-sm py-2 px-2">PKR {Math.max(0, calcTotal - advanceAmt).toLocaleString()}</td>
+                              <td className="text-right text-orange-400 font-black text-lg py-2 pl-2">PKR {Math.max(0, remainingBalance).toLocaleString()}</td>
                             </tr>
                           </>
                         );
@@ -3755,7 +3755,7 @@ const SmartOrderForm = () => {
                       <div>
                         <span className="text-gray-400 block">{useUrdu ? 'ایڈوانس رقم' : 'Advance Amount'}</span>
                         <span className="theme-text-primary font-bold">
-                          ₨{(parseFloat(originalOrder.advanceAmount) || 0).toLocaleString()}
+                          PKR {(parseFloat(originalOrder.advanceAmount) || 0).toLocaleString()}
                         </span>
                       </div>
                     </div>
@@ -3785,7 +3785,7 @@ const SmartOrderForm = () => {
                               </span>
                             </div>
                             <span className="text-xs font-black theme-text-primary">
-                              ₨{((parseFloat(item.totalPrice) || parseFloat(originalOrder.totalPrice) || 0) / (items.length || 1)).toLocaleString()}
+                              PKR {((parseFloat(item.totalPrice) || parseFloat(originalOrder.totalPrice) || 0) / (items.length || 1)).toLocaleString()}
                             </span>
                           </div>
                         );
@@ -3796,7 +3796,7 @@ const SmartOrderForm = () => {
                   {/* Pricing Subtotal */}
                   <div className="border-t border-red-500/10 pt-4 flex justify-between items-center text-xs font-black">
                     <span className="text-gray-400 uppercase">{useUrdu ? 'کل رقم' : 'Original Total'}</span>
-                    <span className="text-red-400 text-sm">₨{parseFloat(originalOrder.totalPrice || 0).toLocaleString()}</span>
+                    <span className="text-red-400 text-sm">PKR {parseFloat(originalOrder.totalPrice || 0).toLocaleString()}</span>
                   </div>
                 </div>
 
@@ -3858,13 +3858,13 @@ const SmartOrderForm = () => {
                         </div>
                       </div>
                       <div>
-                        <span className="text-gray-400 block mb-1">{useUrdu ? 'ایڈوانس رقم' : 'Advance Amount (₨)'}</span>
+                        <span className="text-gray-400 block mb-1">{useUrdu ? 'ایڈوانس رقم' : 'Advance Amount (PKR )'}</span>
                         <input type="number" min="0" value={formData.advanceAmount || ''} placeholder="e.g. 2000"
                           onChange={e => setFormData({...formData, advanceAmount: e.target.value})}
                           className={`w-full theme-input rounded-xl py-2.5 px-3 text-sm font-bold ${hasChanged(String(originalOrder.advanceAmount || ''), String(formData.advanceAmount || '')) ? 'border-amber-500/50 bg-amber-500/5' : ''}`} />
                         {parseFloat(formData.advanceAmount) > 0 && (
                           <p className="text-xs text-emerald-400 font-bold mt-1">
-                            {useUrdu ? 'ایڈوانس وصول: ' : 'Advance Received: '}₨{parseFloat(formData.advanceAmount).toLocaleString()}
+                            {useUrdu ? 'ایڈوانس وصول: ' : 'Advance Received: '}PKR {parseFloat(formData.advanceAmount).toLocaleString()}
                           </p>
                         )}
                       </div>
@@ -3875,8 +3875,8 @@ const SmartOrderForm = () => {
                         const isFree = memoIsFreeDelivery;
                         return (
                           <div className={`w-full theme-input rounded-xl py-2.5 px-3 text-sm font-bold flex items-center gap-2 ${isFree ? 'text-emerald-400' : 'text-amber-400'}`}>
-                            {isFree ? 'FREE DELIVERY' : '₨250'}
-                            {isFree && <span className="text-[9px] text-emerald-500/60">(Order &gt; ₨7,000)</span>}
+                            {isFree ? 'FREE DELIVERY' : 'PKR 250'}
+                            {isFree && <span className="text-[9px] text-emerald-500/60">(Order &gt; PKR 7,000)</span>}
                           </div>
                         );
                       })()}
@@ -3911,7 +3911,7 @@ const SmartOrderForm = () => {
                                   className="w-14 theme-input rounded-lg py-1 px-2 text-xs md:text-sm font-bold text-center" />
                               </div>
                               <div className="flex items-center gap-1">
-                                <span className="text-[9px] text-gray-500">₨:</span>
+                                <span className="text-[9px] text-gray-500">PKR :</span>
                                 <input type="number" min="0" value={item.totalPrice || 0}
                                   onChange={e => {
                                     const newCart = [...cartItems];
@@ -3951,11 +3951,11 @@ const SmartOrderForm = () => {
                         <span className="text-gray-400 uppercase">{useUrdu ? 'کل نئی رقم' : 'New Total'}</span>
                         <div className="text-right">
                           <span className={`text-sm ${diff !== 0 ? 'text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded' : 'text-emerald-400'}`}>
-                            ₨{totalNewPrice.toLocaleString()}
+                            PKR {totalNewPrice.toLocaleString()}
                           </span>
                           {diff !== 0 && (
                             <span className="text-xs text-gray-500 block mt-0.5">
-                              ({diff > 0 ? '+' : ''}₨{diff.toLocaleString()} vs original)
+                              ({diff > 0 ? '+' : ''}PKR {diff.toLocaleString()} vs original)
                             </span>
                           )}
                         </div>

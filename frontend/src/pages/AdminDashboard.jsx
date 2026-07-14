@@ -859,7 +859,7 @@ const AdminDashboard = () => {
               </div>
               <div className="p-2 rounded-lg bg-gray-900/50 border border-gray-800">
                 <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Total</p>
-                <p className="text-[10px] font-bold text-white">₨{parseFloat(trackedOrder.totalPrice || 0).toLocaleString()}</p>
+                <p className="text-[10px] font-bold text-white">PKR {parseFloat(trackedOrder.totalPrice || 0).toLocaleString()}</p>
               </div>
             </div>
             {trackedOrder.address && (
@@ -1655,7 +1655,7 @@ const AdminDashboard = () => {
                                 return <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-red-500/20 text-red-400">COD</span>;
                               })()}
                             </td>
-                            <td className="py-3 pr-4 text-right font-bold text-white">₨{o.totalPrice || 0}</td>
+                            <td className="py-3 pr-4 text-right font-bold text-white">PKR {o.totalPrice || 0}</td>
                             <td className="py-3 pr-4 text-right font-bold text-gray-400 text-xs md:text-sm">{new Date(o.createdAt).toLocaleDateString()}</td>
                           </tr>
                         ))}

@@ -615,7 +615,7 @@ const OutletStockRequest = () => {
                           ))}
                         </div>
                         <div className="flex items-center justify-between">
-                          <p className="text-xs text-gray-400">{new Date(o.createdAt).toLocaleDateString()} — ₨{(o.totalPrice || 0).toLocaleString()}</p>
+                          <p className="text-xs text-gray-400">{new Date(o.createdAt).toLocaleDateString()} — PKR {(o.totalPrice || 0).toLocaleString()}</p>
                           <button onClick={async () => {
                             setReceivingId(o.id);
                             try {

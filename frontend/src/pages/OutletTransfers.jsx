@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 
 const OUTLETS = ['Johar Town', 'Jail Road', 'Abbottabad'];
 
-const formatCurrency = (n) => `Rs${(n || 0).toLocaleString()}`;
+const formatCurrency = (n) => `PKR ${(n || 0).toLocaleString()}`;
 const formatDate = (d) => new Date(d).toLocaleString();
 
 const statusStyles = {

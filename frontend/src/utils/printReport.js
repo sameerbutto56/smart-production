@@ -899,7 +899,7 @@ function summaryRow(label, value) {
 }
 
 function currency(v) {
-  return `₨${(v || 0).toLocaleString()}`;
+  return `PKR ${(v || 0).toLocaleString()}`;
 }
 
 function parseJSON(data) {

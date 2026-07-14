@@ -433,7 +433,7 @@ const EditRequestDashboard = () => {
                             { label: 'City', field: 'city', oldVal: order.city, newVal: rc.city },
                             { label: 'Type', field: 'type', oldVal: order.type, newVal: rc.type },
                             { label: 'Priority', field: 'priority', oldVal: order.priority, newVal: rc.priority },
-                            { label: 'Advance Amount', field: 'advanceAmount', oldVal: `₨${parseFloat(order.advanceAmount || 0).toLocaleString()}`, newVal: `₨${parseFloat(rc.advanceAmount || 0).toLocaleString()}` }
+                            { label: 'Advance Amount', field: 'advanceAmount', oldVal: `PKR ${parseFloat(order.advanceAmount || 0).toLocaleString()}`, newVal: `PKR ${parseFloat(rc.advanceAmount || 0).toLocaleString()}` }
                           ];
                           const changedFields = customerFields.filter(f => f.newVal !== undefined && f.newVal !== f.oldVal);
                           if (changedFields.length === 0) return null;
@@ -502,7 +502,7 @@ const EditRequestDashboard = () => {
                                         { label: 'Fabric', oldVal: old?.fabricType || '—', newVal: nw?.fabricType || '—' },
                                         { label: 'Gender', oldVal: old?.gender || '—', newVal: nw?.gender || '—' },
                                         { label: 'Quantity', oldVal: String(old?.qty ?? '—'), newVal: String(nw?.qty ?? '—') },
-                                        { label: 'Price', oldVal: old?.totalPrice ? `₨${Number(old.totalPrice).toLocaleString()}` : '—', newVal: nw?.totalPrice ? `₨${Number(nw.totalPrice).toLocaleString()}` : '—' },
+                                        { label: 'Price', oldVal: old?.totalPrice ? `PKR ${Number(old.totalPrice).toLocaleString()}` : '—', newVal: nw?.totalPrice ? `PKR ${Number(nw.totalPrice).toLocaleString()}` : '—' },
                                         { label: 'Name Spelling', oldVal: old?.nameSpelling || '—', newVal: nw?.nameSpelling || '—' },
                                         { label: 'Fit', oldVal: old?.fitType || '—', newVal: nw?.fitType || '—' },
                                         { label: 'Logo Design', oldVal: old?.logoDesign || '—', newVal: nw?.logoDesign || '—' },
@@ -547,16 +547,16 @@ const EditRequestDashboard = () => {
                               <div className="mt-3 pt-3 border-t border-amber-500/20 grid grid-cols-3 gap-3">
                                 <div className="text-center">
                                   <p className="text-[9px] font-black text-red-400 uppercase tracking-wider">Current Total</p>
-                                  <p className="text-sm font-black theme-text-primary">₨{oldTotal.toLocaleString()}</p>
+                                  <p className="text-sm font-black theme-text-primary">PKR {oldTotal.toLocaleString()}</p>
                                 </div>
                                 <div className="text-center">
                                   <p className="text-[9px] font-black text-emerald-400 uppercase tracking-wider">Requested Total</p>
-                                  <p className="text-sm font-black theme-text-primary">₨{newTotal.toLocaleString()}</p>
+                                  <p className="text-sm font-black theme-text-primary">PKR {newTotal.toLocaleString()}</p>
                                 </div>
                                 <div className="text-center">
                                   <p className="text-[9px] font-black text-amber-400 uppercase tracking-wider">Difference</p>
                                   <p className={`text-sm font-black ${diff > 0 ? 'text-red-400' : diff < 0 ? 'text-emerald-400' : 'text-gray-500'}`}>
-                                    {diff > 0 ? '+' : ''}{diff === 0 ? '₨0' : `₨${diff.toLocaleString()}`}
+                                    {diff > 0 ? '+' : ''}{diff === 0 ? 'PKR 0' : `PKR ${diff.toLocaleString()}`}
                                   </p>
                                 </div>
                               </div>

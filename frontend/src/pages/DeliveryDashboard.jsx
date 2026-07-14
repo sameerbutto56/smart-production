@@ -150,7 +150,7 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
                 const _hasAdv = parseFloat(order.advanceAmount || 0) > 0;
                 const _rem = Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0));
                 if (_isPaid) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">PAID</span>;
-                if (_hasAdv) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black bg-orange-500/20 text-orange-400 border border-orange-500/30">REMAINING COD: ₨{_rem.toLocaleString()}</span>;
+                if (_hasAdv) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black bg-orange-500/20 text-orange-400 border border-orange-500/30">REMAINING COD: PKR {_rem.toLocaleString()}</span>;
                 return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black uppercase bg-red-500/20 text-red-400 border border-red-500/30">CASH ON DELIVERY</span>;
               })()}
             </div>
@@ -211,10 +211,10 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
             <div className="bg-gray-800/60 rounded-2xl px-4 py-3">
               <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest">Amount</p>
               <p className="font-black text-emerald-400 text-base mt-0.5">
-                ₨{Number(order.totalPrice || 0).toLocaleString()}
+                PKR {Number(order.totalPrice || 0).toLocaleString()}
               </p>
               <p className="text-xs md:text-sm theme-text-muted font-bold mt-0.5">
-                {order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? '✅ PAID' : parseFloat(order.advanceAmount) > 0 ? `💰 Remaining COD: ₨${Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0)).toLocaleString()}` : '💰 CASH ON DELIVERY'}
+                {order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? '✅ PAID' : parseFloat(order.advanceAmount) > 0 ? `💰 Remaining COD: PKR ${Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0)).toLocaleString()}` : '💰 CASH ON DELIVERY'}
               </p>
             </div>
           </div>
@@ -253,7 +253,7 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
               const statusBanner = _isPaid
                 ? <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-2.5 flex items-center gap-3"><span className="text-emerald-400 font-black text-xs uppercase tracking-wider">Payment Status: PAID</span></div>
                 : _hasAdv
-                  ? <div className="bg-orange-500/10 border border-orange-500/20 rounded-2xl px-4 py-2.5 flex items-center gap-3"><span className="text-orange-400 font-black text-xs uppercase tracking-wider">REMAINING COD: ₨{_rem.toLocaleString()}</span></div>
+                  ? <div className="bg-orange-500/10 border border-orange-500/20 rounded-2xl px-4 py-2.5 flex items-center gap-3"><span className="text-orange-400 font-black text-xs uppercase tracking-wider">REMAINING COD: PKR {_rem.toLocaleString()}</span></div>
                   : <div className="bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-2.5 flex items-center gap-3"><span className="text-red-400 font-black text-xs uppercase tracking-wider">CASH ON DELIVERY</span></div>;
               if (_isPaid) return (
                 <div className="space-y-3">
@@ -622,7 +622,7 @@ const DeliveryDashboard = () => {
           <div>
             <p className="text-[10px] theme-text-muted font-black uppercase tracking-widest">COD to Collect</p>
             <p className="text-lg font-black text-amber-400">
-              ₨{pending
+              PKR {pending
                 .filter(o => !(parseFloat(o.advanceAmount) > 0))
                 .reduce((s, o) => s + (Number(o.totalPrice) || 0), 0)
                 .toLocaleString()}
@@ -632,7 +632,7 @@ const DeliveryDashboard = () => {
           <div className="text-center">
             <p className="text-[10px] theme-text-muted font-black uppercase tracking-widest">Collected</p>
             <p className="text-lg font-black text-emerald-400">
-              ₨{completed
+              PKR {completed
                 .reduce((s, o) => s + (Number(o.totalPrice) || 0), 0)
                 .toLocaleString()}
             </p>
