@@ -460,18 +460,38 @@ model OutletDemandRequest {
 }
 
 model ChatMessage {
-  id          String   @id @default(uuid())
-  senderId    String
-  senderName  String
-  senderRole  String
+  id           String   @id @default(uuid())
+  senderId     String
+  senderName   String
+  senderRole   String
   senderBranch String  @default("")
-  message     String   @default("")
-  voiceUrl    String?
-  isPinned    Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  message      String   @default("")
+  voiceUrl     String?
+  isPinned     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  deliveredAt  DateTime?
+  readAt       DateTime?
+  playedAt     DateTime?
+
+  readReceipts ChatMessageReadReceipt[]
 
   @@index([createdAt])
   @@index([isPinned])
+}
+
+model ChatMessageReadReceipt {
+  id        String   @id @default(uuid())
+  messageId String
+  userId    String
+  userName  String
+  userRole  String
+  status    String   @default("delivered")
+  timestamp DateTime @default(now())
+
+  message ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
 }
 
 model Client {

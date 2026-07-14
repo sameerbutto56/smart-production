@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
-const { getMessages, sendMessage, uploadVoice, togglePin, deleteMessage } = require('../controllers/chat.controller');
+const { getMessages, sendMessage, uploadVoice, markDelivered, markRead, markPlayed, getReceipts, togglePin, deleteMessage } = require('../controllers/chat.controller');
 
 const router = express.Router();
 
@@ -20,6 +20,10 @@ const voiceUpload = multer({
 router.get('/messages', authenticate, getMessages);
 router.post('/messages', authenticate, sendMessage);
 router.post('/voice', authenticate, voiceUpload.single('audio'), uploadVoice);
+router.post('/messages/:id/delivered', authenticate, markDelivered);
+router.post('/messages/:id/read', authenticate, markRead);
+router.post('/messages/:id/played', authenticate, markPlayed);
+router.get('/messages/:id/receipts', authenticate, getReceipts);
 router.patch('/messages/:id/pin', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), togglePin);
 router.delete('/messages/:id', authenticate, authorize(['ADMIN', 'SUPER_ADMIN']), deleteMessage);
 
