@@ -70,6 +70,12 @@ const OutletPOSDashboard = ({ outlet }) => {
 
   useEffect(() => { fetchJournal(); }, [fetchJournal]);
 
+  useEffect(() => {
+    const handler = () => fetchJournal();
+    window.addEventListener('journal-entry-saved', handler);
+    return () => window.removeEventListener('journal-entry-saved', handler);
+  }, [fetchJournal]);
+
   const kpis = dashboard ? [
     { icon: DollarSign, label: 'Total Sales', value: formatCurrency(dashboard.totalSales), sub: `${dashboard.totalOrders || 0} orders`, color: 'from-blue-600 to-cyan-600' },
     { icon: TrendingDown, label: 'Net Revenue', value: formatCurrency(dashboard.netRevenue), sub: `Refunds: ${formatCurrency(dashboard.totalSales - dashboard.netRevenue || 0)}`, color: 'from-emerald-600 to-green-600' },

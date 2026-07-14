@@ -111,6 +111,7 @@ const OutletJournal = ({ outlet }) => {
       setNotes('');
       fetchEntries();
       fetchCashSummary();
+      window.dispatchEvent(new CustomEvent('journal-entry-saved'));
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to save entry');
     }
