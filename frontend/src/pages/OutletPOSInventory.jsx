@@ -5,8 +5,8 @@ import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import useCache, { setCache } from '../hooks/useCache';
 
-const ALL_OUTLETS = ['Johar Town', 'Jail Road', 'Abbottabad'];
-const OUTLET_SHORT = { 'Johar Town': 'JT', 'Jail Road': 'JR', 'Abbottabad': 'AB' };
+const ALL_OUTLETS = ['Johar Town', 'Jail Road', 'Abbottabad', 'Warehouse'];
+const OUTLET_SHORT = { 'Johar Town': 'JT', 'Jail Road': 'JR', 'Abbottabad': 'AB', 'Warehouse': 'WH' };
 const formatCurrency = (n) => `PKR ${(n || 0).toLocaleString()}`;
 
 /* ─── VIEW-ONLY: unified outlet stock at a glance (OUTLET) ─── */
@@ -14,6 +14,7 @@ const ViewOnlyInventory = () => {
   const [allData, setAllData] = useState({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [variantSearch, setVariantSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('');
 
   const fetchAll = async () => {
@@ -21,7 +22,7 @@ const ViewOnlyInventory = () => {
     try {
       const res = await api.get('/api/pos/inventory/all');
       const data = res.data;
-      const grouped = { 'Johar Town': [], 'Jail Road': [], 'Abbottabad': [] };
+      const grouped = { 'Johar Town': [], 'Jail Road': [], 'Abbottabad': [], 'Warehouse': [] };
       for (const item of data) {
         if (grouped[item.outletName]) grouped[item.outletName].push(item);
       }
@@ -48,7 +49,7 @@ const ViewOnlyInventory = () => {
             fabric: item.fabric || '', imageUrl: item.imageUrl || '',
             barcode: item.barcode || 'N/A',
             price: item.price || 0,
-            outletStock: { 'Johar Town': 0, 'Jail Road': 0, 'Abbottabad': 0 }
+            outletStock: { 'Johar Town': 0, 'Jail Road': 0, 'Abbottabad': 0, 'Warehouse': 0 }
           });
         }
         const v = variantMap.get(vkey);
@@ -75,21 +76,27 @@ const ViewOnlyInventory = () => {
 
   const filteredProducts = crossOutletData.products.filter(p => {
     if (activeCategory && p.category !== activeCategory) return false;
-    if (search) {
+    if (search || variantSearch) {
       const q = search.toLowerCase();
-      if (!p.name.toLowerCase().includes(q) && !p.variants.some(v => v.color.toLowerCase().includes(q) || v.size.toLowerCase().includes(q))) return false;
+      const vq = variantSearch.toLowerCase();
+      if (search && !p.name.toLowerCase().includes(q)) return false;
+      if (variantSearch && !p.variants.some(v =>
+        v.color.toLowerCase().includes(vq) ||
+        v.size.toLowerCase().includes(vq) ||
+        (v.barcode && v.barcode.toLowerCase().includes(vq))
+      )) return false;
     }
     return true;
   });
 
-  const totalStockAll = (variants) => variants.reduce((s, v) => s + v.outletStock['Johar Town'] + v.outletStock['Jail Road'] + v.outletStock['Abbottabad'], 0);
+  const totalStockAll = (variants) => variants.reduce((s, v) => s + v.outletStock['Johar Town'] + v.outletStock['Jail Road'] + v.outletStock['Abbottabad'] + v.outletStock['Warehouse'], 0);
 
   return (
     <div className="space-y-6 pb-20 px-4">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-white">Outlet POS Inventory</h1>
-          <p className="text-sm font-bold text-gray-400">View-only — Stock across Johar Town / Jail Road / Abbottabad</p>
+          <p className="text-sm font-bold text-gray-400">View-only — Stock across Johar Town / Jail Road / Abbottabad / Warehouse</p>
         </div>
         <button onClick={fetchAll} disabled={loading}
           className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white font-black px-4 py-3 rounded-xl text-sm">
@@ -110,10 +117,17 @@ const ViewOnlyInventory = () => {
         ))}
       </div>
 
-      <div className="relative">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..."
-          className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl pl-10 pr-4 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by product name..."
+            className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl pl-10 pr-4 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
+        </div>
+        <div className="relative flex-1">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input value={variantSearch} onChange={e => setVariantSearch(e.target.value)} placeholder="Search by variant (color, size, barcode)..."
+            className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl pl-10 pr-4 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-purple-500 outline-none" />
+        </div>
       </div>
 
       {loading ? (
@@ -123,7 +137,7 @@ const ViewOnlyInventory = () => {
           {filteredProducts.length === 0 && (
             <div className="text-center py-12 text-gray-500 font-bold">
               <Warehouse size={40} className="mx-auto mb-3 text-gray-700" />
-              <p>No products found{search ? ' matching your search' : ''}.</p>
+              <p>No products found{search || variantSearch ? ' matching your search' : ''}.</p>
             </div>
           )}
           {filteredProducts.map(product => {
@@ -143,7 +157,7 @@ const ViewOnlyInventory = () => {
                   <div className="grid grid-cols-[1fr_auto_auto] gap-2 px-4 py-1.5 text-[9px] font-black text-gray-600 uppercase tracking-wider items-center">
                     <span className="pl-1">Variant</span>
                     <span className="text-center">Price</span>
-                    <span className="text-center">Stock / JT · JR · AB</span>
+                    <span className="text-center">Stock / JT · JR · AB · WH</span>
                   </div>
                   {product.variants.map(v => {
                     const vkey = `${v.name}||${v.category}||${v.color}||${v.size}`;
@@ -154,7 +168,7 @@ const ViewOnlyInventory = () => {
                           <span className="text-[9px] font-mono text-gray-600">{v.barcode}</span>
                         </div>
                         <span className="text-[11px] font-bold text-emerald-400 text-center w-16">PKR {(v.price || 0).toLocaleString()}</span>
-                        <div className="flex items-center gap-1.5 justify-end w-28">
+                        <div className="flex items-center gap-1.5 justify-end w-36">
                           {ALL_OUTLETS.map(o => {
                             const stk = v.outletStock[o] || 0;
                             return (
@@ -185,6 +199,7 @@ const ManagementInventory = () => {
   const [selectedOutlet, setSelectedOutlet] = useState(defaultOutlet);
   const [expandedId, setExpandedId] = useState(null);
   const [search, setSearch] = useState('');
+  const [variantSearch, setVariantSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -335,24 +350,59 @@ const ManagementInventory = () => {
     }
   };
 
+  const isWarehouseTab = selectedOutlet === 'Warehouse';
+
   const { data: items = [], loading, refresh } = useCache(`pos:inventory:${selectedOutlet}`, {
-    fetcher: () => api.get(`/api/pos/inventory?outlet=${selectedOutlet}`).then(r => r.data),
+    fetcher: () => isWarehouseTab
+      ? api.get('/api/inventory').then(r => r.data.map(item => {
+          let variantDefs = [];
+          if (item.variants) {
+            const parsed = typeof item.variants === 'string' ? JSON.parse(item.variants) : item.variants;
+            if (Array.isArray(parsed) && parsed.length > 0) variantDefs = parsed;
+          }
+          if (variantDefs.length > 0) {
+            return variantDefs.map(v => ({
+              id: item.id, name: item.name, category: item.category,
+              color: v.color || '', size: v.size || '',
+              fabric: item.fabric || '', stock: v.stock || 0, price: v.price || item.price || 0,
+              imageUrl: item.imageUrl || '', barcode: null, outletName: 'Warehouse',
+            }));
+          }
+          return [{
+            id: item.id, name: item.name, category: item.category,
+            color: item.color || '', size: item.size || '',
+            fabric: item.fabric || '', stock: item.stock || 0, price: item.price || 0,
+            imageUrl: item.imageUrl || '', barcode: null, outletName: 'Warehouse',
+          }];
+        }).flat())
+      : api.get(`/api/pos/inventory?outlet=${selectedOutlet}`).then(r => r.data),
     ttl: 2 * 60 * 1000,
   });
 
   useEffect(() => {
-    ALL_OUTLETS.filter(o => o !== selectedOutlet).forEach(o => {
-      api.get(`/api/pos/inventory?outlet=${o}`).then(async (res) => {
-        await setCache(`pos:inventory:${o}`, res.data, 2 * 60 * 1000);
-      }).catch(() => {});
-    });
-  }, [selectedOutlet]);
+    if (!isWarehouseTab) {
+      ALL_OUTLETS.filter(o => o !== selectedOutlet && o !== 'Warehouse').forEach(o => {
+        api.get(`/api/pos/inventory?outlet=${o}`).then(async (res) => {
+          await setCache(`pos:inventory:${o}`, res.data, 2 * 60 * 1000);
+        }).catch(() => {});
+      });
+    }
+  }, [selectedOutlet, isWarehouseTab]);
 
   const categories = [...new Set(items.map(i => i.category).filter(Boolean))].sort();
 
   const filtered = items.filter(i => {
     if (activeCategory && i.category !== activeCategory) return false;
-    if (search && !i.name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (search || variantSearch) {
+      const q = search.toLowerCase();
+      const vq = variantSearch.toLowerCase();
+      if (search && !i.name.toLowerCase().includes(q)) return false;
+      if (variantSearch && !(
+        (i.color || '').toLowerCase().includes(vq) ||
+        (i.size || '').toLowerCase().includes(vq) ||
+        (i.barcode || '').toLowerCase().includes(vq)
+      )) return false;
+    }
     return true;
   });
 
@@ -536,7 +586,7 @@ const ManagementInventory = () => {
           variants: item.variants, sourceItemId: item.id,
           productVariants: vdefs.map(vd => ({
             color: vd.color, size: vd.size,
-            stocks: { 'Johar Town': 0, 'Jail Road': 0, 'Abbottabad': 0 }
+            stocks: { 'Johar Town': 0, 'Jail Road': 0, 'Abbottabad': 0, 'Warehouse': 0 }
           }))
         };
       }
@@ -560,11 +610,12 @@ const ManagementInventory = () => {
   const handleInitSubmit = async () => {
     setInitSubmitting(true);
     try {
+      const initOutlets = ALL_OUTLETS.filter(o => o !== 'Warehouse');
       const stockData = {};
-      for (const outlet of ALL_OUTLETS) stockData[outlet] = [];
+      for (const outlet of initOutlets) stockData[outlet] = [];
       for (const [sourceItemId, product] of Object.entries(initData)) {
         for (const v of product.productVariants) {
-          for (const outlet of ALL_OUTLETS) {
+          for (const outlet of initOutlets) {
             const stock = v.stocks[outlet] || 0;
             if (stock > 0) {
               stockData[outlet].push({
@@ -640,7 +691,7 @@ const ManagementInventory = () => {
 
       {/* Outlet tabs */}
       <div className="flex gap-1.5 overflow-x-auto pb-1">
-        {ALL_OUTLETS.map(outlet => (
+        {ALL_OUTLETS.filter(o => o !== 'Warehouse').map(outlet => (
           <button key={outlet} onClick={() => setSelectedOutlet(outlet)}
             className={`text-[10px] font-black px-3 py-1.5 rounded-lg whitespace-nowrap uppercase tracking-wider transition-all ${
               outlet === selectedOutlet ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
@@ -663,10 +714,17 @@ const ManagementInventory = () => {
         ))}
       </div>
 
-      <div className="relative">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..."
-          className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl pl-10 pr-4 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by product name..."
+            className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl pl-10 pr-4 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
+        </div>
+        <div className="relative flex-1">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input value={variantSearch} onChange={e => setVariantSearch(e.target.value)} placeholder="Search by variant (color, size, barcode)..."
+            className="w-full bg-gray-900 border-2 border-gray-700 rounded-xl pl-10 pr-4 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-purple-500 outline-none" />
+        </div>
       </div>
 
       {loading ? (
@@ -676,7 +734,7 @@ const ManagementInventory = () => {
           {grouped.length === 0 && (
             <div className="text-center py-12 text-gray-500 font-bold">
               <Warehouse size={40} className="mx-auto mb-3 text-gray-700" />
-              <p>No products found{search ? ' matching your search' : ''}.</p>
+              <p>No products found{search || variantSearch ? ' matching your search' : ''}.</p>
               <p className="text-[10px] mt-1">Click <span className="text-violet-400">Init All</span> to pre-populate all outlets with opening stock.</p>
             </div>
           )}
@@ -772,7 +830,7 @@ const ManagementInventory = () => {
                       {pData.productVariants.map((v, vi) => (
                         <div key={`${v.color}|${v.size}`} className="grid grid-cols-5 gap-2 items-center mb-2 last:mb-0">
                           <span className="text-[11px] font-bold text-gray-300 col-span-1">{[v.color, v.size].filter(Boolean).join(' • ') || 'Default'}</span>
-                          {ALL_OUTLETS.map(outlet => (
+                          {ALL_OUTLETS.filter(o => o !== 'Warehouse').map(outlet => (
                             <div key={outlet} className="flex items-center gap-1">
                               <span className="text-[9px] text-gray-500 font-bold uppercase w-[14px]">{outlet === 'Johar Town' ? 'JT' : outlet === 'Jail Road' ? 'JR' : 'AB'}</span>
                               <input type="number" min="0" value={v.stocks[outlet]}

@@ -106,18 +106,23 @@ const getPosInventory = async (req, res) => {
   }
 };
 
-/* ─── View-only: all outlets inventory (bypasses OUTLET role restriction) ─── */
+/* ─── View-only: all outlets inventory + Warehouse stock ─── */
 const getAllOutletsView = async (req, res) => {
   try {
     const cacheKey = `${CACHE_KEY_PREFIX}inventory:all-outlets-view`;
     const cached = cache.get(cacheKey);
     if (cached) return res.json(cached);
 
-    const items = await prisma.outletInventory.findMany({
-      orderBy: [{ name: 'asc' }, { outletName: 'asc' }]
-    });
+    const [outletItems, warehouseItems] = await Promise.all([
+      prisma.outletInventory.findMany({
+        orderBy: [{ name: 'asc' }, { outletName: 'asc' }]
+      }),
+      prisma.inventoryItem.findMany({
+        orderBy: { name: 'asc' }
+      })
+    ]);
 
-    const result = items.map(item => ({
+    const result = outletItems.map(item => ({
       id: item.id,
       name: item.name,
       category: item.category,
@@ -130,6 +135,46 @@ const getAllOutletsView = async (req, res) => {
       barcode: item.barcode,
       outletName: item.outletName,
     }));
+
+    // Flatten warehouse InventoryItem records, expanding variant arrays
+    for (const item of warehouseItems) {
+      let variantDefs = null;
+      if (item.variants) {
+        const parsed = typeof item.variants === 'string' ? JSON.parse(item.variants) : item.variants;
+        if (Array.isArray(parsed) && parsed.length > 0) variantDefs = parsed;
+      }
+      if (variantDefs) {
+        for (const v of variantDefs) {
+          result.push({
+            id: item.id,
+            name: item.name,
+            category: item.category,
+            color: v.color || '',
+            size: v.size || '',
+            fabric: item.fabric || '',
+            stock: v.stock || 0,
+            price: v.price || item.price || 0,
+            imageUrl: item.imageUrl || '',
+            barcode: null,
+            outletName: 'Warehouse',
+          });
+        }
+      } else {
+        result.push({
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          color: item.color || '',
+          size: item.size || '',
+          fabric: item.fabric || '',
+          stock: item.stock || 0,
+          price: item.price || 0,
+          imageUrl: item.imageUrl || '',
+          barcode: null,
+          outletName: 'Warehouse',
+        });
+      }
+    }
 
     cache.set(cacheKey, result, cache.POS_TTL);
     res.json(result);
