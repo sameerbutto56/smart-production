@@ -151,8 +151,8 @@ const OutletPOS = () => {
   const [verifiedCloser, setVerifiedCloser] = useState(null);
 
   const employees = selectedOutlet === 'Jail Road'
-    ? { Junaid: 'J170', Ibrar: 'I170', Amir: 'A170' }
-    : { Junaid: 'J170', Sajawal: 'S170', Zain: 'Z170', Gull: 'G170' };
+    ? { Junaid: 'J170', Ibrar: 'I170', Aamir: 'A170' }
+    : { Junaid: 'J170', Sajawal: 'S170', Zain: 'Z170', Gul: 'G170' };
 
   // Balance Payment state
   const [balanceInvoices, setBalanceInvoices] = useState([]);
