@@ -108,6 +108,11 @@
 ### Blocked
 - (none)
 
+### Fixed This Session — Pay Balance / History modals not opening from Dashboard tab (and History/Returns tabs)
+- **Root cause**: `OutletPOS.jsx` had three early-return branches for `history`, `returns`, and `dashboard` tabs — none contained the modal JSX. All 9 modals (Product Config, Checkout Success, Print Options, Pay Remaining Balance, Balance History, Close Book, Auth, Payment Detail, Employee Detail) were placed only in the default (`pos`) return block. Even when `handlePayBalanceOpen`/`handleViewBalanceHistory` succeeded and set `showPayBalanceModal=true`, the modal never rendered because the JSX wasn't in the render tree for those tabs.
+- **Fix**: Extracted all modals into a `const sharedModals` variable defined before the early returns. Wrapped each early return in a React Fragment (`<>...</>`) and appended `{sharedModals}` at the end. Replaced the inline modal section (lines 2473–3015) in the default `pos` return with `{sharedModals}`. The modals now render for all four tabs (pos, history, returns, dashboard).
+- **Verification**: Build passes with 0 errors. Commit `d644db2`.
+
 ### Fixed This Session — Close Book Payment Summary Non-overlapping Rows
 - **Root cause**: `getBookSummary` had `totalCashSales = paymentSummary.CASH + paymentSummary.CASH_ONLINE_CASH` and `totalOnlineSales = paymentSummary.ONLINE + paymentSummary.CASH_ONLINE_ONLINE` — CASH_ONLINE amounts were double-counted when Cash+Online row was also displayed. Payment Summary Cash+Card+Online+CashOnline summed to > GrandTotal.
 - **Fix 1** (`getBookSummary` totals): Changed to pure method amounts — `totalCashSales = paymentSummary.CASH` (no CASH_ONLINE cash), `totalOnlineSales = paymentSummary.ONLINE` (no CASH_ONLINE online). Cash+Online row shows full CASH_ONLINE via `cashOnlineTotal`. Now Cash + Card + Online + CashOnline = GrandTotal exactly.
@@ -149,7 +154,7 @@
 - (none — all current work is complete)
 
 ## Critical Context
-- Latest commits: `124a8b0` — auto-reload stale chunk; `033af46` — Logo Design cart option; `76579d5` + `371b346` — Urdu labels; `3bad1ba` — Close Book sync + drill-down; `fcac5a7` — summary sync fix, employee auth for Open/Close, print register info
+- Latest commits: `124a8b0` — auto-reload stale chunk; `033af46` — Logo Design cart option; `76579d5` + `371b346` — Urdu labels; `3bad1ba` — Close Book sync + drill-down; `fcac5a7` — summary sync fix, employee auth for Open/Close, print register info; `d644db2` — Extract modals to sharedModals, fix Dashboard/History/Returns tabs missing modals
 - Build passes with 0 errors.
 - `isAccessory` uses substring matching (`catUpper.includes('COAT')`).
 - `calculateAndRecordRevenue` at line 2482 of `order.controller.js` is idempotent.

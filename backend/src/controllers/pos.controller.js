@@ -1360,12 +1360,15 @@ const getBalanceInvoices = async (req, res) => {
 const getInvoiceBalance = async (req, res) => {
   try {
     const { saleId } = req.params;
+    console.log('getInvoiceBalance called with saleId:', saleId);
+    if (!saleId) return res.status(400).json({ message: 'Missing saleId' });
     const sale = await prisma.posSale.findUnique({
       where: { id: saleId },
       include: {
         balancePayments: { orderBy: { paidAt: 'asc' } }
       }
     });
+    console.log('getInvoiceBalance: sale found:', !!sale);
     if (!sale) return res.status(404).json({ message: 'Invoice not found' });
 
     const totalPaidFromPayments = sale.balancePayments.reduce((sum, bp) => sum + bp.amountPaidNow, 0);
