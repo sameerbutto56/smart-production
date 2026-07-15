@@ -104,11 +104,7 @@ const getDispatchProfileOrders = async (req, res) => {
       where: {
         currentStage: 'DISPATCH',
         status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] },
-        OR: [
-          { city: { not: 'Lahore' } },
-          { city: null },
-          { forwardedBy: 'Khawar' }
-        ]
+        NOT: { AND: [{ city: 'Lahore' }, { forwardedBy: null }] }
       },
       select: baseSelect,
       orderBy: baseOrder
