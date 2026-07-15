@@ -91,11 +91,13 @@ const DispatchDashboard = () => {
     setLoading(true);
     try {
       const res = await api.get(dataUrl).then(r => r.data);
-      if (loggedIn && (isKhawar || isFaisal)) {
-        setData({ unseen: res.unseen || [], seen: res.seen || [], active: res.active || [], allOrders: [], counts: res.counts || { unseen: 0, seen: 0, active: 0, all: 0 } });
-      } else {
-        setData(res || { unseen: [], active: [], allOrders: [], counts: { unseen: 0, active: 0, all: 0 } });
-      }
+      setData({
+        unseen: res?.unseen || [],
+        seen: res?.seen || [],
+        active: res?.active || [],
+        allOrders: res?.allOrders || [],
+        counts: res?.counts || { unseen: 0, seen: 0, active: 0, all: 0 }
+      });
     } catch (err) {
       console.error('Failed to fetch:', err);
     } finally {
