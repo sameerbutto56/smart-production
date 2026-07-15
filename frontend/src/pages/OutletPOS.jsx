@@ -1190,10 +1190,12 @@ const OutletPOS = () => {
   }, [tab, dashboardRange, dashboardDateFrom, dashboardDateTo, balanceCollectionRange, balanceCollectionDateFrom, balanceCollectionDateTo, fetchBalanceInvoices, fetchBalanceCollections]);
 
   const handlePayBalanceOpen = async (invoice) => {
+    if (!invoice?.id) { console.error('PayBalanceOpen: invalid invoice', invoice); toast.error('Invalid invoice'); return; }
     setLoadingBalanceAction(true);
-    const loadingGuard = setTimeout(() => { setLoadingBalanceAction(false); }, 20000);
     try {
+      console.log('PayBalanceOpen: fetching', invoice.id);
       const res = await api.get(`/api/pos/balance-invoices/${invoice.id}`, { timeout: 15000 });
+      console.log('PayBalanceOpen: got response', res.data);
       setSelectedBalanceInvoice(res.data);
       setPayAmount(Math.ceil(res.data.remaining));
       setShowPayBalanceModal(true);
@@ -1201,7 +1203,6 @@ const OutletPOS = () => {
       console.error('PayBalanceOpen error:', e?.response?.data || e?.message || e);
       toast.error(e?.response?.data?.message || 'Failed to load invoice details');
     } finally {
-      clearTimeout(loadingGuard);
       setLoadingBalanceAction(false);
     }
   };
@@ -1271,8 +1272,8 @@ const OutletPOS = () => {
   };
 
   const handleViewBalanceHistory = async (invoice) => {
+    if (!invoice?.id) { console.error('ViewBalanceHistory: invalid invoice', invoice); toast.error('Invalid invoice'); return; }
     setLoadingBalanceAction(true);
-    const loadingGuard = setTimeout(() => { setLoadingBalanceAction(false); }, 20000);
     try {
       const detailRes = await api.get(`/api/pos/balance-invoices/${invoice.id}`, { timeout: 15000 });
       setSelectedBalanceInvoice(detailRes.data);
@@ -1282,1194 +1283,12 @@ const OutletPOS = () => {
       console.error('ViewBalanceHistory error:', e?.response?.data || e?.message || e);
       toast.error(e?.response?.data?.message || 'Failed to load payment history');
     } finally {
-      clearTimeout(loadingGuard);
       setLoadingBalanceAction(false);
     }
   };
 
-  if (tab === 'history') {
-    const filteredSales = receiptSearch
-      ? sales.filter(s => s.receiptNumber?.toLowerCase().includes(receiptSearch.toLowerCase()))
-      : sales;
-    return (
-      <div className="space-y-4 pb-20 px-4 overflow-y-auto h-full pt-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-black text-white flex items-center gap-2"><Clock size={24} className="text-purple-500" />Sales History</h1>
-          <div className="flex gap-2">
-            <button onClick={() => setTab('pos')} className="text-xs font-bold px-3 py-1.5 rounded-xl bg-gray-800 text-gray-400 hover:text-white"><ShoppingCart size={14} className="inline mr-1" />POS</button>
-            <button onClick={() => setTab('dashboard')} className="text-xs font-bold px-3 py-1.5 rounded-xl bg-gray-800 text-gray-400 hover:text-white"><BarChart3 size={14} className="inline mr-1" />Dashboard</button>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {['all', 'today', 'yesterday', 'week', 'month', 'year'].map(p => (
-            <button key={p} onClick={() => { setSalesRange(p); if (p !== 'custom') { setSalesDateFrom(''); setSalesDateTo(''); } }}
-              className={`text-[10px] font-black px-3 py-1.5 rounded-xl border transition-all ${salesRange === p ? 'bg-purple-600 text-white border-purple-500' : 'bg-gray-800 text-gray-400 border-gray-700 hover:text-white'}`}>
-              {p === 'all' ? 'All' : p === 'week' ? 'Weekly' : p === 'month' ? 'Monthly' : p === 'year' ? 'Yearly' : p.charAt(0).toUpperCase() + p.slice(1)}
-            </button>
-          ))}
-          <button onClick={() => setSalesRange('custom')}
-            className={`text-[10px] font-black px-3 py-1.5 rounded-xl border transition-all ${salesRange === 'custom' ? 'bg-purple-600 text-white border-purple-500' : 'bg-gray-800 text-gray-400 border-gray-700 hover:text-white'}`}>Custom</button>
-          {salesRange === 'custom' && (
-            <div className="flex items-center gap-1">
-              <input type="date" value={salesDateFrom} onChange={e => setSalesDateFrom(e.target.value)}
-                className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-[10px] font-bold text-white outline-none" />
-              <span className="text-gray-500 text-xs">→</span>
-              <input type="date" value={salesDateTo} onChange={e => setSalesDateTo(e.target.value)}
-                className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-[10px] font-bold text-white outline-none" />
-            </div>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1 max-w-md">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-            <input value={receiptSearch} onChange={e => setReceiptSearch(e.target.value)} placeholder="Search by bill / receipt number..."
-              className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl pl-9 pr-3 py-2.5 text-sm font-bold text-white placeholder-gray-500 focus:border-purple-500 outline-none" />
-          </div>
-          <button onClick={downloadExcel} className="bg-green-700 hover:bg-green-600 text-white font-bold px-3 py-2.5 rounded-xl text-[10px] flex items-center gap-1"><Download size={14} />Excel</button>
-        </div>
-        <div className="space-y-2">
-          {filteredSales.length === 0 && <p className="text-center text-gray-500 py-8 font-bold">{receiptSearch ? 'No sales match your search' : 'No sales yet'}</p>}
-          {filteredSales.map(s => (
-            <div key={s.id} className="bg-gray-800/60 rounded-2xl border border-gray-700/50 p-4">
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <p className="text-lg font-black text-white">{s.receiptNumber} {s.orderId && <span className="text-[9px] bg-purple-600 text-white px-2 py-0.5 rounded-full ml-1">ORDER</span>}</p>
-                  <p className="text-xs text-gray-500 font-bold">{new Date(s.createdAt).toLocaleString()} &bull; {s.outletName}</p>
-                </div>
-                <div className="text-right">
-                  {(() => {
-                    const refundTotal = (s.returns || []).reduce((sum, r) => sum + r.refundAmount, 0);
-                    const netAmount = s.grandTotal - refundTotal;
-                    const hasReturn = refundTotal > 0;
-                    return (
-                      <>
-                        <p className="text-lg font-black text-emerald-400">{formatCurrency(netAmount)}</p>
-                        {hasReturn && <p className="text-[9px] text-red-400 font-bold line-through opacity-60">{formatCurrency(s.grandTotal)}</p>}
-                        <p className="text-[10px] text-gray-500 font-bold">{formatPaymentMethod(s.paymentMethod)}</p>
-                      </>
-                    );
-                  })()}
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-1 mb-2">
-                {(s.items || []).map((item, idx) => (
-                  <span key={idx} className="text-[10px] font-bold text-gray-400 bg-gray-900 px-2 py-0.5 rounded-lg">
-                    {item.productName}{item.color ? ` (${item.color})` : ''}{item.size ? ` / ${item.size}` : ''} x{item.quantity} = {formatCurrency(item.lineTotal)}
-                  </span>
-                ))}
-              </div>
-              <div className="flex items-center justify-between text-xs text-gray-500 font-bold">
-                <span>Cashier: {s.cashierName || 'N/A'} {s.customerName ? `| Customer: ${s.customerName}` : ''}</span>
-                <div className="flex items-center gap-1">
-                  {!s.refundedAt && !s.faisalTake && (
-                    <button onClick={() => handleRefundInvoiceFromHistory(s)}
-                      className="text-red-400 hover:text-red-300 bg-red-500/10 px-3 py-1.5 rounded-xl"><RotateCcw size={12} className="inline mr-1" />Refund</button>
-                  )}
-                  {s.refundedAt && <span className="text-[10px] font-bold text-red-500 mr-2">Refunded</span>}
-                  <button onClick={() => { setPendingPrintSale(s); setPrintOpts({ invoice: true, gatePass: true }); setShowPrintOptions(true); }} className="text-purple-400 hover:text-purple-300 bg-purple-500/10 px-3 py-1.5 rounded-xl"><Printer size={12} className="inline mr-1" />Reprint</button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (tab === 'returns') {
-    return (
-      <div className="space-y-4 pb-20 px-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-black text-white flex items-center gap-2"><RotateCcw size={24} />Returns</h1>
-          <div className="flex gap-2">
-            <button onClick={() => setReturnTab('scan')} className={`text-xs font-bold px-3 py-1.5 rounded-xl ${returnTab === 'scan' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'}`}>Scan Barcode</button>
-            <button onClick={() => setReturnTab('invoice')} className={`text-xs font-bold px-3 py-1.5 rounded-xl ${returnTab === 'invoice' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'}`}>By Invoice</button>
-            <button onClick={() => setReturnTab('product')} className={`text-xs font-bold px-3 py-1.5 rounded-xl ${returnTab === 'product' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'}`}>Select Product</button>
-            <button onClick={() => setReturnTab('sales')} className={`text-xs font-bold px-3 py-1.5 rounded-xl ${returnTab === 'sales' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'}`}>From Sales</button>
-            <button onClick={() => setReturnTab('history')} className={`text-xs font-bold px-3 py-1.5 rounded-xl ${returnTab === 'history' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'}`}>History</button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="space-y-3">
-            {returnTab === 'scan' && (
-              <div className="glass p-4 rounded-2xl border-2 border-gray-700">
-                <h2 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Scan Barcode to Return</h2>
-                <div className="relative">
-                  <Barcode size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-                  <input value={returnBarcodeInput} onChange={e => setReturnBarcodeInput(e.target.value)}
-                    placeholder="Scan barcode..." autoFocus
-                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl pl-9 pr-3 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-red-500 outline-none" />
-                </div>
-                <p className="text-[10px] text-gray-600 mt-2">Scan a product barcode to add it to the return cart</p>
-              </div>
-            )}
-
-            {returnTab === 'invoice' && (
-              <div className="glass p-4 rounded-2xl border-2 border-gray-700">
-                <h2 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Return by Invoice Number</h2>
-                <div className="relative mb-3">
-                  <input value={invoiceReturnInput} onChange={e => setInvoiceReturnInput(e.target.value)}
-                    placeholder="Enter invoice / receipt number..." autoFocus
-                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-red-500 outline-none" />
-                </div>
-                <div className="flex gap-2 mb-3">
-                  <button onClick={handleInvoiceLookup} disabled={!invoiceReturnInput.trim() || invoiceReturnLoading}
-                    className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl text-xs">Search</button>
-                  <button onClick={() => { setInvoiceReturnInput(''); setLookedUpReturnSale(null); }}
-                    className="bg-gray-800 hover:bg-gray-700 text-gray-400 font-bold px-4 py-2.5 rounded-xl text-xs">Clear</button>
-                </div>
-                {invoiceReturnLoading && <p className="text-center text-gray-500 text-xs py-4">Searching...</p>}
-                {lookedUpReturnSale && (
-                  <div className="bg-gray-800/80 rounded-xl p-3 border border-red-800/50">
-                    <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <p className="text-sm font-bold text-white">{lookedUpReturnSale.receiptNumber}</p>
-                        <p className="text-[10px] text-gray-400">{lookedUpReturnSale.customerName || 'No customer'} &bull; {new Date(lookedUpReturnSale.createdAt).toLocaleDateString()}</p>
-                      </div>
-                      <span className="text-xs font-bold text-emerald-400">{formatCurrency(lookedUpReturnSale.grandTotal)}</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1 mb-3">
-                      {(lookedUpReturnSale.items || []).map((item, idx) => (
-                        <span key={idx} className="text-[9px] text-gray-500 bg-gray-900 px-1.5 py-0.5 rounded">
-                          {item.productName} {item.color ? `(${item.color})` : ''} x{item.quantity}
-                        </span>
-                      ))}
-                    </div>
-                    {lookedUpReturnSale.refundedAt ? (
-                      <p className="text-center text-[10px] font-bold text-red-500 py-2">Already Refunded</p>
-                    ) : (
-                      <button onClick={() => handleRefundInvoice(lookedUpReturnSale)}
-                        className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2">
-                        <RotateCcw size={14} /> Refund Full Invoice (-{formatCurrency(lookedUpReturnSale.grandTotal)})
-                      </button>
-                    )}
-                  </div>
-                )}
-                {!lookedUpReturnSale && !invoiceReturnLoading && (
-                  <p className="text-[10px] text-gray-600 mt-2">Enter an invoice number to load and refund the entire invoice.</p>
-                )}
-              </div>
-            )}
-
-            {returnTab === 'product' && (
-              <div className="glass p-4 rounded-2xl border-2 border-gray-700">
-                <h2 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Search Products to Return</h2>
-                <div className="relative mb-3">
-                  <input value={returnProductSearch} onChange={e => setReturnProductSearch(e.target.value)}
-                    placeholder="Search by product name or SKU..." autoFocus
-                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-red-500 outline-none" />
-                </div>
-                <div className="space-y-2 max-h-80 overflow-y-auto">
-                  {products
-                    .filter(p => p.name.toLowerCase().includes(returnProductSearch.toLowerCase()) || (p.barcode && p.barcode.toLowerCase().includes(returnProductSearch.toLowerCase())))
-                    .slice(0, 100)
-                    .map(p => {
-                      const alreadyInCart = returnCart.find(i => i.variantId === p.id);
-                      return (
-                        <div key={p.id} className="bg-gray-800/50 rounded-xl p-3 flex items-center gap-3">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-bold text-white truncate">{p.name}</p>
-                            <p className="text-[9px] text-gray-400">
-                              {[p.color, p.size].filter(Boolean).join(' • ') || 'Standard'}
-                              {p.stock != null && <span className="ml-2 text-gray-500">Stock: {p.stock}</span>}
-                              {p.barcode && <span className="ml-2 text-gray-600">#{p.barcode}</span>}
-                            </p>
-                            {p.price ? <p className="text-[10px] font-bold text-emerald-400">{formatCurrency(p.price)}</p> : null}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-gray-500">{formatCurrency(p.price)}</span>
-                            <button onClick={() => {
-                              const existing = returnCart.find(i => i.variantId === p.id);
-                              if (existing) {
-                                setReturnCart(returnCart.map(i => i.variantId === p.id ? { ...i, qty: i.qty + 1 } : i));
-                              } else {
-                                setReturnCart([...returnCart, {
-                                  variantId: p.id, productName: p.name,
-                                  color: p.color, size: p.size, barcode: p.barcode || '',
-                                  unitPrice: p.price || 0, qty: 1, maxQty: 9999
-                                }]);
-                              }
-                              toast.success(`${p.name} added to return cart`);
-                            }} className="text-[10px] font-bold text-red-400 hover:text-red-300 bg-gray-800 px-2 py-1 rounded-lg">
-                              {alreadyInCart ? `+${alreadyInCart.qty + 1}` : 'Add'}
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  {products.length === 0 && <p className="text-center text-gray-500 py-4 font-bold">No products available</p>}
-                  {returnProductSearch && products.filter(p => p.name.toLowerCase().includes(returnProductSearch.toLowerCase())).length === 0 && (
-                    <p className="text-center text-gray-500 py-4 font-bold">No matching products</p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {returnTab === 'sales' && (
-              <div className="glass p-4 rounded-2xl border-2 border-gray-700">
-                <h2 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Recent Sales</h2>
-                <div className="space-y-2 max-h-80 overflow-y-auto">
-                  {sales.slice(0, 30).map(s => (
-                    <div key={s.id} className="bg-gray-800/50 rounded-xl p-3">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-xs font-bold text-white">{s.receiptNumber} {s.orderId && <span className="text-[8px] bg-purple-600 text-white px-1 py-0.5 rounded-full ml-1">ORD</span>}</p>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-gray-500">{formatCurrency(s.grandTotal)}</span>
-                          <button onClick={() => {
-                            s.items.forEach(item => {
-                              const existing = returnCart.find(i => i.productName === item.productName && i.color === item.color && i.size === item.size);
-                              if (existing) {
-                                setReturnCart(returnCart.map(i => i.productName === item.productName && i.color === item.color && i.size === item.size ? { ...i, qty: i.qty + 1 } : i));
-                              } else {
-                                setReturnCart([...returnCart, {
-                                  variantId: item.outletVariantId, productName: item.productName,
-                                  color: item.color, size: item.size, barcode: '',
-                                  unitPrice: item.unitPrice, qty: 1, maxQty: 99,
-                                  saleId: s.id
-                                }]);
-                              }
-                            });
-                            setReturnTab('scan');
-                            toast.success('Sale items added to return cart');
-                          }} className="text-[10px] font-bold text-red-400 hover:text-red-300 bg-gray-800 px-2 py-1 rounded-lg">Return All</button>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {(s.items || []).map((item, idx) => (
-                          <span key={idx} className="text-[9px] text-gray-500 bg-gray-900 px-1.5 py-0.5 rounded">
-                            {item.productName} {item.color ? `(${item.color})` : ''} x{item.quantity}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                  {sales.length === 0 && <p className="text-center text-gray-500 py-4 font-bold">No sales yet</p>}
-                </div>
-              </div>
-            )}
-
-            {returnTab === 'history' && (
-              <div className="glass p-4 rounded-2xl border-2 border-gray-700">
-                <h2 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Return History</h2>
-                <div className="space-y-2 max-h-80 overflow-y-auto">
-                  {returns.map(r => (
-                    <div key={r.id} className="flex items-center justify-between bg-red-900/10 rounded-xl px-3 py-2 border border-red-900/20">
-                      <div>
-                        <p className="text-xs font-bold text-white">{r._variant?.product?.name || 'Unknown'} {r._variant?.color && `(${r._variant.color})`}</p>
-                        <p className="text-[10px] text-gray-500">Qty: {r.quantity} &bull; {new Date(r.createdAt).toLocaleString()}</p>
-                      </div>
-                      <p className="text-xs font-bold text-red-400">-{formatCurrency(r.refundAmount)}</p>
-                    </div>
-                  ))}
-                  {returns.length === 0 && <p className="text-center text-gray-500 font-bold py-4">No returns</p>}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="glass p-4 rounded-2xl border-2 border-gray-700">
-            <h2 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Return Cart ({returnCart.reduce((s, i) => s + i.qty, 0)} items)</h2>
-            <div className="space-y-2 max-h-60 overflow-y-auto mb-3">
-              {returnCart.map((item, i) => (
-                <div key={i} className="flex items-center gap-2 bg-gray-800/60 rounded-xl px-3 py-2 border border-gray-700/50">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-white truncate">{item.productName}</p>
-                    <p className="text-[9px] text-gray-500">{[item.color, item.size].filter(Boolean).join(' • ') || 'Standard'}</p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => {
-                      const copy = [...returnCart];
-                      if (copy[i].qty <= 1) { copy.splice(i, 1); } else { copy[i].qty--; }
-                      setReturnCart(copy);
-                    }} className="p-0.5 text-gray-500 hover:text-white"><Minus size={10} /></button>
-                    <span className="text-xs font-bold text-white min-w-[16px] text-center">{item.qty}</span>
-                    <button onClick={() => {
-                      const copy = [...returnCart];
-                      if (copy[i].qty < copy[i].maxQty) copy[i].qty++;
-                      setReturnCart(copy);
-                    }} className="p-0.5 text-gray-500 hover:text-white"><Plus size={10} /></button>
-                  </div>
-                  <p className="text-xs font-bold text-red-400 min-w-[60px] text-right">-{formatCurrency(item.unitPrice * item.qty)}</p>
-                  <button onClick={() => setReturnCart(returnCart.filter((_, idx) => idx !== i))} className="text-gray-600 hover:text-red-400"><X size={12} /></button>
-                </div>
-              ))}
-              {returnCart.length === 0 && <p className="text-center text-gray-500 py-4 text-xs font-bold">No items to return</p>}
-            </div>
-            <div className="mb-3">
-              <label className="text-xs font-bold text-gray-400 block mb-1">Return Reason</label>
-              <input value={returnReason} onChange={e => setReturnReason(e.target.value)}
-                className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-red-500 outline-none" />
-            </div>
-            <div className="mb-3">
-              <label className="text-xs font-bold text-gray-400 block mb-1">Refund Payment Method</label>
-              <div className="flex gap-1.5">
-                {['CASH', 'CARD', 'ONLINE'].map(m => (
-                  <button key={m} onClick={() => setRefundPaymentMethod(m)}
-                    className={`flex-1 py-2 rounded-xl text-xs font-black border-2 ${refundPaymentMethod === m ? 'border-red-500 bg-red-600/20 text-white' : 'border-gray-700 text-gray-500 hover:border-gray-500'}`}>
-                    {m}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="flex items-center justify-between text-sm mb-3">
-              <span className="text-gray-400 font-bold">Total Refund</span>
-              <span className="text-lg font-black text-red-400">-{formatCurrency(returnCart.reduce((s, i) => s + i.unitPrice * i.qty, 0))}</span>
-            </div>
-            <button onClick={processReturns} disabled={returnCart.length === 0 || returnLoading}
-              className="w-full bg-red-600 hover:bg-red-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-black py-3 rounded-xl text-sm">
-              {returnLoading ? 'Processing...' : `Process ${returnCart.reduce((s, i) => s + i.qty, 0)} Return(s)`}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (tab === 'dashboard') {
-    const kpis = dashboard ? [
-      { label: 'Total Sales', value: formatCurrency(dashboard.totalSales), sub: `${dashboard.totalOrders} orders`, color: 'from-blue-600 to-indigo-600', icon: DollarSign },
-      { label: 'Net Revenue', value: formatCurrency(dashboard.netRevenue), sub: `Refunds: ${formatCurrency(dashboard.totalSales - dashboard.netRevenue)}`, color: 'from-emerald-600 to-teal-600', icon: TrendingUp },
-      { label: 'Total Discount', value: formatCurrency(dashboard.totalDiscount), sub: 'Discounts given', color: 'from-amber-600 to-orange-600', icon: Tag },
-      { label: 'Returned Orders', value: dashboard.returnedOrders, sub: 'Items returned', color: 'from-red-600 to-rose-600', icon: RotateCcw },
-      { label: 'Completed Orders', value: dashboard.completedOrders, sub: 'POS + Standard Completed', color: 'from-purple-600 to-violet-600', icon: CheckCircle2 },
-      { label: 'Pending Orders', value: dashboard.pendingOrders, sub: 'Awaiting production/dispatch', color: 'from-cyan-600 to-blue-600', icon: Clock },
-      { label: 'Cancelled Orders', value: dashboard.cancelledOrders, sub: 'Rejected / Cancelled', color: 'from-gray-600 to-slate-600', icon: X },
-    ] : [];
-
-    const datePresets = [
-      { label: 'All Time', value: 'all' },
-      { label: 'Today', value: 'today' },
-      { label: 'Yesterday', value: 'yesterday' },
-      { label: 'Last 7 Days', value: 'week' },
-      { label: 'Last 30 Days', value: 'month' },
-      { label: 'This Year', value: 'year' },
-      { label: 'Custom Range', value: 'custom' }
-    ];
-
-    return (
-      <div className="space-y-6 pb-20 px-4 overflow-y-auto h-full pt-4">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-black text-white flex items-center gap-2">
-              <BarChart3 size={24} className="text-blue-500" />
-              Sales & Performance Dashboard
-            </h1>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-0.5">
-              Outlet: {selectedOutlet}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={downloadDashboardExcel} className="bg-green-700 hover:bg-green-600 text-white font-bold py-2 px-3 rounded-xl text-xs flex items-center gap-1.5"><Download size={14} />Excel</button>
-            <button onClick={() => setTab('pos')} className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center gap-1.5">
-              <ShoppingCart size={14} />
-              Back to POS Register
-            </button>
-          </div>
-        </div>
-
-        {/* Date Filters */}
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 space-y-4">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-black text-gray-500 uppercase tracking-wider mr-2">Select Range:</span>
-            {datePresets.map(preset => (
-              <button
-                key={preset.value}
-                onClick={() => {
-                  setDashboardRange(preset.value);
-                  if (preset.value !== 'custom') {
-                    setDashboardDateFrom('');
-                    setDashboardDateTo('');
-                  }
-                }}
-                className={`text-[10px] font-black px-3.5 py-2 rounded-xl border transition-all ${
-                  dashboardRange === preset.value
-                    ? 'bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-900/30'
-                    : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-500 hover:text-white'
-                }`}
-              >
-                {preset.label}
-              </button>
-            ))}
-          </div>
-
-          {dashboardRange === 'custom' && (
-            <div className="flex items-center gap-3 bg-gray-950 p-3 rounded-xl border border-gray-800 w-fit">
-              <div className="flex items-center gap-1.5 text-xs text-gray-400">
-                <Calendar size={14} />
-                <span>From:</span>
-              </div>
-              <input
-                type="date"
-                value={dashboardDateFrom}
-                onChange={e => setDashboardDateFrom(e.target.value)}
-                className="bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-white outline-none focus:border-blue-500"
-              />
-              <span className="text-xs text-gray-500 font-bold">&rarr;</span>
-              <div className="flex items-center gap-1.5 text-xs text-gray-400">
-                <Calendar size={14} />
-                <span>To:</span>
-              </div>
-              <input
-                type="date"
-                value={dashboardDateTo}
-                onChange={e => setDashboardDateTo(e.target.value)}
-                className="bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-white outline-none focus:border-blue-500"
-              />
-              <button
-                onClick={() => {
-                  invalidateKey(dashboardKey);
-                  refreshDashboard();
-                }}
-                className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs"
-              >
-                Apply
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Dashboard statistics */}
-        {dashboardLoading ? (
-          <div className="py-20 flex justify-center items-center">
-            <RefreshCw className="animate-spin text-blue-500" size={32} />
-          </div>
-        ) : dashboardError ? (
-          <div className="py-20 flex flex-col items-center justify-center text-center">
-            <p className="text-red-400 font-black text-sm mb-2">Failed to load dashboard</p>
-            <p className="text-gray-500 text-xs mb-4 max-w-md">{dashboardError.message}</p>
-            <button onClick={refreshDashboard} className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded-lg text-xs">
-              Retry
-            </button>
-          </div>
-        ) : dashboard ? (
-          <div className="space-y-6">
-            {/* KPIs Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {kpis.map((kpi, i) => {
-                const Icon = kpi.icon;
-                return (
-                  <div key={i} className={`bg-gradient-to-br ${kpi.color} p-[1px] rounded-2xl shadow-lg`}>
-                    <div className="bg-gray-950/90 rounded-2xl p-4 h-full flex flex-col justify-between">
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{kpi.label}</span>
-                        <Icon size={14} className="text-gray-500" />
-                      </div>
-                      <div>
-                        <p className="text-xl md:text-2xl font-black text-white">{kpi.value}</p>
-                        <p className="text-[10px] text-gray-500 font-bold mt-1">{kpi.sub}</p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Balance Collection Card */}
-            <div className="bg-gradient-to-br from-violet-600 to-indigo-600 p-[1px] rounded-2xl shadow-lg">
-              <div className="bg-gray-950/90 rounded-2xl p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest flex items-center gap-1.5">
-                    <DollarSign size={14} className="text-violet-400" />
-                    Balance Collections
-                  </h3>
-                  <div className="flex gap-1">
-                    {['today', 'yesterday', 'month', 'custom'].map(r => (
-                      <button key={r} onClick={() => setBalanceCollectionRange(r)}
-                        className={`text-[9px] font-bold px-2 py-1 rounded-lg transition-all ${balanceCollectionRange === r ? 'bg-violet-600 text-white' : 'bg-gray-800 text-gray-500 hover:text-white'}`}>
-                        {r === 'today' ? 'Today' : r === 'yesterday' ? 'Yest' : r === 'month' ? 'Month' : r.charAt(0).toUpperCase() + r.slice(1)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {balanceCollectionRange === 'custom' && (
-                  <div className="flex items-center gap-2 mb-3">
-                    <input type="date" value={balanceCollectionDateFrom}
-                      onChange={e => setBalanceCollectionDateFrom(e.target.value)}
-                      className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-[10px] text-white flex-1" />
-                    <span className="text-gray-500 text-[9px]">to</span>
-                    <input type="date" value={balanceCollectionDateTo}
-                      onChange={e => setBalanceCollectionDateTo(e.target.value)}
-                      className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-[10px] text-white flex-1" />
-                  </div>
-                )}
-                {balanceCollectionData ? (
-                  <div className="flex items-end justify-between">
-                    <div>
-                      <p className="text-2xl font-black text-white">{formatCurrency(balanceCollectionData.totalCollected)}</p>
-                      <p className="text-[10px] text-gray-400 font-bold mt-1">{balanceCollectionData.count} payment{balanceCollectionData.count !== 1 ? 's' : ''}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] text-gray-500">Collected on:</p>
-                      <p className="text-xs font-bold text-violet-400">
-                        {balanceCollectionRange === 'today' ? 'Today' :
-                         balanceCollectionRange === 'yesterday' ? 'Yesterday' :
-                         balanceCollectionRange === 'month' ? 'This Month' : 'Custom'}
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="h-12 flex items-center">
-                    <RefreshCw className="animate-spin text-gray-600" size={20} />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Payment Method Breakdown — always show all 3 */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {['CASH', 'CARD', 'ONLINE'].map(method => {
-                const pm = dashboard.paymentBreakdown?.find(p => p.method === method) || { method, gross: 0, returns: 0, net: 0 };
-                const icons = { CASH: DollarSign, ONLINE: Globe, CARD: CreditCard };
-                const colors = { CASH: 'from-emerald-600 to-green-600', ONLINE: 'from-blue-600 to-indigo-600', CARD: 'from-purple-600 to-violet-600' };
-                const bgColors = { CASH: 'text-emerald-400', ONLINE: 'text-blue-400', CARD: 'text-purple-400' };
-                const Icon = icons[pm.method] || DollarSign;
-                return (
-                  <div key={pm.method} className={`bg-gradient-to-br ${colors[pm.method] || 'from-gray-600 to-slate-600'} p-[1px] rounded-2xl shadow-lg`}>
-                    <div className="bg-gray-950/90 rounded-2xl p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
-                          <Icon size={14} className={bgColors[pm.method] || 'text-gray-400'} />
-                          {pm.method}
-                        </span>
-                      </div>
-                      <p className="text-lg font-black text-white">{formatCurrency(pm.net)}</p>
-                      <div className="flex items-center gap-3 mt-1.5 text-[10px]">
-                        <span className="text-emerald-400 font-bold">Gross: {formatCurrency(pm.gross)}</span>
-                        {pm.returns > 0 && (
-                          <span className="text-red-400 font-bold">Returns: -{formatCurrency(pm.returns)}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Peak day & comparisons */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col justify-between">
-                <div>
-                  <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                    <Award size={14} className="text-amber-500" />
-                    Highest Sales Day
-                  </h3>
-                  <p className="text-xl font-black text-white">{formatCurrency(dashboard.highestSalesDay?.amount || 0)}</p>
-                  <p className="text-[10px] text-gray-500 font-bold mt-1">Date: {dashboard.highestSalesDay?.date || 'N/A'}</p>
-                </div>
-              </div>
-
-              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col justify-between">
-                <div>
-                  <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                    <Award size={14} className="text-blue-500" />
-                    Highest Orders Day
-                  </h3>
-                  <p className="text-xl font-black text-white">{dashboard.highestOrdersDay?.count || 0} Orders</p>
-                  <p className="text-[10px] text-gray-500 font-bold mt-1">Date: {dashboard.highestOrdersDay?.date || 'N/A'}</p>
-                </div>
-              </div>
-
-              {/* Best branch performance comparison (if viewing 'all' admin mode) */}
-              {dashboard.branchPerformance && dashboard.branchPerformance.length > 0 && (
-                <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
-                  <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Branch Comparison</h3>
-                  <div className="space-y-2">
-                    {dashboard.branchPerformance.map((bp, idx) => (
-                      <div key={bp.branch} className="flex items-center justify-between text-xs border-b border-gray-800 pb-1.5">
-                        <span className="font-bold text-gray-300">{idx + 1}. {bp.branch}</span>
-                        <span className="font-black text-emerald-400">{formatCurrency(bp.revenue)} ({bp.orders} ord)</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Sales Chart */}
-            {dashboard.reportData && dashboard.reportData.length > 0 && (
-              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
-                <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-4">Sales Trend</h3>
-                <div className="h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={dashboard.reportData}>
-                      <defs>
-                        <linearGradient id="salesGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                      <XAxis dataKey="date" stroke="#9ca3af" fontSize={10} tickLine={false} />
-                      <YAxis stroke="#9ca3af" fontSize={10} tickLine={false} tickFormatter={(v) => `₨${(v/1000)}k`} />
-                      <Tooltip contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', borderRadius: '12px' }} formatter={(v) => formatCurrency(v)} labelStyle={{ color: '#fff', fontWeight: 'bold' }} />
-                      <Area type="monotone" dataKey="sales" name="Sales" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#salesGrad)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            )}
-
-            {/* Best Selling Products */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
-                <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Top Selling Products</h3>
-                <div className="space-y-2">
-                  {dashboard.bestSellingProducts && dashboard.bestSellingProducts.map((p, idx) => (
-                    <div key={idx} className="flex items-center justify-between text-xs bg-gray-950 p-2.5 rounded-xl border border-gray-800">
-                      <span className="font-black text-white">{p.name}</span>
-                      <span className="font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-lg">{p.qty} sold</span>
-                    </div>
-                  ))}
-                  {(!dashboard.bestSellingProducts || dashboard.bestSellingProducts.length === 0) && (
-                    <p className="text-center text-gray-500 py-4 font-bold">No product sales data in range</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Remaining Balance — unpaid/partially-paid invoices */}
-              <div className="bg-gray-900 border border-amber-800/50 rounded-2xl p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xs font-black text-amber-400 uppercase tracking-widest flex items-center gap-1.5">
-                    <CreditCard size={14} />
-                    Remaining Balance
-                  </h3>
-                  <span className="text-[10px] font-bold text-gray-500 bg-gray-800 px-2 py-0.5 rounded-lg">{balanceInvoices.length} invoice{balanceInvoices.length !== 1 ? 's' : ''}</span>
-                </div>
-                {balanceInvoicesLoading ? (
-                  <div className="flex justify-center py-8">
-                    <RefreshCw className="animate-spin text-gray-500" size={20} />
-                  </div>
-                ) : balanceInvoices.length > 0 ? (
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {balanceInvoices.map(inv => (
-                    <div key={inv.id} className="bg-gray-950 p-2.5 rounded-xl border border-gray-800 text-xs">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-black text-white">{inv.receiptNumber}</p>
-                          <p className="text-[10px] text-gray-500">{inv.customerName || 'No name'} &bull; {formatPaymentMethod(inv.paymentMethod)}</p>
-                        </div>
-                        <div className="text-right space-y-0.5">
-                          <p className="font-black text-amber-400">Due: {formatCurrency(inv.remaining)}</p>
-                          <p className="text-[9px] text-gray-500">Total: {formatCurrency(inv.grandTotal)}</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-1.5 mt-2">
-                        <button onClick={() => handlePayBalanceOpen(inv)} disabled={loadingBalanceAction}
-                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-1.5 rounded-lg text-[10px] transition-all">
-                          {loadingBalanceAction ? 'Loading...' : `Pay Remaining ₨${inv.remaining.toLocaleString()}`}
-                        </button>
-                        <button onClick={() => handleViewBalanceHistory(inv)} disabled={loadingBalanceAction}
-                          className="px-2 py-1.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-400 rounded-lg text-[10px] transition-all">
-                          {loadingBalanceAction ? 'Loading...' : 'History'}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                ) : (
-                  <p className="text-center text-gray-500 font-bold py-4 text-xs">No outstanding balances</p>
-                )}
-              </div>
-
-              {/* Faisal Takes — products taken by Faisal (not sales) */}
-              <div className="bg-gray-900 border border-amber-800/50 rounded-2xl p-4">
-                <h3 className="text-xs font-black text-amber-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                  <Package size={14} />
-                  Faisal Takes
-                </h3>
-                {dashboard.faisalTakes && dashboard.faisalTakes.length > 0 ? (
-                <div className="space-y-2 max-h-72 overflow-y-auto">
-                  {dashboard.faisalTakes.map(ft => (
-                    <div key={ft.id} className="bg-gray-950 p-2.5 rounded-xl border border-gray-800 text-xs">
-                      <div className="flex items-center justify-between">
-                        <p className="font-black text-amber-300">{ft.cashierName || 'Faisal'}</p>
-                        <p className="text-[9px] text-gray-500">{new Date(ft.faisalTakenAt || ft.createdAt).toLocaleString()}</p>
-                      </div>
-                      <div className="mt-1.5 space-y-0.5">
-                        {ft.items && ft.items.map((item, idx) => (
-                          <div key={idx} className="flex items-center justify-between text-[10px] text-gray-400">
-                            <span>{item.productName} {item.size ? `(${item.size})` : ''} {item.color ? `[${item.color}]` : ''}</span>
-                            <span className="font-bold text-white">x{item.quantity}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                ) : (
-                  <p className="text-center text-gray-500 font-bold py-4 text-xs">No Faisal Take records in this range</p>
-                )}
-              </div>
-
-            {/* Recent Sales list */}
-              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
-                <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Recent Sales Transactions</h3>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {sales.slice(0, 5).map(s => (
-                    <div key={s.id} className="flex items-center justify-between bg-gray-950 p-2.5 rounded-xl border border-gray-800 text-xs">
-                      <div>
-                        <p className="font-black text-white">{s.receiptNumber} {s.orderId && <span className="text-[8px] bg-purple-600 text-white px-1 py-0.5 rounded-full ml-1">ORD</span>}</p>
-                        <p className="text-[10px] text-gray-500">{new Date(s.createdAt).toLocaleDateString()} &bull; {s.items?.length || 0} items</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-black text-emerald-400">{formatCurrency(s.grandTotal)}</p>
-                        <p className="text-[10px] text-gray-500">{formatPaymentMethod(s.paymentMethod)}</p>
-                      </div>
-                    </div>
-                  ))}
-                  {sales.length === 0 && <p className="text-center text-gray-500 font-bold py-4">No recent sales</p>}
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-
-  return (
-    <div className="h-[calc(100vh-80px)] flex flex-col">
-      {/* Top Bar */}
-      <div className="flex items-center gap-3 px-4 py-2 bg-gray-900 border-b-2 border-gray-800 flex-shrink-0">
-        <button onClick={() => setTab('pos')} className={`text-xs font-bold px-3 py-2 rounded-xl ${tab === 'pos' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}><ShoppingCart size={14} className="inline mr-1" />POS</button>
-        <button onClick={() => setTab('dashboard')} className={`text-xs font-bold px-3 py-2 rounded-xl ${tab === 'dashboard' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}><BarChart3 size={14} className="inline mr-1" />Dashboard</button>
-        <button onClick={() => setTab('returns')} className={`text-xs font-bold px-3 py-2 rounded-xl ${tab === 'returns' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}><RotateCcw size={14} className="inline mr-1" />Returns</button>
-        <button onClick={() => setTab('history')} className={`text-xs font-bold px-3 py-2 rounded-xl ${tab === 'history' ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}><Clock size={14} className="inline mr-1" />History</button>
-        <button onClick={() => {
-          invalidateKey(productsKey);
-          invalidateKey(dashboardKey);
-          invalidateKey(salesKey);
-          invalidateKey(returnsKey);
-          refreshProducts();
-          refreshDashboard();
-          refreshSales();
-          refreshReturns();
-        }} className="text-xs font-bold px-2 py-2 rounded-xl bg-gray-800 text-gray-400 hover:text-white" title="Refresh data"><RefreshCw size={14} className={`inline ${productsLoading ? 'animate-spin' : ''}`} /></button>
-        <div className="relative flex-1 max-w-md">
-          <Barcode size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-          <input ref={barcodeRef} value={barcodeInput} onChange={e => setBarcodeInput(e.target.value)} placeholder="Scan barcode..."
-            className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
-        </div>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..."
-          className="flex-1 bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none max-w-xs" />
-        <div className="flex items-center gap-1">
-          <span className="text-xs font-bold text-gray-500 mr-1">Pay via:</span>
-          <div className="flex gap-1">
-            {['CASH','CARD','ONLINE','CASH_ONLINE'].map(m => (
-              <button key={m} onClick={() => setPaymentMethod(m)}
-                className={`px-2 py-1.5 rounded-lg text-[10px] font-black border-2 ${paymentMethod === m ? (m === 'CARD' ? 'border-purple-500 bg-purple-600/20 text-purple-300' : m === 'CASH_ONLINE' ? 'border-amber-500 bg-amber-600/20 text-amber-300' : m === 'ONLINE' ? 'border-blue-500 bg-blue-600/20 text-blue-300' : 'border-emerald-500 bg-emerald-600/20 text-emerald-300') : 'border-gray-700 text-gray-500 hover:border-gray-500'}`}>
-                {m.replace('_', ' + ')}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* POS Branch Selector Tabs (Admin only) */}
-      {user?.role !== 'OUTLET' && (
-        <div className="flex gap-1.5 px-4 py-2 bg-gray-950 border-b border-gray-800 overflow-x-auto flex-shrink-0">
-          <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center mr-2">POS Branch:</span>
-          {['Johar Town', 'Jail Road', 'Abbottabad'].map(outlet => {
-            const isActive = outlet === selectedOutlet;
-            return (
-              <button key={outlet} onClick={() => setSelectedOutlet(outlet)}
-                className={`text-[9px] font-black px-3.5 py-1.5 rounded-lg uppercase tracking-wider transition-all ${
-                  isActive ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
-                }`}>
-                {outlet}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Book Status Bar */}
-      {tab === 'pos' && (
-        <div className={`flex items-center justify-between px-4 py-1.5 flex-shrink-0 border-b ${currentBook ? 'bg-emerald-900/30 border-emerald-800/50' : 'bg-red-900/20 border-red-800/30'}`}>
-          <div className="flex items-center gap-2">
-            {currentBook ? (
-              <><BookOpen size={14} className="text-emerald-400" /><span className="text-[11px] font-bold text-emerald-300">Register Open</span><span className="text-[10px] text-emerald-500/70">since {new Date(currentBook.openedAt).toLocaleString()}</span></>
-            ) : (
-              <><Book size={14} className="text-red-400" /><span className="text-[11px] font-bold text-red-300">No Open Register</span></>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {currentBook ? (
-              <button onClick={() => { setAuthMode('close'); setShowAuthModal(true); }} className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white">Close Register</button>
-            ) : (
-              <button onClick={() => { setAuthMode('open'); setShowAuthModal(true); }} disabled={openBookLoading} className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white">
-                {openBookLoading ? 'Opening...' : 'Open Register'}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 9 PM Reminder */}
-      {showBookReminder && currentBook && (
-        <div className="bg-amber-900/30 border-b border-amber-700/50 px-4 py-2 flex items-center justify-between flex-shrink-0">
-          <span className="text-xs font-bold text-amber-300">Time to Close the Register</span>
-          <button onClick={() => setShowBookReminder(false)} className="text-[10px] text-amber-400 hover:text-amber-300 underline">Dismiss</button>
-        </div>
-      )}
-
-      {/* Locked state — no open book */}
-      {tab === 'pos' && !currentBook && !bookLoading && (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center max-w-sm px-6">
-            <div className="mx-auto w-20 h-20 bg-emerald-900/30 rounded-full flex items-center justify-center mb-6 border-2 border-emerald-700/50">
-              <BookOpen size={40} className="text-emerald-400" />
-            </div>
-            <h2 className="text-2xl font-black text-white mb-2">Open Register Required</h2>
-            <p className="text-sm text-gray-400 mb-6">You must open the register before using the POS. This ensures all transactions are recorded in the current session.</p>
-            {bookLoading ? (
-              <div className="text-gray-500 font-bold text-sm">Checking book status...</div>
-            ) : (
-              <button onClick={() => { setAuthMode('open'); setShowAuthModal(true); }} disabled={openBookLoading}
-                className="px-8 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black text-lg flex items-center gap-3 mx-auto transition-all active:scale-95">
-                <BookOpen size={20} />
-                {openBookLoading ? 'Opening...' : 'Open Register'}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Normal POS content — book is open or other tabs */}
-      {(tab !== 'pos' || currentBook || bookLoading) && (
-      <div className="flex flex-1 overflow-hidden">
-        {/* Product Grid */}
-        <div className="flex-1 overflow-y-auto p-3">
-          {/* Categories (from warehouse) */}
-          <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1 flex-shrink-0">
-            <button onClick={() => setActiveCategory('')}
-              className={`text-[10px] font-black px-3 py-1.5 rounded-lg whitespace-nowrap uppercase tracking-wider ${!activeCategory ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
-              All
-            </button>
-            {categories.map(c => (
-              <button key={c} onClick={() => setActiveCategory(c)}
-                className={`text-[10px] font-black px-3 py-1.5 rounded-lg whitespace-nowrap uppercase tracking-wider ${activeCategory === c ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
-                {c}
-              </button>
-            ))}
-          </div>
-
-          {/* Products */}
-          {productsLoading && filtered.length === 0 ? (
-            <div className="flex items-center justify-center h-64 text-gray-600">
-              <RefreshCw size={24} className="animate-spin mr-2" />
-              <span className="font-bold">Loading products...</span>
-            </div>
-          ) : (
-          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
-            {groupedProducts.map(g => {
-              const maxShow = 3;
-              const colorsMore = g.colors.length > maxShow ? g.colors.length - maxShow : 0;
-              const sizesMore = g.sizes.length > maxShow ? g.sizes.length - maxShow : 0;
-              const colorLabel = g.colors.length > 0
-                ? (colorsMore > 0 ? g.colors.slice(0, maxShow).join(', ') + ` +${colorsMore}` : g.colors.join(', '))
-                : null;
-              const sizeLabel = g.sizes.length > 0
-                ? (sizesMore > 0 ? g.sizes.slice(0, maxShow).join(', ') + ` +${sizesMore}` : g.sizes.join(', '))
-                : null;
-              const isOutOfStock = (g.totalStock != null && g.totalStock <= 0) || (g.variants.length === 1 && g.variants[0].stock != null && g.variants[0].stock <= 0);
-              return (
-                <button key={g.id} onClick={() => handleAddToCart(g.variants.length === 1 ? g.variants[0] : g)}
-                  disabled={isOutOfStock}
-                  className={`glass bg-gray-800/80 rounded-xl border-2 p-2 text-left transition-all active:scale-95 ${
-                    isOutOfStock
-                      ? 'border-red-900/30 opacity-50 cursor-not-allowed'
-                      : 'border-gray-700/50 hover:border-blue-500/50'
-                  }`}>
-                  {g.imageUrl ? (
-                    <img src={g.imageUrl} className="w-full h-20 object-cover rounded-lg mb-1.5" />
-                  ) : (
-                    <div className="w-full h-20 bg-gray-800 rounded-lg mb-1.5 flex items-center justify-center">
-                      <Package size={24} className="text-gray-600" />
-                    </div>
-                  )}
-                  <p className="text-[10px] font-bold text-white leading-tight line-clamp-2">{g.name}</p>
-                  {g.variants.length > 1 && (
-                    <span className="inline-block text-[7px] font-bold text-blue-400 bg-blue-900/30 rounded-full px-1.5 py-0.5 mb-0.5">{g.variants.length} variants</span>
-                  )}
-                  {(colorLabel || sizeLabel) && (
-                    <p className="text-[8px] text-gray-500 font-bold truncate">{[colorLabel, sizeLabel].filter(Boolean).join(' | ')}</p>
-                  )}
-                  <p className="text-xs font-black text-emerald-400 mt-0.5">{formatCurrency(g.price)}</p>
-                  <p className={`text-[8px] font-bold ${isOutOfStock ? 'text-red-400' : 'text-gray-600'}`}>{isOutOfStock ? 'OUT OF STOCK' : `Stock: ${g.totalStock}`}</p>
-                </button>
-              );
-            })}
-          </div>
-          )}
-        </div>
-
-        {/* Cart */}
-        <div className="w-96 bg-gray-900/80 border-l-2 border-gray-800 flex flex-col flex-shrink-0 h-full">
-          <div className="p-3 border-b-2 border-gray-800 flex items-center justify-between flex-shrink-0">
-            <h2 className="text-sm font-black text-white flex items-center gap-2"><ShoppingCart size={16} />Cart ({cart.length})</h2>
-            {cart.length > 0 && (
-              <button onClick={() => { if (window.confirm('Clear cart?')) { setCart([]); setDiscountPct(0); setDiscountFixed(0); } }} className="text-[10px] font-bold text-red-400 hover:text-red-300"><Trash2 size={12} className="inline mr-1" />Clear</button>
-            )}
-          </div>
-
-          {/* Faisal Take toggle */}
-          <div className="px-3 pt-1 pb-0 flex-shrink-0">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <div onClick={() => { if (cart.length > 0 && !faisalTake && !window.confirm('Enable Faisal Take? All prices will be set to 0.')) return; setFaisalTake(!faisalTake); }}
-                className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${faisalTake ? 'bg-amber-500 border-amber-500' : 'border-gray-600 bg-gray-800'}`}>
-                {faisalTake && <span className="text-white text-[10px] font-black">✓</span>}
-              </div>
-              <span className={`text-[10px] font-black uppercase tracking-widest ${faisalTake ? 'text-amber-400' : 'text-gray-600'}`}>
-                Faisal Take {faisalTake ? '(ON — prices excluded)' : ''}
-              </span>
-            </label>
-          </div>
-          <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
-            {cart.map((item, i) => (
-              <div key={i} className="bg-gray-800/60 rounded-xl border border-gray-700/50 p-2.5">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-white">{item.productName}</p>
-                    <p className="text-[10px] text-gray-400">{[item.color, item.size].filter(Boolean).join(' \u2022 ') || 'Standard'}</p>
-                    <p className="text-xs font-black text-emerald-400 mt-0.5">{formatCurrency(item.unitPrice)} each</p>
-                  </div>
-                  <button onClick={() => removeCartItem(i)} className="text-gray-600 hover:text-red-400 ml-1"><X size={14} /></button>
-                </div>
-                <div className="flex items-center gap-2 mt-2">
-                  <div className="flex items-center bg-gray-900 rounded-lg border border-gray-700">
-                    <button onClick={() => updateQty(i, item.qty - 1)} className="p-1.5 hover:text-white text-gray-500"><Minus size={12} /></button>
-                    <span className="px-2 text-xs font-bold text-white min-w-[20px] text-center">{item.qty}</span>
-                    <button onClick={() => updateQty(i, item.qty + 1)} className="p-1.5 hover:text-white text-gray-500"><Plus size={12} /></button>
-                  </div>
-                   <span className="text-xs font-black text-white ml-auto">{formatCurrency(item.unitPrice * item.qty + ((item.customization1 ? 500 : 0) + (item.customization2 ? 1000 : 0) + (item.nameEngrave ? 300 : 0) + (item.logoDesign ? 300 : 0)) * item.qty + (parseFloat(item.otherCharges) || 0))}</span>
-                </div>
-
-                <div className="flex flex-wrap gap-1 mt-1.5">
-                  <button onClick={() => updateCartCustomization(i, 'customization1')}
-                    className={`px-2 py-1 rounded-lg text-[9px] font-bold border ${item.customization1 ? 'border-purple-500 bg-purple-600/20 text-purple-300' : 'border-gray-700 text-gray-500'}`}>
-                    Custom 1 (+₨500)
-                  </button>
-                  <button onClick={() => updateCartCustomization(i, 'customization2')}
-                    className={`px-2 py-1 rounded-lg text-[9px] font-bold border ${item.customization2 ? 'border-purple-500 bg-purple-600/20 text-purple-300' : 'border-gray-700 text-gray-500'}`}>
-                    Custom 2 (+₨1000)
-                  </button>
-                  <button onClick={() => updateCartCustomization(i, 'nameEngrave')}
-                    className={`px-2 py-1 rounded-lg text-[9px] font-bold border ${item.nameEngrave ? 'border-purple-500 bg-purple-600/20 text-purple-300' : 'border-gray-700 text-gray-500'}`}>
-                    Name Engrave (+₨300)
-                  </button>
-                  <button onClick={() => updateCartCustomization(i, 'logoDesign')}
-                    className={`px-2 py-1 rounded-lg text-[9px] font-bold border ${item.logoDesign ? 'border-purple-500 bg-purple-600/20 text-purple-300' : 'border-gray-700 text-gray-500'}`}>
-                    Logo Design (+₨300)
-                  </button>
-                </div>
-                <div className="mt-1.5 flex items-center gap-2">
-                  <span className="text-[10px] font-bold text-orange-400">Other Charges ₨</span>
-                  <input type="number" value={item.otherCharges || 0} onChange={e => updateCartDiscount(i, 'otherCharges', Math.max(0, parseFloat(e.target.value) || 0))}
-                    className="w-20 bg-gray-900 border border-gray-700 rounded-lg px-1.5 py-1 text-[10px] font-bold text-white text-center focus:border-orange-500 outline-none" min="0" />
-                </div>
-                <div className="mt-1.5 flex gap-1 items-center">
-                  <span className="text-[10px] font-bold text-blue-400">%</span>
-                  <input type="number" value={item.discountPct || 0} onChange={e => updateCartDiscount(i, 'discountPct', Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
-                    className="w-14 bg-gray-900 border border-gray-700 rounded-lg px-1.5 py-1 text-[10px] font-bold text-white text-center focus:border-blue-500 outline-none" min="0" max="100" />
-                  <span className="text-[10px] font-bold text-blue-400">₨</span>
-                  <input type="number" value={item.discountFixed || 0} onChange={e => updateCartDiscount(i, 'discountFixed', Math.max(0, parseFloat(e.target.value) || 0))}
-                    className="w-16 bg-gray-900 border border-gray-700 rounded-lg px-1.5 py-1 text-[10px] font-bold text-white text-center focus:border-blue-500 outline-none" min="0" />
-                </div>
-              </div>
-            ))}
-            {cart.length === 0 && (
-              <div className="text-center py-12">
-                <ShoppingCart size={40} className="mx-auto text-gray-700 mb-3" />
-                <p className="text-sm font-bold text-gray-600">Cart is empty</p>
-                <p className="text-[10px] text-gray-700 font-bold">Scan barcode or select products</p>
-              </div>
-            )}
-            {/* Cart Summary — inside scrollable area */}
-            <div className="border-t-2 border-gray-800 pt-3 space-y-1.5">
-              <div className="flex items-center justify-between text-xs text-gray-400">
-                <span>Subtotal</span>
-                <span>{formatCurrency(subtotal)}</span>
-              </div>
-              {altCharges > 0 && (
-                <div className="flex items-center justify-between text-xs text-amber-400">
-                  <span>Alteration</span>
-                  <span>{formatCurrency(altCharges)}</span>
-                </div>
-              )}
-              {cust1Total > 0 && (
-                <div className="flex items-center justify-between text-xs text-purple-400">
-                  <span>Customization 1</span>
-                  <span>{formatCurrency(cust1Total)}</span>
-                </div>
-              )}
-              {cust2Total > 0 && (
-                <div className="flex items-center justify-between text-xs text-purple-400">
-                  <span>Customization 2</span>
-                  <span>{formatCurrency(cust2Total)}</span>
-                </div>
-              )}
-              {engraveTotal > 0 && (
-                <div className="flex items-center justify-between text-xs text-purple-400">
-                  <span>Name Engraving</span>
-                  <span>{formatCurrency(engraveTotal)}</span>
-                </div>
-              )}
-              {logoDesignTotal > 0 && (
-                <div className="flex items-center justify-between text-xs text-purple-400">
-                  <span>Logo Design</span>
-                  <span>{formatCurrency(logoDesignTotal)}</span>
-                </div>
-              )}
-              {otherChargesTotal > 0 && (
-                <div className="flex items-center justify-between text-xs text-orange-400">
-                  <span>Other Charges</span>
-                  <span>{formatCurrency(otherChargesTotal)}</span>
-                </div>
-              )}
-              {perItemDiscount > 0 && (
-                <div className="flex items-center justify-between text-xs text-blue-400">
-                  <span>Item Discounts</span>
-                  <span>-{formatCurrency(perItemDiscount)}</span>
-                </div>
-              )}
-              {deliveryCharge > 0 && (
-                <div className="flex items-center justify-between text-xs text-orange-400">
-                  <span>Delivery Charges</span>
-                  <span>{formatCurrency(deliveryCharge)}</span>
-                </div>
-              )}
-              <div className="flex items-center gap-2">
-                <input type="number" value={discountPct} onChange={e => setDiscountPct(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
-                  className="w-14 bg-gray-800 border border-gray-700 rounded-lg px-1.5 py-1 text-[10px] font-bold text-white text-center focus:border-blue-500 outline-none" min="0" max="100" />
-                <span className="text-[10px] text-gray-500">%</span>
-                <input type="number" value={discountFixed} onChange={e => setDiscountFixed(Math.max(0, parseFloat(e.target.value) || 0))}
-                  className="w-16 bg-gray-800 border border-gray-700 rounded-lg px-1.5 py-1 text-[10px] font-bold text-white text-center focus:border-blue-500 outline-none" min="0" />
-                <span className="text-[10px] text-gray-500">fix: -{formatCurrency(globalDiscountAmt)}</span>
-              </div>
-              {paymentMethod === 'CARD' && cardChargesAmt > 0 && (
-                <div className="flex items-center justify-between text-xs text-purple-400">
-                  <span>Card Charges ({cardChargesPct}%)</span>
-                  <span>+{formatCurrency(cardChargesAmt)}</span>
-                </div>
-              )}
-              {paymentMethod === 'CASH_ONLINE' && (
-                <div className="bg-amber-900/10 border border-amber-800/50 rounded-xl px-3 py-2 space-y-2">
-                  <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Split Payment</p>
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-bold text-gray-400">Cash Amount</label>
-                    <input type="number" value={cashAmount} onChange={e => setCashAmount(Math.max(0, parseFloat(e.target.value) || 0))}
-                      className="w-28 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white text-right focus:border-amber-500 outline-none" min="0" />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-bold text-gray-400">Online Amount</label>
-                    <input type="number" value={onlineAmount} onChange={e => setOnlineAmount(Math.max(0, parseFloat(e.target.value) || 0))}
-                      className="w-28 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white text-right focus:border-amber-500 outline-none" min="0" />
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] font-black border-t border-amber-800/50 pt-1.5">
-                    <span className="text-gray-400">Total</span>
-                    <span className={parseFloat(cashAmount || 0) + parseFloat(onlineAmount || 0) === grandTotal ? 'text-emerald-400' : 'text-red-400'}>
-                      {formatCurrency((parseFloat(cashAmount) || 0) + (parseFloat(onlineAmount) || 0))} / {formatCurrency(grandTotal)}
-                    </span>
-                  </div>
-                </div>
-              )}
-              <input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Customer name (optional)"
-                className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
-              <input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="Customer phone *required"
-                className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
-              <label className="flex items-center gap-2 bg-gray-800/50 rounded-lg px-3 py-2 cursor-pointer">
-                <input type="checkbox" checked={deliveryEnabled} onChange={e => setDeliveryEnabled(e.target.checked)}
-                  className="accent-orange-500 w-4 h-4" />
-                <span className="text-[10px] font-bold text-orange-400">Delivery (+₨250)</span>
-              </label>
-              <div className="flex items-center justify-between bg-gray-800/50 rounded-lg px-3 py-2">
-                <label className="text-[10px] font-bold text-gray-400">Advance ₨</label>
-                <input type="number" value={advanceAmount} onChange={e => setAdvanceAmount(Math.max(0, parseFloat(e.target.value) || 0))}
-                  className="w-24 bg-transparent border-b border-gray-600 px-1 py-1 text-xs font-bold text-white text-right focus:border-blue-500 outline-none" min="0" />
-              </div>
-              <div className={`rounded-lg px-3 py-2 space-y-2 ${employeeLoggedIn ? 'bg-emerald-900/20 border border-emerald-800' : 'bg-gray-800/50 border border-gray-700'}`}>
-                <div className="flex items-center gap-2">
-                   <select value={employeeName} onChange={e => { setEmployeeName(e.target.value); setEmployeePassword(''); setEmployeeLoggedIn(false); }}
-                    className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white focus:border-blue-500 outline-none">
-                    <option value="">Select Employee</option>
-                    {Object.keys(employees).map(n => <option key={n} value={n}>{n}</option>)}
-                  </select>
-                  <input type="password" value={employeePassword} disabled={!employeeName || employeeLoggedIn}
-                    onChange={e => setEmployeePassword(e.target.value)} placeholder="Password"
-                    className="w-20 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
-                  {!employeeLoggedIn ? (
-                    <button onClick={() => {
-                      if (!employeeName) return toast.error('Select an employee');
-                      if (employees[employeeName] !== employeePassword) return toast.error('Wrong password');
-                      setEmployeeLoggedIn(true); setEmployeePassword(''); toast.success(`${employeeName} logged in`);
-                    }} className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">Login</button>
-                  ) : (
-                    <button onClick={() => { setEmployeeLoggedIn(false); setEmployeeName(''); setEmployeePassword(''); }}
-                      className="bg-red-600 hover:bg-red-500 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">Logout</button>
-                  )}
-                </div>
-                {employeeLoggedIn && <p className="text-[10px] font-bold text-emerald-400 text-center">✓ {employeeName} logged in</p>}
-              </div>
-              <input value={orderNumber} onChange={e => setOrderNumber(e.target.value)} placeholder="Order # or phone — fetch balance"
-                className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
-              {lookedUpOrder && (
-                <div className="bg-blue-900/20 border border-blue-800 rounded-xl px-3 py-2 space-y-1">
-                  <p className="text-xs font-bold text-blue-300">{lookedUpOrder.customerName} ({lookedUpOrder.customerPhone || 'no phone'})</p>
-                  <div className="flex justify-between text-[10px]">
-                    <span className="text-gray-400">Total</span>
-                    <span className="text-white font-bold">{formatCurrency(lookedUpOrder.totalPrice)}</span>
-                  </div>
-                  <div className="flex justify-between text-[10px]">
-                    <span className="text-amber-400">Advance</span>
-                    <span className="text-amber-400 font-bold">-{formatCurrency(lookedUpOrder.advanceAmount)}</span>
-                  </div>
-                  <div className="flex justify-between text-xs font-black border-t border-blue-800 pt-1">
-                    <span className="text-emerald-400">Balance Due</span>
-                    <span className="text-emerald-400">{formatCurrency(lookedUpOrder.balance)}</span>
-                  </div>
-                </div>
-              )}
-              <div className="flex items-center justify-between text-sm font-black text-white border-t border-gray-700 pt-2">
-                <span>{lookedUpOrder ? 'Current Payment' : 'Grand Total'}</span>
-                <span className="text-emerald-400">{formatCurrency(grandTotal)}</span>
-              </div>
-              {lookedUpOrder && parseFloat(advanceAmount) > 0 && (
-                <div className="flex items-center justify-between text-xs font-bold text-amber-400">
-                  <span>Advance (Order)</span>
-                  <span>{formatCurrency(parseFloat(advanceAmount))}</span>
-                </div>
-              )}
-              {lookedUpOrder && parseFloat(advanceAmount) > 0 && (
-                <div className="flex items-center justify-between text-xs font-black border-t border-gray-700 pt-1">
-                  <span className="text-white">Total Paid</span>
-                  <span className="text-emerald-400">{formatCurrency(grandTotal + parseFloat(advanceAmount))}</span>
-                </div>
-              )}
-              {!lookedUpOrder && parseFloat(advanceAmount) > 0 && (
-                <div className="flex items-center justify-between text-xs font-bold">
-                  <span className="text-amber-400">Balance</span>
-                  <span className="text-amber-400">{formatCurrency(grandTotal - parseFloat(advanceAmount))}</span>
-                </div>
-              )}
-              <button onClick={handleCheckout} disabled={cart.length === 0 || checkoutLoading || !employeeLoggedIn || !paymentMethod}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2 mt-2">
-                {checkoutLoading ? 'Processing...' : !employeeLoggedIn ? 'Login Employee First' : !paymentMethod ? 'Select Payment Method' : faisalTake ? 'Record Faisal Take' : lookedUpOrder ? `Pay Balance ${formatCurrency(grandTotal)}` : `Checkout ${formatCurrency(grandTotal)}`}
-              </button>
-              <div className="flex gap-2">
-                <button onClick={() => setTab('dashboard')} className="flex-1 text-[10px] font-bold text-gray-500 hover:text-white bg-gray-800 py-2 rounded-xl text-center">Dashboard</button>
-                <button onClick={() => setTab('returns')} className="flex-1 text-[10px] font-bold text-red-400 hover:text-red-300 bg-gray-800 py-2 rounded-xl text-center flex items-center justify-center gap-1">
-                  <RotateCcw size={12} />Returns
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      )}
-
+  const sharedModals = (
+    <>
       {/* Product Config Modal */}
       {showConfig && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-start justify-center pt-10 pb-10 overflow-y-auto" onClick={() => setShowConfig(null)}>
@@ -3013,6 +1832,1201 @@ const OutletPOS = () => {
           </div>
         </div>
       )}
+    </>
+  );
+
+  if (tab === 'history') {
+    const filteredSales = receiptSearch
+      ? sales.filter(s => s.receiptNumber?.toLowerCase().includes(receiptSearch.toLowerCase()))
+      : sales;
+    return (
+      <>
+      <div className="space-y-4 pb-20 px-4 overflow-y-auto h-full pt-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-black text-white flex items-center gap-2"><Clock size={24} className="text-purple-500" />Sales History</h1>
+          <div className="flex gap-2">
+            <button onClick={() => setTab('pos')} className="text-xs font-bold px-3 py-1.5 rounded-xl bg-gray-800 text-gray-400 hover:text-white"><ShoppingCart size={14} className="inline mr-1" />POS</button>
+            <button onClick={() => setTab('dashboard')} className="text-xs font-bold px-3 py-1.5 rounded-xl bg-gray-800 text-gray-400 hover:text-white"><BarChart3 size={14} className="inline mr-1" />Dashboard</button>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {['all', 'today', 'yesterday', 'week', 'month', 'year'].map(p => (
+            <button key={p} onClick={() => { setSalesRange(p); if (p !== 'custom') { setSalesDateFrom(''); setSalesDateTo(''); } }}
+              className={`text-[10px] font-black px-3 py-1.5 rounded-xl border transition-all ${salesRange === p ? 'bg-purple-600 text-white border-purple-500' : 'bg-gray-800 text-gray-400 border-gray-700 hover:text-white'}`}>
+              {p === 'all' ? 'All' : p === 'week' ? 'Weekly' : p === 'month' ? 'Monthly' : p === 'year' ? 'Yearly' : p.charAt(0).toUpperCase() + p.slice(1)}
+            </button>
+          ))}
+          <button onClick={() => setSalesRange('custom')}
+            className={`text-[10px] font-black px-3 py-1.5 rounded-xl border transition-all ${salesRange === 'custom' ? 'bg-purple-600 text-white border-purple-500' : 'bg-gray-800 text-gray-400 border-gray-700 hover:text-white'}`}>Custom</button>
+          {salesRange === 'custom' && (
+            <div className="flex items-center gap-1">
+              <input type="date" value={salesDateFrom} onChange={e => setSalesDateFrom(e.target.value)}
+                className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-[10px] font-bold text-white outline-none" />
+              <span className="text-gray-500 text-xs">→</span>
+              <input type="date" value={salesDateTo} onChange={e => setSalesDateTo(e.target.value)}
+                className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-[10px] font-bold text-white outline-none" />
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1 max-w-md">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+            <input value={receiptSearch} onChange={e => setReceiptSearch(e.target.value)} placeholder="Search by bill / receipt number..."
+              className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl pl-9 pr-3 py-2.5 text-sm font-bold text-white placeholder-gray-500 focus:border-purple-500 outline-none" />
+          </div>
+          <button onClick={downloadExcel} className="bg-green-700 hover:bg-green-600 text-white font-bold px-3 py-2.5 rounded-xl text-[10px] flex items-center gap-1"><Download size={14} />Excel</button>
+        </div>
+        <div className="space-y-2">
+          {filteredSales.length === 0 && <p className="text-center text-gray-500 py-8 font-bold">{receiptSearch ? 'No sales match your search' : 'No sales yet'}</p>}
+          {filteredSales.map(s => (
+            <div key={s.id} className="bg-gray-800/60 rounded-2xl border border-gray-700/50 p-4">
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <p className="text-lg font-black text-white">{s.receiptNumber} {s.orderId && <span className="text-[9px] bg-purple-600 text-white px-2 py-0.5 rounded-full ml-1">ORDER</span>}</p>
+                  <p className="text-xs text-gray-500 font-bold">{new Date(s.createdAt).toLocaleString()} &bull; {s.outletName}</p>
+                </div>
+                <div className="text-right">
+                  {(() => {
+                    const refundTotal = (s.returns || []).reduce((sum, r) => sum + r.refundAmount, 0);
+                    const netAmount = s.grandTotal - refundTotal;
+                    const hasReturn = refundTotal > 0;
+                    return (
+                      <>
+                        <p className="text-lg font-black text-emerald-400">{formatCurrency(netAmount)}</p>
+                        {hasReturn && <p className="text-[9px] text-red-400 font-bold line-through opacity-60">{formatCurrency(s.grandTotal)}</p>}
+                        <p className="text-[10px] text-gray-500 font-bold">{formatPaymentMethod(s.paymentMethod)}</p>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1 mb-2">
+                {(s.items || []).map((item, idx) => (
+                  <span key={idx} className="text-[10px] font-bold text-gray-400 bg-gray-900 px-2 py-0.5 rounded-lg">
+                    {item.productName}{item.color ? ` (${item.color})` : ''}{item.size ? ` / ${item.size}` : ''} x{item.quantity} = {formatCurrency(item.lineTotal)}
+                  </span>
+                ))}
+              </div>
+              <div className="flex items-center justify-between text-xs text-gray-500 font-bold">
+                <span>Cashier: {s.cashierName || 'N/A'} {s.customerName ? `| Customer: ${s.customerName}` : ''}</span>
+                <div className="flex items-center gap-1">
+                  {!s.refundedAt && !s.faisalTake && (
+                    <button onClick={() => handleRefundInvoiceFromHistory(s)}
+                      className="text-red-400 hover:text-red-300 bg-red-500/10 px-3 py-1.5 rounded-xl"><RotateCcw size={12} className="inline mr-1" />Refund</button>
+                  )}
+                  {s.refundedAt && <span className="text-[10px] font-bold text-red-500 mr-2">Refunded</span>}
+                  <button onClick={() => { setPendingPrintSale(s); setPrintOpts({ invoice: true, gatePass: true }); setShowPrintOptions(true); }} className="text-purple-400 hover:text-purple-300 bg-purple-500/10 px-3 py-1.5 rounded-xl"><Printer size={12} className="inline mr-1" />Reprint</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {sharedModals}
+    </>
+    );
+  }
+
+  if (tab === 'returns') {
+    return (
+      <>
+      <div className="space-y-4 pb-20 px-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-black text-white flex items-center gap-2"><RotateCcw size={24} />Returns</h1>
+          <div className="flex gap-2">
+            <button onClick={() => setReturnTab('scan')} className={`text-xs font-bold px-3 py-1.5 rounded-xl ${returnTab === 'scan' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'}`}>Scan Barcode</button>
+            <button onClick={() => setReturnTab('invoice')} className={`text-xs font-bold px-3 py-1.5 rounded-xl ${returnTab === 'invoice' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'}`}>By Invoice</button>
+            <button onClick={() => setReturnTab('product')} className={`text-xs font-bold px-3 py-1.5 rounded-xl ${returnTab === 'product' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'}`}>Select Product</button>
+            <button onClick={() => setReturnTab('sales')} className={`text-xs font-bold px-3 py-1.5 rounded-xl ${returnTab === 'sales' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'}`}>From Sales</button>
+            <button onClick={() => setReturnTab('history')} className={`text-xs font-bold px-3 py-1.5 rounded-xl ${returnTab === 'history' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'}`}>History</button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="space-y-3">
+            {returnTab === 'scan' && (
+              <div className="glass p-4 rounded-2xl border-2 border-gray-700">
+                <h2 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Scan Barcode to Return</h2>
+                <div className="relative">
+                  <Barcode size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                  <input value={returnBarcodeInput} onChange={e => setReturnBarcodeInput(e.target.value)}
+                    placeholder="Scan barcode..." autoFocus
+                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl pl-9 pr-3 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-red-500 outline-none" />
+                </div>
+                <p className="text-[10px] text-gray-600 mt-2">Scan a product barcode to add it to the return cart</p>
+              </div>
+            )}
+
+            {returnTab === 'invoice' && (
+              <div className="glass p-4 rounded-2xl border-2 border-gray-700">
+                <h2 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Return by Invoice Number</h2>
+                <div className="relative mb-3">
+                  <input value={invoiceReturnInput} onChange={e => setInvoiceReturnInput(e.target.value)}
+                    placeholder="Enter invoice / receipt number..." autoFocus
+                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-red-500 outline-none" />
+                </div>
+                <div className="flex gap-2 mb-3">
+                  <button onClick={handleInvoiceLookup} disabled={!invoiceReturnInput.trim() || invoiceReturnLoading}
+                    className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl text-xs">Search</button>
+                  <button onClick={() => { setInvoiceReturnInput(''); setLookedUpReturnSale(null); }}
+                    className="bg-gray-800 hover:bg-gray-700 text-gray-400 font-bold px-4 py-2.5 rounded-xl text-xs">Clear</button>
+                </div>
+                {invoiceReturnLoading && <p className="text-center text-gray-500 text-xs py-4">Searching...</p>}
+                {lookedUpReturnSale && (
+                  <div className="bg-gray-800/80 rounded-xl p-3 border border-red-800/50">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <p className="text-sm font-bold text-white">{lookedUpReturnSale.receiptNumber}</p>
+                        <p className="text-[10px] text-gray-400">{lookedUpReturnSale.customerName || 'No customer'} &bull; {new Date(lookedUpReturnSale.createdAt).toLocaleDateString()}</p>
+                      </div>
+                      <span className="text-xs font-bold text-emerald-400">{formatCurrency(lookedUpReturnSale.grandTotal)}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mb-3">
+                      {(lookedUpReturnSale.items || []).map((item, idx) => (
+                        <span key={idx} className="text-[9px] text-gray-500 bg-gray-900 px-1.5 py-0.5 rounded">
+                          {item.productName} {item.color ? `(${item.color})` : ''} x{item.quantity}
+                        </span>
+                      ))}
+                    </div>
+                    {lookedUpReturnSale.refundedAt ? (
+                      <p className="text-center text-[10px] font-bold text-red-500 py-2">Already Refunded</p>
+                    ) : (
+                      <button onClick={() => handleRefundInvoice(lookedUpReturnSale)}
+                        className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2">
+                        <RotateCcw size={14} /> Refund Full Invoice (-{formatCurrency(lookedUpReturnSale.grandTotal)})
+                      </button>
+                    )}
+                  </div>
+                )}
+                {!lookedUpReturnSale && !invoiceReturnLoading && (
+                  <p className="text-[10px] text-gray-600 mt-2">Enter an invoice number to load and refund the entire invoice.</p>
+                )}
+              </div>
+            )}
+
+            {returnTab === 'product' && (
+              <div className="glass p-4 rounded-2xl border-2 border-gray-700">
+                <h2 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Search Products to Return</h2>
+                <div className="relative mb-3">
+                  <input value={returnProductSearch} onChange={e => setReturnProductSearch(e.target.value)}
+                    placeholder="Search by product name or SKU..." autoFocus
+                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-red-500 outline-none" />
+                </div>
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {products
+                    .filter(p => p.name.toLowerCase().includes(returnProductSearch.toLowerCase()) || (p.barcode && p.barcode.toLowerCase().includes(returnProductSearch.toLowerCase())))
+                    .slice(0, 100)
+                    .map(p => {
+                      const alreadyInCart = returnCart.find(i => i.variantId === p.id);
+                      return (
+                        <div key={p.id} className="bg-gray-800/50 rounded-xl p-3 flex items-center gap-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-white truncate">{p.name}</p>
+                            <p className="text-[9px] text-gray-400">
+                              {[p.color, p.size].filter(Boolean).join(' • ') || 'Standard'}
+                              {p.stock != null && <span className="ml-2 text-gray-500">Stock: {p.stock}</span>}
+                              {p.barcode && <span className="ml-2 text-gray-600">#{p.barcode}</span>}
+                            </p>
+                            {p.price ? <p className="text-[10px] font-bold text-emerald-400">{formatCurrency(p.price)}</p> : null}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-gray-500">{formatCurrency(p.price)}</span>
+                            <button onClick={() => {
+                              const existing = returnCart.find(i => i.variantId === p.id);
+                              if (existing) {
+                                setReturnCart(returnCart.map(i => i.variantId === p.id ? { ...i, qty: i.qty + 1 } : i));
+                              } else {
+                                setReturnCart([...returnCart, {
+                                  variantId: p.id, productName: p.name,
+                                  color: p.color, size: p.size, barcode: p.barcode || '',
+                                  unitPrice: p.price || 0, qty: 1, maxQty: 9999
+                                }]);
+                              }
+                              toast.success(`${p.name} added to return cart`);
+                            }} className="text-[10px] font-bold text-red-400 hover:text-red-300 bg-gray-800 px-2 py-1 rounded-lg">
+                              {alreadyInCart ? `+${alreadyInCart.qty + 1}` : 'Add'}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  {products.length === 0 && <p className="text-center text-gray-500 py-4 font-bold">No products available</p>}
+                  {returnProductSearch && products.filter(p => p.name.toLowerCase().includes(returnProductSearch.toLowerCase())).length === 0 && (
+                    <p className="text-center text-gray-500 py-4 font-bold">No matching products</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {returnTab === 'sales' && (
+              <div className="glass p-4 rounded-2xl border-2 border-gray-700">
+                <h2 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Recent Sales</h2>
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {sales.slice(0, 30).map(s => (
+                    <div key={s.id} className="bg-gray-800/50 rounded-xl p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs font-bold text-white">{s.receiptNumber} {s.orderId && <span className="text-[8px] bg-purple-600 text-white px-1 py-0.5 rounded-full ml-1">ORD</span>}</p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-gray-500">{formatCurrency(s.grandTotal)}</span>
+                          <button onClick={() => {
+                            s.items.forEach(item => {
+                              const existing = returnCart.find(i => i.productName === item.productName && i.color === item.color && i.size === item.size);
+                              if (existing) {
+                                setReturnCart(returnCart.map(i => i.productName === item.productName && i.color === item.color && i.size === item.size ? { ...i, qty: i.qty + 1 } : i));
+                              } else {
+                                setReturnCart([...returnCart, {
+                                  variantId: item.outletVariantId, productName: item.productName,
+                                  color: item.color, size: item.size, barcode: '',
+                                  unitPrice: item.unitPrice, qty: 1, maxQty: 99,
+                                  saleId: s.id
+                                }]);
+                              }
+                            });
+                            setReturnTab('scan');
+                            toast.success('Sale items added to return cart');
+                          }} className="text-[10px] font-bold text-red-400 hover:text-red-300 bg-gray-800 px-2 py-1 rounded-lg">Return All</button>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {(s.items || []).map((item, idx) => (
+                          <span key={idx} className="text-[9px] text-gray-500 bg-gray-900 px-1.5 py-0.5 rounded">
+                            {item.productName} {item.color ? `(${item.color})` : ''} x{item.quantity}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {sales.length === 0 && <p className="text-center text-gray-500 py-4 font-bold">No sales yet</p>}
+                </div>
+              </div>
+            )}
+
+            {returnTab === 'history' && (
+              <div className="glass p-4 rounded-2xl border-2 border-gray-700">
+                <h2 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Return History</h2>
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {returns.map(r => (
+                    <div key={r.id} className="flex items-center justify-between bg-red-900/10 rounded-xl px-3 py-2 border border-red-900/20">
+                      <div>
+                        <p className="text-xs font-bold text-white">{r._variant?.product?.name || 'Unknown'} {r._variant?.color && `(${r._variant.color})`}</p>
+                        <p className="text-[10px] text-gray-500">Qty: {r.quantity} &bull; {new Date(r.createdAt).toLocaleString()}</p>
+                      </div>
+                      <p className="text-xs font-bold text-red-400">-{formatCurrency(r.refundAmount)}</p>
+                    </div>
+                  ))}
+                  {returns.length === 0 && <p className="text-center text-gray-500 font-bold py-4">No returns</p>}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="glass p-4 rounded-2xl border-2 border-gray-700">
+            <h2 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Return Cart ({returnCart.reduce((s, i) => s + i.qty, 0)} items)</h2>
+            <div className="space-y-2 max-h-60 overflow-y-auto mb-3">
+              {returnCart.map((item, i) => (
+                <div key={i} className="flex items-center gap-2 bg-gray-800/60 rounded-xl px-3 py-2 border border-gray-700/50">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-white truncate">{item.productName}</p>
+                    <p className="text-[9px] text-gray-500">{[item.color, item.size].filter(Boolean).join(' • ') || 'Standard'}</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => {
+                      const copy = [...returnCart];
+                      if (copy[i].qty <= 1) { copy.splice(i, 1); } else { copy[i].qty--; }
+                      setReturnCart(copy);
+                    }} className="p-0.5 text-gray-500 hover:text-white"><Minus size={10} /></button>
+                    <span className="text-xs font-bold text-white min-w-[16px] text-center">{item.qty}</span>
+                    <button onClick={() => {
+                      const copy = [...returnCart];
+                      if (copy[i].qty < copy[i].maxQty) copy[i].qty++;
+                      setReturnCart(copy);
+                    }} className="p-0.5 text-gray-500 hover:text-white"><Plus size={10} /></button>
+                  </div>
+                  <p className="text-xs font-bold text-red-400 min-w-[60px] text-right">-{formatCurrency(item.unitPrice * item.qty)}</p>
+                  <button onClick={() => setReturnCart(returnCart.filter((_, idx) => idx !== i))} className="text-gray-600 hover:text-red-400"><X size={12} /></button>
+                </div>
+              ))}
+              {returnCart.length === 0 && <p className="text-center text-gray-500 py-4 text-xs font-bold">No items to return</p>}
+            </div>
+            <div className="mb-3">
+              <label className="text-xs font-bold text-gray-400 block mb-1">Return Reason</label>
+              <input value={returnReason} onChange={e => setReturnReason(e.target.value)}
+                className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-red-500 outline-none" />
+            </div>
+            <div className="mb-3">
+              <label className="text-xs font-bold text-gray-400 block mb-1">Refund Payment Method</label>
+              <div className="flex gap-1.5">
+                {['CASH', 'CARD', 'ONLINE'].map(m => (
+                  <button key={m} onClick={() => setRefundPaymentMethod(m)}
+                    className={`flex-1 py-2 rounded-xl text-xs font-black border-2 ${refundPaymentMethod === m ? 'border-red-500 bg-red-600/20 text-white' : 'border-gray-700 text-gray-500 hover:border-gray-500'}`}>
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center justify-between text-sm mb-3">
+              <span className="text-gray-400 font-bold">Total Refund</span>
+              <span className="text-lg font-black text-red-400">-{formatCurrency(returnCart.reduce((s, i) => s + i.unitPrice * i.qty, 0))}</span>
+            </div>
+            <button onClick={processReturns} disabled={returnCart.length === 0 || returnLoading}
+              className="w-full bg-red-600 hover:bg-red-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-black py-3 rounded-xl text-sm">
+              {returnLoading ? 'Processing...' : `Process ${returnCart.reduce((s, i) => s + i.qty, 0)} Return(s)`}
+            </button>
+          </div>
+        </div>
+      </div>
+      {sharedModals}
+    </>
+    );
+  }
+
+  if (tab === 'dashboard') {
+    const kpis = dashboard ? [
+      { label: 'Total Sales', value: formatCurrency(dashboard.totalSales), sub: `${dashboard.totalOrders} orders`, color: 'from-blue-600 to-indigo-600', icon: DollarSign },
+      { label: 'Net Revenue', value: formatCurrency(dashboard.netRevenue), sub: `Refunds: ${formatCurrency(dashboard.totalSales - dashboard.netRevenue)}`, color: 'from-emerald-600 to-teal-600', icon: TrendingUp },
+      { label: 'Total Discount', value: formatCurrency(dashboard.totalDiscount), sub: 'Discounts given', color: 'from-amber-600 to-orange-600', icon: Tag },
+      { label: 'Returned Orders', value: dashboard.returnedOrders, sub: 'Items returned', color: 'from-red-600 to-rose-600', icon: RotateCcw },
+      { label: 'Completed Orders', value: dashboard.completedOrders, sub: 'POS + Standard Completed', color: 'from-purple-600 to-violet-600', icon: CheckCircle2 },
+      { label: 'Pending Orders', value: dashboard.pendingOrders, sub: 'Awaiting production/dispatch', color: 'from-cyan-600 to-blue-600', icon: Clock },
+      { label: 'Cancelled Orders', value: dashboard.cancelledOrders, sub: 'Rejected / Cancelled', color: 'from-gray-600 to-slate-600', icon: X },
+    ] : [];
+
+    const datePresets = [
+      { label: 'All Time', value: 'all' },
+      { label: 'Today', value: 'today' },
+      { label: 'Yesterday', value: 'yesterday' },
+      { label: 'Last 7 Days', value: 'week' },
+      { label: 'Last 30 Days', value: 'month' },
+      { label: 'This Year', value: 'year' },
+      { label: 'Custom Range', value: 'custom' }
+    ];
+
+    return (
+      <>
+      <div className="space-y-6 pb-20 px-4 overflow-y-auto h-full pt-4">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-black text-white flex items-center gap-2">
+              <BarChart3 size={24} className="text-blue-500" />
+              Sales & Performance Dashboard
+            </h1>
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-0.5">
+              Outlet: {selectedOutlet}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={downloadDashboardExcel} className="bg-green-700 hover:bg-green-600 text-white font-bold py-2 px-3 rounded-xl text-xs flex items-center gap-1.5"><Download size={14} />Excel</button>
+            <button onClick={() => setTab('pos')} className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center gap-1.5">
+              <ShoppingCart size={14} />
+              Back to POS Register
+            </button>
+          </div>
+        </div>
+
+        {/* Date Filters */}
+        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 space-y-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-black text-gray-500 uppercase tracking-wider mr-2">Select Range:</span>
+            {datePresets.map(preset => (
+              <button
+                key={preset.value}
+                onClick={() => {
+                  setDashboardRange(preset.value);
+                  if (preset.value !== 'custom') {
+                    setDashboardDateFrom('');
+                    setDashboardDateTo('');
+                  }
+                }}
+                className={`text-[10px] font-black px-3.5 py-2 rounded-xl border transition-all ${
+                  dashboardRange === preset.value
+                    ? 'bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-900/30'
+                    : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-500 hover:text-white'
+                }`}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+
+          {dashboardRange === 'custom' && (
+            <div className="flex items-center gap-3 bg-gray-950 p-3 rounded-xl border border-gray-800 w-fit">
+              <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                <Calendar size={14} />
+                <span>From:</span>
+              </div>
+              <input
+                type="date"
+                value={dashboardDateFrom}
+                onChange={e => setDashboardDateFrom(e.target.value)}
+                className="bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-white outline-none focus:border-blue-500"
+              />
+              <span className="text-xs text-gray-500 font-bold">&rarr;</span>
+              <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                <Calendar size={14} />
+                <span>To:</span>
+              </div>
+              <input
+                type="date"
+                value={dashboardDateTo}
+                onChange={e => setDashboardDateTo(e.target.value)}
+                className="bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-white outline-none focus:border-blue-500"
+              />
+              <button
+                onClick={() => {
+                  invalidateKey(dashboardKey);
+                  refreshDashboard();
+                }}
+                className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs"
+              >
+                Apply
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Dashboard statistics */}
+        {dashboardLoading ? (
+          <div className="py-20 flex justify-center items-center">
+            <RefreshCw className="animate-spin text-blue-500" size={32} />
+          </div>
+        ) : dashboardError ? (
+          <div className="py-20 flex flex-col items-center justify-center text-center">
+            <p className="text-red-400 font-black text-sm mb-2">Failed to load dashboard</p>
+            <p className="text-gray-500 text-xs mb-4 max-w-md">{dashboardError.message}</p>
+            <button onClick={refreshDashboard} className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded-lg text-xs">
+              Retry
+            </button>
+          </div>
+        ) : dashboard ? (
+          <div className="space-y-6">
+            {/* KPIs Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {kpis.map((kpi, i) => {
+                const Icon = kpi.icon;
+                return (
+                  <div key={i} className={`bg-gradient-to-br ${kpi.color} p-[1px] rounded-2xl shadow-lg`}>
+                    <div className="bg-gray-950/90 rounded-2xl p-4 h-full flex flex-col justify-between">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{kpi.label}</span>
+                        <Icon size={14} className="text-gray-500" />
+                      </div>
+                      <div>
+                        <p className="text-xl md:text-2xl font-black text-white">{kpi.value}</p>
+                        <p className="text-[10px] text-gray-500 font-bold mt-1">{kpi.sub}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Balance Collection Card */}
+            <div className="bg-gradient-to-br from-violet-600 to-indigo-600 p-[1px] rounded-2xl shadow-lg">
+              <div className="bg-gray-950/90 rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest flex items-center gap-1.5">
+                    <DollarSign size={14} className="text-violet-400" />
+                    Balance Collections
+                  </h3>
+                  <div className="flex gap-1">
+                    {['today', 'yesterday', 'month', 'custom'].map(r => (
+                      <button key={r} onClick={() => setBalanceCollectionRange(r)}
+                        className={`text-[9px] font-bold px-2 py-1 rounded-lg transition-all ${balanceCollectionRange === r ? 'bg-violet-600 text-white' : 'bg-gray-800 text-gray-500 hover:text-white'}`}>
+                        {r === 'today' ? 'Today' : r === 'yesterday' ? 'Yest' : r === 'month' ? 'Month' : r.charAt(0).toUpperCase() + r.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {balanceCollectionRange === 'custom' && (
+                  <div className="flex items-center gap-2 mb-3">
+                    <input type="date" value={balanceCollectionDateFrom}
+                      onChange={e => setBalanceCollectionDateFrom(e.target.value)}
+                      className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-[10px] text-white flex-1" />
+                    <span className="text-gray-500 text-[9px]">to</span>
+                    <input type="date" value={balanceCollectionDateTo}
+                      onChange={e => setBalanceCollectionDateTo(e.target.value)}
+                      className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-[10px] text-white flex-1" />
+                  </div>
+                )}
+                {balanceCollectionData ? (
+                  <div className="flex items-end justify-between">
+                    <div>
+                      <p className="text-2xl font-black text-white">{formatCurrency(balanceCollectionData.totalCollected)}</p>
+                      <p className="text-[10px] text-gray-400 font-bold mt-1">{balanceCollectionData.count} payment{balanceCollectionData.count !== 1 ? 's' : ''}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] text-gray-500">Collected on:</p>
+                      <p className="text-xs font-bold text-violet-400">
+                        {balanceCollectionRange === 'today' ? 'Today' :
+                         balanceCollectionRange === 'yesterday' ? 'Yesterday' :
+                         balanceCollectionRange === 'month' ? 'This Month' : 'Custom'}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-12 flex items-center">
+                    <RefreshCw className="animate-spin text-gray-600" size={20} />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Payment Method Breakdown — always show all 3 */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {['CASH', 'CARD', 'ONLINE'].map(method => {
+                const pm = dashboard.paymentBreakdown?.find(p => p.method === method) || { method, gross: 0, returns: 0, net: 0 };
+                const icons = { CASH: DollarSign, ONLINE: Globe, CARD: CreditCard };
+                const colors = { CASH: 'from-emerald-600 to-green-600', ONLINE: 'from-blue-600 to-indigo-600', CARD: 'from-purple-600 to-violet-600' };
+                const bgColors = { CASH: 'text-emerald-400', ONLINE: 'text-blue-400', CARD: 'text-purple-400' };
+                const Icon = icons[pm.method] || DollarSign;
+                return (
+                  <div key={pm.method} className={`bg-gradient-to-br ${colors[pm.method] || 'from-gray-600 to-slate-600'} p-[1px] rounded-2xl shadow-lg`}>
+                    <div className="bg-gray-950/90 rounded-2xl p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                          <Icon size={14} className={bgColors[pm.method] || 'text-gray-400'} />
+                          {pm.method}
+                        </span>
+                      </div>
+                      <p className="text-lg font-black text-white">{formatCurrency(pm.net)}</p>
+                      <div className="flex items-center gap-3 mt-1.5 text-[10px]">
+                        <span className="text-emerald-400 font-bold">Gross: {formatCurrency(pm.gross)}</span>
+                        {pm.returns > 0 && (
+                          <span className="text-red-400 font-bold">Returns: -{formatCurrency(pm.returns)}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Peak day & comparisons */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col justify-between">
+                <div>
+                  <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                    <Award size={14} className="text-amber-500" />
+                    Highest Sales Day
+                  </h3>
+                  <p className="text-xl font-black text-white">{formatCurrency(dashboard.highestSalesDay?.amount || 0)}</p>
+                  <p className="text-[10px] text-gray-500 font-bold mt-1">Date: {dashboard.highestSalesDay?.date || 'N/A'}</p>
+                </div>
+              </div>
+
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col justify-between">
+                <div>
+                  <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                    <Award size={14} className="text-blue-500" />
+                    Highest Orders Day
+                  </h3>
+                  <p className="text-xl font-black text-white">{dashboard.highestOrdersDay?.count || 0} Orders</p>
+                  <p className="text-[10px] text-gray-500 font-bold mt-1">Date: {dashboard.highestOrdersDay?.date || 'N/A'}</p>
+                </div>
+              </div>
+
+              {/* Best branch performance comparison (if viewing 'all' admin mode) */}
+              {dashboard.branchPerformance && dashboard.branchPerformance.length > 0 && (
+                <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
+                  <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Branch Comparison</h3>
+                  <div className="space-y-2">
+                    {dashboard.branchPerformance.map((bp, idx) => (
+                      <div key={bp.branch} className="flex items-center justify-between text-xs border-b border-gray-800 pb-1.5">
+                        <span className="font-bold text-gray-300">{idx + 1}. {bp.branch}</span>
+                        <span className="font-black text-emerald-400">{formatCurrency(bp.revenue)} ({bp.orders} ord)</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Sales Chart */}
+            {dashboard.reportData && dashboard.reportData.length > 0 && (
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
+                <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-4">Sales Trend</h3>
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={dashboard.reportData}>
+                      <defs>
+                        <linearGradient id="salesGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                      <XAxis dataKey="date" stroke="#9ca3af" fontSize={10} tickLine={false} />
+                      <YAxis stroke="#9ca3af" fontSize={10} tickLine={false} tickFormatter={(v) => `₨${(v/1000)}k`} />
+                      <Tooltip contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', borderRadius: '12px' }} formatter={(v) => formatCurrency(v)} labelStyle={{ color: '#fff', fontWeight: 'bold' }} />
+                      <Area type="monotone" dataKey="sales" name="Sales" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#salesGrad)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
+            {/* Best Selling Products */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
+                <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Top Selling Products</h3>
+                <div className="space-y-2">
+                  {dashboard.bestSellingProducts && dashboard.bestSellingProducts.map((p, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-xs bg-gray-950 p-2.5 rounded-xl border border-gray-800">
+                      <span className="font-black text-white">{p.name}</span>
+                      <span className="font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-lg">{p.qty} sold</span>
+                    </div>
+                  ))}
+                  {(!dashboard.bestSellingProducts || dashboard.bestSellingProducts.length === 0) && (
+                    <p className="text-center text-gray-500 py-4 font-bold">No product sales data in range</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Remaining Balance — unpaid/partially-paid invoices */}
+              <div className="bg-gray-900 border border-amber-800/50 rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xs font-black text-amber-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <CreditCard size={14} />
+                    Remaining Balance
+                  </h3>
+                  <span className="text-[10px] font-bold text-gray-500 bg-gray-800 px-2 py-0.5 rounded-lg">{balanceInvoices.length} invoice{balanceInvoices.length !== 1 ? 's' : ''}</span>
+                </div>
+                {balanceInvoicesLoading ? (
+                  <div className="flex justify-center py-8">
+                    <RefreshCw className="animate-spin text-gray-500" size={20} />
+                  </div>
+                ) : balanceInvoices.length > 0 ? (
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {balanceInvoices.map(inv => (
+                    <div key={inv.id} className="bg-gray-950 p-2.5 rounded-xl border border-gray-800 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-black text-white">{inv.receiptNumber}</p>
+                          <p className="text-[10px] text-gray-500">{inv.customerName || 'No name'} &bull; {formatPaymentMethod(inv.paymentMethod)}</p>
+                        </div>
+                        <div className="text-right space-y-0.5">
+                          <p className="font-black text-amber-400">Due: {formatCurrency(inv.remaining)}</p>
+                          <p className="text-[9px] text-gray-500">Total: {formatCurrency(inv.grandTotal)}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-1.5 mt-2">
+                        <button onClick={() => handlePayBalanceOpen(inv)} disabled={loadingBalanceAction}
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-1.5 rounded-lg text-[10px] transition-all">
+                          {loadingBalanceAction ? 'Loading...' : `Pay Remaining ₨${inv.remaining.toLocaleString()}`}
+                        </button>
+                        <button onClick={() => handleViewBalanceHistory(inv)} disabled={loadingBalanceAction}
+                          className="px-2 py-1.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-400 rounded-lg text-[10px] transition-all">
+                          {loadingBalanceAction ? 'Loading...' : 'History'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                ) : (
+                  <p className="text-center text-gray-500 font-bold py-4 text-xs">No outstanding balances</p>
+                )}
+              </div>
+
+              {/* Faisal Takes — products taken by Faisal (not sales) */}
+              <div className="bg-gray-900 border border-amber-800/50 rounded-2xl p-4">
+                <h3 className="text-xs font-black text-amber-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                  <Package size={14} />
+                  Faisal Takes
+                </h3>
+                {dashboard.faisalTakes && dashboard.faisalTakes.length > 0 ? (
+                <div className="space-y-2 max-h-72 overflow-y-auto">
+                  {dashboard.faisalTakes.map(ft => (
+                    <div key={ft.id} className="bg-gray-950 p-2.5 rounded-xl border border-gray-800 text-xs">
+                      <div className="flex items-center justify-between">
+                        <p className="font-black text-amber-300">{ft.cashierName || 'Faisal'}</p>
+                        <p className="text-[9px] text-gray-500">{new Date(ft.faisalTakenAt || ft.createdAt).toLocaleString()}</p>
+                      </div>
+                      <div className="mt-1.5 space-y-0.5">
+                        {ft.items && ft.items.map((item, idx) => (
+                          <div key={idx} className="flex items-center justify-between text-[10px] text-gray-400">
+                            <span>{item.productName} {item.size ? `(${item.size})` : ''} {item.color ? `[${item.color}]` : ''}</span>
+                            <span className="font-bold text-white">x{item.quantity}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                ) : (
+                  <p className="text-center text-gray-500 font-bold py-4 text-xs">No Faisal Take records in this range</p>
+                )}
+              </div>
+
+            {/* Recent Sales list */}
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
+                <h3 className="text-xs font-black text-gray-300 uppercase tracking-widest mb-3">Recent Sales Transactions</h3>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {sales.slice(0, 5).map(s => (
+                    <div key={s.id} className="flex items-center justify-between bg-gray-950 p-2.5 rounded-xl border border-gray-800 text-xs">
+                      <div>
+                        <p className="font-black text-white">{s.receiptNumber} {s.orderId && <span className="text-[8px] bg-purple-600 text-white px-1 py-0.5 rounded-full ml-1">ORD</span>}</p>
+                        <p className="text-[10px] text-gray-500">{new Date(s.createdAt).toLocaleDateString()} &bull; {s.items?.length || 0} items</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-black text-emerald-400">{formatCurrency(s.grandTotal)}</p>
+                        <p className="text-[10px] text-gray-500">{formatPaymentMethod(s.paymentMethod)}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {sales.length === 0 && <p className="text-center text-gray-500 font-bold py-4">No recent sales</p>}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+      {sharedModals}
+    </>
+    );
+  }
+
+  return (
+    <div className="h-[calc(100vh-80px)] flex flex-col">
+      {/* Top Bar */}
+      <div className="flex items-center gap-3 px-4 py-2 bg-gray-900 border-b-2 border-gray-800 flex-shrink-0">
+        <button onClick={() => setTab('pos')} className={`text-xs font-bold px-3 py-2 rounded-xl ${tab === 'pos' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}><ShoppingCart size={14} className="inline mr-1" />POS</button>
+        <button onClick={() => setTab('dashboard')} className={`text-xs font-bold px-3 py-2 rounded-xl ${tab === 'dashboard' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}><BarChart3 size={14} className="inline mr-1" />Dashboard</button>
+        <button onClick={() => setTab('returns')} className={`text-xs font-bold px-3 py-2 rounded-xl ${tab === 'returns' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}><RotateCcw size={14} className="inline mr-1" />Returns</button>
+        <button onClick={() => setTab('history')} className={`text-xs font-bold px-3 py-2 rounded-xl ${tab === 'history' ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}><Clock size={14} className="inline mr-1" />History</button>
+        <button onClick={() => {
+          invalidateKey(productsKey);
+          invalidateKey(dashboardKey);
+          invalidateKey(salesKey);
+          invalidateKey(returnsKey);
+          refreshProducts();
+          refreshDashboard();
+          refreshSales();
+          refreshReturns();
+        }} className="text-xs font-bold px-2 py-2 rounded-xl bg-gray-800 text-gray-400 hover:text-white" title="Refresh data"><RefreshCw size={14} className={`inline ${productsLoading ? 'animate-spin' : ''}`} /></button>
+        <div className="relative flex-1 max-w-md">
+          <Barcode size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input ref={barcodeRef} value={barcodeInput} onChange={e => setBarcodeInput(e.target.value)} placeholder="Scan barcode..."
+            className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
+        </div>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..."
+          className="flex-1 bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none max-w-xs" />
+        <div className="flex items-center gap-1">
+          <span className="text-xs font-bold text-gray-500 mr-1">Pay via:</span>
+          <div className="flex gap-1">
+            {['CASH','CARD','ONLINE','CASH_ONLINE'].map(m => (
+              <button key={m} onClick={() => setPaymentMethod(m)}
+                className={`px-2 py-1.5 rounded-lg text-[10px] font-black border-2 ${paymentMethod === m ? (m === 'CARD' ? 'border-purple-500 bg-purple-600/20 text-purple-300' : m === 'CASH_ONLINE' ? 'border-amber-500 bg-amber-600/20 text-amber-300' : m === 'ONLINE' ? 'border-blue-500 bg-blue-600/20 text-blue-300' : 'border-emerald-500 bg-emerald-600/20 text-emerald-300') : 'border-gray-700 text-gray-500 hover:border-gray-500'}`}>
+                {m.replace('_', ' + ')}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* POS Branch Selector Tabs (Admin only) */}
+      {user?.role !== 'OUTLET' && (
+        <div className="flex gap-1.5 px-4 py-2 bg-gray-950 border-b border-gray-800 overflow-x-auto flex-shrink-0">
+          <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center mr-2">POS Branch:</span>
+          {['Johar Town', 'Jail Road', 'Abbottabad'].map(outlet => {
+            const isActive = outlet === selectedOutlet;
+            return (
+              <button key={outlet} onClick={() => setSelectedOutlet(outlet)}
+                className={`text-[9px] font-black px-3.5 py-1.5 rounded-lg uppercase tracking-wider transition-all ${
+                  isActive ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
+                }`}>
+                {outlet}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Book Status Bar */}
+      {tab === 'pos' && (
+        <div className={`flex items-center justify-between px-4 py-1.5 flex-shrink-0 border-b ${currentBook ? 'bg-emerald-900/30 border-emerald-800/50' : 'bg-red-900/20 border-red-800/30'}`}>
+          <div className="flex items-center gap-2">
+            {currentBook ? (
+              <><BookOpen size={14} className="text-emerald-400" /><span className="text-[11px] font-bold text-emerald-300">Register Open</span><span className="text-[10px] text-emerald-500/70">since {new Date(currentBook.openedAt).toLocaleString()}</span></>
+            ) : (
+              <><Book size={14} className="text-red-400" /><span className="text-[11px] font-bold text-red-300">No Open Register</span></>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {currentBook ? (
+              <button onClick={() => { setAuthMode('close'); setShowAuthModal(true); }} className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white">Close Register</button>
+            ) : (
+              <button onClick={() => { setAuthMode('open'); setShowAuthModal(true); }} disabled={openBookLoading} className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white">
+                {openBookLoading ? 'Opening...' : 'Open Register'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 9 PM Reminder */}
+      {showBookReminder && currentBook && (
+        <div className="bg-amber-900/30 border-b border-amber-700/50 px-4 py-2 flex items-center justify-between flex-shrink-0">
+          <span className="text-xs font-bold text-amber-300">Time to Close the Register</span>
+          <button onClick={() => setShowBookReminder(false)} className="text-[10px] text-amber-400 hover:text-amber-300 underline">Dismiss</button>
+        </div>
+      )}
+
+      {/* Locked state — no open book */}
+      {tab === 'pos' && !currentBook && !bookLoading && (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center max-w-sm px-6">
+            <div className="mx-auto w-20 h-20 bg-emerald-900/30 rounded-full flex items-center justify-center mb-6 border-2 border-emerald-700/50">
+              <BookOpen size={40} className="text-emerald-400" />
+            </div>
+            <h2 className="text-2xl font-black text-white mb-2">Open Register Required</h2>
+            <p className="text-sm text-gray-400 mb-6">You must open the register before using the POS. This ensures all transactions are recorded in the current session.</p>
+            {bookLoading ? (
+              <div className="text-gray-500 font-bold text-sm">Checking book status...</div>
+            ) : (
+              <button onClick={() => { setAuthMode('open'); setShowAuthModal(true); }} disabled={openBookLoading}
+                className="px-8 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black text-lg flex items-center gap-3 mx-auto transition-all active:scale-95">
+                <BookOpen size={20} />
+                {openBookLoading ? 'Opening...' : 'Open Register'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Normal POS content — book is open or other tabs */}
+      {(tab !== 'pos' || currentBook || bookLoading) && (
+      <div className="flex flex-1 overflow-hidden">
+        {/* Product Grid */}
+        <div className="flex-1 overflow-y-auto p-3">
+          {/* Categories (from warehouse) */}
+          <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1 flex-shrink-0">
+            <button onClick={() => setActiveCategory('')}
+              className={`text-[10px] font-black px-3 py-1.5 rounded-lg whitespace-nowrap uppercase tracking-wider ${!activeCategory ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
+              All
+            </button>
+            {categories.map(c => (
+              <button key={c} onClick={() => setActiveCategory(c)}
+                className={`text-[10px] font-black px-3 py-1.5 rounded-lg whitespace-nowrap uppercase tracking-wider ${activeCategory === c ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
+                {c}
+              </button>
+            ))}
+          </div>
+
+          {/* Products */}
+          {productsLoading && filtered.length === 0 ? (
+            <div className="flex items-center justify-center h-64 text-gray-600">
+              <RefreshCw size={24} className="animate-spin mr-2" />
+              <span className="font-bold">Loading products...</span>
+            </div>
+          ) : (
+          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+            {groupedProducts.map(g => {
+              const maxShow = 3;
+              const colorsMore = g.colors.length > maxShow ? g.colors.length - maxShow : 0;
+              const sizesMore = g.sizes.length > maxShow ? g.sizes.length - maxShow : 0;
+              const colorLabel = g.colors.length > 0
+                ? (colorsMore > 0 ? g.colors.slice(0, maxShow).join(', ') + ` +${colorsMore}` : g.colors.join(', '))
+                : null;
+              const sizeLabel = g.sizes.length > 0
+                ? (sizesMore > 0 ? g.sizes.slice(0, maxShow).join(', ') + ` +${sizesMore}` : g.sizes.join(', '))
+                : null;
+              const isOutOfStock = (g.totalStock != null && g.totalStock <= 0) || (g.variants.length === 1 && g.variants[0].stock != null && g.variants[0].stock <= 0);
+              return (
+                <button key={g.id} onClick={() => handleAddToCart(g.variants.length === 1 ? g.variants[0] : g)}
+                  disabled={isOutOfStock}
+                  className={`glass bg-gray-800/80 rounded-xl border-2 p-2 text-left transition-all active:scale-95 ${
+                    isOutOfStock
+                      ? 'border-red-900/30 opacity-50 cursor-not-allowed'
+                      : 'border-gray-700/50 hover:border-blue-500/50'
+                  }`}>
+                  {g.imageUrl ? (
+                    <img src={g.imageUrl} className="w-full h-20 object-cover rounded-lg mb-1.5" />
+                  ) : (
+                    <div className="w-full h-20 bg-gray-800 rounded-lg mb-1.5 flex items-center justify-center">
+                      <Package size={24} className="text-gray-600" />
+                    </div>
+                  )}
+                  <p className="text-[10px] font-bold text-white leading-tight line-clamp-2">{g.name}</p>
+                  {g.variants.length > 1 && (
+                    <span className="inline-block text-[7px] font-bold text-blue-400 bg-blue-900/30 rounded-full px-1.5 py-0.5 mb-0.5">{g.variants.length} variants</span>
+                  )}
+                  {(colorLabel || sizeLabel) && (
+                    <p className="text-[8px] text-gray-500 font-bold truncate">{[colorLabel, sizeLabel].filter(Boolean).join(' | ')}</p>
+                  )}
+                  <p className="text-xs font-black text-emerald-400 mt-0.5">{formatCurrency(g.price)}</p>
+                  <p className={`text-[8px] font-bold ${isOutOfStock ? 'text-red-400' : 'text-gray-600'}`}>{isOutOfStock ? 'OUT OF STOCK' : `Stock: ${g.totalStock}`}</p>
+                </button>
+              );
+            })}
+          </div>
+          )}
+        </div>
+
+        {/* Cart */}
+        <div className="w-96 bg-gray-900/80 border-l-2 border-gray-800 flex flex-col flex-shrink-0 h-full">
+          <div className="p-3 border-b-2 border-gray-800 flex items-center justify-between flex-shrink-0">
+            <h2 className="text-sm font-black text-white flex items-center gap-2"><ShoppingCart size={16} />Cart ({cart.length})</h2>
+            {cart.length > 0 && (
+              <button onClick={() => { if (window.confirm('Clear cart?')) { setCart([]); setDiscountPct(0); setDiscountFixed(0); } }} className="text-[10px] font-bold text-red-400 hover:text-red-300"><Trash2 size={12} className="inline mr-1" />Clear</button>
+            )}
+          </div>
+
+          {/* Faisal Take toggle */}
+          <div className="px-3 pt-1 pb-0 flex-shrink-0">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <div onClick={() => { if (cart.length > 0 && !faisalTake && !window.confirm('Enable Faisal Take? All prices will be set to 0.')) return; setFaisalTake(!faisalTake); }}
+                className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${faisalTake ? 'bg-amber-500 border-amber-500' : 'border-gray-600 bg-gray-800'}`}>
+                {faisalTake && <span className="text-white text-[10px] font-black">✓</span>}
+              </div>
+              <span className={`text-[10px] font-black uppercase tracking-widest ${faisalTake ? 'text-amber-400' : 'text-gray-600'}`}>
+                Faisal Take {faisalTake ? '(ON — prices excluded)' : ''}
+              </span>
+            </label>
+          </div>
+          <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
+            {cart.map((item, i) => (
+              <div key={i} className="bg-gray-800/60 rounded-xl border border-gray-700/50 p-2.5">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-white">{item.productName}</p>
+                    <p className="text-[10px] text-gray-400">{[item.color, item.size].filter(Boolean).join(' \u2022 ') || 'Standard'}</p>
+                    <p className="text-xs font-black text-emerald-400 mt-0.5">{formatCurrency(item.unitPrice)} each</p>
+                  </div>
+                  <button onClick={() => removeCartItem(i)} className="text-gray-600 hover:text-red-400 ml-1"><X size={14} /></button>
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <div className="flex items-center bg-gray-900 rounded-lg border border-gray-700">
+                    <button onClick={() => updateQty(i, item.qty - 1)} className="p-1.5 hover:text-white text-gray-500"><Minus size={12} /></button>
+                    <span className="px-2 text-xs font-bold text-white min-w-[20px] text-center">{item.qty}</span>
+                    <button onClick={() => updateQty(i, item.qty + 1)} className="p-1.5 hover:text-white text-gray-500"><Plus size={12} /></button>
+                  </div>
+                   <span className="text-xs font-black text-white ml-auto">{formatCurrency(item.unitPrice * item.qty + ((item.customization1 ? 500 : 0) + (item.customization2 ? 1000 : 0) + (item.nameEngrave ? 300 : 0) + (item.logoDesign ? 300 : 0)) * item.qty + (parseFloat(item.otherCharges) || 0))}</span>
+                </div>
+
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  <button onClick={() => updateCartCustomization(i, 'customization1')}
+                    className={`px-2 py-1 rounded-lg text-[9px] font-bold border ${item.customization1 ? 'border-purple-500 bg-purple-600/20 text-purple-300' : 'border-gray-700 text-gray-500'}`}>
+                    Custom 1 (+₨500)
+                  </button>
+                  <button onClick={() => updateCartCustomization(i, 'customization2')}
+                    className={`px-2 py-1 rounded-lg text-[9px] font-bold border ${item.customization2 ? 'border-purple-500 bg-purple-600/20 text-purple-300' : 'border-gray-700 text-gray-500'}`}>
+                    Custom 2 (+₨1000)
+                  </button>
+                  <button onClick={() => updateCartCustomization(i, 'nameEngrave')}
+                    className={`px-2 py-1 rounded-lg text-[9px] font-bold border ${item.nameEngrave ? 'border-purple-500 bg-purple-600/20 text-purple-300' : 'border-gray-700 text-gray-500'}`}>
+                    Name Engrave (+₨300)
+                  </button>
+                  <button onClick={() => updateCartCustomization(i, 'logoDesign')}
+                    className={`px-2 py-1 rounded-lg text-[9px] font-bold border ${item.logoDesign ? 'border-purple-500 bg-purple-600/20 text-purple-300' : 'border-gray-700 text-gray-500'}`}>
+                    Logo Design (+₨300)
+                  </button>
+                </div>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-orange-400">Other Charges ₨</span>
+                  <input type="number" value={item.otherCharges || 0} onChange={e => updateCartDiscount(i, 'otherCharges', Math.max(0, parseFloat(e.target.value) || 0))}
+                    className="w-20 bg-gray-900 border border-gray-700 rounded-lg px-1.5 py-1 text-[10px] font-bold text-white text-center focus:border-orange-500 outline-none" min="0" />
+                </div>
+                <div className="mt-1.5 flex gap-1 items-center">
+                  <span className="text-[10px] font-bold text-blue-400">%</span>
+                  <input type="number" value={item.discountPct || 0} onChange={e => updateCartDiscount(i, 'discountPct', Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
+                    className="w-14 bg-gray-900 border border-gray-700 rounded-lg px-1.5 py-1 text-[10px] font-bold text-white text-center focus:border-blue-500 outline-none" min="0" max="100" />
+                  <span className="text-[10px] font-bold text-blue-400">₨</span>
+                  <input type="number" value={item.discountFixed || 0} onChange={e => updateCartDiscount(i, 'discountFixed', Math.max(0, parseFloat(e.target.value) || 0))}
+                    className="w-16 bg-gray-900 border border-gray-700 rounded-lg px-1.5 py-1 text-[10px] font-bold text-white text-center focus:border-blue-500 outline-none" min="0" />
+                </div>
+              </div>
+            ))}
+            {cart.length === 0 && (
+              <div className="text-center py-12">
+                <ShoppingCart size={40} className="mx-auto text-gray-700 mb-3" />
+                <p className="text-sm font-bold text-gray-600">Cart is empty</p>
+                <p className="text-[10px] text-gray-700 font-bold">Scan barcode or select products</p>
+              </div>
+            )}
+            {/* Cart Summary — inside scrollable area */}
+            <div className="border-t-2 border-gray-800 pt-3 space-y-1.5">
+              <div className="flex items-center justify-between text-xs text-gray-400">
+                <span>Subtotal</span>
+                <span>{formatCurrency(subtotal)}</span>
+              </div>
+              {altCharges > 0 && (
+                <div className="flex items-center justify-between text-xs text-amber-400">
+                  <span>Alteration</span>
+                  <span>{formatCurrency(altCharges)}</span>
+                </div>
+              )}
+              {cust1Total > 0 && (
+                <div className="flex items-center justify-between text-xs text-purple-400">
+                  <span>Customization 1</span>
+                  <span>{formatCurrency(cust1Total)}</span>
+                </div>
+              )}
+              {cust2Total > 0 && (
+                <div className="flex items-center justify-between text-xs text-purple-400">
+                  <span>Customization 2</span>
+                  <span>{formatCurrency(cust2Total)}</span>
+                </div>
+              )}
+              {engraveTotal > 0 && (
+                <div className="flex items-center justify-between text-xs text-purple-400">
+                  <span>Name Engraving</span>
+                  <span>{formatCurrency(engraveTotal)}</span>
+                </div>
+              )}
+              {logoDesignTotal > 0 && (
+                <div className="flex items-center justify-between text-xs text-purple-400">
+                  <span>Logo Design</span>
+                  <span>{formatCurrency(logoDesignTotal)}</span>
+                </div>
+              )}
+              {otherChargesTotal > 0 && (
+                <div className="flex items-center justify-between text-xs text-orange-400">
+                  <span>Other Charges</span>
+                  <span>{formatCurrency(otherChargesTotal)}</span>
+                </div>
+              )}
+              {perItemDiscount > 0 && (
+                <div className="flex items-center justify-between text-xs text-blue-400">
+                  <span>Item Discounts</span>
+                  <span>-{formatCurrency(perItemDiscount)}</span>
+                </div>
+              )}
+              {deliveryCharge > 0 && (
+                <div className="flex items-center justify-between text-xs text-orange-400">
+                  <span>Delivery Charges</span>
+                  <span>{formatCurrency(deliveryCharge)}</span>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <input type="number" value={discountPct} onChange={e => setDiscountPct(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
+                  className="w-14 bg-gray-800 border border-gray-700 rounded-lg px-1.5 py-1 text-[10px] font-bold text-white text-center focus:border-blue-500 outline-none" min="0" max="100" />
+                <span className="text-[10px] text-gray-500">%</span>
+                <input type="number" value={discountFixed} onChange={e => setDiscountFixed(Math.max(0, parseFloat(e.target.value) || 0))}
+                  className="w-16 bg-gray-800 border border-gray-700 rounded-lg px-1.5 py-1 text-[10px] font-bold text-white text-center focus:border-blue-500 outline-none" min="0" />
+                <span className="text-[10px] text-gray-500">fix: -{formatCurrency(globalDiscountAmt)}</span>
+              </div>
+              {paymentMethod === 'CARD' && cardChargesAmt > 0 && (
+                <div className="flex items-center justify-between text-xs text-purple-400">
+                  <span>Card Charges ({cardChargesPct}%)</span>
+                  <span>+{formatCurrency(cardChargesAmt)}</span>
+                </div>
+              )}
+              {paymentMethod === 'CASH_ONLINE' && (
+                <div className="bg-amber-900/10 border border-amber-800/50 rounded-xl px-3 py-2 space-y-2">
+                  <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Split Payment</p>
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-bold text-gray-400">Cash Amount</label>
+                    <input type="number" value={cashAmount} onChange={e => setCashAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                      className="w-28 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white text-right focus:border-amber-500 outline-none" min="0" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-bold text-gray-400">Online Amount</label>
+                    <input type="number" value={onlineAmount} onChange={e => setOnlineAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                      className="w-28 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white text-right focus:border-amber-500 outline-none" min="0" />
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] font-black border-t border-amber-800/50 pt-1.5">
+                    <span className="text-gray-400">Total</span>
+                    <span className={parseFloat(cashAmount || 0) + parseFloat(onlineAmount || 0) === grandTotal ? 'text-emerald-400' : 'text-red-400'}>
+                      {formatCurrency((parseFloat(cashAmount) || 0) + (parseFloat(onlineAmount) || 0))} / {formatCurrency(grandTotal)}
+                    </span>
+                  </div>
+                </div>
+              )}
+              <input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Customer name (optional)"
+                className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
+              <input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="Customer phone *required"
+                className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
+              <label className="flex items-center gap-2 bg-gray-800/50 rounded-lg px-3 py-2 cursor-pointer">
+                <input type="checkbox" checked={deliveryEnabled} onChange={e => setDeliveryEnabled(e.target.checked)}
+                  className="accent-orange-500 w-4 h-4" />
+                <span className="text-[10px] font-bold text-orange-400">Delivery (+₨250)</span>
+              </label>
+              <div className="flex items-center justify-between bg-gray-800/50 rounded-lg px-3 py-2">
+                <label className="text-[10px] font-bold text-gray-400">Advance ₨</label>
+                <input type="number" value={advanceAmount} onChange={e => setAdvanceAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                  className="w-24 bg-transparent border-b border-gray-600 px-1 py-1 text-xs font-bold text-white text-right focus:border-blue-500 outline-none" min="0" />
+              </div>
+              <div className={`rounded-lg px-3 py-2 space-y-2 ${employeeLoggedIn ? 'bg-emerald-900/20 border border-emerald-800' : 'bg-gray-800/50 border border-gray-700'}`}>
+                <div className="flex items-center gap-2">
+                   <select value={employeeName} onChange={e => { setEmployeeName(e.target.value); setEmployeePassword(''); setEmployeeLoggedIn(false); }}
+                    className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white focus:border-blue-500 outline-none">
+                    <option value="">Select Employee</option>
+                    {Object.keys(employees).map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                  <input type="password" value={employeePassword} disabled={!employeeName || employeeLoggedIn}
+                    onChange={e => setEmployeePassword(e.target.value)} placeholder="Password"
+                    className="w-20 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
+                  {!employeeLoggedIn ? (
+                    <button onClick={() => {
+                      if (!employeeName) return toast.error('Select an employee');
+                      if (employees[employeeName] !== employeePassword) return toast.error('Wrong password');
+                      setEmployeeLoggedIn(true); setEmployeePassword(''); toast.success(`${employeeName} logged in`);
+                    }} className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">Login</button>
+                  ) : (
+                    <button onClick={() => { setEmployeeLoggedIn(false); setEmployeeName(''); setEmployeePassword(''); }}
+                      className="bg-red-600 hover:bg-red-500 text-white font-bold px-3 py-1.5 rounded-lg text-[10px]">Logout</button>
+                  )}
+                </div>
+                {employeeLoggedIn && <p className="text-[10px] font-bold text-emerald-400 text-center">✓ {employeeName} logged in</p>}
+              </div>
+              <input value={orderNumber} onChange={e => setOrderNumber(e.target.value)} placeholder="Order # or phone — fetch balance"
+                className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-blue-500 outline-none" />
+              {lookedUpOrder && (
+                <div className="bg-blue-900/20 border border-blue-800 rounded-xl px-3 py-2 space-y-1">
+                  <p className="text-xs font-bold text-blue-300">{lookedUpOrder.customerName} ({lookedUpOrder.customerPhone || 'no phone'})</p>
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-gray-400">Total</span>
+                    <span className="text-white font-bold">{formatCurrency(lookedUpOrder.totalPrice)}</span>
+                  </div>
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-amber-400">Advance</span>
+                    <span className="text-amber-400 font-bold">-{formatCurrency(lookedUpOrder.advanceAmount)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs font-black border-t border-blue-800 pt-1">
+                    <span className="text-emerald-400">Balance Due</span>
+                    <span className="text-emerald-400">{formatCurrency(lookedUpOrder.balance)}</span>
+                  </div>
+                </div>
+              )}
+              <div className="flex items-center justify-between text-sm font-black text-white border-t border-gray-700 pt-2">
+                <span>{lookedUpOrder ? 'Current Payment' : 'Grand Total'}</span>
+                <span className="text-emerald-400">{formatCurrency(grandTotal)}</span>
+              </div>
+              {lookedUpOrder && parseFloat(advanceAmount) > 0 && (
+                <div className="flex items-center justify-between text-xs font-bold text-amber-400">
+                  <span>Advance (Order)</span>
+                  <span>{formatCurrency(parseFloat(advanceAmount))}</span>
+                </div>
+              )}
+              {lookedUpOrder && parseFloat(advanceAmount) > 0 && (
+                <div className="flex items-center justify-between text-xs font-black border-t border-gray-700 pt-1">
+                  <span className="text-white">Total Paid</span>
+                  <span className="text-emerald-400">{formatCurrency(grandTotal + parseFloat(advanceAmount))}</span>
+                </div>
+              )}
+              {!lookedUpOrder && parseFloat(advanceAmount) > 0 && (
+                <div className="flex items-center justify-between text-xs font-bold">
+                  <span className="text-amber-400">Balance</span>
+                  <span className="text-amber-400">{formatCurrency(grandTotal - parseFloat(advanceAmount))}</span>
+                </div>
+              )}
+              <button onClick={handleCheckout} disabled={cart.length === 0 || checkoutLoading || !employeeLoggedIn || !paymentMethod}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2 mt-2">
+                {checkoutLoading ? 'Processing...' : !employeeLoggedIn ? 'Login Employee First' : !paymentMethod ? 'Select Payment Method' : faisalTake ? 'Record Faisal Take' : lookedUpOrder ? `Pay Balance ${formatCurrency(grandTotal)}` : `Checkout ${formatCurrency(grandTotal)}`}
+              </button>
+              <div className="flex gap-2">
+                <button onClick={() => setTab('dashboard')} className="flex-1 text-[10px] font-bold text-gray-500 hover:text-white bg-gray-800 py-2 rounded-xl text-center">Dashboard</button>
+                <button onClick={() => setTab('returns')} className="flex-1 text-[10px] font-bold text-red-400 hover:text-red-300 bg-gray-800 py-2 rounded-xl text-center flex items-center justify-center gap-1">
+                  <RotateCcw size={12} />Returns
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      )}
+      {sharedModals}
     </div>
   );
 };
