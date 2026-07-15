@@ -1191,15 +1191,17 @@ const OutletPOS = () => {
 
   const handlePayBalanceOpen = async (invoice) => {
     setLoadingBalanceAction(true);
+    const loadingGuard = setTimeout(() => { setLoadingBalanceAction(false); }, 20000);
     try {
-      const res = await api.get(`/api/pos/balance-invoices/${invoice.id}`);
+      const res = await api.get(`/api/pos/balance-invoices/${invoice.id}`, { timeout: 15000 });
       setSelectedBalanceInvoice(res.data);
       setPayAmount(Math.ceil(res.data.remaining));
       setShowPayBalanceModal(true);
     } catch (e) {
-      console.error('PayBalanceOpen error:', e);
-      toast.error('Failed to load invoice details');
+      console.error('PayBalanceOpen error:', e?.response?.data || e?.message || e);
+      toast.error(e?.response?.data?.message || 'Failed to load invoice details');
     } finally {
+      clearTimeout(loadingGuard);
       setLoadingBalanceAction(false);
     }
   };
@@ -1270,15 +1272,17 @@ const OutletPOS = () => {
 
   const handleViewBalanceHistory = async (invoice) => {
     setLoadingBalanceAction(true);
+    const loadingGuard = setTimeout(() => { setLoadingBalanceAction(false); }, 20000);
     try {
-      const detailRes = await api.get(`/api/pos/balance-invoices/${invoice.id}`);
+      const detailRes = await api.get(`/api/pos/balance-invoices/${invoice.id}`, { timeout: 15000 });
       setSelectedBalanceInvoice(detailRes.data);
       setBalanceHistory(detailRes.data.paymentHistory || []);
       setShowBalanceHistoryModal(true);
     } catch (e) {
-      console.error('ViewBalanceHistory error:', e);
-      toast.error('Failed to load payment history');
+      console.error('ViewBalanceHistory error:', e?.response?.data || e?.message || e);
+      toast.error(e?.response?.data?.message || 'Failed to load payment history');
     } finally {
+      clearTimeout(loadingGuard);
       setLoadingBalanceAction(false);
     }
   };
