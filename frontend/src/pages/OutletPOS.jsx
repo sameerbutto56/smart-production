@@ -977,7 +977,7 @@ const OutletPOS = () => {
     lines.push(`Cash:         ${formatCurrency(summary.paymentSummary.cash)}`);
     lines.push(`Card:         ${formatCurrency(summary.paymentSummary.card)}`);
     lines.push(`Online:       ${formatCurrency(summary.paymentSummary.online)}`);
-    lines.push(`Cash+Online:  ${formatCurrency(summary.paymentSummary.cashOnlineTotal)}`);
+    lines.push(`Cash+Online:  Already Added`);
     lines.push(`Grand Total:  ${formatCurrency(summary.paymentSummary.grandTotal)}`);
     lines.push('');
     lines.push('EMPLOYEE COLLECTIONS');
@@ -1057,7 +1057,7 @@ const OutletPOS = () => {
           <tr><td>Cash</td><td class="right">${formatCurrency(summary.paymentSummary.cash)}</td></tr>
           <tr><td>Card</td><td class="right">${formatCurrency(summary.paymentSummary.card)}</td></tr>
           <tr><td>Online</td><td class="right">${formatCurrency(summary.paymentSummary.online)}</td></tr>
-          <tr><td>Cash + Online</td><td class="right">${formatCurrency(summary.paymentSummary.cashOnlineTotal)}</td></tr>
+          <tr><td>Cash + Online</td><td class="right" style="font-style:italic;color:#888;">Already Added</td></tr>
           <tr class="total"><td>Grand Total</td><td class="right">${formatCurrency(summary.paymentSummary.grandTotal)}</td></tr>
         </table>
 
@@ -1579,7 +1579,7 @@ const OutletPOS = () => {
                     <button onClick={() => setShowPaymentDetail({ method: 'Cash+Online', sales: (closeBookSummary.sales || []).filter(s => s.paymentMethod === 'CASH_ONLINE') })}
                       className="w-full flex justify-between items-center hover:bg-gray-750 rounded-lg px-2 py-1.5 -mx-2 transition-colors">
                       <span className="text-gray-400">Cash + Online</span>
-                      <span className="font-bold text-amber-400">{formatCurrency(closeBookSummary.paymentSummary.cashOnlineTotal)}</span>
+                      <span className="text-[10px] font-bold text-gray-500 italic">Already Added</span>
                     </button>
                     <div className="flex justify-between border-t border-gray-700 pt-2 mt-2"><span className="font-bold text-white">Grand Total</span><span className="font-black text-lg text-white">{formatCurrency(closeBookSummary.paymentSummary.grandTotal)}</span></div>
                   </div>

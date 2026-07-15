@@ -247,11 +247,10 @@ const getBookSummary = async (req, res) => {
     // Journal entries total
     const totalJournalEntries = journals.reduce((s, j) => s + j.amount, 0);
 
-    // Totals — each is a distinct payment method (no double-counting)
-    // Cash+Online has its own row, so CASH and ONLINE here are pure method amounts only
-    const totalCashSales = paymentSummary.CASH;
+    // Totals — Cash+Online cash portion is included in cash, online portion in online
+    const totalCashSales = paymentSummary.CASH + paymentSummary.CASH_ONLINE_CASH;
     const totalCardSales = paymentSummary.CARD;
-    const totalOnlineSales = paymentSummary.ONLINE;
+    const totalOnlineSales = paymentSummary.ONLINE + paymentSummary.CASH_ONLINE_ONLINE;
     const totalRevenueSales = sales.reduce((s, sale) => s + saleRevenue(sale), 0) + balancePayments.reduce((s, bp) => s + bp.amountPaidNow, 0);
 
     // Cash actually collected (raw amounts, matches Dashboard's getCashSummary)
@@ -362,19 +361,9 @@ const getBookHistory = async (req, res) => {
       where: { outletName: outlet, status: 'CLOSED' },
       orderBy: { closedAt: 'desc' },
     });
-    // Parse stored summary JSON and adjust old records to be non-overlapping
+    // Parse stored summary JSON
     const result = sessions.map(s => {
       const summary = typeof s.summary === 'string' ? JSON.parse(s.summary) : (s.summary || {});
-      if (summary?.paymentSummary) {
-        const ps = summary.paymentSummary;
-        const oldCash = ps.cash || 0;
-        const oldOnline = ps.online || 0;
-        const cashPortion = ps.cashOnlineCash || 0;
-        const onlinePortion = ps.cashOnlineOnline || 0;
-        // Remove CASH_ONLINE portions from pure CASH/ONLINE to avoid double-count
-        ps.cash = oldCash - cashPortion;
-        ps.online = oldOnline - onlinePortion;
-      }
       return { ...s, summary };
     });
     res.json(result);
