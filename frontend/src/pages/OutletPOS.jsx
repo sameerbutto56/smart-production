@@ -602,9 +602,6 @@ const OutletPOS = () => {
   /* ─── Receipt Print ─── */
   const printReceipt = async (sale, { includeInvoice = true, includeGatePass = true } = {}) => {
     const isFT = sale.isFaisalTake;
-    // Open window synchronously (before any await) so popup blockers don't interfere
-    const w = window.open('', '_blank');
-    if (!w) { toast.error('Popup blocked! Please allow popups for this site to print receipts.'); return; }
     let logoUrl = window.location.origin + '/logo.png';
     try {
       const logoResp = await fetch(logoUrl);
@@ -632,6 +629,16 @@ const OutletPOS = () => {
     else if (isOrderSale) { gpPaid = sale.grandTotal + adv; gpBalance = 0; }
     else if (isPartialPayment) { gpPaid = adv; gpBalance = sale.grandTotal - adv; }
     else { gpPaid = sale.grandTotal; gpBalance = 0; }
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '-9999px';
+    iframe.style.bottom = '-9999px';
+    iframe.style.width = '80mm';
+    iframe.style.height = '0';
+    iframe.title = 'Receipt Print';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentWindow.document;
+    doc.open();
     const receiptStyle = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt</title><style>
       @page { margin: 0; size: 80mm auto; }
       body { font-family: monospace; font-size: 16px; padding: 4mm 6mm; color: #000; line-height: 1.5; background: #fff; margin: 0; }
@@ -657,19 +664,19 @@ const OutletPOS = () => {
       .summary .final td { font-size: 19px; font-weight: 900; padding-top: 8px; border-top: 3px solid #000; }
       .footer { text-align: center; font-size: 14px; margin-top: 10px; font-weight: bold; }
     </style></head><body>`;
-    w.document.write(receiptStyle);
+    doc.write(receiptStyle);
     if (includeInvoice) {
-    w.document.write(`<div class="header"><img src="${logoUrl}" alt="ENAMELS" style="height:80px;margin-bottom:4px;"><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p>${isFT ? '<p style="font-size:22px;font-weight:900;color:#c00;margin:6px 0;text-transform:uppercase;letter-spacing:3px;">FAISAL TAKE — NO CHARGE</p>' : ''}<p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}${sale.customerPhone ? `<p>Phone: ${sale.customerPhone}</p>` : ''}</div>`);
-    w.document.write('<hr><div class="items"><div class="items-heading"><span class="col-item">ITEM</span><span class="col-qty">QTY × PRICE</span><span class="col-total">TOTAL</span></div>');
+    doc.write(`<div class="header"><img src="${logoUrl}" alt="ENAMELS" style="height:80px;margin-bottom:4px;"><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p>${isFT ? '<p style="font-size:22px;font-weight:900;color:#c00;margin:6px 0;text-transform:uppercase;letter-spacing:3px;">FAISAL TAKE — NO CHARGE</p>' : ''}<p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}${sale.customerPhone ? `<p>Phone: ${sale.customerPhone}</p>` : ''}</div>`);
+    doc.write('<hr><div class="items"><div class="items-heading"><span class="col-item">ITEM</span><span class="col-qty">QTY × PRICE</span><span class="col-total">TOTAL</span></div>');
     (sale.items || []).forEach(item => {
       const name = item.productName || '';
       const variantParts = [item.color, item.size].filter(Boolean);
-      w.document.write('<div class="item">');
-      w.document.write(`<div class="item-name">${name}</div>`);
-      if (variantParts.length > 0) w.document.write(`<div class="item-variant">${variantParts.join(' / ')}</div>`);
-      w.document.write(`<div class="item-line"><span>${item.quantity} × ${pf(isFT ? 0 : item.unitPrice)}</span><span class="item-total">${pf(isFT ? 0 : item.lineTotal)}</span></div>`);
+      doc.write('<div class="item">');
+      doc.write(`<div class="item-name">${name}</div>`);
+      if (variantParts.length > 0) doc.write(`<div class="item-variant">${variantParts.join(' / ')}</div>`);
+      doc.write(`<div class="item-line"><span>${item.quantity} × ${pf(isFT ? 0 : item.unitPrice)}</span><span class="item-total">${pf(isFT ? 0 : item.lineTotal)}</span></div>`);
       if (!isFT && item.alterationCharges > 0) {
-        w.document.write(`<div class="item-line"><span>+ Alteration</span><span class="item-total">${pf(item.alterationCharges)}</span></div>`);
+        doc.write(`<div class="item-line"><span>+ Alteration</span><span class="item-total">${pf(item.alterationCharges)}</span></div>`);
       }
       if (!isFT) {
       const custParts = [];
@@ -677,79 +684,81 @@ const OutletPOS = () => {
       if (item.customization2) custParts.push('Custom 2');
       if (item.nameEngrave) custParts.push('Engrave');
       if (custParts.length > 0) {
-        w.document.write(`<div style="font-size:11px;font-weight:bold;color:#555;margin-top:2px;">${custParts.join(' + ')} (+${pf(item.customizationCharges || 0)})</div>`);
+        doc.write(`<div style="font-size:11px;font-weight:bold;color:#555;margin-top:2px;">${custParts.join(' + ')} (+${pf(item.customizationCharges || 0)})</div>`);
       }
       if (item.otherCharges > 0) {
-        w.document.write(`<div style="font-size:11px;font-weight:bold;color:#a06600;margin-top:1px;">Other Charges: +${pf(item.otherCharges)}</div>`);
+        doc.write(`<div style="font-size:11px;font-weight:bold;color:#a06600;margin-top:1px;">Other Charges: +${pf(item.otherCharges)}</div>`);
       }
       }
-      w.document.write('</div>');
+      doc.write('</div>');
     });
     if (isFT) {
-      w.document.write('<div style="text-align:center;font-size:24px;font-weight:900;color:#c00;margin:12px 0;text-transform:uppercase;letter-spacing:2px;">NO CHARGE</div>');
+      doc.write('<div style="text-align:center;font-size:24px;font-weight:900;color:#c00;margin:12px 0;text-transform:uppercase;letter-spacing:2px;">NO CHARGE</div>');
     } else {
-    w.document.write('</div><div class="section-label">SUMMARY</div>');
-    w.document.write(`<table class="summary"><tr class="sub"><td>Subtotal</td><td class="value">${pf(sale.subtotal)}</td></tr>`);
-    if (sale.alterationCharges > 0) w.document.write(`<tr><td>Alteration</td><td class="value">${pf(sale.alterationCharges)}</td></tr>`);
-    if (sale.deliveryCharges > 0) w.document.write(`<tr><td>Delivery Charges</td><td class="value">${pf(sale.deliveryCharges)}</td></tr>`);
+    doc.write('</div><div class="section-label">SUMMARY</div>');
+    doc.write(`<table class="summary"><tr class="sub"><td>Subtotal</td><td class="value">${pf(sale.subtotal)}</td></tr>`);
+    if (sale.alterationCharges > 0) doc.write(`<tr><td>Alteration</td><td class="value">${pf(sale.alterationCharges)}</td></tr>`);
+    if (sale.deliveryCharges > 0) doc.write(`<tr><td>Delivery Charges</td><td class="value">${pf(sale.deliveryCharges)}</td></tr>`);
     const receiptCustTotal = (sale.items || []).reduce((s, i) => s + (i.customizationCharges || 0), 0);
-    if (receiptCustTotal > 0) w.document.write(`<tr><td>Customization</td><td class="value">${pf(receiptCustTotal)}</td></tr>`);
+    if (receiptCustTotal > 0) doc.write(`<tr><td>Customization</td><td class="value">${pf(receiptCustTotal)}</td></tr>`);
     const receiptOtherTotal = (sale.items || []).reduce((s, i) => s + (parseFloat(i.otherCharges) || 0), 0);
-    if (receiptOtherTotal > 0) w.document.write(`<tr><td>Other Charges</td><td class="value">${pf(receiptOtherTotal)}</td></tr>`);
-    if (sale.extraCharges > 0) w.document.write(`<tr><td>Extra Charges</td><td class="value">${pf(sale.extraCharges)}</td></tr>`);
-    if (sale.discountPercent > 0 || sale.discountAmount > 0) w.document.write(`<tr><td>Discount${sale.discountPercent > 0 ? ` (${sale.discountPercent}%)` : ''}</td><td class="value">-${pf(sale.discountAmount)}</td></tr>`);
-    if (sale.cardChargesPct > 0) w.document.write(`<tr><td>Card Charges (${sale.cardChargesPct}%)</td><td class="value">+${pf(sale.cardChargesAmount)}</td></tr>`);
+    if (receiptOtherTotal > 0) doc.write(`<tr><td>Other Charges</td><td class="value">${pf(receiptOtherTotal)}</td></tr>`);
+    if (sale.extraCharges > 0) doc.write(`<tr><td>Extra Charges</td><td class="value">${pf(sale.extraCharges)}</td></tr>`);
+    if (sale.discountPercent > 0 || sale.discountAmount > 0) doc.write(`<tr><td>Discount${sale.discountPercent > 0 ? ` (${sale.discountPercent}%)` : ''}</td><td class="value">-${pf(sale.discountAmount)}</td></tr>`);
+    if (sale.cardChargesPct > 0) doc.write(`<tr><td>Card Charges (${sale.cardChargesPct}%)</td><td class="value">+${pf(sale.cardChargesAmount)}</td></tr>`);
     const balance = sale.grandTotal - adv;
     if (isFT) {
       // no summary
     } else if (isRefunded) {
-      w.document.write(`<tr style="font-size:17px;font-weight:900;color:#c00;"><td>Refunded</td><td class="value">-${pf(sale.grandTotal)}</td></tr>`);
+      doc.write(`<tr style="font-size:17px;font-weight:900;color:#c00;"><td>Refunded</td><td class="value">-${pf(sale.grandTotal)}</td></tr>`);
     } else if (isOrderSale) {
-      w.document.write(`<tr class="final"><td>Total</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
-      w.document.write(`<tr><td>Paid (This Transaction)</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
-      w.document.write(`<tr><td>Advance (Previous)</td><td class="value">${pf(adv)}</td></tr>`);
-      w.document.write(`<tr style="font-size:17px;font-weight:900;"><td>Cumulative Paid</td><td class="value">${pf(sale.grandTotal + adv)}</td></tr>`);
-      w.document.write(`<tr><td style="font-size:11px;color:#070;font-weight:900;">Status</td><td class="value" style="font-size:11px;color:#070;font-weight:900;">Fully Paid</td></tr>`);
+      doc.write(`<tr class="final"><td>Total</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
+      doc.write(`<tr><td>Paid (This Transaction)</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
+      doc.write(`<tr><td>Advance (Previous)</td><td class="value">${pf(adv)}</td></tr>`);
+      doc.write(`<tr style="font-size:17px;font-weight:900;"><td>Cumulative Paid</td><td class="value">${pf(sale.grandTotal + adv)}</td></tr>`);
+      doc.write(`<tr><td style="font-size:11px;color:#070;font-weight:900;">Status</td><td class="value" style="font-size:11px;color:#070;font-weight:900;">Fully Paid</td></tr>`);
     } else if (isPartialPayment) {
-      w.document.write(`<tr class="final"><td>Total Bill</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
-      w.document.write(`<tr><td>Paid</td><td class="value">${pf(adv)}</td></tr>`);
-      w.document.write(`<tr style="font-size:17px;font-weight:900;color:#c00;"><td>Balance</td><td class="value" style="color:#c00;">${pf(balance)}</td></tr>`);
-      w.document.write(`<tr><td style="font-size:11px;color:#c00;font-weight:900;">Status</td><td class="value" style="font-size:11px;color:#c00;font-weight:900;">Partially Paid</td></tr>`);
+      doc.write(`<tr class="final"><td>Total Bill</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
+      doc.write(`<tr><td>Paid</td><td class="value">${pf(adv)}</td></tr>`);
+      doc.write(`<tr style="font-size:17px;font-weight:900;color:#c00;"><td>Balance</td><td class="value" style="color:#c00;">${pf(balance)}</td></tr>`);
+      doc.write(`<tr><td style="font-size:11px;color:#c00;font-weight:900;">Status</td><td class="value" style="font-size:11px;color:#c00;font-weight:900;">Partially Paid</td></tr>`);
     } else {
-      w.document.write(`<tr class="final"><td>Total Bill</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
-      w.document.write(`<tr><td>Paid</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
-      w.document.write(`<tr><td>Balance</td><td class="value">₨0</td></tr>`);
-      w.document.write(`<tr><td style="font-size:11px;color:#070;font-weight:900;">Status</td><td class="value" style="font-size:11px;color:#070;font-weight:900;">Fully Paid</td></tr>`);
+      doc.write(`<tr class="final"><td>Total Bill</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
+      doc.write(`<tr><td>Paid</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
+      doc.write(`<tr><td>Balance</td><td class="value">₨0</td></tr>`);
+      doc.write(`<tr><td style="font-size:11px;color:#070;font-weight:900;">Status</td><td class="value" style="font-size:11px;color:#070;font-weight:900;">Fully Paid</td></tr>`);
     }
     if (sale.paymentMethod === 'CASH_ONLINE') {
-      w.document.write(`<tr><td>Cash Amount</td><td class="value">${pf(sale.cashAmount)}</td></tr>`);
-      w.document.write(`<tr><td>Online Amount</td><td class="value">${pf(sale.onlineAmount)}</td></tr>`);
-      w.document.write(`<tr><td>Payment</td><td class="value">Cash + Online</td></tr></table>`);
+      doc.write(`<tr><td>Cash Amount</td><td class="value">${pf(sale.cashAmount)}</td></tr>`);
+      doc.write(`<tr><td>Online Amount</td><td class="value">${pf(sale.onlineAmount)}</td></tr>`);
+      doc.write(`<tr><td>Payment</td><td class="value">Cash + Online</td></tr></table>`);
     } else {
       const pmLabel = sale.paymentMethod === 'CASH' ? 'Cash' : sale.paymentMethod === 'CARD' ? 'Card' : sale.paymentMethod === 'ONLINE' ? 'Online' : sale.paymentMethod;
-      w.document.write(`<tr><td>Payment</td><td class="value">${pmLabel}</td></tr></table>`);
+      doc.write(`<tr><td>Payment</td><td class="value">${pmLabel}</td></tr></table>`);
     }
     }
-    w.document.write('<div style="font-size:11px;font-weight:bold;margin:6px 0 0;border-top:2px solid #000;padding-top:4px;"><p style="font-size:12px;font-weight:900;text-align:center;margin:0 0 3px;">TERMS &amp; CONDITIONS</p><p style="margin:2px 0;text-align:center;">Exchanges are allowed only within 7 days with original tags and invoice.</p></div>');
-    w.document.write(`<div style="text-align:center;margin:6px 0 0;padding:3px;"><img src="${qrDataUrl || 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(reviewUrl)}" width="150" height="150" alt="Review QR" style="display:inline-block;"><p style="font-size:8px;margin:3px 0 0;font-weight:bold;">Scan to Review us and Avail Special Offers</p><p style="font-size:13px;font-weight:900;margin:4px 0 0;">Thank you for shopping! Visit Again!</p></div>`);
-    w.document.write('<hr><p style="text-align:center;font-size:9px;margin-top:4px;">Software is develop by Sameer Butt</p>');
-    w.document.write('<br><br>');
+    doc.write('<div style="font-size:11px;font-weight:bold;margin:6px 0 0;border-top:2px solid #000;padding-top:4px;"><p style="font-size:12px;font-weight:900;text-align:center;margin:0 0 3px;">TERMS &amp; CONDITIONS</p><p style="margin:2px 0;text-align:center;">Exchanges are allowed only within 7 days with original tags and invoice.</p></div>');
+    doc.write(`<div style="text-align:center;margin:6px 0 0;padding:3px;"><img src="${qrDataUrl || 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(reviewUrl)}" width="150" height="150" alt="Review QR" style="display:inline-block;"><p style="font-size:8px;margin:3px 0 0;font-weight:bold;">Scan to Review us and Avail Special Offers</p><p style="font-size:13px;font-weight:900;margin:4px 0 0;">Thank you for shopping! Visit Again!</p></div>`);
+    doc.write('<hr><p style="text-align:center;font-size:9px;margin-top:4px;">Software is develop by Sameer Butt</p>');
+    doc.write('<br><br>');
     }
     if (includeGatePass) {
-    w.document.write('<hr style="border-top:2px dashed #000;"><div style="text-align:center;margin:6px 0 0;padding:4px;background:#ffd700;border:2px solid #000;border-radius:4px;">');
-    w.document.write('<p style="font-size:18px;font-weight:900;margin:0 0 4px;text-transform:uppercase;">Gate Pass</p>');
-    w.document.write(`<p style="font-size:11px;font-weight:bold;margin:0 0 4px;">${new Date(sale.createdAt).toLocaleDateString()} | Invoice: ${sale.receiptNumber}</p>`);
-    w.document.write('<table style="width:100%;font-size:14px;font-weight:bold;border-collapse:collapse;">');
-    w.document.write(`<tr><td style="text-align:left;padding:2px 4px;">Total Products</td><td style="text-align:right;padding:2px 4px;">${totalQty}</td></tr>`);
-    w.document.write(`<tr><td style="text-align:left;padding:2px 4px;">Total Amount</td><td style="text-align:right;padding:2px 4px;">${pf(sale.grandTotal)}</td></tr>`);
-    w.document.write(`<tr><td style="text-align:left;padding:2px 4px;">Paid Amount</td><td style="text-align:right;padding:2px 4px;">${pf(gpPaid)}</td></tr>`);
-    w.document.write(`<tr><td style="text-align:left;padding:2px 4px;">Balance Amount</td><td style="text-align:right;padding:2px 4px;">${pf(gpBalance)}</td></tr>`);
-    w.document.write('</table></div>');
+    doc.write('<hr style="border-top:2px dashed #000;"><div style="text-align:center;margin:6px 0 0;padding:4px;background:#ffd700;border:2px solid #000;border-radius:4px;">');
+    doc.write('<p style="font-size:18px;font-weight:900;margin:0 0 4px;text-transform:uppercase;">Gate Pass</p>');
+    doc.write(`<p style="font-size:11px;font-weight:bold;margin:0 0 4px;">${new Date(sale.createdAt).toLocaleDateString()} | Invoice: ${sale.receiptNumber}</p>`);
+    doc.write('<table style="width:100%;font-size:14px;font-weight:bold;border-collapse:collapse;">');
+    doc.write(`<tr><td style="text-align:left;padding:2px 4px;">Total Products</td><td style="text-align:right;padding:2px 4px;">${totalQty}</td></tr>`);
+    doc.write(`<tr><td style="text-align:left;padding:2px 4px;">Total Amount</td><td style="text-align:right;padding:2px 4px;">${pf(sale.grandTotal)}</td></tr>`);
+    doc.write(`<tr><td style="text-align:left;padding:2px 4px;">Paid Amount</td><td style="text-align:right;padding:2px 4px;">${pf(gpPaid)}</td></tr>`);
+    doc.write(`<tr><td style="text-align:left;padding:2px 4px;">Balance Amount</td><td style="text-align:right;padding:2px 4px;">${pf(gpBalance)}</td></tr>`);
+    doc.write('</table></div>');
     }
-    w.document.write('</body></html>');
-    w.document.close();
-    w.focus();
-    setTimeout(() => { w.print(); if (logoUrl.startsWith('blob:')) URL.revokeObjectURL(logoUrl); }, 500);
+    doc.write('</body></html>');
+    doc.close();
+    setTimeout(() => {
+      try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch(e) { toast.error('Print failed: ' + e.message); }
+      setTimeout(() => { document.body.removeChild(iframe); if (logoUrl.startsWith('blob:')) URL.revokeObjectURL(logoUrl); }, 1000);
+    }, 500);
   };
 
   /* ─── Return ─── */

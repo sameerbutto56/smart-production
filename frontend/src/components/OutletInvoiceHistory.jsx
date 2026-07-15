@@ -72,9 +72,6 @@ const OutletInvoiceHistory = ({ outlet }) => {
     setPrinting(sale.id);
     try {
     const isFT = sale.faisalTake;
-    // Open window synchronously (before any await) so popup blockers don't interfere
-    const w = window.open('', '_blank');
-    if (!w) { toast.error('Popup blocked! Please allow popups for this site to print receipts.'); setPrinting(null); return; }
     let logoUrl = window.location.origin + '/logo.png';
     try {
       const logoResp = await fetch(logoUrl);
@@ -99,7 +96,16 @@ const OutletInvoiceHistory = ({ outlet }) => {
     else if (isOrderSale) { gpPaid = sale.grandTotal + adv; gpBalance = 0; }
     else if (adv > 0) { gpPaid = adv; gpBalance = sale.grandTotal - adv; }
     else { gpPaid = sale.grandTotal; gpBalance = 0; }
-
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '-9999px';
+    iframe.style.bottom = '-9999px';
+    iframe.style.width = '80mm';
+    iframe.style.height = '0';
+    iframe.title = 'Receipt Print';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentWindow.document;
+    doc.open();
     const style = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt</title><style>
       @page{margin:0;size:80mm auto;}
       body{font-family:monospace;font-size:16px;padding:4mm 6mm;color:#000;line-height:1.5;background:#fff;margin:0;}
@@ -125,18 +131,18 @@ const OutletInvoiceHistory = ({ outlet }) => {
       .summary .final td{font-size:19px;font-weight:900;padding-top:8px;border-top:3px solid #000;}
       .footer{text-align:center;font-size:14px;margin-top:10px;font-weight:bold;}
     </style></head><body>`;
-    w.document.write(style);
-    w.document.write(`<div class="header"><img src="${logoUrl}" alt="ENAMELS" style="height:80px;margin-bottom:4px;"><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p>${isFT ? '<p style="font-size:22px;font-weight:900;color:#c00;margin:6px 0;text-transform:uppercase;letter-spacing:3px;">FAISAL TAKE — NO CHARGE</p>' : ''}<p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}${sale.customerPhone ? `<p>Phone: ${sale.customerPhone}</p>` : ''}</div>`);
-    w.document.write('<hr><div class="items"><div class="items-heading"><span class="col-item">ITEM</span><span class="col-qty">QTY × PRICE</span><span class="col-total">TOTAL</span></div>');
+    doc.write(style);
+    doc.write(`<div class="header"><img src="${logoUrl}" alt="ENAMELS" style="height:80px;margin-bottom:4px;"><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p>${isFT ? '<p style="font-size:22px;font-weight:900;color:#c00;margin:6px 0;text-transform:uppercase;letter-spacing:3px;">FAISAL TAKE — NO CHARGE</p>' : ''}<p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}${sale.customerPhone ? `<p>Phone: ${sale.customerPhone}</p>` : ''}</div>`);
+    doc.write('<hr><div class="items"><div class="items-heading"><span class="col-item">ITEM</span><span class="col-qty">QTY × PRICE</span><span class="col-total">TOTAL</span></div>');
     (sale.items || []).forEach(item => {
       const name = item.productName || '';
       const variantParts = [item.color, item.size].filter(Boolean);
-      w.document.write('<div class="item">');
-      w.document.write(`<div class="item-name">${name}</div>`);
-      if (variantParts.length > 0) w.document.write(`<div class="item-variant">${variantParts.join(' / ')}</div>`);
-      w.document.write(`<div class="item-line"><span>${item.quantity} × ${pf(isFT ? 0 : item.unitPrice)}</span><span class="item-total">${pf(isFT ? 0 : item.lineTotal)}</span></div>`);
+      doc.write('<div class="item">');
+      doc.write(`<div class="item-name">${name}</div>`);
+      if (variantParts.length > 0) doc.write(`<div class="item-variant">${variantParts.join(' / ')}</div>`);
+      doc.write(`<div class="item-line"><span>${item.quantity} × ${pf(isFT ? 0 : item.unitPrice)}</span><span class="item-total">${pf(isFT ? 0 : item.lineTotal)}</span></div>`);
       if (!isFT && item.alterationCharges > 0) {
-        w.document.write(`<div class="item-line"><span>+ Alteration</span><span class="item-total">${pf(item.alterationCharges)}</span></div>`);
+        doc.write(`<div class="item-line"><span>+ Alteration</span><span class="item-total">${pf(item.alterationCharges)}</span></div>`);
       }
       if (!isFT) {
         const custParts = [];
@@ -144,50 +150,52 @@ const OutletInvoiceHistory = ({ outlet }) => {
         if (item.customization2) custParts.push('Custom 2');
         if (item.nameEngrave) custParts.push('Engrave');
         if (custParts.length > 0) {
-          w.document.write(`<div style="font-size:11px;font-weight:bold;color:#555;margin-top:2px;">${custParts.join(' + ')} (+${pf(item.customizationCharges || 0)})</div>`);
+          doc.write(`<div style="font-size:11px;font-weight:bold;color:#555;margin-top:2px;">${custParts.join(' + ')} (+${pf(item.customizationCharges || 0)})</div>`);
         }
         if (item.otherCharges > 0) {
-          w.document.write(`<div style="font-size:11px;font-weight:bold;color:#a06600;margin-top:1px;">Other Charges: +${pf(item.otherCharges)}</div>`);
+          doc.write(`<div style="font-size:11px;font-weight:bold;color:#a06600;margin-top:1px;">Other Charges: +${pf(item.otherCharges)}</div>`);
         }
       }
-      w.document.write('</div>');
+      doc.write('</div>');
     });
     if (isFT) {
-      w.document.write('<div style="text-align:center;font-size:24px;font-weight:900;color:#c00;margin:12px 0;text-transform:uppercase;letter-spacing:2px;">NO CHARGE</div>');
+      doc.write('<div style="text-align:center;font-size:24px;font-weight:900;color:#c00;margin:12px 0;text-transform:uppercase;letter-spacing:2px;">NO CHARGE</div>');
     } else {
-      w.document.write('</div><div class="section-label">SUMMARY</div>');
-      w.document.write(`<table class="summary"><tr class="sub"><td>Subtotal</td><td class="value">${pf(sale.subtotal)}</td></tr>`);
-      if (sale.alterationCharges > 0) w.document.write(`<tr><td>Alteration</td><td class="value">${pf(sale.alterationCharges)}</td></tr>`);
+      doc.write('</div><div class="section-label">SUMMARY</div>');
+      doc.write(`<table class="summary"><tr class="sub"><td>Subtotal</td><td class="value">${pf(sale.subtotal)}</td></tr>`);
+      if (sale.alterationCharges > 0) doc.write(`<tr><td>Alteration</td><td class="value">${pf(sale.alterationCharges)}</td></tr>`);
       const rcust = (sale.items || []).reduce((s, i) => s + (i.customizationCharges || 0), 0);
-      if (rcust > 0) w.document.write(`<tr><td>Customization</td><td class="value">${pf(rcust)}</td></tr>`);
+      if (rcust > 0) doc.write(`<tr><td>Customization</td><td class="value">${pf(rcust)}</td></tr>`);
       const rother = (sale.items || []).reduce((s, i) => s + (parseFloat(i.otherCharges) || 0), 0);
-      if (rother > 0) w.document.write(`<tr><td>Other Charges</td><td class="value">${pf(rother)}</td></tr>`);
-      if (sale.extraCharges > 0) w.document.write(`<tr><td>Extra Charges</td><td class="value">${pf(sale.extraCharges)}</td></tr>`);
-      if (sale.discountPercent > 0 || sale.discountAmount > 0) w.document.write(`<tr><td>Discount${sale.discountPercent > 0 ? ` (${sale.discountPercent}%)` : ''}</td><td class="value">-${pf(sale.discountAmount)}</td></tr>`);
-      if (sale.cardChargesPct > 0) w.document.write(`<tr><td>Card Charges (${sale.cardChargesPct}%)</td><td class="value">+${pf(sale.cardChargesAmount)}</td></tr>`);
+      if (rother > 0) doc.write(`<tr><td>Other Charges</td><td class="value">${pf(rother)}</td></tr>`);
+      if (sale.extraCharges > 0) doc.write(`<tr><td>Extra Charges</td><td class="value">${pf(sale.extraCharges)}</td></tr>`);
+      if (sale.discountPercent > 0 || sale.discountAmount > 0) doc.write(`<tr><td>Discount${sale.discountPercent > 0 ? ` (${sale.discountPercent}%)` : ''}</td><td class="value">-${pf(sale.discountAmount)}</td></tr>`);
+      if (sale.cardChargesPct > 0) doc.write(`<tr><td>Card Charges (${sale.cardChargesPct}%)</td><td class="value">+${pf(sale.cardChargesAmount)}</td></tr>`);
       if (isOrderSale && adv > 0) {
-        w.document.write(`<tr class="final"><td>Current Payment</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
-        w.document.write(`<tr><td>Advance (Order)</td><td class="value">${pf(adv)}</td></tr>`);
-        w.document.write(`<tr style="font-size:17px;font-weight:900;"><td>Total Paid</td><td class="value">${pf(sale.grandTotal + adv)}</td></tr>`);
+        doc.write(`<tr class="final"><td>Current Payment</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
+        doc.write(`<tr><td>Advance (Order)</td><td class="value">${pf(adv)}</td></tr>`);
+        doc.write(`<tr style="font-size:17px;font-weight:900;"><td>Total Paid</td><td class="value">${pf(sale.grandTotal + adv)}</td></tr>`);
       } else {
         const balance = sale.grandTotal - adv;
-        w.document.write(`<tr class="final"><td>Final Amount</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
-        if (adv > 0) w.document.write(`<tr><td>Advance</td><td class="value">-${pf(adv)}</td></tr>`);
-        if (adv > 0) w.document.write(`<tr style="font-size:17px;font-weight:900;"><td>Balance</td><td class="value">${pf(balance)}</td></tr>`);
+        doc.write(`<tr class="final"><td>Final Amount</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
+        if (adv > 0) doc.write(`<tr><td>Advance</td><td class="value">-${pf(adv)}</td></tr>`);
+        if (adv > 0) doc.write(`<tr style="font-size:17px;font-weight:900;"><td>Balance</td><td class="value">${pf(balance)}</td></tr>`);
       }
       if (sale.paymentMethod === 'CASH_ONLINE') {
-        w.document.write(`<tr><td>Cash Amount</td><td class="value">${pf(sale.cashAmount)}</td></tr>`);
-        w.document.write(`<tr><td>Online Amount</td><td class="value">${pf(sale.onlineAmount)}</td></tr>`);
+        doc.write(`<tr><td>Cash Amount</td><td class="value">${pf(sale.cashAmount)}</td></tr>`);
+        doc.write(`<tr><td>Online Amount</td><td class="value">${pf(sale.onlineAmount)}</td></tr>`);
       }
-      w.document.write(`<tr><td>Payment</td><td class="value">${sale.paymentMethod === 'CASH_ONLINE' ? 'Cash+Online' : sale.paymentMethod}</td></tr></table>`);
+      doc.write(`<tr><td>Payment</td><td class="value">${sale.paymentMethod === 'CASH_ONLINE' ? 'Cash+Online' : sale.paymentMethod}</td></tr></table>`);
     }
-    w.document.write('<div style="font-size:11px;font-weight:bold;margin:6px 0 0;border-top:2px solid #000;padding-top:4px;"><p style="font-size:12px;font-weight:900;text-align:center;margin:0 0 3px;">TERMS &amp; CONDITIONS</p><p style="margin:2px 0;text-align:center;">Exchanges are allowed only within 7 days with original tags and invoice.</p></div>');
-    w.document.write(`<div style="text-align:center;margin:6px 0 0;padding:3px;"><img src="${qrDataUrl || 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(reviewUrl)}" width="150" height="150" alt="Review QR" style="display:inline-block;"><p style="font-size:8px;margin:3px 0 0;font-weight:bold;">Scan to Review us and Avail Special Offers</p><p style="font-size:13px;font-weight:900;margin:4px 0 0;">Thank you for shopping! Visit Again!</p></div>`);
-    w.document.write('<hr><p style="text-align:center;font-size:9px;margin-top:4px;">Software is develop by Sameer Butt</p>');
-    w.document.write('</body></html>');
-    w.document.close();
-    w.focus();
-    setTimeout(() => { w.print(); if (logoUrl.startsWith('blob:')) URL.revokeObjectURL(logoUrl); setPrinting(null); }, 500);
+    doc.write('<div style="font-size:11px;font-weight:bold;margin:6px 0 0;border-top:2px solid #000;padding-top:4px;"><p style="font-size:12px;font-weight:900;text-align:center;margin:0 0 3px;">TERMS &amp; CONDITIONS</p><p style="margin:2px 0;text-align:center;">Exchanges are allowed only within 7 days with original tags and invoice.</p></div>');
+    doc.write(`<div style="text-align:center;margin:6px 0 0;padding:3px;"><img src="${qrDataUrl || 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(reviewUrl)}" width="150" height="150" alt="Review QR" style="display:inline-block;"><p style="font-size:8px;margin:3px 0 0;font-weight:bold;">Scan to Review us and Avail Special Offers</p><p style="font-size:13px;font-weight:900;margin:4px 0 0;">Thank you for shopping! Visit Again!</p></div>`);
+    doc.write('<hr><p style="text-align:center;font-size:9px;margin-top:4px;">Software is develop by Sameer Butt</p>');
+    doc.write('</body></html>');
+    doc.close();
+    setTimeout(() => {
+      try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch(e) { toast.error('Print failed: ' + e.message); }
+      setTimeout(() => { document.body.removeChild(iframe); if (logoUrl.startsWith('blob:')) URL.revokeObjectURL(logoUrl); setPrinting(null); }, 1000);
+    }, 500);
     } catch (e) { toast.error('Print failed: ' + e.message); setPrinting(null); }
   };
 
@@ -242,8 +250,16 @@ const OutletInvoiceHistory = ({ outlet }) => {
   const printBalanceReceipt = () => {
     if (!lastPayment) return;
     const bp = lastPayment;
-    const w = window.open('', '_blank', 'width=400,height=700');
-    w.document.write(`<html><head><title>Balance Receipt</title><style>
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '-9999px';
+    iframe.style.bottom = '-9999px';
+    iframe.style.width = '80mm';
+    iframe.style.height = '0';
+    iframe.title = 'Balance Receipt';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentWindow.document;
+    doc.write(`<html><head><title>Balance Receipt</title><style>
       body{font-family:'Courier New',monospace;margin:0;padding:16px;font-size:14px;text-align:center;width:300px;background:#fff;color:#000;}
       h2{font-size:18px;font-weight:900;margin:0 0 4px;color:#000;text-transform:uppercase;}
       .sub{font-size:10px;color:#666;margin-bottom:12px;}
@@ -255,22 +271,24 @@ const OutletInvoiceHistory = ({ outlet }) => {
       .total-row td{border-top:2px solid #000;padding-top:6px;font-size:14px;font-weight:900;}
       .zero{color:#059669;font-weight:900;}
     </style></head><body>`);
-    w.document.write('<h2>BALANCE PAYMENT</h2>');
-    w.document.write(`<p class="sub">Receipt &mdash; ${new Date().toLocaleString()}</p><hr>`);
-    w.document.write('<table>');
-    w.document.write(`<tr><td class="label">Original Invoice</td><td>${bp.posSale?.receiptNumber || bp.receiptNumber || ''}</td></tr>`);
-    w.document.write(`<tr><td class="label">Customer</td><td>${bp.posSale?.customerName || bp.customerName || ''}</td></tr>`);
-    w.document.write(`<tr><td class="label">Original Total</td><td>${formatCurrency(bp.posSale?.grandTotal || bp.grandTotal || 0)}</td></tr>`);
-    w.document.write(`<tr><td class="label">Total Paid</td><td>${formatCurrency(bp.totalPaid || (bp.posSale?.grandTotal || 0))}</td></tr>`);
-    w.document.write(`<tr class="total-row"><td>Amount Paid Now</td><td>${formatCurrency(bp.amountPaidNow || bp.amount || 0)}</td></tr>`);
-    w.document.write(`<tr><td class="label">Remaining</td><td class="${(bp.remaining || 0) <= 0 ? 'zero' : ''}">${(bp.remaining || 0) <= 0 ? 'FULLY PAID' : formatCurrency(bp.remaining)}</td></tr>`);
-    w.document.write(`<tr><td class="label">Payment Method</td><td>${bp.paymentMethod || 'CASH'}</td></tr>`);
-    w.document.write('</table><hr>');
-    w.document.write('<p style="font-size:10px;color:#999;">Thank you!</p>');
-    w.document.write('</body></html>');
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 300);
+    doc.write('<h2>BALANCE PAYMENT</h2>');
+    doc.write(`<p class="sub">Receipt &mdash; ${new Date().toLocaleString()}</p><hr>`);
+    doc.write('<table>');
+    doc.write(`<tr><td class="label">Original Invoice</td><td>${bp.posSale?.receiptNumber || bp.receiptNumber || ''}</td></tr>`);
+    doc.write(`<tr><td class="label">Customer</td><td>${bp.posSale?.customerName || bp.customerName || ''}</td></tr>`);
+    doc.write(`<tr><td class="label">Original Total</td><td>${formatCurrency(bp.posSale?.grandTotal || bp.grandTotal || 0)}</td></tr>`);
+    doc.write(`<tr><td class="label">Total Paid</td><td>${formatCurrency(bp.totalPaid || (bp.posSale?.grandTotal || 0))}</td></tr>`);
+    doc.write(`<tr class="total-row"><td>Amount Paid Now</td><td>${formatCurrency(bp.amountPaidNow || bp.amount || 0)}</td></tr>`);
+    doc.write(`<tr><td class="label">Remaining</td><td class="${(bp.remaining || 0) <= 0 ? 'zero' : ''}">${(bp.remaining || 0) <= 0 ? 'FULLY PAID' : formatCurrency(bp.remaining)}</td></tr>`);
+    doc.write(`<tr><td class="label">Payment Method</td><td>${bp.paymentMethod || 'CASH'}</td></tr>`);
+    doc.write('</table><hr>');
+    doc.write('<p style="font-size:10px;color:#999;">Thank you!</p>');
+    doc.write('</body></html>');
+    doc.close();
+    setTimeout(() => {
+      try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch(e) { toast.error('Print failed: ' + e.message); }
+      setTimeout(() => { if (iframe.parentNode) document.body.removeChild(iframe); }, 1000);
+    }, 300);
   };
 
   /* ─── Payment History ─── */

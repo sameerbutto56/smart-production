@@ -115,6 +115,11 @@
 - **Fix 3** (`getBookHistory`): Existing stored summaries (from previous closes) are adjusted on-the-fly — `paymentSummary.cash` and `paymentSummary.online` have `cashOnlineCash`/`cashOnlineOnline` subtracted so old records render correctly.
 - **Consistency**: Payment Summary rows are now non-overlapping (accounting view). Cash Summary section (below) still shows `cashCollected` (raw cash in till) for operational view — matching Dashboard.
 
+### Fixed This Session — Reprint/Print Not Working (Popup Blocker)
+- **Root cause**: `printReceipt` in `OutletPOS.jsx` and `OutletInvoiceHistory.jsx` used `window.open('', '_blank')` at the TOP of an `async` function — after `await` calls (logo fetch, QR code generation), the browser's popup blocker would prevent the window from opening because the user gesture was no longer in scope.
+- **Fix**: Replaced `window.open()` with a hidden `<iframe>` appended to `document.body`. The iframe's `contentWindow.document` is used for all `doc.write()` calls, and `iframe.contentWindow.print()` triggers the print dialog. Updated all three functions: `OutletPOS.jsx:printReceipt`, `OutletInvoiceHistory.jsx:printReceipt`, and `OutletInvoiceHistory.jsx:printBalanceReceipt`. Added `console.log` to Reprint onClick.
+- **Verification**: Build passes with 0 errors.
+
 ### Fixed This Session — Store Profile Duplicate Orders
 - **Root cause**: `storeRouteOrder` and `requestStageCompletion` are NOT wrapped in Prisma `$transaction`. If a database error occurs between "mark stage COMPLETED" and "update `order.currentStage`", the order ends up with `currentStage: 'STORE'` but a COMPLETED STORE stage — still picked up by `getStoreDashboardOrders` and `getUnseenOrders` which only check `currentStage`, not stage status.
 - **Fix 1** (`getStoreDashboardOrders`): Added `stages: { some: { stageName: 'STORE', status: { in: ['PENDING', 'IN_PROGRESS'] } } }` to the base query — only orders with a genuinely active STORE stage appear.
