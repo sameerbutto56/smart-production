@@ -374,20 +374,13 @@ const DispatchProfile = () => {
           <div className="space-y-5">
             <div>
               <label className="text-xs font-black theme-text-muted uppercase tracking-widest mb-2 block">Select Employee</label>
-              <div className="grid grid-cols-2 gap-3">
+              <select value={employeeName} onChange={(e) => { setEmployeeName(e.target.value); setPassword(''); }}
+                className="w-full theme-input rounded-xl py-3 px-4 focus:border-blue-500 outline-none font-black appearance-none">
+                <option value="">— Select Employee —</option>
                 {Object.entries(EMPLOYEES).map(([key, emp]) => (
-                  <button key={key} onClick={() => { setEmployeeName(key); setPassword(''); }}
-                    className={`p-4 rounded-2xl border-2 transition-all text-center ${
-                      employeeName === key
-                        ? 'border-blue-500 bg-blue-600/10 text-blue-400'
-                        : 'border-gray-700/50 theme-bg theme-text-muted hover:border-gray-600'
-                    }`}>
-                    <User className="mx-auto mb-1" size={20} />
-                    <p className="font-black text-sm">{emp.label}</p>
-                    <p className="text-[10px] font-bold opacity-60">{key === 'Khawar' ? 'Lahore Orders' : 'All Cities'}</p>
-                  </button>
+                  <option key={key} value={key}>{emp.label} — {key === 'Khawar' ? 'Lahore Orders' : 'All Cities'}</option>
                 ))}
-              </div>
+              </select>
             </div>
 
             <div>
