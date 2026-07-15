@@ -46,82 +46,105 @@ const getDispatchProfileOrders = async (req, res) => {
       return res.status(400).json({ message: 'employeeName must be Khawar or Faisal' });
     }
 
-    const baseWhere = {
-      currentStage: 'DISPATCH',
-      status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] },
+    const baseSelect = {
+      id: true, orderNumber: true, customerName: true, customerPhone: true,
+      address: true, city: true, source: true, outletName: true,
+      currentStage: true, status: true, dispatchStatus: true,
+      deliveryType: true, deliveryMethod: true, priority: true,
+      trackingNumber: true, courierDetails: true,
+      totalPrice: true, paymentStatus: true, advanceAmount: true,
+      type: true, productDetails: true, customization: true, sizeData: true,
+      instructionNotes: true, dispatchOfficer: true, forwardedBy: true,
+      createdAt: true, updatedAt: true,
+      stages: {
+        orderBy: { createdAt: 'asc' },
+        select: { stageName: true, status: true, deadlineAt: true, startedAt: true, rejectionReason: true, completedAt: true }
+      },
+      createdBy: { select: { name: true, role: true } }
     };
 
+    const baseOrder = [{ priority: 'asc' }, { createdAt: 'desc' }];
+
     if (employeeName === 'Khawar') {
-      // Khawar sees Lahore orders not already assigned to Faisal
-      baseWhere.city = 'Lahore';
-      baseWhere.OR = [
-        { dispatchOfficer: null },
-        { dispatchOfficer: 'Khawar' }
-      ];
-    } else {
-      // Faisal sees non-Lahore orders + orders forwarded by Khawar
-      baseWhere.OR = [
-        { city: { not: 'Lahore' } },
-        { city: null },
-        { forwardedBy: 'Khawar' }
-      ];
-    }
-
-    const orders = await prisma.order.findMany({
-      where: baseWhere,
-      select: {
-        id: true, orderNumber: true, customerName: true, customerPhone: true,
-        address: true, city: true, source: true, outletName: true,
-        currentStage: true, status: true, dispatchStatus: true,
-        deliveryType: true, deliveryMethod: true, priority: true,
-        trackingNumber: true, courierDetails: true,
-        totalPrice: true, paymentStatus: true, advanceAmount: true,
-        type: true, productDetails: true, customization: true, sizeData: true,
-        instructionNotes: true, dispatchOfficer: true, forwardedBy: true,
-        createdAt: true, updatedAt: true,
-        stages: {
-          orderBy: { createdAt: 'asc' },
-          select: { stageName: true, status: true, deadlineAt: true, startedAt: true, rejectionReason: true, completedAt: true }
+      // Khawar — unchanged: DISPATCH stage, Lahore only
+      const orders = await prisma.order.findMany({
+        where: {
+          currentStage: 'DISPATCH',
+          status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] },
+          city: 'Lahore',
+          OR: [
+            { dispatchOfficer: null },
+            { dispatchOfficer: 'Khawar' }
+          ]
         },
-        createdBy: { select: { name: true, role: true } }
-      },
-      orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }]
-    });
+        select: baseSelect,
+        orderBy: baseOrder
+      });
 
-    // Categorize: unseen (not accepted) vs active (accepted by this officer)
-    const unseen = [];
-    const active = [];
-    for (const order of orders) {
-      const dispatchStage = order.stages.find(s => s.stageName === 'DISPATCH');
-      const isAccepted = dispatchStage?.startedAt != null;
-
-      if (employeeName === 'Khawar') {
+      const unseen = [];
+      const active = [];
+      for (const order of orders) {
+        const dispatchStage = order.stages.find(s => s.stageName === 'DISPATCH');
+        const isAccepted = dispatchStage?.startedAt != null;
         if (!isAccepted && !order.dispatchOfficer) {
           unseen.push(order);
-        } else if (order.dispatchOfficer === 'Khawar' || order.dispatchOfficer === 'Faisal') {
-          // Active includes orders this officer is working on
-          if (order.dispatchOfficer === employeeName || (employeeName === 'Faisal' && order.dispatchOfficer === 'Faisal')) {
-            active.push(order);
-          } else {
-            // For Khawar, forwarded orders go to all list
-            unseen.push(order);
-          }
-        } else {
-          unseen.push(order);
-        }
-      } else {
-        // Faisal
-        if (!isAccepted && !order.dispatchOfficer) {
-          unseen.push(order);
-        } else if (order.dispatchOfficer === 'Faisal' || order.forwardedBy === 'Khawar') {
+        } else if (order.dispatchOfficer === 'Khawar') {
           active.push(order);
         } else {
           unseen.push(order);
         }
       }
+      return res.json({ unseen, active, counts: { unseen: unseen.length, active: active.length } });
     }
 
-    res.json({ unseen, active, counts: { unseen: unseen.length, active: active.length } });
+    // ─── FAISAL: three-way split ───
+
+    // 1) DISPATCH stage orders — split into unseen (not accepted) and seen (accepted, awaiting dispatch)
+    const dispatchOrders = await prisma.order.findMany({
+      where: {
+        currentStage: 'DISPATCH',
+        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] },
+        OR: [
+          { city: { not: 'Lahore' } },
+          { city: null },
+          { forwardedBy: 'Khawar' }
+        ]
+      },
+      select: baseSelect,
+      orderBy: baseOrder
+    });
+
+    const unseen = [];
+    const seen = [];
+    for (const order of dispatchOrders) {
+      const dispatchStage = order.stages.find(s => s.stageName === 'DISPATCH');
+      const isAccepted = dispatchStage?.startedAt != null;
+      const isAssignedToFaisal = order.dispatchOfficer === 'Faisal' || order.forwardedBy === 'Khawar';
+      if (!isAccepted || !isAssignedToFaisal) {
+        unseen.push(order);
+      } else {
+        seen.push(order);
+      }
+    }
+
+    // 2) OUT_FOR_DELIVERY stage orders dispatched by Faisal — active, awaiting final outcome
+    const activeOrders = await prisma.order.findMany({
+      where: {
+        currentStage: 'OUT_FOR_DELIVERY',
+        dispatchOfficer: 'Faisal',
+        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
+      },
+      select: baseSelect,
+      orderBy: baseOrder
+    });
+
+    res.json({
+      unseen,
+      seen,
+      active: activeOrders,
+      counts: { unseen: unseen.length, seen: seen.length, active: activeOrders.length }
+    });
+
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch dispatch profile orders', error: error.message });
   }

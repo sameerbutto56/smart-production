@@ -79,7 +79,7 @@ const DispatchDashboard = () => {
   const queueRefreshRef = useRef(null);
 
   // Data fetching
-  const [data, setData] = useState({ unseen: [], active: [], allOrders: [], counts: { unseen: 0, active: 0, all: 0 } });
+  const [data, setData] = useState({ unseen: [], seen: [], active: [], allOrders: [], counts: { unseen: 0, seen: 0, active: 0, all: 0 } });
   const [loading, setLoading] = useState(false);
 
   // Build the data fetcher URL based on logged-in employee
@@ -92,7 +92,7 @@ const DispatchDashboard = () => {
     try {
       const res = await api.get(dataUrl).then(r => r.data);
       if (loggedIn && (isKhawar || isFaisal)) {
-        setData({ unseen: res.unseen || [], active: res.active || [], allOrders: [], counts: res.counts || { unseen: 0, active: 0, all: 0 } });
+        setData({ unseen: res.unseen || [], seen: res.seen || [], active: res.active || [], allOrders: [], counts: res.counts || { unseen: 0, seen: 0, active: 0, all: 0 } });
       } else {
         setData(res || { unseen: [], active: [], allOrders: [], counts: { unseen: 0, active: 0, all: 0 } });
       }
@@ -173,7 +173,7 @@ const DispatchDashboard = () => {
     sessionStorage.removeItem('dispatchSearch');
     sessionStorage.removeItem('dispatchCityFilter');
     sessionStorage.removeItem('dispatchMethodFilter');
-    setData({ unseen: [], active: [], allOrders: [], counts: { unseen: 0, active: 0, all: 0 } });
+    setData({ unseen: [], seen: [], active: [], allOrders: [], counts: { unseen: 0, seen: 0, active: 0, all: 0 } });
     setStats(null);
   };
 
@@ -344,13 +344,19 @@ const DispatchDashboard = () => {
     return list;
   };
 
-  const allCities = [...new Set([...data.active, ...data.allOrders].map(o => o.city).filter(Boolean))];
+  const allCities = [...new Set([...data.seen, ...data.active, ...data.allOrders].map(o => o.city).filter(Boolean))];
 
-  const tabs = [
-    { id: 'unseen', label: 'Unseen Tasks', icon: Eye, count: data.counts.unseen },
-    { id: 'active', label: 'Active Tasks', icon: Package, count: data.counts.active },
-    ...(loggedIn && (isKhawar || isFaisal) ? [] : [{ id: 'all', label: 'All Orders', icon: Truck, count: data.counts.all }])
-  ];
+  const tabs = loggedIn && isFaisal
+    ? [
+        { id: 'unseen', label: 'Unseen Tasks', icon: Eye, count: data.counts.unseen },
+        { id: 'seen', label: 'Seen Tasks', icon: UserCheck, count: data.counts.seen },
+        { id: 'active', label: 'Active Tasks', icon: Package, count: data.counts.active }
+      ]
+    : [
+        { id: 'unseen', label: 'Unseen Tasks', icon: Eye, count: data.counts.unseen },
+        { id: 'active', label: 'Active Tasks', icon: Package, count: data.counts.active },
+        ...(!loggedIn ? [{ id: 'all', label: 'All Orders', icon: Truck, count: data.counts.all }] : [])
+      ];
 
   // ─── EMPLOYEE LOGIN SCREEN ───
   if (isDispatchRole && !loggedIn) {
@@ -564,8 +570,53 @@ const DispatchDashboard = () => {
         </>
       )}
 
+      {/* Seen Tab — Faisal only: accepted orders awaiting dispatch */}
+      {activeTab === 'seen' && (
+        <>
+          {getFiltered(data.seen).length === 0 ? (
+            <div className="glass rounded-2xl md:rounded-[3rem] border theme-border p-6 md:p-20 text-center">
+              <UserCheck className="mx-auto text-gray-800 mb-4" size={48} />
+              <h3 className="theme-text-muted font-black uppercase">No Seen Tasks</h3>
+              <p className="theme-text-muted text-xs font-bold mt-2">Accepted orders awaiting dispatch will appear here.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {getFiltered(data.seen).map(order => (
+                <motion.div key={order.id} layout
+                  className={`glass rounded-[2rem] p-4 md:p-6 border ${order.priority === 'SUPER_URGENT' ? 'border-red-500/40 shadow-[0_0_15px_rgba(239,68,68,0.2)]' : 'theme-border'}`}>
+                  <div className="flex flex-col md:flex-row md:items-start gap-4">
+                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => toggleExpand(order.id)}>
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className={`text-xs md:text-sm font-black px-2 py-0.5 rounded-full ${(PRIORITY_BADGE[order.priority] || PRIORITY_BADGE.NORMAL).bg} ${(PRIORITY_BADGE[order.priority] || PRIORITY_BADGE.NORMAL).text}`}>{(PRIORITY_BADGE[order.priority] || PRIORITY_BADGE.NORMAL).label}</span>
+                        <span className={`text-xs md:text-sm font-black px-2 py-0.5 rounded-full ${order.source === 'ONLINE ORDER' || order.source === 'INTERNAL' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'}`}>{order.source === 'ONLINE ORDER' || order.source === 'INTERNAL' ? 'ONLINE' : order.source}</span>
+                        {order.outletName && <span className="text-xs md:text-sm font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{order.outletName}</span>}
+                        {order.forwardedBy === 'Khawar' && <span className="text-xs md:text-sm font-black px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400">FORWARDED BY KHAWAR</span>}
+                        {order.dispatchOfficer && <span className="text-xs md:text-sm font-black px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400">ASSIGNED: {order.dispatchOfficer}</span>}
+                      </div>
+                      <h3 className="font-black text-xl theme-text-primary truncate">#{order.orderNumber || order.id.substring(0, 8)} — {order.customerName}</h3>
+                      <div className="flex flex-wrap items-center gap-3 mt-2 text-xs md:text-sm theme-text-secondary font-bold">
+                        <span className="flex items-center gap-1"><Phone size={12} />{order.customerPhone || 'N/A'}</span>
+                        {order.city && <span className="flex items-center gap-1"><MapPin size={12} />{order.city}</span>}
+                        <span className="flex items-center gap-1"><Clock size={12} />{new Date(order.createdAt).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <button onClick={(e) => { e.stopPropagation(); printDispatchSheetWithOfficer(order); }}
+                        className="p-2.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-xl transition-all"><Printer size={16} /></button>
+                      <button onClick={() => { setBookModal(order); setSelectedOption(dispatchOptions[0] || DISPATCH_OPTIONS[0]); setTrackingNumber(''); }}
+                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex items-center gap-1.5">
+                        <Send size={14} /> Dispatch
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
       {/* Active Tab */}
-      {activeTab === 'active' && (
         <>
           {getFiltered(data.active).length === 0 ? (
             <div className="glass rounded-2xl md:rounded-[3rem] border theme-border p-6 md:p-20 text-center">
@@ -596,7 +647,42 @@ const DispatchDashboard = () => {
                     <div className="flex gap-2 shrink-0">
                       <button onClick={(e) => { e.stopPropagation(); printDispatchSheetWithOfficer(order); }}
                         className="p-2.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-xl transition-all"><Printer size={16} /></button>
-                      {isEmployeeMode ? (
+                      {isEmployeeMode && isFaisal ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {order.dispatchStatus === 'DELIVERED' ? (
+                            <span className="px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1"><CheckCircle2 size={14} /> Delivered</span>
+                          ) : order.dispatchStatus === 'RETURNED' || order.dispatchStatus === 'REJECTED' ? (
+                            <span className="px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1"><X size={14} /> {order.dispatchStatus}</span>
+                          ) : (
+                            <>
+                              {order.dispatchStatus === 'BOOKED' && (
+                                <button onClick={() => handleUpdateStatus(order.id, 'DISPATCHED')} disabled={statusLoading === order.id}
+                                  className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[10px] md:text-xs font-black uppercase tracking-wider transition-all disabled:opacity-50">
+                                  {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Mark Dispatched'}
+                                </button>
+                              )}
+                              {order.dispatchStatus === 'DISPATCHED' && (
+                                <button onClick={() => handleUpdateStatus(order.id, 'IN_TRANSIT')} disabled={statusLoading === order.id}
+                                  className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-[10px] md:text-xs font-black uppercase tracking-wider transition-all disabled:opacity-50">
+                                  {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'In Transit'}
+                                </button>
+                              )}
+                              <button onClick={() => handleUpdateStatus(order.id, 'DELIVERED')} disabled={statusLoading === order.id}
+                                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] md:text-xs font-black uppercase tracking-wider transition-all disabled:opacity-50">
+                                {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Deliver ✓'}
+                              </button>
+                              <button onClick={() => { if (window.confirm('Return this order?')) handleUpdateStatus(order.id, 'RETURNED') }} disabled={statusLoading === order.id}
+                                className="px-3 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-[10px] md:text-xs font-black uppercase tracking-wider transition-all disabled:opacity-50">
+                                {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Return ✗'}
+                              </button>
+                              <button onClick={() => { if (window.confirm('Reject this order?')) handleUpdateStatus(order.id, 'REJECTED') }} disabled={statusLoading === order.id}
+                                className="px-3 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-xl text-[10px] md:text-xs font-black uppercase tracking-wider transition-all disabled:opacity-50">
+                                {statusLoading === order.id ? <LoadingSpinner size={12} /> : 'Reject'}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      ) : isEmployeeMode ? (
                         <button onClick={() => { setBookModal(order); setSelectedOption(dispatchOptions[0] || DISPATCH_OPTIONS[0]); setTrackingNumber(''); }}
                           className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all flex items-center gap-1.5">
                           <Send size={14} /> Dispatch
