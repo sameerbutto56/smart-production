@@ -227,14 +227,15 @@ const getBookSummary = async (req, res) => {
     }
 
     // Returns summary
+    // CASH_ONLINE returns are split: cash portion → returnSummary.CASH (needed for availableCash / till deduction),
+    // full amount → returnSummary.CASH_ONLINE. ONLINE returns stay pure (no CASH_ONLINE online portion) to avoid
+    // double-counting in the non-overlapping Payment Summary display.
     const returnSummary = { CASH: 0, CARD: 0, ONLINE: 0, CASH_ONLINE: 0, total: 0 };
     for (const r of returns) {
       if (r.sale?.paymentMethod === 'CASH_ONLINE' && (r.sale?.cashAmount || r.sale?.onlineAmount)) {
         const total = (r.sale.cashAmount || 0) + (r.sale.onlineAmount || 0) || 1;
         const cashRatio = (r.sale.cashAmount || 0) / total;
-        const onlineRatio = (r.sale.onlineAmount || 0) / total;
         returnSummary.CASH += r.refundAmount * cashRatio;
-        returnSummary.ONLINE += r.refundAmount * onlineRatio;
         returnSummary.CASH_ONLINE += r.refundAmount;
       } else {
         const method = r.refundPaymentMethod;
@@ -246,10 +247,11 @@ const getBookSummary = async (req, res) => {
     // Journal entries total
     const totalJournalEntries = journals.reduce((s, j) => s + j.amount, 0);
 
-    // Totals
-    const totalCashSales = paymentSummary.CASH + paymentSummary.CASH_ONLINE_CASH;
+    // Totals — each is a distinct payment method (no double-counting)
+    // Cash+Online has its own row, so CASH and ONLINE here are pure method amounts only
+    const totalCashSales = paymentSummary.CASH;
     const totalCardSales = paymentSummary.CARD;
-    const totalOnlineSales = paymentSummary.ONLINE + paymentSummary.CASH_ONLINE_ONLINE;
+    const totalOnlineSales = paymentSummary.ONLINE;
     const totalRevenueSales = sales.reduce((s, sale) => s + saleRevenue(sale), 0) + balancePayments.reduce((s, bp) => s + bp.amountPaidNow, 0);
 
     // Cash actually collected (raw amounts, matches Dashboard's getCashSummary)
@@ -261,10 +263,11 @@ const getBookSummary = async (req, res) => {
         .reduce((sum, s) => sum + (s.cashAmount || 0), 0);
 
     // Available cash — using raw cash amounts to match Dashboard
+    // returnSummary.CASH includes CASH_ONLINE cash returns portion (necessary for till calculation)
     const totalCashRefunded = returnSummary.CASH;
     const availableCash = rawCashCollected - totalJournalEntries - totalCashRefunded;
 
-    // Payment breakdown with journal deduction (matches dashboard)
+    // Payment breakdown — ONLINE returns are pure (no CASH_ONLINE portion) to match non-overlapping Payment Summary
     const paymentBreakdown = [
       { method: 'CASH', gross: rawCashCollected, returns: returnSummary.CASH, journalExpenses: totalJournalEntries, net: rawCashCollected - totalJournalEntries - returnSummary.CASH },
       { method: 'CARD', gross: totalCardSales, returns: returnSummary.CARD, journalExpenses: 0, net: totalCardSales - returnSummary.CARD },
@@ -359,11 +362,21 @@ const getBookHistory = async (req, res) => {
       where: { outletName: outlet, status: 'CLOSED' },
       orderBy: { closedAt: 'desc' },
     });
-    // Parse stored summary JSON
-    const result = sessions.map(s => ({
-      ...s,
-      summary: typeof s.summary === 'string' ? JSON.parse(s.summary) : s.summary,
-    }));
+    // Parse stored summary JSON and adjust old records to be non-overlapping
+    const result = sessions.map(s => {
+      const summary = typeof s.summary === 'string' ? JSON.parse(s.summary) : (s.summary || {});
+      if (summary?.paymentSummary) {
+        const ps = summary.paymentSummary;
+        const oldCash = ps.cash || 0;
+        const oldOnline = ps.online || 0;
+        const cashPortion = ps.cashOnlineCash || 0;
+        const onlinePortion = ps.cashOnlineOnline || 0;
+        // Remove CASH_ONLINE portions from pure CASH/ONLINE to avoid double-count
+        ps.cash = oldCash - cashPortion;
+        ps.online = oldOnline - onlinePortion;
+      }
+      return { ...s, summary };
+    });
     res.json(result);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch register history', error: error.message });

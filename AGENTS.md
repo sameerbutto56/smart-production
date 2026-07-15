@@ -108,11 +108,12 @@
 ### Blocked
 - (none)
 
-### Fixed This Session — Cash+Online Payment Allocation
-- **Root cause**: `getSalesDashboard` counted the full CASH_ONLINE sale revenue under a single `paymentTotals['CASH_ONLINE']` bucket instead of splitting `cashAmount` → CASH and `onlineAmount` → ONLINE. Dashboard CASH card and ONLINE card were under-counted by the split amounts.
-- **Fix 1** (`paymentTotals` loop in `getSalesDashboard`): CASH_ONLINE sales now split revenue proportionally: `(cashAmount / total) * received` added to CASH, `(onlineAmount / total) * received` added to ONLINE. The full received amount still tracked under CASH_ONLINE for the separate display card.
-- **Fix 2** (`returnsByMethod` loop in `getSalesDashboard`): CASH_ONLINE returns also split proportionally by `cashAmount`/`onlineAmount` ratio of the original sale. Added `cashAmount: true, onlineAmount: true` to the return's sale select.
-- **Consistency**: Both `getSalesDashboard` and `getBookSummary` now use the same `saleRevenue(s)` formula and split CASH_ONLINE amounts identically.
+### Fixed This Session — Close Book Payment Summary Non-overlapping Rows
+- **Root cause**: `getBookSummary` had `totalCashSales = paymentSummary.CASH + paymentSummary.CASH_ONLINE_CASH` and `totalOnlineSales = paymentSummary.ONLINE + paymentSummary.CASH_ONLINE_ONLINE` — CASH_ONLINE amounts were double-counted when Cash+Online row was also displayed. Payment Summary Cash+Card+Online+CashOnline summed to > GrandTotal.
+- **Fix 1** (`getBookSummary` totals): Changed to pure method amounts — `totalCashSales = paymentSummary.CASH` (no CASH_ONLINE cash), `totalOnlineSales = paymentSummary.ONLINE` (no CASH_ONLINE online). Cash+Online row shows full CASH_ONLINE via `cashOnlineTotal`. Now Cash + Card + Online + CashOnline = GrandTotal exactly.
+- **Fix 2** (return tracking): CASH_ONLINE returns no longer add an `onlineRatio` portion to `returnSummary.ONLINE` — prevents deducting CASH_ONLINE online returns from pure ONLINE net in `paymentBreakdown`. ONLINE returns now stay pure (only `refundPaymentMethod === 'ONLINE'` entries).
+- **Fix 3** (`getBookHistory`): Existing stored summaries (from previous closes) are adjusted on-the-fly — `paymentSummary.cash` and `paymentSummary.online` have `cashOnlineCash`/`cashOnlineOnline` subtracted so old records render correctly.
+- **Consistency**: Payment Summary rows are now non-overlapping (accounting view). Cash Summary section (below) still shows `cashCollected` (raw cash in till) for operational view — matching Dashboard.
 
 ### Fixed This Session — Store Profile Duplicate Orders
 - **Root cause**: `storeRouteOrder` and `requestStageCompletion` are NOT wrapped in Prisma `$transaction`. If a database error occurs between "mark stage COMPLETED" and "update `order.currentStage`", the order ends up with `currentStage: 'STORE'` but a COMPLETED STORE stage — still picked up by `getStoreDashboardOrders` and `getUnseenOrders` which only check `currentStage`, not stage status.

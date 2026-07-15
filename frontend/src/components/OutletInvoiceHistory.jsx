@@ -71,6 +71,9 @@ const OutletInvoiceHistory = ({ outlet }) => {
   const printReceipt = async (sale) => {
     setPrinting(sale.id);
     const isFT = sale.isFaisalTake;
+    // Open window synchronously (before any await) so popup blockers don't interfere
+    const w = window.open('', '_blank');
+    if (!w) { toast.error('Popup blocked! Please allow popups for this site to print receipts.'); setPrinting(null); return; }
     let logoUrl = window.location.origin + '/logo.png';
     try {
       const logoResp = await fetch(logoUrl);
@@ -121,7 +124,6 @@ const OutletInvoiceHistory = ({ outlet }) => {
       .summary .final td{font-size:19px;font-weight:900;padding-top:8px;border-top:3px solid #000;}
       .footer{text-align:center;font-size:14px;margin-top:10px;font-weight:bold;}
     </style></head><body>`;
-    const w = window.open('', '_blank');
     w.document.write(style);
     w.document.write(`<div class="header"><img src="${logoUrl}" alt="ENAMELS" style="height:80px;margin-bottom:4px;"><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p>${isFT ? '<p style="font-size:22px;font-weight:900;color:#c00;margin:6px 0;text-transform:uppercase;letter-spacing:3px;">FAISAL TAKE — NO CHARGE</p>' : ''}<p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}${sale.customerPhone ? `<p>Phone: ${sale.customerPhone}</p>` : ''}</div>`);
     w.document.write('<hr><div class="items"><div class="items-heading"><span class="col-item">ITEM</span><span class="col-qty">QTY × PRICE</span><span class="col-total">TOTAL</span></div>');
