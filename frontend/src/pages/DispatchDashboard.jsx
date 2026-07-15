@@ -47,21 +47,21 @@ const DispatchDashboard = () => {
   const isOutlet = user?.role === 'OUTLET';
   const isDispatchAdmin = ['SUPER_ADMIN', 'FAISAL', 'ADMIN'].includes(user?.role || '');
 
-  // Employee login state
-  const [employeeName, setEmployeeName] = useState('');
+  // Employee login state — persisted in sessionStorage across refresh
+  const [employeeName, setEmployeeName] = useState(() => sessionStorage.getItem('dispatchEmployee') || '');
   const [password, setPassword] = useState('');
   const [showPwd, setShowPwd] = useState(false);
-  const [loggedIn, setLoggedIn] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(() => !!sessionStorage.getItem('dispatchEmployee'));
   const [loginLoading, setLoginLoading] = useState(false);
 
   const isKhawar = employeeName === 'Khawar';
   const isFaisal = employeeName === 'Faisal';
   const dispatchOptions = isKhawar ? KHAWAR_OPTIONS : (isFaisal ? FAISAL_OPTIONS : DISPATCH_OPTIONS);
 
-  const [activeTab, setActiveTab] = useState('unseen');
-  const [search, setSearch] = useState('');
-  const [cityFilter, setCityFilter] = useState('');
-  const [methodFilter, setMethodFilter] = useState('');
+  const [activeTab, setActiveTab] = useState(() => sessionStorage.getItem('dispatchActiveTab') || 'unseen');
+  const [search, setSearch] = useState(() => sessionStorage.getItem('dispatchSearch') || '');
+  const [cityFilter, setCityFilter] = useState(() => sessionStorage.getItem('dispatchCityFilter') || '');
+  const [methodFilter, setMethodFilter] = useState(() => sessionStorage.getItem('dispatchMethodFilter') || '');
   const [bookModal, setBookModal] = useState(null);
   const [requestModal, setRequestModal] = useState(null);
   const [deliveryMethod, setDeliveryMethod] = useState('');
@@ -118,6 +118,12 @@ const DispatchDashboard = () => {
     if (loggedIn && (isKhawar || isFaisal)) fetchStats();
   }, [loggedIn, employeeName, doRefresh, fetchStats, isKhawar, isFaisal]);
 
+  // Persist filter/tab state on change
+  useEffect(() => { if (loggedIn) sessionStorage.setItem('dispatchActiveTab', activeTab); }, [activeTab, loggedIn]);
+  useEffect(() => { if (loggedIn) sessionStorage.setItem('dispatchSearch', search); }, [search, loggedIn]);
+  useEffect(() => { if (loggedIn) sessionStorage.setItem('dispatchCityFilter', cityFilter); }, [cityFilter, loggedIn]);
+  useEffect(() => { if (loggedIn) sessionStorage.setItem('dispatchMethodFilter', methodFilter); }, [methodFilter, loggedIn]);
+
   useEffect(() => {
     const interval = setInterval(doRefresh, 15000);
     return () => clearInterval(interval);
@@ -163,6 +169,10 @@ const DispatchDashboard = () => {
     setEmployeeName('');
     setPassword('');
     sessionStorage.removeItem('dispatchEmployee');
+    sessionStorage.removeItem('dispatchActiveTab');
+    sessionStorage.removeItem('dispatchSearch');
+    sessionStorage.removeItem('dispatchCityFilter');
+    sessionStorage.removeItem('dispatchMethodFilter');
     setData({ unseen: [], active: [], allOrders: [], counts: { unseen: 0, active: 0, all: 0 } });
     setStats(null);
   };

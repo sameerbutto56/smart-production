@@ -63,7 +63,7 @@ const getDispatchProfileOrders = async (req, res) => {
       baseWhere.OR = [
         { city: { not: 'Lahore' } },
         { city: null },
-        { dispatchOfficer: 'Faisal' }
+        { forwardedBy: 'Khawar' }
       ];
     }
 
