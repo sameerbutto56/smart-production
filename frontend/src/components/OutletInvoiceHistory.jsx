@@ -70,7 +70,8 @@ const OutletInvoiceHistory = ({ outlet }) => {
   /* ─── Print Receipt ─── */
   const printReceipt = async (sale) => {
     setPrinting(sale.id);
-    const isFT = sale.isFaisalTake;
+    try {
+    const isFT = sale.faisalTake;
     // Open window synchronously (before any await) so popup blockers don't interfere
     const w = window.open('', '_blank');
     if (!w) { toast.error('Popup blocked! Please allow popups for this site to print receipts.'); setPrinting(null); return; }
@@ -187,12 +188,13 @@ const OutletInvoiceHistory = ({ outlet }) => {
     w.document.close();
     w.focus();
     setTimeout(() => { w.print(); if (logoUrl.startsWith('blob:')) URL.revokeObjectURL(logoUrl); setPrinting(null); }, 500);
+    } catch (e) { toast.error('Print failed: ' + e.message); setPrinting(null); }
   };
 
   /* ─── Refund Invoice ─── */
   const handleReturnInvoice = async (sale) => {
     if (sale.refundedAt) return toast.error('Invoice already refunded');
-    if (sale.isFaisalTake) return toast.error('Cannot refund Faisal Take');
+    if (sale.faisalTake) return toast.error('Cannot refund Faisal Take');
     if (!window.confirm(`Refund full invoice ${sale.receiptNumber} for ${formatCurrency(sale.grandTotal)}? All items will be returned to inventory. This cannot be undone.`)) return;
     setRefunding(sale.id);
     try {
@@ -452,7 +454,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-sm font-black text-white truncate">{sale.receiptNumber}</span>
-                        {sale.isFaisalTake && <span className="text-[9px] bg-red-600 text-white px-1.5 py-0.5 rounded-full font-bold">FT</span>}
+                        {sale.faisalTake && <span className="text-[9px] bg-red-600 text-white px-1.5 py-0.5 rounded-full font-bold">FT</span>}
                         {isBalance && <span className="text-[9px] bg-amber-600 text-white px-1.5 py-0.5 rounded-full font-bold">BAL</span>}
                         {!isBalance && <span className="text-[9px] bg-emerald-600 text-white px-1.5 py-0.5 rounded-full font-bold">PAID</span>}
                         {!!sale.orderId && <span className="text-[9px] bg-purple-600 text-white px-1.5 py-0.5 rounded-full font-bold">ORD</span>}
@@ -543,7 +545,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
                         className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">
                         {printing === sale.id ? <RefreshCcw className="animate-spin" size={12} /> : <Printer size={12} />} Print
                       </button>
-                      {!sale.refundedAt && !sale.isFaisalTake && (
+                      {!sale.refundedAt && !sale.faisalTake && (
                         <button onClick={() => handleReturnInvoice(sale)} disabled={refunding === sale.id}
                           className="flex items-center gap-1.5 px-3 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">
                           {refunding === sale.id ? <RefreshCcw className="animate-spin" size={12} /> : <RotateCcw size={12} />} Return
