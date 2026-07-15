@@ -91,7 +91,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     { name: 'Outlet Requests', path: '/outlet-requests', icon: Building2, roles: ['OUTLET'] },
     { name: 'Outlet Order Entry', path: '/outlet-order-entry', icon: ShoppingBag, roles: ['OUTLET'] },
     { name: 'Delivery Sheet', path: '/delivery-sheet', icon: ClipboardList, roles: ['FAISAL'] },
-    { name: 'Dispatch Profile', path: '/dispatch-profile', icon: Truck, roles: ['FAISAL', 'ADMIN', 'SUPER_ADMIN', 'DISPATCH', 'MAIN_EMPLOYEE', 'OUTLET'] },
+
     { name: 'Order Track', path: '/order-track', icon: Search, roles: ['INVENTORY_VIEW', 'FAISAL', 'OUTLET'] },
     { name: 'Deliveries', path: '/delivery', icon: Truck, roles: ['DELIVERY_BOY'] },
     { name: 'Deleted Orders', path: '/deleted-orders', icon: Trash2, roles: [] },

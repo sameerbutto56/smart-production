@@ -92,6 +92,8 @@ const ChatPage = () => {
 
   const currentUserId = user?.id;
   const isAdmin = ADMIN_ROLES.includes((user?.role || '').toUpperCase());
+  const dispatchEmployee = sessionStorage.getItem('dispatchEmployee');
+  const isDispatchMode = !!dispatchEmployee;
 
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => {
@@ -205,7 +207,10 @@ const ChatPage = () => {
 
   const sendTextMessage = async () => {
     if (!input.trim()) return;
-    const text = input.trim();
+    let text = input.trim();
+    if (isDispatchMode) {
+      text = `[Dispatch - ${dispatchEmployee}] ${text}`;
+    }
     setInput('');
     setSending(true);
     try {
@@ -418,13 +423,18 @@ const ChatPage = () => {
   return (
     <div className="flex flex-col h-full" style={{ background: 'var(--background)' }}>
       <div className="flex items-center gap-3 px-5 py-3 border-b flex-shrink-0" style={{ borderColor: 'var(--glass-border)', background: 'var(--nav-bg)' }}>
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
+        <div className={`w-9 h-9 rounded-xl bg-gradient-to-br flex items-center justify-center shadow-lg ${isDispatchMode ? 'from-rose-500 to-red-500 shadow-red-500/20' : 'from-blue-500 to-emerald-500 shadow-blue-500/20'}`}>
           <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
           </svg>
         </div>
         <div className="flex-1 min-w-0">
-          <h1 className="text-base font-black text-white">Team Chat</h1>
+          <h1 className="text-base font-black text-white flex items-center gap-2">
+            {isDispatchMode ? `Dispatch — ${dispatchEmployee}` : 'Team Chat'}
+            {isDispatchMode && (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 uppercase tracking-wider">Dispatch</span>
+            )}
+          </h1>
           <p className="text-[9px] text-emerald-400 font-bold uppercase tracking-wider truncate">
             {messages.length} messages · {pinnedMessages.length} pinned
           </p>
