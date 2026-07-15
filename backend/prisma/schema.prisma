@@ -123,6 +123,24 @@ model Order {
   @@index([currentStage, status])
   @@index([type, createdAt])
   @@index([createdAt])
+  dispatchOfficer   String?
+  forwardedBy       String?
+}
+
+model DispatchLog {
+  id              String    @id @default(uuid())
+  orderId         String
+  officerName     String    // Khawar or Faisal
+  action          String    // ACCEPTED, DISPATCHED, FORWARDED
+  dispatchMethod  String?   // ENAMELS, TCS, POST, CUSTOMER_TAKEAWAY, FORWARD_TO_FAISAL
+  orderNumber     String?
+  customerName    String?
+  city            String?
+  createdAt       DateTime  @default(now())
+
+  @@index([officerName])
+  @@index([createdAt])
+  @@index([orderId])
 }
 
 model DeliveryAttempt {

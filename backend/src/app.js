@@ -77,6 +77,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/stock-requests', stockRequestRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/dispatch', dispatchRoutes);
+app.use('/api/dispatch-profile', require('./routes/dispatch-profile.routes'));
 app.use('/api/edit-requests', editRequestRoutes);
 app.use('/api/production', productionRoutes);
 app.use('/api/analytics', analyticsRoutes);
