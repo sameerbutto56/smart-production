@@ -12,6 +12,14 @@ const createAuditLog = async (orderId, action, details, userId) => {
   }
 };
 
+const createDispatchLog = async (data) => {
+  try {
+    await prisma.dispatchLog.create({ data });
+  } catch (error) {
+    console.error('Dispatch Log Error:', error);
+  }
+};
+
 const getStageDurations = async (priority = 'NORMAL') => {
   const setting = await prisma.systemSetting.findUnique({ where: { key: 'DEADLINE_CONFIG' } });
   let config = {
@@ -269,6 +277,16 @@ const updateCourierStatus = async (req, res) => {
         details: `Courier status updated to ${dispatchStatus} by ${req.user.name}`,
         performedBy: req.user.id
       }
+    });
+
+    // Log status change in DispatchLog for activity tracking
+    await createDispatchLog({
+      orderId,
+      officerName: order.dispatchOfficer || 'SYSTEM',
+      action: dispatchStatus,
+      orderNumber: order.orderNumber,
+      customerName: order.customerName,
+      city: order.city
     });
 
     res.json({ message: `Courier status updated to ${dispatchStatus}` });

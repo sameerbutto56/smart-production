@@ -11,7 +11,6 @@ import { Search, Filter, Loader2, Sparkles, AlertCircle, Activity, Clock, Target
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 import socket from '../socket';
 import toast from 'react-hot-toast';
-import DispatchDashboard from './DispatchDashboard';
 
 const MyTasks = () => {
   const { user } = useAuth();
@@ -225,10 +224,6 @@ const MyTasks = () => {
       </div>
     </motion.div>
   );
-
-  if (user?.role === 'DISPATCH') {
-    return <DispatchDashboard />;
-  }
 
   return (
     <div className="space-y-4 md:space-y-8 max-w-7xl mx-auto">

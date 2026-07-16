@@ -537,28 +537,30 @@ const DispatchDashboard = () => {
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="flex gap-1 theme-bg-subtle p-1 rounded-2xl border theme-border mb-6">
-        {tabs.map(tab => {
-          const Icon = tab.icon;
-          return (
-            <button key={tab.id} onClick={() => { setActiveTab(tab.id); setSearch(''); setCityFilter(''); setMethodFilter(''); }}
-              className={`flex-1 flex flex-col items-center gap-1 py-3 px-4 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all relative ${
-                activeTab === tab.id
-                  ? (isEmployeeMode ? 'bg-emerald-600 text-white shadow-lg' : 'bg-purple-600 text-white shadow-lg')
-                  : 'theme-text-muted hover:text-gray-300'
-              }`}>
-              <Icon size={16} />
-              <span>{tab.label}</span>
-              {tab.count > 0 && (
-                <span className={`absolute -top-1.5 -right-1.5 text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center ${
-                  activeTab === tab.id ? 'bg-white text-purple-700' : 'bg-purple-500/20 text-purple-400'
-                }`}>{tab.count}</span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      {/* Tabs — hidden in dashboard mode (only accessible from navbar Dashboard link) */}
+      {activeTab !== 'dashboard' && (
+        <div className="flex gap-1 theme-bg-subtle p-1 rounded-2xl border theme-border mb-6">
+          {tabs.map(tab => {
+            const Icon = tab.icon;
+            return (
+              <button key={tab.id} onClick={() => { setActiveTab(tab.id); setSearch(''); setCityFilter(''); setMethodFilter(''); }}
+                className={`flex-1 flex flex-col items-center gap-1 py-3 px-4 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all relative ${
+                  activeTab === tab.id
+                    ? (isEmployeeMode ? 'bg-emerald-600 text-white shadow-lg' : 'bg-purple-600 text-white shadow-lg')
+                    : 'theme-text-muted hover:text-gray-300'
+                }`}>
+                <Icon size={16} />
+                <span>{tab.label}</span>
+                {tab.count > 0 && (
+                  <span className={`absolute -top-1.5 -right-1.5 text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center ${
+                    activeTab === tab.id ? 'bg-white text-purple-700' : 'bg-purple-500/20 text-purple-400'
+                  }`}>{tab.count}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Search */}
       {activeTab !== 'unseen' && (
