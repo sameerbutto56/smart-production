@@ -1,5 +1,5 @@
 {
-  "installCommand": "rm -f package-lock.json frontend/package-lock.json backend/package-lock.json && npm install && npx prisma db push --schema=backend/prisma/schema.prisma --skip-generate",
+  "installCommand": "rm -f package-lock.json frontend/package-lock.json backend/package-lock.json && npm install && cd backend && npx prisma db push --skip-generate",
   "buildCommand": "npm --prefix frontend run build",
   "outputDirectory": "frontend/dist",
   "functions": {
