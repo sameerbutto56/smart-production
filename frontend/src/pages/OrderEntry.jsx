@@ -768,7 +768,8 @@ const SmartOrderForm = () => {
       return;
     }
     
-    const brandingTotal = (parseFloat(formData.logoCharges) || 0) + (parseFloat(formData.namePrintingCharges) || 0) + (parseFloat(formData.customizationPrice) || 0);
+    const nameEngravingCharges = (formData.skipEngraving ? 0 : 300) * (parseInt(formData.quantity) || 1);
+    const brandingTotal = (parseFloat(formData.logoCharges) || 0) + nameEngravingCharges + (parseFloat(formData.customizationPrice) || 0);
     const payload = {
       orderNumber: formData.orderNumber,
       customerName: formData.customerName,
@@ -784,7 +785,7 @@ const SmartOrderForm = () => {
       logoDesign: formData.logoDesign,
       logoName: formData.logoName,
       logoCharges: parseFloat(formData.logoCharges) || 0,
-      namePrintingCharges: parseFloat(formData.namePrintingCharges) || 0,
+      namePrintingCharges: nameEngravingCharges,
       customizationPrice: parseFloat(formData.customizationPrice) || 0,
       productDetails: {
         productType: formData.productType || formData.customProductName,
@@ -1876,13 +1877,42 @@ const SmartOrderForm = () => {
                         <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-purple-500/10 text-purple-500`}>
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                         </div>
-                        <input
-                          type="datetime-local"
-                          onKeyDown={preventEnterSubmit}
-                          value={formData.shopifyOrderDate}
-                          onChange={(e) => setFormData({...formData, shopifyOrderDate: e.target.value})}
-                          className={`w-full theme-input rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all text-xl font-bold`}
-                        />
+                        {(() => {
+                          const fmtDate = (iso) => {
+                            if (!iso) return '';
+                            try {
+                              const d = new Date(iso);
+                              if (isNaN(d.getTime())) return '';
+                              const dd = String(d.getDate()).padStart(2,'0');
+                              const mm = String(d.getMonth()+1).padStart(2,'0');
+                              const yyyy = d.getFullYear();
+                              const hh = String(d.getHours()).padStart(2,'0');
+                              const mi = String(d.getMinutes()).padStart(2,'0');
+                              return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
+                            } catch { return ''; }
+                          };
+                          const parseDate = (str) => {
+                            if (!str) return '';
+                            const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?$/);
+                            if (!m) return '';
+                            const d = new Date(+m[3], +m[2]-1, +m[1], +(m[4]||0), +(m[5]||0));
+                            return isNaN(d.getTime()) ? '' : d.toISOString().slice(0,16);
+                          };
+                          const displayVal = fmtDate(formData.shopifyOrderDate);
+                          return (
+                            <input
+                              type="text"
+                              onKeyDown={preventEnterSubmit}
+                              value={displayVal}
+                              onChange={(e) => {
+                                const iso = parseDate(e.target.value);
+                                setFormData({...formData, shopifyOrderDate: iso});
+                              }}
+                              placeholder="DD/MM/YYYY HH:mm"
+                              className={`w-full theme-input rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all text-xl font-bold`}
+                            />
+                          );
+                        })()}
                       </div>
                     </div>
                     <div className="space-y-4">
@@ -1911,54 +1941,7 @@ const SmartOrderForm = () => {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                  <div className="space-y-4">
-                    <label className="text-xs font-black theme-text-muted uppercase tracking-widest ml-2">{useUrdu ? 'صنف (Gender)' : 'Gender Option'}</label>
-                    <div className="flex p-2 theme-bg rounded-[1.5rem] border-2 theme-border shadow-inner">
-                      <button
-                        type="button"
-                        onClick={() => setFormData({...formData, gender: 'Male'})}
-                        className={`flex-1 py-4 rounded-xl text-sm font-black transition-all ${formData.gender === 'Male' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-600 hover:text-white'}`}
-                      >
-                        {useUrdu ? 'مردانہ' : 'MALE'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setFormData({...formData, gender: 'Female'})}
-                        className={`flex-1 py-4 rounded-xl text-sm font-black transition-all ${formData.gender === 'Female' ? 'bg-pink-600 text-white shadow-lg' : 'text-gray-600 hover:text-white'}`}
-                      >
-                        {useUrdu ? 'زنانہ' : 'FEMALE'}
-                      </button>
-                    </div>
-                  </div>
 
-                  {formData.gender === 'Female' && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      <label className="flex items-center justify-between p-3 theme-bg rounded-[1.5rem] border-2 theme-border cursor-pointer hover:border-pink-500/30 transition-all group h-full overflow-hidden">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className={`p-2.5 rounded-xl transition-all shrink-0 ${formData.femaleOptions.dupatta ? 'bg-pink-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
-                            <Layers size={16} />
-                          </div>
-                          <div className="min-w-0 truncate">
-                            <p className="font-black text-xs md:text-sm uppercase truncate">{t('dupatta')}</p>
-                          </div>
-                        </div>
-                        <input type="checkbox" checked={formData.femaleOptions.dupatta} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, dupatta: e.target.checked}})} className="w-5 h-5 shrink-0 ml-2 rounded border-2 border-gray-700 bg-gray-900 checked:bg-pink-600 transition-all cursor-pointer" />
-                      </label>
-                      <label className="flex items-center justify-between p-3 theme-bg rounded-[1.5rem] border-2 theme-border cursor-pointer hover:border-pink-500/30 transition-all group h-full overflow-hidden">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className={`p-2.5 rounded-xl transition-all shrink-0 flex items-center justify-center ${formData.femaleOptions.zip ? 'bg-pink-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
-                            <span className="font-black text-xs md:text-sm">ZIP</span>
-                          </div>
-                          <div className="min-w-0 truncate">
-                            <p className="font-black text-xs md:text-sm uppercase truncate">{t('zip')}</p>
-                          </div>
-                        </div>
-                        <input type="checkbox" checked={formData.femaleOptions.zip} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, zip: e.target.checked}})} className="w-5 h-5 shrink-0 ml-2 rounded border-2 border-gray-700 bg-gray-900 checked:bg-pink-600 transition-all cursor-pointer" />
-                      </label>
-                    </div>
-                  )}
-                </div>
 
                   {formData.type === 'STANDARD' && (
                     <div className="mt-6 space-y-3">
@@ -2491,6 +2474,46 @@ const SmartOrderForm = () => {
                     </div>
                   )}
 
+                  {(formData.productType || formData.type === 'FULL_CUSTOM') && !isAccessory(selectedProductCategory) && (
+                    <div className="mt-6 theme-bg-subtle p-4 md:p-6 rounded-2xl border theme-border">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-black text-purple-400 uppercase">{useUrdu ? 'صنف' : 'Gender'}</h3>
+                      </div>
+                      <div className="flex p-1 theme-bg rounded-xl border-2 theme-border">
+                        <button type="button"
+                          onClick={() => setFormData({...formData, gender: 'Male'})}
+                          className={`flex-1 py-3 rounded-lg text-sm font-black transition-all ${formData.gender === 'Male' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-600 hover:text-white'}`}
+                        >{useUrdu ? 'مردانہ' : 'MALE'}</button>
+                        <button type="button"
+                          onClick={() => setFormData({...formData, gender: 'Female'})}
+                          className={`flex-1 py-3 rounded-lg text-sm font-black transition-all ${formData.gender === 'Female' ? 'bg-pink-600 text-white shadow-lg' : 'text-gray-600 hover:text-white'}`}
+                        >{useUrdu ? 'زنانہ' : 'FEMALE'}</button>
+                      </div>
+                      {formData.gender === 'Female' && (
+                        <div className="grid grid-cols-2 gap-3 mt-4">
+                          <label className="flex items-center justify-between p-3 theme-bg rounded-xl border-2 theme-border cursor-pointer hover:border-pink-500/30 transition-all">
+                            <div className="flex items-center gap-2">
+                              <div className={`p-2 rounded-lg transition-all ${formData.femaleOptions.dupatta ? 'bg-pink-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
+                                <Layers size={14} />
+                              </div>
+                              <p className="font-black text-xs uppercase">{t('dupatta')}</p>
+                            </div>
+                            <input type="checkbox" checked={formData.femaleOptions.dupatta} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, dupatta: e.target.checked}})} className="w-4 h-4 rounded border-2 border-gray-700 checked:bg-pink-600 transition-all cursor-pointer" />
+                          </label>
+                          <label className="flex items-center justify-between p-3 theme-bg rounded-xl border-2 theme-border cursor-pointer hover:border-pink-500/30 transition-all">
+                            <div className="flex items-center gap-2">
+                              <div className={`p-2 rounded-lg transition-all ${formData.femaleOptions.zip ? 'bg-pink-600 text-white' : 'bg-gray-800 text-gray-600'}`}>
+                                <span className="font-black text-xs">ZIP</span>
+                              </div>
+                              <p className="font-black text-xs uppercase">{t('zip')}</p>
+                            </div>
+                            <input type="checkbox" checked={formData.femaleOptions.zip} onChange={(e) => setFormData({...formData, femaleOptions: {...formData.femaleOptions, zip: e.target.checked}})} className="w-4 h-4 rounded border-2 border-gray-700 checked:bg-pink-600 transition-all cursor-pointer" />
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className={`mt-6 md:mt-10 pt-6 md:pt-10 border-t theme-border flex flex-col sm:flex-row items-center justify-between gap-4 md:gap-8 ${useUrdu ? 'flex-row-reverse' : ''}`}>
                     <div className="space-y-1">
                       <h3 className={`text-xl font-black text-blue-400 flex items-center ${useUrdu ? 'flex-row-reverse space-x-reverse' : 'space-x-4'}`}>
@@ -2719,16 +2742,11 @@ const SmartOrderForm = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-black theme-text-muted uppercase tracking-widest">{useUrdu ? 'نام پرنٹنگ چارج' : 'Name Printing Charge (₨)'}</label>
-                    <input
-                      type="number"
-                      min="0"
-                      onKeyDown={preventEnterSubmit}
-                      value={formData.namePrintingCharges}
-                      onChange={(e) => setFormData({...formData, namePrintingCharges: e.target.value})}
-                      className="w-full theme-input rounded-xl py-3 px-4 text-sm font-bold"
-                      placeholder="0"
-                    />
+                    <label className="text-xs font-black theme-text-muted uppercase tracking-widest">{useUrdu ? 'نام کندہ کاری چارج' : 'Name Engraving Charge (₨)'}</label>
+                    <div className="w-full theme-input rounded-xl py-3 px-4 text-sm font-bold flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30">
+                      <span className="text-emerald-400 font-black">₨{((formData.skipEngraving ? 0 : 300) * (parseInt(formData.quantity) || 1)).toLocaleString()}</span>
+                      <span className="text-[10px] text-gray-500 font-bold">({formData.skipEngraving ? 'Skipped' : `300 × ${parseInt(formData.quantity) || 1} unit`})</span>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-black theme-text-muted uppercase tracking-widest">{useUrdu ? 'کسٹمائزیشن چارج' : 'Customization Charge (₨)'}</label>
@@ -2747,7 +2765,7 @@ const SmartOrderForm = () => {
                   <span className="text-xs md:text-sm font-bold text-gray-400">{useUrdu ? 'برانڈنگ چارجز کل' : 'Total Branding Charges'}</span>
                   <span className="font-black text-white">₨{(
                     (parseFloat(formData.logoCharges) || 0) +
-                    (parseFloat(formData.namePrintingCharges) || 0) +
+                    ((formData.skipEngraving ? 0 : 300) * (parseInt(formData.quantity) || 1)) +
                     (parseFloat(formData.customizationPrice) || 0)
                   ).toLocaleString()}</span>
                 </div>
