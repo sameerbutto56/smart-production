@@ -4,7 +4,6 @@ import socket from '../socket';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
-import { usePolling } from '../hooks/usePolling';
 
 const URDU_LABELS = {
   identity: 'شناختی معلومات', orderNo: 'آرڈر نمبر', customerName: 'کسٹمر کا نام', customerPhone: 'فون نمبر',
@@ -62,20 +61,20 @@ const INITIAL_FORM_DATA = {
   adjProductPrice: '', adjLogoCharges: '', adjNamePrinting: '', adjCustomization: '', adjCapCharges: '', adjDiscount: ''
 };
 
-  const CLEAR_FORM_AFTER_CART = {
-    quantity: 1, totalPrice: '', logoCharges: '', namePrintingCharges: '', customizationPrice: '',
-    productType: '', fabricType: '', color: '', size: '', logoDesign: '', logoName: '', nameSpelling: '',
-    nameColor: '', logoColor: '', logoPlacement: '', fitType: 'Regular', designNotes: '', designReference: '',
-    additionalFeatures: [], matchingCap: false, matchingCapQty: 0, sleeveLength: '', shirtLength: '',
-    alteration: { trouserLength: '', shirtLength: '', sleeveLength: '' },
-    measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hip: '', hips: '',
-      shirtLength: '', trouserLength: '', bottom: '', thigh: '', mori: '', ganda: '', specialNote: '' },
-    gender: 'Male',
-    femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
-    fabricSourceProduct: '', colorSourceProduct: '', designSourceProduct: '', sizeSourceProduct: '', additionalProductRef: '',
-    customProductName: '', customFabric: '', customMaterial: '', customColor: '', customDesign: '',
+const CLEAR_FORM_AFTER_CART = {
+  quantity: 1, totalPrice: '', logoCharges: '', namePrintingCharges: '', customizationPrice: '',
+  productType: '', fabricType: '', color: '', size: '', logoDesign: '', logoName: '', nameSpelling: '',
+  nameColor: '', logoColor: '', logoPlacement: '', fitType: 'Regular', designNotes: '', designReference: '',
+  additionalFeatures: [], matchingCap: false, matchingCapQty: 0, sleeveLength: '', shirtLength: '',
+  alteration: { trouserLength: '', shirtLength: '', sleeveLength: '' },
+  measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hip: '', hips: '',
+    shirtLength: '', trouserLength: '', bottom: '', thigh: '', mori: '', ganda: '', specialNote: '' },
+  gender: 'Male',
+  femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
+  fabricSourceProduct: '', colorSourceProduct: '', designSourceProduct: '', sizeSourceProduct: '', additionalProductRef: '',
+  customProductName: '', customFabric: '', customMaterial: '', customColor: '', customDesign: '',
     customRequirements: '', customSpecifications: '', engravingType: '', skipEngraving: true
-  };
+};
 
 export const OrderEntryProvider = ({ children }) => {
   const [searchParams] = useSearchParams();
@@ -145,8 +144,6 @@ export const OrderEntryProvider = ({ children }) => {
       window.removeEventListener('focus', onFocus);
     };
   }, [fetchInventory]);
-
-  usePolling(() => { if (!document.hidden) fetchInventory(); }, 30000);
 
   const hasChanged = useCallback((val1, val2) => {
     const normalize = (v) => (v === null || v === undefined ? '' : String(v).trim().toLowerCase());
@@ -228,7 +225,7 @@ export const OrderEntryProvider = ({ children }) => {
           adjProductPrice: '', adjLogoCharges: '', adjNamePrinting: '', adjCustomization: '', adjCapCharges: '', adjDiscount: ''
         });
         let pd = [];
-        try { pd = typeof found.productDetails === 'string' ? JSON.parse(found.productDetails) : found.productDetails; }
+        try { pd = found.productDetails; }
         catch { pd = found.productDetails || []; }
         const mapItem = (item) => {
           const pdItem = item.productDetails || item;

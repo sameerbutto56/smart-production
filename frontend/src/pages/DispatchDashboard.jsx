@@ -186,11 +186,6 @@ const DispatchDashboard = () => {
   useEffect(() => { if (loggedIn) sessionStorage.setItem('dispatchMethodFilter', methodFilter); }, [methodFilter, loggedIn]);
 
   useEffect(() => {
-    const interval = setInterval(doRefresh, 15000);
-    return () => clearInterval(interval);
-  }, [doRefresh]);
-
-  useEffect(() => {
     const handleStageAccepted = () => {
       if (queueRefreshRef.current) clearTimeout(queueRefreshRef.current);
       queueRefreshRef.current = setTimeout(doRefresh, 500);

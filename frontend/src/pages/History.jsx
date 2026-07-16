@@ -87,7 +87,7 @@ const History = () => {
 
   const exportToExcel = () => {
     const data = (searchTerm ? filteredOrders : orders).map((order, idx) => {
-      let rawPd = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails || '{}') : order.productDetails;
+      let rawPd = order.productDetails || {};
       const product = Array.isArray(rawPd) ? (rawPd[0]?.productDetails || rawPd[0] || {}) : (rawPd || {});
       return {
         'Sr': idx + 1,

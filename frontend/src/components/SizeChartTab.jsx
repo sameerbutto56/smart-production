@@ -12,8 +12,6 @@ const SizeChartTab = () => {
     availableSizes, defaultSizes, preventEnterSubmit
   } = useOrderEntry();
 
-  if (isAccessory(selectedProductCategory)) return null;
-
   return (
     <motion.div
       key="sizes"

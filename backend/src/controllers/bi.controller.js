@@ -79,7 +79,7 @@ const getDashboard = async (req, res) => {
       });
       let qty = 0, val = 0;
       for (const o of orders) {
-        const details = typeof o.productDetails === 'string' ? JSON.parse(o.productDetails) : (o.productDetails || []);
+        const details = o.productDetails || [];
         if (Array.isArray(details)) {
           for (const item of details) {
             if (item.inventoryDeducted) {

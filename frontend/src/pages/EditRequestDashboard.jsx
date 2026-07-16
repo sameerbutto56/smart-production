@@ -63,7 +63,7 @@ const EditRequestDashboard = () => {
       if (rc?.items && Array.isArray(rc.items)) {
         productTypes = [...new Set(rc.items.map(i => (i.productDetails?.productType || i.productType || '')).filter(Boolean))];
       } else if (rc?.productDetails) {
-        const pd = typeof rc.productDetails === 'string' ? JSON.parse(rc.productDetails) : rc.productDetails;
+        const pd = rc.productDetails;
         if (pd?.productType) productTypes = [pd.productType];
       }
     } catch {}

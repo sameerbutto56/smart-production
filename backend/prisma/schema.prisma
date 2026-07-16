@@ -45,7 +45,7 @@ model Order {
   logoDesign      String?
   logoName        String?
   customization   String?
-  productDetails  String?
+  productDetails  Json?
   sizeData        String?
   currentStage    String       @default("ORDER_ENTRY")
   status          String       @default("PENDING")
@@ -361,7 +361,7 @@ model DeletedOrder {
   source        String   // ONLINE, JOHAR TOWN BRANCH, etc.
   customerName  String
   customerPhone String?
-  productDetails String? // JSON: minimal product summary
+  productDetails Json? // minimal product summary
   totalPrice    Float?   @default(0)
   deletedAt     DateTime @default(now())
   deletedById   String

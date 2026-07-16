@@ -119,7 +119,7 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
   const deliveredAt = order.deliveredAt || deliveryStage?.completedAt || deliveryStage?.updatedAt || order.updatedAt;
 
   let pd = {};
-  try { let raw = JSON.parse(order.productDetails || '{}'); pd = Array.isArray(raw) ? (raw[0]?.productDetails || raw[0] || {}) : (raw || {}); } catch {}
+  try { let raw = order.productDetails || {}; pd = Array.isArray(raw) ? (raw[0]?.productDetails || raw[0] || {}) : (raw || {}); } catch {}
 
   const isPending = tab === 'pending';
   const isNoResp = tab === 'noresponse';

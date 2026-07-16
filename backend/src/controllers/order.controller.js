@@ -142,7 +142,7 @@ const createProductionRecordFromOrder = async (order, stageCompleted) => {
     let items = [];
     let parsedDetails;
     try {
-      parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+      parsedDetails = order.productDetails;
     } catch { return; }
     if (!parsedDetails) return;
 
@@ -382,7 +382,7 @@ const createOrder = async (req, res) => {
         customizationPrice: finalCustomizationPrice,
         deliveryCharges: finalDeliveryCharges,
         customization: finalCustomization ? JSON.stringify(finalCustomization) : null,
-        productDetails: finalProductDetails ? JSON.stringify(finalProductDetails) : null,
+        productDetails: finalProductDetails || null,
         sizeData: finalSizeData ? JSON.stringify(finalSizeData) : null,
         advancePaid: advancePaid || (advanceAmount > 0) || false,
         advanceAmount: advanceAmount || 0,
@@ -637,7 +637,7 @@ const requestStageCompletion = async (req, res) => {
         // Parse productDetails and filter by per-product availability
         let parsedDetails;
         try {
-          parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+          parsedDetails = order.productDetails;
         } catch {
           parsedDetails = [];
         }
@@ -656,7 +656,7 @@ const requestStageCompletion = async (req, res) => {
           });
           await prisma.order.update({
             where: { id: orderId },
-            data: { productDetails: JSON.stringify(updatedItems) }
+            data: { productDetails: updatedItems }
           });
         }
 
@@ -680,7 +680,7 @@ const requestStageCompletion = async (req, res) => {
           });
           await prisma.order.update({
             where: { id: orderId },
-            data: { productDetails: JSON.stringify(updatedItems) }
+            data: { productDetails: updatedItems }
           });
           await createAuditLog(orderId, 'INVENTORY_CONFIRMED',
             `Classified ${inventoryItems.length} pending inventory item(s) and ${productionItems.length} production item(s). Stock deducted for pending items.`,
@@ -833,7 +833,7 @@ const approveStageCompletion = async (req, res) => {
         // Read per-product availability from stored productDetails
         let parsedDetails;
         try {
-          parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+          parsedDetails = order.productDetails;
         } catch {
           parsedDetails = [];
         }
@@ -1248,7 +1248,7 @@ const cancelOrder = async (req, res) => {
 
 const restoreInventoryForDeletion = async (order, userId) => {
   if (!order) return;
-  let parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+  let parsedDetails = order.productDetails;
 
   const productsToRestore = [];
   if (Array.isArray(parsedDetails)) {
@@ -1580,7 +1580,7 @@ const deductInventoryItems = async (order, userId, itemList) => {
 
 const deductInventory = async (order, userId) => {
   if (!order) return;
-  let parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+  let parsedDetails = order.productDetails;
   
   const productsToDeduct = [];
   if (Array.isArray(parsedDetails)) {
@@ -1673,7 +1673,7 @@ const addOrderToInventory = async (req, res) => {
 
     let parsedDetails;
     try {
-      parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+      parsedDetails = order.productDetails;
     } catch {
       return res.status(400).json({ message: 'Invalid product details' });
     }
@@ -1793,7 +1793,7 @@ const addOrderToInventory = async (req, res) => {
 
     // Mark produced items in productDetails as 'produced'
     try {
-      let pd = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+      let pd = order.productDetails;
       if (pd) {
         const updated = Array.isArray(pd)
           ? pd.map(item => {
@@ -1807,7 +1807,7 @@ const addOrderToInventory = async (req, res) => {
             : pd;
         await prisma.order.update({
           where: { id: orderId },
-          data: { productDetails: JSON.stringify(updated) }
+          data: { productDetails: updated }
         });
       }
     } catch (pdErr) {
@@ -2008,7 +2008,7 @@ const checkOrderInventory = async (req, res) => {
 
     let parsedDetails;
     try {
-      parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+      parsedDetails = order.productDetails;
     } catch {
       return res.json({ orderId: order.id, orderNumber: order.orderNumber, report: [], summary: { totalItems: 0, available: 0, insufficient: 0, outOfStock: 0, inventoryItems: 0, productionItems: 0 } });
     }
@@ -3170,7 +3170,7 @@ const updateProductAvailability = async (req, res) => {
 
     let parsedDetails;
     try {
-      parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+      parsedDetails = order.productDetails;
     } catch {
       parsedDetails = [];
     }
@@ -3223,7 +3223,7 @@ const updateProductAvailability = async (req, res) => {
 
     await prisma.order.update({
       where: { id: orderId },
-      data: { productDetails: JSON.stringify(updatedItems) }
+      data: { productDetails: updatedItems }
     });
 
     await createAuditLog(orderId, 'AVAILABILITY_UPDATED',

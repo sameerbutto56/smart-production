@@ -40,7 +40,7 @@ const createAuditLog = async (orderId, action, details, userId) => {
 const classifyOrderItems = async (order, itemList = null) => {
   let parsedDetails;
   try {
-    parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+    parsedDetails = order.productDetails;
   } catch {
     return { inventoryItems: [], productionItems: [] };
   }
@@ -83,7 +83,7 @@ const classifyOrderItems = async (order, itemList = null) => {
 const reverseInventoryForRefund = async (order, userId) => {
   let parsedDetails;
   try {
-    parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+    parsedDetails = order.productDetails;
   } catch { return; }
   if (!parsedDetails) return;
 

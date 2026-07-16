@@ -70,7 +70,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
     const init = {};
     if (order?.productDetails) {
       try {
-        const pd = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+        const pd = order.productDetails;
         const items = Array.isArray(pd) ? pd : (pd?.productType ? [pd] : []);
         items.forEach((item, idx) => {
           const st = getItemStatus(item);
@@ -84,7 +84,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   useEffect(() => {
     if (order?.productDetails) {
       try {
-        const pd = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+        const pd = order.productDetails;
         const items = Array.isArray(pd) ? pd : (pd?.productType ? [pd] : []);
         const next = {};
         items.forEach((item, idx) => {
@@ -112,7 +112,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
       // Revert state to original
       if (order?.productDetails) {
         try {
-          const pd = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+          const pd = order.productDetails;
           const items = Array.isArray(pd) ? pd : (pd?.productType ? [pd] : []);
           const originalStatus = items[idx]?.availabilityStatus;
           setProductAvailability(prev => {

@@ -41,6 +41,12 @@ app.use('/api/', rateLimit({
 }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
+// Prevent caching of dynamic API responses
+app.use('/api', (req, res, next) => {
+  if (req.method === 'GET') res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  next();
+});
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Backend is alive!', time: new Date().toISOString() });
 });

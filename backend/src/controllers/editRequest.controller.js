@@ -13,7 +13,7 @@ const createAuditLog = async (orderId, action, details, userId) => {
 
 const restoreInventory = async (order, userId) => {
   if (!order) return;
-  let parsedDetails = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+  let parsedDetails = order.productDetails;
 
   const productsToRestore = [];
   if (Array.isArray(parsedDetails)) {
@@ -71,7 +71,7 @@ const restoreInventory = async (order, userId) => {
 };
 
 const deductInventoryForEdit = async (order, productDetails, quantity, userId) => {
-  let parsedDetails = typeof productDetails === 'string' ? JSON.parse(productDetails) : productDetails;
+  let parsedDetails = productDetails;
 
   const productsToDeduct = [];
   if (Array.isArray(parsedDetails)) {
@@ -280,9 +280,7 @@ const approveEditRequest = async (req, res) => {
     const updateData = {};
 
     if (requestedChanges.productDetails) {
-      updateData.productDetails = typeof requestedChanges.productDetails === 'string'
-        ? requestedChanges.productDetails
-        : JSON.stringify(requestedChanges.productDetails);
+      updateData.productDetails = requestedChanges.productDetails;
     }
 
     if (requestedChanges.quantity) {
@@ -308,7 +306,7 @@ const approveEditRequest = async (req, res) => {
         customizationPrice: parseFloat(item.customizationPrice) || 0,
         capCharges: parseInt(item.capCharges) || 0
       }));
-      updateData.productDetails = JSON.stringify(items);
+      updateData.productDetails = items;
       updateData.quantity = items.reduce((sum, item) => sum + (item.quantity || 1), 0);
       
       // Sync customization and sizeData to order for compatibility

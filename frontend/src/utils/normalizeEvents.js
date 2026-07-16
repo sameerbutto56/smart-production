@@ -52,7 +52,7 @@ export function normalizeOrderList(orders) {
   if (!Array.isArray(orders)) return [];
   return orders.map(o => ({
     ...o,
-    productDetails: typeof o.productDetails === 'string' ? safeJsonParse(o.productDetails) : (o.productDetails || []),
+    productDetails: o.productDetails || [],
     courierDetails: typeof o.courierDetails === 'string' ? safeJsonParse(o.courierDetails) : (o.courierDetails || {}),
   }));
 }

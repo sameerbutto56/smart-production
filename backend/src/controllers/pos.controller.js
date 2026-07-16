@@ -1279,8 +1279,7 @@ const orderLookup = async (req, res) => {
     const order = await prisma.order.findFirst({ where });
     if (!order) return res.status(404).json({ message: 'Order not found' });
     if (order.paymentStatus === 'PAID') return res.json({ paid: true, message: 'This order is already fully paid', orderNumber: order.orderNumber });
-    let productDetails = [];
-    try { productDetails = JSON.parse(order.productDetails || '[]'); } catch {}
+    const productDetails = order.productDetails || [];
     const totalPrice = order.totalPrice || productDetails.reduce((s, p) => s + (parseFloat(p.totalPrice) || 0), 0);
     const adv = parseFloat(order.advanceAmount) || 0;
     const balance = totalPrice - adv;

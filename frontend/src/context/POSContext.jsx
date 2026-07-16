@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useRef, useMemo, useCallback } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -9,20 +9,201 @@ import socket from '../socket';
 
 const POSContext = createContext(null);
 
+const STATE_KEYS = [
+  'selectedOutlet', 'dashboardRange', 'dashboardDateFrom', 'dashboardDateTo',
+  'salesRange', 'salesDateFrom', 'salesDateTo',
+  'activeCategory', 'search', 'cart', 'showConfig', 'selectedSize', 'selectedColor', 'selectedQty',
+  'discountPct', 'discountFixed', 'orderNumber', 'advanceAmount', 'deliveryEnabled',
+  'customerName', 'customerPhone', 'paymentMethod', 'cashAmount', 'onlineAmount',
+  'showCheckout', 'checkoutLoading', 'lastSale',
+  'showPrintOptions', 'pendingPrintSale', 'printOpts',
+  'lookedUpOrder', 'faisalTake', 'tab', 'barcodeInput',
+  'returnTab', 'returnBarcodeInput', 'returnCart', 'returnReason', 'refundPaymentMethod',
+  'returnLoading', 'returnProductSearch', 'receiptSearch',
+  'invoiceReturnInput', 'invoiceReturnLoading', 'lookedUpReturnSale', 'refundLoading',
+  'employeeName', 'employeePassword', 'employeeLoggedIn',
+  'currentBook', 'bookLoading', 'openBookLoading', 'showCloseBook', 'closeBookSummary',
+  'summaryLoading', 'transferCashAmount', 'closeBookLoading', 'showBookReminder',
+  'showPaymentDetail', 'showEmployeeDetail', 'showAuthModal', 'authMode',
+  'authEmployee', 'authPassword', 'authError', 'verifiedCloser',
+  'balanceInvoices', 'balanceInvoicesLoading', 'selectedBalanceInvoice',
+  'showPayBalanceModal', 'payAmount', 'balancePaymentMethod', 'paying',
+  'balanceCollectionRange', 'balanceCollectionDateFrom', 'balanceCollectionDateTo',
+  'balanceCollectionData', 'balanceHistory', 'showBalanceHistoryModal',
+  'lastBalancePayment', 'loadingBalanceAction', 'bookPrintOpts',
+];
+
+function posReducer(state, action) {
+  switch (action.type) {
+    case 'SET_STATE': {
+      const { key, value } = action;
+      const newValue = typeof value === 'function' ? value(state[key]) : value;
+      let newState = { ...state, [key]: newValue };
+      if (key === 'paymentMethod' && newValue !== 'CASH_ONLINE') {
+        newState.cashAmount = 0;
+        newState.onlineAmount = 0;
+      }
+      return newState;
+    }
+    default:
+      return state;
+  }
+}
+
+function createInitialState(user) {
+  const n = (user?.name || '').toLowerCase();
+  const isJR = n.includes('jail');
+  const isAB = n.includes('abbottabad');
+  return {
+    selectedOutlet: user?.role !== 'OUTLET' ? 'Johar Town' : isJR ? 'Jail Road' : isAB ? 'Abbottabad' : 'Johar Town',
+    dashboardRange: 'all',
+    dashboardDateFrom: '',
+    dashboardDateTo: '',
+    salesRange: 'all',
+    salesDateFrom: '',
+    salesDateTo: '',
+    activeCategory: (() => { try { return localStorage.getItem('pos_active_category') || ''; } catch { return ''; } })(),
+    search: '',
+    cart: (() => { try { const c = localStorage.getItem('pos_cart'); return c ? JSON.parse(c) : []; } catch { return []; } })(),
+    showConfig: null,
+    selectedSize: '',
+    selectedColor: '',
+    selectedQty: 1,
+    discountPct: (() => { const v = localStorage.getItem('pos_discount_pct'); return v ? parseFloat(v) : 0; })(),
+    discountFixed: (() => { const v = localStorage.getItem('pos_discount_fixed'); return v ? parseFloat(v) : 0; })(),
+    orderNumber: '',
+    advanceAmount: 0,
+    deliveryEnabled: false,
+    customerName: (() => { try { return localStorage.getItem('pos_customer_name') || ''; } catch { return ''; } })(),
+    customerPhone: (() => { try { return localStorage.getItem('pos_customer_phone') || ''; } catch { return ''; } })(),
+    paymentMethod: (() => { try { return localStorage.getItem('pos_payment_method') || ''; } catch { return ''; } })(),
+    cashAmount: 0,
+    onlineAmount: 0,
+    showCheckout: false,
+    checkoutLoading: false,
+    lastSale: null,
+    showPrintOptions: false,
+    pendingPrintSale: null,
+    printOpts: { invoice: true, gatePass: true },
+    lookedUpOrder: null,
+    faisalTake: false,
+    tab: 'pos',
+    barcodeInput: '',
+    returnTab: 'scan',
+    returnBarcodeInput: '',
+    returnCart: [],
+    returnReason: 'Customer return',
+    refundPaymentMethod: 'CASH',
+    returnLoading: false,
+    returnProductSearch: '',
+    receiptSearch: '',
+    invoiceReturnInput: '',
+    invoiceReturnLoading: false,
+    lookedUpReturnSale: null,
+    refundLoading: false,
+    employeeName: (() => { try { return localStorage.getItem('pos_employee_name') || ''; } catch { return ''; } })(),
+    employeePassword: '',
+    employeeLoggedIn: (() => { try { return localStorage.getItem('pos_employee_logged_in') === 'true'; } catch { return false; } })(),
+    currentBook: null,
+    bookLoading: true,
+    openBookLoading: false,
+    showCloseBook: false,
+    closeBookSummary: null,
+    summaryLoading: false,
+    transferCashAmount: 0,
+    closeBookLoading: false,
+    showBookReminder: false,
+    showPaymentDetail: null,
+    showEmployeeDetail: null,
+    showAuthModal: false,
+    authMode: null,
+    authEmployee: '',
+    authPassword: '',
+    authError: '',
+    verifiedCloser: null,
+    balanceInvoices: [],
+    balanceInvoicesLoading: false,
+    selectedBalanceInvoice: null,
+    showPayBalanceModal: false,
+    payAmount: 0,
+    balancePaymentMethod: 'CASH',
+    paying: false,
+    balanceCollectionRange: 'today',
+    balanceCollectionDateFrom: '',
+    balanceCollectionDateTo: '',
+    balanceCollectionData: null,
+    balanceHistory: [],
+    showBalanceHistoryModal: false,
+    lastBalancePayment: null,
+    loadingBalanceAction: false,
+    bookPrintOpts: { thermal: false, a4: false },
+  };
+}
+
 export function POSProvider({ children }) {
   const { user } = useAuth();
-  const defaultOutlet = (() => {
-    if (user?.role !== 'OUTLET') return 'Johar Town';
-    const n = (user?.name || '').toLowerCase();
-    if (n.includes('jail')) return 'Jail Road';
-    if (n.includes('abbottabad')) return 'Abbottabad';
-    return 'Johar Town';
-  })();
 
-  const [selectedOutlet, setSelectedOutlet] = useState(defaultOutlet);
-  const [dashboardRange, setDashboardRange] = useState('all');
-  const [dashboardDateFrom, setDashboardDateFrom] = useState('');
-  const [dashboardDateTo, setDashboardDateTo] = useState('');
+  const [state, dispatch] = useReducer(posReducer, user, createInitialState);
+
+  const setters = useMemo(() => {
+    const s = {};
+    STATE_KEYS.forEach(key => {
+      const cap = key.charAt(0).toUpperCase() + key.slice(1);
+      s[`set${cap}`] = (valueOrFn) => dispatch({ type: 'SET_STATE', key, value: valueOrFn });
+    });
+    return s;
+  }, []);
+
+  const {
+    selectedOutlet, dashboardRange, dashboardDateFrom, dashboardDateTo,
+    salesRange, salesDateFrom, salesDateTo,
+    activeCategory, search, cart, showConfig, selectedSize, selectedColor, selectedQty,
+    discountPct, discountFixed, orderNumber, advanceAmount, deliveryEnabled,
+    customerName, customerPhone, paymentMethod, cashAmount, onlineAmount,
+    showCheckout, checkoutLoading, lastSale,
+    showPrintOptions, pendingPrintSale, printOpts,
+    lookedUpOrder, faisalTake, tab, barcodeInput,
+    returnTab, returnBarcodeInput, returnCart, returnReason,
+    refundPaymentMethod, returnLoading,
+    returnProductSearch, receiptSearch,
+    invoiceReturnInput, invoiceReturnLoading, lookedUpReturnSale, refundLoading,
+    employeeName, employeePassword, employeeLoggedIn,
+    currentBook, bookLoading, openBookLoading, showCloseBook, closeBookSummary,
+    summaryLoading, transferCashAmount, closeBookLoading, showBookReminder,
+    showPaymentDetail, showEmployeeDetail, showAuthModal, authMode,
+    authEmployee, authPassword, authError, verifiedCloser,
+    balanceInvoices, balanceInvoicesLoading, selectedBalanceInvoice,
+    showPayBalanceModal, payAmount, balancePaymentMethod, paying,
+    balanceCollectionRange, balanceCollectionDateFrom, balanceCollectionDateTo,
+    balanceCollectionData, balanceHistory, showBalanceHistoryModal,
+    lastBalancePayment, loadingBalanceAction, bookPrintOpts,
+  } = state;
+
+  const {
+    setSelectedOutlet, setDashboardRange, setDashboardDateFrom, setDashboardDateTo,
+    setSalesRange, setSalesDateFrom, setSalesDateTo,
+    setActiveCategory, setSearch, setCart, setShowConfig, setSelectedSize, setSelectedColor, setSelectedQty,
+    setDiscountPct, setDiscountFixed, setOrderNumber, setAdvanceAmount, setDeliveryEnabled,
+    setCustomerName, setCustomerPhone, setPaymentMethod, setCashAmount, setOnlineAmount,
+    setShowCheckout, setCheckoutLoading, setLastSale,
+    setShowPrintOptions, setPendingPrintSale, setPrintOpts,
+    setLookedUpOrder, setFaisalTake, setTab, setBarcodeInput,
+    setReturnTab, setReturnBarcodeInput, setReturnCart, setReturnReason,
+    setRefundPaymentMethod, setReturnLoading, setReturnProductSearch,
+    setReceiptSearch, setInvoiceReturnInput, setInvoiceReturnLoading,
+    setLookedUpReturnSale, setRefundLoading,
+    setEmployeeName, setEmployeePassword, setEmployeeLoggedIn,
+    setCurrentBook, setBookLoading, setOpenBookLoading, setShowCloseBook,
+    setCloseBookSummary, setSummaryLoading, setTransferCashAmount, setCloseBookLoading,
+    setShowBookReminder, setShowPaymentDetail, setShowEmployeeDetail,
+    setShowAuthModal, setAuthMode, setAuthEmployee, setAuthPassword, setAuthError,
+    setVerifiedCloser, setBalanceInvoices, setBalanceInvoicesLoading,
+    setSelectedBalanceInvoice, setShowPayBalanceModal, setPayAmount,
+    setBalancePaymentMethod, setPaying, setBalanceCollectionRange,
+    setBalanceCollectionDateFrom, setBalanceCollectionDateTo, setBalanceCollectionData,
+    setBalanceHistory, setShowBalanceHistoryModal, setLastBalancePayment,
+    setLoadingBalanceAction, setBookPrintOpts,
+  } = setters;
 
   const CACHE_VERSION = 'v3';
   const productsKey = `pos:products:${CACHE_VERSION}:${selectedOutlet}`;
@@ -40,9 +221,6 @@ export function POSProvider({ children }) {
     }).then(r => r.data),
     ttl: 30000,
   });
-  const [salesRange, setSalesRange] = useState('all');
-  const [salesDateFrom, setSalesDateFrom] = useState('');
-  const [salesDateTo, setSalesDateTo] = useState('');
   const { data: sales = [], loading: salesLoading, refresh: refreshSales } = useCache(`${salesKey}:range:${salesRange}:${salesDateFrom}:${salesDateTo}`, {
     fetcher: () => {
       let url = `/api/pos/sales?outlet=${selectedOutlet}`;
@@ -58,83 +236,7 @@ export function POSProvider({ children }) {
     ttl: 5 * 60 * 1000,
   });
 
-  const [activeCategory, setActiveCategory] = useState(() => localStorage.getItem('pos_active_category') || '');
-  const [search, setSearch] = useState('');
-  const [cart, setCart] = useState(() => { try { const c = localStorage.getItem('pos_cart'); return c ? JSON.parse(c) : []; } catch { return []; } });
-  const [showConfig, setShowConfig] = useState(null);
-  const [selectedSize, setSelectedSize] = useState('');
-  const [selectedColor, setSelectedColor] = useState('');
-  const [selectedQty, setSelectedQty] = useState(1);
-  const [discountPct, setDiscountPct] = useState(() => { const v = localStorage.getItem('pos_discount_pct'); return v ? parseFloat(v) : 0; });
-  const [discountFixed, setDiscountFixed] = useState(() => { const v = localStorage.getItem('pos_discount_fixed'); return v ? parseFloat(v) : 0; });
-  const [orderNumber, setOrderNumber] = useState('');
-  const [advanceAmount, setAdvanceAmount] = useState(0);
-  const [deliveryEnabled, setDeliveryEnabled] = useState(false);
-  const [cardChargesPct, setCardChargesPct] = useState(0);
-  const [customerName, setCustomerName] = useState(() => localStorage.getItem('pos_customer_name') || '');
-  const [customerPhone, setCustomerPhone] = useState(() => localStorage.getItem('pos_customer_phone') || '');
-  const [paymentMethod, setPaymentMethod] = useState(() => localStorage.getItem('pos_payment_method') || '');
-  const [cashAmount, setCashAmount] = useState(0);
-  const [onlineAmount, setOnlineAmount] = useState(0);
-  const [showCheckout, setShowCheckout] = useState(false);
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
-  const [lastSale, setLastSale] = useState(null);
-  const [showPrintOptions, setShowPrintOptions] = useState(false);
-  const [pendingPrintSale, setPendingPrintSale] = useState(null);
-  const [printOpts, setPrintOpts] = useState({ invoice: true, gatePass: true });
-  const [lookedUpOrder, setLookedUpOrder] = useState(null);
-  const [faisalTake, setFaisalTake] = useState(false);
-  const [tab, setTab] = useState('pos');
-  const [barcodeInput, setBarcodeInput] = useState('');
   const barcodeRef = useRef(null);
-  const [returnTab, setReturnTab] = useState('scan');
-  const [returnBarcodeInput, setReturnBarcodeInput] = useState('');
-  const [returnCart, setReturnCart] = useState([]);
-  const [returnReason, setReturnReason] = useState('Customer return');
-  const [refundPaymentMethod, setRefundPaymentMethod] = useState('CASH');
-  const [returnLoading, setReturnLoading] = useState(false);
-  const [returnProductSearch, setReturnProductSearch] = useState('');
-  const [receiptSearch, setReceiptSearch] = useState('');
-  const [invoiceReturnInput, setInvoiceReturnInput] = useState('');
-  const [invoiceReturnLoading, setInvoiceReturnLoading] = useState(false);
-  const [lookedUpReturnSale, setLookedUpReturnSale] = useState(null);
-  const [refundLoading, setRefundLoading] = useState(false);
-  const [employeeName, setEmployeeName] = useState(() => localStorage.getItem('pos_employee_name') || '');
-  const [employeePassword, setEmployeePassword] = useState('');
-  const [employeeLoggedIn, setEmployeeLoggedIn] = useState(() => localStorage.getItem('pos_employee_logged_in') === 'true');
-  const [currentBook, setCurrentBook] = useState(null);
-  const [bookLoading, setBookLoading] = useState(true);
-  const [openBookLoading, setOpenBookLoading] = useState(false);
-  const [showCloseBook, setShowCloseBook] = useState(false);
-  const [closeBookSummary, setCloseBookSummary] = useState(null);
-  const [summaryLoading, setSummaryLoading] = useState(false);
-  const [transferCashAmount, setTransferCashAmount] = useState(0);
-  const [closeBookLoading, setCloseBookLoading] = useState(false);
-  const [showBookReminder, setShowBookReminder] = useState(false);
-  const [showPaymentDetail, setShowPaymentDetail] = useState(null);
-  const [showEmployeeDetail, setShowEmployeeDetail] = useState(null);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState(null);
-  const [authEmployee, setAuthEmployee] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
-  const [authError, setAuthError] = useState('');
-  const [verifiedCloser, setVerifiedCloser] = useState(null);
-  const [balanceInvoices, setBalanceInvoices] = useState([]);
-  const [balanceInvoicesLoading, setBalanceInvoicesLoading] = useState(false);
-  const [selectedBalanceInvoice, setSelectedBalanceInvoice] = useState(null);
-  const [showPayBalanceModal, setShowPayBalanceModal] = useState(false);
-  const [payAmount, setPayAmount] = useState(0);
-  const [balancePaymentMethod, setBalancePaymentMethod] = useState('CASH');
-  const [paying, setPaying] = useState(false);
-  const [balanceCollectionRange, setBalanceCollectionRange] = useState('today');
-  const [balanceCollectionDateFrom, setBalanceCollectionDateFrom] = useState('');
-  const [balanceCollectionDateTo, setBalanceCollectionDateTo] = useState('');
-  const [balanceCollectionData, setBalanceCollectionData] = useState(null);
-  const [balanceHistory, setBalanceHistory] = useState([]);
-  const [showBalanceHistoryModal, setShowBalanceHistoryModal] = useState(false);
-  const [lastBalancePayment, setLastBalancePayment] = useState(null);
-  const [loadingBalanceAction, setLoadingBalanceAction] = useState(false);
-  const [bookPrintOpts, setBookPrintOpts] = useState({ thermal: false, a4: false });
 
   const employees = selectedOutlet === 'Jail Road'
     ? { Junaid: 'J170', Ibrar: 'I170', Aamir: 'A170' }
@@ -153,10 +255,6 @@ export function POSProvider({ children }) {
   useEffect(() => { localStorage.setItem('pos_customer_name', customerName); }, [customerName]);
   useEffect(() => { localStorage.setItem('pos_customer_phone', customerPhone); }, [customerPhone]);
   useEffect(() => { localStorage.setItem('pos_payment_method', paymentMethod); }, [paymentMethod]);
-  useEffect(() => {
-    setCardChargesPct(paymentMethod === 'CARD' ? 2 : 0);
-    if (paymentMethod !== 'CASH_ONLINE') { setCashAmount(0); setOnlineAmount(0); }
-  }, [paymentMethod]);
   useEffect(() => { localStorage.setItem('pos_active_category', activeCategory); }, [activeCategory]);
   useEffect(() => { localStorage.setItem('pos_employee_name', employeeLoggedIn ? employeeName : ''); }, [employeeLoggedIn, employeeName]);
   useEffect(() => { localStorage.setItem('pos_employee_logged_in', employeeLoggedIn ? 'true' : 'false'); }, [employeeLoggedIn]);
@@ -348,6 +446,8 @@ export function POSProvider({ children }) {
   const updateAlteration = (i, label, amount) => { const copy = [...cart]; copy[i] = { ...copy[i], alterationLabel: label, alterationAmount: amount }; setCart(copy); };
   const updateCartDiscount = (i, field, value) => { const copy = [...cart]; copy[i] = { ...copy[i], [field]: value }; setCart(copy); };
   const updateCartCustomization = (i, field) => { const copy = [...cart]; copy[i] = { ...copy[i], [field]: !copy[i][field] }; setCart(copy); };
+
+  const cardChargesPct = paymentMethod === 'CARD' ? 2 : 0;
 
   const subtotal = useMemo(() => cart.reduce((s, i) => s + (parseFloat(i.unitPrice) || 0) * i.qty, 0), [cart]);
   const altCharges = useMemo(() => cart.reduce((s, i) => s + (parseFloat(i.alterationAmount) || 0) * i.qty, 0), [cart]);

@@ -51,7 +51,7 @@ const createOutletOrder = async (req, res) => {
     }
     // Add productType alias for backward compat with job sheet display
     const enriched = products.map(p => ({ ...p, productType: p.name }));
-    const productDetails = JSON.stringify(enriched);
+    const productDetails = enriched;
     const sizeDataStr = sizeData ? JSON.stringify(sizeData) : null;
     const totalPrice = products.reduce((sum, p) => sum + (parseFloat(p.unitPrice) || 0) * (p.quantity || 1), 0);
     const adv = parseFloat(advanceAmount) || 0;
@@ -270,7 +270,7 @@ const getOutletReturns = async (req, res) => {
       take: 50,
       select: { id: true, orderNumber: true, customerName: true, customerPhone: true, productDetails: true, totalPrice: true, advanceAmount: true, currentStage: true, orderDestination: true, createdAt: true, engravingRequired: true, status: true, sizeData: true, instructionNotes: true }
     });
-    const parsed = orders.map(o => ({ ...o, productDetails: (() => { try { return JSON.parse(o.productDetails); } catch { return []; } })() }));
+    const parsed = orders.map(o => ({ ...o, productDetails: o.productDetails || [] }));
     res.json(parsed);
   } catch (error) {
     console.error('Get outlet returns error:', error);
@@ -435,7 +435,7 @@ const getOutletTasks = async (req, res) => {
     });
     const parsed = orders.map(o => ({
       ...o,
-      productDetails: (() => { try { return JSON.parse(o.productDetails); } catch { return []; } })()
+      productDetails: o.productDetails || []
     }));
     res.json(parsed);
   } catch (error) {
@@ -618,7 +618,7 @@ const getOutletAnalytics = async (req, res) => {
       .map(([date, count]) => ({ date, count }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    // 5. Top products from outlet orders (parse productDetails JSON)
+    // 5. Top products from outlet orders (productDetails JSON)
     const ordersWithProducts = await prisma.order.findMany({
       where: { ...orderWhere, productDetails: { not: null } },
       select: { productDetails: true }
@@ -626,7 +626,7 @@ const getOutletAnalytics = async (req, res) => {
     const productCounts = {};
     ordersWithProducts.forEach(o => {
       try {
-        const details = typeof o.productDetails === 'string' ? JSON.parse(o.productDetails) : o.productDetails;
+        const details = o.productDetails;
         (Array.isArray(details) ? details : [details]).forEach(p => {
           const name = p.name || p.productName || 'Unknown';
           productCounts[name] = (productCounts[name] || 0) + (parseInt(p.quantity) || 1);

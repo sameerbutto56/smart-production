@@ -225,7 +225,7 @@ const AdminDashboard = () => {
       if (rc?.items && Array.isArray(rc.items)) {
         productTypes = [...new Set(rc.items.map(i => (i.productDetails?.productType || i.productType || '')).filter(Boolean))];
       } else if (rc?.productDetails) {
-        const pd = typeof rc.productDetails === 'string' ? JSON.parse(rc.productDetails) : rc.productDetails;
+        const pd = rc.productDetails;
         if (pd?.productType) productTypes = [pd.productType];
       }
     } catch {}
@@ -821,7 +821,7 @@ const AdminDashboard = () => {
             {/* Products Summary */}
             {(() => {
               try {
-                const pd = typeof trackedOrder.productDetails === 'string' ? JSON.parse(trackedOrder.productDetails) : trackedOrder.productDetails;
+                const pd = trackedOrder.productDetails;
                 const items = Array.isArray(pd) ? pd : (pd?.productType ? [pd] : []);
                 if (items.length === 0) return null;
                 return (
@@ -1362,7 +1362,7 @@ const AdminDashboard = () => {
 
                       let currentProducts = [];
                       try {
-                        const pd = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails) : order.productDetails;
+                        const pd = order.productDetails;
                         if (Array.isArray(pd)) {
                           currentProducts = pd.map(item => {
                             const d = item.productDetails || item;
@@ -1382,7 +1382,7 @@ const AdminDashboard = () => {
                             return { name: d.productType || '', color: d.color || '', size: d.size || '', qty: item.quantity || 1 };
                           });
                         } else if (rc?.productDetails) {
-                          const pd = typeof rc.productDetails === 'string' ? JSON.parse(rc.productDetails) : rc.productDetails;
+                          const pd = rc.productDetails;
                           if (pd?.productType) {
                             requestedProducts = [{ name: pd.productType, color: pd.color || '', size: pd.size || '', qty: rc.quantity || 1 }];
                           }

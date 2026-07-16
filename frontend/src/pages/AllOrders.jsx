@@ -62,7 +62,7 @@ const AllOrders = () => {
   useEffect(() => {
     if (selectedOrder?.productDetails) {
       try {
-        const pd = typeof selectedOrder.productDetails === 'string' ? JSON.parse(selectedOrder.productDetails) : selectedOrder.productDetails;
+        const pd = selectedOrder.productDetails;
         const items = Array.isArray(pd) ? pd : (pd?.productType ? [pd] : []);
         const init = {};
         items.forEach((item, idx) => {
@@ -90,7 +90,7 @@ const AllOrders = () => {
       setSelectedOrder(prev => {
         if (!prev) return null;
         try {
-          const pd = typeof prev.productDetails === 'string' ? JSON.parse(prev.productDetails) : prev.productDetails;
+          const pd = prev.productDetails;
           const items = Array.isArray(pd) ? pd : (pd?.productType ? [pd] : []);
           const updatedItems = items.map((item, i) => {
             if (i === idx) {
@@ -98,7 +98,7 @@ const AllOrders = () => {
             }
             return item;
           });
-          return { ...prev, productDetails: JSON.stringify(updatedItems) };
+          return { ...prev, productDetails: updatedItems };
         } catch {
           return prev;
         }
@@ -108,7 +108,7 @@ const AllOrders = () => {
       setCache('orders:all', orders.map(o => {
         if (o.id === selectedOrder.id) {
           try {
-            const pd = typeof o.productDetails === 'string' ? JSON.parse(o.productDetails) : o.productDetails;
+            const pd = o.productDetails;
             const items = Array.isArray(pd) ? pd : (pd?.productType ? [pd] : []);
             const updatedItems = items.map((item, i) => {
               if (i === idx) {
@@ -116,7 +116,7 @@ const AllOrders = () => {
               }
               return item;
             });
-            return { ...o, productDetails: JSON.stringify(updatedItems) };
+            return { ...o, productDetails: updatedItems };
           } catch {
             return o;
           }
@@ -131,7 +131,7 @@ const AllOrders = () => {
       // Revert state
       if (selectedOrder?.productDetails) {
         try {
-          const pd = typeof selectedOrder.productDetails === 'string' ? JSON.parse(selectedOrder.productDetails) : selectedOrder.productDetails;
+          const pd = selectedOrder.productDetails;
           const items = Array.isArray(pd) ? pd : (pd?.productType ? [pd] : []);
           const originalStatus = items[idx]?.availabilityStatus;
           setProductAvailability(prev => {
@@ -251,7 +251,7 @@ const AllOrders = () => {
   const handleExportCSV = () => {
     const headers = ['Order Number', 'Customer', 'Product', 'Color', 'Type', 'Status', 'Stage', 'Created At'];
     const csvRows = filteredOrders.map(order => {
-      let rawPd = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails || '{}') : order.productDetails;
+      let rawPd = order.productDetails || {};
       const product = Array.isArray(rawPd) ? (rawPd[0]?.productDetails || rawPd[0] || {}) : (rawPd || {});
       return [
         `"${order.orderNumber || order.id}"`,
@@ -638,7 +638,7 @@ const AllOrders = () => {
                 ))
               ) : (
                 filteredOrders.map((order) => {
-                  let rawPd = typeof order.productDetails === 'string' ? JSON.parse(order.productDetails || '{}') : order.productDetails;
+                  let rawPd = order.productDetails || {};
                   const product = Array.isArray(rawPd) ? (rawPd[0]?.productDetails || rawPd[0] || {}) : (rawPd || {});
                   const isMultiItem = Array.isArray(rawPd) && rawPd.length > 1;
                   const isWaitingApproval = order.stages?.some(s => s.status === 'WAITING_APPROVAL' && s.stageName === order.currentStage);
@@ -789,7 +789,7 @@ const AllOrders = () => {
 
       {/* --- JOB SHEET MODAL --- */}
       {showModal && selectedOrder && (() => {
-        let rawPd = typeof selectedOrder.productDetails === 'string' ? JSON.parse(selectedOrder.productDetails || '{}') : selectedOrder.productDetails;
+        let rawPd = selectedOrder.productDetails || {};
         const product = Array.isArray(rawPd) ? (rawPd[0]?.productDetails || rawPd[0] || {}) : (rawPd || {});
         const allItems = Array.isArray(rawPd) ? rawPd : null;
         const isMultiItem = allItems && allItems.length > 0;

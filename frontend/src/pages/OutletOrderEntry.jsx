@@ -605,7 +605,7 @@ const OutletOrderEntry = () => {
                 <div className="space-y-2 max-h-48 overflow-y-auto">
                   {recentOrders.map(o => {
                     let items = [];
-                    try { items = JSON.parse(o.productDetails || '[]'); } catch {}
+                    try { items = o.productDetails || []; } catch {}
                     return (
                       <div key={o.id} className="bg-gray-800/50 rounded-xl p-3 text-xs">
                         <p className="font-black text-blue-400">#{o.orderNumber}</p>
