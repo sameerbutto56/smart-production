@@ -77,6 +77,14 @@ const DispatchDashboard = () => {
   const [acceptLoading, setAcceptLoading] = useState(null);
   const [expandedOrderId, setExpandedOrderId] = useState(null);
   const [stats, setStats] = useState(null);
+  const [dashboardData, setDashboardData] = useState(null);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [dashEmployee, setDashEmployee] = useState('');
+  const [dashCity, setDashCity] = useState('');
+  const [dashStatus, setDashStatus] = useState('');
+  const [dashPayment, setDashPayment] = useState('');
+  const [dashDateFrom, setDashDateFrom] = useState('');
+  const [dashDateTo, setDashDateTo] = useState('');
   const [activityLogs, setActivityLogs] = useState([]);
   const [activityLoading, setActivityLoading] = useState(false);
   const [activitySearch, setActivitySearch] = useState('');
@@ -126,6 +134,25 @@ const DispatchDashboard = () => {
     }
   }, [loggedIn, employeeName]);
 
+  const fetchDashboard = useCallback(async () => {
+    setDashboardLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (dashEmployee) params.set('employee', dashEmployee);
+      if (dashCity) params.set('city', dashCity);
+      if (dashStatus) params.set('status', dashStatus);
+      if (dashPayment) params.set('payment', dashPayment);
+      if (dashDateFrom) params.set('dateFrom', dashDateFrom);
+      if (dashDateTo) params.set('dateTo', dashDateTo);
+      const res = await api.get(`/api/dispatch-profile/dashboard?${params.toString()}`);
+      setDashboardData(res.data);
+    } catch (err) {
+      console.error('Dashboard fetch failed:', err);
+    } finally {
+      setDashboardLoading(false);
+    }
+  }, [dashEmployee, dashCity, dashStatus, dashPayment, dashDateFrom, dashDateTo]);
+
   const fetchActivityLogs = useCallback(async () => {
     setActivityLoading(true);
     try {
@@ -148,8 +175,9 @@ const DispatchDashboard = () => {
   }, [loggedIn, employeeName, doRefresh, fetchStats, isKhawar, isFaisal]);
 
   useEffect(() => {
+    if (activeTab === 'dashboard' && loggedIn) fetchDashboard();
     if (activeTab === 'activity' && loggedIn) fetchActivityLogs();
-  }, [activeTab, loggedIn, fetchActivityLogs]);
+  }, [activeTab, loggedIn, fetchDashboard]);
 
   // Persist filter/tab state on change
   useEffect(() => { if (loggedIn) sessionStorage.setItem('dispatchActiveTab', activeTab); }, [activeTab, loggedIn]);
@@ -563,6 +591,220 @@ const DispatchDashboard = () => {
         </div>
       )}
 
+      {/* Dashboard Tab */}
+      {activeTab === 'dashboard' && (
+        <div className="space-y-6">
+          {dashboardLoading ? (
+            <div className="flex items-center justify-center py-20"><Loader2 className="animate-spin text-blue-400" size={32} /></div>
+          ) : !dashboardData ? (
+            <div className="glass rounded-2xl md:rounded-[3rem] border theme-border p-6 md:p-20 text-center">
+              <BarChart3 className="mx-auto text-gray-800 mb-4" size={48} />
+              <h3 className="theme-text-muted font-black uppercase">No Dashboard Data</h3>
+              <button onClick={fetchDashboard} className="mt-4 px-6 py-3 bg-blue-600 text-white rounded-xl font-black text-xs uppercase tracking-wider">Load Dashboard</button>
+            </div>
+          ) : (
+            <>
+              {/* Dashboard Filters */}
+              <div className="flex flex-wrap gap-3 items-center">
+                <select value={dashEmployee} onChange={(e) => setDashEmployee(e.target.value)}
+                  className="theme-input rounded-xl py-2 px-3 text-xs font-black uppercase tracking-wider">
+                  <option value="">All Employees</option>
+                  <option value="Khawar">Khawar</option>
+                  <option value="Faisal">Faisal</option>
+                </select>
+                <select value={dashCity} onChange={(e) => setDashCity(e.target.value)}
+                  className="theme-input rounded-xl py-2 px-3 text-xs font-black uppercase tracking-wider">
+                  <option value="">All Cities</option>
+                  <option value="Lahore">Lahore</option>
+                  <option value="Other">Other Cities</option>
+                </select>
+                <select value={dashStatus} onChange={(e) => setDashStatus(e.target.value)}
+                  className="theme-input rounded-xl py-2 px-3 text-xs font-black uppercase tracking-wider">
+                  <option value="">All Status</option>
+                  <option value="pending">Pending</option>
+                  <option value="active">Active</option>
+                  <option value="delivered">Delivered</option>
+                  <option value="returned">Returned</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+                <select value={dashPayment} onChange={(e) => setDashPayment(e.target.value)}
+                  className="theme-input rounded-xl py-2 px-3 text-xs font-black uppercase tracking-wider">
+                  <option value="">All Payment</option>
+                  <option value="paid">Paid</option>
+                  <option value="cod">Cash on Delivery</option>
+                </select>
+                <input type="date" value={dashDateFrom} onChange={(e) => setDashDateFrom(e.target.value)}
+                  className="theme-input rounded-xl py-2 px-3 text-xs font-black" />
+                <input type="date" value={dashDateTo} onChange={(e) => setDashDateTo(e.target.value)}
+                  className="theme-input rounded-xl py-2 px-3 text-xs font-black" />
+                <button onClick={fetchDashboard}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-wider">Apply</button>
+              </div>
+
+              {/* Summary Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2">
+                {[
+                  { label: 'Total', value: dashboardData.summary.totalOrders, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+                  { label: 'Pending', value: dashboardData.summary.pending, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+                  { label: 'Active', value: dashboardData.summary.active, color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
+                  { label: 'Delivered', value: dashboardData.summary.delivered, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+                  { label: 'Returned', value: dashboardData.summary.returned, color: 'text-red-400', bg: 'bg-red-500/10' },
+                  { label: 'Rejected', value: dashboardData.summary.rejected, color: 'text-gray-400', bg: 'bg-gray-500/10' },
+                  { label: 'COD', value: dashboardData.summary.cod, color: 'text-purple-400', bg: 'bg-purple-500/10' },
+                  { label: 'Paid', value: dashboardData.summary.paid, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+                ].map(card => (
+                  <div key={card.label} className={`${card.bg} rounded-2xl p-3 border border-white/5 text-center`}>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">{card.label}</p>
+                    <p className={`text-xl font-black ${card.color}`}>{card.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Employee Performance */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {['Khawar', 'Faisal'].map(name => {
+                  const es = dashboardData.employeeStats[name];
+                  return (
+                    <div key={name} className="glass rounded-2xl p-5 border theme-border">
+                      <h3 className="text-lg font-black theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <User size={18} className="text-blue-400" /> {name}
+                      </h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        {[
+                          { label: 'Total Assigned', value: es.totalAssigned },
+                          { label: 'Total Dispatched', value: es.totalDispatched },
+                          { label: 'Pending', value: es.pending, color: 'text-amber-400' },
+                          { label: 'Delivered', value: es.delivered, color: 'text-emerald-400' },
+                          { label: 'Returned', value: es.returned, color: 'text-red-400' },
+                          { label: 'Rejected', value: es.rejected, color: 'text-gray-400' },
+                          { label: 'Avg Dispatch Time', value: es.averageDispatchTime, span: true },
+                          { label: 'Last Dispatch', value: es.lastDispatch ? new Date(es.lastDispatch).toLocaleDateString() : 'N/A', span: true },
+                        ].map(s => (
+                          <div key={s.label} className={`theme-bg-subtle rounded-xl p-3 ${s.span ? 'col-span-2' : ''}`}>
+                            <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">{s.label}</p>
+                            <p className={`text-sm font-black ${s.color || 'theme-text-primary'}`}>{s.value}</p>
+                          </div>
+                        ))}
+                      </div>
+                      {/* Monthly breakdown for this employee */}
+                      {dashboardData.employeeMonthly?.[name]?.length > 0 && (
+                        <div className="mt-4">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Monthly Breakdown</p>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-[10px]">
+                              <thead><tr className="text-gray-500 font-black uppercase tracking-wider">
+                                <th className="text-left py-1 pr-2">Month</th>
+                                <th className="text-right px-1">Disp</th>
+                                <th className="text-right px-1">Del</th>
+                                <th className="text-right px-1">Ret</th>
+                                <th className="text-right pl-1">Pend</th>
+                              </tr></thead>
+                              <tbody>
+                                {dashboardData.employeeMonthly[name].map(m => (
+                                  <tr key={m.month} className="border-t border-gray-800">
+                                    <td className="py-1 pr-2 font-bold theme-text-primary">{m.month}</td>
+                                    <td className="text-right px-1 font-bold text-blue-400">{m.dispatches}</td>
+                                    <td className="text-right px-1 font-bold text-emerald-400">{m.deliveries}</td>
+                                    <td className="text-right px-1 font-bold text-red-400">{m.returns}</td>
+                                    <td className="text-right pl-1 font-bold text-amber-400">{m.pending}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Monthly Report */}
+              {dashboardData.monthlyReport?.length > 0 && (
+                <div className="glass rounded-2xl p-5 border theme-border">
+                  <h3 className="text-lg font-black theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <TrendingUp size={18} className="text-purple-400" /> Monthly Performance Report
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead><tr className="text-gray-500 font-black uppercase tracking-wider text-[10px]">
+                        <th className="text-left py-2 pr-3">Month</th>
+                        <th className="text-right px-2">Total</th>
+                        <th className="text-right px-2">Delivered</th>
+                        <th className="text-right px-2">Returned</th>
+                        <th className="text-right px-2">Rejected</th>
+                        <th className="text-right px-2">Pending</th>
+                        <th className="text-right px-2">COD</th>
+                        <th className="text-right pl-2">Paid</th>
+                      </tr></thead>
+                      <tbody>
+                        {dashboardData.monthlyReport.map(m => (
+                          <tr key={m.month} className="border-t border-gray-800 hover:bg-white/5">
+                            <td className="py-2 pr-3 font-bold theme-text-primary">{m.month}</td>
+                            <td className="text-right px-2 font-bold">{m.total}</td>
+                            <td className="text-right px-2 font-bold text-emerald-400">{m.delivered}</td>
+                            <td className="text-right px-2 font-bold text-red-400">{m.returned}</td>
+                            <td className="text-right px-2 font-bold text-gray-400">{m.rejected}</td>
+                            <td className="text-right px-2 font-bold text-amber-400">{m.pending}</td>
+                            <td className="text-right px-2 font-bold text-purple-400">{m.cod}</td>
+                            <td className="text-right pl-2 font-bold text-emerald-400">{m.paid}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Dispatch Tracking Table */}
+              {dashboardData.trackingData?.length > 0 && (
+                <div className="glass rounded-2xl p-5 border theme-border">
+                  <h3 className="text-lg font-black theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <Activity size={18} className="text-blue-400" /> Dispatch Tracking
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead><tr className="text-gray-500 font-black uppercase tracking-wider text-[10px]">
+                        <th className="text-left py-2 pr-2">Order#</th>
+                        <th className="text-left px-2">Customer</th>
+                        <th className="text-left px-2">City</th>
+                        <th className="text-left px-2">Officer</th>
+                        <th className="text-left px-2">Method</th>
+                        <th className="text-left px-2">Status</th>
+                        <th className="text-left pl-2">Dates</th>
+                      </tr></thead>
+                      <tbody>
+                        {dashboardData.trackingData.slice(0, 50).map(t => (
+                          <tr key={t.id} className="border-t border-gray-800 hover:bg-white/5">
+                            <td className="py-2 pr-2 font-bold theme-text-primary">#{t.orderNumber || t.id.slice(0, 6)}</td>
+                            <td className="px-2 font-bold">{t.customerName || '—'}</td>
+                            <td className="px-2">{t.city || '—'}</td>
+                            <td className="px-2 font-bold text-blue-400">{t.dispatchOfficer || '—'}</td>
+                            <td className="px-2">{t.dispatchMethod}</td>
+                            <td className="px-2">
+                              <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${
+                                t.dispatchStatus === 'DELIVERED' ? 'bg-emerald-500/20 text-emerald-400' :
+                                t.dispatchStatus === 'RETURNED' || t.dispatchStatus === 'REJECTED' ? 'bg-red-500/20 text-red-400' :
+                                t.dispatchStatus === 'DISPATCHED' ? 'bg-indigo-500/20 text-indigo-400' :
+                                t.dispatchStatus === 'BOOKED' ? 'bg-blue-500/20 text-blue-400' :
+                                'bg-amber-500/20 text-amber-400'
+                              }`}>{t.dispatchStatus || 'PENDING'}</span>
+                            </td>
+                            <td className="pl-2 text-[10px] text-gray-500">
+                              {t.createdAt ? new Date(t.createdAt).toLocaleDateString() : ''}
+                              {t.deliveredAt ? ` → ${new Date(t.deliveredAt).toLocaleDateString()}` : ''}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {/* Activity Logs Tab */}
       {activeTab === 'activity' && (
