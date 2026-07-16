@@ -65,17 +65,15 @@ const getDispatchProfileOrders = async (req, res) => {
 
     const baseOrder = [{ priority: 'asc' }, { createdAt: 'desc' }];
 
+    // Helper: check if city is Lahore-like (handles trailing spaces, mixed case)
+    const isLahore = (c) => c && c.trim().toLowerCase() === 'lahore';
+
     if (employeeName === 'Khawar') {
-      // Khawar — unchanged: DISPATCH stage, Lahore only
+      // Khawar — Lahore only
       const orders = await prisma.order.findMany({
         where: {
           currentStage: 'DISPATCH',
-          status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] },
-          city: 'Lahore',
-          OR: [
-            { dispatchOfficer: null },
-            { dispatchOfficer: 'Khawar' }
-          ]
+          status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
         },
         select: baseSelect,
         orderBy: baseOrder
@@ -84,9 +82,9 @@ const getDispatchProfileOrders = async (req, res) => {
       const unseen = [];
       const active = [];
       for (const order of orders) {
+        if (!isLahore(order.city)) continue;
         const dispatchStage = order.stages.find(s => s.stageName === 'DISPATCH');
-        const isAccepted = dispatchStage?.startedAt != null;
-        if (!isAccepted && !order.dispatchOfficer) {
+        if (!dispatchStage?.startedAt && !order.dispatchOfficer) {
           unseen.push(order);
         } else if (order.dispatchOfficer === 'Khawar') {
           active.push(order);
@@ -103,12 +101,7 @@ const getDispatchProfileOrders = async (req, res) => {
     const dispatchOrders = await prisma.order.findMany({
       where: {
         currentStage: 'DISPATCH',
-        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] },
-        OR: [
-          { city: { not: 'Lahore' } },
-          { city: null },
-          { city: 'Lahore', forwardedBy: 'Khawar' }
-        ]
+        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
       },
       select: baseSelect,
       orderBy: baseOrder
@@ -117,6 +110,8 @@ const getDispatchProfileOrders = async (req, res) => {
     const unseen = [];
     const seen = [];
     for (const order of dispatchOrders) {
+      // Exclude non-forwarded Lahore orders
+      if (isLahore(order.city) && order.forwardedBy !== 'Khawar') continue;
       const dispatchStage = order.stages.find(s => s.stageName === 'DISPATCH');
       const isAccepted = dispatchStage?.startedAt != null;
       const isAssignedToFaisal = order.dispatchOfficer === 'Faisal' || order.forwardedBy === 'Khawar';
