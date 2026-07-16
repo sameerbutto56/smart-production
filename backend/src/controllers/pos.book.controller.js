@@ -1,31 +1,5 @@
 const prisma = require('../prisma');
 
-const ensureTable = (() => {
-  let done = false;
-  return async () => {
-    if (done) return;
-    try {
-      await prisma.$executeRawUnsafe(`
-        CREATE TABLE IF NOT EXISTS "PosBookSession" (
-          id TEXT PRIMARY KEY,
-          "outletName" TEXT NOT NULL,
-          "openedBy" TEXT,
-          "openedAt" TIMESTAMPTZ DEFAULT NOW(),
-          "closedAt" TIMESTAMPTZ,
-          "closedBy" TEXT,
-          summary TEXT,
-          status TEXT DEFAULT 'OPEN'
-        );
-      `);
-      await prisma.$executeRawUnsafe(`
-        CREATE INDEX IF NOT EXISTS idx_posbooksession_outlet_status
-        ON "PosBookSession" ("outletName", status);
-      `);
-    } catch (_e) { /* already exists or no perms - proceed */}
-    done = true;
-  };
-})();
-
 const getOutletName = (req) => {
   if (req.query.outlet) return req.query.outlet;
   if (req.body.outlet) return req.body.outlet;
@@ -39,7 +13,6 @@ const getOutletName = (req) => {
 // Open a new book session
 const openBook = async (req, res) => {
   try {
-    await ensureTable();
     const outlet = getOutletName(req);
     const openedBy = req.body.employeeName || req.user?.name || 'Unknown';
 
@@ -63,7 +36,6 @@ const openBook = async (req, res) => {
 // Get current open book for an outlet
 const getCurrentBook = async (req, res) => {
   try {
-    await ensureTable();
     const outlet = getOutletName(req);
     const session = await prisma.posBookSession.findFirst({
       where: { outletName: outlet, status: 'OPEN' },

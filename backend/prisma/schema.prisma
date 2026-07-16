@@ -814,3 +814,132 @@ model OrderAcceptance {
 
   @@index([orderId])
 }
+
+// ─── Archived Data Models ───
+
+model ArchivedOrder {
+  id                 String   @id
+  orderNumber        String?
+  customerName       String?
+  customerPhone      String?
+  address            String?
+  city               String?
+  createdById        String?
+  type               String?
+  urgent             Boolean?
+  priority           String?
+  quantity           Int?
+  logoDesign         String?
+  logoName           String?
+  customization      String?
+  productDetails     Json?
+  sizeData           String?
+  currentStage       String?
+  status             String?
+  deliveryMethod     String?
+  advancePaid        Boolean?
+  advanceAmount      Float?
+  productImage       String?
+  source             String?
+  outletName         String?
+  originalCreatedAt  DateTime?
+  updatedAt          DateTime?
+  paymentDeadline    DateTime?
+  paymentStatus      String?
+  paymentMethod      String?
+  customizationPrice Float?
+  deliveryCharges    Float?
+  totalPrice         Float?
+  productionDeadline DateTime?
+  trackingNumber     String?
+  courierDetails     Json?
+  dispatchStatus     String?
+  deliveryType       String?
+  deliveredAt        DateTime?
+  returnedAt         DateTime?
+  refundStatus       String?
+  refundReason       String?
+  refundNote         String?
+  refundedAt         DateTime?
+  refundedById       String?
+  storeRequested     Boolean?
+  storeRequestedAt   DateTime?
+  storeAcceptedAt    DateTime?
+  instructionNotes   String?
+  shopifyOrderDate   DateTime?
+  orderDestination   String?
+  engravingRequired   Boolean?
+  engravingText      String?
+  engravingType      String?
+  engravingInstructions String?
+  logoRequired       Boolean?
+  engravingNames     String?
+  engravingLogos     String?
+  riderAcceptedAt    DateTime?
+  noResponseCount    Int?
+  nextDeliveryDate   DateTime?
+  lastDeliveryAttempt DateTime?
+  productCost        Float?
+  logoCharges        Float?
+  namePrintingCharges Float?
+  productionCost     Float?
+  grossProfit        Float?
+  netProfit          Float?
+  customerTakenAt    DateTime?
+  orderTakenBy       String?
+  dispatchOfficer    String?
+  forwardedBy        String?
+
+  // Serialized child records
+  stages              Json?
+  editRequests        Json?
+  deliveryAttempts    Json?
+  deliveryPayments    Json?
+  noResponseLogs      Json?
+  deliveryChargeRecords Json?
+  orderAcceptances    Json?
+  dispatchLogs        Json?
+
+  archivedAt          DateTime @default(now())
+
+  @@index([archivedAt])
+  @@index([outletName])
+  @@index([currentStage])
+  @@index([status])
+}
+
+model ArchivedAuditLog {
+  id          String   @id
+  orderId     String?
+  action      String
+  details     String?
+  performedBy String
+  timestamp   DateTime
+  archivedAt  DateTime @default(now())
+
+  @@index([archivedAt])
+  @@index([timestamp])
+  @@index([action])
+}
+
+model ArchivedChatMessage {
+  id              String   @id
+  senderId        String
+  senderName      String
+  senderRole      String
+  senderBranch    String?
+  message         String?
+  voiceUrl        String?
+  isPinned        Boolean?
+  createdAt       DateTime
+  deliveredAt     DateTime?
+  readAt          DateTime?
+  playedAt        DateTime?
+  readReceipts    Json?
+  voiceFileDeleted Boolean @default(false)
+  archivedAt      DateTime @default(now())
+
+  @@index([archivedAt])
+  @@index([createdAt])
+  @@index([senderId])
+}

@@ -2,7 +2,7 @@
  * In-memory cache with TTL, LRU eviction, pattern invalidation, and hit stats.
  * Used heavily by POS for instant product/barcode/dashboard lookups.
  */
-const store = {};
+const store = new Map();
 const _lru = []; // front = LRU, back = MRU
 const MAX_SIZE = 500;
 const DEFAULT_TTL = 5 * 60 * 1000; // 5 minutes
@@ -22,12 +22,12 @@ const _touch = (key) => {
 const _evict = () => {
   while (_lru.length > MAX_SIZE) {
     const key = _lru.shift();
-    delete store[key];
+    store.delete(key);
   }
 };
 
 const get = (key) => {
-  const entry = store[key];
+  const entry = store.get(key);
   if (!entry) { misses++; return null; }
   if (Date.now() > entry.expiry) {
     del(key);
@@ -40,19 +40,19 @@ const get = (key) => {
 };
 
 const set = (key, data, ttl = DEFAULT_TTL) => {
-  store[key] = { data, expiry: Date.now() + ttl };
+  store.set(key, { data, expiry: Date.now() + ttl });
   _touch(key);
   _evict();
 };
 
 const del = (key) => {
-  delete store[key];
+  store.delete(key);
   const idx = _lru.indexOf(key);
   if (idx > -1) _lru.splice(idx, 1);
 };
 
 const delPattern = (pattern) => {
-  for (const key of Object.keys(store)) {
+  for (const key of store.keys()) {
     if (key.startsWith(pattern)) del(key);
   }
 };
@@ -62,6 +62,6 @@ const delKeys = (...keys) => {
   for (const k of keys) del(k);
 };
 
-const stats = () => ({ hits, misses, ratio: hits + misses > 0 ? (hits / (hits + misses) * 100).toFixed(1) + '%' : 'N/A', keys: Object.keys(store).length, lruSize: _lru.length, maxSize: MAX_SIZE });
+const stats = () => ({ hits, misses, ratio: hits + misses > 0 ? (hits / (hits + misses) * 100).toFixed(1) + '%' : 'N/A', keys: store.size, lruSize: _lru.length, maxSize: MAX_SIZE });
 
 module.exports = { get, set, del, delPattern, delKeys, stats, POS_TTL, DASHBOARD_TTL, BARCODE_TTL, DEFAULT_TTL };
