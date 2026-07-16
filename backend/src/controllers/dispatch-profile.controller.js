@@ -38,15 +38,13 @@ const getStageDurations = async (priority = 'NORMAL') => {
   return adjusted;
 };
 
-// GET /api/dispatch-profile/orders?employeeName=Khawar&accessAll=true
+// GET /api/dispatch-profile/orders?employeeName=Khawar&cityFilter=all
 const getDispatchProfileOrders = async (req, res) => {
   try {
-    const { employeeName, accessAll } = req.query;
+    const { employeeName, cityFilter } = req.query;
     if (!employeeName || !['Khawar', 'Faisal'].includes(employeeName)) {
       return res.status(400).json({ message: 'employeeName must be Khawar or Faisal' });
     }
-
-    const isAccessAll = accessAll === 'true';
 
     const baseSelect = {
       id: true, orderNumber: true, customerName: true, customerPhone: true,
@@ -69,34 +67,13 @@ const getDispatchProfileOrders = async (req, res) => {
 
     const isLahore = (c) => c && c.trim().toLowerCase() === 'lahore';
 
+    // ─── KHAWAR: 3-way split ───
     if (employeeName === 'Khawar') {
-      if (isAccessAll) {
-        const orders = await prisma.order.findMany({
-          where: {
-            currentStage: { in: ['DISPATCH', 'OUT_FOR_DELIVERY'] },
-            status: { notIn: ['COMPLETED', 'CANCELLED'] }
-          },
-          select: baseSelect,
-          orderBy: baseOrder
-        });
-        const unseen = [];
-        const active = [];
-        for (const order of orders) {
-          const dispatchStage = order.stages.find(s => s.stageName === 'DISPATCH');
-          if (!dispatchStage?.startedAt && !order.dispatchOfficer) {
-            unseen.push(order);
-          } else if (order.dispatchOfficer === 'Khawar' || order.dispatchOfficer === 'Faisal') {
-            active.push(order);
-          } else {
-            unseen.push(order);
-          }
-        }
-        return res.json({ unseen, active, counts: { unseen: unseen.length, active: active.length } });
-      }
+      const showAllCities = cityFilter === 'all';
 
-      const orders = await prisma.order.findMany({
+      const dispatchOrders = await prisma.order.findMany({
         where: {
-          currentStage: 'DISPATCH',
+          currentStage: { in: ['DISPATCH', 'OUT_FOR_DELIVERY'] },
           status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
         },
         select: baseSelect,
@@ -104,49 +81,39 @@ const getDispatchProfileOrders = async (req, res) => {
       });
 
       const unseen = [];
-      const active = [];
-      for (const order of orders) {
-        if (!isLahore(order.city)) continue;
-        const dispatchStage = order.stages.find(s => s.stageName === 'DISPATCH');
-        if (!dispatchStage?.startedAt && !order.dispatchOfficer) {
-          unseen.push(order);
-        } else if (order.dispatchOfficer === 'Khawar') {
-          active.push(order);
-        } else {
-          unseen.push(order);
-        }
-      }
-      return res.json({ unseen, active, counts: { unseen: unseen.length, active: active.length } });
-    }
-
-    if (isAccessAll) {
-      const dispatchOrders = await prisma.order.findMany({
-        where: {
-          currentStage: { in: ['DISPATCH', 'OUT_FOR_DELIVERY'] },
-          status: { notIn: ['COMPLETED', 'CANCELLED'] }
-        },
-        select: baseSelect,
-        orderBy: baseOrder
-      });
-      const unseen = [];
       const seen = [];
       const active = [];
       for (const order of dispatchOrders) {
+        if (!showAllCities && !isLahore(order.city)) continue;
+
         if (order.currentStage === 'OUT_FOR_DELIVERY') {
-          if (order.dispatchOfficer === 'Faisal') active.push(order);
+          if (order.dispatchOfficer === 'Khawar') active.push(order);
           continue;
         }
+
         const dispatchStage = order.stages.find(s => s.stageName === 'DISPATCH');
         const isAccepted = dispatchStage?.startedAt != null;
-        if (!isAccepted) { unseen.push(order); continue; }
-        seen.push(order);
+        const isAssignedToKhawar = order.dispatchOfficer === 'Khawar';
+
+        if (!isAccepted || !isAssignedToKhawar) {
+          unseen.push(order);
+        } else {
+          seen.push(order);
+        }
       }
-      return res.json({ unseen, seen, active, counts: { unseen: unseen.length, seen: seen.length, active: active.length } });
+
+      return res.json({
+        unseen, seen, active,
+        counts: { unseen: unseen.length, seen: seen.length, active: active.length }
+      });
     }
+
+    // ─── FAISAL: 3-way split ───
+    const showAllCities = cityFilter === 'all';
 
     const dispatchOrders = await prisma.order.findMany({
       where: {
-        currentStage: 'DISPATCH',
+        currentStage: { in: ['DISPATCH', 'OUT_FOR_DELIVERY'] },
         status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
       },
       select: baseSelect,
@@ -155,11 +122,19 @@ const getDispatchProfileOrders = async (req, res) => {
 
     const unseen = [];
     const seen = [];
+    const active = [];
     for (const order of dispatchOrders) {
-      if (isLahore(order.city) && order.forwardedBy !== 'Khawar') continue;
+      if (!showAllCities && isLahore(order.city) && order.forwardedBy !== 'Khawar') continue;
+
+      if (order.currentStage === 'OUT_FOR_DELIVERY') {
+        if (order.dispatchOfficer === 'Faisal') active.push(order);
+        continue;
+      }
+
       const dispatchStage = order.stages.find(s => s.stageName === 'DISPATCH');
       const isAccepted = dispatchStage?.startedAt != null;
       const isAssignedToFaisal = order.dispatchOfficer === 'Faisal' || order.forwardedBy === 'Khawar';
+
       if (!isAccepted || !isAssignedToFaisal) {
         unseen.push(order);
       } else {
@@ -167,21 +142,9 @@ const getDispatchProfileOrders = async (req, res) => {
       }
     }
 
-    const activeOrders = await prisma.order.findMany({
-      where: {
-        currentStage: 'OUT_FOR_DELIVERY',
-        dispatchOfficer: 'Faisal',
-        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] }
-      },
-      select: baseSelect,
-      orderBy: baseOrder
-    });
-
     res.json({
-      unseen,
-      seen,
-      active: activeOrders,
-      counts: { unseen: unseen.length, seen: seen.length, active: activeOrders.length }
+      unseen, seen, active,
+      counts: { unseen: unseen.length, seen: seen.length, active: active.length }
     });
 
   } catch (error) {

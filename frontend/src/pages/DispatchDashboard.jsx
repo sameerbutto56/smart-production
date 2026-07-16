@@ -62,7 +62,6 @@ const DispatchDashboard = () => {
   const [search, setSearch] = useState(() => sessionStorage.getItem('dispatchSearch') || '');
   const [cityFilter, setCityFilter] = useState(() => sessionStorage.getItem('dispatchCityFilter') || '');
   const [methodFilter, setMethodFilter] = useState(() => sessionStorage.getItem('dispatchMethodFilter') || '');
-  const [showAccessAll, setShowAccessAll] = useState(false);
   const [bookModal, setBookModal] = useState(null);
   const [requestModal, setRequestModal] = useState(null);
   const [deliveryMethod, setDeliveryMethod] = useState('');
@@ -93,8 +92,12 @@ const DispatchDashboard = () => {
 
   // Build the data fetcher URL based on logged-in employee
   const dataUrl = loggedIn && (isKhawar || isFaisal)
-    ? `/api/dispatch-profile/orders?employeeName=${employeeName}${showAccessAll ? '&accessAll=true' : ''}`
+    ? `/api/dispatch-profile/orders?employeeName=${employeeName}${cityFilter ? `&cityFilter=${cityFilter}` : ''}`
     : '/api/dispatch/dashboard';
+
+  const cityFilterOptions = isKhawar
+    ? [{ value: '', label: 'Lahore' }, { value: 'all', label: 'All Cities' }]
+    : [{ value: '', label: 'Default (Excl. Lahore)' }, { value: 'all', label: 'All Cities' }];
 
   const doRefresh = useCallback(async () => {
     setLoading(true);
@@ -382,7 +385,7 @@ const DispatchDashboard = () => {
 
   const dashboardTab = loggedIn && (isKhawar || isFaisal) ? { id: 'dashboard', label: 'Dashboard', icon: BarChart3, count: 0 } : null;
 
-  const tabs = loggedIn && isFaisal
+  const tabs = loggedIn && (isKhawar || isFaisal)
     ? [
         ...(dashboardTab ? [dashboardTab] : []),
         { id: 'unseen', label: 'Unseen Tasks', icon: Eye, count: data.counts.unseen },
@@ -390,7 +393,6 @@ const DispatchDashboard = () => {
         { id: 'active', label: 'Active Tasks', icon: Package, count: data.counts.active }
       ]
     : [
-        ...(dashboardTab ? [dashboardTab] : []),
         { id: 'unseen', label: 'Unseen Tasks', icon: Eye, count: data.counts.unseen },
         { id: 'active', label: 'Active Tasks', icon: Package, count: data.counts.active },
         ...(!loggedIn ? [{ id: 'all', label: 'All Orders', icon: Truck, count: data.counts.all }] : [])
@@ -475,14 +477,10 @@ const DispatchDashboard = () => {
         <div className="flex items-center gap-3">
           {isEmployeeMode && (
             <>
-              <button onClick={() => { setShowAccessAll(!showAccessAll); }}
-                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${
-                  showAccessAll
-                    ? 'bg-amber-600/20 text-amber-400 border border-amber-500/30'
-                    : 'bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white'
-                }`}>
-                <Eye size={14} /> {showAccessAll ? 'All Orders' : (isKhawar ? 'Lahore Only' : 'Excl. Lahore')}
-              </button>
+              <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)}
+                className="theme-input rounded-xl py-2 px-3 text-xs font-black uppercase tracking-wider border-2 min-w-[130px]">
+                {cityFilterOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
               <button onClick={() => navigate('/chat')}
                 className="px-4 py-2.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5">
                 <MessageCircle size={14} /> {employeeName}'s Chat
@@ -553,11 +551,13 @@ const DispatchDashboard = () => {
               className="w-full theme-input border-2 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-purple-500 transition-all text-sm font-bold" />
           </div>
           <div className="flex flex-wrap gap-2">
-            <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)}
-              className="theme-input rounded-xl py-2.5 px-3 text-xs font-black uppercase tracking-wider border-2">
-              <option value="">All Cities</option>
-              {allCities.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+            {!isEmployeeMode && (
+              <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)}
+                className="theme-input rounded-xl py-2.5 px-3 text-xs font-black uppercase tracking-wider border-2">
+                <option value="">All Cities</option>
+                {allCities.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            )}
             <select value={methodFilter} onChange={(e) => setMethodFilter(e.target.value)}
               className="theme-input rounded-xl py-2.5 px-3 text-xs font-black uppercase tracking-wider border-2">
               <option value="">All Methods</option>
