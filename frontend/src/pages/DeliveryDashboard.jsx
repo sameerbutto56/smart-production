@@ -10,7 +10,8 @@ import {
   RefreshCw, Search, AlertCircle, Calendar,
   ChevronDown, ChevronUp, Clock, UserCheck, XCircle, RotateCcw,
   Printer, DollarSign, BarChart3, Wallet, CreditCard, Building2, Eye,
-  Plus, Minus, TrendingUp, ListOrdered, Award
+  Plus, Minus, TrendingUp, ListOrdered, Award,
+  ClipboardList
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
