@@ -101,6 +101,7 @@
 - **Close Book summary sync fix** (`pos.book.controller.js`): Fixed returns query to include sale relation for CASH_ONLINE split; made CASH_ONLINE payment amounts proportional to `saleRevenue(s)` (previously used raw `cashAmount`/`onlineAmount` which over-counted for advance/balance sales); split CASH_ONLINE returns proportionally by original sale's `cashAmount`/`onlineAmount` ratio — now matches `getSalesDashboard` exactly.
 - **Register Open/Close with Employee Auth** (`OutletPOS.jsx`): Added auth modal requiring Employee Name + Password before opening or closing the register. Verified against hardcoded employee map. `openedBy`/`closedBy` tracked on the session. `verifiedCloser` state used in print.
 - **Print Register Information** (`printCloseBook` in `OutletPOS.jsx`): Thermal and A4 reports now include Register Information section at top with Opened by, Open Date, Open Time, Closed by, Close Date, Close Time.
+- **OrderEntry.jsx split (Context + 4 tab components)**: Split 4054-line `OrderEntry.jsx` into `OrderEntryContext.jsx` (all state + handlers + derived data, 711 lines), 4 tab components (`BasicInfoTab`, `ProductSelectionTab`, `EngravingTab`, `SizeChartTab`), and a thin shell importing context + tabs. Follows same Provider pattern as OutletPOS split. Net reduction of 1858 lines. Build passes with 0 errors. (commit `757a6a0`)
 
 ### In Progress
 - (none)
@@ -154,7 +155,7 @@
 - (none — all current work is complete)
 
 ## Critical Context
-- Latest commits: `124a8b0` — auto-reload stale chunk; `033af46` — Logo Design cart option; `76579d5` + `371b346` — Urdu labels; `3bad1ba` — Close Book sync + drill-down; `fcac5a7` — summary sync fix, employee auth for Open/Close, print register info; `d644db2` — Extract modals to sharedModals, fix Dashboard/History/Returns tabs missing modals
+- Latest commits: `124a8b0` — auto-reload stale chunk; `033af46` — Logo Design cart option; `76579d5` + `371b346` — Urdu labels; `3bad1ba` — Close Book sync + drill-down; `fcac5a7` — summary sync fix, employee auth for Open/Close, print register info; `d644db2` — Extract modals to sharedModals, fix Dashboard/History/Returns tabs missing modals; `757a6a0` — OrderEntry split context + 4 tab components
 - Build passes with 0 errors.
 - `isAccessory` uses substring matching (`catUpper.includes('COAT')`).
 - `calculateAndRecordRevenue` at line 2482 of `order.controller.js` is idempotent.
@@ -198,7 +199,12 @@
 - `frontend/src/pages/OutletPOS.jsx`: Dashboard, cart, checkout, receipt print (with print options), balance cards/modals/history, Balance Collection card with custom date inputs, `printReceipt`, `printBalanceReceipt`, `formatCurrency`
 - `frontend/src/pages/OutletOrderEntry.jsx`: Order lookup, sizing mode toggles, client select with measurement normalization (`FIELD_NAME_MAP` fix), auto-populate on product add, Size Chart, auto-generated order number
 - `frontend/src/pages/ClientRegistration.jsx`: Updated measurement fields — Shirt group (Shirt Length, Shoulder, Sleeves Length, Sleeves Hole, Chest, Bottom) and Trouser group (Waist, Length, Pancha, Thighs, Asan) with "Add More" extras
-- `frontend/src/pages/OrderEntry.jsx`: Cap quantity, delivery charges, paymentStatus toggle, branding tab for CAPS
+- `frontend/src/context/OrderEntryContext.jsx`: All OrderEntry state + handlers + derived data (new).
+- `frontend/src/components/BasicInfoTab.jsx`: Basics tab UI (new).
+- `frontend/src/components/ProductSelectionTab.jsx`: Product selection tab UI (new).
+- `frontend/src/components/EngravingTab.jsx`: Engraving/branding tab UI (new).
+- `frontend/src/components/SizeChartTab.jsx`: Sizes/measurements tab UI (new).
+- `frontend/src/pages/OrderEntry.jsx`: Cap quantity, delivery charges, paymentStatus toggle, branding tab for CAPS — now thin shell importing context + 4 tab components
 - `frontend/src/hooks/useCache.js`: Race condition guard (`reqRef`), hot cache revalidation when `staleWhileRevalidate=true`
 - `frontend/src/components/ErrorBoundary.jsx`: Error message visible in production
 - `frontend/src/utils/printReport.js`: `printJobSheet` — now flattens Outlet per-product sizeData and displays measurement values grid
