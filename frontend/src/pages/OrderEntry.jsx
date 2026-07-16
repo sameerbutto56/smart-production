@@ -180,7 +180,7 @@ const SmartOrderForm = () => {
 
     // Engraving type
     engravingType: '',
-    skipEngraving: false,
+    skipEngraving: true,
 
     // Customization
     logoDesign: '',
@@ -953,6 +953,7 @@ const SmartOrderForm = () => {
       sizeSourceProduct: pd.sizeSourceProduct || '',
       additionalProductRef: pd.additionalProductRef || '',
       engravingType: cust.engravingType || '',
+      skipEngraving: item.skipEngraving !== undefined ? item.skipEngraving : true,
       quantity: item.quantity || 1,
       totalPrice: '',
       logoCharges: item.logoCharges?.toString() || '',
@@ -2593,7 +2594,7 @@ const SmartOrderForm = () => {
                         { value: 'patch', label: 'Patch Engraving' },
                       ].map(opt => (
                         <button key={opt.value} type="button"
-                          onClick={() => setFormData({...formData, engravingType: opt.value})}
+                          onClick={() => setFormData({...formData, skipEngraving: false, engravingType: opt.value})}
                           className={`flex-1 rounded-xl text-xs md:text-sm font-black transition-all ${
                             formData.engravingType === opt.value
                               ? 'bg-purple-600 text-white shadow-xl'
@@ -2750,7 +2751,7 @@ const SmartOrderForm = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-black theme-text-muted uppercase tracking-widest">{useUrdu ? 'نام کندہ کاری چارج' : 'Name Engraving Charge (₨)'}</label>
+                    <label className="text-xs font-black theme-text-muted uppercase tracking-widest">{useUrdu ? 'نام چارجز' : 'Name Charges (₨)'}</label>
                     <div className="w-full theme-input rounded-xl py-3 px-4 text-sm font-bold flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30">
                       <span className="text-emerald-400 font-black">₨{((formData.skipEngraving ? 0 : 300) * (parseInt(formData.quantity) || 1)).toLocaleString()}</span>
                       <span className="text-[10px] text-gray-500 font-bold">({formData.skipEngraving ? 'Skipped' : `300 × ${parseInt(formData.quantity) || 1} unit`})</span>
@@ -3274,7 +3275,7 @@ const SmartOrderForm = () => {
                       <div className="flex flex-wrap gap-1 mt-1">
                         {item.logoName && <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">Logo: {item.logoName}</span>}
                         {item.logoCharges > 0 && <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">Logo Fee: ₨{item.logoCharges}</span>}
-                        {item.namePrintingCharges > 0 && <span className="text-[9px] font-black text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">Name: ₨{item.namePrintingCharges}</span>}
+                        {item.namePrintingCharges > 0 && <span className="text-[9px] font-black text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">Name Charges: ₨{item.namePrintingCharges}</span>}
                         {item.customizationPrice > 0 && <span className="text-[9px] font-black text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded">Custom: ₨{item.customizationPrice}</span>}
                         {item.productDetails?.alteration && (item.productDetails.alteration.trouserLength || item.productDetails.alteration.shirtLength || item.productDetails.alteration.sleeveLength) && (
                           <span className="text-[9px] font-black text-amber-400 bg-amber-500/20 border border-amber-500/30 px-1.5 py-0.5 rounded">
@@ -3448,7 +3449,7 @@ const SmartOrderForm = () => {
                             {(item.logoCharges > 0 || item.namePrintingCharges > 0 || item.customizationPrice > 0) && (
                               <div className="flex flex-wrap gap-1.5 mt-1.5">
                                 {item.logoCharges > 0 && <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">Logo Fee: ₨{item.logoCharges}</span>}
-                                {item.namePrintingCharges > 0 && <span className="text-[9px] font-black text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">Name Fee: ₨{item.namePrintingCharges}</span>}
+                                {item.namePrintingCharges > 0 && <span className="text-[9px] font-black text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">Name Charges: ₨{item.namePrintingCharges}</span>}
                                 {item.customizationPrice > 0 && <span className="text-[9px] font-black text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20">Custom Fee: ₨{item.customizationPrice}</span>}
                               </div>
                             )}
@@ -3619,7 +3620,7 @@ const SmartOrderForm = () => {
                               <td className="text-right py-1.5 pl-2">{inp('adjLogoCharges', calcLogo, 'amber-400')}</td>
                             </tr>
                             <tr className="border-b border-gray-800/30">
-                              <td className="text-purple-400 font-bold py-1.5 pr-2">{useUrdu ? 'نام پرنٹنگ' : 'Name Printing'}</td>
+                              <td className="text-purple-400 font-bold py-1.5 pr-2">{useUrdu ? 'نام چارجز' : 'Name Charges'}</td>
                               <td className="text-right text-purple-400 font-black py-1.5 px-2">₨{calcName.toLocaleString()}</td>
                               <td className="text-right py-1.5 pl-2">{inp('adjNamePrinting', calcName, 'purple-400')}</td>
                             </tr>

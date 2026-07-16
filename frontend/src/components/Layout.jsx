@@ -77,6 +77,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY'] },
     { name: 'Outlet Dashboard', path: '/outlet-dashboard', icon: LayoutDashboard, roles: ['OUTLET'] },
+    { name: 'Dashboard', path: '/dispatch?tab=dashboard', icon: LayoutDashboard, roles: ['DISPATCH'] },
     { name: 'Branches', path: '/pos-inventory', icon: Building2, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Orders', path: '/orders', icon: ClipboardList, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'OUTLET'] },
     { name: 'Transfers', path: '/transfers', icon: ArrowRightLeft, roles: ['SUPER_ADMIN', 'ADMIN', 'OUTLET'] },
@@ -85,7 +86,8 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
     // Operational roles links (hidden from Admin to keep it simplified)
     { name: 'Order Entry', path: '/order-entry', icon: ClipboardList, roles: ['ORDER_ENTRY', 'FAISAL'] },
     { name: 'Edit Request', path: '/edit-requests', icon: FileEdit, roles: [] },
-    { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['STORE', 'PRODUCTION', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY'] },
+    { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['STORE', 'PRODUCTION', 'LOGO_DESIGN', 'OUT_FOR_DELIVERY'] },
+    { name: 'Dispatch', path: '/dispatch', icon: Truck, roles: ['DISPATCH'] },
     { name: 'Warehouse', path: '/warehouse', icon: Warehouse, roles: ['STORE'] },
     { name: 'POS Inventory', path: '/pos-inventory', icon: Package, roles: ['STORE', 'OUTLET', 'FAISAL'] },
     { name: 'Outlet Requests', path: '/outlet-requests', icon: Building2, roles: ['OUTLET'] },
@@ -173,7 +175,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
               to={item.path}
               onClick={() => { if (window.innerWidth < 1024) toggle(); }}
               className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} p-3 rounded-xl transition-all duration-200 group ${
-                location.pathname === item.path 
+                (item.path.includes('?') ? (location.pathname + location.search) === item.path : location.pathname === item.path)
                   ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' 
                   : 'text-gray-400 hover:bg-gray-800 hover:text-white'
               }`}

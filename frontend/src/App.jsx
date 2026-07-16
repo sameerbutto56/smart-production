@@ -36,6 +36,7 @@ const OutletDashboard = lazy(() => import('./pages/OutletDashboard'));
 const OutletJournalPage = lazy(() => import('./pages/OutletJournalPage'));
 const ChatPage = lazy(() => import('./pages/ChatPage'));
 const NotesPage = lazy(() => import('./pages/NotesPage'));
+const DispatchDashboard = lazy(() => import('./pages/DispatchDashboard'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -54,6 +55,7 @@ const AuthRedirectHandler = () => {
   if (role === 'FAISAL' || role === 'ORDER_ENTRY') return <Navigate to="/dashboard" replace={true} />;
   if (role === 'OUTLET') return <Navigate to="/outlet-dashboard" replace={true} />;
   if (role === 'PRODUCTION') return <Navigate to="/tasks" replace={true} />;
+  if (role === 'DISPATCH') return <Navigate to="/dispatch" replace={true} />;
   if (role === 'DELIVERY_BOY') return <Navigate to="/delivery" replace={true} />;
   if (role === 'STORE') return <Navigate to="/warehouse" replace={true} />;
   if (role === 'INVENTORY_VIEW') return <Navigate to="/order-track" replace={true} />;
@@ -121,6 +123,7 @@ function App() {
                   <Route path="journal" element={<OutletJournalPage />} />
                   <Route path="chat" element={<ChatPage />} />
                   <Route path="notes" element={<NotesPage />} />
+                  <Route path="dispatch" element={<DispatchDashboard />} />
                 </Route>
               </Routes>
               </ErrorBoundary>

@@ -85,6 +85,7 @@ const getDispatchProfileOrders = async (req, res) => {
       const active = [];
       for (const order of dispatchOrders) {
         if (!showAllCities && !isLahore(order.city)) continue;
+        if (order.forwardedBy === 'Khawar') continue; // skip orders forwarded to Faisal
 
         if (order.currentStage === 'OUT_FOR_DELIVERY') {
           if (order.dispatchOfficer === 'Khawar') active.push(order);

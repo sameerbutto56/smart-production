@@ -8,7 +8,7 @@ import socket from '../socket';
 import { debounce } from '../utils/debounce';
 import { printDispatchSheet } from '../utils/printReport';
 import { Truck, Package, Eye, Send, Search, Loader2, Clock, Phone, MapPin, ExternalLink, CheckCircle2, X, Printer, LogIn, User, BarChart3, UserCheck, MessageCircle, TrendingUp, DollarSign, Activity, ArrowUpRight } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 const EMPLOYEES = {
   Khawar: { password: 'K170', label: 'Khawar', desc: 'Lahore Orders' },
@@ -43,6 +43,7 @@ const PRIORITY_BADGE = {
 const DispatchDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const isDispatchRole = ['DISPATCH', 'MAIN_EMPLOYEE'].includes(user?.role || '');
   const isOutlet = user?.role === 'OUTLET';
   const isDispatchAdmin = ['SUPER_ADMIN', 'FAISAL', 'ADMIN'].includes(user?.role || '');
@@ -58,7 +59,7 @@ const DispatchDashboard = () => {
   const isFaisal = employeeName === 'Faisal';
   const dispatchOptions = isKhawar ? KHAWAR_OPTIONS : (isFaisal ? FAISAL_OPTIONS : DISPATCH_OPTIONS);
 
-  const [activeTab, setActiveTab] = useState(() => sessionStorage.getItem('dispatchActiveTab') || 'unseen');
+  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || sessionStorage.getItem('dispatchActiveTab') || 'unseen');
   const [search, setSearch] = useState(() => sessionStorage.getItem('dispatchSearch') || '');
   const [cityFilter, setCityFilter] = useState(() => sessionStorage.getItem('dispatchCityFilter') || '');
   const [methodFilter, setMethodFilter] = useState(() => sessionStorage.getItem('dispatchMethodFilter') || '');
@@ -376,7 +377,7 @@ const DispatchDashboard = () => {
     let list = items;
     const q = search.toLowerCase();
     if (q) list = list.filter(o => o.customerName?.toLowerCase().includes(q) || (o.orderNumber || '').toLowerCase().includes(q) || o.outletName?.toLowerCase().includes(q) || o.city?.toLowerCase().includes(q));
-    if (cityFilter) list = list.filter(o => (o.city || '').toLowerCase() === cityFilter.toLowerCase());
+    if (cityFilter && cityFilter !== 'all') list = list.filter(o => (o.city || '').toLowerCase() === cityFilter.toLowerCase());
     if (methodFilter) list = list.filter(o => (o.deliveryMethod || '').toLowerCase().includes(methodFilter.toLowerCase()));
     return list;
   };
