@@ -1,5 +1,5 @@
 {
-  "installCommand": "npm install && cd backend && npx prisma db push --skip-generate",
+  "installCommand": "npm install && cd backend && npx prisma generate",
   "buildCommand": "npm --prefix frontend run build",
   "outputDirectory": "frontend/dist",
   "functions": {
