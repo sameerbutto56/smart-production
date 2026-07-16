@@ -756,6 +756,32 @@ const SmartOrderForm = () => {
     if (e.key === 'Enter') e.preventDefault();
   };
 
+  const fmtDate = (iso) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    const dd = String(d.getDate()).padStart(2,'0');
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    const yyyy = d.getFullYear();
+    const hh = String(d.getHours()).padStart(2,'0');
+    const mi = String(d.getMinutes()).padStart(2,'0');
+    return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
+  };
+
+  const parseDate = (str) => {
+    if (!str) return '';
+    const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?$/);
+    if (!m) return '';
+    const d = new Date(+m[3], +m[2]-1, +m[1], +(m[4]||0), +(m[5]||0));
+    return isNaN(d.getTime()) ? '' : d.toISOString().slice(0,16);
+  };
+
+  const [dateStr, setDateStr] = useState(() => fmtDate(formData.shopifyOrderDate));
+
+  useEffect(() => {
+    setDateStr(fmtDate(formData.shopifyOrderDate));
+  }, [formData.shopifyOrderDate]);
+
   const [cartItems, setCartItems] = useState([]);
   const [showAddMore, setShowAddMore] = useState(false);
   const [showProductSelector, setShowProductSelector] = useState(false);
@@ -1877,42 +1903,19 @@ const SmartOrderForm = () => {
                         <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-purple-500/10 text-purple-500`}>
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                         </div>
-                        {(() => {
-                          const fmtDate = (iso) => {
-                            if (!iso) return '';
-                            try {
-                              const d = new Date(iso);
-                              if (isNaN(d.getTime())) return '';
-                              const dd = String(d.getDate()).padStart(2,'0');
-                              const mm = String(d.getMonth()+1).padStart(2,'0');
-                              const yyyy = d.getFullYear();
-                              const hh = String(d.getHours()).padStart(2,'0');
-                              const mi = String(d.getMinutes()).padStart(2,'0');
-                              return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
-                            } catch { return ''; }
-                          };
-                          const parseDate = (str) => {
-                            if (!str) return '';
-                            const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?$/);
-                            if (!m) return '';
-                            const d = new Date(+m[3], +m[2]-1, +m[1], +(m[4]||0), +(m[5]||0));
-                            return isNaN(d.getTime()) ? '' : d.toISOString().slice(0,16);
-                          };
-                          const displayVal = fmtDate(formData.shopifyOrderDate);
-                          return (
-                            <input
-                              type="text"
-                              onKeyDown={preventEnterSubmit}
-                              value={displayVal}
-                              onChange={(e) => {
-                                const iso = parseDate(e.target.value);
-                                setFormData({...formData, shopifyOrderDate: iso});
-                              }}
-                              placeholder="DD/MM/YYYY HH:mm"
-                              className={`w-full theme-input rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all text-xl font-bold`}
-                            />
-                          );
-                        })()}
+                        <input
+                          type="text"
+                          onKeyDown={preventEnterSubmit}
+                          value={dateStr}
+                          onChange={(e) => {
+                            setDateStr(e.target.value);
+                            const iso = parseDate(e.target.value);
+                            if (iso) setFormData(s => ({...s, shopifyOrderDate: iso}));
+                          }}
+                          onBlur={() => setDateStr(fmtDate(formData.shopifyOrderDate))}
+                          placeholder="DD/MM/YYYY HH:mm"
+                          className={`w-full theme-input rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all text-xl font-bold`}
+                        />
                       </div>
                     </div>
                     <div className="space-y-4">
