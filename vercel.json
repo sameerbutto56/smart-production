@@ -4,8 +4,7 @@
   "outputDirectory": "frontend/dist",
   "functions": {
     "api/index.js": {
-      "maxDuration": 30,
-      "minInstanceCount": 1
+      "maxDuration": 30
     }
   },
   "rewrites": [
