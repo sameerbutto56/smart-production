@@ -38,13 +38,15 @@ const getStageDurations = async (priority = 'NORMAL') => {
   return adjusted;
 };
 
-// GET /api/dispatch-profile/orders?employeeName=Khawar
+// GET /api/dispatch-profile/orders?employeeName=Khawar&accessAll=true
 const getDispatchProfileOrders = async (req, res) => {
   try {
-    const { employeeName } = req.query;
+    const { employeeName, accessAll } = req.query;
     if (!employeeName || !['Khawar', 'Faisal'].includes(employeeName)) {
       return res.status(400).json({ message: 'employeeName must be Khawar or Faisal' });
     }
+
+    const isAccessAll = accessAll === 'true';
 
     const baseSelect = {
       id: true, orderNumber: true, customerName: true, customerPhone: true,
@@ -65,11 +67,33 @@ const getDispatchProfileOrders = async (req, res) => {
 
     const baseOrder = [{ priority: 'asc' }, { createdAt: 'desc' }];
 
-    // Helper: check if city is Lahore-like (handles trailing spaces, mixed case)
     const isLahore = (c) => c && c.trim().toLowerCase() === 'lahore';
 
     if (employeeName === 'Khawar') {
-      // Khawar — Lahore only
+      if (isAccessAll) {
+        const orders = await prisma.order.findMany({
+          where: {
+            currentStage: { in: ['DISPATCH', 'OUT_FOR_DELIVERY'] },
+            status: { notIn: ['COMPLETED', 'CANCELLED'] }
+          },
+          select: baseSelect,
+          orderBy: baseOrder
+        });
+        const unseen = [];
+        const active = [];
+        for (const order of orders) {
+          const dispatchStage = order.stages.find(s => s.stageName === 'DISPATCH');
+          if (!dispatchStage?.startedAt && !order.dispatchOfficer) {
+            unseen.push(order);
+          } else if (order.dispatchOfficer === 'Khawar' || order.dispatchOfficer === 'Faisal') {
+            active.push(order);
+          } else {
+            unseen.push(order);
+          }
+        }
+        return res.json({ unseen, active, counts: { unseen: unseen.length, active: active.length } });
+      }
+
       const orders = await prisma.order.findMany({
         where: {
           currentStage: 'DISPATCH',
@@ -95,9 +119,31 @@ const getDispatchProfileOrders = async (req, res) => {
       return res.json({ unseen, active, counts: { unseen: unseen.length, active: active.length } });
     }
 
-    // ─── FAISAL: three-way split ───
+    if (isAccessAll) {
+      const dispatchOrders = await prisma.order.findMany({
+        where: {
+          currentStage: { in: ['DISPATCH', 'OUT_FOR_DELIVERY'] },
+          status: { notIn: ['COMPLETED', 'CANCELLED'] }
+        },
+        select: baseSelect,
+        orderBy: baseOrder
+      });
+      const unseen = [];
+      const seen = [];
+      const active = [];
+      for (const order of dispatchOrders) {
+        if (order.currentStage === 'OUT_FOR_DELIVERY') {
+          if (order.dispatchOfficer === 'Faisal') active.push(order);
+          continue;
+        }
+        const dispatchStage = order.stages.find(s => s.stageName === 'DISPATCH');
+        const isAccepted = dispatchStage?.startedAt != null;
+        if (!isAccepted) { unseen.push(order); continue; }
+        seen.push(order);
+      }
+      return res.json({ unseen, seen, active, counts: { unseen: unseen.length, seen: seen.length, active: active.length } });
+    }
 
-    // 1) DISPATCH stage orders — split into unseen (not accepted) and seen (accepted, awaiting dispatch)
     const dispatchOrders = await prisma.order.findMany({
       where: {
         currentStage: 'DISPATCH',
@@ -110,7 +156,6 @@ const getDispatchProfileOrders = async (req, res) => {
     const unseen = [];
     const seen = [];
     for (const order of dispatchOrders) {
-      // Exclude non-forwarded Lahore orders
       if (isLahore(order.city) && order.forwardedBy !== 'Khawar') continue;
       const dispatchStage = order.stages.find(s => s.stageName === 'DISPATCH');
       const isAccepted = dispatchStage?.startedAt != null;
@@ -122,7 +167,6 @@ const getDispatchProfileOrders = async (req, res) => {
       }
     }
 
-    // 2) OUT_FOR_DELIVERY stage orders dispatched by Faisal — active, awaiting final outcome
     const activeOrders = await prisma.order.findMany({
       where: {
         currentStage: 'OUT_FOR_DELIVERY',
@@ -399,4 +443,200 @@ const getDispatchProfileStats = async (req, res) => {
   }
 };
 
-module.exports = { getDispatchProfileOrders, acceptDispatchOrder, dispatchFromProfile, getDispatchProfileStats };
+// GET /api/dispatch-profile/dashboard?dateFrom=&dateTo=&employee=&city=&status=&payment=
+const getDispatchDashboard = async (req, res) => {
+  try {
+    const { dateFrom, dateTo, employee, city, status, payment, period } = req.query;
+
+    const dateFilter = {};
+    if (dateFrom) dateFilter.gte = new Date(dateFrom);
+    if (dateTo) dateFilter.lte = new Date(dateTo);
+
+    // Base order query for dispatch-related orders
+    const orderWhere = {
+      OR: [
+        { currentStage: { in: ['DISPATCH', 'OUT_FOR_DELIVERY'] } },
+        { dispatchStatus: { not: 'PENDING' } },
+        { dispatchOfficer: { not: null } }
+      ]
+    };
+    if (dateFrom || dateTo) {
+      orderWhere.createdAt = { ...dateFilter };
+    }
+    if (city) {
+      orderWhere.city = { contains: city, mode: 'insensitive' };
+    }
+    if (employee) {
+      orderWhere.dispatchOfficer = employee;
+    }
+    if (status === 'pending') {
+      orderWhere.currentStage = 'DISPATCH';
+      orderWhere.dispatchStatus = { in: ['PENDING', 'COURIER_REQUIRED'] };
+    } else if (status === 'active') {
+      orderWhere.currentStage = 'OUT_FOR_DELIVERY';
+    } else if (status === 'delivered') {
+      orderWhere.dispatchStatus = 'DELIVERED';
+    } else if (status === 'returned') {
+      orderWhere.dispatchStatus = 'RETURNED';
+    } else if (status === 'rejected') {
+      orderWhere.status = 'REJECTED';
+    }
+    if (payment === 'paid') {
+      orderWhere.paymentStatus = 'PAID';
+    } else if (payment === 'cod') {
+      orderWhere.paymentStatus = { notIn: ['PAID', 'REFUNDED'] };
+    }
+
+    const orders = await prisma.order.findMany({
+      where: orderWhere,
+      select: {
+        id: true, orderNumber: true, customerName: true, customerPhone: true,
+        address: true, city: true, source: true, outletName: true,
+        currentStage: true, status: true, dispatchStatus: true,
+        deliveryType: true, deliveryMethod: true, priority: true,
+        trackingNumber: true, totalPrice: true, paymentStatus: true,
+        dispatchOfficer: true, forwardedBy: true,
+        createdAt: true, updatedAt: true, deliveredAt: true, returnedAt: true,
+        stages: {
+          orderBy: { createdAt: 'asc' },
+          select: { stageName: true, status: true, startedAt: true, completedAt: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Summary stats
+    const totalOrders = orders.length;
+    const pending = orders.filter(o => o.currentStage === 'DISPATCH' && !o.dispatchStatus || o.dispatchStatus === 'PENDING' || o.dispatchStatus === 'COURIER_REQUIRED').length;
+    const active = orders.filter(o => o.currentStage === 'OUT_FOR_DELIVERY' && o.dispatchStatus !== 'DELIVERED' && o.dispatchStatus !== 'RETURNED').length;
+    const delivered = orders.filter(o => o.dispatchStatus === 'DELIVERED').length;
+    const returned = orders.filter(o => o.dispatchStatus === 'RETURNED').length;
+    const rejected = orders.filter(o => o.status === 'REJECTED').length;
+    const cod = orders.filter(o => o.paymentStatus !== 'PAID' && o.paymentStatus !== 'REFUNDED').length;
+    const paid = orders.filter(o => o.paymentStatus === 'PAID').length;
+
+    // Dispatch log based stats for employee performance
+    const logWhere = {};
+    if (dateFrom) logWhere.createdAt = { ...logWhere.createdAt, gte: new Date(dateFrom) };
+    if (dateTo) logWhere.createdAt = { ...logWhere.createdAt, lte: new Date(dateTo) };
+
+    const allLogs = await prisma.dispatchLog.findMany({
+      where: Object.keys(logWhere).length ? logWhere : undefined,
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const buildEmployeeStats = (name) => {
+      const empLogs = allLogs.filter(l => l.officerName === name);
+      const accepted = empLogs.filter(l => l.action === 'ACCEPTED').length;
+      const dispatched = empLogs.filter(l => l.action === 'DISPATCHED').length;
+      const forwarded = empLogs.filter(l => l.action === 'FORWARDED').length;
+      const pendingCount = accepted - dispatched;
+      const dispatchTimes = [];
+      let lastDispatch = null;
+      for (const l of empLogs) {
+        if (l.action === 'DISPATCHED') {
+          lastDispatch = l.createdAt;
+          const acceptedLog = empLogs.find(al => al.action === 'ACCEPTED' && al.orderId === l.orderId);
+          if (acceptedLog) {
+            const diff = (new Date(l.createdAt) - new Date(acceptedLog.createdAt)) / (1000 * 60);
+            if (diff > 0) dispatchTimes.push(diff);
+          }
+        }
+      }
+      const avgDispatchTime = dispatchTimes.length ? Math.round(dispatchTimes.reduce((a, b) => a + b, 0) / dispatchTimes.length) : null;
+      const deliveredCount = empLogs.filter(l => l.action === 'DISPATCHED' && l.dispatchMethod === 'CUSTOMER_TAKEAWAY').length;
+      const returnedFromLogs = 0;
+
+      return {
+        totalAssigned: accepted,
+        totalDispatched: dispatched,
+        forwarded,
+        pending: Math.max(0, pendingCount),
+        delivered: deliveredCount,
+        returned: returnedFromLogs,
+        rejected: 0,
+        averageDispatchTime: avgDispatchTime ? `${avgDispatchTime} min` : 'N/A',
+        lastDispatch: lastDispatch ? lastDispatch.toISOString() : null
+      };
+    };
+
+    const employeeStats = {
+      Khawar: buildEmployeeStats('Khawar'),
+      Faisal: buildEmployeeStats('Faisal')
+    };
+
+    // Tracking data for the table
+    const trackingData = orders.map(o => {
+      const dispatchStage = o.stages.find(s => s.stageName === 'DISPATCH');
+      const deliveryStage = o.stages.find(s => s.stageName === 'OUT_FOR_DELIVERY');
+      const dispatchLogEntry = allLogs.find(l => l.orderId === o.id && l.action === 'DISPATCHED');
+      return {
+        id: o.id,
+        orderNumber: o.orderNumber,
+        customerName: o.customerName,
+        city: o.city,
+        dispatchOfficer: o.dispatchOfficer,
+        dispatchMethod: o.deliveryType || dispatchLogEntry?.dispatchMethod || '—',
+        currentStage: o.currentStage,
+        dispatchStatus: o.dispatchStatus,
+        paymentStatus: o.paymentStatus,
+        assignedAt: dispatchStage?.startedAt || null,
+        dispatchedAt: dispatchStage?.completedAt || null,
+        deliveredAt: o.deliveredAt || null,
+        returnedAt: o.returnedAt || null,
+        createdAt: o.createdAt
+      };
+    });
+
+    // Monthly report
+    const monthlyMap = {};
+    for (const o of orders) {
+      const m = new Date(o.createdAt).toISOString().slice(0, 7);
+      if (!monthlyMap[m]) monthlyMap[m] = { month: m, total: 0, delivered: 0, returned: 0, rejected: 0, pending: 0, cod: 0, paid: 0 };
+      monthlyMap[m].total++;
+      if (o.dispatchStatus === 'DELIVERED') monthlyMap[m].delivered++;
+      if (o.dispatchStatus === 'RETURNED') monthlyMap[m].returned++;
+      if (o.status === 'REJECTED') monthlyMap[m].rejected++;
+      if (o.currentStage === 'DISPATCH' && (!o.dispatchStatus || o.dispatchStatus === 'PENDING')) monthlyMap[m].pending++;
+      if (o.paymentStatus !== 'PAID') monthlyMap[m].cod++;
+      if (o.paymentStatus === 'PAID') monthlyMap[m].paid++;
+    }
+    const monthlyReport = Object.values(monthlyMap).sort((a, b) => a.month.localeCompare(b.month));
+
+    // Employee monthly breakdown
+    const employeeMonthly = {};
+    for (const name of ['Khawar', 'Faisal']) {
+      const empLogs = allLogs.filter(l => l.officerName === name);
+      const empMonthlyMap = {};
+      for (const l of empLogs) {
+        const m = new Date(l.createdAt).toISOString().slice(0, 7);
+        if (!empMonthlyMap[m]) empMonthlyMap[m] = { month: m, dispatches: 0, deliveries: 0, returns: 0, pending: 0 };
+        if (l.action === 'DISPATCHED') empMonthlyMap[m].dispatches++;
+        if (l.dispatchMethod === 'CUSTOMER_TAKEAWAY') empMonthlyMap[m].deliveries++;
+      }
+      // Also check order status from orders
+      const empOrders = orders.filter(o => o.dispatchOfficer === name);
+      for (const o of empOrders) {
+        const m = new Date(o.createdAt).toISOString().slice(0, 7);
+        if (!empMonthlyMap[m]) empMonthlyMap[m] = { month: m, dispatches: 0, deliveries: 0, returns: 0, pending: 0 };
+        if (o.dispatchStatus === 'RETURNED') empMonthlyMap[m].returns++;
+        if (o.currentStage === 'DISPATCH' && (!o.dispatchStatus || o.dispatchStatus === 'PENDING')) empMonthlyMap[m].pending++;
+        if (o.dispatchStatus === 'DELIVERED') empMonthlyMap[m].deliveries++;
+      }
+      employeeMonthly[name] = Object.values(empMonthlyMap).sort((a, b) => a.month.localeCompare(b.month));
+    }
+
+    res.json({
+      summary: { totalOrders, pending, active, delivered, returned, rejected, cod, paid },
+      employeeStats,
+      trackingData,
+      monthlyReport,
+      employeeMonthly
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch dispatch dashboard', error: error.message });
+  }
+};
+
+module.exports = { getDispatchProfileOrders, acceptDispatchOrder, dispatchFromProfile, getDispatchProfileStats, getDispatchDashboard };
