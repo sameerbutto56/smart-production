@@ -1078,7 +1078,6 @@ const DispatchDashboard = () => {
             </div>
           )}
         </>
-      )}
 
       {/* All Orders Tab (non-employee only) */}
       {activeTab === 'all' && !isEmployeeMode && (
