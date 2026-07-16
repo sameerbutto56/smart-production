@@ -685,33 +685,33 @@ const exportBackup = async (req, res) => {
     let orders = [];
 
     if (outlet) {
-      // Branch-specific backup
-      variants = await prisma.outletInventory.findMany({ where: { outletName: outlet } });
-      items = await prisma.inventoryItem.findMany();
-      
-      posSales = await prisma.posSale.findMany({ where: { outletName: outlet }, include: { items: true } });
+      // Branch-specific backup — run all independent queries in parallel
+      [variants, items, posSales, posReturns, clients, transfers, orders] = await Promise.all([
+        prisma.outletInventory.findMany({ where: { outletName: outlet } }),
+        prisma.inventoryItem.findMany(),
+        prisma.posSale.findMany({ where: { outletName: outlet }, include: { items: true } }),
+        prisma.posReturn.findMany({ where: { outletName: outlet } }),
+        prisma.client.findMany({ where: { outletName: outlet } }),
+        prisma.outletTransfer.findMany({ where: { OR: [{ fromOutlet: outlet }, { toOutlet: outlet }] }, include: { items: true } }),
+        prisma.order.findMany({ where: { outletName: outlet } })
+      ]);
       posSales.forEach(sale => {
         if (sale.items) posSaleItems.push(...sale.items);
       });
-      posReturns = await prisma.posReturn.findMany({ where: { outletName: outlet } });
-      clients = await prisma.client.findMany({ where: { outletName: outlet } });
-      transfers = await prisma.outletTransfer.findMany({
-        where: { OR: [{ fromOutlet: outlet }, { toOutlet: outlet }] },
-        include: { items: true }
-      });
-      orders = await prisma.order.findMany({ where: { outletName: outlet } });
     } else {
-      // Legacy/Full backup
-      items = await prisma.inventoryItem.findMany();
-      variants = await prisma.outletInventory.findMany();
-      posSales = await prisma.posSale.findMany({ include: { items: true } });
+      // Legacy/Full backup — run all independent queries in parallel
+      [items, variants, posSales, posReturns, clients, transfers, orders] = await Promise.all([
+        prisma.inventoryItem.findMany(),
+        prisma.outletInventory.findMany(),
+        prisma.posSale.findMany({ include: { items: true } }),
+        prisma.posReturn.findMany(),
+        prisma.client.findMany(),
+        prisma.outletTransfer.findMany({ include: { items: true } }),
+        prisma.order.findMany()
+      ]);
       posSales.forEach(sale => {
         if (sale.items) posSaleItems.push(...sale.items);
       });
-      posReturns = await prisma.posReturn.findMany();
-      clients = await prisma.client.findMany();
-      transfers = await prisma.outletTransfer.findMany({ include: { items: true } });
-      orders = await prisma.order.findMany();
     }
 
     const backupData = {

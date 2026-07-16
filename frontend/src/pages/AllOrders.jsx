@@ -277,7 +277,7 @@ const AllOrders = () => {
     document.body.removeChild(a);
   };
 
-  const filteredOrders = (orders || []).filter(order => {
+  const filteredOrders = useMemo(() => (orders || []).filter(order => {
     if (!order) return false;
     const name = (order.customerName || '').toLowerCase();
     const id = (order.id || '').toLowerCase();
@@ -306,7 +306,7 @@ const AllOrders = () => {
     const numA = parseInt(a.orderNumber) || 0;
     const numB = parseInt(b.orderNumber) || 0;
     return sortOrder === 'asc' ? numA - numB : numB - numA;
-  });
+  }), [orders, searchTerm, filterStatus, filterType, filterUrgent, filterCity, sortOrder, user?.role, user?.id]);
 
   const groupedOrders = useMemo(() => {
     const groups = {};

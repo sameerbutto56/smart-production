@@ -116,7 +116,6 @@ model Order {
   @@index([refundStatus])
   @@index([createdById])
   @@index([dispatchStatus])
-  @@index([source])
   @@index([source, createdAt])
   @@index([paymentStatus, createdAt])
   @@index([outletName, createdAt])
@@ -161,7 +160,6 @@ model DeliveryAttempt {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  @@index([orderId])
   @@index([orderId, attemptNumber])
   @@index([status])
   @@index([riderId])
@@ -184,7 +182,6 @@ model RevenueRecord {
   totalProfit     Float    @default(0)
   createdAt       DateTime @default(now())
 
-  @@index([source])
   @@index([outletName])
   @@index([orderType])
   @@index([createdAt])
@@ -210,7 +207,6 @@ model OrderStage {
   assignedEmployee   User?     @relation(fields: [assignedEmployeeId], references: [id])
   order              Order     @relation(fields: [orderId], references: [id])
 
-  @@index([orderId])
   @@index([status])
   @@index([stageName])
   @@index([status, deadlineAt])
@@ -228,7 +224,6 @@ model AuditLog {
   order       Order?    @relation(fields: [orderId], references: [id])
   user        User      @relation(fields: [performedBy], references: [id])
 
-  @@index([orderId])
   @@index([orderId, action])
   @@index([performedBy])
   @@index([timestamp])
@@ -249,7 +244,6 @@ model InventoryItem {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([name])
   @@index([category])
   @@index([name, category])
   @@index([color, size, category])
@@ -273,7 +267,6 @@ model OutletInventory {
   updatedAt  DateTime @updatedAt
 
   @@unique([barcode, outletName])
-  @@index([outletName])
   @@index([outletName, category])
   @@index([outletName, name])
   @@index([barcode])
@@ -512,6 +505,7 @@ model ChatMessage {
 
   @@index([createdAt])
   @@index([isPinned])
+  @@index([senderId, createdAt])
 }
 
 model ChatMessageReadReceipt {
@@ -585,9 +579,11 @@ model PosSale {
     returns          PosReturn[]
     balancePayments  PosBalancePayment[]
 
-  @@index([receiptNumber])
-  @@index([outletName])
-  @@index([createdAt])
+  @@index([outletName, createdAt])
+  @@index([orderId])
+  @@index([paymentMethod])
+  @@index([cashierName])
+  @@index([faisalTake])
 }
 
 model PosBalancePayment {
@@ -705,7 +701,6 @@ model PosBookSession {
   status          String    @default("OPEN") // OPEN, CLOSED
 
   @@index([outletName, status])
-  @@index([outletName])
 }
 
 model OutletEmployee {
@@ -762,7 +757,6 @@ model NoResponseLog {
   notes         String?
   createdAt     DateTime @default(now())
 
-  @@index([orderId])
   @@index([orderId, attemptNumber])
 }
 

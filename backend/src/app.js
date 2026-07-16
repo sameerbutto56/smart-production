@@ -4,6 +4,8 @@ const compression = require('compression');
 const dotenv = require('dotenv');
 const path = require('path');
 const multer = require('multer');
+const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
 const prisma = require('./prisma');
@@ -25,12 +27,18 @@ const upload = multer({
   }
 });
 
+app.use(helmet());
 app.use(compression());
 app.use(cors({
   origin: frontendUrl,
   credentials: frontendUrl !== "*"
 }));
 app.use(express.json());
+app.use('/api/', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  message: { message: 'Too many requests, please try again later' }
+}));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 app.get('/api/health', (req, res) => {
@@ -68,7 +76,7 @@ const journalRoutes = require('./routes/journal.routes');
 const chatRoutes = require('./routes/chat.routes');
 const notesRoutes = require('./routes/notes.routes');
 const posBookRoutes = require('./routes/pos.book.routes');
-// const deliveryRoutes = require('./routes/delivery.routes');
+const deliveryRoutes = require('./routes/delivery.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
@@ -92,7 +100,7 @@ app.use('/api/journal', journalRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/notes', notesRoutes);
 app.use('/api/pos/book', posBookRoutes);
-// app.use('/api/delivery', deliveryRoutes);
+app.use('/api/delivery', deliveryRoutes);
 
 // Global error handler (must be last)
 app.use(errorHandler);

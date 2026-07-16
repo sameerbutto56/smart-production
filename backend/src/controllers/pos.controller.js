@@ -714,6 +714,8 @@ const getSalesDashboard = async (req, res) => {
     // 3. Fetch all sales for trend charts & revenue calculation
     const allSales = await prisma.posSale.findMany({
       where: whereClause,
+      orderBy: { createdAt: 'desc' },
+      take: 500,
       select: { id: true, createdAt: true, grandTotal: true, advanceAmount: true, receiptNumber: true, outletName: true, paymentMethod: true, orderId: true, cashierName: true, cashAmount: true, onlineAmount: true }
     });
     const saleIds = allSales.map(s => s.id);

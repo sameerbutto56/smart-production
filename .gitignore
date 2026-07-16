@@ -10,5 +10,6 @@ backend/.env
 
 .vercel
 backend/backups/
+backups/
 backend/err.log
 backend/out.log

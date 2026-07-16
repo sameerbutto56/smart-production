@@ -39,7 +39,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { Palette } from 'lucide-react';
 
-const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
+const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
   const { user, logout } = useAuth();
   const { t, isUrdu } = useLanguage();
   const { themeId, currentTheme, changeTheme, THEMES } = useTheme();
@@ -263,7 +263,7 @@ const Sidebar = ({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
       </div>
     </>
   );
-};
+});
 
 const Layout = () => {
   const navigate = useNavigate();
