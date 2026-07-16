@@ -85,6 +85,12 @@ const DispatchDashboard = () => {
   const [dashPayment, setDashPayment] = useState('');
   const [dashDateFrom, setDashDateFrom] = useState('');
   const [dashDateTo, setDashDateTo] = useState('');
+  const [activityLogs, setActivityLogs] = useState([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activitySearch, setActivitySearch] = useState('');
+  const [activityEmployee, setActivityEmployee] = useState('');
+  const [activityDateFrom, setActivityDateFrom] = useState('');
+  const [activityDateTo, setActivityDateTo] = useState('');
   const queueRefreshRef = useRef(null);
 
   // Data fetching
@@ -147,6 +153,22 @@ const DispatchDashboard = () => {
     }
   }, [dashEmployee, dashCity, dashStatus, dashPayment, dashDateFrom, dashDateTo]);
 
+  const fetchActivityLogs = useCallback(async () => {
+    setActivityLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (activityEmployee) params.set('employeeName', activityEmployee);
+      if (activityDateFrom) params.set('dateFrom', activityDateFrom);
+      if (activityDateTo) params.set('dateTo', activityDateTo);
+      const res = await api.get(`/api/dispatch-profile/activity-logs?${params.toString()}`);
+      setActivityLogs(res.data);
+    } catch (err) {
+      console.error('Activity logs fetch failed:', err);
+    } finally {
+      setActivityLoading(false);
+    }
+  }, [activityEmployee, activityDateFrom, activityDateTo]);
+
   useEffect(() => {
     doRefresh();
     if (loggedIn && (isKhawar || isFaisal)) fetchStats();
@@ -154,6 +176,7 @@ const DispatchDashboard = () => {
 
   useEffect(() => {
     if (activeTab === 'dashboard' && loggedIn) fetchDashboard();
+    if (activeTab === 'activity' && loggedIn) fetchActivityLogs();
   }, [activeTab, loggedIn, fetchDashboard]);
 
   // Persist filter/tab state on change
@@ -384,18 +407,17 @@ const DispatchDashboard = () => {
 
   const allCities = [...new Set([...data.seen, ...data.active, ...data.allOrders].map(o => o.city).filter(Boolean))];
 
-  const dashboardTab = loggedIn && (isKhawar || isFaisal) ? { id: 'dashboard', label: 'Dashboard', icon: BarChart3, count: 0 } : null;
-
   const tabs = loggedIn && (isKhawar || isFaisal)
     ? [
-        ...(dashboardTab ? [dashboardTab] : []),
         { id: 'unseen', label: 'Unseen Tasks', icon: Eye, count: data.counts.unseen },
         { id: 'seen', label: 'Seen Tasks', icon: UserCheck, count: data.counts.seen },
-        { id: 'active', label: 'Active Tasks', icon: Package, count: data.counts.active }
+        { id: 'active', label: 'Active Tasks', icon: Package, count: data.counts.active },
+        { id: 'activity', label: 'Activity Logs', icon: Activity, count: 0 }
       ]
     : [
         { id: 'unseen', label: 'Unseen Tasks', icon: Eye, count: data.counts.unseen },
         { id: 'active', label: 'Active Tasks', icon: Package, count: data.counts.active },
+        { id: 'activity', label: 'Activity Logs', icon: Activity, count: 0 },
         ...(!loggedIn ? [{ id: 'all', label: 'All Orders', icon: Truck, count: data.counts.all }] : [])
       ];
 
@@ -780,6 +802,86 @@ const DispatchDashboard = () => {
                 </div>
               )}
             </>
+          )}
+        </div>
+      )}
+
+      {/* Activity Logs Tab */}
+      {activeTab === 'activity' && (
+        <div className="space-y-4">
+          <div className="flex flex-col md:flex-row gap-3 items-start md:items-center justify-between">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 theme-text-muted" size={16} />
+              <input type="text" placeholder="Search logs..." value={activitySearch} onChange={(e) => setActivitySearch(e.target.value)}
+                className="w-full theme-input border-2 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-amber-500 transition-all text-sm font-bold" />
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <select value={activityEmployee} onChange={(e) => setActivityEmployee(e.target.value)}
+                className="theme-input rounded-xl py-2.5 px-3 text-xs font-black uppercase tracking-wider border-2">
+                <option value="">All Employees</option>
+                <option value="Khawar">Khawar</option>
+                <option value="Faisal">Faisal</option>
+              </select>
+              <input type="date" value={activityDateFrom} onChange={(e) => setActivityDateFrom(e.target.value)}
+                className="theme-input rounded-xl py-2.5 px-3 text-xs font-black uppercase tracking-wider border-2" />
+              <input type="date" value={activityDateTo} onChange={(e) => setActivityDateTo(e.target.value)}
+                className="theme-input rounded-xl py-2.5 px-3 text-xs font-black uppercase tracking-wider border-2" />
+              <button onClick={fetchActivityLogs} disabled={activityLoading}
+                className="px-4 py-2.5 bg-amber-600 text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-amber-500 transition-all disabled:opacity-50">
+                {activityLoading ? <Loader2 className="animate-spin" size={14} /> : 'Filter'}
+              </button>
+            </div>
+          </div>
+
+          {activityLoading ? (
+            <div className="flex items-center justify-center py-20"><Loader2 className="animate-spin text-amber-400" size={32} /></div>
+          ) : activityLogs.length === 0 ? (
+            <div className="glass rounded-2xl md:rounded-[3rem] border theme-border p-6 md:p-20 text-center">
+              <Activity className="mx-auto text-gray-800 mb-4" size={48} />
+              <h3 className="theme-text-muted font-black uppercase">No Activity Logs</h3>
+              <p className="theme-text-muted text-xs font-bold mt-2">Dispatch actions will appear here as they happen.</p>
+            </div>
+          ) : (
+            <div className="glass rounded-2xl border theme-border overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="text-gray-500 font-black uppercase tracking-wider text-[10px] border-b theme-border">
+                    <th className="py-3 px-4">Date</th>
+                    <th className="py-3 px-4">Action</th>
+                    <th className="py-3 px-4">Officer</th>
+                    <th className="py-3 px-4">Order #</th>
+                    <th className="py-3 px-4">Customer</th>
+                    <th className="py-3 px-4">City</th>
+                    <th className="py-3 px-4">Method</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activityLogs
+                    .filter(l => !activitySearch || l.orderNumber?.toLowerCase().includes(activitySearch.toLowerCase()) || l.customerName?.toLowerCase().includes(activitySearch.toLowerCase()))
+                    .map(log => (
+                      <tr key={log.id} className="border-b theme-border hover:theme-bg-subtle transition-colors">
+                        <td className="py-3 px-4 text-xs font-bold">{new Date(log.createdAt).toLocaleString()}</td>
+                        <td className="py-3 px-4">
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                            log.action === 'ACCEPTED' ? 'bg-emerald-500/10 text-emerald-400' :
+                            log.action === 'DISPATCHED' ? 'bg-blue-500/10 text-blue-400' :
+                            log.action === 'FORWARDED' ? 'bg-amber-500/10 text-amber-400' :
+                            'bg-gray-500/10 text-gray-400'
+                          }`}>{log.action}</span>
+                        </td>
+                        <td className="py-3 px-4 text-xs font-bold theme-text-primary">{log.officerName}</td>
+                        <td className="py-3 px-4 text-xs font-bold text-blue-400">#{log.orderNumber || log.orderId?.substring(0,8)}</td>
+                        <td className="py-3 px-4 text-xs font-bold theme-text-primary">{log.customerName || '-'}</td>
+                        <td className="py-3 px-4 text-xs theme-text-muted">{log.city || '-'}</td>
+                        <td className="py-3 px-4 text-xs theme-text-muted font-bold">{log.dispatchMethod || '-'}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+              <div className="p-3 text-[10px] theme-text-muted text-center border-t theme-border">
+                {activityLogs.length} total logs
+              </div>
+            </div>
           )}
         </div>
       )}

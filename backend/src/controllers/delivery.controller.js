@@ -1,0 +1,447 @@
+const prisma = require('../prisma');
+
+// GET /api/delivery/orders — get all delivery orders for delivery boy
+const getDeliveryOrders = async (req, res) => {
+  try {
+    const { deliveryType } = req.query;
+    const orders = await prisma.order.findMany({
+      where: {
+        OR: [
+          { currentStage: { in: ['OUT_FOR_DELIVERY', 'DELIVERED'] } },
+          { status: { in: ['COMPLETED', 'OUT_FOR_DELIVERY'] } }
+        ],
+        ...(deliveryType ? {
+          OR: [
+            { deliveryType },
+            { deliveryMethod: deliveryType }
+          ]
+        } : {})
+      },
+      include: {
+        stages: { orderBy: { createdAt: 'asc' }, select: { stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true } },
+        createdBy: { select: { name: true, role: true } },
+        deliveryAttempts: { orderBy: { attemptNumber: 'desc' } },
+        noResponseLogs: { orderBy: { attemptNumber: 'asc' } },
+        deliveryPayments: true
+      },
+      orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }]
+    });
+    res.json(orders);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch delivery orders', error: error.message });
+  }
+};
+
+// PUT /api/delivery/:orderId/accept — delivery boy accepts order
+const acceptDelivery = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { riderName } = req.body;
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    const now = new Date();
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { riderAcceptedAt: now }
+    });
+    await prisma.orderAcceptance.create({
+      data: { orderId, assignedAt: now, acceptedAt: now, riderName }
+    });
+    res.json({ message: 'Order accepted', riderAcceptedAt: now });
+  } catch (error) {
+    res.status(500).json({ message: 'Accept failed', error: error.message });
+  }
+};
+
+// PUT /api/delivery/:orderId/deliver — mark as delivered with payment
+const deliverOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { paymentMethod, cashAmount, onlineAmount, multipleOnlineDetails, riderName } = req.body;
+
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    const now = new Date();
+
+    // Update order status
+    const updateData = {
+      currentStage: 'DELIVERED',
+      status: 'COMPLETED',
+      deliveredAt: now,
+      paymentStatus: 'PAID'
+    };
+    if (paymentMethod === 'CASH') updateData.paymentMethod = 'CASH';
+    else if (paymentMethod === 'ONLINE') updateData.paymentMethod = 'ONLINE';
+    else if (paymentMethod === 'CASH_ONLINE') updateData.paymentMethod = 'CASH_ONLINE';
+    else if (paymentMethod === 'MULTIPLE_ONLINE') updateData.paymentMethod = 'MULTIPLE_ONLINE';
+
+    await prisma.order.update({ where: { id: orderId }, data: updateData });
+
+    // Complete OUT_FOR_DELIVERY stage if exists
+    const stage = order.stages?.find(s => s.stageName === 'OUT_FOR_DELIVERY' && s.status !== 'COMPLETED');
+    if (stage) {
+      await prisma.orderStage.update({ where: { id: stage.id }, data: { status: 'COMPLETED', completedAt: now } });
+    }
+
+    // Record delivery payment
+    await prisma.deliveryPayment.create({
+      data: {
+        orderId,
+        paymentMethod,
+        cashAmount: parseFloat(cashAmount) || 0,
+        onlineAmount: parseFloat(onlineAmount) || 0,
+        multipleOnlineDetails: multipleOnlineDetails ? JSON.parse(JSON.stringify(multipleOnlineDetails)) : null,
+        collectedBy: riderName
+      }
+    });
+
+    // Update OrderAcceptance record
+    await prisma.orderAcceptance.updateMany({
+      where: { orderId, deliveredAt: null },
+      data: { deliveredAt: now }
+    });
+
+    // Create delivery charge (PKR 200)
+    await prisma.deliveryCharge.create({
+      data: {
+        orderId,
+        orderNumber: order.orderNumber,
+        customerName: order.customerName,
+        deliveredAt: now
+      }
+    });
+
+    // Create delivery attempt
+    const attemptCount = await prisma.deliveryAttempt.count({ where: { orderId } });
+    await prisma.deliveryAttempt.create({
+      data: {
+        orderId,
+        attemptNumber: attemptCount + 1,
+        status: 'DELIVERED',
+        riderName,
+        attemptedAt: now
+      }
+    });
+
+    res.json({ message: 'Order delivered successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Delivery failed', error: error.message });
+  }
+};
+
+// PUT /api/delivery/:orderId/no-response — mark no response
+const noResponse = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { riderName } = req.body;
+
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    const now = new Date();
+    const currentCount = (order.noResponseCount || 0) + 1;
+
+    await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        noResponseCount: currentCount,
+        nextDeliveryDate: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+        lastDeliveryAttempt: now
+      }
+    });
+
+    await prisma.noResponseLog.create({
+      data: { orderId, attemptNumber: currentCount, markedBy: riderName, notes: `Day ${currentCount} – No Response` }
+    });
+
+    const attemptCount = await prisma.deliveryAttempt.count({ where: { orderId } });
+    await prisma.deliveryAttempt.create({
+      data: {
+        orderId,
+        attemptNumber: attemptCount + 1,
+        status: 'NO_RESPONSE',
+        riderName,
+        attemptedAt: now,
+        rescheduledTo: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+        notes: `Day ${currentCount} – No Response`
+      }
+    });
+
+    res.json({ message: `Day ${currentCount} – No Response logged`, noResponseCount: currentCount });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to log no response', error: error.message });
+  }
+};
+
+// PUT /api/delivery/:orderId/return — return order
+const returnOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { reason, riderName } = req.body;
+
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    const now = new Date();
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { currentStage: 'DISPATCH', status: 'RETURNED', returnedAt: now }
+    });
+
+    const attemptCount = await prisma.deliveryAttempt.count({ where: { orderId } });
+    await prisma.deliveryAttempt.create({
+      data: {
+        orderId,
+        attemptNumber: attemptCount + 1,
+        status: 'RETURNED',
+        riderName,
+        attemptedAt: now,
+        notes: reason || 'Returned by delivery boy'
+      }
+    });
+
+    res.json({ message: 'Order returned to dispatch' });
+  } catch (error) {
+    res.status(500).json({ message: 'Return failed', error: error.message });
+  }
+};
+
+// GET /api/delivery/charges — delivery boy's earnings ledger
+const getDeliveryCharges = async (req, res) => {
+  try {
+    const { riderName } = req.query;
+    const where = riderName ? { riderName } : {};
+
+    const charges = await prisma.deliveryCharge.findMany({
+      where: { ...where, isPaid: false },
+      orderBy: { deliveredAt: 'desc' }
+    });
+
+    const totalPending = charges.reduce((s, c) => s + c.amount, 0);
+
+    const payments = await prisma.deliveryChargePayment.findMany({
+      orderBy: { paidAt: 'desc' }
+    });
+    const totalPaid = payments.reduce((s, p) => s + p.totalAmount, 0);
+
+    res.json({ charges, totalPending, payments, totalPaid });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch delivery charges', error: error.message });
+  }
+};
+
+// POST /api/delivery/charges/clear — clear all pending delivery charges
+const clearDeliveryCharges = async (req, res) => {
+  try {
+    const now = new Date();
+
+    const pending = await prisma.deliveryCharge.findMany({ where: { isPaid: false } });
+    const totalAmount = pending.reduce((s, c) => s + c.amount, 0);
+
+    if (pending.length === 0) return res.status(400).json({ message: 'No pending charges to clear' });
+
+    await prisma.deliveryChargePayment.create({
+      data: {
+        totalAmount,
+        chargeIds: pending.map(c => c.id),
+        paidAt: now
+      }
+    });
+
+    await prisma.deliveryCharge.updateMany({
+      where: { isPaid: false },
+      data: { isPaid: true, paidAt: now }
+    });
+
+    res.json({ message: `${pending.length} charges cleared, total ₨${totalAmount.toLocaleString()}`, totalAmount });
+  } catch (error) {
+    res.status(500).json({ message: 'Clear failed', error: error.message });
+  }
+};
+
+// GET /api/delivery/cod — COD collection data
+const getCODSummary = async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Today's deliveries with CASH or CASH_ONLINE payment
+    const todayDeliveries = await prisma.order.findMany({
+      where: {
+        currentStage: 'DELIVERED',
+        deliveredAt: { gte: today },
+        paymentMethod: { in: ['CASH', 'CASH_ONLINE', null] }
+      },
+      select: { id: true, orderNumber: true, customerName: true, totalPrice: true, deliveredAt: true, advanceAmount: true }
+    });
+
+    const todayCODAmount = todayDeliveries.reduce((s, o) => {
+      const remaining = Math.max(0, (o.totalPrice || 0) - (o.advanceAmount || 0));
+      return s + (o.paymentMethod === 'CASH_ONLINE' ? remaining / 2 : remaining);
+    }, 0);
+
+    // All pending COD (delivered but not cleared)
+    const pendingCODDeliveries = await prisma.order.findMany({
+      where: {
+        currentStage: 'DELIVERED',
+        OR: [
+          { paymentMethod: { in: ['CASH', null] } },
+          { advanceAmount: { gt: 0 } }
+        ],
+        // Exclude already cleared
+        id: { notIn: (await prisma.cODCollection.findMany({ select: { orderIds: true } })).flatMap(c => c.orderIds) }
+      },
+      select: { id: true, orderNumber: true, customerName: true, totalPrice: true, deliveredAt: true, advanceAmount: true, paymentMethod: true }
+    });
+
+    const pendingCODAmount = pendingCODDeliveries.reduce((s, o) => {
+      const remaining = Math.max(0, (o.totalPrice || 0) - (o.advanceAmount || 0));
+      return s + (o.paymentMethod === 'CASH_ONLINE' ? remaining / 2 : remaining);
+    }, 0);
+
+    const collections = await prisma.cODCollection.findMany({
+      orderBy: { clearedAt: 'desc' }
+    });
+
+    res.json({
+      todayCODAmount,
+      todayCODOrders: todayDeliveries.length,
+      pendingCODAmount,
+      pendingCODOrders: pendingCODDeliveries.length,
+      pendingDeliveries: pendingCODDeliveries,
+      collections
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch COD summary', error: error.message });
+  }
+};
+
+// POST /api/delivery/cod/clear — clear COD by dispatch officer
+const clearCOD = async (req, res) => {
+  try {
+    const { dispatchOfficer, deliveryBoyName, orderIds, totalAmount } = req.body;
+    const now = new Date();
+
+    await prisma.cODCollection.create({
+      data: {
+        dispatchOfficer,
+        deliveryBoyName,
+        totalAmount,
+        orderIds,
+        clearedAt: now
+      }
+    });
+
+    res.json({ message: `COD cleared: ₨${(totalAmount || 0).toLocaleString()}`, totalAmount });
+  } catch (error) {
+    res.status(500).json({ message: 'COD clear failed', error: error.message });
+  }
+};
+
+// GET /api/delivery/performance — delivery boy performance stats
+const getPerformance = async (req, res) => {
+  try {
+    const { riderName } = req.query;
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekStart = new Date(todayStart.getTime() - todayStart.getDay() * 86400000);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const whereRider = riderName ? { riderName } : {};
+
+    const deliveredToday = await prisma.deliveryAttempt.count({
+      where: { ...whereRider, status: 'DELIVERED', attemptedAt: { gte: todayStart } }
+    });
+    const deliveredThisWeek = await prisma.deliveryAttempt.count({
+      where: { ...whereRider, status: 'DELIVERED', attemptedAt: { gte: weekStart } }
+    });
+    const deliveredThisMonth = await prisma.deliveryAttempt.count({
+      where: { ...whereRider, status: 'DELIVERED', attemptedAt: { gte: monthStart } }
+    });
+
+    const assignedToday = await prisma.orderAcceptance.count({
+      where: { assignedAt: { gte: todayStart }, ...(riderName ? { riderName } : {}) }
+    });
+
+    const pendingDeliveries = await prisma.order.count({
+      where: { currentStage: 'OUT_FOR_DELIVERY', riderAcceptedAt: null }
+    });
+
+    const activeDeliveries = await prisma.order.count({
+      where: { currentStage: 'OUT_FOR_DELIVERY', riderAcceptedAt: { not: null } }
+    });
+
+    const returnedCount = await prisma.deliveryAttempt.count({
+      where: { ...whereRider, status: 'RETURNED', attemptedAt: { gte: monthStart } }
+    });
+
+    const noResponseCount = await prisma.deliveryAttempt.count({
+      where: { ...whereRider, status: 'NO_RESPONSE', attemptedAt: { gte: monthStart } }
+    });
+
+    // All-time stats
+    const allTimeDelivered = await prisma.deliveryAttempt.count({
+      where: { ...whereRider, status: 'DELIVERED' }
+    });
+
+    res.json({
+      assignedToday,
+      deliveredToday,
+      deliveredThisWeek,
+      deliveredThisMonth,
+      allTimeDelivered,
+      pendingDeliveries,
+      activeDeliveries,
+      returnedCount,
+      noResponseCount
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch performance', error: error.message });
+  }
+};
+
+// GET /api/delivery/dispatch-tracking — dispatch dashboard tracking data
+const getDispatchTracking = async (req, res) => {
+  try {
+    const { dispatchOfficer } = req.query;
+
+    const deliveryAttempts = await prisma.deliveryAttempt.findMany({
+      where: { status: 'NO_RESPONSE' },
+      include: { order: { select: { orderNumber: true, customerName: true, city: true, noResponseCount: true, deliveryMethod: true } } },
+      orderBy: { attemptedAt: 'desc' },
+      take: 100
+    });
+
+    const deliveredOrders = await prisma.deliveryPayment.findMany({
+      include: { order: { select: { orderNumber: true, customerName: true, totalPrice: true, paymentMethod: true, city: true } } },
+      orderBy: { collectedAt: 'desc' },
+      take: 100
+    });
+
+    const noResponseOrders = await prisma.order.findMany({
+      where: { noResponseCount: { gt: 0 } },
+      select: { id: true, orderNumber: true, customerName: true, city: true, noResponseCount: true, lastDeliveryAttempt: true },
+      orderBy: { lastDeliveryAttempt: 'desc' }
+    });
+
+    res.json({ deliveryAttempts, deliveredOrders, noResponseOrders });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch tracking data', error: error.message });
+  }
+};
+
+module.exports = {
+  getDeliveryOrders,
+  acceptDelivery,
+  deliverOrder,
+  noResponse,
+  returnOrder,
+  getDeliveryCharges,
+  clearDeliveryCharges,
+  getCODSummary,
+  clearCOD,
+  getPerformance,
+  getDispatchTracking
+};

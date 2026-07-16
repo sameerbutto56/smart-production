@@ -796,7 +796,7 @@ const SmartOrderForm = () => {
       return;
     }
     
-    const nameEngravingCharges = (formData.skipEngraving ? 0 : 300) * (parseInt(formData.quantity) || 1);
+    const nameEngravingCharges = formData.type === 'STANDARD' ? 0 : (formData.skipEngraving ? 0 : 300) * (parseInt(formData.quantity) || 1);
     const brandingTotal = (parseFloat(formData.logoCharges) || 0) + nameEngravingCharges + (parseFloat(formData.customizationPrice) || 0);
     const payload = {
       orderNumber: formData.orderNumber,
@@ -1975,7 +1975,7 @@ const SmartOrderForm = () => {
                     {!isOutlet && (
                       <button
                         type="button"
-                        onClick={() => setFormData({...formData, type: 'STANDARD', advancePaid: false, advanceAmount: ''})}
+                        onClick={() => setFormData({...formData, type: 'STANDARD', advancePaid: false, advanceAmount: '', skipEngraving: true, engravingType: ''})}
                         className={`flex-1 py-3 md:py-4 px-1 rounded-lg md:rounded-xl text-xs md:text-sm font-black transition-all leading-tight text-center ${
                           formData.type === 'STANDARD' ? 'bg-blue-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'
                         }`}
@@ -3876,7 +3876,7 @@ const SmartOrderForm = () => {
                         <span className="text-gray-400 block mb-1">{useUrdu ? 'آرڈر کی قسم' : 'Order Type'}</span>
                         <div className="flex gap-1">
                           {['STANDARD', 'READY_LOGO', 'FULL_CUSTOM'].map(t => (
-                            <button key={t} type="button" onClick={() => setFormData({...formData, type: t})}
+                            <button key={t} type="button" onClick={() => setFormData({...formData, type: t, ...(t === 'STANDARD' ? { skipEngraving: true, engravingType: '' } : {})})}
                               className={`flex-1 py-2 rounded-lg text-[9px] font-black transition-all uppercase ${formData.type === t
                                 ? 'bg-blue-600 text-white' : 'bg-gray-900 text-gray-600 hover:bg-gray-800'}`}>
                               {t === 'READY_LOGO' ? 'LOGO' : t === 'FULL_CUSTOM' ? 'CUSTOM' : 'STD'}

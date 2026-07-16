@@ -125,6 +125,10 @@ model Order {
   @@index([createdAt])
   dispatchOfficer   String?
   forwardedBy       String?
+  deliveryPayments  DeliveryPayment[]
+  noResponseLogs    NoResponseLog[]
+  deliveryChargeRecords DeliveryCharge[] @relation("DeliveryChargeToOrder")
+  orderAcceptances  OrderAcceptance[]
 }
 
 model DispatchLog {
@@ -728,4 +732,91 @@ model JournalEntry {
 
   @@index([outletName])
   @@index([createdAt])
+}
+
+// Delivery enhancement: tracks payment split per delivery (Cash/Online/Multiple Online)
+model DeliveryPayment {
+  id              String   @id @default(uuid())
+  orderId         String
+  order           Order    @relation(fields: [orderId], references: [id])
+  paymentMethod   String   // CASH, ONLINE, CASH_ONLINE, MULTIPLE_ONLINE
+  cashAmount      Float    @default(0)
+  onlineAmount    Float    @default(0)
+  multipleOnlineDetails Json? // JSON array of {provider, amount, ref} for MULTIPLE_ONLINE
+  collectedBy     String?  // Delivery boy name
+  collectedAt     DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  @@index([orderId])
+  @@index([collectedBy])
+  @@index([collectedAt])
+}
+
+// Tracks No Response attempts per order (extended)
+model NoResponseLog {
+  id            String   @id @default(uuid())
+  orderId       String
+  order         Order    @relation(fields: [orderId], references: [id])
+  attemptNumber Int
+  markedBy      String?  // Delivery boy name
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  @@index([orderId])
+  @@index([orderId, attemptNumber])
+}
+
+// PKR 200 per delivered order — delivery boy earnings
+model DeliveryCharge {
+  id            String   @id @default(uuid())
+  orderId       String
+  order         Order    @relation("DeliveryChargeToOrder", fields: [orderId], references: [id])
+  orderNumber   String?
+  customerName  String?
+  amount        Float    @default(200)
+  deliveredAt   DateTime
+  isPaid        Boolean  @default(false)
+  paidAt        DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([orderId])
+  @@index([isPaid])
+  @@index([paidAt])
+}
+
+// Bulk payment clearance for delivery charges
+model DeliveryChargePayment {
+  id            String   @id @default(uuid())
+  totalAmount   Float
+  chargeIds     Json     // Array of DeliveryCharge IDs
+  paidAt        DateTime @default(now())
+  createdAt     DateTime @default(now())
+}
+
+// COD collection clearance by dispatch officer
+model CODCollection {
+  id              String   @id @default(uuid())
+  dispatchOfficer String   // Khawar or Faisal
+  deliveryBoyName String?
+  totalAmount     Float
+  orderIds        Json     // Array of order IDs cleared
+  clearedAt       DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  @@index([dispatchOfficer])
+  @@index([clearedAt])
+}
+
+// Tracks order acceptance timestamps for dispatch-to-delivery
+model OrderAcceptance {
+  id          String   @id @default(uuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id])
+  assignedAt  DateTime @default(now())
+  acceptedAt  DateTime?
+  deliveredAt DateTime?
+  riderName   String?
+  createdAt   DateTime @default(now())
+
+  @@index([orderId])
 }

@@ -85,7 +85,8 @@ const getDispatchProfileOrders = async (req, res) => {
       const active = [];
       for (const order of dispatchOrders) {
         if (!showAllCities && !isLahore(order.city)) continue;
-        if (order.forwardedBy === 'Khawar') continue; // skip orders forwarded to Faisal
+        if (order.forwardedBy === 'Khawar') continue; // forwarded to Faisal
+        if (order.dispatchOfficer === 'Faisal') continue; // owned by Faisal
 
         if (order.currentStage === 'OUT_FOR_DELIVERY') {
           if (order.dispatchOfficer === 'Khawar') active.push(order);
@@ -96,9 +97,9 @@ const getDispatchProfileOrders = async (req, res) => {
         const isAccepted = dispatchStage?.startedAt != null;
         const isAssignedToKhawar = order.dispatchOfficer === 'Khawar';
 
-        if (!isAccepted || !isAssignedToKhawar) {
-          unseen.push(order);
-        } else {
+        if (order.dispatchOfficer === null && !isAccepted) {
+          unseen.push(order); // shared queue — no owner yet
+        } else if (isAssignedToKhawar) {
           seen.push(order);
         }
       }
@@ -126,6 +127,7 @@ const getDispatchProfileOrders = async (req, res) => {
     const active = [];
     for (const order of dispatchOrders) {
       if (!showAllCities && isLahore(order.city) && order.forwardedBy !== 'Khawar') continue;
+      if (order.dispatchOfficer === 'Khawar') continue; // owned by Khawar
 
       if (order.currentStage === 'OUT_FOR_DELIVERY') {
         if (order.dispatchOfficer === 'Faisal') active.push(order);
@@ -136,9 +138,9 @@ const getDispatchProfileOrders = async (req, res) => {
       const isAccepted = dispatchStage?.startedAt != null;
       const isAssignedToFaisal = order.dispatchOfficer === 'Faisal' || order.forwardedBy === 'Khawar';
 
-      if (!isAccepted || !isAssignedToFaisal) {
-        unseen.push(order);
-      } else {
+      if (order.dispatchOfficer === null && !isAccepted) {
+        unseen.push(order); // shared queue — no owner yet
+      } else if (isAssignedToFaisal) {
         seen.push(order);
       }
     }
@@ -603,4 +605,28 @@ const getDispatchDashboard = async (req, res) => {
   }
 };
 
-module.exports = { getDispatchProfileOrders, acceptDispatchOrder, dispatchFromProfile, getDispatchProfileStats, getDispatchDashboard };
+// GET /api/dispatch-profile/activity-logs — full activity tracking table
+const getAllActivityLogs = async (req, res) => {
+  try {
+    const { employeeName, dateFrom, dateTo, limit } = req.query;
+    const where = {};
+    if (employeeName) where.officerName = employeeName;
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+      if (dateTo) where.createdAt.lte = new Date(dateTo);
+    }
+
+    const logs = await prisma.dispatchLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: limit ? parseInt(limit) : 200
+    });
+
+    res.json(logs);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch activity logs', error: error.message });
+  }
+};
+
+module.exports = { getDispatchProfileOrders, acceptDispatchOrder, dispatchFromProfile, getDispatchProfileStats, getDispatchDashboard, getAllActivityLogs };
