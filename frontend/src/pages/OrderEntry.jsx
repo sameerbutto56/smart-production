@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
 import { 
@@ -776,10 +776,12 @@ const SmartOrderForm = () => {
     return isNaN(d.getTime()) ? '' : d.toISOString().slice(0,16);
   };
 
-  const [dateStr, setDateStr] = useState(() => fmtDate(formData.shopifyOrderDate));
+  const dateInputRef = useRef(null);
 
   useEffect(() => {
-    setDateStr(fmtDate(formData.shopifyOrderDate));
+    if (dateInputRef.current) {
+      dateInputRef.current.value = fmtDate(formData.shopifyOrderDate);
+    }
   }, [formData.shopifyOrderDate]);
 
   const [cartItems, setCartItems] = useState([]);
@@ -1904,15 +1906,18 @@ const SmartOrderForm = () => {
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                         </div>
                         <input
+                          ref={dateInputRef}
                           type="text"
                           onKeyDown={preventEnterSubmit}
-                          value={dateStr}
+                          defaultValue={fmtDate(formData.shopifyOrderDate)}
                           onChange={(e) => {
-                            setDateStr(e.target.value);
                             const iso = parseDate(e.target.value);
                             if (iso) setFormData(s => ({...s, shopifyOrderDate: iso}));
                           }}
-                          onBlur={() => setDateStr(fmtDate(formData.shopifyOrderDate))}
+                          onBlur={(e) => {
+                            const iso = parseDate(e.target.value);
+                            if (!iso) e.target.value = fmtDate(formData.shopifyOrderDate);
+                          }}
                           placeholder="DD/MM/YYYY HH:mm"
                           className={`w-full theme-input rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all text-xl font-bold`}
                         />
