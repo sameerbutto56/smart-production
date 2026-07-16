@@ -226,7 +226,7 @@ const ProductSelectionTab = () => {
               </h3>
               <p className={`theme-text-muted text-xs md:text-sm font-bold uppercase tracking-widest ${useUrdu ? 'mr-11' : 'ml-11'}`}>Step 3: Visual scaling</p>
             </div>
-            {(!isAccessory(selectedProductCategory) || (isShoes(selectedProductCategory) && formData.productType)) && (
+            {formData.productType && (
               <div className={`flex flex-wrap gap-1.5 p-1.5 theme-bg rounded-xl border-2 theme-border ${useUrdu ? 'flex-row-reverse' : ''}`}>
                 {(availableSizes.length > 0 ? availableSizes : defaultSizes).map(s => (
                   <button key={s} type="button" onClick={() => handleSizeSelect(s)}

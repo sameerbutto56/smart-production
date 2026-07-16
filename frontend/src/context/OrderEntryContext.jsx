@@ -62,20 +62,20 @@ const INITIAL_FORM_DATA = {
   adjProductPrice: '', adjLogoCharges: '', adjNamePrinting: '', adjCustomization: '', adjCapCharges: '', adjDiscount: ''
 };
 
-const CLEAR_FORM_AFTER_CART = {
-  quantity: 1, totalPrice: '', logoCharges: '', namePrintingCharges: '', customizationPrice: '',
-  productType: '', fabricType: '', color: '', size: '', logoDesign: '', logoName: '', nameSpelling: '',
-  nameColor: '', logoColor: '', logoPlacement: '', fitType: 'Regular', designNotes: '', designReference: '',
-  additionalFeatures: [], matchingCap: false, matchingCapQty: 0, sleeveLength: '', shirtLength: '',
-  alteration: { trouserLength: '', shirtLength: '', sleeveLength: '' },
-  measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hip: '', hips: '',
-    shirtLength: '', trouserLength: '', bottom: '', thigh: '', mori: '', ganda: '', specialNote: '' },
-  gender: 'Male',
-  femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
-  fabricSourceProduct: '', colorSourceProduct: '', designSourceProduct: '', sizeSourceProduct: '', additionalProductRef: '',
-  customProductName: '', customFabric: '', customMaterial: '', customColor: '', customDesign: '',
-  customRequirements: '', customSpecifications: '', engravingType: '', skipEngraving: false
-};
+  const CLEAR_FORM_AFTER_CART = {
+    quantity: 1, totalPrice: '', logoCharges: '', namePrintingCharges: '', customizationPrice: '',
+    productType: '', fabricType: '', color: '', size: '', logoDesign: '', logoName: '', nameSpelling: '',
+    nameColor: '', logoColor: '', logoPlacement: '', fitType: 'Regular', designNotes: '', designReference: '',
+    additionalFeatures: [], matchingCap: false, matchingCapQty: 0, sleeveLength: '', shirtLength: '',
+    alteration: { trouserLength: '', shirtLength: '', sleeveLength: '' },
+    measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hip: '', hips: '',
+      shirtLength: '', trouserLength: '', bottom: '', thigh: '', mori: '', ganda: '', specialNote: '' },
+    gender: 'Male',
+    femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
+    fabricSourceProduct: '', colorSourceProduct: '', designSourceProduct: '', sizeSourceProduct: '', additionalProductRef: '',
+    customProductName: '', customFabric: '', customMaterial: '', customColor: '', customDesign: '',
+    customRequirements: '', customSpecifications: '', engravingType: '', skipEngraving: true
+  };
 
 export const OrderEntryProvider = ({ children }) => {
   const [searchParams] = useSearchParams();
@@ -405,7 +405,8 @@ export const OrderEntryProvider = ({ children }) => {
   const handleAddToCart = useCallback(() => {
     const validationError = validateProductConfig();
     if (validationError) { setError(validationError); return; }
-    const nameEngravingCharges = formData.type === 'STANDARD' ? 0 : (formData.skipEngraving ? 0 : 300) * (parseInt(formData.quantity) || 1);
+    const hasEngravingName = articleNameEntries.some(name => name.trim().length > 0);
+    const nameEngravingCharges = formData.type === 'STANDARD' ? 0 : ((formData.skipEngraving || !hasEngravingName) ? 0 : 300) * (parseInt(formData.quantity) || 1);
     const brandingTotal = (parseFloat(formData.logoCharges) || 0) + nameEngravingCharges + (parseFloat(formData.customizationPrice) || 0);
     const computedTotalPriceCalc = (() => {
       if (!selectedProduct) return 0;
