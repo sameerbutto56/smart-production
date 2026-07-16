@@ -5,6 +5,9 @@ import { visualizer } from 'rollup-plugin-visualizer'
 
 // https://vite.dev/config/
 export default defineConfig({
+  resolve: {
+    dedupe: ['react', 'react-dom']
+  },
   plugins: [
     react(),
     viteCompression({ algorithm: 'brotliCompress', threshold: 1024 }),
