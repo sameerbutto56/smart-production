@@ -62,6 +62,7 @@ router.get('/', authenticate, getOrders);
 
 // Track order by orderNumber (any authenticated user)
 router.get('/track/:orderNumber', authenticate, trackOrder);
+router.get('/track/', authenticate, (req, res) => res.status(400).json({ message: 'Order number is required' }));
 
 // Module Employee: Request stage completion
 router.put('/:orderId/stages/:stageId/request', authenticate, requestStageCompletion);

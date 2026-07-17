@@ -3241,8 +3241,9 @@ const updateProductAvailability = async (req, res) => {
 };
 
 const trackOrder = async (req, res) => {
-  const { orderNumber } = req.params;
   try {
+    const orderNumber = (req.params.orderNumber || '').trim();
+    if (!orderNumber) return res.status(400).json({ message: 'Order number is required' });
     const order = await prisma.order.findUnique({
       where: { orderNumber },
       include: {
