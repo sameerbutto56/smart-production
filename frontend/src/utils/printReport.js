@@ -1234,15 +1234,6 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     win.document.write(`</tr></tbody></table>`);
   }
 
-  // ─── SPECIAL NOTE FOR READY LOGO (shown prominently) ───
-  const sizeDataSpecialNote = sizes?.specialNote || (rawSizes?.specialNote);
-  if (sizeDataSpecialNote) {
-    win.document.write(`<div style="margin:10px 0;background:#fef9e7;border:2px solid #f0c040;border-radius:8px;padding:10px 14px">`);
-    win.document.write(`<p style="font-size:18px;font-weight:800;color:#b8860b;margin-bottom:2px"${isUrdu ? ' class="urdu-text"' : ''}>${sec.specialNote}</p>`);
-    win.document.write(`<p style="font-size:20px;font-weight:600;color:#8b6914;font-style:italic"${isUrdu ? ' class="urdu-text"' : ''}>${ru(sizeDataSpecialNote)}</p>`);
-    win.document.write(`</div>`);
-  }
-
   // ─── ENGRAVING / BRANDING ───
   if (orderType !== 'STANDARD' && showEngraving) {
     // Parse order-level outlet engraving fields
