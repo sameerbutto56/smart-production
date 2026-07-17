@@ -1380,14 +1380,14 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   // ─── MEASUREMENTS ───
   if (orderType === 'FULL_CUSTOM' && showMeas) {
     const measItems = isMultiItem ? allItems : [{ productDetails: firstProduct, sizeData: sizes }];
-    const hasAnyMeas = measItems.some(item => {
+    const hasMeasValues = measItems.some(item => {
       const rawS = item.sizeData || sizes || {};
       const s_ = rawS && typeof rawS === 'object' && !Array.isArray(rawS) && Object.values(rawS).some(v => typeof v === 'object' && v !== null && !Array.isArray(v) && !v._extra)
         ? Object.values(rawS).reduce((acc, v) => ({ ...acc, ...v }), {})
         : rawS;
-      return s_.specialNote || Object.entries(s_).some(([k, v]) => v && k !== 'specialNote');
+      return Object.entries(s_).some(([k, v]) => v && k !== 'specialNote');
     });
-    if (hasAnyMeas) {
+    if (hasMeasValues) {
       win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
       measItems.forEach((item, idx) => {
         const p = getItemProduct(item);
@@ -1425,10 +1425,9 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           win.document.write(`<p style="font-size:20px;margin-top:6px;color:#000;font-weight:700">${opts.join(' | ')}</p>`);
         }
         const ic = item.customization ? (typeof item.customization === 'string' ? JSON.parse(item.customization) : item.customization) : custom;
-        const hasAttr = ic?.fitType || p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct || p.additionalProductRef;
+        const hasAttr = p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct || p.additionalProductRef;
         if (hasAttr) {
           win.document.write(`<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">`);
-          if (ic?.fitType) win.document.write(`<span style="font-size:16px;font-weight:700;padding:4px 10px;border-radius:4px;background:#e0e7ff;color:#3730a3;border:1px solid #a5b4fc">${ru(ic.fitType)} ${ru('Fit')}</span>`);
           if (p.fabricSourceProduct) win.document.write(`<span style="font-size:16px;font-weight:700;padding:4px 10px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.fabricSource}: ${ru(p.fabricSourceProduct)}</span>`);
           if (p.colorSourceProduct) win.document.write(`<span style="font-size:16px;font-weight:700;padding:4px 10px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.colorSource}: ${ru(p.colorSourceProduct)}</span>`);
           if (p.designSourceProduct) win.document.write(`<span style="font-size:16px;font-weight:700;padding:4px 10px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.designSource}: ${ru(p.designSourceProduct)}</span>`);
@@ -1436,11 +1435,28 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           if (p.additionalProductRef) win.document.write(`<span style="font-size:16px;font-weight:700;padding:4px 10px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.extra}: ${ru(p.additionalProductRef)}</span>`);
           win.document.write(`</div>`);
         }
-        if (s_.specialNote) {
-          win.document.write(`<div style="margin-top:6px;background:#fef9e7;border:2px solid #f0c040;border-radius:6px;padding:8px 12px"><p style="font-size:18px;font-weight:800;color:#b8860b;margin-bottom:2px"${isUrdu ? ' class="urdu-text"' : ''}>${sec.specialNote}</p><p style="font-size:20px;font-weight:600;color:#8b6914;font-style:italic"${isUrdu ? ' class="urdu-text"' : ''}>${ru(s_.specialNote)}</p></div>`);
-        }
         win.document.write(`</div>`);
       });
+    }
+    // Extract first specialNote from sizeData (any product)
+    const measSpecialNote = (() => {
+      for (const item of measItems) {
+        const rawS = item.sizeData || sizes || {};
+        const s_ = rawS && typeof rawS === 'object' && !Array.isArray(rawS) && Object.values(rawS).some(v => typeof v === 'object' && v !== null && !Array.isArray(v) && !v._extra)
+          ? Object.values(rawS).reduce((acc, v) => ({ ...acc, ...v }), {})
+          : rawS;
+        if (s_.specialNote) return s_.specialNote;
+      }
+      return null;
+    })();
+    if (measSpecialNote) {
+      if (!hasMeasValues) {
+        win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
+      }
+      win.document.write(`<div style="margin-top:8px;background:#fef9e7;border:2px solid #f0c040;border-radius:8px;padding:10px 14px">`);
+      win.document.write(`<p style="font-size:18px;font-weight:800;color:#b8860b;margin-bottom:4px"${isUrdu ? ' class="urdu-text"' : ''}>${sec.specialNote}:</p>`);
+      win.document.write(`<p style="font-size:20px;font-weight:600;color:#8b6914;font-style:italic"${isUrdu ? ' class="urdu-text"' : ''}>${ru(measSpecialNote)}</p>`);
+      win.document.write(`</div>`);
     }
   }
 
