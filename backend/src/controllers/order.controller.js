@@ -3244,12 +3244,21 @@ const trackOrder = async (req, res) => {
   try {
     const orderNumber = (req.params.orderNumber || '').trim();
     if (!orderNumber) return res.status(400).json({ message: 'Order number is required' });
-    const order = await prisma.order.findUnique({
+    let order = await prisma.order.findUnique({
       where: { orderNumber },
       include: {
         stages: { orderBy: { createdAt: 'asc' } }
       }
     });
+    if (!order) {
+      const matches = await prisma.order.findMany({
+        where: { orderNumber: { contains: orderNumber } },
+        include: { stages: { orderBy: { createdAt: 'asc' } } },
+        orderBy: { createdAt: 'desc' },
+        take: 1
+      });
+      order = matches[0] || null;
+    }
     if (!order) return res.status(404).json({ message: 'Order not found' });
     res.json(order);
   } catch (error) {
