@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Bug } from 'lucide-react';
 
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -35,8 +35,14 @@ export default class ErrorBoundary extends React.Component {
             <h2 className="text-lg font-black text-white mb-2 text-center">Something went wrong</h2>
             <p className="text-sm text-gray-400 mb-4 font-medium text-center">Please refresh the page to continue.</p>
             {err && (
-              <div className="mb-4 bg-gray-950 rounded-lg p-3 border border-gray-800">
+              <div className="mb-4 bg-gray-950 rounded-lg p-3 border border-gray-800 max-h-48 overflow-y-auto">
                 <p className="text-xs text-red-400 font-mono break-all">{err.message}</p>
+                {err.stack && (
+                  <details className="mt-2">
+                    <summary className="text-[10px] text-gray-500 cursor-pointer hover:text-gray-300 flex items-center gap-1"><Bug size={10} /> Stack</summary>
+                    <pre className="text-[9px] text-gray-500 font-mono mt-1 whitespace-pre-wrap break-all">{err.stack}</pre>
+                  </details>
+                )}
               </div>
             )}
             <button

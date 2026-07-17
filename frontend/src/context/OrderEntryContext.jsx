@@ -500,10 +500,10 @@ export const OrderEntryProvider = ({ children }) => {
   }, [cartItems, isSubmitting, formData, resetFormData]);
 
   // Derived data
-  const productCategories = useMemo(() =>
-    [...new Set(inventory.filter(i => i.category && i.category !== 'FABRIC' && i.category !== 'COLOR').map(i => i.category))],
-    [inventory]
-  );
+  const productCategories = useMemo(() => {
+    try { if (Array.isArray(inventory)) return [...new Set(inventory.filter(i => i.category && i.category !== 'FABRIC' && i.category !== 'COLOR').map(i => i.category))]; } catch (e) { console.error('productCategories:', e); }
+    return [];
+  }, [inventory]);
 
   const isAccessory = useCallback((cat) => {
     if (!cat) return false;
@@ -519,12 +519,12 @@ export const OrderEntryProvider = ({ children }) => {
 
   const isShoes = useCallback((cat) => cat?.toUpperCase() === 'SHOES', []);
 
-  const productsInCategory = useMemo(() =>
-    inventory.filter(i => i.category === selectedProductCategory).sort((a, b) => a.name.localeCompare(b.name)),
-    [inventory, selectedProductCategory]
-  );
+  const productsInCategory = useMemo(() => {
+    try { if (Array.isArray(inventory)) return inventory.filter(i => i.category === selectedProductCategory).sort((a, b) => a.name.localeCompare(b.name)); } catch (e) { console.error('productsInCategory:', e); }
+    return [];
+  }, [inventory, selectedProductCategory]);
 
-  const uniqueProductNames = useMemo(() => [...new Set(productsInCategory.map(i => i.name))], [productsInCategory]);
+  const uniqueProductNames = useMemo(() => { try { return productsInCategory && productsInCategory.length > 0 ? [...new Set(productsInCategory.map(i => i.name))] : []; } catch (e) { console.error('uniqueProductNames:', e); return []; } }, [productsInCategory]);
 
   const selectedProduct = useMemo(() =>
     formData.productType ? productsInCategory.find(i => i.name === formData.productType) : null,
@@ -550,19 +550,21 @@ export const OrderEntryProvider = ({ children }) => {
     return formData.type === 'FULL_CUSTOM' ? [...base, 'Custom'] : base;
   }, [formData.type]);
 
-  const colors = useMemo(() =>
-    formData.productType && selectedProductVariants.length > 0
-      ? [...new Set(selectedProductVariants.filter(v => v.color != null && v.color !== '').map(v => v.color))]
-      : [],
-    [formData.productType, selectedProductVariants]
-  );
+  const colors = useMemo(() => {
+    try {
+      if (formData.productType && selectedProductVariants && selectedProductVariants.length > 0)
+        return [...new Set(selectedProductVariants.filter(v => v.color != null && v.color !== '').map(v => v.color))];
+    } catch (e) { console.error('colors memo:', e); }
+    return [];
+  }, [formData.productType, selectedProductVariants]);
 
-  const availableSizes = useMemo(() =>
-    formData.productType && selectedProductVariants.length > 0
-      ? [...new Set(selectedProductVariants.filter(v => v.size != null && v.size !== '').map(v => v.size))]
-      : [],
-    [formData.productType, selectedProductVariants]
-  );
+  const availableSizes = useMemo(() => {
+    try {
+      if (formData.productType && selectedProductVariants && selectedProductVariants.length > 0)
+        return [...new Set(selectedProductVariants.filter(v => v.size != null && v.size !== '').map(v => v.size))];
+    } catch (e) { console.error('availableSizes memo:', e); }
+    return [];
+  }, [formData.productType, selectedProductVariants]);
 
   const computedUnitPrice = useMemo(() => {
     if (!selectedProduct) return 0;
@@ -578,14 +580,14 @@ export const OrderEntryProvider = ({ children }) => {
 
   const computedTotalPrice = useMemo(() => computedUnitPrice * (formData.quantity || 1), [computedUnitPrice, formData.quantity]);
 
-  // Cart memos
-  const memoCartTotalItems = useMemo(() => cartItems.reduce((s, i) => s + (parseInt(i.quantity) || 1), 0), [cartItems]);
-  const memoCartTotalPrice = useMemo(() => cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0), [cartItems]);
-  const memoCartTotalLogoCharges = useMemo(() => cartItems.reduce((s, i) => s + (parseFloat(i.logoCharges) || 0), 0), [cartItems]);
-  const memoCartTotalNamePrinting = useMemo(() => cartItems.reduce((s, i) => s + (parseFloat(i.namePrintingCharges) || 0), 0), [cartItems]);
-  const memoCartTotalCustomization = useMemo(() => cartItems.reduce((s, i) => s + (parseFloat(i.customizationPrice) || 0), 0), [cartItems]);
-  const memoCartProductPriceExBranding = useMemo(() => cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) - parseFloat(i.logoCharges || 0) - parseFloat(i.namePrintingCharges || 0) - parseFloat(i.customizationPrice || 0) - (parseInt(i.capCharges) || 0)), 0), [cartItems]);
-  const memoCartTotalCap = useMemo(() => cartItems.reduce((s, i) => s + (parseInt(i.capCharges) || 0), 0), [cartItems]);
+  // Cart memos (defensive: try-catch each to prevent crash on unexpected data)
+  const memoCartTotalItems = useMemo(() => { try { return cartItems.reduce((s, i) => s + (parseInt(i.quantity) || 1), 0); } catch (e) { console.error('memoCartTotalItems:', e); return 0; } }, [cartItems]);
+  const memoCartTotalPrice = useMemo(() => { try { return cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0); } catch (e) { console.error('memoCartTotalPrice:', e); return 0; } }, [cartItems]);
+  const memoCartTotalLogoCharges = useMemo(() => { try { return cartItems.reduce((s, i) => s + (parseFloat(i.logoCharges) || 0), 0); } catch (e) { console.error('memoCartTotalLogoCharges:', e); return 0; } }, [cartItems]);
+  const memoCartTotalNamePrinting = useMemo(() => { try { return cartItems.reduce((s, i) => s + (parseFloat(i.namePrintingCharges) || 0), 0); } catch (e) { console.error('memoCartTotalNamePrinting:', e); return 0; } }, [cartItems]);
+  const memoCartTotalCustomization = useMemo(() => { try { return cartItems.reduce((s, i) => s + (parseFloat(i.customizationPrice) || 0), 0); } catch (e) { console.error('memoCartTotalCustomization:', e); return 0; } }, [cartItems]);
+  const memoCartProductPriceExBranding = useMemo(() => { try { return cartItems.reduce((s, i) => s + (parseFloat(i.totalPrice) - parseFloat(i.logoCharges || 0) - parseFloat(i.namePrintingCharges || 0) - parseFloat(i.customizationPrice || 0) - (parseInt(i.capCharges) || 0)), 0); } catch (e) { console.error('memoCartProductPriceExBranding:', e); return 0; } }, [cartItems]);
+  const memoCartTotalCap = useMemo(() => { try { return cartItems.reduce((s, i) => s + (parseInt(i.capCharges) || 0), 0); } catch (e) { console.error('memoCartTotalCap:', e); return 0; } }, [cartItems]);
   const memoOrderTotalBeforeDelivery = useMemo(() => memoCartProductPriceExBranding + memoCartTotalCustomization + memoCartTotalCap, [memoCartProductPriceExBranding, memoCartTotalCustomization, memoCartTotalCap]);
   const memoCalcDelivery = useMemo(() => memoOrderTotalBeforeDelivery > 7000 ? 0 : 250, [memoOrderTotalBeforeDelivery]);
   const memoIsFreeDelivery = useMemo(() => memoCartTotalPrice > 7000, [memoCartTotalPrice]);

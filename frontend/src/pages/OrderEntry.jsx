@@ -14,6 +14,21 @@ import SizeChartTab from '../components/SizeChartTab';
 
 const TAB_ICONS = { Layout, ShoppingCart, Scissors, Ruler };
 
+class SectionErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  componentDidCatch(error, errorInfo) { console.error('SectionErrorBoundary['+this.props.name+']:', error, errorInfo); }
+  render() {
+    if (this.state.hasError) {
+      return <div className="bg-red-900/20 border border-red-500/30 rounded-xl p-4 m-2"><p className="text-xs text-red-400 font-mono">Error in {this.props.name}: {this.state.error?.message}</p></div>;
+    }
+    return this.props.children;
+  }
+}
+
 const SmartOrderForm = () => {
   const {
     activeTab, setActiveTab, dataLoading, loading, error, success, isSubmitting,
@@ -357,6 +372,7 @@ const SmartOrderForm = () => {
                 )}
                 {/* Products Section */}
                 {(cartItems || []).length > 0 && (
+                  <SectionErrorBoundary name="review-products">
                   <div className="theme-bg border border-purple-500/20 rounded-2xl p-5">
                     <h3 className="text-xs md:text-sm font-black text-purple-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
                       <ShoppingCart size={12} /> {useUrdu ? 'پروڈکٹس' : 'Products'} ({(cartItems || []).length})
@@ -454,6 +470,7 @@ const SmartOrderForm = () => {
                       })}
                     </div>
                   </div>
+                  </SectionErrorBoundary>
                 )}
                 {(() => {
                   const calcProductPrice = memoCartProductPriceExBranding;
