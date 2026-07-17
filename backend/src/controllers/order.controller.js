@@ -3247,8 +3247,7 @@ const trackOrder = async (req, res) => {
     const order = await prisma.order.findUnique({
       where: { orderNumber },
       include: {
-        stages: { orderBy: { createdAt: 'asc' } },
-        routingHistory: { orderBy: { createdAt: 'asc' }, include: { sentByUser: { select: { name: true } } } }
+        stages: { orderBy: { createdAt: 'asc' } }
       }
     });
     if (!order) return res.status(404).json({ message: 'Order not found' });
