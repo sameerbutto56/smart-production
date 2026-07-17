@@ -379,7 +379,8 @@ const OutletOrderEntry = () => {
         engravingLogos: engravingLogos.length > 0 ? engravingLogos : null,
         sizeData: Object.keys(sizeData).length > 0 ? sizeData : null,
         advanceAmount: advance,
-        orderDestination: destination
+        orderDestination: destination,
+        placedBy: localStorage.getItem('faisalEmployee') || null
       };
       const res = await api.post('/api/outlet-orders', payload);
       setCreatedOrder(res.data);

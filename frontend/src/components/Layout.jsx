@@ -30,6 +30,10 @@ import {
   FileText,
   MessageCircle,
   StickyNote,
+  UserCheck,
+  Lock,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import socket from '../socket';
@@ -265,6 +269,11 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
   );
 });
 
+const FAISAL_EMPLOYEES = {
+  Faisal: { password: 'F170', label: 'Faisal' },
+  Khawar: { password: 'K170', label: 'Khawar' }
+};
+
 const Layout = () => {
   const navigate = useNavigate();
   const { t, LanguageToggle, isUrdu } = useLanguage();
@@ -273,6 +282,34 @@ const Layout = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { user } = useAuth();
   const [systemPaused, setSystemPaused] = useState(false);
+
+  // Faisal employee login
+  const [faisalEmployee, setFaisalEmployee] = useState(() => localStorage.getItem('faisalEmployee') || '');
+  const [faisalPwd, setFaisalPwd] = useState('');
+  const [faisalShowPwd, setFaisalShowPwd] = useState(false);
+  const [faisalLoggedIn, setFaisalLoggedIn] = useState(() => !!localStorage.getItem('faisalEmployee'));
+  const [faisalLoginLoading, setFaisalLoginLoading] = useState(false);
+
+  const handleFaisalLogin = () => {
+    const emp = FAISAL_EMPLOYEES[faisalEmployee];
+    if (!emp) { toast.error('Please select an employee'); return; }
+    if (faisalPwd !== emp.password) { toast.error('Invalid password'); return; }
+    setFaisalLoginLoading(true);
+    setTimeout(() => {
+      setFaisalLoggedIn(true);
+      setFaisalPwd('');
+      localStorage.setItem('faisalEmployee', faisalEmployee);
+      toast.success(`Logged in as ${emp.label}`);
+      setFaisalLoginLoading(false);
+    }, 400);
+  };
+
+  const handleFaisalLogout = () => {
+    setFaisalLoggedIn(false);
+    setFaisalEmployee('');
+    setFaisalPwd('');
+    localStorage.removeItem('faisalEmployee');
+  };
 
   useEffect(() => {
     if (user?.role) {
@@ -368,6 +405,79 @@ const Layout = () => {
     };
   }, []);
 
+  if (user?.role === 'FAISAL' && !faisalLoggedIn) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'var(--background)', color: 'var(--text-primary)' }}>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-md"
+        >
+          <div className="rounded-2xl p-8" style={{ background: 'var(--card-bg-solid)', border: '1px solid var(--glass-border)' }}>
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-blue-500/10 flex items-center justify-center">
+                <UserCheck className="text-blue-400" size={32} />
+              </div>
+              <h1 className="text-3xl font-black text-white uppercase tracking-tight">Faisal Profile</h1>
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mt-2">Employee Login</p>
+            </div>
+            <div className="space-y-5">
+              <div>
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2 block">Select Employee</label>
+                <select
+                  value={faisalEmployee}
+                  onChange={(e) => { setFaisalEmployee(e.target.value); setFaisalPwd(''); }}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl py-3 px-4 text-white focus:border-blue-500 outline-none font-black appearance-none"
+                >
+                  <option value="">— Select Employee —</option>
+                  {Object.entries(FAISAL_EMPLOYEES).map(([key, emp]) => (
+                    <option key={key} value={key}>{emp.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2 block">Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                  <input
+                    type={faisalShowPwd ? 'text' : 'password'}
+                    value={faisalPwd}
+                    onChange={(e) => setFaisalPwd(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleFaisalLogin(); }}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl py-3 pl-12 pr-12 text-white focus:border-blue-500 outline-none font-black"
+                    placeholder="Enter password..."
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setFaisalShowPwd(!faisalShowPwd)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+                  >
+                    {faisalShowPwd ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+              <button
+                onClick={handleFaisalLogin}
+                disabled={faisalLoginLoading || !faisalEmployee || !faisalPwd}
+                className="w-full py-3 rounded-xl font-black text-sm uppercase tracking-widest transition-all bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {faisalLoginLoading ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                ) : (
+                  <LogOut className="rotate-180" size={16} />
+                )}
+                Login as {faisalEmployee || 'Employee'}
+              </button>
+            </div>
+            <div className="mt-6 pt-6 border-t border-gray-800">
+              <p className="text-xs font-bold text-gray-500 text-center">Secure Faisal profile access</p>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: 'var(--background)', color: 'var(--text-primary)' }}>
       <Sidebar 
@@ -414,6 +524,17 @@ const Layout = () => {
           </div>
 
           <div className="flex items-center gap-3">
+            {user?.role === 'FAISAL' && (
+              <button
+                onClick={handleFaisalLogout}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest bg-red-600/20 text-red-400 hover:bg-red-600/30 transition-all"
+                title="Switch Employee"
+              >
+                <UserCheck size={14} />
+                {faisalEmployee}
+                <LogOut size={14} />
+              </button>
+            )}
             <LanguageToggle />
             <div className="hidden md:flex flex-col items-end text-right">
               <span className="text-xs md:text-sm font-black text-white uppercase tracking-widest">{user?.role?.replace('_', ' ')}</span>

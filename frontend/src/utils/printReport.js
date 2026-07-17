@@ -1150,6 +1150,14 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   }
   win.document.write(`</div>`);
 
+  // ─── ORDER PLACED BY ───
+  if (order.placedBy) {
+    const placedLabel = isUrdu ? 'آرڈر کس نے دیا:' : 'Order Placed By:';
+    win.document.write(`<div style="background:#dbeafe;border:1px solid #93c5fd;border-radius:6px;padding:5px 10px;margin-bottom:8px;text-align:center">`);
+    win.document.write(`<span style="font-size:18px;font-weight:900;color:#1e40af">${placedLabel} ${order.placedBy}</span>`);
+    win.document.write(`</div>`);
+  }
+
   // ─── OUTLET SOURCE LABEL ───
   if (order.source === 'OUTLET' && order.outletName) {
     win.document.write(`<div style="background:#7c3aed10;border:2px solid #7c3aed40;border-radius:6px;padding:6px 12px;margin-bottom:8px;text-align:center">`);

@@ -101,8 +101,9 @@ model Order {
   grossProfit      Float?     @default(0)
    netProfit        Float?     @default(0)
    customerTakenAt  DateTime?
-   orderTakenBy     String?
-   auditLogs       AuditLog[]
+    orderTakenBy     String?
+    placedBy         String?
+    auditLogs       AuditLog[]
    stages          OrderStage[]
    editRequests    OrderEditRequest[]
    deliveryAttempts DeliveryAttempt[]

@@ -469,6 +469,7 @@ export const OrderEntryProvider = ({ children }) => {
       const orderTotalBeforeDelivery = calcProductPrice + calcLogo + calcName + calcCustomization + calcCap;
       const calcDelivery = orderTotalBeforeDelivery > 7000 ? 0 : 250;
       const adjTotal = (parseFloat(formData.adjProductPrice) || calcProductPrice) + (parseFloat(formData.adjLogoCharges) || calcLogo) + (parseFloat(formData.adjNamePrinting) || calcName) + (parseFloat(formData.adjCustomization) || calcCustomization) + (parseFloat(formData.adjCapCharges) || calcCap) + calcDelivery - (parseFloat(formData.adjDiscount) || 0);
+      const faisalEmp = localStorage.getItem('faisalEmployee') || null;
       await api.post('/api/orders', {
         orderNumber: firstItem.orderNumber, customerName: firstItem.customerName,
         customerPhone: firstItem.customerPhone, address: firstItem.address, city: firstItem.city,
@@ -484,7 +485,8 @@ export const OrderEntryProvider = ({ children }) => {
         customization: finalItems[0].customization, sizeData: finalItems[0].sizeData,
         quantity: finalItems.reduce((sum, item) => sum + (item.quantity || 1), 0),
         totalPrice: adjTotal, instructionNotes: formData.instructionNotes || '',
-        shopifyOrderDate: formData.shopifyOrderDate || null
+        shopifyOrderDate: formData.shopifyOrderDate || null,
+        placedBy: faisalEmp
       });
       setCartItems([]); setSuccess(true);
       resetFormData();

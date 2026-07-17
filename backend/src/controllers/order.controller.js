@@ -217,7 +217,7 @@ const createProductionRecordFromOrder = async (order, stageCompleted) => {
 
 
 const createOrder = async (req, res) => {
-  const { orderNumber: requestedOrderNumber, customerName, customerPhone, address, city, type, urgent, priority, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, advanceAmount, shopifyOrderId, paymentDeadline, productImage, items, paymentStatus, deliveryCharges, instructionNotes, shopifyOrderDate } = req.body;
+  const { orderNumber: requestedOrderNumber, customerName, customerPhone, address, city, type, urgent, priority, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, advanceAmount, shopifyOrderId, paymentDeadline, productImage, items, paymentStatus, deliveryCharges, instructionNotes, shopifyOrderDate, placedBy } = req.body;
 
   // Derive priority and urgent
   const finalPriority = priority || (urgent ? 'URGENT' : 'NORMAL');
@@ -393,6 +393,7 @@ const createOrder = async (req, res) => {
         totalPrice: finalTotalPrice,
         shopifyOrderId,
         paymentDeadline: paymentDeadline ? new Date(paymentDeadline) : (type === 'READY_LOGO' ? new Date(Date.now() + 48 * 60 * 60 * 1000) : null),
+        placedBy: placedBy || null,
         currentStage: 'ORDER_ENTRY',
         status: initialStatus
       }

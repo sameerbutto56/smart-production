@@ -33,7 +33,7 @@ const DESTINATION_STAGES = {
 
 const createOutletOrder = async (req, res) => {
   try {
-    const { orderNumber: customOrderNumber, clientNumber, customerName, customerPhone, address, city, notes, products, engravingRequired, engravingText, engravingType, engravingInstructions, logoRequired, engravingNames, engravingLogos, sizeData, advanceAmount, orderDestination } = req.body;
+    const { orderNumber: customOrderNumber, clientNumber, customerName, customerPhone, address, city, notes, products, engravingRequired, engravingText, engravingType, engravingInstructions, logoRequired, engravingNames, engravingLogos, sizeData, advanceAmount, orderDestination, placedBy } = req.body;
 
     if (!customerName) return res.status(400).json({ message: 'Customer name is required' });
     if (!products || !Array.isArray(products) || products.length === 0) return res.status(400).json({ message: 'At least one product is required' });
@@ -79,6 +79,7 @@ const createOutletOrder = async (req, res) => {
           engravingNames: engravingNames ? JSON.stringify(engravingNames) : null,
           engravingLogos: engravingLogos ? JSON.stringify(engravingLogos) : null,
           orderDestination,
+          placedBy: placedBy || null,
           advanceAmount: adv,
           totalPrice,
           paymentStatus: adv > 0 ? 'PAID' : 'PENDING',
