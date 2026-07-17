@@ -54,7 +54,7 @@ const SmartOrderForm = () => {
             </button>
           )}
           <div className="flex p-1.5 theme-bg backdrop-blur-3xl rounded-[1.8rem] border-2 theme-border shadow-2xl overflow-x-auto no-scrollbar">
-            {filteredTabs.map((tab) => {
+            {(filteredTabs || []).map((tab) => {
               const Icon = TAB_ICONS[tab.icon] || Layout;
               return (
                 <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)}
@@ -274,31 +274,31 @@ const SmartOrderForm = () => {
       {!isEditMode && (
         <>
           <AnimatePresence>
-            {cartItems.length > 0 && !isCartOpen && (
+            {(cartItems || []).length > 0 && !isCartOpen && (
               <motion.button initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                 onClick={() => setIsCartOpen(true)}
                 className="fixed bottom-6 right-6 md:bottom-8 md:right-8 bg-blue-600 text-white p-4 rounded-full shadow-[0_10px_30px_rgba(37,99,235,0.4)] z-50 flex items-center justify-center border-2 border-blue-400/30 backdrop-blur-md">
                 <div className="relative">
                   <ShoppingCart size={28} />
-                  <span className="absolute -top-3 -right-3 bg-pink-500 text-white text-xs md:text-sm font-black w-6 h-6 flex items-center justify-center rounded-full border-2 border-gray-900 shadow-lg">{cartItems.length}</span>
+                  <span className="absolute -top-3 -right-3 bg-pink-500 text-white text-xs md:text-sm font-black w-6 h-6 flex items-center justify-center rounded-full border-2 border-gray-900 shadow-lg">{(cartItems || []).length}</span>
                 </div>
               </motion.button>
             )}
           </AnimatePresence>
           <AnimatePresence>
-            {cartItems.length > 0 && isCartOpen && (
+            {(cartItems || []).length > 0 && isCartOpen && (
               <motion.div initial={{ y: 150, opacity: 0, scale: 0.9 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 150, opacity: 0, scale: 0.9 }}
                 className="fixed bottom-4 right-4 left-4 md:left-auto md:bottom-8 md:right-8 theme-bg backdrop-blur-3xl border-2 theme-border p-6 rounded-[2.5rem] shadow-[0_30px_60px_rgba(0,0,0,0.6)] z-50 md:w-[400px]">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center space-x-3">
                     <div className="bg-blue-500/20 p-2.5 rounded-2xl"><ShoppingCart className="text-blue-500" size={16} /></div>
                     <h3 className="text-xl font-black theme-text-primary tracking-tight">Your Cart</h3>
-                    <span className="bg-gray-800 text-gray-300 text-xs md:text-sm font-black px-3 py-1.5 rounded-full ml-2">{cartItems.length} Items</span>
+                    <span className="bg-gray-800 text-gray-300 text-xs md:text-sm font-black px-3 py-1.5 rounded-full ml-2">{(cartItems || []).length} Items</span>
                   </div>
                   <button onClick={() => setIsCartOpen(false)} className="theme-text-muted hover:text-white hover:bg-gray-800 p-2 rounded-full transition-all active:scale-95"><X size={16} /></button>
                 </div>
                 <div className="max-h-60 overflow-y-auto pr-2 space-y-3 custom-scrollbar mb-6">
-                  {cartItems.map((item, idx) => (
+                  {(cartItems || []).map((item, idx) => (
                     <div key={idx} className="theme-bg-subtle p-4 rounded-2xl flex justify-between items-center border theme-border hover:border-gray-700 transition-colors">
                       <div className="flex-1 min-w-0 pr-4">
                         <p className="text-sm font-black theme-text-primary truncate">{item.productDetails?.productType || 'Custom Item'}</p>
@@ -356,13 +356,13 @@ const SmartOrderForm = () => {
                   </div>
                 )}
                 {/* Products Section */}
-                {cartItems.length > 0 && (
+                {(cartItems || []).length > 0 && (
                   <div className="theme-bg border border-purple-500/20 rounded-2xl p-5">
                     <h3 className="text-xs md:text-sm font-black text-purple-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                      <ShoppingCart size={12} /> {useUrdu ? 'پروڈکٹس' : 'Products'} ({cartItems.length})
+                      <ShoppingCart size={12} /> {useUrdu ? 'پروڈکٹس' : 'Products'} ({(cartItems || []).length})
                     </h3>
                     <div className="space-y-3">
-                      {cartItems.map((item, idx) => {
+                      {(cartItems || []).map((item, idx) => {
                         const pd = item.productDetails || {};
                         const cust = item.customization || {};
                         const hasCust = cust.nameSpelling || cust.fitType || cust.designNotes || item.logoName || item.logoDesign || cust.logos || cust.engravingType;
@@ -410,7 +410,7 @@ const SmartOrderForm = () => {
                                       <div className="bg-purple-500/5 rounded-lg p-2 border border-purple-500/10">
                                         <p className="text-[9px] text-purple-400 font-black uppercase tracking-widest mb-1">Name Lines</p>
                                         <div className="flex flex-wrap gap-1.5">
-                                          {cust.articleNames?.length > 0 ? (
+                                          {Array.isArray(cust.articleNames) && cust.articleNames.length > 0 ? (
                                             cust.articleNames.map((an, ai) => (
                                               <span key={ai} className="text-xs font-black text-purple-300 bg-purple-900/30 px-2 py-0.5 rounded border border-purple-500/20">
                                                 {cust.nameSpelling?.includes(',') ? `Line ${ai + 1}: ${an}` : an}
@@ -432,9 +432,9 @@ const SmartOrderForm = () => {
                                         {item.logoName && <span className="text-[10px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Logo: {item.logoName}</span>}
                                       </div>
                                     )}
-                                    {cust.logos?.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).length > 0 && (
+                                    {Array.isArray(cust.logos) && cust.logos.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).length > 0 && (
                                       <div className="flex flex-wrap gap-1.5">
-                                        {cust.logos.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).map((l, li) => (
+                                        {(cust.logos || []).filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).map((l, li) => (
                                           <span key={li} className="text-[10px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">{l.name || l.design}</span>
                                         ))}
                                       </div>
