@@ -399,68 +399,6 @@ export const OrderEntryProvider = ({ children }) => {
   const capUnitPrice = 500;
   const capCharges = (formData.matchingCap ? (formData.matchingCapQty || 0) : 0) * capUnitPrice;
 
-  const handleAddToCart = useCallback(() => {
-    const validationError = validateProductConfig();
-    if (validationError) { setError(validationError); return; }
-    const hasEngravingName = articleNameEntries.some(name => name.trim().length > 0);
-    const nameEngravingCharges = formData.type === 'STANDARD' ? 0 : ((formData.skipEngraving || !hasEngravingName) ? 0 : 300) * (parseInt(formData.quantity) || 1);
-    const brandingTotal = (parseFloat(formData.logoCharges) || 0) + nameEngravingCharges + (parseFloat(formData.customizationPrice) || 0);
-    const computedTotalPriceCalc = (() => {
-      if (!selectedProduct) return 0;
-      const price = selectedProduct.price || 0;
-      if (selectedProductVariants.length > 0) {
-        const match = selectedProductVariants.find(v =>
-          (!formData.color || v.color === formData.color) && (!formData.size || v.size === formData.size)
-        );
-        return (match?.price || price) * (formData.quantity || 1);
-      }
-      return price * (formData.quantity || 1);
-    })();
-    const payload = {
-      orderNumber: formData.orderNumber, customerName: formData.customerName, customerPhone: formData.customerPhone,
-      address: formData.address, city: formData.city, type: formData.type, priority: formData.priority,
-      quantity: parseInt(formData.quantity) || 1, advancePaid: formData.advancePaid,
-      advanceAmount: parseFloat(formData.advanceAmount) || 0, paymentStatus: formData.paymentStatus,
-      logoDesign: formData.logoDesign, logoName: formData.logoName,
-      logoCharges: parseFloat(formData.logoCharges) || 0,
-      namePrintingCharges: nameEngravingCharges,
-      customizationPrice: parseFloat(formData.customizationPrice) || 0,
-      productDetails: {
-        productType: formData.productType || formData.customProductName,
-        fabricType: formData.fabricType || formData.customFabric,
-        color: formData.color || formData.customColor, size: formData.size, gender: formData.gender,
-        femaleOptions: formData.femaleOptions, sleeveLength: formData.sleeveLength || '',
-        shirtLength: formData.shirtLength || '', matchingCap: formData.matchingCap,
-        matchingCapQty: formData.matchingCapQty,
-        fabricSourceProduct: formData.fabricSourceProduct || formData.customFabric,
-        colorSourceProduct: formData.colorSourceProduct || formData.customColor,
-        designSourceProduct: formData.designSourceProduct || formData.customDesign,
-        sizeSourceProduct: formData.sizeSourceProduct,
-        additionalProductRef: formData.additionalProductRef || formData.customRequirements,
-        customMaterial: formData.customMaterial, customSpecifications: formData.customSpecifications,
-        alteration: formData.alteration ? {
-          trouserLength: formData.alteration.trouserLength || '',
-          shirtLength: formData.alteration.shirtLength || '',
-          sleeveLength: formData.alteration.sleeveLength || ''
-        } : { trouserLength: '', shirtLength: '', sleeveLength: '' }
-      },
-      customization: {
-        nameSpelling: articleNameEntries.filter(Boolean).join(', '), articleNames: articleNameEntries,
-        nameColor: formData.nameColor, logoColor: formData.logoColor, logoPlacement: formData.logoPlacement,
-        fitType: formData.fitType, designNotes: formData.designNotes, designReference: formData.designReference,
-        additionalFeatures: formData.additionalFeatures, logos: logoEntries,
-        engravingType: formData.engravingType || '', skipEngraving: formData.skipEngraving || false
-      },
-      sizeData: formData.measurements, capCharges,
-      totalPrice: (computedTotalPriceCalc > 0 ? computedTotalPriceCalc : (parseFloat(formData.totalPrice) || 0)) + brandingTotal + capCharges
-    };
-    setCartItems(prev => [...prev, payload]);
-    setFormData(prev => ({ ...prev, ...CLEAR_FORM_AFTER_CART }));
-    setLogoEntries([{ name: '', design: '' }]);
-    setArticleNameEntries(['']);
-    setShowAddMore(true);
-  }, [formData, selectedProduct, selectedProductVariants, articleNameEntries, logoEntries, validateProductConfig, capCharges]);
-
   const removeCartItem = useCallback((idx) => {
     setCartItems(prev => prev.filter((_, i) => i !== idx));
   }, []);
@@ -651,6 +589,68 @@ export const OrderEntryProvider = ({ children }) => {
   const memoOrderTotalBeforeDelivery = useMemo(() => memoCartProductPriceExBranding + memoCartTotalCustomization + memoCartTotalCap, [memoCartProductPriceExBranding, memoCartTotalCustomization, memoCartTotalCap]);
   const memoCalcDelivery = useMemo(() => memoOrderTotalBeforeDelivery > 7000 ? 0 : 250, [memoOrderTotalBeforeDelivery]);
   const memoIsFreeDelivery = useMemo(() => memoCartTotalPrice > 7000, [memoCartTotalPrice]);
+
+  const handleAddToCart = useCallback(() => {
+    const validationError = validateProductConfig();
+    if (validationError) { setError(validationError); return; }
+    const hasEngravingName = articleNameEntries.some(name => name.trim().length > 0);
+    const nameEngravingCharges = formData.type === 'STANDARD' ? 0 : ((formData.skipEngraving || !hasEngravingName) ? 0 : 300) * (parseInt(formData.quantity) || 1);
+    const brandingTotal = (parseFloat(formData.logoCharges) || 0) + nameEngravingCharges + (parseFloat(formData.customizationPrice) || 0);
+    const computedTotalPriceCalc = (() => {
+      if (!selectedProduct) return 0;
+      const price = selectedProduct.price || 0;
+      if (selectedProductVariants.length > 0) {
+        const match = selectedProductVariants.find(v =>
+          (!formData.color || v.color === formData.color) && (!formData.size || v.size === formData.size)
+        );
+        return (match?.price || price) * (formData.quantity || 1);
+      }
+      return price * (formData.quantity || 1);
+    })();
+    const payload = {
+      orderNumber: formData.orderNumber, customerName: formData.customerName, customerPhone: formData.customerPhone,
+      address: formData.address, city: formData.city, type: formData.type, priority: formData.priority,
+      quantity: parseInt(formData.quantity) || 1, advancePaid: formData.advancePaid,
+      advanceAmount: parseFloat(formData.advanceAmount) || 0, paymentStatus: formData.paymentStatus,
+      logoDesign: formData.logoDesign, logoName: formData.logoName,
+      logoCharges: parseFloat(formData.logoCharges) || 0,
+      namePrintingCharges: nameEngravingCharges,
+      customizationPrice: parseFloat(formData.customizationPrice) || 0,
+      productDetails: {
+        productType: formData.productType || formData.customProductName,
+        fabricType: formData.fabricType || formData.customFabric,
+        color: formData.color || formData.customColor, size: formData.size, gender: formData.gender,
+        femaleOptions: formData.femaleOptions, sleeveLength: formData.sleeveLength || '',
+        shirtLength: formData.shirtLength || '', matchingCap: formData.matchingCap,
+        matchingCapQty: formData.matchingCapQty,
+        fabricSourceProduct: formData.fabricSourceProduct || formData.customFabric,
+        colorSourceProduct: formData.colorSourceProduct || formData.customColor,
+        designSourceProduct: formData.designSourceProduct || formData.customDesign,
+        sizeSourceProduct: formData.sizeSourceProduct,
+        additionalProductRef: formData.additionalProductRef || formData.customRequirements,
+        customMaterial: formData.customMaterial, customSpecifications: formData.customSpecifications,
+        alteration: formData.alteration ? {
+          trouserLength: formData.alteration.trouserLength || '',
+          shirtLength: formData.alteration.shirtLength || '',
+          sleeveLength: formData.alteration.sleeveLength || ''
+        } : { trouserLength: '', shirtLength: '', sleeveLength: '' }
+      },
+      customization: {
+        nameSpelling: articleNameEntries.filter(Boolean).join(', '), articleNames: articleNameEntries,
+        nameColor: formData.nameColor, logoColor: formData.logoColor, logoPlacement: formData.logoPlacement,
+        fitType: formData.fitType, designNotes: formData.designNotes, designReference: formData.designReference,
+        additionalFeatures: formData.additionalFeatures, logos: logoEntries,
+        engravingType: formData.engravingType || '', skipEngraving: formData.skipEngraving || false
+      },
+      sizeData: formData.measurements, capCharges,
+      totalPrice: (computedTotalPriceCalc > 0 ? computedTotalPriceCalc : (parseFloat(formData.totalPrice) || 0)) + brandingTotal + capCharges
+    };
+    setCartItems(prev => [...prev, payload]);
+    setFormData(prev => ({ ...prev, ...CLEAR_FORM_AFTER_CART }));
+    setLogoEntries([{ name: '', design: '' }]);
+    setArticleNameEntries(['']);
+    setShowAddMore(true);
+  }, [formData, selectedProduct, selectedProductVariants, articleNameEntries, logoEntries, validateProductConfig, capCharges]);
 
   // Tab configuration
   const allTabs = useMemo(() => [
