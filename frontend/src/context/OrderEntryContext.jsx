@@ -520,7 +520,7 @@ export const OrderEntryProvider = ({ children }) => {
   const isShoes = useCallback((cat) => cat?.toUpperCase() === 'SHOES', []);
 
   const productsInCategory = useMemo(() => {
-    try { if (Array.isArray(inventory)) return inventory.filter(i => i.category === selectedProductCategory).sort((a, b) => a.name.localeCompare(b.name)); } catch (e) { console.error('productsInCategory:', e); }
+    try { if (Array.isArray(inventory)) return (inventory || []).filter(i => i.category === selectedProductCategory).sort((a, b) => a.name.localeCompare(b.name)); } catch (e) { console.error('productsInCategory:', e); }
     return [];
   }, [inventory, selectedProductCategory]);
 
@@ -541,7 +541,7 @@ export const OrderEntryProvider = ({ children }) => {
   const fabrics = useMemo(() =>
     formData.productType && selectedProduct
       ? (selectedProduct.fabric ? [selectedProduct.fabric] : [])
-      : inventory.filter(i => i.category === 'FABRIC'),
+      : (inventory || []).filter(i => i.category === 'FABRIC'),
     [formData.productType, selectedProduct, inventory]
   );
 

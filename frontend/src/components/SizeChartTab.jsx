@@ -46,7 +46,7 @@ const SizeChartTab = () => {
             )}
           </div>
           <div className={`flex p-1.5 theme-bg rounded-xl border-2 theme-border ${useUrdu ? 'flex-row-reverse' : ''}`}>
-            {(availableSizes.length > 0 ? availableSizes : defaultSizes).map(s => (
+            {((availableSizes || []).length > 0 ? (availableSizes || []) : (defaultSizes || [])).map(s => (
               <button key={s} type="button" onClick={() => handleSizeSelect(s)}
                 className={`w-14 h-14 rounded-lg font-black text-xs transition-all ${formData.size === s ? 'bg-emerald-600 text-white shadow-lg' : 'text-gray-600 hover:text-white'}`}>
                 {s}

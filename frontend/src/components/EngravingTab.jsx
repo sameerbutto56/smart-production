@@ -64,7 +64,7 @@ const EngravingTab = () => {
                 <button type="button" onClick={() => setArticleNameEntries([...articleNameEntries, ''])}
                   className="text-xs font-black text-purple-400 bg-purple-500/10 px-3 py-1.5 rounded-full hover:bg-purple-500/20 transition-all">+ Add</button>
               </div>
-              {articleNameEntries.map((entry, ei) => (
+              {(articleNameEntries || []).map((entry, ei) => (
                 <div key={ei} className="relative group">
                   <div className="flex gap-2 items-center">
                     <Type className={`absolute ${useUrdu ? 'right-5' : 'left-5'} top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-purple-500 transition-colors`} size={16} />
@@ -113,7 +113,7 @@ const EngravingTab = () => {
                 <button type="button" onClick={() => setLogoEntries([...logoEntries, { name: '', design: '' }])}
                   className="text-xs font-black text-purple-400 bg-purple-500/10 px-3 py-1.5 rounded-full hover:bg-purple-500/20 transition-all">+ Add</button>
               </div>
-              {logoEntries.map((entry, ei) => (
+              {(logoEntries || []).map((entry, ei) => (
                 <div key={ei} className="relative group">
                   <div className="flex gap-2 items-start mb-2">
                     <input type="text" value={entry.name}

@@ -68,7 +68,7 @@ const ProductSelectionTab = () => {
             <p className={`theme-text-muted text-xs font-bold uppercase tracking-widest ${useUrdu ? 'mr-12' : 'ml-12'}`}>Step 1: Choose category & style</p>
           </div>
           <div className="flex p-2 theme-bg rounded-[1.5rem] border-2 theme-border shadow-inner overflow-x-auto no-scrollbar max-w-full">
-            {productCategories.map(cat => (
+            {(productCategories || []).map(cat => (
               <button key={cat} type="button"
                 onClick={() => { setSelectedProductCategory(cat); if (isAccessory(cat) && !isShoes(cat)) { setFormData(prev => ({ ...prev, size: 'Standard', measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hips: '' } })); } else { setFormData(prev => ({ ...prev, size: '' })); } }}
                 className={`px-8 py-3 rounded-xl text-xs font-black transition-all whitespace-nowrap ${selectedProductCategory === cat ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-600 hover:text-white hover:bg-gray-800'}`}>
@@ -128,7 +128,7 @@ const ProductSelectionTab = () => {
         )}
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-          {Array.from(new Set(productsInCategory.map(i => i.name)))
+          {Array.from(new Set((productsInCategory || []).map(i => i.name)))
             .map(name => productsInCategory.find(i => i.name === name))
             .filter(item => !productSearchTerm || item.name.toLowerCase().includes(productSearchTerm.toLowerCase()))
             .map(item => {
@@ -198,9 +198,9 @@ const ProductSelectionTab = () => {
             </h3>
             <p className={`theme-text-muted text-xs md:text-sm font-bold uppercase tracking-widest ${useUrdu ? 'mr-11' : 'ml-11'}`}>Step 2: Define fabric feel</p>
           </div>
-          {fabrics.length > 0 ? (
+          {(fabrics || []).length > 0 ? (
             <div className="grid grid-cols-2 gap-5">
-              {fabrics.map((f, fi) => {
+              {(fabrics || []).map((f, fi) => {
                 const fName = typeof f === 'string' ? f : (f.fabric || f.name);
                 const fStock = typeof f === 'string' ? selectedProductVariants.reduce((s, v) => s + (v.stock || 0), 0) : (f.stock || 0);
                 return (
@@ -228,7 +228,7 @@ const ProductSelectionTab = () => {
             </div>
             {formData.productType && (
               <div className={`flex flex-wrap gap-1.5 p-1.5 theme-bg rounded-xl border-2 theme-border ${useUrdu ? 'flex-row-reverse' : ''}`}>
-                {(availableSizes.length > 0 ? availableSizes : defaultSizes).map(s => (
+                {((availableSizes || []).length > 0 ? (availableSizes || []) : (defaultSizes || [])).map(s => (
                   <button key={s} type="button" onClick={() => handleSizeSelect(s)}
                     className={`font-black transition-all rounded-lg ${isShoes(selectedProductCategory) ? 'px-3 py-1.5 text-[10px] leading-tight' : 'w-14 h-14 text-xs'} ${formData.size === s ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-600 hover:text-white'}`}>
                     {s}
@@ -237,7 +237,7 @@ const ProductSelectionTab = () => {
               </div>
             )}
           </div>
-          {colors.length > 0 && (
+          {(colors || []).length > 0 && (
             <>
               <div className="relative mb-3 mt-2">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 theme-text-muted" size={16} />
