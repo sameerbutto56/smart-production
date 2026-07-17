@@ -1062,7 +1062,6 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const showMeas = sections.measurements !== false;
   const showEngraving = sections.engraving !== false;
   const showPrice = ['SUPER_ADMIN', 'ADMIN'].includes(userRole);
-  const priceDisplay = (v) => showPrice ? currency(v) : '★ ★ ★';
 
   const slMap = { 'full':'Full', 'half':'Half ہاف', 'three-quarter':'3 Quarter' };
   const shMap = { 'long':'Long', 'short':'Short', 'regular':'Regular ریگولر' };
@@ -1078,6 +1077,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const sec = lang === 'en' ? enSection : urduSection;
   const isUrdu = lang === 'ur';
   const ru = (t) => isUrdu && t ? romanToUrdu(t) : t;
+  const dir = isUrdu ? 'rtl' : 'ltr';
 
   const orderType = order.type || 'STANDARD';
   const title = `${sec.jobSheet} — ${order.orderNumber || order.id?.slice(0, 8)}`;
@@ -1093,29 +1093,53 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const flatSizes = isOutletSizeData ? Object.values(rawSizes).reduce((acc, v) => ({ ...acc, ...v }), {}) : rawSizes;
   const sizes = (flatSizes && Object.keys(flatSizes).length > 0) ? flatSizes : ({});
 
-  // ─── DATE SECTION ───
-  const entryDate = fmtDateTime(order.createdAt);
+  // Hide the default .report-header from openPrintWindow — we write our own header below
+  win.document.write('<style>.report-header{display:none!important}</style>');
+
+  // ─── GENERATED DATE/TIME ───
+  const now = new Date();
+  const generatedDate = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const generatedTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+  // ─── ENTRY DATE/TIME & SHOPIFY DATE ───
+  const entryDt = order.createdAt ? new Date(order.createdAt) : null;
+  const entryDate = entryDt && !isNaN(entryDt.getTime())
+    ? entryDt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    : '—';
+  const entryTime = entryDt && !isNaN(entryDt.getTime())
+    ? entryDt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+    : '—';
   const shopifyDate = order.shopifyOrderDate ? fmtDate(order.shopifyOrderDate) : null;
 
-  // ─── HEADER (always LTR – customer data is English) ───
-  win.document.write(`<div dir="ltr" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;border-bottom:3px solid #111;padding-bottom:8px">`);
-  win.document.write(`<div>`);
+  // ─── HEADER ───
+  win.document.write(`<div style="text-align:center;margin-bottom:8px;border-bottom:3px solid #111;padding-bottom:8px">`);
   win.document.write(`<h1 style="font-size:28px;font-weight:900;text-transform:uppercase;letter-spacing:1px;color:#000">${sec.jobSheet}</h1>`);
-  win.document.write(`<p style="font-size:20px;color:#000;margin-top:3px;font-weight:700">${isUrdu ? 'آرڈر' : 'Order'} ${order.orderNumber || order.id?.slice(0, 8)}</p>`);
+  win.document.write(`<p style="font-size:20px;color:#000;margin-top:2px;font-weight:700">${isUrdu ? 'آرڈر #' : 'Order #'}${order.orderNumber || order.id?.slice(0, 8)}</p>`);
+  win.document.write(`<p style="font-size:18px;color:#555;font-weight:600;margin-top:2px">ENAMELS Production</p>`);
+  win.document.write(`<p style="font-size:15px;color:#999;font-weight:500;margin-top:2px">${isUrdu ? 'تیار کردہ:' : 'Generated:'} ${generatedDate} ${generatedTime}</p>`);
   win.document.write(`</div>`);
-  win.document.write(`<div style="text-align:right">`);
-  win.document.write(`<p style="font-size:22px;font-weight:900">${order.customerName || '—'}</p>`);
-  win.document.write(`<p style="font-size:20px;color:#000;font-weight:600">${order.customerPhone || ''}</p>`);
-  if (order.address) win.document.write(`<p style="font-size:18px;color:#000">${order.address}</p>`);
-  if (order.city) win.document.write(`<p style="font-size:24px;font-weight:900;color:#000;background:#fef3c7;display:inline-block;padding:4px 14px;border-radius:6px;margin-top:4px;text-transform:uppercase">${isUrdu ? '📍 شہر:' : '📍 CITY:'} ${order.city}</p>`);
-  win.document.write(`</div></div>`);
 
-  // ─── DATES ROW (also LTR for same reason) ───
-  win.document.write(`<div style="display:flex;justify-content:space-between;margin-bottom:8px;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:6px 10px;">`);
-  win.document.write(`<div><span style="font-size:18px;font-weight:700;color:#000">${sec.orderEntryDate}:</span> <span style="font-size:20px;font-weight:900;color:#111">${entryDate}</span></div>`);
+  // ─── CUSTOMER INFO (always LTR — customer data is English/Roman script) ───
+  win.document.write(`<div dir="ltr" style="border:2px solid #ddd;border-radius:8px;padding:8px 12px;margin-bottom:8px">`);
+  win.document.write(`<p style="font-size:22px;font-weight:900;color:#000;margin-bottom:2px">${order.customerName || '—'}</p>`);
+  if (order.customerPhone) {
+    win.document.write(`<p style="font-size:18px;font-weight:700;color:#000;margin-bottom:2px">${order.customerPhone}</p>`);
+  }
+  if (order.address) {
+    win.document.write(`<p style="font-size:16px;color:#333;margin-bottom:2px">${order.address}</p>`);
+  }
+  if (order.city) {
+    const cityLabel = isUrdu ? 'شہر:' : 'CITY:';
+    win.document.write(`<p style="font-size:20px;font-weight:900;color:#000;background:#fef3c7;display:inline-block;padding:4px 14px;border-radius:6px;margin-top:4px;text-transform:uppercase">${cityLabel} ${order.city}</p>`);
+  }
+  win.document.write(`</div>`);
+
+  // ─── DATES ROW (always LTR — date values are English) ───
+  win.document.write(`<div dir="ltr" style="display:flex;justify-content:space-between;margin-bottom:8px;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:6px 10px;flex-wrap:wrap">`);
+  win.document.write(`<div><span style="font-size:16px;font-weight:700;color:#000">${sec.orderEntryDate}:</span> <span style="font-size:18px;font-weight:900;color:#111">${entryDate}</span></div>`);
+  win.document.write(`<div><span style="font-size:16px;font-weight:700;color:#000">${isUrdu ? 'اندراج کا وقت:' : 'Entry Time:'}</span> <span style="font-size:18px;font-weight:900;color:#111">${entryTime}</span></div>`);
   if (shopifyDate) {
-    const shopifyLabel = isUrdu ? `${sec.shopifyDate}:` : `${sec.shopifyDate}:`;
-    win.document.write(`<div><span style="font-size:18px;font-weight:700;color:#000">${shopifyLabel}</span> <span style="font-size:20px;font-weight:900;color:#111">${shopifyDate}</span></div>`);
+    win.document.write(`<div><span style="font-size:16px;font-weight:700;color:#000">${sec.shopifyDate}:</span> <span style="font-size:18px;font-weight:900;color:#111">${shopifyDate}</span></div>`);
   }
   win.document.write(`</div>`);
 
@@ -1139,7 +1163,6 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     'CASH ON DELIVERY': isUrdu ? 'نقد ڈلیوری' : 'CASH ON DELIVERY',
   };
   const _payLabel = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? 'PAID' : 'CASH ON DELIVERY';
-  const _payColor = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? '#059669' : (parseFloat(order.advanceAmount || 0) > 0 ? '#d97706' : '#dc2626');
   [order.type, order.priority, order.outletName || order.source, _payLabel].filter(Boolean).forEach(label => {
     let color = '#6b7280';
     if (label === 'PAID' || label === 'FULL_CUSTOM') color = '#059669';
@@ -1153,57 +1176,78 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   win.document.write(`</div>`);
 
   // ─── PRODUCTS TABLE ───
+  const optLabel = isUrdu ? 'آپشنز' : 'Options';
   win.document.write(`<div class="section-title" style="font-size:26px">${sec.products}</div>`);
   if (isMultiItem) {
     const showCap = orderType !== 'STANDARD';
-    const headers = ['#', sec.product, sec.fabricColor, sec.sizeGender, sec.qty].concat(showCap ? [sec.cap] : []).concat([sec.price]);
-    win.document.write(`<table><thead><tr>${headers.map(h => '<th>' + h + '</th>').join('')}</tr></thead><tbody>`);
+    const headers = ['#', sec.product, sec.fabricColor, sec.sizeGender, sec.qty].concat(showCap ? [sec.cap] : []).concat([optLabel]);
+    win.document.write(`<table dir="${dir}"><thead><tr>${headers.map(h => '<th>' + h + '</th>').join('')}</tr></thead><tbody>`);
     allItems.forEach((item, idx) => {
       const p = getItemProduct(item);
       const capQty = showCap && p.matchingCap ? (p.matchingCapQty || 0) : (showCap && item.capCharges > 0 ? (p.femaleOptions?.cap || 0) : 0);
+      const ic = item.customization ? parseJSON(item.customization) : custom;
+      // Options column
+      const optParts = [];
+      if (p.sleeveLength) optParts.push(`${sec.sleeves}: ${slDisplay(p.sleeveLength)}`);
+      if (p.shirtLength) optParts.push(`${sec.length}: ${shDisplay(p.shirtLength)}`);
+      if (p.alteration?.trouserLength) optParts.push(`Trouser ${p.alteration.trouserLength}"`);
+      if (p.alteration?.shirtLength) optParts.push(`Shirt ${p.alteration.shirtLength}"`);
+      if (p.alteration?.sleeveLength) optParts.push(`Sleeve ${p.alteration.sleeveLength}"`);
+      if (ic?.fitType) optParts.push(`${ru(ic.fitType)} ${ru('Fit')}`);
+      if (p.gender === 'Female' && p.femaleOptions?.dupatta) optParts.push(sec.dupatta);
+      if (p.gender === 'Female' && p.femaleOptions?.zip) optParts.push('Zip');
       win.document.write(`<tr>`);
       win.document.write(`<td style="font-weight:700">${idx + 1}</td>`);
       win.document.write(`<td style="font-weight:700">${ru(p.productType || p.name) || '—'}</td>`);
-      const colParts = [p.fabricType, ru(p.color), p.size].filter(Boolean);
-      win.document.write(`<td>${colParts.join(' • ') || '—'}</td>`);
-      const extras = [p.sleeveLength ? `${sec.sleeves}: ${slDisplay(p.sleeveLength)}` : null, p.shirtLength ? `${sec.length}: ${shDisplay(p.shirtLength)}` : null].filter(Boolean).join(' | ');
-      const altParts = [];
-      if (p.alteration?.trouserLength) altParts.push(`Trouser ${p.alteration.trouserLength}"`);
-      if (p.alteration?.shirtLength) altParts.push(`Shirt ${p.alteration.shirtLength}"`);
-      if (p.alteration?.sleeveLength) altParts.push(`Sleeve ${p.alteration.sleeveLength}"`);
-      const altStr = altParts.length > 0 ? ` | Alt: ${altParts.join(' ')}` : '';
-      const altStyle = altParts.length > 0 ? 'background-color:#fbbf24;color:#000;font-weight:700;padding:2px 6px;border-radius:4px;' : '';
-      const genStr = genDisplay(p.gender);
-      const szStr = p.size ? `Size ${p.size}` : 'Custom';
-      win.document.write(`<td>${szStr}${genStr ? ` • ${genStr}` : ''}${extras ? ` • ${extras}` : ''}${altStr ? `<br><span style="${altStyle}">${altStr}</span>` : ''}</td>`);
+      // Fabric & Color column (no size mixed in)
+      const fcParts = [p.fabricType, ru(p.color)].filter(Boolean);
+      win.document.write(`<td>${fcParts.join(' • ') || '—'}</td>`);
+      // Size & Gender column (only size + gender)
+      const sgParts = [p.size ? (isUrdu ? `سائز ${p.size}` : `Size ${p.size}`) : (isUrdu ? 'کسٹم' : 'Custom'), genDisplay(p.gender)].filter(Boolean);
+      win.document.write(`<td>${sgParts.join(' • ') || '—'}</td>`);
       win.document.write(`<td style="text-align:center;font-weight:700">${item.quantity || 1}</td>`);
       if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;color:#000">${capQty || '—'}</td>`);
-      win.document.write(`<td style="text-align:right;font-weight:700">${priceDisplay(item.totalPrice)}</td>`);
+      win.document.write(`<td style="font-size:16px">${optParts.join(isUrdu ? '<br>' : ' | ') || '—'}</td>`);
       win.document.write(`</tr>`);
     });
     win.document.write(`</tbody></table>`);
   } else {
     const showCap = orderType !== 'STANDARD';
     const capQty = showCap && firstProduct.matchingCap ? (firstProduct.matchingCapQty || 0) : 0;
-    const headers = [sec.product, sec.fabric, sec.color, sec.size, sec.gender, sec.qty].concat(showCap ? [sec.cap] : []).concat([sec.price]);
-    win.document.write(`<table><thead><tr>${headers.map(h => '<th>' + h + '</th>').join('')}</tr></thead><tbody>`);
+    const ic = custom;
+    // Options column
+    const optParts = [];
+    if (firstProduct.sleeveLength) optParts.push(`${sec.sleeves}: ${slDisplay(firstProduct.sleeveLength)}`);
+    if (firstProduct.shirtLength) optParts.push(`${sec.length}: ${shDisplay(firstProduct.shirtLength)}`);
+    if (firstProduct.alteration?.trouserLength) optParts.push(`Trouser ${firstProduct.alteration.trouserLength}"`);
+    if (firstProduct.alteration?.shirtLength) optParts.push(`Shirt ${firstProduct.alteration.shirtLength}"`);
+    if (firstProduct.alteration?.sleeveLength) optParts.push(`Sleeve ${firstProduct.alteration.sleeveLength}"`);
+    if (ic?.fitType) optParts.push(`${ru(ic.fitType)} ${ru('Fit')}`);
+    if (firstProduct.gender === 'Female' && firstProduct.femaleOptions?.dupatta) optParts.push(sec.dupatta);
+    if (firstProduct.gender === 'Female' && firstProduct.femaleOptions?.zip) optParts.push('Zip');
+    const headers = [sec.product, sec.fabricColor, sec.sizeGender, sec.qty].concat(showCap ? [sec.cap] : []).concat([optLabel]);
+    win.document.write(`<table dir="${dir}"><thead><tr>${headers.map(h => '<th>' + h + '</th>').join('')}</tr></thead><tbody>`);
     win.document.write(`<tr>`);
     win.document.write(`<td style="font-weight:700">${ru(firstProduct.productType || firstProduct.name) || '—'}</td>`);
-    win.document.write(`<td>${firstProduct.fabricType || '—'}</td>`);
-    win.document.write(`<td>${ru(firstProduct.color) || '—'}</td>`);
-    const extras = [firstProduct.sleeveLength ? `${sec.sleeves}: ${slDisplay(firstProduct.sleeveLength)}` : null, firstProduct.shirtLength ? `${sec.length}: ${shDisplay(firstProduct.shirtLength)}` : null].filter(Boolean).join(' | ');
-    const altParts = [];
-    if (firstProduct.alteration?.trouserLength) altParts.push(`Trouser ${firstProduct.alteration.trouserLength}"`);
-    if (firstProduct.alteration?.shirtLength) altParts.push(`Shirt ${firstProduct.alteration.shirtLength}"`);
-    if (firstProduct.alteration?.sleeveLength) altParts.push(`Sleeve ${firstProduct.alteration.sleeveLength}"`);
-    const altStr = altParts.length > 0 ? ` | Alt: ${altParts.join(' ')}` : '';
-    const altStyle = altParts.length > 0 ? 'background-color:#fbbf24;color:#000;font-weight:700;padding:2px 6px;border-radius:4px;' : '';
-    win.document.write(`<td>${firstProduct.size || 'Custom'}</td>`);
-      win.document.write(`<td>${genDisplay(firstProduct.gender) || '—'}${extras ? ` ${extras}` : ''}${altStr ? `<br><span style="${altStyle}">${altStr}</span>` : ''}</td>`);
+    // Fabric & Color
+    const fcParts = [firstProduct.fabricType, ru(firstProduct.color)].filter(Boolean);
+    win.document.write(`<td>${fcParts.join(' • ') || '—'}</td>`);
+    // Size & Gender
+    const sgParts = [firstProduct.size ? (isUrdu ? `سائز ${firstProduct.size}` : `Size ${firstProduct.size}`) : (isUrdu ? 'کسٹم' : 'Custom'), genDisplay(firstProduct.gender)].filter(Boolean);
+    win.document.write(`<td>${sgParts.join(' • ') || '—'}</td>`);
     win.document.write(`<td style="text-align:center;font-weight:700">${order.quantity || 1}</td>`);
     if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;color:#000">${capQty || '—'}</td>`);
-    win.document.write(`<td style="text-align:right;font-weight:700">${priceDisplay(order.totalPrice)}</td>`);
+    win.document.write(`<td style="font-size:16px">${optParts.join(isUrdu ? '<br>' : ' | ') || '—'}</td>`);
     win.document.write(`</tr></tbody></table>`);
+  }
+
+  // ─── SPECIAL NOTE FOR READY LOGO (shown prominently) ───
+  const sizeDataSpecialNote = sizes?.specialNote || (rawSizes?.specialNote);
+  if (sizeDataSpecialNote) {
+    win.document.write(`<div style="margin:10px 0;background:#fef9e7;border:2px solid #f0c040;border-radius:8px;padding:10px 14px">`);
+    win.document.write(`<p style="font-size:18px;font-weight:800;color:#b8860b;margin-bottom:2px"${isUrdu ? ' class="urdu-text"' : ''}>${sec.specialNote}</p>`);
+    win.document.write(`<p style="font-size:20px;font-weight:600;color:#8b6914;font-style:italic"${isUrdu ? ' class="urdu-text"' : ''}>${ru(sizeDataSpecialNote)}</p>`);
+    win.document.write(`</div>`);
   }
 
   // ─── ENGRAVING / BRANDING ───
