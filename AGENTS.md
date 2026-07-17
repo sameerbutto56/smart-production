@@ -134,7 +134,18 @@
 - **Fix 4** (`requestStageCompletion`): Moved stage completion from BEFORE validation to AFTER validation — previously, a validation failure would leave the stage COMPLETED but `currentStage` unchanged (order stuck).
 - **Diagnostic script** (`backend/prisma/fix-stuck-store-orders.js`): Finds orders stuck at STORE with no active stage and auto-fixes them (advances to next pending stage, or creates a fresh PENDING STORE stage).
 
+### Fixed This Session — Persistent ReferenceError "Cannot access 'z' before initialization" in Faisal Profile
+- **Root cause**: Two different React versions existed in the npm workspace (`frontend/node_modules/react@19.2.5` vs root `node_modules/react@19.2.6`). `resolve.dedupe: ['react', 'react-dom']` in `vite.config.js` was added as a workaround but caused Vite's Rollup bundle to produce incorrect module execution order — `react-hot-toast`'s `toast` export was accessed before its module initialization completed (minified as `z`/`JA` in production).
+- **Fix 1** (`ErrorBoundary.jsx`): Removed `(error?.name === 'ReferenceError' && error?.message?.includes('before initialization'))` condition from `componentDidCatch` auto-reload — this was not a stale chunk issue but a real TDZ error; infinite reload loop is now broken.
+- **Fix 2** (`vite.config.js`): Removed `resolve.dedupe: ['react', 'react-dom']` — no longer needed since React versions are now unified.
+- **Fix 3** (`vite.config.js`): Removed `'react-hot-toast'` from `optimizeDeps.include` (already auto-detected by Vite; pre-bundling it explicitly can interact badly with dedupe).
+- **Fix 4** (`frontend/package.json`): Updated `"react": "19.2.5"` → `"react": "19.2.6"` and `"react-dom": "19.2.5"` → `"react-dom": "19.2.6"` to match the hoisted peer dependency version at root, eliminating the version mismatch.
+- **Verification**: `npm install` removed 355 packages (including duplicate React), added 2; `npm run build` passes with 0 errors.
+
 ## Key Decisions
+- Only one React version (19.2.6) must exist in the workspace — version mismatch caused dedupe workaround which triggered TDZ error in Vite production bundle.
+- `resolve.dedupe` is no longer needed because React versions are now consistent across all workspaces.
+- ErrorBoundary should NOT auto-reload on `ReferenceError` + "before initialization" — that pattern is a real TDZ error (not a stale chunk), and reloading would create an infinite loop if the error is deterministic.
 - Store dashboard and unseen-tasks endpoints now require an active (PENDING/IN_PROGRESS) stage record matching the role's stage — prevents orders with completed/inactive stages from appearing.
 - `requestStageCompletion` validates transitions BEFORE marking stage COMPLETED — eliminates inconsistent state from validation failures.
 - Balance revenue uses payment-date-based methodology (advance on sale date, balance payments on their dates) for accurate daily tracking.
@@ -185,6 +196,7 @@
 - `sendTextMessage` now adds message to local state from API response — eliminates race with `chat:status-update`.
 - `pendingStatusRef` (useRef) stores status updates for messages not yet in state; applied in `handleNewMessage`.
 - Voice upload must NOT set `Content-Type: multipart/form-data` manually — Axios sets boundary automatically.
+- React workspace unified to `react@19.2.6` / `react-dom@19.2.6` — `resolve.dedupe` removed from Vite config.
 - **OrderCard.jsx:14 stage fallback**: When `order.stages` has no entry matching `order.currentStage`, creates synthetic `{ stageName: order.currentStage, status: 'PENDING', id: null }` to prevent wrong button rendering. Old cleanup script deleted ~142 stage records from DB — recreated via one-time script (since deleted).
 
 ## Relevant Files

@@ -5,9 +5,6 @@ import { visualizer } from 'rollup-plugin-visualizer'
 
 // https://vite.dev/config/
 export default defineConfig({
-  resolve: {
-    dedupe: ['react', 'react-dom']
-  },
   plugins: [
     react(),
     viteCompression({ algorithm: 'brotliCompress', threshold: 1024 }),
@@ -16,7 +13,7 @@ export default defineConfig({
   ],
   build: {
     chunkSizeWarningLimit: 1000,
-    sourcemap: true,
+    sourcemap: false,
     commonjsOptions: {
       include: [/node_modules/],
       transformMixedEsModules: true
@@ -27,7 +24,6 @@ export default defineConfig({
       'react',
       'react-dom',
       'react-router-dom',
-      'react-hot-toast',
       'framer-motion',
       'recharts',
       'axios',
