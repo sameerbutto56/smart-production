@@ -221,7 +221,7 @@ export const OrderEntryProvider = ({ children }) => {
           gender: found.gender || 'Male',
           femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
           matchingCap: false, matchingCapQty: 0, sleeveLength: '', shirtLength: '', instructionNotes: '',
-          shopifyOrderDate: found.shopifyOrderDate ? (() => { const d = new Date(found.shopifyOrderDate); return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 16); })() : '',
+          shopifyOrderDate: found.shopifyOrderDate ? (() => { const d = new Date(found.shopifyOrderDate); return isNaN(d.getTime()) ? '' : d.toISOString(); })() : '',
           adjProductPrice: '', adjLogoCharges: '', adjNamePrinting: '', adjCustomization: '', adjCapCharges: '', adjDiscount: ''
         });
         let pd = [];
@@ -387,7 +387,7 @@ export const OrderEntryProvider = ({ children }) => {
     const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?$/);
     if (!m) return '';
     const d = new Date(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0));
-    return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 16);
+    return isNaN(d.getTime()) ? '' : d.toISOString();
   }, []);
 
   useEffect(() => {
@@ -673,7 +673,7 @@ export const OrderEntryProvider = ({ children }) => {
     selectedProductCategory, productSearchTerm, colorSearchTerm, expandedProducts,
     showReview, isEditMode, editOrderId, originalOrder, showEditReview,
     editReason, editOrderNumber, editOrderData, editOrderLoading, editOrderError,
-    logoEntries, formData, cartItems, showAddMore, showProductSelector, isCartOpen, dateInputRef,
+    logoEntries, articleNameEntries, formData, cartItems, showAddMore, showProductSelector, isCartOpen, dateInputRef,
     // Setters
     setSelectedProductCategory, setProductSearchTerm, setColorSearchTerm, setExpandedProducts,
     setShowReview, setIsEditMode, setEditOrderId, setOriginalOrder, setShowEditReview,

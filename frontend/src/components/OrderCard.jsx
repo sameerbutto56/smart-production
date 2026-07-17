@@ -394,12 +394,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
           {sortedItems.map((item, idx) => {
             const p = item.productDetails || {};
             const c = item.customization || {};
-            const rawS = item.sizeData || {};
-            const s = rawS && typeof rawS === 'object' && !Array.isArray(rawS) && Object.values(rawS).some(v => typeof v === 'object' && v !== null && !Array.isArray(v) && !v._extra)
-              ? Object.values(rawS).reduce((acc, v) => ({ ...acc, ...v }), {})
-              : rawS;
             const female = p?.femaleOptions || {};
-            const hasSizes = s && Object.keys(s).some(k => s[k]);
             const isFirst = idx === 0;
             const isNotAvail = p.availabilityStatus === 'not_available';
 
@@ -502,34 +497,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   </div>
                 </div>
 
-                {hasSizes && (
-                  <div className="bg-gray-950/50 p-3 rounded-xl border border-gray-800/50 mt-3">
-                    <p className="text-xs md:text-sm text-gray-500 font-black uppercase tracking-widest mb-2 px-1">Measurements</p>
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="border-b border-gray-800">
-                          <th className="text-left text-gray-500 font-black uppercase tracking-wider py-1.5 pr-2">Measurement</th>
-                          <th className="text-right text-gray-500 font-black uppercase tracking-wider py-1.5 pl-2 w-16">Inches</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {Object.entries(s).filter(([k, v]) => v && k !== 'specialNote').map(([key, val], si) => (
-                          <tr key={si} className="border-b border-gray-800/30">
-                            <td className="text-gray-400 font-bold py-1.5 pr-2 capitalize">{key}</td>
-                            <td className="text-right text-white font-black py-1.5 pl-2">{val}"</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
 
-                {s?.specialNote && (
-                  <div className="bg-yellow-500/5 p-3 rounded-xl border border-yellow-500/10 mt-3">
-                    <p className="text-xs md:text-sm font-black text-yellow-400 uppercase tracking-widest mb-1">Special Note</p>
-                    <p className="text-xs md:text-sm font-bold text-yellow-300/90 italic leading-tight">{s.specialNote}</p>
-                  </div>
-                )}
 
                 {/* Name Lines per product */}
                 {!c?.skipEngraving && (c?.articleNames?.length > 0 || c?.nameSpelling) && (
@@ -2532,72 +2500,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   );
                 })()}
 
-              {!isMultiItem && order.type === 'FULL_CUSTOM' && (
-                <section className="bg-blue-600/5 p-4 md:p-8 rounded-xl md:rounded-[2rem] border border-blue-500/10">
-                  <h4 className="text-xs md:text-sm font-black text-blue-400 uppercase tracking-[0.3em] mb-6">{t('02. Precise Measurements (Inches)')}</h4>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-blue-500/20">
-                          <th className="text-left text-blue-400 font-black uppercase tracking-wider py-2 pr-4">{t('Measurement')}</th>
-                          <th className="text-right text-blue-400 font-black uppercase tracking-wider py-2 pl-4 w-24">{t('Inches')}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {Object.entries(sizes || {}).filter(([k, v]) => k !== 'specialNote' && v).map(([key, val], i) => (
-                          <tr key={i} className="border-b border-blue-500/5">
-                            <td className="text-gray-300 font-bold py-2 pr-4 capitalize">{key}</td>
-                            <td className="text-right text-white font-black py-2 pl-4">{val}"</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  {(product?.sleeveLength || (product?.gender === 'Female' && product?.femaleOptions?.sleeves)) && (
-                    <div className="mt-3 flex justify-between items-center p-3 bg-gray-900 rounded-xl border border-pink-500/20">
-                      <span className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter">{'SLEEVES بازو'}</span>
-                      <span className="text-sm font-black text-white uppercase">{product.sleeveLength ? ({'full':'Full','half':'Half ہاف','three-quarter':'3 Quarter'}[product.sleeveLength] || product.sleeveLength) : ({'full':'Full','half':'Half ہاف','medium':'Medium'}[product.femaleOptions?.sleeves] || product.femaleOptions?.sleeves || '—')}</span>
-                    </div>
-                  )}
-                  {(product?.shirtLength || (product?.gender === 'Female' && product?.femaleOptions?.shirtLength)) && (
-                    <div className="mt-2 flex justify-between items-center p-3 bg-gray-900 rounded-xl border border-pink-500/20">
-                      <span className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter">{t('SHIRT LENGTH')}</span>
-                      <span className="text-sm font-black text-white uppercase">{product.shirtLength ? ({'long':'Long','short':'Short','regular':'Regular ریگولر'}[product.shirtLength] || product.shirtLength) : ({'long':'Long','short':'Short'}[product.femaleOptions?.shirtLength] || product.femaleOptions?.shirtLength || '—')}</span>
-                    </div>
-                  )}
-                  {product?.alteration && (product.alteration.trouserLength || product.alteration.shirtLength || product.alteration.sleeveLength) && (
-                    <div className="mt-3 bg-amber-500/10 border border-amber-500/30 rounded-xl p-4">
-                      <p className="text-xs font-black text-amber-400 uppercase tracking-wider mb-2">Alteration</p>
-                      <div className="grid grid-cols-3 gap-2">
-                        {product.alteration.trouserLength ? (
-                          <div className="text-center p-2 bg-gray-900 rounded-lg border border-amber-500/20">
-                            <span className="text-[9px] text-amber-500 font-black uppercase block">Trouser</span>
-                            <span className="text-sm font-black text-amber-400">{product.alteration.trouserLength}"</span>
-                          </div>
-                        ) : null}
-                        {product.alteration.shirtLength ? (
-                          <div className="text-center p-2 bg-gray-900 rounded-lg border border-amber-500/20">
-                            <span className="text-[9px] text-amber-500 font-black uppercase block">Shirt</span>
-                            <span className="text-sm font-black text-amber-400">{product.alteration.shirtLength}"</span>
-                          </div>
-                        ) : null}
-                        {product.alteration.sleeveLength ? (
-                          <div className="text-center p-2 bg-gray-900 rounded-lg border border-amber-500/20">
-                            <span className="text-[9px] text-amber-500 font-black uppercase block">Sleeve</span>
-                            <span className="text-sm font-black text-amber-400">{product.alteration.sleeveLength}"</span>
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  )}
-                  {sizes?.specialNote && (
-                    <div className="mt-3 p-3 bg-yellow-500/5 rounded-xl border border-yellow-500/10">
-                      <p className="text-xs md:text-sm text-yellow-400 font-black uppercase tracking-tighter mb-1">Special Note</p>
-                      <p className="text-sm font-bold text-yellow-300/90 italic leading-tight">{sizes.specialNote}</p>
-                    </div>
-                  )}
-                </section>
-              )}
+
 
               {order.type !== 'STANDARD' && (
               <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8">

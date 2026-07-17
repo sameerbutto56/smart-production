@@ -1059,7 +1059,6 @@ const urduLabels = {
 const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
 
 export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
-  const showMeas = sections.measurements !== false;
   const showEngraving = sections.engraving !== false;
   const showPrice = ['SUPER_ADMIN', 'ADMIN'].includes(userRole);
   const priceDisplay = (v) => showPrice ? currency(v) : '★ ★ ★';
@@ -1088,10 +1087,6 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const isMultiItem = allItems && allItems.length > 0;
   const firstProduct = isMultiItem ? getItemProduct(allItems[0]) : (rawPd || {});
   const custom = parseJSON(order.customization);
-  const rawSizes = parseJSON(order.sizeData);
-  const isOutletSizeData = rawSizes && typeof rawSizes === 'object' && !Array.isArray(rawSizes) && Object.values(rawSizes).some(v => typeof v === 'object' && v !== null && !Array.isArray(v) && !v._extra);
-  const flatSizes = isOutletSizeData ? Object.values(rawSizes).reduce((acc, v) => ({ ...acc, ...v }), {}) : rawSizes;
-  const sizes = (flatSizes && Object.keys(flatSizes).length > 0) ? flatSizes : ({});
 
   // ─── DATE SECTION ───
   const entryDate = fmtDateTime(order.createdAt);
@@ -1340,73 +1335,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       }
     }
   }
-  // ─── MEASUREMENTS ───
-  if (orderType === 'FULL_CUSTOM' && showMeas) {
-    const measItems = isMultiItem ? allItems : [{ productDetails: firstProduct, sizeData: sizes }];
-    const hasAnyMeas = measItems.some(item => {
-      const rawS = item.sizeData || sizes || {};
-      const s = rawS && typeof rawS === 'object' && !Array.isArray(rawS) && Object.values(rawS).some(v => typeof v === 'object' && v !== null && !Array.isArray(v) && !v._extra)
-        ? Object.values(rawS).reduce((acc, v) => ({ ...acc, ...v }), {})
-        : rawS;
-      return s.specialNote || Object.entries(s).some(([k, v]) => v && k !== 'specialNote');
-    });
-    // Also check order-level sizes if items don't have per-item sizes
-    const orderLevelSizeData = sizes && Object.keys(sizes).length > 0;
-    if (hasAnyMeas) {
-      win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
-      measItems.forEach((item, idx) => {
-        const p = getItemProduct(item);
-        const rawS = item.sizeData || sizes || {};
-        const s = rawS && typeof rawS === 'object' && !Array.isArray(rawS) && Object.values(rawS).some(v => typeof v === 'object' && v !== null && !Array.isArray(v) && !v._extra)
-          ? Object.values(rawS).reduce((acc, v) => ({ ...acc, ...v }), {})
-          : rawS;
-        const productSize = p.size || 'Custom';
-        const allSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'C'];
-        win.document.write(`<div style="margin-bottom:6px;page-break-inside:avoid">`);
-        if (isMultiItem) {
-          win.document.write(`<p style="font-size:20px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px">#${idx + 1} ${ru(p.productType || p.name) || ''}</p>`);
-        }
-        win.document.write(`<div style="display:flex;gap:4px;flex-wrap:wrap">`);
-        allSizes.forEach(sz => {
-          const isSelected = sz === productSize || (sz === 'C' && productSize === 'Custom');
-          win.document.write(`<div style="text-align:center;border:2px solid ${isSelected ? '#000' : '#ccc'};border-radius:6px;padding:6px 14px;background:${isSelected ? '#000' : '#fff'};color:${isSelected ? '#fff' : '#666'};font-size:18px;font-weight:800">${sz}</div>`);
-        });
-        win.document.write(`</div>`);
-        // Custom measurement values from sizeData
-        const measEntries = Object.entries(s).filter(([k, v]) => v && k !== 'specialNote' && k !== '_extra' && k !== '_standardSize');
-        if (measEntries.length > 0) {
-          win.document.write(`<div style="margin-top:6px;display:grid;grid-template-columns:1fr 1fr;gap:3px;font-size:18px">`);
-          measEntries.forEach(([k, v]) => {
-            win.document.write(`<div style="display:flex;justify-content:space-between;padding:2px 6px;background:#f5f5f5;border-radius:3px"><span style="font-weight:700;color:#333">${k}</span><span style="font-weight:900;color:#000">${v}"</span></div>`);
-          });
-          win.document.write(`</div>`);
-        }
-        // Sleeve / Shirt Length
-        const slv = p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves ? p.femaleOptions.sleeves : null);
-        const slen = p.shirtLength || (p.gender === 'Female' && p.femaleOptions?.shirtLength ? p.femaleOptions.shirtLength : null);
-        const opts = [slv ? `${sec.sleeves}: ${slv && p.sleeveLength ? slDisplay(slv) : (femSlMap[slv] || slv)}` : null, slen ? `${sec.length}: ${slen && p.shirtLength ? shDisplay(slen) : (femShMap[slen] || slen)}` : null, (p.gender === 'Female' && p.femaleOptions?.dupatta) ? sec.dupatta : null].filter(Boolean);
-        if (opts.length > 0) {
-          win.document.write(`<p style="font-size:20px;margin-top:6px;color:#000;font-weight:700">${opts.join(' | ')}</p>`);
-        }
-        const ic = item.customization ? (typeof item.customization === 'string' ? JSON.parse(item.customization) : item.customization) : custom;
-        const hasAttr = ic?.fitType || p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct || p.additionalProductRef;
-        if (hasAttr) {
-          win.document.write(`<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">`);
-          if (ic?.fitType) win.document.write(`<span style="font-size:16px;font-weight:700;padding:4px 10px;border-radius:4px;background:#e0e7ff;color:#3730a3;border:1px solid #a5b4fc">${ru(ic.fitType)} ${ru('Fit')}</span>`);
-          if (p.fabricSourceProduct) win.document.write(`<span style="font-size:16px;font-weight:700;padding:4px 10px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.fabricSource}: ${ru(p.fabricSourceProduct)}</span>`);
-          if (p.colorSourceProduct) win.document.write(`<span style="font-size:16px;font-weight:700;padding:4px 10px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.colorSource}: ${ru(p.colorSourceProduct)}</span>`);
-          if (p.designSourceProduct) win.document.write(`<span style="font-size:16px;font-weight:700;padding:4px 10px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.designSource}: ${ru(p.designSourceProduct)}</span>`);
-          if (p.sizeSourceProduct) win.document.write(`<span style="font-size:16px;font-weight:700;padding:4px 10px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.sizeSource}: ${ru(p.sizeSourceProduct)}</span>`);
-          if (p.additionalProductRef) win.document.write(`<span style="font-size:16px;font-weight:700;padding:4px 10px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.extra}: ${ru(p.additionalProductRef)}</span>`);
-          win.document.write(`</div>`);
-        }
-        if (s.specialNote) {
-          win.document.write(`<div style="margin-top:6px;background:#fef9e7;border:2px solid #f0c040;border-radius:6px;padding:8px 12px"><p style="font-size:18px;font-weight:800;color:#b8860b;margin-bottom:2px"${isUrdu ? ' class="urdu-text"' : ''}>${sec.specialNote}</p><p style="font-size:20px;font-weight:600;color:#8b6914;font-style:italic"${isUrdu ? ' class="urdu-text"' : ''}>${ru(s.specialNote)}</p></div>`);
-        }
-        win.document.write(`</div>`);
-      });
-    }
-  }
+  // ─── MEASUREMENTS REMOVED ───
 
   // ─── FOOTER ───
   win.document.write(`<div style="display:flex;justify-content:space-between;font-size:18px;color:#000;border-top:2px solid #ddd;padding-top:6px;margin-top:8px">`);

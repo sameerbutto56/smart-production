@@ -232,3 +232,9 @@
 - **Backend Book endpoints** (`pos.book.controller.js` + `pos.book.routes.js`): `POST /api/pos/book/open` (create session), `GET /api/pos/book/current` (get open session), `GET /api/pos/book/:id/summary` (compute payment breakdown, employee collections, journals, returns), `POST /api/pos/book/:id/close` (save summary, mark CLOSED).
 - **Frontend** (`OutletPOS.jsx`): Book status bar (Open/Close indicator in POS tab), Open Book button, Close Book modal with full payment summary, employee-wise collections, journal/return deductions, cash-in-locker calculation, transfer-to-system field, Thermal + A4 print options, 9 PM reminder.
 - **Summary computation** (server-side `getBookSummary`): Queries all sales (non-Faisal), Faisal Takes, returns, and journal entries within the session's open/close time range; computes payment totals, per-employee breakdowns, deductions, and available cash.
+
+## Vercel Deployment Lessons
+- **SSO Deployment Protection** must be **disabled** for the project (`vercel project protection disable <name> --sso`) — otherwise Vercel intercepts ALL requests (including API) and shows the Vercel Dashboard login page.
+- The Vercel team `sameerbutt056-1019s-projects` has SSO protection enabled by default on new projects; you must disable it manually after creating a project.
+- To verify a deployment serves your app (not the Vercel Dashboard), fetch the URL and check for `data-dpl-id` in the HTML — if present, SSO protection is intercepting.
+- Deployment URL aliasing: the production domain (`smart-production-v2.vercel.app`) auto-assigns to the latest `target: production` deployment. If it shows old content, check the deployment's aliases and build logs.

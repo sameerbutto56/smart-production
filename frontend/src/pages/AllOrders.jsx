@@ -897,8 +897,7 @@ const AllOrders = () => {
                                 : chartS;
                               const hasSleeves = p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves);
                               const hasShirtLength = p.shirtLength || (p.gender === 'Female' && p.femaleOptions?.shirtLength);
-                              const hasSizeValues = Object.keys(s).length > 0 && Object.entries(s).some(([k, v]) => v && k !== 'specialNote');
-                              const hasSpecialNote = !!(s?.specialNote);
+
 
                               return (
                                 <tr key={idx} className="border-b theme-border last:border-0 hover:bg-white/5 font-bold">
@@ -959,14 +958,7 @@ const AllOrders = () => {
                                         )}
                                       </div>
                                     )}
-                                    {hasSizeValues && (
-                                      <div className="mt-1.5 text-xs md:text-sm theme-text-secondary font-normal normal-case">
-                                        <span className="font-bold theme-text-muted uppercase tracking-wider text-xs md:text-sm">Sizes:</span> {Object.entries(s).filter(([k, v]) => v && k !== 'specialNote').map(([k, v]) => `${k.toUpperCase()}:${v}"`).join(', ')}
-                                      </div>
-                                    )}
-                                    {hasSpecialNote && (
-                                      <div className="mt-1 text-[10px] text-yellow-400 font-black bg-yellow-900/20 px-1.5 py-0.5 rounded italic leading-tight">📝 Special Note: {s.specialNote}</div>
-                                    )}
+
                                   </td>
                                   <td className="py-4 theme-text-secondary">
                                     <div>{p.fabricType || 'STD FABRIC'}</div>
@@ -1175,62 +1167,7 @@ const AllOrders = () => {
                   })()}
                 </section>
 
-                {!isMultiItem && selectedOrder.type === 'FULL_CUSTOM' && (
-                  <section className="bg-blue-600/5 p-4 md:p-8 rounded-[2rem] border border-blue-500/10">
-                    <h4 className="text-xs md:text-sm font-black text-blue-400 uppercase tracking-[0.3em] mb-6">02. Precise Measurements (Inches)</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                      {Object.entries(sizes || {}).filter(([k, v]) => v && k !== 'specialNote').map(([key, val], i) => (
-                        <div key={i} className="text-center p-4 theme-bg-subtle rounded-2xl border theme-border shadow-sm">
-                          <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-tighter mb-1">{key.replace(/([A-Z])/g, ' $1')}</p>
-                          <p className="text-xl font-black text-blue-400">{val}"</p>
-                        </div>
-                      ))}
-                      {(product?.sleeveLength || (product?.gender === 'Female' && product?.femaleOptions?.sleeves)) && (
-                        <div className="text-center p-4 theme-bg-subtle rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
-                          <p className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter mb-1">SLEEVES بازو</p>
-                          <p className="text-sm font-black text-white uppercase">{product.sleeveLength ? ({'full':'Full','half':'Half ہاف','three-quarter':'3 Quarter'}[product.sleeveLength] || product.sleeveLength) : ({'full':'Full','half':'Half ہاف','medium':'Medium'}[product.femaleOptions?.sleeves] || product.femaleOptions?.sleeves || '—')}</p>
-                        </div>
-                      )}
-                      {(product?.shirtLength || (product?.gender === 'Female' && product?.femaleOptions?.shirtLength)) && (
-                        <div className="text-center p-4 theme-bg-subtle rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
-                          <p className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter mb-1">SHIRT LENGTH</p>
-                          <p className="text-sm font-black text-white uppercase">{product.shirtLength ? ({'long':'Long','short':'Short','regular':'Regular ریگولر'}[product.shirtLength] || product.shirtLength) : ({'long':'Long','short':'Short'}[product.femaleOptions?.shirtLength] || product.femaleOptions?.shirtLength || '—')}</p>
-                        </div>
-                      )}
-                      {product?.alteration && (product.alteration.trouserLength || product.alteration.shirtLength || product.alteration.sleeveLength) && (
-                        <div className="col-span-full bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4">
-                          <p className="text-xs font-black text-amber-400 uppercase tracking-wider mb-3">Alteration</p>
-                          <div className="grid grid-cols-3 gap-3">
-                            {product.alteration.trouserLength ? (
-                              <div className="text-center p-3 theme-bg-subtle rounded-xl border border-amber-500/20">
-                                <p className="text-[10px] text-amber-500 font-black uppercase tracking-tighter mb-1">TROUSER</p>
-                                <p className="text-lg font-black text-amber-400">{product.alteration.trouserLength}"</p>
-                              </div>
-                            ) : null}
-                            {product.alteration.shirtLength ? (
-                              <div className="text-center p-3 theme-bg-subtle rounded-xl border border-amber-500/20">
-                                <p className="text-[10px] text-amber-500 font-black uppercase tracking-tighter mb-1">SHIRT</p>
-                                <p className="text-lg font-black text-amber-400">{product.alteration.shirtLength}"</p>
-                              </div>
-                            ) : null}
-                            {product.alteration.sleeveLength ? (
-                              <div className="text-center p-3 theme-bg-subtle rounded-xl border border-amber-500/20">
-                                <p className="text-[10px] text-amber-500 font-black uppercase tracking-tighter mb-1">SLEEVE</p>
-                                <p className="text-lg font-black text-amber-400">{product.alteration.sleeveLength}"</p>
-                              </div>
-                            ) : null}
-                          </div>
-                        </div>
-                      )}
-                      {sizes?.specialNote && (
-                        <div className="col-span-full text-center p-4 bg-yellow-500/5 rounded-2xl border border-yellow-500/10 shadow-sm">
-                          <p className="text-xs md:text-sm text-yellow-400 font-black uppercase tracking-tighter mb-1">Special Note</p>
-                          <p className="text-sm font-bold text-yellow-300/90 italic leading-tight">{sizes.specialNote}</p>
-                        </div>
-                      )}
-                    </div>
-                  </section>
-                )}
+
 
                 {selectedOrder.type !== 'STANDARD' && hasCustomData && (
                 <section>
