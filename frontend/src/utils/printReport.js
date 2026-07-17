@@ -1071,6 +1071,13 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const urduShMap = { 'long':'لمبی بازو', 'short':'چھوٹی بازو', 'regular':'Regular ریگولر' };
   const urduFemSlMap = { 'full':'فل بازو', 'half':'Half ہاف', 'medium':'درمیانی' };
   const urduFemShMap = { 'long':'لمبی بازو', 'short':'چھوٹی بازو' };
+  // Sleeve & Length column display maps (values only, no label prefix)
+  const colSleeveEN = { 'full':'Full', 'half':'Half', 'three-quarter':'Three Quarter', 'regular':'Regular', 'medium':'Medium' };
+  const colSleeveUR = { 'full':'فل', 'half':'ہاف', 'three-quarter':'تھری کوارٹر', 'regular':'ریگولر', 'medium':'میڈیم' };
+  const colLengthEN = { 'long':'Long', 'regular':'Regular', 'short':'Short' };
+  const colLengthUR = { 'long':'لانگ', 'regular':'ریگولر', 'short':'شارٹ' };
+  const colSleeveDisp = (v) => v ? (isUrdu ? (colSleeveUR[v] || v) : (colSleeveEN[v] || v)) : '—';
+  const colLengthDisp = (v) => v ? (isUrdu ? (colLengthUR[v] || v) : (colLengthEN[v] || v)) : '—';
   const slDisplay = (v) => v ? (isUrdu ? (urduSlMap[v] || v) : (slMap[v] || v)) : '';
   const shDisplay = (v) => v ? (isUrdu ? (urduShMap[v] || v) : (shMap[v] || v)) : '';
   const genDisplay = (g) => g ? (isUrdu ? (g === 'Male' ? 'مرد' : g === 'Female' ? 'عورت' : g) : g) : '';
@@ -1176,26 +1183,21 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   win.document.write(`</div>`);
 
   // ─── PRODUCTS TABLE ───
-  const optLabel = isUrdu ? 'آپشنز' : 'Options';
+  const sleeveLabel = isUrdu ? 'بازو' : 'Sleeve';
+  const lengthLabel = isUrdu ? 'لمبائی' : 'Length';
   win.document.write(`<div class="section-title" style="font-size:26px">${sec.products}</div>`);
+  // Helper to extract sleeve/length value from product
+  const getSleeveVal = (p) => p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves ? p.femaleOptions.sleeves : null);
+  const getLengthVal = (p) => p.shirtLength || (p.gender === 'Female' && p.femaleOptions?.shirtLength ? p.femaleOptions.shirtLength : null);
   if (isMultiItem) {
     const showCap = orderType !== 'STANDARD';
-    const headers = ['#', sec.product, sec.fabricColor, sec.sizeGender, sec.qty].concat(showCap ? [sec.cap] : []).concat([optLabel]);
+    const headers = ['#', sec.product, sec.fabricColor, sec.sizeGender, sec.qty].concat(showCap ? [sec.cap] : []).concat([sleeveLabel, lengthLabel]);
     win.document.write(`<table dir="${dir}"><thead><tr>${headers.map(h => '<th>' + h + '</th>').join('')}</tr></thead><tbody>`);
     allItems.forEach((item, idx) => {
       const p = getItemProduct(item);
       const capQty = showCap && p.matchingCap ? (p.matchingCapQty || 0) : (showCap && item.capCharges > 0 ? (p.femaleOptions?.cap || 0) : 0);
-      const ic = item.customization ? parseJSON(item.customization) : custom;
-      // Options column
-      const optParts = [];
-      if (p.sleeveLength) optParts.push(`${sec.sleeves}: ${slDisplay(p.sleeveLength)}`);
-      if (p.shirtLength) optParts.push(`${sec.length}: ${shDisplay(p.shirtLength)}`);
-      if (p.alteration?.trouserLength) optParts.push(`Trouser ${p.alteration.trouserLength}"`);
-      if (p.alteration?.shirtLength) optParts.push(`Shirt ${p.alteration.shirtLength}"`);
-      if (p.alteration?.sleeveLength) optParts.push(`Sleeve ${p.alteration.sleeveLength}"`);
-      if (ic?.fitType) optParts.push(`${ru(ic.fitType)} ${ru('Fit')}`);
-      if (p.gender === 'Female' && p.femaleOptions?.dupatta) optParts.push(sec.dupatta);
-      if (p.gender === 'Female' && p.femaleOptions?.zip) optParts.push('Zip');
+      const sv = getSleeveVal(p);
+      const lv = getLengthVal(p);
       win.document.write(`<tr>`);
       win.document.write(`<td style="font-weight:700">${idx + 1}</td>`);
       win.document.write(`<td style="font-weight:700">${ru(p.productType || p.name) || '—'}</td>`);
@@ -1207,37 +1209,28 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       win.document.write(`<td>${sgParts.join(' • ') || '—'}</td>`);
       win.document.write(`<td style="text-align:center;font-weight:700">${item.quantity || 1}</td>`);
       if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;color:#000">${capQty || '—'}</td>`);
-      win.document.write(`<td style="font-size:16px">${optParts.join(isUrdu ? '<br>' : ' | ') || '—'}</td>`);
+      win.document.write(`<td style="text-align:center;font-weight:600;font-size:16px">${colSleeveDisp(sv)}</td>`);
+      win.document.write(`<td style="text-align:center;font-weight:600;font-size:16px">${colLengthDisp(lv)}</td>`);
       win.document.write(`</tr>`);
     });
     win.document.write(`</tbody></table>`);
   } else {
     const showCap = orderType !== 'STANDARD';
     const capQty = showCap && firstProduct.matchingCap ? (firstProduct.matchingCapQty || 0) : 0;
-    const ic = custom;
-    // Options column
-    const optParts = [];
-    if (firstProduct.sleeveLength) optParts.push(`${sec.sleeves}: ${slDisplay(firstProduct.sleeveLength)}`);
-    if (firstProduct.shirtLength) optParts.push(`${sec.length}: ${shDisplay(firstProduct.shirtLength)}`);
-    if (firstProduct.alteration?.trouserLength) optParts.push(`Trouser ${firstProduct.alteration.trouserLength}"`);
-    if (firstProduct.alteration?.shirtLength) optParts.push(`Shirt ${firstProduct.alteration.shirtLength}"`);
-    if (firstProduct.alteration?.sleeveLength) optParts.push(`Sleeve ${firstProduct.alteration.sleeveLength}"`);
-    if (ic?.fitType) optParts.push(`${ru(ic.fitType)} ${ru('Fit')}`);
-    if (firstProduct.gender === 'Female' && firstProduct.femaleOptions?.dupatta) optParts.push(sec.dupatta);
-    if (firstProduct.gender === 'Female' && firstProduct.femaleOptions?.zip) optParts.push('Zip');
-    const headers = [sec.product, sec.fabricColor, sec.sizeGender, sec.qty].concat(showCap ? [sec.cap] : []).concat([optLabel]);
+    const sv = getSleeveVal(firstProduct);
+    const lv = getLengthVal(firstProduct);
+    const headers = [sec.product, sec.fabricColor, sec.sizeGender, sec.qty].concat(showCap ? [sec.cap] : []).concat([sleeveLabel, lengthLabel]);
     win.document.write(`<table dir="${dir}"><thead><tr>${headers.map(h => '<th>' + h + '</th>').join('')}</tr></thead><tbody>`);
     win.document.write(`<tr>`);
     win.document.write(`<td style="font-weight:700">${ru(firstProduct.productType || firstProduct.name) || '—'}</td>`);
-    // Fabric & Color
     const fcParts = [firstProduct.fabricType, ru(firstProduct.color)].filter(Boolean);
     win.document.write(`<td>${fcParts.join(' • ') || '—'}</td>`);
-    // Size & Gender
     const sgParts = [firstProduct.size ? (isUrdu ? `سائز ${firstProduct.size}` : `Size ${firstProduct.size}`) : (isUrdu ? 'کسٹم' : 'Custom'), genDisplay(firstProduct.gender)].filter(Boolean);
     win.document.write(`<td>${sgParts.join(' • ') || '—'}</td>`);
     win.document.write(`<td style="text-align:center;font-weight:700">${order.quantity || 1}</td>`);
     if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;color:#000">${capQty || '—'}</td>`);
-    win.document.write(`<td style="font-size:16px">${optParts.join(isUrdu ? '<br>' : ' | ') || '—'}</td>`);
+    win.document.write(`<td style="text-align:center;font-weight:600;font-size:16px">${colSleeveDisp(sv)}</td>`);
+    win.document.write(`<td style="text-align:center;font-weight:600;font-size:16px">${colLengthDisp(lv)}</td>`);
     win.document.write(`</tr></tbody></table>`);
   }
 
