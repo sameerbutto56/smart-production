@@ -17,7 +17,8 @@ export default class ErrorBoundary extends React.Component {
       error?.message?.includes('Failed to fetch dynamically imported module') ||
       error?.message?.includes('Importing a module script failed') ||
       error?.message?.includes('ChunkLoadError') ||
-      error?.name === 'ChunkLoadError'
+      error?.name === 'ChunkLoadError' ||
+      (error?.name === 'ReferenceError' && error?.message?.includes('before initialization'))
     ) {
       window.location.reload();
     }
