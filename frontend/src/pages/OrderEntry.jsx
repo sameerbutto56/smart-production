@@ -21,7 +21,9 @@ const SmartOrderForm = () => {
     showReview, setShowReview, showEditReview, showAddMore, showProductSelector, isCartOpen,
     editOrderNumber, setEditOrderNumber, editOrderLoading, editOrderError, editOrderData,
     originalOrder, editReason, setEditReason,
-    memoCartTotalItems, memoCartTotalPrice, memoIsFreeDelivery,
+    memoCartTotalItems, memoCartTotalPrice, memoIsFreeDelivery, memoCalcDelivery,
+    memoCartTotalLogoCharges, memoCartTotalNamePrinting, memoCartTotalCustomization,
+    memoCartTotalCap, memoOrderTotalBeforeDelivery, memoCartProductPriceExBranding,
     toggleEditMode, fetchOrderByNumber, submitOrderEditRequest,
     validateCurrentTab, handleAddToCart, removeCartItem, editCartItem,
     handleAddMoreProducts, handleCheckout, setShowAddMore, setIsCartOpen, setShowProductSelector,
@@ -341,6 +343,226 @@ const SmartOrderForm = () => {
                   <h2 className="text-xl md:text-2xl font-black theme-text-primary uppercase tracking-tight">{useUrdu ? 'آرڈر کا جائزہ' : 'Order Review & Summary'}</h2>
                   <p className="theme-text-muted text-xs md:text-sm font-black uppercase tracking-widest mt-1">{useUrdu ? 'جمع کرانے سے پہلے تصدیق کریں' : 'Please verify before submitting'}</p>
                 </div>
+              </div>
+              <div className="space-y-6 mb-8">
+                {(cartItems[0]?.orderNumber || formData.orderNumber) && (
+                  <div className="theme-bg border border-blue-500/20 rounded-2xl p-5 grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                    <div><span className="text-blue-400 font-black text-xs uppercase tracking-widest block mb-1">{useUrdu ? 'آرڈر نمبر' : 'Order No.'}</span><span className="theme-text-primary font-black">{cartItems[0]?.orderNumber || formData.orderNumber}</span></div>
+                    <div><span className="text-blue-400 font-black text-xs uppercase tracking-widest block mb-1">{useUrdu ? 'صارف' : 'Customer'}</span><span className="theme-text-primary font-black">{cartItems[0]?.customerName || formData.customerName}</span></div>
+                    <div><span className="text-blue-400 font-black text-xs uppercase tracking-widest block mb-1">{useUrdu ? 'فون' : 'Phone'}</span><span className="theme-text-primary">{cartItems[0]?.customerPhone || formData.customerPhone}</span></div>
+                    <div><span className="text-blue-400 font-black text-xs uppercase tracking-widest block mb-1">{useUrdu ? 'شہر' : 'City'}</span><span className="theme-text-primary">{cartItems[0]?.city || formData.city || '-'}</span></div>
+                    <div><span className="text-blue-400 font-black text-xs uppercase tracking-widest block mb-1">{useUrdu ? 'قسم' : 'Type'}</span><span className="theme-text-primary font-black uppercase">{cartItems[0]?.type || formData.type}</span></div>
+                    <div><span className="text-blue-400 font-black text-xs uppercase tracking-widest block mb-1">{useUrdu ? 'ترجیح' : 'Priority'}</span><span className={`font-black uppercase ${formData.priority === 'RUSH' ? 'text-red-400' : formData.priority === 'URGENT' ? 'text-amber-400' : 'theme-text-primary'}`}>{cartItems[0]?.priority || formData.priority}</span></div>
+                  </div>
+                )}
+                {/* Products Section */}
+                {cartItems.length > 0 && (
+                  <div className="theme-bg border border-purple-500/20 rounded-2xl p-5">
+                    <h3 className="text-xs md:text-sm font-black text-purple-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                      <ShoppingCart size={12} /> {useUrdu ? 'پروڈکٹس' : 'Products'} ({cartItems.length})
+                    </h3>
+                    <div className="space-y-3">
+                      {cartItems.map((item, idx) => {
+                        const pd = item.productDetails || {};
+                        const cust = item.customization || {};
+                        const hasCust = cust.nameSpelling || cust.fitType || cust.designNotes || item.logoName || item.logoDesign || cust.logos || cust.engravingType;
+                        return (
+                          <div key={idx} className="bg-gray-900/50 rounded-xl border border-gray-800/70 p-3 md:p-4">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-xs font-black text-gray-500">#{idx + 1}</span>
+                                  <span className="text-sm font-black text-white uppercase truncate">{pd.productType || '\u2014'}</span>
+                                  {pd.gender && <span className="text-[9px] font-black text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">{pd.gender}</span>}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                  <span className="text-xs text-gray-300 uppercase font-bold">{pd.color || '\u2014'} / {pd.size || '\u2014'}</span>
+                                  {pd.fabricType && <span className="text-xs text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">{pd.fabricType}</span>}
+                                  {pd.sleeveLength && <span className="text-xs font-black text-pink-400 bg-pink-900/20 px-1.5 py-0.5 rounded">{pd.sleeveLength === 'full' ? 'Full' : pd.sleeveLength === 'half' ? 'Half' : pd.sleeveLength === 'three-quarter' ? '3 Quarter' : 'Quarter'}</span>}
+                                  {pd.shirtLength && <span className="text-xs font-black text-pink-400 bg-pink-900/20 px-1.5 py-0.5 rounded">{pd.shirtLength === 'long' ? 'Long' : pd.shirtLength === 'short' ? 'Short' : 'Regular'}</span>}
+                                  {item.capCharges > 0 && <span className="text-xs font-black text-rose-400">x{pd.matchingCapQty || 0} Matching Cap</span>}
+                                  {pd.alteration && (pd.alteration.trouserLength || pd.alteration.shirtLength || pd.alteration.sleeveLength) && (
+                                    <span className="text-xs font-black text-amber-400 bg-amber-500/20 border border-amber-500/30 px-1.5 py-0.5 rounded">
+                                      Alt: {[pd.alteration.trouserLength && `Trouser ${pd.alteration.trouserLength}"`, pd.alteration.shirtLength && `Shirt ${pd.alteration.shirtLength}"`, pd.alteration.sleeveLength && `Sleeve ${pd.alteration.sleeveLength}"`].filter(Boolean).join(' ')}
+                                    </span>
+                                  )}
+                                  <span className="text-xs md:text-sm font-black text-blue-400">x{item.quantity || 1}</span>
+                                </div>
+                                {(pd.fabricSourceProduct || pd.colorSourceProduct || pd.designSourceProduct || pd.sizeSourceProduct || pd.additionalProductRef) && (
+                                  <div className="flex flex-wrap gap-1.5 mt-1">
+                                    {pd.fabricSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Fabric: {pd.fabricSourceProduct}</span>}
+                                    {pd.colorSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Color: {pd.colorSourceProduct}</span>}
+                                    {pd.designSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Design: {pd.designSourceProduct}</span>}
+                                    {pd.sizeSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Size: {pd.sizeSourceProduct}</span>}
+                                    {pd.additionalProductRef && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Extra: {pd.additionalProductRef}</span>}
+                                  </div>
+                                )}
+                                {(item.logoCharges > 0 || item.namePrintingCharges > 0 || item.customizationPrice > 0) && (
+                                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                    {item.logoCharges > 0 && <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">Logo Fee: Rs{item.logoCharges}</span>}
+                                    {item.namePrintingCharges > 0 && <span className="text-[9px] font-black text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">Name Charges: Rs{item.namePrintingCharges}</span>}
+                                    {item.customizationPrice > 0 && <span className="text-[9px] font-black text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20">Custom Fee: Rs{item.customizationPrice}</span>}
+                                  </div>
+                                )}
+                                {hasCust && (
+                                  <div className="mt-2 space-y-2">
+                                    {(cust.articleNames?.length > 0 || cust.nameSpelling) && (
+                                      <div className="bg-purple-500/5 rounded-lg p-2 border border-purple-500/10">
+                                        <p className="text-[9px] text-purple-400 font-black uppercase tracking-widest mb-1">Name Lines</p>
+                                        <div className="flex flex-wrap gap-1.5">
+                                          {cust.articleNames?.length > 0 ? (
+                                            cust.articleNames.map((an, ai) => (
+                                              <span key={ai} className="text-xs font-black text-purple-300 bg-purple-900/30 px-2 py-0.5 rounded border border-purple-500/20">
+                                                {cust.nameSpelling?.includes(',') ? `Line ${ai + 1}: ${an}` : an}
+                                              </span>
+                                            ))
+                                          ) : (
+                                            <span className="text-xs font-black text-purple-300 bg-purple-900/30 px-2 py-0.5 rounded border border-purple-500/20">{cust.nameSpelling}</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {(cust.fitType || cust.nameColor || cust.logoColor || cust.logoPlacement || cust.engravingType) && (
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {cust.engravingType && <span className="text-[10px] font-black text-violet-400 bg-violet-900/30 px-2 py-0.5 rounded border border-violet-500/20">{cust.engravingType === 'direct' ? 'Direct Engraving' : 'Patch Engraving'}</span>}
+                                        {cust.fitType && <span className="text-[10px] font-black text-indigo-400 bg-indigo-900/30 px-2 py-0.5 rounded border border-indigo-500/20">{cust.fitType} Fit</span>}
+                                        {cust.nameColor && <span className="text-[10px] font-black text-rose-400 bg-rose-900/30 px-2 py-0.5 rounded border border-rose-500/20">Color: {cust.nameColor}</span>}
+                                        {cust.logoColor && <span className="text-[10px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Logo: {cust.logoColor}</span>}
+                                        {cust.logoPlacement && <span className="text-[10px] font-black text-teal-400 bg-teal-900/30 px-2 py-0.5 rounded border border-teal-500/20">Position: {cust.logoPlacement}</span>}
+                                        {item.logoName && <span className="text-[10px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Logo: {item.logoName}</span>}
+                                      </div>
+                                    )}
+                                    {cust.logos?.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).length > 0 && (
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {cust.logos.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).map((l, li) => (
+                                          <span key={li} className="text-[10px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">{l.name || l.design}</span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="text-right shrink-0">
+                                {item.quantity > 1 && item.totalPrice > 0 && (
+                                  <p className="text-xs theme-text-muted font-bold">Rs{Number(item.totalPrice / item.quantity).toLocaleString()} x {item.quantity}</p>
+                                )}
+                                <p className="text-sm font-black text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-xl">Rs{Number(item.totalPrice).toLocaleString()}</p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                {(() => {
+                  const calcProductPrice = memoCartProductPriceExBranding;
+                  const calcLogo = memoCartTotalLogoCharges;
+                  const calcName = memoCartTotalNamePrinting;
+                  const calcCustomization = memoCartTotalCustomization;
+                  const calcCap = memoCartTotalCap;
+                  const calcTotal = calcProductPrice + calcLogo + calcName + calcCustomization + calcCap + (memoIsFreeDelivery ? 0 : (memoCalcDelivery || 0));
+                  const adjProductPrice = parseFloat(formData.adjProductPrice) || calcProductPrice;
+                  const adjLogoCharges = parseFloat(formData.adjLogoCharges) || calcLogo;
+                  const adjNamePrinting = parseFloat(formData.adjNamePrinting) || calcName;
+                  const adjCustomization = parseFloat(formData.adjCustomization) || calcCustomization;
+                  const adjCap = parseFloat(formData.adjCapCharges) || calcCap;
+                  const adjDelivery = memoIsFreeDelivery ? 0 : (memoCalcDelivery || 0);
+                  const discount = parseFloat(formData.adjDiscount) || 0;
+                  const advanceAmt = parseFloat(formData.advanceAmount) || 0;
+                  const adjTotal = adjProductPrice + adjLogoCharges + adjNamePrinting + adjCustomization + adjCap + adjDelivery - discount;
+                  const remainingBalance = Math.max(0, adjTotal - advanceAmt);
+                  const inp = (name, calcVal, color = 'emerald-400') => (
+                    <input type="number" min="0" value={formData[name] ?? ''} placeholder={String(calcVal)}
+                      onChange={e => setFormData({ ...formData, [name]: e.target.value })}
+                      className={`w-full text-right theme-bg border border-gray-700/50 rounded-lg py-1 px-2 text-xs font-black text-${color} focus:border-${color} outline-none transition-all`} />
+                  );
+                  const fmt = (n) => n.toLocaleString();
+                  return (
+                    <div className="theme-bg border border-gray-800/50 rounded-[2rem] p-4 md:p-6">
+                      <h3 className="text-xs md:text-sm font-black text-emerald-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                        ₨ {useUrdu ? 'مالی خلاصہ' : 'Financial Summary'} <span className="text-[8px] text-gray-500 tracking-[0.3em]">{useUrdu ? 'گنیتی / تبديل شدہ' : 'CALCULATED / ADJUSTED'}</span>
+                      </h3>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-gray-800/50">
+                              <th className="text-left text-gray-500 font-black uppercase tracking-wider py-1.5 pr-2">{useUrdu ? 'آئٹم' : 'Item'}</th>
+                              <th className="text-right text-gray-500 font-black uppercase tracking-wider py-1.5 px-2 w-20">{useUrdu ? 'گنیتی' : 'Calculated'}</th>
+                              <th className="text-right text-gray-500 font-black uppercase tracking-wider py-1.5 pl-2 w-20">{useUrdu ? 'تبدیل شدہ' : 'Adjusted'}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr className="border-b border-gray-800/30">
+                              <td className="text-gray-300 font-bold py-1.5 pr-2">{useUrdu ? 'پروڈکٹ کی قیمت' : 'Product Price'}</td>
+                              <td className="text-right text-gray-300 font-black py-1.5 px-2">₨{fmt(calcProductPrice)}</td>
+                              <td className="text-right py-1.5 pl-2">{inp('adjProductPrice', calcProductPrice)}</td>
+                            </tr>
+                            <tr className="border-b border-gray-800/30">
+                              <td className="text-amber-400 font-bold py-1.5 pr-2">{useUrdu ? 'لوگو چارجز' : 'Logo Charges'}</td>
+                              <td className="text-right text-amber-400 font-black py-1.5 px-2">₨{fmt(calcLogo)}</td>
+                              <td className="text-right py-1.5 pl-2">{inp('adjLogoCharges', calcLogo, 'amber-400')}</td>
+                            </tr>
+                            <tr className="border-b border-gray-800/30">
+                              <td className="text-purple-400 font-bold py-1.5 pr-2">{useUrdu ? 'نام چارجز' : 'Name Charges'}</td>
+                              <td className="text-right text-purple-400 font-black py-1.5 px-2">₨{fmt(calcName)}</td>
+                              <td className="text-right py-1.5 pl-2">{inp('adjNamePrinting', calcName, 'purple-400')}</td>
+                            </tr>
+                            <tr className="border-b border-gray-800/30">
+                              <td className="text-cyan-400 font-bold py-1.5 pr-2">{useUrdu ? 'کسٹمائزیشن' : 'Customization'}</td>
+                              <td className="text-right text-cyan-400 font-black py-1.5 px-2">₨{fmt(calcCustomization)}</td>
+                              <td className="text-right py-1.5 pl-2">{inp('adjCustomization', calcCustomization, 'cyan-400')}</td>
+                            </tr>
+                            <tr className="border-b border-gray-800/30">
+                              <td className="text-rose-400 font-bold py-1.5 pr-2">{useUrdu ? 'کیپ چارجز' : 'Cap Charges'}</td>
+                              <td className="text-right text-rose-400 font-black py-1.5 px-2">₨{fmt(calcCap)}</td>
+                              <td className="text-right py-1.5 pl-2">{inp('adjCapCharges', calcCap, 'rose-400')}</td>
+                            </tr>
+                            <tr className="border-b border-gray-800/30">
+                              <td className={`font-bold py-1.5 pr-2 ${memoIsFreeDelivery ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                {useUrdu ? 'ڈلیوری چارجز' : 'Delivery'} {memoIsFreeDelivery && <span className="text-[9px] tracking-widest text-emerald-500">(FREE)</span>}
+                              </td>
+                              <td className={`text-right font-black py-1.5 px-2 ${memoIsFreeDelivery ? 'text-emerald-500' : 'text-amber-400'}`}>
+                                {memoIsFreeDelivery ? 'FREE' : `₨${fmt(memoCalcDelivery || 0)}`}
+                              </td>
+                              <td className="text-right py-1.5 pl-2">
+                                <span className={`font-black text-xs ${memoIsFreeDelivery ? 'text-emerald-500' : 'text-amber-400'}`}>{memoIsFreeDelivery ? 'FREE' : `₨${fmt(memoCalcDelivery || 0)}`}</span>
+                              </td>
+                            </tr>
+                            <tr className="border-b border-gray-800/30">
+                              <td className="text-red-400 font-bold py-1.5 pr-2">{useUrdu ? 'رعایت' : 'Discount'}</td>
+                              <td className="text-right text-gray-500 font-black py-1.5 px-2">—</td>
+                              <td className="text-right py-1.5 pl-2">
+                                <input type="number" min="0" value={formData.adjDiscount ?? ''} placeholder="0"
+                                  onChange={e => setFormData({ ...formData, adjDiscount: e.target.value })}
+                                  className="w-full text-right theme-bg border border-red-500/50 rounded-lg py-1 px-2 text-xs font-black text-red-400 focus:border-red-500 outline-none transition-all" />
+                              </td>
+                            </tr>
+                            <tr className="border-b border-gray-800/30">
+                              <td className="text-gray-200 font-black text-sm py-2 pr-2">{useUrdu ? 'کل رقم' : 'Grand Total'}</td>
+                              <td className="text-right text-gray-200 font-black text-sm py-2 px-2">₨{fmt(calcTotal)}</td>
+                              <td className="text-right font-black text-white text-lg py-2 pl-2">₨{fmt(adjTotal)}</td>
+                            </tr>
+                            <tr>
+                              <td className="text-emerald-400 font-bold py-1.5 pr-2">{useUrdu ? 'پیشگی وصول' : 'Advance Received'}</td>
+                              <td className="text-right text-emerald-400 font-black py-1.5 px-2">{advanceAmt > 0 ? '✓ ' : ''}₨{fmt(advanceAmt)}</td>
+                              <td className="text-right text-emerald-400 font-black py-1.5 pl-2">{advanceAmt > 0 ? '✓ ' : ''}₨{fmt(advanceAmt)}</td>
+                            </tr>
+                            <tr>
+                              <td className="text-orange-400 font-black text-sm py-2 pr-2">{useUrdu ? 'باقی رقم' : 'Remaining Balance'}</td>
+                              <td className="text-right text-orange-400 font-black text-sm py-2 px-2">₨{fmt(Math.max(0, calcTotal - advanceAmt))}</td>
+                              <td className="text-right text-orange-400 font-black text-lg py-2 pl-2">₨{fmt(remainingBalance)}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="flex justify-between items-center mt-4 pt-3 border-t border-gray-800/50">
+                        <span className="text-xs text-gray-400">{useUrdu ? 'کل آئٹمز' : 'Total Items'}</span>
+                        <span className="font-black theme-text-primary">{memoCartTotalItems}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
               <div className="flex gap-3">
                 <button onClick={() => setShowReview(false)}
