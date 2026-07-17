@@ -180,7 +180,7 @@ const DispatchDashboard = () => {
   }, [activeTab, loggedIn, fetchDashboard]);
 
   // Persist filter/tab state on change
-  useEffect(() => { if (loggedIn) sessionStorage.setItem('dispatchActiveTab', activeTab); }, [activeTab, loggedIn]);
+  useEffect(() => { if (loggedIn && activeTab !== 'dashboard') sessionStorage.setItem('dispatchActiveTab', activeTab); }, [activeTab, loggedIn]);
   useEffect(() => { if (loggedIn) sessionStorage.setItem('dispatchSearch', search); }, [search, loggedIn]);
   useEffect(() => { if (loggedIn) sessionStorage.setItem('dispatchCityFilter', cityFilter); }, [cityFilter, loggedIn]);
   useEffect(() => { if (loggedIn) sessionStorage.setItem('dispatchMethodFilter', methodFilter); }, [methodFilter, loggedIn]);
