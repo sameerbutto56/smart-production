@@ -150,11 +150,10 @@ const EngravingTab = () => {
               className="w-full theme-input rounded-xl py-3 px-4 text-sm font-bold" placeholder="0" />
           </div>
           <div className="space-y-2">
-            <label className="text-xs font-black theme-text-muted uppercase tracking-widest">{useUrdu ? 'نام چارجز' : 'Name Charges (₨)'}</label>
-            <div className="w-full theme-input rounded-xl py-3 px-4 text-sm font-bold flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30">
-              <span className="text-emerald-400 font-black">₨{((formData.skipEngraving || !articleNameEntries.some(n => n.trim().length > 0) ? 0 : 300) * (parseInt(formData.quantity) || 1)).toLocaleString()}</span>
-              <span className="text-[10px] text-gray-500 font-bold">({formData.skipEngraving ? 'Skipped' : !articleNameEntries.some(n => n.trim().length > 0) ? 'Enter name for charge' : `300 × ${parseInt(formData.quantity) || 1} unit`})</span>
-            </div>
+            <label className="text-xs font-black theme-text-muted uppercase tracking-widest">{useUrdu ? 'نام پرنٹنگ چارج' : 'Name Printing Charge (₨)'}</label>
+            <input type="number" min="0" onKeyDown={preventEnterSubmit} value={formData.namePrintingCharges}
+              onChange={(e) => setFormData({ ...formData, namePrintingCharges: e.target.value })}
+              className="w-full theme-input rounded-xl py-3 px-4 text-sm font-bold" placeholder="0" />
           </div>
           <div className="space-y-2">
             <label className="text-xs font-black theme-text-muted uppercase tracking-widest">{useUrdu ? 'کسٹمائزیشن چارج' : 'Customization Charge (₨)'}</label>
@@ -167,7 +166,7 @@ const EngravingTab = () => {
           <span className="text-xs md:text-sm font-bold text-gray-400">{useUrdu ? 'برانڈنگ چارجز کل' : 'Total Branding Charges'}</span>
           <span className="font-black text-white">₨{(
             (parseFloat(formData.logoCharges) || 0) +
-            ((formData.skipEngraving || !articleNameEntries.some(n => n.trim().length > 0) ? 0 : 300) * (parseInt(formData.quantity) || 1)) +
+            (parseFloat(formData.namePrintingCharges) || 0) +
             (parseFloat(formData.customizationPrice) || 0)
           ).toLocaleString()}</span>
         </div>

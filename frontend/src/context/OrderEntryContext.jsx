@@ -595,9 +595,7 @@ export const OrderEntryProvider = ({ children }) => {
   const handleAddToCart = useCallback(() => {
     const validationError = validateProductConfig();
     if (validationError) { setError(validationError); return; }
-    const hasEngravingName = articleNameEntries.some(name => name.trim().length > 0);
-    const nameEngravingCharges = formData.type === 'STANDARD' ? 0 : ((formData.skipEngraving || !hasEngravingName) ? 0 : 300) * (parseInt(formData.quantity) || 1);
-    const brandingTotal = (parseFloat(formData.logoCharges) || 0) + nameEngravingCharges + (parseFloat(formData.customizationPrice) || 0);
+    const brandingTotal = (parseFloat(formData.logoCharges) || 0) + (parseFloat(formData.namePrintingCharges) || 0) + (parseFloat(formData.customizationPrice) || 0);
     const computedTotalPriceCalc = (() => {
       if (!selectedProduct) return 0;
       const price = selectedProduct.price || 0;
@@ -616,7 +614,7 @@ export const OrderEntryProvider = ({ children }) => {
       advanceAmount: parseFloat(formData.advanceAmount) || 0, paymentStatus: formData.paymentStatus,
       logoDesign: formData.logoDesign, logoName: formData.logoName,
       logoCharges: parseFloat(formData.logoCharges) || 0,
-      namePrintingCharges: nameEngravingCharges,
+      namePrintingCharges: parseFloat(formData.namePrintingCharges) || 0,
       customizationPrice: parseFloat(formData.customizationPrice) || 0,
       productDetails: {
         productType: formData.productType || formData.customProductName,
