@@ -457,6 +457,19 @@ const SmartOrderForm = () => {
                                     )}
                                   </div>
                                 )}
+                                {item.sizeData && Object.keys(item.sizeData).length > 0 && (
+                                  <div className="mt-2 bg-gray-900/50 rounded-lg p-2 border border-gray-800/50">
+                                    <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-1">Measurements</p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {Object.entries(item.sizeData).filter(([k, v]) => v && k !== 'specialNote').map(([k, v]) => (
+                                        <span key={k} className="text-[10px] font-black text-gray-300 bg-gray-800 px-1.5 py-0.5 rounded">{k}: {v}</span>
+                                      ))}
+                                    </div>
+                                    {item.sizeData.specialNote && (
+                                      <p className="text-[10px] text-yellow-400 font-black mt-1 italic">Note: {item.sizeData.specialNote}</p>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                               <div className="text-right shrink-0">
                                 {item.quantity > 1 && item.totalPrice > 0 && (

@@ -21,7 +21,7 @@ const OrderTrack = () => {
     if (!orderNumber.trim()) { setError('Please enter an order number'); return; }
     setLoading(true); setError(''); setOrder(null);
     try {
-      const res = await api.get(`/api/orders/track/${orderNumber.trim()}`);
+      const res = await api.get(`/api/orders/track/${orderNumber.trim().replace(/^#/, '')}`);
       setOrder(res.data);
     } catch (e) {
       setError(e.response?.status === 404 ? 'Order not found' : 'Error fetching order');
