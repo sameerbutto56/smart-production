@@ -179,6 +179,17 @@ const DispatchDashboard = () => {
     if (activeTab === 'activity' && loggedIn) fetchActivityLogs();
   }, [activeTab, loggedIn, fetchDashboard]);
 
+  // Sync activeTab from URL param changes (navbar Dashboard/Dispatch clicks)
+  const prevTabRef = useRef(searchParams.get('tab'));
+  useEffect(() => {
+    const currentTab = searchParams.get('tab');
+    const prevTab = prevTabRef.current;
+    prevTabRef.current = currentTab;
+    if (currentTab !== prevTab) {
+      setActiveTab(currentTab || 'unseen');
+    }
+  }, [searchParams]);
+
   // Persist filter/tab state on change
   useEffect(() => { if (loggedIn && activeTab !== 'dashboard') sessionStorage.setItem('dispatchActiveTab', activeTab); }, [activeTab, loggedIn]);
   useEffect(() => { if (loggedIn) sessionStorage.setItem('dispatchSearch', search); }, [search, loggedIn]);
