@@ -41,7 +41,7 @@ const WarehousePOSProducts = () => {
 
 const ProductCard = React.memo(({ group }) => {
   const { handleAddToCart, formatCurrency } = useWarehousePOS();
-  const hasVariants = group.colors.length + group.sizes.length > 1;
+  const hasVariants = group._variants.length > 1;
 
   return (
     <div onClick={() => handleAddToCart(group)}

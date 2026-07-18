@@ -218,11 +218,9 @@ export const WarehousePOSProvider = ({ children }) => {
     }
   }, [state.cart, set]);
 
-  // Open config modal when product has color/size choices
+  // Open config modal when product has more than one variant
   const handleAddToCart = useCallback((group) => {
-    const hasColors = group.colors.length > 1;
-    const hasSizes = group.sizes.length > 1;
-    if (!hasColors && !hasSizes) {
+    if (group._variants.length <= 1) {
       addToCart(group, group._variants[0]);
       return;
     }
