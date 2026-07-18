@@ -1322,11 +1322,6 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
             win.document.write(`<p style="font-size:22px;font-style:italic;color:#000"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
           }
 
-          const capQty = p.matchingCap ? (p.matchingCapQty || 0) : 0;
-          if (capQty > 0) {
-            win.document.write(`<p style="font-size:20px;margin-top:4px;color:#000;font-weight:700">${sec.matchingCap} ×${capQty}</p>`);
-          }
-
           win.document.write(`</div>`);
         });
       }
