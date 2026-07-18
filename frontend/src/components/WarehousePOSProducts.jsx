@@ -47,8 +47,8 @@ const ProductCard = React.memo(({ group }) => {
     <div onClick={() => handleAddToCart(group)}
       className="bg-gray-800/50 border border-gray-700 rounded-xl p-3 hover:border-emerald-500/50 hover:bg-gray-800/80 transition-all cursor-pointer active:scale-[0.98]">
       {/* Product name + category */}
-      <div className="text-xs font-bold text-white truncate">{group.name}</div>
-      <div className="text-[10px] text-gray-500 mt-0.5">{group.category}</div>
+      <div className="text-xs font-bold text-white truncate font-data">{group.name}</div>
+      <div className="text-[10px] text-gray-500 mt-0.5 font-data">{group.category}</div>
 
       {/* Color swatches */}
       {group.colors.length > 0 && (

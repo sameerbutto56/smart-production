@@ -164,7 +164,7 @@
 }
 
 .font-urdu {
-  font-family: 'Noto Nastaliq Urdu', 'Noto Naskh Arabic', 'Urdu Typesetting', 'Traditional Arabic', 'AlQalam', sans-serif;
+  font-family: 'Noto Nastaliq Urdu', 'Noto Naskh Arabic', 'Urdu Typesetting', sans-serif;
   font-weight: 500;
   line-height: 2;
   direction: rtl;
@@ -172,6 +172,12 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-optical-sizing: auto;
+}
+
+.font-urdu .font-data {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  direction: ltr;
+  text-align: left;
 }
 
 .font-urdu .rtl-flip {
