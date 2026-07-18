@@ -777,6 +777,30 @@ const DispatchDashboard = () => {
         </div>
       )}
 
+      {/* Dispatch task tabs inside Dashboard view */}
+      {pageMode === 'dashboard' && (
+        <div className="flex gap-1 theme-bg-subtle p-1 rounded-2xl border theme-border mt-6">
+          {[
+            { id: 'unseen', label: 'Unseen Tasks', icon: Eye, count: data.counts.unseen },
+            { id: 'seen', label: 'Seen Tasks', icon: UserCheck, count: data.counts.seen }
+          ].map(tab => {
+            const Icon = tab.icon;
+            return (
+              <button key={tab.id} onClick={() => { setPageMode('dispatch'); setActiveTab(tab.id); }}
+                className={`flex-1 flex flex-col items-center gap-1 py-3 px-4 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all relative ${
+                  activeTab === tab.id ? (isEmployeeMode ? 'bg-emerald-600 text-white shadow-lg' : 'bg-purple-600 text-white shadow-lg') : 'theme-text-muted hover:text-gray-300'
+                }`}>
+                <Icon size={16} />
+                <span>{tab.label}</span>
+                {tab.count > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center bg-white text-purple-700">{tab.count}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Unseen Tab */}
       {activeTab === 'unseen' && (
         <>
