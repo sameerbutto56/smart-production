@@ -53,8 +53,7 @@ const addToInventory = async (req, res) => {
       // Find matching InventoryItem by name + category
       let invItem = await prisma.inventoryItem.findFirst({
         where: {
-          name: productType,
-          isActive: true
+          name: productType
         }
       });
 
@@ -119,7 +118,7 @@ const getProducts = async (req, res) => {
     }
 
     const items = await prisma.inventoryItem.findMany({
-      where: { isActive: true },
+      where: {},
       orderBy: { name: 'asc' },
       select: {
         id: true, name: true, category: true, color: true, size: true,
@@ -172,7 +171,7 @@ const lookupBarcode = async (req, res) => {
     const barcode = req.params.barcode.toUpperCase();
     let inv = null;
 
-    const items = await prisma.inventoryItem.findMany({ where: { isActive: true } });
+    const items = await prisma.inventoryItem.findMany({ where: {} });
 
     for (const store of items) {
       const baseBarcode = generateBarcode(store.id, null, null);
