@@ -1099,6 +1099,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const isOutletSizeData = rawSizes && typeof rawSizes === 'object' && !Array.isArray(rawSizes) && Object.values(rawSizes).some(v => typeof v === 'object' && v !== null && !Array.isArray(v) && !v._extra);
   const flatSizes = isOutletSizeData ? Object.values(rawSizes).reduce((acc, v) => ({ ...acc, ...v }), {}) : rawSizes;
   const sizes = (flatSizes && Object.keys(flatSizes).length > 0) ? flatSizes : ({});
+  const productVerification = order.productVerification && typeof order.productVerification === 'object' ? order.productVerification : {};
 
   // Hide the default .report-header from openPrintWindow — we write our own header below
   win.document.write('<style>.report-header{display:none!important}</style>');
@@ -1208,7 +1209,8 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       const lv = getLengthVal(p);
       win.document.write(`<tr>`);
       win.document.write(`<td style="font-weight:700">${idx + 1}</td>`);
-      win.document.write(`<td style="font-weight:700">${ru(p.productType || p.name) || '—'}</td>`);
+      const verified = productVerification[String(idx)] === true;
+      win.document.write(`<td style="font-weight:700">${verified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#22c55e20;color:#22c55e;border:1px solid #22c55e40;font-size:10px;margin-right:4px">✓</span>' : ''}${ru(p.productType || p.name) || '—'}</td>`);
       // Fabric & Color column (no size mixed in)
       const fcParts = [p.fabricType, ru(p.color)].filter(Boolean);
       win.document.write(`<td>${fcParts.join(' • ') || '—'}</td>`);
@@ -1230,7 +1232,8 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     const headers = [sec.product, sec.fabricColor, sec.sizeGender, sec.qty].concat(showCap ? [sec.cap] : []).concat([sleeveLabel, lengthLabel]);
     win.document.write(`<table dir="${dir}"><thead><tr>${headers.map(h => '<th>' + h + '</th>').join('')}</tr></thead><tbody>`);
     win.document.write(`<tr>`);
-    win.document.write(`<td style="font-weight:700">${ru(firstProduct.productType || firstProduct.name) || '—'}</td>`);
+    const singleVerified = productVerification['0'] === true;
+    win.document.write(`<td style="font-weight:700">${singleVerified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#22c55e20;color:#22c55e;border:1px solid #22c55e40;font-size:10px;margin-right:4px">✓</span>' : ''}${ru(firstProduct.productType || firstProduct.name) || '—'}</td>`);
     const fcParts = [firstProduct.fabricType, ru(firstProduct.color)].filter(Boolean);
     win.document.write(`<td>${fcParts.join(' • ') || '—'}</td>`);
     const sgParts = [firstProduct.size ? (isUrdu ? `سائز ${firstProduct.size}` : `Size ${firstProduct.size}`) : (isUrdu ? 'کسٹم' : 'Custom'), genDisplay(firstProduct.gender)].filter(Boolean);

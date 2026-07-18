@@ -3241,6 +3241,42 @@ const updateProductAvailability = async (req, res) => {
   }
 };
 
+const toggleProductVerification = async (req, res) => {
+  const { orderId } = req.params;
+  const { productIndex } = req.body;
+
+  if (productIndex === undefined || productIndex === null || typeof productIndex !== 'number') {
+    return res.status(400).json({ message: 'productIndex (number) is required' });
+  }
+
+  try {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    const verification = order.productVerification || {};
+    const key = String(productIndex);
+    const current = verification[key] === true;
+    verification[key] = !current;
+
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { productVerification: verification }
+    });
+
+    await createAuditLog(orderId, 'PRODUCT_VERIFIED',
+      `Product #${productIndex + 1} ${verification[key] ? 'verified' : 'unverified'}`,
+      req.user.id);
+
+    const io = req.app.get('io');
+    if (io) io.emit('order-updated', { orderId, createdById: order.createdById });
+
+    res.json({ message: 'Product verification toggled', productVerification: verification });
+  } catch (error) {
+    console.error('toggleProductVerification error:', error);
+    res.status(500).json({ message: 'Error toggling verification', error: error.message });
+  }
+};
+
 const trackOrder = async (req, res) => {
   try {
     const orderNumber = (req.params.orderNumber || '').trim();
@@ -3306,5 +3342,6 @@ module.exports = {
   acceptTask,
   getOrderTimeline,
   updateProductAvailability,
+  toggleProductVerification,
   trackOrder
 };

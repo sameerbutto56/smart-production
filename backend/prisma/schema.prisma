@@ -103,6 +103,7 @@ model Order {
    customerTakenAt  DateTime?
     orderTakenBy     String?
     placedBy         String?
+    productVerification Json?   // { "0": true, "2": true } — product indices marked as verified in Store
     auditLogs       AuditLog[]
    stages          OrderStage[]
    editRequests    OrderEditRequest[]

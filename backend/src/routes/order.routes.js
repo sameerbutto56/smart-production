@@ -37,6 +37,7 @@ const {
   getOrderTimeline,
   getOutletAnalytics,
   updateProductAvailability,
+  toggleProductVerification,
   trackOrder
 } = require('../controllers/order.controller');
 const {
@@ -114,6 +115,9 @@ router.put('/:orderId/delivery-type', authenticate, authorize(['SUPER_ADMIN', 'F
 
 // Inventory availability check for Store department
 router.get('/:orderId/inventory-check', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'ADMIN', 'SUPER_ADMIN', 'FAISAL']), checkOrderInventory);
+
+// Toggle per-product verification check mark (Store profile)
+router.patch('/:orderId/toggle-product-verification', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'FAISAL']), toggleProductVerification);
 
 // Add products from production order to store inventory
 router.post('/:orderId/add-to-inventory', authenticate, authorize(['STORE', 'STORE_EMPLOYEE', 'ADMIN', 'SUPER_ADMIN']), addOrderToInventory);
