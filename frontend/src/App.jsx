@@ -37,6 +37,8 @@ const OutletJournalPage = lazy(() => import('./pages/OutletJournalPage'));
 const ChatPage = lazy(() => import('./pages/ChatPage'));
 const NotesPage = lazy(() => import('./pages/NotesPage'));
 const DispatchDashboard = lazy(() => import('./pages/DispatchDashboard'));
+const DispatchPage = lazy(() => import('./pages/DispatchPage'));
+const WarehousePOS = lazy(() => import('./pages/WarehousePOS'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -123,7 +125,9 @@ function App() {
                   <Route path="journal" element={<OutletJournalPage />} />
                   <Route path="chat" element={<ChatPage />} />
                   <Route path="notes" element={<NotesPage />} />
-                  <Route path="dispatch" element={<DispatchDashboard />} />
+                  <Route path="dispatch" element={<DispatchPage />} />
+                  <Route path="dispatch-dashboard" element={<DispatchDashboard />} />
+                  <Route path="warehouse-pos" element={<WarehousePOS />} />
                 </Route>
               </Routes>
               </ErrorBoundary>

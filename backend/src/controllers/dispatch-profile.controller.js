@@ -104,9 +104,12 @@ const getDispatchProfileOrders = async (req, res) => {
         }
       }
 
+      const terminalStatuses2 = ['DELIVERED', 'RETURNED', 'REJECTED', 'PICKED_UP'];
+      const filteredActive2 = active.filter(o => !terminalStatuses2.includes(o.dispatchStatus));
+
       return res.json({
-        unseen, seen, active,
-        counts: { unseen: unseen.length, seen: seen.length, active: active.length }
+        unseen, seen, active: filteredActive2,
+        counts: { unseen: unseen.length, seen: seen.length, active: filteredActive2.length }
       });
     }
 
@@ -145,9 +148,12 @@ const getDispatchProfileOrders = async (req, res) => {
       }
     }
 
+    const terminalStatuses3 = ['DELIVERED', 'RETURNED', 'REJECTED', 'PICKED_UP'];
+    const filteredActive3 = active.filter(o => !terminalStatuses3.includes(o.dispatchStatus));
+
     res.json({
-      unseen, seen, active,
-      counts: { unseen: unseen.length, seen: seen.length, active: active.length }
+      unseen, seen, active: filteredActive3,
+      counts: { unseen: unseen.length, seen: seen.length, active: filteredActive3.length }
     });
 
   } catch (error) {

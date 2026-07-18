@@ -361,7 +361,7 @@ const markPickedUp = async (req, res) => {
   }
 };
 
-// Dispatch dashboard with 3 categories: unseen, active, all orders
+// Dispatch dashboard with 3 categories: unseen, seen, active
 const getDispatchDashboard = async (req, res) => {
   try {
     const baseWhere = {};
@@ -374,13 +374,14 @@ const getDispatchDashboard = async (req, res) => {
       baseWhere.outletName = outletName;
     }
 
+    // Include completed/delivered so active orders stay visible until final status
     const orders = await prisma.order.findMany({
       where: {
         ...baseWhere,
-        status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] },
         OR: [
           { currentStage: { in: ['DISPATCH', 'OUT_FOR_DELIVERY'] } },
-          { dispatchStatus: { not: 'PENDING' } }
+          { dispatchStatus: { in: ['BOOKED', 'DISPATCHED', 'IN_TRANSIT', 'DELIVERED', 'RETURNED', 'REJECTED'] } },
+          { dispatchOfficer: { not: null } }
         ]
       },
       select: {
@@ -391,35 +392,45 @@ const getDispatchDashboard = async (req, res) => {
         trackingNumber: true, courierDetails: true,
         totalPrice: true, paymentStatus: true, advanceAmount: true,
         type: true, productDetails: true, customization: true, sizeData: true,
-        instructionNotes: true,
-        createdAt: true, updatedAt: true,
+        instructionNotes: true, dispatchOfficer: true, forwardedBy: true,
+        createdAt: true, updatedAt: true, deliveredAt: true, returnedAt: true,
         riderAcceptedAt: true, noResponseCount: true,
         stages: { orderBy: { createdAt: 'asc' }, select: { stageName: true, status: true, deadlineAt: true, startedAt: true, rejectionReason: true, completedAt: true } },
         createdBy: { select: { name: true, role: true } }
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }]
     });
 
-    // Categorize
+    // Categorize into unseen / seen / active
     const unseen = [];
+    const seen = [];
     const active = [];
-    const allOrders = [];
 
     for (const order of orders) {
       const dispatchStage = order.stages.find(s => s.stageName === 'DISPATCH');
       const isAccepted = dispatchStage?.startedAt != null;
-      const isPending = dispatchStage?.status === 'PENDING' || !dispatchStage;
+      const isDispatched = order.currentStage === 'OUT_FOR_DELIVERY' || order.dispatchStatus === 'BOOKED' || order.dispatchStatus === 'DISPATCHED';
 
-      if (order.currentStage === 'DISPATCH' && !isAccepted && isPending) {
-        unseen.push(order);
-      } else if (order.currentStage === 'DISPATCH' && isAccepted && !order.deliveryType) {
+      if (order.currentStage === 'OUT_FOR_DELIVERY' || ['BOOKED', 'DISPATCHED', 'IN_TRANSIT', 'DELIVERED', 'RETURNED', 'REJECTED', 'PICKED_UP'].includes(order.dispatchStatus)) {
+        // Order has been dispatched — active tasks
         active.push(order);
+      } else if (order.currentStage === 'DISPATCH' && order.dispatchOfficer && isAccepted) {
+        // Accepted by an officer, awaiting dispatch — seen
+        seen.push(order);
+      } else if (order.currentStage === 'DISPATCH' && !order.dispatchOfficer && !isAccepted) {
+        // Not yet accepted — unseen
+        unseen.push(order);
+      } else if (order.currentStage === 'DISPATCH' && isAccepted) {
+        seen.push(order);
       } else {
-        allOrders.push(order);
+        unseen.push(order);
       }
     }
 
-    res.json({ unseen, active, allOrders, counts: { unseen: unseen.length, active: active.length, all: allOrders.length } });
+    const terminalStatuses = ['DELIVERED', 'RETURNED', 'REJECTED', 'PICKED_UP'];
+    const filteredActive = active.filter(o => !terminalStatuses.includes(o.dispatchStatus));
+
+    res.json({ unseen, seen, active: filteredActive, counts: { unseen: unseen.length, seen: seen.length, active: filteredActive.length } });
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch dispatch dashboard', error: error.message });
   }

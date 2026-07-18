@@ -769,6 +769,7 @@ model DeliveryCharge {
   order         Order    @relation("DeliveryChargeToOrder", fields: [orderId], references: [id])
   orderNumber   String?
   customerName  String?
+  riderName     String?
   amount        Float    @default(200)
   deliveredAt   DateTime
   isPaid        Boolean  @default(false)
@@ -776,6 +777,7 @@ model DeliveryCharge {
   createdAt     DateTime @default(now())
 
   @@index([orderId])
+  @@index([riderName])
   @@index([isPaid])
   @@index([paidAt])
 }

@@ -471,16 +471,32 @@ const SmartOrderForm = () => {
                                   </div>
                                 )}
                               </div>
-                              <div className="text-right shrink-0">
+                              <div className="text-right shrink-0 flex flex-col items-end gap-1.5">
                                 {item.quantity > 1 && item.totalPrice > 0 && (
                                   <p className="text-xs theme-text-muted font-bold">Rs{Number(item.totalPrice / item.quantity).toLocaleString()} x {item.quantity}</p>
                                 )}
                                 <p className="text-sm font-black text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-xl">Rs{Number(item.totalPrice).toLocaleString()}</p>
+                                <div className="flex gap-1 mt-1">
+                                  <button type="button" onClick={() => editCartItem(idx, 'product')}
+                                    className="text-[9px] font-black text-blue-400 bg-blue-500/10 hover:bg-blue-500 hover:text-white px-2 py-1 rounded-lg uppercase tracking-wider transition-all active:scale-95">
+                                    {useUrdu ? 'ترمیم' : 'Edit'}
+                                  </button>
+                                  <button type="button" onClick={() => removeCartItem(idx)}
+                                    className="text-[9px] font-black text-red-400 bg-red-500/10 hover:bg-red-500 hover:text-white px-2 py-1 rounded-lg uppercase tracking-wider transition-all active:scale-95">
+                                    <Trash2 size={10} />
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           </div>
                         );
                       })}
+                    </div>
+                    <div className="mt-3">
+                      <button type="button" onClick={handleAddMoreProducts}
+                        className="w-full py-3 border-2 border-dashed border-purple-500/30 text-purple-400 hover:bg-purple-500/10 hover:border-purple-500/50 rounded-xl font-black text-xs uppercase tracking-wider transition-all active:scale-95 flex items-center justify-center gap-2">
+                        <Plus size={14} /> {useUrdu ? 'دوسری پروڈکٹ شامل کریں' : 'ADD ANOTHER PRODUCT'}
+                      </button>
                     </div>
                   </div>
                   </SectionErrorBoundary>

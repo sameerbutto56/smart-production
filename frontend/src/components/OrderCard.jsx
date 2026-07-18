@@ -2289,6 +2289,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             return sorted.flatMap(({ item, idx, isRejected, isCompleted }) => {
                               const p = item.productDetails || item;
                               const itemCust = item.customization ? parseJSON(item.customization) : null;
+                              const rawItemSizes = item.sizeData ? parseJSON(item.sizeData) : (isMultiItem ? null : rawSizes);
+                              const isOutletItemSizes = rawItemSizes && typeof rawItemSizes === 'object' && !Array.isArray(rawItemSizes) && Object.values(rawItemSizes).some(v => typeof v === 'object' && v !== null && !Array.isArray(v) && !v._extra);
+                              const flatItemSizes = isOutletItemSizes ? Object.values(rawItemSizes).reduce((acc, v) => ({ ...acc, ...v }), {}) : rawItemSizes;
+                              const itemSizes = (flatItemSizes && Object.keys(flatItemSizes).length > 0) ? flatItemSizes : (isMultiItem ? null : sizes);
                               const hasSleeves = p.sleeveLength || (p.femaleOptions?.sleeves && p.femaleOptions.sleeves !== 'full');
                               const hasShirtLength = p.shirtLength || (p.femaleOptions?.shirtLength && p.femaleOptions.shirtLength !== 'long');
                               const hasArticleNames = itemCust?.articleNames && itemCust.articleNames.length > 0;
@@ -2437,6 +2441,24 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                           </span>
                                         )}
                                       </div>
+                                    </td>
+                                  </tr>
+                                )}
+                                {itemSizes && Object.entries(itemSizes).some(([k, v]) => v && k !== 'specialNote') && (
+                                  <tr className={`${isRejected ? 'bg-blue-900/5' : 'bg-blue-900/5'} border-b border-gray-800/50`}>
+                                    <td colSpan={7} className="py-3 px-6">
+                                      <div className="flex flex-wrap gap-x-6 gap-y-1">
+                                        {Object.entries(itemSizes).filter(([k, v]) => v && k !== 'specialNote' && k !== '_extra' && k !== '_standardSize').map(([k, v]) => (
+                                          <span key={k} className="text-[10px] md:text-xs font-bold text-blue-300">
+                                            <span className="text-gray-500 uppercase tracking-wider">{k}:</span> {v}"
+                                          </span>
+                                        ))}
+                                      </div>
+                                      {itemSizes.specialNote && (
+                                        <div className="mt-2 text-[10px] md:text-xs text-yellow-400 font-black bg-yellow-900/20 px-2 py-1 rounded italic leading-tight">
+                                          Special Note: {itemSizes.specialNote}
+                                        </div>
+                                      )}
                                     </td>
                                   </tr>
                                 )}

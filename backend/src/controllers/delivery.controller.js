@@ -4,19 +4,21 @@ const prisma = require('../prisma');
 const getDeliveryOrders = async (req, res) => {
   try {
     const { deliveryType } = req.query;
+    const where = {
+      OR: [
+        { currentStage: { in: ['OUT_FOR_DELIVERY', 'DELIVERED'] } },
+        { status: { in: ['COMPLETED', 'OUT_FOR_DELIVERY'] } }
+      ]
+    };
+    if (deliveryType) {
+      const methodMap = { 'ENAMELS': 'Enamels Delivery', 'TCS': 'TCS', 'POST_EX': 'PostEx' };
+      const methodStr = methodMap[deliveryType] || deliveryType;
+      where.AND = [
+        { OR: [{ deliveryType }, { deliveryMethod: methodStr }] }
+      ];
+    }
     const orders = await prisma.order.findMany({
-      where: {
-        OR: [
-          { currentStage: { in: ['OUT_FOR_DELIVERY', 'DELIVERED'] } },
-          { status: { in: ['COMPLETED', 'OUT_FOR_DELIVERY'] } }
-        ],
-        ...(deliveryType ? {
-          OR: [
-            { deliveryType },
-            { deliveryMethod: deliveryType }
-          ]
-        } : {})
-      },
+      where,
       include: {
         stages: { orderBy: { createdAt: 'asc' }, select: { stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true } },
         createdBy: { select: { name: true, role: true } },
@@ -109,6 +111,7 @@ const deliverOrder = async (req, res) => {
         orderId,
         orderNumber: order.orderNumber,
         customerName: order.customerName,
+        riderName,
         deliveredAt: now
       }
     });

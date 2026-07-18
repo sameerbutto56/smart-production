@@ -632,10 +632,9 @@ const requestStageCompletion = async (req, res) => {
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    // STORE stage: classify items + deduct only available items
+    // STORE stage: update availability status only (no inventory deduction)
     if (currentStage.stageName === 'STORE' && (inventoryStatus === 'have_it' || inventoryStatus === 'Available')) {
       try {
-        // Parse productDetails and filter by per-product availability
         let parsedDetails;
         try {
           parsedDetails = order.productDetails;
@@ -645,10 +644,8 @@ const requestStageCompletion = async (req, res) => {
         const items = Array.isArray(parsedDetails) ? parsedDetails : (parsedDetails?.productType ? [parsedDetails] : []);
         const productAvailability = req.body.productAvailability || {};
 
-        let updatedItems = items;
-        // Update productDetails with availability status in DB
         if (Object.keys(productAvailability).length > 0) {
-          updatedItems = items.map((item, idx) => {
+          const updatedItems = items.map((item, idx) => {
             const av = productAvailability[idx];
             if (av !== undefined) {
               return { ...item, availabilityStatus: av ? 'available' : 'not_available' };
@@ -659,40 +656,12 @@ const requestStageCompletion = async (req, res) => {
             where: { id: orderId },
             data: { productDetails: updatedItems }
           });
-        }
-
-        // Only classify items NOT already deducted (skip items already completed via ✓ toggle)
-        const pendingItems = updatedItems.filter(item =>
-          item.availabilityStatus !== 'not_available' && !item.inventoryDeducted
-        );
-
-        if (pendingItems.length > 0) {
-          const { inventoryItems, productionItems } = await classifyOrderItems(order, pendingItems);
-          await deductInventoryItems(order, req.user.id, inventoryItems);
-          // Mark deducted items
-          const deductedMap = new Map();
-          for (const pi of pendingItems) {
-            deductedMap.set(pi, true);
-          }
-          updatedItems.forEach((item, idx) => {
-            if (deductedMap.has(item) && item.availabilityStatus !== 'not_available') {
-              updatedItems[idx] = { ...item, inventoryDeducted: true };
-            }
-          });
-          await prisma.order.update({
-            where: { id: orderId },
-            data: { productDetails: updatedItems }
-          });
-          await createAuditLog(orderId, 'INVENTORY_CONFIRMED',
-            `Classified ${inventoryItems.length} pending inventory item(s) and ${productionItems.length} production item(s). Stock deducted for pending items.`,
-            req.user.id);
-        } else {
-          await createAuditLog(orderId, 'INVENTORY_CONFIRMED',
-            'No pending items to process. Skipping inventory deduction.',
+          await createAuditLog(orderId, 'AVAILABILITY_UPDATED',
+            `Store verified availability for ${Object.keys(productAvailability).length} item(s).`,
             req.user.id);
         }
       } catch (invErr) {
-        console.error('Classification / deduction error:', invErr);
+        console.error('Availability update error:', invErr);
       }
     }
 
@@ -828,38 +797,7 @@ const approveStageCompletion = async (req, res) => {
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    // STORE stage classification on approval — respect per-product availability
-    if (currentStageRecord.stageName === 'STORE') {
-      try {
-        // Read per-product availability from stored productDetails
-        let parsedDetails;
-        try {
-          parsedDetails = order.productDetails;
-        } catch {
-          parsedDetails = [];
-        }
-        const items = Array.isArray(parsedDetails) ? parsedDetails : (parsedDetails?.productType ? [parsedDetails] : []);
-
-        // Only classify items whose availabilityStatus is not 'not_available'
-        const availableItems = items.filter(item =>
-          item.availabilityStatus !== 'not_available'
-        );
-
-        if (availableItems.length > 0) {
-          const { inventoryItems, productionItems } = await classifyOrderItems(order, availableItems);
-          await deductInventoryItems(order, req.user.id, inventoryItems);
-          await createAuditLog(orderId, 'INVENTORY_CONFIRMED',
-            `Classified ${inventoryItems.length} available inventory item(s) and ${productionItems.length} production item(s). Stock deducted for available items.`,
-            req.user.id);
-        } else {
-          await createAuditLog(orderId, 'INVENTORY_CONFIRMED',
-            'No items marked as available. Skipping inventory deduction.',
-            req.user.id);
-        }
-      } catch (invErr) {
-        console.error('Classification / deduction error:', invErr);
-      }
-    }
+    // STORE stage approval — availability already recorded, no inventory deduction
 
     // Update Customization Price, Delivery Method and Delivery Type if provided
     const updateData = {};
@@ -3177,50 +3115,13 @@ const updateProductAvailability = async (req, res) => {
     }
     const items = Array.isArray(parsedDetails) ? parsedDetails : (parsedDetails?.productType ? [parsedDetails] : []);
 
-    let didDeduct = false;
     const updatedItems = items.map((item, idx) => {
       const av = productAvailability[String(idx)];
       if (av !== undefined) {
-        const wasAvailable = item.availabilityStatus === 'available';
-        if (av && !wasAvailable && !item.inventoryDeducted) {
-          didDeduct = true;
-        }
         return { ...item, availabilityStatus: av ? 'available' : 'not_available' };
       }
       return item;
     });
-
-    // Deduct inventory for items newly marked as available
-    if (didDeduct) {
-      const toDeduct = [];
-      for (const [strIdx, isAvailable] of Object.entries(productAvailability)) {
-        const idx = parseInt(strIdx);
-        if (isAvailable) {
-          const originalItem = items[idx];
-          if (originalItem?.availabilityStatus !== 'available' && !originalItem?.inventoryDeducted) {
-            toDeduct.push(updatedItems[idx]);
-          }
-        }
-      }
-      if (toDeduct.length > 0) {
-        const { inventoryItems, productionItems } = await classifyOrderItems(order, toDeduct);
-        await deductInventoryItems(order, req.user.id, inventoryItems);
-        // Mark deducted items
-        for (let i = 0; i < updatedItems.length; i++) {
-          const strIdx = String(i);
-          if (productAvailability[strIdx] === true) {
-            if (updatedItems[i].inventoryDeducted) continue;
-            const orig = items[i];
-            if (orig?.availabilityStatus !== 'available' && !orig?.inventoryDeducted) {
-              updatedItems[i] = { ...updatedItems[i], inventoryDeducted: true };
-            }
-          }
-        }
-        await createAuditLog(orderId, 'INVENTORY_DEDUCTED',
-          `Inventory deducted for ${toDeduct.length} item(s) marked as available.`,
-          req.user.id);
-      }
-    }
 
     await prisma.order.update({
       where: { id: orderId },
