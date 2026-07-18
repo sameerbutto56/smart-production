@@ -84,6 +84,7 @@ const notesRoutes = require('./routes/notes.routes');
 const posBookRoutes = require('./routes/pos.book.routes');
 const deliveryRoutes = require('./routes/delivery.routes');
 const warehouseRoutes = require('./routes/warehouse.routes');
+const storeDashboardRoutes = require('./routes/storeDashboard.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
@@ -109,6 +110,7 @@ app.use('/api/notes', notesRoutes);
 app.use('/api/pos/book', posBookRoutes);
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/warehouse', warehouseRoutes);
+app.use('/api/store-dashboard', storeDashboardRoutes);
 
 // Global error handler (must be last)
 app.use(errorHandler);

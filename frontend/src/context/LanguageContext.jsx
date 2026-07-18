@@ -195,6 +195,8 @@ export const LanguageProvider = ({ children }) => {
 
   useEffect(() => {
     localStorage.setItem('preferredLanguage', language);
+    document.documentElement.lang = language === 'ur' ? 'ur' : 'en';
+    document.documentElement.dir = language === 'ur' ? 'rtl' : 'ltr';
   }, [language]);
 
   const toggleLanguage = useCallback(() => {
@@ -219,7 +221,7 @@ export const LanguageProvider = ({ children }) => {
 
   return (
     <LanguageContext.Provider value={value}>
-      <div className={isUrdu ? 'font-urdu' : ''}>
+      <div className={isUrdu ? 'font-urdu' : ''} dir={isUrdu ? 'rtl' : 'ltr'}>
         {children}
       </div>
     </LanguageContext.Provider>

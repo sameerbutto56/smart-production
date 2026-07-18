@@ -6,7 +6,7 @@ import {
   RefreshCcw, Search, Clock, Truck, Building2, PlusCircle,
   Eye, ThumbsUp, ThumbsDown, FileText, BarChart3, MinusCircle, Minus, Plus,
   CheckCircle, AlertCircle, Download, TrendingUp, User, Gift, Send,
-  Factory, Trash2, ClipboardList, X
+  Factory, Trash2, ClipboardList, X, Activity
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -16,10 +16,11 @@ import toast from 'react-hot-toast';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 import { usePolling } from '../hooks/usePolling';
 import InventoryManagement from './InventoryManagement';
+import StoreDashboardAnalytics from '../components/StoreDashboardAnalytics';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
-const TABS = ['dashboard', 'inventory', 'production', 'allocation', 'demands'];
+const TABS = ['dashboard', 'analytics', 'inventory', 'production', 'allocation', 'demands'];
 const COLORS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899'];
 const CATEGORIES = ['CAPS', 'SHIRTS', 'JACKETS', 'PANTS', 'ACCESSORIES', 'GENERAL'];
 
@@ -343,6 +344,7 @@ const WarehouseDashboard = () => {
             }`}
           >
                 {tab === 'dashboard' && <><BarChart3 size={14} className="inline mr-2" />Dashboard</>}
+                {tab === 'analytics' && <><Activity size={14} className="inline mr-2" />Analytics</>}
                 {tab === 'inventory' && <><Package size={14} className="inline mr-2" />Inventory</>}
                 {tab === 'production' && <><Factory size={14} className="inline mr-2" />Production Inventory</>}
                 {tab === 'allocation' && <><Gift size={14} className="inline mr-2" />Allocation</>}
@@ -663,6 +665,11 @@ const WarehouseDashboard = () => {
               </div>
 
             </div>
+          )}
+
+          {/* Analytics Tab */}
+          {activeTab === 'analytics' && (
+            <StoreDashboardAnalytics />
           )}
 
           {/* Inventory Tab */}

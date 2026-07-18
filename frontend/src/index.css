@@ -166,10 +166,48 @@
 .font-urdu {
   font-family: 'Noto Nastaliq Urdu', serif;
   line-height: 2.2;
+  direction: rtl;
+  text-align: right;
 }
 
-[dir="rtl"] .font-urdu {
+.font-urdu .rtl-flip {
+  direction: ltr;
+  text-align: left;
+  display: inline-block;
+}
+
+.font-urdu table {
   text-align: right;
+}
+
+.font-urdu th,
+.font-urdu td {
+  text-align: right;
+}
+
+.font-urdu input,
+.font-urdu textarea,
+.font-urdu select {
+  text-align: right;
+}
+
+.font-urdu .flex-row-reverse-urdu {
+  flex-direction: row-reverse;
+}
+
+.font-urdu .ml-auto-urdu {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+.font-urdu .mr-auto-urdu {
+  margin-right: 0;
+  margin-left: auto;
+}
+
+.font-urdu .space-x-reverse-urdu > * + * {
+  margin-right: 0.5rem;
+  margin-left: 0;
 }
 
 .no-scroll {
