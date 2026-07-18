@@ -332,10 +332,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); handleVerificationToggle(idx); }}
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${productVerification[String(idx)] === true ? 'bg-indigo-500/20 text-indigo-400 border-2 border-indigo-500/40' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-indigo-500/10 hover:text-indigo-400'}`}
+                    className={`rounded-lg flex items-center justify-center text-[10px] font-black tracking-wider transition-all px-1.5 h-7 ${productVerification[String(idx)] === true ? 'bg-indigo-500/20 text-indigo-400 border-2 border-indigo-500/40' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-indigo-500/10 hover:text-indigo-400'}`}
                     title={productVerification[String(idx)] === true ? 'Verified ✓' : 'Mark as verified'}
                   >
-                    ✓
+                    VER
                   </button>
                   <button
                     type="button"
@@ -380,10 +380,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); handleVerificationToggle(0); }}
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${productVerification['0'] === true ? 'bg-indigo-500/20 text-indigo-400 border-2 border-indigo-500/40' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-indigo-500/10 hover:text-indigo-400'}`}
+                    className={`rounded-lg flex items-center justify-center text-[10px] font-black tracking-wider transition-all px-1.5 h-7 ${productVerification['0'] === true ? 'bg-indigo-500/20 text-indigo-400 border-2 border-indigo-500/40' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-indigo-500/10 hover:text-indigo-400'}`}
                     title={productVerification['0'] === true ? 'Verified ✓' : 'Mark as verified'}
                   >
-                    ✓
+                    VER
                   </button>
                   <button
                     type="button"
@@ -2813,7 +2813,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
             </div>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => { printJobSheet(order, userRole, printLang, printSections); setShowPrintFilter(false); }}
+                onClick={() => { printJobSheet({...order, productVerification}, userRole, printLang, printSections); setShowPrintFilter(false); }}
                 className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-2xl text-sm font-black uppercase tracking-widest transition-all"
               >
                 {t('Print')}

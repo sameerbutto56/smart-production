@@ -7,7 +7,7 @@ import { PageLoader, LoadingSpinner } from '../components/LoadingSpinner';
 import socket from '../socket';
 import { debounce } from '../utils/debounce';
 import { printDispatchSheet } from '../utils/printReport';
-import { Truck, Package, Eye, Send, Search, Loader2, Clock, Phone, MapPin, ExternalLink, CheckCircle2, X, Printer, LogIn, User, BarChart3, UserCheck, MessageCircle, TrendingUp, DollarSign, Activity, ArrowUpRight } from 'lucide-react';
+import { Truck, Package, Eye, Send, Search, Loader2, Clock, Phone, MapPin, ExternalLink, CheckCircle2, X, Printer, LogIn, User, BarChart3, UserCheck, MessageCircle, TrendingUp, DollarSign, Activity, ArrowUpRight, ClipboardList, CreditCard } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 const EMPLOYEES = {
@@ -191,7 +191,7 @@ const DispatchDashboard = () => {
   }, [searchParams]);
 
   // Persist filter/tab state on change
-  useEffect(() => { if (loggedIn && activeTab !== 'dashboard') sessionStorage.setItem('dispatchActiveTab', activeTab); }, [activeTab, loggedIn]);
+  useEffect(() => { if (loggedIn && activeTab !== 'dashboard' && !(isKhawar && activeTab === 'active')) sessionStorage.setItem('dispatchActiveTab', activeTab); }, [activeTab, loggedIn, isKhawar]);
   useEffect(() => { if (loggedIn) sessionStorage.setItem('dispatchSearch', search); }, [search, loggedIn]);
   useEffect(() => { if (loggedIn) sessionStorage.setItem('dispatchCityFilter', cityFilter); }, [cityFilter, loggedIn]);
   useEffect(() => { if (loggedIn) sessionStorage.setItem('dispatchMethodFilter', methodFilter); }, [methodFilter, loggedIn]);
@@ -413,16 +413,26 @@ const DispatchDashboard = () => {
 
   const allCities = [...new Set([...data.seen, ...data.active, ...data.allOrders].map(o => o.city).filter(Boolean))];
 
-  const tabs = loggedIn && (isKhawar || isFaisal)
+  const tabs = (loggedIn && (isKhawar || isFaisal))
     ? [
+        { id: 'dashboard', label: 'Enamel Delivery Stats', icon: BarChart3 },
         { id: 'unseen', label: 'Unseen Tasks', icon: Eye, count: data.counts.unseen },
         { id: 'seen', label: 'Seen Tasks', icon: UserCheck, count: data.counts.seen },
-        { id: 'active', label: 'Active Tasks', icon: Package, count: data.counts.active },
+        ...(!isKhawar ? [{ id: 'active', label: 'Active Tasks', icon: Package, count: data.counts.active }] : []),
+        { id: 'deliveries', label: 'Deliveries', icon: Truck },
+        { id: 'orders', label: 'Orders', icon: ClipboardList },
+        { id: 'charges', label: 'Charges', icon: DollarSign },
+        { id: 'cod', label: 'COD', icon: CreditCard },
         { id: 'activity', label: 'Activity Logs', icon: Activity, count: 0 }
       ]
     : [
+        { id: 'dashboard', label: 'Enamel Delivery Stats', icon: BarChart3 },
         { id: 'unseen', label: 'Unseen Tasks', icon: Eye, count: data.counts.unseen },
         { id: 'active', label: 'Active Tasks', icon: Package, count: data.counts.active },
+        { id: 'deliveries', label: 'Deliveries', icon: Truck },
+        { id: 'orders', label: 'Orders', icon: ClipboardList },
+        { id: 'charges', label: 'Charges', icon: DollarSign },
+        { id: 'cod', label: 'COD', icon: CreditCard },
         { id: 'activity', label: 'Activity Logs', icon: Activity, count: 0 },
         ...(!loggedIn ? [{ id: 'all', label: 'All Orders', icon: Truck, count: data.counts.all }] : [])
       ];
@@ -496,10 +506,10 @@ const DispatchDashboard = () => {
           </div>
           <div>
             <h1 className="text-xl md:text-3xl font-black theme-text-primary uppercase tracking-tight">
-              {isEmployeeMode ? `${employeeName}'s Dispatch` : (isOutlet ? 'Outlet Dispatch' : 'Dispatch Control Center')}
+              {activeTab === 'dashboard' ? 'Enamel Delivery Stats' : (isEmployeeMode ? `${employeeName}'s Dispatch` : (isOutlet ? 'Outlet Dispatch' : 'Dispatch Control Center'))}
             </h1>
             <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">
-              {isEmployeeMode ? (isKhawar ? 'Lahore Orders Only' : 'All Cities + Forwarded') : 'Centralized courier & delivery management'}
+              {activeTab === 'dashboard' ? 'Dispatch analytics, reports & performance metrics' : (isEmployeeMode ? (isKhawar ? 'Lahore Orders Only' : 'All Cities + Forwarded') : 'Centralized courier & delivery management')}
             </p>
           </div>
         </div>
@@ -526,31 +536,8 @@ const DispatchDashboard = () => {
         </div>
       </div>
 
-      {/* Stats Cards */}
-      {isEmployeeMode && stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="theme-bg-subtle rounded-2xl p-4 border theme-border">
-            <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Accepted</p>
-            <p className="text-2xl font-black text-emerald-400">{stats.accepted}</p>
-          </div>
-          <div className="theme-bg-subtle rounded-2xl p-4 border theme-border">
-            <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Dispatched</p>
-            <p className="text-2xl font-black text-blue-400">{stats.dispatched}</p>
-          </div>
-          <div className="theme-bg-subtle rounded-2xl p-4 border theme-border">
-            <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">{isKhawar ? 'Forwarded' : 'Pending'}</p>
-            <p className="text-2xl font-black text-amber-400">{isKhawar ? stats.forwarded : Math.max(0, stats.accepted - stats.dispatched)}</p>
-          </div>
-          <div className="theme-bg-subtle rounded-2xl p-4 border theme-border">
-            <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Total Actions</p>
-            <p className="text-2xl font-black text-purple-400">{stats.totalActions}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Tabs — hidden in dashboard mode (only accessible from navbar Dashboard link) */}
-      {activeTab !== 'dashboard' && (
-        <div className="flex gap-1 theme-bg-subtle p-1 rounded-2xl border theme-border mb-6">
+      {/* Tabs */}
+      <div className="flex gap-1 theme-bg-subtle p-1 rounded-2xl border theme-border mb-6">
           {tabs.map(tab => {
             const Icon = tab.icon;
             return (
@@ -571,10 +558,9 @@ const DispatchDashboard = () => {
             );
           })}
         </div>
-      )}
 
       {/* Search */}
-      {activeTab !== 'unseen' && (
+      {activeTab !== 'unseen' && activeTab !== 'dashboard' && (
         <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between mb-4">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 theme-text-muted" size={16} />
@@ -894,6 +880,173 @@ const DispatchDashboard = () => {
         </div>
       )}
 
+      {/* Deliveries Tab */}
+      {activeTab === 'deliveries' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 mb-4">
+            <Truck className="text-blue-400" size={20} />
+            <h2 className="text-lg font-black theme-text-primary uppercase tracking-wider">Enamels Delivery</h2>
+          </div>
+          {getFiltered([...data.unseen, ...data.active, ...data.seen, ...data.allOrders].filter(o => o.deliveryMethod === 'ENAMELS' || o.deliveryMethod === 'Enamels Delivery' || o.source === 'ENAMELS')).length === 0 ? (
+            <div className="glass rounded-2xl md:rounded-[3rem] border theme-border p-6 md:p-20 text-center">
+              <Truck className="mx-auto text-gray-800 mb-4" size={48} />
+              <h3 className="theme-text-muted font-black uppercase">No Deliveries</h3>
+              <p className="theme-text-muted text-xs font-bold mt-2">No Enamels delivery orders found.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {getFiltered([...data.unseen, ...data.active, ...data.seen, ...data.allOrders].filter(o => o.deliveryMethod === 'ENAMELS' || o.deliveryMethod === 'Enamels Delivery' || o.source === 'ENAMELS')).map(order => (
+                <div key={order.id} className="glass rounded-[2rem] p-4 md:p-6 border theme-border">
+                  <div className="flex flex-col md:flex-row md:items-start gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="text-xs font-black px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400">{order.source}</span>
+                        {order.outletName && <span className="text-xs font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{order.outletName}</span>}
+                      </div>
+                      <h3 className="font-black text-xl theme-text-primary truncate">#{order.orderNumber || order.id.substring(0, 8)} — {order.customerName}</h3>
+                      <p className="text-xs theme-text-muted">{order.city} | {new Date(order.createdAt).toLocaleDateString()}</p>
+                    </div>
+                    <div className="flex gap-2 flex-wrap items-center">
+                      <span className="px-3 py-1.5 rounded-xl text-xs font-black bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Enamels Delivery</span>
+                      <button onClick={() => handleUpdateStatus(order.id, 'DELIVERED')} disabled={statusLoading === order.id} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all disabled:opacity-50">{statusLoading === order.id ? <Loader2 className="animate-spin" size={14} /> : 'Deliver ✓'}</button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Orders Tab */}
+      {activeTab === 'orders' && (
+        <>
+          {getFiltered([...data.unseen, ...data.active, ...data.seen, ...data.allOrders]).length === 0 ? (
+            <div className="glass rounded-2xl md:rounded-[3rem] border theme-border p-6 md:p-20 text-center">
+              <ClipboardList className="mx-auto text-gray-800 mb-4" size={48} />
+              <h3 className="theme-text-muted font-black uppercase">No Orders Found</h3>
+              <p className="theme-text-muted text-xs font-bold mt-2">No orders match your search criteria.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {getFiltered([...data.unseen, ...data.active, ...data.seen, ...data.allOrders]).map(order => (
+                <div key={order.id} className="glass rounded-[2rem] p-4 md:p-6 border theme-border">
+                  <div className="flex flex-col md:flex-row md:items-start gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className={`text-xs font-black px-2 py-0.5 rounded-full ${(PRIORITY_BADGE[order.priority] || PRIORITY_BADGE.NORMAL).bg} ${(PRIORITY_BADGE[order.priority] || PRIORITY_BADGE.NORMAL).text}`}>{(PRIORITY_BADGE[order.priority] || PRIORITY_BADGE.NORMAL).label}</span>
+                        <span className="text-xs font-black px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400">{order.source}</span>
+                        {order.outletName && <span className="text-xs font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{order.outletName}</span>}
+                        {order.dispatchOfficer && <span className="text-xs font-black px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400">{order.dispatchOfficer}</span>}
+                      </div>
+                      <h3 className="font-black text-xl theme-text-primary truncate">#{order.orderNumber || order.id.substring(0, 8)} — {order.customerName}</h3>
+                      <p className="text-xs theme-text-muted">{order.city} | {order.customerPhone || 'N/A'} | {new Date(order.createdAt).toLocaleDateString()}</p>
+                      {order.deliveryMethod && <span className="text-[10px] font-black text-gray-500 mt-1 inline-block">Delivery: {order.deliveryMethod}</span>}
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      {order.dispatchStatus === 'RETURNED' ? (
+                        <span className="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/30">RETURNED</span>
+                      ) : order.currentStage === 'COMPLETED' ? (
+                        <span className="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">DELIVERED</span>
+                      ) : (
+                        <>
+                          <span className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider ${order.dispatchStatus === 'BOOKED' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : order.dispatchStatus === 'DISPATCHED' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'}`}>{order.dispatchStatus?.replace(/_/g, ' ') || 'PENDING'}</span>
+                          <button onClick={() => handleUpdateStatus(order.id, 'DELIVERED')} disabled={statusLoading === order.id} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all disabled:opacity-50">{statusLoading === order.id ? <Loader2 className="animate-spin" size={14} /> : 'Deliver ✓'}</button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Charges Tab */}
+      {activeTab === 'charges' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 mb-4">
+            <DollarSign className="text-emerald-400" size={20} />
+            <h2 className="text-lg font-black theme-text-primary uppercase tracking-wider">Delivery Charges</h2>
+          </div>
+          {getFiltered([...data.unseen, ...data.active, ...data.seen, ...data.allOrders].filter(o => o.deliveryCharges || o.deliveryChargesCost)).length === 0 ? (
+            <div className="glass rounded-2xl md:rounded-[3rem] border theme-border p-6 md:p-20 text-center">
+              <DollarSign className="mx-auto text-gray-800 mb-4" size={48} />
+              <h3 className="theme-text-muted font-black uppercase">No Charges Found</h3>
+              <p className="theme-text-muted text-xs font-bold mt-2">No delivery charge records found.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-2xl border border-gray-800">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-gray-800 bg-gray-950/80">
+                    <th className="py-3 px-4 text-xs font-black text-gray-500 uppercase tracking-widest">Order #</th>
+                    <th className="py-3 px-4 text-xs font-black text-gray-500 uppercase tracking-widest">Customer</th>
+                    <th className="py-3 px-4 text-xs font-black text-gray-500 uppercase tracking-widest">City</th>
+                    <th className="py-3 px-4 text-xs font-black text-gray-500 uppercase tracking-widest">Delivery Method</th>
+                    <th className="py-3 px-4 text-xs font-black text-gray-500 uppercase tracking-widest text-right">Charge</th>
+                    <th className="py-3 px-4 text-xs font-black text-gray-500 uppercase tracking-widest text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {getFiltered([...data.unseen, ...data.active, ...data.seen, ...data.allOrders].filter(o => o.deliveryCharges || o.deliveryChargesCost)).map(order => (
+                    <tr key={order.id} className="border-t border-gray-800 hover:bg-white/5">
+                      <td className="py-3 px-4 font-bold text-blue-400">#{order.orderNumber || order.id.substring(0, 8)}</td>
+                      <td className="py-3 px-4 font-bold theme-text-primary">{order.customerName || '—'}</td>
+                      <td className="py-3 px-4 text-sm theme-text-muted">{order.city || '—'}</td>
+                      <td className="py-3 px-4 text-sm font-bold">{order.deliveryMethod || '—'}</td>
+                      <td className="py-3 px-4 text-right font-black text-emerald-400">₨{(order.deliveryCharges || order.deliveryChargesCost || 0).toLocaleString()}</td>
+                      <td className="py-3 px-4 text-center">
+                        <span className={`text-[10px] font-black px-2 py-1 rounded ${order.dispatchStatus === 'DELIVERED' ? 'bg-emerald-500/20 text-emerald-400' : order.dispatchStatus === 'RETURNED' ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}`}>{order.dispatchStatus || 'PENDING'}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* COD Tab */}
+      {activeTab === 'cod' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 mb-4">
+            <CreditCard className="text-amber-400" size={20} />
+            <h2 className="text-lg font-black theme-text-primary uppercase tracking-wider">Cash on Delivery</h2>
+          </div>
+          {getFiltered([...data.unseen, ...data.active, ...data.seen, ...data.allOrders].filter(o => o.paymentMethod === 'COD' || o.paymentStatus === 'PENDING' || o.paymentType === 'COD')).length === 0 ? (
+            <div className="glass rounded-2xl md:rounded-[3rem] border theme-border p-6 md:p-20 text-center">
+              <CreditCard className="mx-auto text-gray-800 mb-4" size={48} />
+              <h3 className="theme-text-muted font-black uppercase">No COD Orders</h3>
+              <p className="theme-text-muted text-xs font-bold mt-2">No Cash on Delivery orders found.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {getFiltered([...data.unseen, ...data.active, ...data.seen, ...data.allOrders].filter(o => o.paymentMethod === 'COD' || o.paymentStatus === 'PENDING' || o.paymentType === 'COD')).map(order => (
+                <div key={order.id} className="glass rounded-[2rem] p-4 md:p-6 border theme-border">
+                  <div className="flex flex-col md:flex-row md:items-start gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="text-xs font-black px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">COD</span>
+                        {order.outletName && <span className="text-xs font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{order.outletName}</span>}
+                      </div>
+                      <h3 className="font-black text-xl theme-text-primary truncate">#{order.orderNumber || order.id.substring(0, 8)} — {order.customerName}</h3>
+                      <p className="text-xs theme-text-muted">{order.city} | {order.customerPhone || 'N/A'} | {new Date(order.createdAt).toLocaleDateString()}</p>
+                      {order.totalAmount ? <p className="text-sm font-black text-amber-400 mt-1">Amount: ₨{order.totalAmount.toLocaleString()}</p> : order.grandTotal ? <p className="text-sm font-black text-amber-400 mt-1">Amount: ₨{order.grandTotal.toLocaleString()}</p> : null}
+                    </div>
+                    <div className="flex gap-2 flex-wrap items-center">
+                      <button onClick={() => handleUpdateStatus(order.id, 'DELIVERED')} disabled={statusLoading === order.id} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all disabled:opacity-50">{statusLoading === order.id ? <Loader2 className="animate-spin" size={14} /> : 'Deliver ✓'}</button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Unseen Tab */}
       {activeTab === 'unseen' && (
         <>
@@ -989,6 +1142,7 @@ const DispatchDashboard = () => {
       )}
 
       {/* Active Tab */}
+      {activeTab === 'active' && (
         <>
           {getFiltered(data.active).length === 0 ? (
             <div className="glass rounded-2xl md:rounded-[3rem] border theme-border p-6 md:p-20 text-center">
@@ -1091,6 +1245,7 @@ const DispatchDashboard = () => {
             </div>
           )}
         </>
+      )}
 
       {/* All Orders Tab (non-employee only) */}
       {activeTab === 'all' && !isEmployeeMode && (
