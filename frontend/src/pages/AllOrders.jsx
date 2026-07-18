@@ -680,7 +680,7 @@ const AllOrders = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm font-bold theme-text-primary">
-                        {isUrdu ? romanToUrdu(product?.productType || product?.name || 'Standard Item') : (product?.productType || product?.name || 'Standard Item')}
+                        {product?.productType || product?.name || 'Standard Item'}
                         {isMultiItem && <span className="ml-2 text-purple-400 text-xs md:text-sm font-black bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">+{rawPd.length - 1} more</span>}
                         {order.quantity > 1 && <span className="ml-2 text-blue-400">x{order.quantity}</span>}
                       </div>

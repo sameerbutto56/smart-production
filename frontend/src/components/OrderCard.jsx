@@ -228,7 +228,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
             >
                <span className="font-bold uppercase tracking-tighter text-gray-400">
                  {productVerification[String(idx)] === true && <span className="inline-flex items-center justify-center w-4 h-4 rounded-md bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 text-[9px] mr-1" title="Verified">✓</span>}
-                 #{idx + 1} {(isUrdu ? romanToUrdu(p.productType || p.name || 'Item') : (p.productType || p.name || 'Item'))}: {p.fabricType || 'STD'} / {p.color || '—'} / Size {p.size || '—'}
+                 #{idx + 1} {p.productType || p.name || 'Item'}: {p.fabricType || 'STD'} / {p.color || '—'} / Size {p.size || '—'}
                  {p.alteration && (p.alteration.trouserLength || p.alteration.shirtLength || p.alteration.sleeveLength) ? <span className="ml-1.5 text-amber-400 bg-amber-500/20 border border-amber-500/30 px-1 py-0.5 rounded text-[9px]">Alt: {[p.alteration.trouserLength && `Trouser ${p.alteration.trouserLength}"`, p.alteration.shirtLength && `Shirt ${p.alteration.shirtLength}"`, p.alteration.sleeveLength && `Sleeve ${p.alteration.sleeveLength}"`].filter(Boolean).join(' ')}</span> : ''}
                </span>
               {isStoreRole && (
@@ -314,7 +314,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 {(isMultiProd || sortedItems.length > 1) && (
                   <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-800/50">
                     <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[9px] font-black">#{idx + 1}</span>
-                    <span className="text-xs font-black text-white uppercase">{isUrdu ? romanToUrdu(p.productType || p.name || `Item ${idx + 1}`) : (p.productType || p.name || `Item ${idx + 1}`)}</span>
+                    <span className="text-xs font-black text-white uppercase">{p.productType || p.name || `Item ${idx + 1}`}</span>
                     {p.color && <span className="text-[9px] text-gray-500">({p.color})</span>}
                     {isNotAvail && (
                       <span className="ml-auto px-2 py-0.5 bg-red-500/10 border border-red-500/30 rounded text-[9px] font-black text-red-400 uppercase tracking-wider">
@@ -789,7 +789,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     return (
                       <div key={idx} className="border border-gray-800 rounded-xl p-2.5 space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-cyan-400">#{idx + 1} {isUrdu ? romanToUrdu(p.productType || p.name || 'Product') : (p.productType || p.name || 'Product')}</span>
+                          <span className="text-xs font-bold text-cyan-400">#{idx + 1} {p.productType || p.name || 'Product'}</span>
                           <span className="text-[9px] font-black text-gray-500 uppercase">Qty: {item.quantity || 1}</span>
                         </div>
                         <div className="grid grid-cols-2 gap-1.5 text-[10px]">
@@ -1614,7 +1614,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           const p = item.productDetails || {};
                           return (
                             <div key={idx} className="flex items-center justify-between p-2 bg-blue-900/10 rounded-lg border border-blue-500/20">
-                              <span className="text-xs font-bold text-blue-300 uppercase">{isUrdu ? romanToUrdu(p.productType || p.name || 'Item') : (p.productType || p.name || 'Item')}: {p.fabricType || '—'} / {p.color || '—'}</span>
+                              <span className="text-xs font-bold text-blue-300 uppercase">{p.productType || p.name || 'Item'}: {p.fabricType || '—'} / {p.color || '—'}</span>
                               <span className="text-xs font-black text-blue-400">x{item.quantity || 1}</span>
                             </div>
                           );
@@ -2153,7 +2153,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                   <td className="py-4 px-4 text-gray-500 font-black">{idx + 1}</td>
                                    <td className="py-4 px-4 font-bold uppercase">
                                      {productVerification[String(idx)] === true ? <span className="inline-flex items-center justify-center w-5 h-5 rounded-md bg-indigo-500/20 text-indigo-400 border border-indigo-500/40 text-[10px] font-black mr-1.5" title="Verified">✓</span> : ''}
-                                     <span className="text-white">{isUrdu ? romanToUrdu(p.productType || p.name) : (p.productType || p.name) || '—'}</span>
+                                      <span className="text-white">{p.productType || p.name || '—'}</span>
                                    </td>
                                   <td className="py-4 px-4">
                                     <div className="uppercase text-gray-300">
