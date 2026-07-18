@@ -102,6 +102,12 @@
 - **Register Open/Close with Employee Auth** (`OutletPOS.jsx`): Added auth modal requiring Employee Name + Password before opening or closing the register. Verified against hardcoded employee map. `openedBy`/`closedBy` tracked on the session. `verifiedCloser` state used in print.
 - **Print Register Information** (`printCloseBook` in `OutletPOS.jsx`): Thermal and A4 reports now include Register Information section at top with Opened by, Open Date, Open Time, Closed by, Close Date, Close Time.
 - **OrderEntry.jsx split (Context + 4 tab components)**: Split 4054-line `OrderEntry.jsx` into `OrderEntryContext.jsx` (all state + handlers + derived data, 711 lines), 4 tab components (`BasicInfoTab`, `ProductSelectionTab`, `EngravingTab`, `SizeChartTab`), and a thin shell importing context + tabs. Follows same Provider pattern as OutletPOS split. Net reduction of 1858 lines. Build passes with 0 errors. (commit `757a6a0`)
+- **Removed inventory deduction** from STORE stage (`updateProductAvailability`, `requestStageCompletion`, `approveStageCompletion` in `order.controller.js`) — Store Profile now only marks `availabilityStatus` without calling `classifyOrderItems` / `deductInventoryItems`
+- **Created Warehouse POS module** — context + 5 components (Products, Cart, Modals, History, Returns) + thin shell page; matches Outlet POS architecture exactly; uses `/api/warehouse/*` endpoints exclusively
+- **Fixed 500 error** in warehouse endpoints — removed `isActive: true` filter on `InventoryItem` queries (field does not exist on model)
+- **Created Store Dashboard Analytics** — new `analytics` tab in `WarehouseDashboard.jsx` with full sales/inventory/tasks/invoices/products/returns/delay/performance sections; backend controller + routes at `/api/store-dashboard`
+- **Fixed Urdu font/RTL** — `LanguageContext.jsx` sets `dir="rtl"` on wrapper + `document.documentElement.lang/dir` on toggle; `.font-urdu` CSS includes `direction:rtl` + `text-align:right`; added RTL overrides for tables/inputs/flex
+- **Warehouse POS variant selection** — Added `handleAddToCart(group)` + `confirmConfig()` to `WarehousePOSContext.jsx`; rewrote `WarehousePOSProducts.jsx` with clickable grouped cards (no per-variant buttons); added config modal to `WarehousePOSModals.jsx` with color/size selectors and qty +/- picker. Single-variant products add directly; multi-variant products open config modal on click.
 
 ### In Progress
 - (none)
@@ -166,7 +172,7 @@
 - (none — all current work is complete)
 
 ## Critical Context
-- Latest commits: `124a8b0` — auto-reload stale chunk; `033af46` — Logo Design cart option; `76579d5` + `371b346` — Urdu labels; `3bad1ba` — Close Book sync + drill-down; `fcac5a7` — summary sync fix, employee auth for Open/Close, print register info; `d644db2` — Extract modals to sharedModals, fix Dashboard/History/Returns tabs missing modals; `757a6a0` — OrderEntry split context + 4 tab components
+- Latest commits: `124a8b0` — auto-reload stale chunk; `033af46` — Logo Design cart option; `76579d5` + `371b346` — Urdu labels; `3bad1ba` — Close Book sync + drill-down; `fcac5a7` — summary sync fix, employee auth for Open/Close, print register info; `d644db2` — Extract modals to sharedModals, fix Dashboard/History/Returns tabs missing modals; `757a6a0` — OrderEntry split context + 4 tab components; latest — Warehouse POS variant selection config modal
 - Build passes with 0 errors.
 - `isAccessory` uses substring matching (`catUpper.includes('COAT')`).
 - `calculateAndRecordRevenue` at line 2482 of `order.controller.js` is idempotent.
@@ -232,6 +238,11 @@
 - **Backend Book endpoints** (`pos.book.controller.js` + `pos.book.routes.js`): `POST /api/pos/book/open` (create session), `GET /api/pos/book/current` (get open session), `GET /api/pos/book/:id/summary` (compute payment breakdown, employee collections, journals, returns), `POST /api/pos/book/:id/close` (save summary, mark CLOSED).
 - **Frontend** (`OutletPOS.jsx`): Book status bar (Open/Close indicator in POS tab), Open Book button, Close Book modal with full payment summary, employee-wise collections, journal/return deductions, cash-in-locker calculation, transfer-to-system field, Thermal + A4 print options, 9 PM reminder.
 - **Summary computation** (server-side `getBookSummary`): Queries all sales (non-Faisal), Faisal Takes, returns, and journal entries within the session's open/close time range; computes payment totals, per-employee breakdowns, deductions, and available cash.
+- **Warehouse POS Context** (`WarehousePOSContext.jsx`): Central state via `useReducer` with `SET_STATE` pattern; `groupedProducts` with `colors`/`sizes`/`totalStock`/`minPrice`/`maxPrice` per group; `handleAddToCart(group)` opens config modal when multiple colors/sizes exist, adds directly for single-variant; `confirmConfig()` finds matching variant by selectedColor+selectedSize and adds to cart with quantity.
+- **Warehouse POS Products** (`WarehousePOSProducts.jsx`): Clickable grouped product cards (no per-variant buttons); shows color swatches, size badges, total stock, price range; `handleAddToCart(group)` on click.
+- **Warehouse POS Modals** (`WarehousePOSModals.jsx`): Config modal with color selector (when >1 color), size selector (when >1 size), qty +/- picker, and "Add to Cart" button.
+- **Store Dashboard Analytics** (`StoreDashboardAnalytics.jsx` / `storeDashboard.controller.js`): 8-section analytics (sales, inventory, tasks, invoices/orders, products, returns, delay, performance) via single `/api/store-dashboard` endpoint.
+- **Language/RTL** (`LanguageContext.jsx` / `index.css`): Urdu toggle sets `dir="rtl"` at document + wrapper level; `.font-urdu` class with `direction:rtl` + `text-align:right`; RTL overrides for tables/inputs/flex.
 
 ## Vercel Deployment Lessons
 - **SSO Deployment Protection** must be **disabled** for the project (`vercel project protection disable <name> --sso`) — otherwise Vercel intercepts ALL requests (including API) and shows the Vercel Dashboard login page.

@@ -1,17 +1,74 @@
 import React from 'react';
-import { Printer, X, DollarSign, CreditCard, Landmark, Wallet } from 'lucide-react';
+import { Printer, X, DollarSign, CreditCard, Landmark, Wallet, ShoppingCart } from 'lucide-react';
 import { useWarehousePOS } from '../context/WarehousePOSContext';
 
 const WarehousePOSModals = () => {
   const {
-    showCheckout, set, checkoutLoading, cartSummary, formatCurrency,
+    showCheckout, showConfig, configGroup, selectedColor, selectedSize, selectedQty,
+    set, checkoutLoading, cartSummary, formatCurrency,
     paymentMethod, cashAmount, onlineAmount, customerName, customerPhone,
-    discountPct, discountFixed, cart, handleCheckout,
-    lastSale, showPrintOptions, set: setState, printReceipt, pendingPrintSale,
+    discountPct, discountFixed, cart, handleCheckout, confirmConfig,
+    lastSale, showPrintOptions, printReceipt,
   } = useWarehousePOS();
 
   return (
     <>
+      {/* Config Modal — pick color/size/qty before adding to cart */}
+      {showConfig && configGroup && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => { set('showConfig', false); set('configGroup', null); }}>
+          <div className="bg-gray-900 border border-gray-700 rounded-xl p-5 w-80 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-white">{configGroup.name}</h3>
+              <button onClick={() => { set('showConfig', false); set('configGroup', null); }} className="text-gray-500 hover:text-white"><X size={16} /></button>
+            </div>
+
+            {configGroup.colors.length > 1 && (
+              <div className="mb-3">
+                <label className="text-[10px] font-bold text-gray-500 uppercase mb-1.5 block">Color</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {configGroup.colors.map(c => (
+                    <button key={c} onClick={() => set('selectedColor', c)}
+                      className={`px-3 py-1 rounded-lg text-[10px] font-bold border ${selectedColor === c ? 'border-emerald-500 bg-emerald-600/20 text-emerald-300' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {configGroup.sizes.length > 1 && (
+              <div className="mb-3">
+                <label className="text-[10px] font-bold text-gray-500 uppercase mb-1.5 block">Size</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {configGroup.sizes.map(s => (
+                    <button key={s} onClick={() => set('selectedSize', s)}
+                      className={`px-3 py-1 rounded-lg text-[10px] font-bold border ${selectedSize === s ? 'border-emerald-500 bg-emerald-600/20 text-emerald-300' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mb-4">
+              <label className="text-[10px] font-bold text-gray-500 uppercase mb-1.5 block">Quantity</label>
+              <div className="flex items-center gap-2">
+                <button onClick={() => set('selectedQty', Math.max(1, (selectedQty || 1) - 1))}
+                  className="w-8 h-8 rounded-lg bg-gray-800 text-gray-400 font-bold hover:bg-gray-700">-</button>
+                <span className="text-lg font-bold text-white w-8 text-center">{selectedQty || 1}</span>
+                <button onClick={() => set('selectedQty', (selectedQty || 1) + 1)}
+                  className="w-8 h-8 rounded-lg bg-gray-800 text-gray-400 font-bold hover:bg-gray-700">+</button>
+              </div>
+            </div>
+
+            <button onClick={() => { confirmConfig(); }}
+              className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
+              <ShoppingCart size={12} /> Add to Cart
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Checkout Modal */}
       {showCheckout && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => set('showCheckout', false)}>

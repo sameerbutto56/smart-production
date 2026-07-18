@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -164,10 +164,14 @@
 }
 
 .font-urdu {
-  font-family: 'Noto Nastaliq Urdu', serif;
-  line-height: 2.2;
+  font-family: 'Noto Nastaliq Urdu', 'Noto Naskh Arabic', 'Urdu Typesetting', 'Traditional Arabic', 'AlQalam', sans-serif;
+  font-weight: 500;
+  line-height: 2;
   direction: rtl;
   text-align: right;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-optical-sizing: auto;
 }
 
 .font-urdu .rtl-flip {

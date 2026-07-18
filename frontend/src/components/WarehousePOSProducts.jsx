@@ -1,9 +1,9 @@
 import React from 'react';
-import { Package, Grid3X3 } from 'lucide-react';
+import { Grid3X3, ShoppingCart } from 'lucide-react';
 import { useWarehousePOS } from '../context/WarehousePOSContext';
 
 const WarehousePOSProducts = () => {
-  const { groupedProducts, filteredProducts, categories, activeCategory, set, addToCart, hideZeroStock, productsLoading } = useWarehousePOS();
+  const { filteredProducts, categories, activeCategory, set, handleAddToCart, hideZeroStock, set: setState, productsLoading } = useWarehousePOS();
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -40,58 +40,48 @@ const WarehousePOSProducts = () => {
 };
 
 const ProductCard = React.memo(({ group }) => {
-  const { addToCart } = useWarehousePOS();
-  const colors = [...new Set(group._variants.map(v => v.color).filter(Boolean))];
-  const sizes = [...new Set(group._variants.map(v => v.size).filter(Boolean))];
-  const totalStock = group._variants.reduce((s, v) => s + (v.variantStock || 0), 0);
-  const minPrice = Math.min(...group._variants.map(v => v.variantPrice).filter(Boolean));
-  const maxPrice = Math.max(...group._variants.map(v => v.variantPrice).filter(Boolean));
+  const { handleAddToCart, formatCurrency } = useWarehousePOS();
+  const hasVariants = group.colors.length + group.sizes.length > 1;
 
   return (
-    <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-3 hover:border-gray-500 transition-colors">
+    <div onClick={() => handleAddToCart(group)}
+      className="bg-gray-800/50 border border-gray-700 rounded-xl p-3 hover:border-emerald-500/50 hover:bg-gray-800/80 transition-all cursor-pointer active:scale-[0.98]">
+      {/* Product name + category */}
       <div className="text-xs font-bold text-white truncate">{group.name}</div>
       <div className="text-[10px] text-gray-500 mt-0.5">{group.category}</div>
 
-      {colors.length > 0 && (
+      {/* Color swatches */}
+      {group.colors.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-2">
-          {colors.map(c => (
+          {group.colors.map(c => (
             <span key={c} className="text-[9px] bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">{c}</span>
           ))}
         </div>
       )}
 
-      {sizes.length > 0 && (
+      {/* Size badges */}
+      {group.sizes.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-1">
-          {sizes.map(s => (
+          {group.sizes.map(s => (
             <span key={s} className="text-[9px] bg-gray-700/50 text-gray-400 px-1.5 py-0.5 rounded">{s}</span>
           ))}
         </div>
       )}
 
-      {/* Variant buttons */}
-      <div className="mt-2 space-y-1 max-h-28 overflow-y-auto">
-        {group._variants.filter(v => !v.color && !v.size).slice(0, 1).map(v => (
-          <button key={v.id} onClick={() => addToCart(group, v)}
-            className="w-full text-[10px] font-bold px-2 py-1.5 rounded-lg bg-blue-600/20 text-blue-300 hover:bg-blue-600/40 border border-blue-700/50 text-left">
-            <span className="text-[9px] text-gray-400">Stock: {v.variantStock}</span>
-            <span className="float-right">{group.price || v.variantPrice}</span>
-          </button>
-        ))}
-        {group._variants.filter(v => v.color || v.size).map(v => (
-          <button key={v.id} onClick={() => addToCart(group, v)}
-            className="w-full text-[9px] px-2 py-1 rounded-lg bg-gray-700/50 text-gray-300 hover:bg-gray-700 border border-gray-600/50 text-left">
-            {v.color && <span className="font-bold">{v.color}</span>}
-            {v.size && <span>{v.color ? ' / ' : ''}{v.size}</span>}
-            <span className="float-right text-gray-500">₨{v.variantPrice} (s:{v.variantStock})</span>
-          </button>
-        ))}
+      {/* Stock + Price row */}
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-700/50">
+        <span className="text-[9px] text-gray-500">{group.totalStock} in stock</span>
+        <span className="text-[10px] font-bold text-emerald-400">
+          {group.minPrice === group.maxPrice
+            ? formatCurrency(group.minPrice)
+            : `${formatCurrency(group.minPrice)}-${formatCurrency(group.maxPrice)}`}
+        </span>
       </div>
 
-      <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-700/50">
-        <span className="text-[9px] text-gray-500">{totalStock} in stock</span>
-        <span className="text-[10px] font-bold text-emerald-400">
-          {minPrice === maxPrice ? `₨${minPrice}` : `₨${minPrice}-${maxPrice}`}
-        </span>
+      {/* Add to cart hint */}
+      <div className="mt-1.5 flex items-center justify-center gap-1 text-[9px] text-emerald-500/70 font-bold">
+        <ShoppingCart size={10} />
+        {hasVariants ? 'Select Variant' : 'Add to Cart'}
       </div>
     </div>
   );

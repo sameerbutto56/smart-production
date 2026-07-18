@@ -8,7 +8,7 @@ import { debounce } from '../utils/debounce';
 const WarehousePOSContext = createContext(null);
 
 const STATE_KEYS = [
-  'activeCategory', 'search', 'cart', 'showConfig', 'selectedSize', 'selectedColor', 'selectedQty',
+  'activeCategory', 'search', 'cart', 'showConfig', 'selectedSize', 'selectedColor', 'selectedQty', 'configGroup',
   'discountPct', 'discountFixed', 'customerName', 'customerPhone',
   'paymentMethod', 'cashAmount', 'onlineAmount',
   'showCheckout', 'checkoutLoading', 'lastSale',
@@ -93,23 +93,30 @@ export const WarehousePOSProvider = ({ children }) => {
     refreshSales();
   }, [refreshProducts, refreshSales]);
 
-  // Grouped products
+  // Grouped products — also compute colors, sizes, totalStock for config modal
   const groupedProducts = useMemo(() => {
     const map = {};
     for (const p of products) {
       const key = p.name;
-      if (!map[key]) map[key] = { ...p, _variants: [] };
+      if (!map[key]) {
+        map[key] = { ...p, _variants: [], colors: [], sizes: [], totalStock: 0, minPrice: Infinity, maxPrice: 0 };
+      }
       const barcode = genBarcode(p.id, p.size || null, p.color || null);
       const variantDefs = Array.isArray(p.variants) ? p.variants : [];
       const match = variantDefs.find(v => (v.color || null) === (p.color || null) && (v.size || null) === (p.size || null));
+      const variantStock = match ? (match.stock || 0) : (p.stock || 0);
+      const variantPrice = match ? (match.price || p.price || 0) : (p.price || 0);
       map[key]._variants.push({
         ...p,
         barcode,
-        variantStock: match ? (match.stock || 0) : (p.stock || 0),
-        variantPrice: match ? (match.price || p.price || 0) : (p.price || 0),
-        colors: p.colors || [p.color].filter(Boolean),
-        sizes: p.sizes || [p.size].filter(Boolean),
+        variantStock,
+        variantPrice,
       });
+      if (p.color) { if (!map[key].colors.includes(p.color)) map[key].colors.push(p.color); }
+      if (p.size) { if (!map[key].sizes.includes(p.size)) map[key].sizes.push(p.size); }
+      map[key].totalStock += variantStock;
+      if (variantPrice < map[key].minPrice) map[key].minPrice = variantPrice;
+      if (variantPrice > map[key].maxPrice) map[key].maxPrice = variantPrice;
     }
     return Object.values(map);
   }, [products]);
@@ -210,6 +217,38 @@ export const WarehousePOSProvider = ({ children }) => {
       }]);
     }
   }, [state.cart, set]);
+
+  // Open config modal when product has color/size choices
+  const handleAddToCart = useCallback((group) => {
+    const hasColors = group.colors.length > 1;
+    const hasSizes = group.sizes.length > 1;
+    if (!hasColors && !hasSizes) {
+      addToCart(group, group._variants[0]);
+      return;
+    }
+    set('configGroup', group);
+    set('selectedColor', group.colors[0] || '');
+    set('selectedSize', group.sizes[0] || '');
+    set('selectedQty', 1);
+    set('showConfig', true);
+  }, [addToCart, set]);
+
+  // Confirm variant from config modal, add to cart
+  const confirmConfig = useCallback(() => {
+    const group = state.configGroup;
+    if (!group) return;
+    const variant = group._variants.find(v =>
+      (v.color || null) === (state.selectedColor || null) &&
+      (v.size || null) === (state.selectedSize || null)
+    );
+    if (!variant) { toast.error('Variant not found'); return; }
+    const qty = state.selectedQty || 1;
+    for (let i = 0; i < qty; i++) {
+      addToCart(group, variant);
+    }
+    set('showConfig', false);
+    set('configGroup', null);
+  }, [state.configGroup, state.selectedColor, state.selectedSize, state.selectedQty, addToCart, set]);
 
   const removeFromCart = useCallback((idx) => {
     set('cart', prev => prev.filter((_, i) => i !== idx));
@@ -439,7 +478,7 @@ export const WarehousePOSProvider = ({ children }) => {
     groupedProducts, categories, filteredProducts, cartSummary,
     barcodeRef, returnBarcodeRef,
     refreshAll, refreshProducts, refreshSales,
-    handleBarcodeLookup, addToCart, removeFromCart, clearCart,
+    handleBarcodeLookup, addToCart, handleAddToCart, confirmConfig, removeFromCart, clearCart,
     handleCheckout, printReceipt,
     handleReturnBarcode, handleReturnByInvoice, addToReturnCart,
     processReturns, processRefundInvoice,
@@ -447,7 +486,7 @@ export const WarehousePOSProvider = ({ children }) => {
   }), [state, set, user, products, productsLoading, sales, salesLoading,
       groupedProducts, categories, filteredProducts, cartSummary,
       refreshAll, refreshProducts, refreshSales,
-      handleBarcodeLookup, addToCart, removeFromCart, clearCart,
+      handleBarcodeLookup, addToCart, handleAddToCart, confirmConfig, removeFromCart, clearCart,
       handleCheckout, printReceipt,
       handleReturnBarcode, handleReturnByInvoice, addToReturnCart,
       processReturns, processRefundInvoice]);
