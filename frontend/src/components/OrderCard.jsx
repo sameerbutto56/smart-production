@@ -326,13 +326,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               transition={{ delay: idx * 0.1 }}
               className={`text-xs md:text-sm flex items-center justify-between p-2 rounded-lg border ${isRejected ? 'bg-red-900/10 border-red-500/30 border-l-2 border-l-red-500' : isCompleted ? 'bg-emerald-900/10 border-emerald-500/30 border-l-2 border-l-emerald-500' : 'bg-gray-900/30 border-gray-800/20'}`}
             >
-               <span className={`font-bold uppercase tracking-tighter ${isRejected ? 'text-orange-300' : isCompleted ? 'text-emerald-300' : 'text-gray-400'}`}>{productVerification[String(idx)] === true && <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-green-500/20 text-green-400 border border-green-500/30 text-[9px] mr-1">✓</span>}#{idx + 1} {(isUrdu ? romanToUrdu(p.productType || p.name || 'Item') : (p.productType || p.name || 'Item'))}: {p.fabricType || 'STD'} / {p.color || '—'} / Size {p.size || '—'}{p.alteration && (p.alteration.trouserLength || p.alteration.shirtLength || p.alteration.sleeveLength) ? <span className="ml-1.5 text-amber-400 bg-amber-500/20 border border-amber-500/30 px-1 py-0.5 rounded text-[9px]">Alt: {[p.alteration.trouserLength && `Trouser ${p.alteration.trouserLength}"`, p.alteration.shirtLength && `Shirt ${p.alteration.shirtLength}"`, p.alteration.sleeveLength && `Sleeve ${p.alteration.sleeveLength}"`].filter(Boolean).join(' ')}</span> : ''}</span>
+               <span className={`font-bold uppercase tracking-tighter ${isRejected ? 'text-orange-300' : isCompleted ? 'text-emerald-300' : 'text-gray-400'}`}>{productVerification[String(idx)] === true && <span className="inline-flex items-center justify-center w-4 h-4 rounded-md bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 text-[9px] mr-1" title="Verified">✓</span>}#{idx + 1} {(isUrdu ? romanToUrdu(p.productType || p.name || 'Item') : (p.productType || p.name || 'Item'))}: {p.fabricType || 'STD'} / {p.color || '—'} / Size {p.size || '—'}{p.alteration && (p.alteration.trouserLength || p.alteration.shirtLength || p.alteration.sleeveLength) ? <span className="ml-1.5 text-amber-400 bg-amber-500/20 border border-amber-500/30 px-1 py-0.5 rounded text-[9px]">Alt: {[p.alteration.trouserLength && `Trouser ${p.alteration.trouserLength}"`, p.alteration.shirtLength && `Shirt ${p.alteration.shirtLength}"`, p.alteration.sleeveLength && `Sleeve ${p.alteration.sleeveLength}"`].filter(Boolean).join(' ')}</span> : ''}</span>
               {isStoreRole && (
                 <div className="flex gap-1 shrink-0 ml-2">
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); handleVerificationToggle(idx); }}
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${productVerification[String(idx)] === true ? 'bg-green-500/20 text-green-400 border-2 border-green-500/40' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-green-500/10 hover:text-green-400'}`}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${productVerification[String(idx)] === true ? 'bg-indigo-500/20 text-indigo-400 border-2 border-indigo-500/40' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-indigo-500/10 hover:text-indigo-400'}`}
                     title={productVerification[String(idx)] === true ? 'Verified ✓' : 'Mark as verified'}
                   >
                     ✓
@@ -373,14 +373,14 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
           {isStoreRole && (
             <li className="flex items-center justify-between p-2 bg-gray-900/30 rounded-lg border border-gray-800/20 mb-2">
               <span className={`text-xs md:text-sm font-bold uppercase tracking-tighter flex items-center gap-1 ${singleCompleted ? 'text-emerald-400' : singleRejected ? 'text-red-400' : 'text-gray-400'}`}>
-                {productVerification['0'] === true && <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-green-500/20 text-green-400 border border-green-500/30 text-[9px]">✓</span>}
+                {productVerification['0'] === true && <span className="inline-flex items-center justify-center w-4 h-4 rounded-md bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 text-[9px]" title="Verified">✓</span>}
                 Stock: {singleCompleted ? 'Completed' : singleRejected ? 'Rejected' : 'Pending'}
               </span>
               <div className="flex gap-1 shrink-0 ml-2">
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); handleVerificationToggle(0); }}
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${productVerification['0'] === true ? 'bg-green-500/20 text-green-400 border-2 border-green-500/40' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-green-500/10 hover:text-green-400'}`}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${productVerification['0'] === true ? 'bg-indigo-500/20 text-indigo-400 border-2 border-indigo-500/40' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-indigo-500/10 hover:text-indigo-400'}`}
                     title={productVerification['0'] === true ? 'Verified ✓' : 'Mark as verified'}
                   >
                     ✓
@@ -2331,7 +2331,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                 <React.Fragment key={idx}>
                                 <tr className={`border-b border-gray-800/50 transition-colors ${isRejected ? 'bg-red-900/5 hover:bg-red-900/15 border-l-2 border-l-red-500/40' : isCompleted ? 'bg-emerald-900/5 hover:bg-emerald-900/15 border-l-2 border-l-emerald-500/40' : 'hover:bg-gray-900/30'}`}>
                                   <td className="py-4 px-4 text-gray-500 font-black">{idx + 1}</td>
-                                   <td className="py-4 px-4 font-bold uppercase">{((pn) => isRejected ? <span className="text-orange-300">{isUrdu ? romanToUrdu(pn) : pn}</span> : isCompleted ? <span className="text-emerald-300">{isUrdu ? romanToUrdu(pn) : pn}</span> : <span className="text-white">{isUrdu ? romanToUrdu(pn) : pn}</span>)((p.productType || p.name) || '—')}</td>
+                                   <td className="py-4 px-4 font-bold uppercase">{productVerification[String(idx)] === true ? <span className="inline-flex items-center justify-center w-5 h-5 rounded-md bg-indigo-500/20 text-indigo-400 border border-indigo-500/40 text-[10px] font-black mr-1.5" title="Verified">✓</span> : ''}{((pn) => isRejected ? <span className="text-orange-300">{isUrdu ? romanToUrdu(pn) : pn}</span> : isCompleted ? <span className="text-emerald-300">{isUrdu ? romanToUrdu(pn) : pn}</span> : <span className="text-white">{isUrdu ? romanToUrdu(pn) : pn}</span>)((p.productType || p.name) || '—')}</td>
                                   <td className="py-4 px-4">
                                     <div className={`uppercase ${isRejected ? 'text-orange-200' : isCompleted ? 'text-emerald-200' : 'text-gray-300'}`}>
                                       {[p.fabricType, p.color].filter(Boolean).join(' • ') || '—'}

@@ -904,7 +904,7 @@ const AllOrders = () => {
                                 <tr key={idx} className="border-b theme-border last:border-0 hover:bg-white/5 font-bold">
                                   <td className="py-4 pl-4 font-mono theme-text-muted">{idx + 1}</td>
                                   <td className="py-4 text-white">
-                                    <span className="text-sm font-black">{isUrdu ? romanToUrdu(p.productType || p.name) : (p.productType || p.name)}</span>
+                                    {(selectedOrder.productVerification && selectedOrder.productVerification[String(idx)] === true) ? <span className="inline-flex items-center justify-center w-5 h-5 rounded-md bg-indigo-500/20 text-indigo-400 border border-indigo-500/40 text-[10px] font-black mr-1.5 align-middle" title="Verified">✓</span> : ''}<span className="text-sm font-black">{isUrdu ? romanToUrdu(p.productType || p.name) : (p.productType || p.name)}</span>
                                     {p.femaleOptions?.dupatta && (
                                       <span className="ml-2 bg-pink-500/20 text-pink-400 border border-pink-500/30 text-xs md:text-sm px-1.5 py-0.5 rounded font-black uppercase">Dupatta</span>
                                     )}

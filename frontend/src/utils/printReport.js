@@ -1210,7 +1210,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       win.document.write(`<tr>`);
       win.document.write(`<td style="font-weight:700">${idx + 1}</td>`);
       const verified = productVerification[String(idx)] === true;
-      win.document.write(`<td style="font-weight:700">${verified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#22c55e20;color:#22c55e;border:1px solid #22c55e40;font-size:10px;margin-right:4px">✓</span>' : ''}${ru(p.productType || p.name) || '—'}</td>`);
+      win.document.write(`<td style="font-weight:700">${verified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:#6366f120;color:#6366f1;border:1px solid #6366f140;font-size:10px;margin-right:4px" title="Verified">✓</span>' : ''}${ru(p.productType || p.name) || '—'}</td>`);
       // Fabric & Color column (no size mixed in)
       const fcParts = [p.fabricType, ru(p.color)].filter(Boolean);
       win.document.write(`<td>${fcParts.join(' • ') || '—'}</td>`);
@@ -1233,7 +1233,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     win.document.write(`<table dir="${dir}"><thead><tr>${headers.map(h => '<th>' + h + '</th>').join('')}</tr></thead><tbody>`);
     win.document.write(`<tr>`);
     const singleVerified = productVerification['0'] === true;
-    win.document.write(`<td style="font-weight:700">${singleVerified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#22c55e20;color:#22c55e;border:1px solid #22c55e40;font-size:10px;margin-right:4px">✓</span>' : ''}${ru(firstProduct.productType || firstProduct.name) || '—'}</td>`);
+    win.document.write(`<td style="font-weight:700">${singleVerified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:#6366f120;color:#6366f1;border:1px solid #6366f140;font-size:10px;margin-right:4px" title="Verified">✓</span>' : ''}${ru(firstProduct.productType || firstProduct.name) || '—'}</td>`);
     const fcParts = [firstProduct.fabricType, ru(firstProduct.color)].filter(Boolean);
     win.document.write(`<td>${fcParts.join(' • ') || '—'}</td>`);
     const sgParts = [firstProduct.size ? (isUrdu ? `سائز ${firstProduct.size}` : `Size ${firstProduct.size}`) : (isUrdu ? 'کسٹم' : 'Custom'), genDisplay(firstProduct.gender)].filter(Boolean);
