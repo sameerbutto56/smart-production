@@ -2459,7 +2459,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         </thead>
                         <tbody>
                           {[
-                            { label: t('Product'), val: product?.productType || product?.name },
+                            { label: t('Product'), val: (productVerification['0'] === true ? '✓ ' : '') + (product?.productType || product?.name) },
                             { label: t('Fabric'), val: product?.fabricType },
                             { label: t('Color'), val: product?.color },
                             { label: t('Size'), val: product?.size },

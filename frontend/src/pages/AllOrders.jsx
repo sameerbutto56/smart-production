@@ -1047,7 +1047,7 @@ const AllOrders = () => {
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6">
                       {[
-                        { label: 'Product Base', val: isUrdu ? romanToUrdu(product?.productType || product?.name) : (product?.productType || product?.name) },
+                        { label: 'Product Base', val: (selectedOrder.productVerification && selectedOrder.productVerification['0'] === true ? '✓ ' : '') + (isUrdu ? romanToUrdu(product?.productType || product?.name) : (product?.productType || product?.name)) },
                         { label: 'Fabric Type', val: product?.fabricType },
                         { label: 'Primary Color', val: product?.color },
                         { label: 'Order Size', val: product?.size },
