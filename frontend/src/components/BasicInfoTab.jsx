@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Hash, User, Phone, Star, Layout } from 'lucide-react';
 import { useOrderEntry } from '../context/OrderEntryContext';
@@ -9,6 +9,12 @@ const BasicInfoTab = () => {
     memoCartTotalItems, memoCartTotalPrice, memoIsFreeDelivery,
     preventEnterSubmit, dateInputRef, fmtDate, parseDate, cartItems
   } = useOrderEntry();
+
+  const [shopifyInput, setShopifyInput] = useState(() => fmtDate(formData.shopifyOrderDate));
+
+  useEffect(() => {
+    setShopifyInput(fmtDate(formData.shopifyOrderDate));
+  }, [formData.shopifyOrderDate, fmtDate]);
 
   return (
     <motion.div
@@ -107,10 +113,18 @@ const BasicInfoTab = () => {
               <div className={`absolute ${useUrdu ? 'right-6' : 'left-6'} top-1/2 -translate-y-1/2 group-focus-within:scale-110 transition-transform duration-300 flex items-center justify-center w-8 h-8 rounded-full bg-purple-500/10 text-purple-500`}>
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
               </div>
-              <input ref={dateInputRef} type="text" onKeyDown={preventEnterSubmit}
-                defaultValue={fmtDate(formData.shopifyOrderDate)}
-                onChange={(e) => { const iso = parseDate(e.target.value); if (iso) setFormData(s => ({ ...s, shopifyOrderDate: iso })); }}
-                onBlur={(e) => { const iso = parseDate(e.target.value); if (!iso) e.target.value = fmtDate(formData.shopifyOrderDate); }}
+               <input ref={dateInputRef} type="text" onKeyDown={preventEnterSubmit}
+                value={shopifyInput}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setShopifyInput(val);
+                  const iso = parseDate(val);
+                  if (iso) setFormData(s => ({ ...s, shopifyOrderDate: iso }));
+                }}
+                onBlur={() => {
+                  const iso = parseDate(shopifyInput);
+                  if (!iso) setShopifyInput(fmtDate(formData.shopifyOrderDate));
+                }}
                 placeholder="DD/MM/YYYY HH:mm"
                 className={`w-full theme-input rounded-[1.5rem] py-6 ${useUrdu ? 'pr-16 pl-8 text-right' : 'pl-16 pr-8'} transition-all text-xl font-bold`} />
             </div>

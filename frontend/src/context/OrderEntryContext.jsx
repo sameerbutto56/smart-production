@@ -390,12 +390,6 @@ export const OrderEntryProvider = ({ children }) => {
     return isNaN(d.getTime()) ? '' : d.toISOString();
   }, []);
 
-  useEffect(() => {
-    if (dateInputRef.current) {
-      dateInputRef.current.value = fmtDate(formData.shopifyOrderDate);
-    }
-  }, [formData.shopifyOrderDate, fmtDate]);
-
   const capUnitPrice = 500;
   const capCharges = (formData.matchingCap ? (formData.matchingCapQty || 0) : 0) * capUnitPrice;
 
