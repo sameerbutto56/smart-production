@@ -54,6 +54,7 @@ const WarehouseDashboard = () => {
 
   // Inventory Print state
   const [invPrintCategory, setInvPrintCategory] = useState(null);
+  const [invPrintProduct, setInvPrintProduct] = useState(null);
   const [printQty, setPrintQty] = useState({});
   const [printNotes, setPrintNotes] = useState('');
 
@@ -62,9 +63,10 @@ const WarehouseDashboard = () => {
   };
 
   const handlePrintStockRequest = () => {
-    if (!invPrintCategory) return;
-    const items = inventory.filter(i => i.category === invPrintCategory);
+    if (!invPrintCategory || !invPrintProduct) return;
+    const items = inventory.filter(i => i.category === invPrintCategory && i.name === invPrintProduct);
     if (!items.length) { toast.error('No items to print'); return; }
+    const productLabel = invPrintProduct;
 
     const now = new Date();
     const dateStr = now.toLocaleDateString('en-PK', { year: 'numeric', month: 'short', day: 'numeric' });
@@ -107,7 +109,7 @@ const WarehouseDashboard = () => {
     });
 
     const printContent = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Stock Request - ${invPrintCategory}</title>
+<html><head><meta charset="utf-8"><title>Stock Request - ${invPrintCategory} - ${productLabel}</title>
 <style>
   @page { margin: 15mm 10mm; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -138,7 +140,8 @@ const WarehouseDashboard = () => {
   <div class="header">
     <div class="header-left">
       <h1><span>${catIcons[invPrintCategory] || '📦'}</span>${invPrintCategory}</h1>
-      <p>Stock Request Sheet</p>
+      <p style="font-size: 14px; font-weight: 700; color: #f59e0b; margin-top: 4px;">${productLabel}</p>
+      <p style="font-size: 11px; color: #888; margin-top: 2px;">Stock Request Sheet</p>
     </div>
     <div class="header-right">
       <div class="date">${dateStr} · ${timeStr}</div>
@@ -859,12 +862,68 @@ const WarehouseDashboard = () => {
                       );
                     })}
                   </div>
+                ) : !invPrintProduct ? (
+                  /* Product List for Selected Category */
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => { setInvPrintCategory(null); setPrintQty({}); setPrintNotes(''); }}
+                        className="p-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-gray-400 transition-all active:scale-95">
+                        <ArrowLeft size={18} />
+                      </button>
+                      <h3 className="font-black theme-text-primary text-base uppercase tracking-wider flex items-center gap-2">
+                        <span>{catIcons[invPrintCategory] || '📦'}</span>
+                        {invPrintCategory}
+                      </h3>
+                      <span className="text-xs font-bold theme-text-muted">({prodMap[invPrintCategory]?.length || 0} items)</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4">
+                      {(() => {
+                        const seen = new Set();
+                        const uniqueItems = (prodMap[invPrintCategory] || []).filter(item => {
+                          const key = item.name.toLowerCase();
+                          if (seen.has(key)) return false;
+                          seen.add(key);
+                          return true;
+                        });
+                        return uniqueItems.map(item => {
+                          const catItems = prodMap[invPrintCategory] || [];
+                          const totalStock = catItems.filter(i => i.name === item.name).reduce((s, i) => {
+                            const vs = i.variants && Array.isArray(i.variants) && i.variants.length > 0 ? i.variants : null;
+                            return vs ? s + vs.reduce((a, v) => a + (v.stock ?? i.stock), 0) : s + i.stock;
+                          }, 0);
+                          const variantCount = catItems.filter(i => i.name === item.name).reduce((s, i) => {
+                            const vs = i.variants && Array.isArray(i.variants) ? i.variants : [];
+                            return s + (vs.length > 0 ? vs.length : (i.size || i.color ? 1 : 0));
+                          }, 0);
+                          return (
+                            <motion.button key={item.name} onClick={() => { setInvPrintProduct(item.name); setPrintQty({}); setPrintNotes(''); }}
+                              whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                              className="glass p-4 md:p-5 rounded-2xl border-2 theme-border hover:border-amber-500/30 text-left transition-all">
+                              <div className="p-3 bg-amber-500/10 rounded-xl w-fit mb-3"><Package size={20} className="text-amber-400" /></div>
+                              <h3 className="font-black theme-text-primary text-sm">{item.name}</h3>
+                              <div className="flex items-center gap-2 mt-1.5">
+                                <span className="text-xs font-bold text-amber-400">{variantCount} variants</span>
+                                <span className="text-[10px] theme-text-muted">·</span>
+                                <span className="text-xs font-bold text-emerald-400">{totalStock} stock</span>
+                              </div>
+                            </motion.button>
+                          );
+                        });
+                      })()}
+                    </div>
+                    {(!prodMap[invPrintCategory] || prodMap[invPrintCategory].length === 0) && (
+                      <div className="text-center py-16">
+                        <Package size={48} className="mx-auto text-gray-700 mb-4" />
+                        <p className="theme-text-muted font-black text-xs uppercase tracking-widest">No products in this category</p>
+                      </div>
+                    )}
+                  </div>
                 ) : (
-                  /* Product Listing for Selected Category */
+                  /* Variant Table for Selected Product */
                   <div className="space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        <button onClick={() => { setInvPrintCategory(null); setPrintQty({}); setPrintNotes(''); }}
+                        <button onClick={() => { setInvPrintProduct(null); setPrintQty({}); setPrintNotes(''); }}
                           className="p-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-gray-400 transition-all active:scale-95">
                           <ArrowLeft size={18} />
                         </button>
@@ -872,7 +931,8 @@ const WarehouseDashboard = () => {
                           <span>{catIcons[invPrintCategory] || '📦'}</span>
                           {invPrintCategory}
                         </h3>
-                        <span className="text-xs font-bold theme-text-muted">({prodMap[invPrintCategory]?.length || 0} items)</span>
+                        <span className="text-[10px] theme-text-muted">/</span>
+                        <span className="font-bold text-amber-400 text-sm">{invPrintProduct}</span>
                       </div>
                       <button onClick={handlePrintStockRequest}
                         className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all active:scale-95 flex items-center gap-2 shadow-lg shadow-amber-900/20">
@@ -881,7 +941,7 @@ const WarehouseDashboard = () => {
                       </button>
                     </div>
 
-                    {/* Products Table */}
+                    {/* Variants Table */}
                     <div className="glass rounded-2xl border-2 theme-border overflow-hidden">
                       <div className="overflow-x-auto">
                         <table className="w-full text-left">
@@ -896,13 +956,12 @@ const WarehouseDashboard = () => {
                             </tr>
                           </thead>
                           <tbody>
-                            {(prodMap[invPrintCategory] || []).length === 0 ? (
-                              <tr><td colSpan="6" className="p-8 text-center"><p className="text-xs theme-text-muted font-bold">No items in this category</p></td></tr>
-                            ) : (() => {
+                            {(() => {
+                              const catItems = inventory.filter(i => i.category === invPrintCategory && i.name === invPrintProduct);
+                              if (!catItems.length) return <tr><td colSpan="6" className="p-8 text-center"><p className="text-xs theme-text-muted font-bold">No items found</p></td></tr>;
                               const rows = [];
-                              const items = prodMap[invPrintCategory] || [];
                               let rowIdx = 0;
-                              items.forEach(item => {
+                              catItems.forEach(item => {
                                 const vs = item.variants && Array.isArray(item.variants) && item.variants.length > 0 ? item.variants : null;
                                 if (vs && vs.length > 0) {
                                   vs.forEach(v => {
