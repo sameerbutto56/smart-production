@@ -50,21 +50,23 @@ const ProductCard = React.memo(({ group }) => {
       <div className="text-xs font-bold text-white truncate font-data">{group.name}</div>
       <div className="text-[10px] text-gray-500 mt-0.5 font-data">{group.category}</div>
 
-      {/* Color swatches */}
+      {/* Color swatches (max 4) */}
       {group.colors.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-2">
-          {group.colors.map(c => (
+          {group.colors.slice(0, 4).map(c => (
             <span key={c} className="text-[9px] bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">{c}</span>
           ))}
+          {group.colors.length > 4 && <span className="text-[9px] text-gray-500 px-1 py-0.5">+{group.colors.length - 4}</span>}
         </div>
       )}
 
-      {/* Size badges */}
+      {/* Size badges (max 4) */}
       {group.sizes.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-1">
-          {group.sizes.map(s => (
+          {group.sizes.slice(0, 4).map(s => (
             <span key={s} className="text-[9px] bg-gray-700/50 text-gray-400 px-1.5 py-0.5 rounded">{s}</span>
           ))}
+          {group.sizes.length > 4 && <span className="text-[9px] text-gray-500 px-1 py-0.5">+{group.sizes.length - 4}</span>}
         </div>
       )}
 
