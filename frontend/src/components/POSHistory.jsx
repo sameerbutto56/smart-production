@@ -1,9 +1,12 @@
 import React from 'react';
 import { usePOS } from '../context/POSContext';
+import { useLanguage } from '../context/LanguageContext';
+import { toUrduName } from '../utils/urduDictionary';
 import { formatCurrency, formatPaymentMethod } from '../utils/POSPrint';
 import { Clock, ShoppingCart, BarChart3, Search, Download, Printer, RotateCcw, DollarSign, CreditCard, Globe } from 'lucide-react';
 
 const POSHistory = () => {
+  const { isUrdu } = useLanguage();
   const { salesRange, setSalesRange, salesDateFrom, setSalesDateFrom, salesDateTo, setSalesDateTo,
     receiptSearch, setReceiptSearch, sales, filteredSales,
     handleRefundInvoiceFromHistory, downloadExcel,
@@ -72,7 +75,7 @@ const POSHistory = () => {
             <div className="flex flex-wrap gap-1 mb-2">
               {(s.items || []).map((item, idx) => (
                 <span key={idx} className="text-[10px] font-bold text-gray-400 bg-gray-900 px-2 py-0.5 rounded-lg">
-                  {item.productName}{item.color ? ` (${item.color})` : ''}{item.size ? ` / ${item.size}` : ''} x{item.quantity} = {formatCurrency(item.lineTotal)}
+                  {isUrdu ? toUrduName(item.productName) : item.productName}{item.color ? ` (${isUrdu ? toUrduName(item.color) : item.color})` : ''}{item.size ? ` / ${item.size}` : ''} x{item.quantity} = {formatCurrency(item.lineTotal)}
                 </span>
               ))}
             </div>

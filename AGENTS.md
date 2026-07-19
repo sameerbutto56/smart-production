@@ -127,6 +127,23 @@
 - **Fix 3** (`getBookHistory`): Existing stored summaries (from previous closes) are adjusted on-the-fly — `paymentSummary.cash` and `paymentSummary.online` have `cashOnlineCash`/`cashOnlineOnline` subtracted so old records render correctly.
 - **Consistency**: Payment Summary rows are now non-overlapping (accounting view). Cash Summary section (below) still shows `cashCollected` (raw cash in till) for operational view — matching Dashboard.
 
+### Fixed This Session — Urdu Dictionary Now Powers All POS/Warehouse/Job Sheet UI
+- **urduDictionary.js expanded**: All 207 variant colors added (A–Z, 245 entries total) alongside existing 106 product names
+- **toUrduName() export**: O(1) dictionary lookup, never crashes, falls back to original text
+- **printReport.js**: `pu()` helper for product names and `vu()` helper for colors use dictionary first, `romanToUrdu()` as fallback; 4 product name sites + 3 color sites updated
+- **OrderCard.jsx**: Changed `romanToUrdu` import → `toUrduName`; 6 product name + 5 color display spots now Urdu-aware
+- **AllOrders.jsx**: Same pattern, 4 product name + 3 color spots updated
+- **POSProducts.jsx**: Added `useLanguage` + `toUrduName`; product names and color labels now Urdu
+- **POSCart.jsx**: Cart items show product name + color in Urdu
+- **POSHistory.jsx**: History chips show product name + color in Urdu
+- **POSReturns.jsx**: Product search, sale items, return cart, return history all Urdu-aware (9 display points)
+- **OutletPOSDashboard.jsx**: Top products, Faisal Takes, CSV export, print HTML all use `toUrduName`
+- **WarehousePOSProducts.jsx**: Product grid cards show names in Urdu
+- **WarehousePOSCart.jsx**: Cart items show name + color in Urdu
+- **WarehousePOSHistory.jsx**: History chips show name + color in Urdu
+- **WarehousePOSReturns.jsx**: Sales items + return cart show name + color in Urdu
+- Build passes with 0 errors, dictionary is 12.22 kB (3.91 kB gzipped)
+
 ### Fixed This Session — Reprint/Print Not Working (Popup Blocker)
 - **Root cause**: `printReceipt` in `OutletPOS.jsx` and `OutletInvoiceHistory.jsx` used `window.open('', '_blank')` at the TOP of an `async` function — after `await` calls (logo fetch, QR code generation), the browser's popup blocker would prevent the window from opening because the user gesture was no longer in scope.
 - **Fix**: Replaced `window.open()` with a hidden `<iframe>` appended to `document.body`. The iframe's `contentWindow.document` is used for all `doc.write()` calls, and `iframe.contentWindow.print()` triggers the print dialog. Updated all three functions: `OutletPOS.jsx:printReceipt`, `OutletInvoiceHistory.jsx:printReceipt`, and `OutletInvoiceHistory.jsx:printBalanceReceipt`. Added `console.log` to Reprint onClick.

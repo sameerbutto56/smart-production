@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect, useRef, useMemo, useCallback } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { toUrduName } from '../utils/urduDictionary';
 import toast from 'react-hot-toast';
 import useCache from '../hooks/useCache';
 import { debounce } from '../utils/debounce';
@@ -466,11 +467,11 @@ export const WarehousePOSProvider = ({ children }) => {
       <p class="center">Cashier: ${sale.cashierName || '-'}</p>
       ${sale.customerName ? `<p>Customer: ${sale.customerName}${sale.customerPhone ? ` (${sale.customerPhone})` : ''}</p>` : ''}
       <table><tr><th>ITEM</th><th class="right">QTY×PRICE</th><th class="right">TOTAL</th></tr>
-      ${(sale.items || []).map(item => `<tr>
-        <td>${item.productName}${item.color ? ` (${item.color})` : ''}${item.size ? ` / ${item.size}` : ''}</td>
+      ${(sale.items || []).map(item => { const iur = (() => { try { return localStorage.getItem('opencode_language') === 'ur'; } catch { return false; } })(); return `<tr>
+        <td>${iur ? toUrduName(item.productName) : item.productName}${item.color ? ` (${iur ? toUrduName(item.color) : item.color})` : ''}${item.size ? ` / ${item.size}` : ''}</td>
         <td class="right">${item.quantity}×${formatCurrency(item.unitPrice)}</td>
         <td class="right">${formatCurrency(item.lineTotal)}</td>
-      </tr>`).join('')}
+      </tr>`;}).join('')}
       </table>
       <table>
         <tr><td>Subtotal</td><td class="right">${formatCurrency(sale.subtotal)}</td></tr>

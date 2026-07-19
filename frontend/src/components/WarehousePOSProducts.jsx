@@ -1,8 +1,11 @@
 import React from 'react';
 import { Package } from 'lucide-react';
 import { useWarehousePOS } from '../context/WarehousePOSContext';
+import { useLanguage } from '../context/LanguageContext';
+import { toUrduName } from '../utils/urduDictionary';
 
 const WarehousePOSProducts = () => {
+  const { isUrdu } = useLanguage();
   const { filteredProducts, categories, activeCategory, set, handleAddToCart, productsLoading } = useWarehousePOS();
 
   return (
@@ -44,6 +47,7 @@ const WarehousePOSProducts = () => {
 };
 
 const ProductCard = React.memo(({ group }) => {
+  const { isUrdu: isUrdu2 } = useLanguage();
   const { handleAddToCart, formatCurrency } = useWarehousePOS();
   const maxShow = 3;
   const colorsMore = group.colors.length > maxShow ? group.colors.length - maxShow : 0;
@@ -67,7 +71,7 @@ const ProductCard = React.memo(({ group }) => {
       <div className="w-full h-20 bg-gray-800 rounded-lg mb-1.5 flex items-center justify-center">
         <Package size={24} className="text-gray-600" />
       </div>
-      <p className="text-[10px] font-bold text-white leading-tight line-clamp-2 font-data">{group.name}</p>
+      <p className="text-[10px] font-bold text-white leading-tight line-clamp-2 font-data">{isUrdu2 ? toUrduName(group.name) : group.name}</p>
       {group._variants.length > 1 && (
         <span className="inline-block text-[7px] font-bold text-blue-400 bg-blue-900/30 rounded-full px-1.5 py-0.5 mb-0.5">{group._variants.length} variants</span>
       )}

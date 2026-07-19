@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../services/api';
+import { useLanguage } from '../context/LanguageContext';
+import { toUrduName } from '../utils/urduDictionary';
 import { Search, Clock, Printer, RefreshCw, DollarSign, AlertTriangle, Download, ChevronDown, ChevronUp, X, CreditCard, RotateCcw } from 'lucide-react';
 import QRCode from 'qrcode';
 import toast from 'react-hot-toast';
@@ -18,6 +20,7 @@ const datePresets = [
 ];
 
 const OutletInvoiceHistory = ({ outlet }) => {
+  const { isUrdu } = useLanguage();
   const [range, setRange] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -139,8 +142,8 @@ const OutletInvoiceHistory = ({ outlet }) => {
     doc.write(`<div class="header"><img src="${logoUrl}" alt="ENAMELS" style="height:80px;margin-bottom:4px;"><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p>${isFT ? '<p style="font-size:22px;font-weight:900;color:#c00;margin:6px 0;text-transform:uppercase;letter-spacing:3px;">FAISAL TAKE — NO CHARGE</p>' : ''}<p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}${sale.customerPhone ? `<p>Phone: ${sale.customerPhone}</p>` : ''}</div>`);
     doc.write('<hr><div class="items"><div class="items-heading"><span class="col-item">ITEM</span><span class="col-qty">QTY × PRICE</span><span class="col-total">TOTAL</span></div>');
     (sale.items || []).forEach(item => {
-      const name = item.productName || '';
-      const variantParts = [item.color, item.size].filter(Boolean);
+      const name = isUrdu ? toUrduName(item.productName || '') : (item.productName || '');
+      const variantParts = [isUrdu ? toUrduName(item.color) : item.color, item.size].filter(Boolean);
       doc.write('<div class="item">');
       doc.write(`<div class="item-name">${name}</div>`);
       if (variantParts.length > 0) doc.write(`<div class="item-variant">${variantParts.join(' / ')}</div>`);
@@ -321,7 +324,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
       'Cashier': s.cashierName || '',
       'Customer': s.customerName || '',
       'Phone': s.customerPhone || '',
-      'Items': (s.items || []).map(i => `${i.productName}${i.color ? ' ('+i.color+')' : ''}${i.size ? ' '+i.size : ''} x${i.quantity}`).join(', '),
+      'Items': (s.items || []).map(i => `${isUrdu ? toUrduName(i.productName) : i.productName}${i.color ? ' ('+(isUrdu ? toUrduName(i.color) : i.color)+')' : ''}${i.size ? ' '+i.size : ''} x${i.quantity}`).join(', '),
       'Subtotal': s.subtotal || 0,
       'Discount': s.discountAmount || 0,
       'Card Charges': s.cardChargesAmount || 0,
@@ -507,8 +510,8 @@ const OutletInvoiceHistory = ({ outlet }) => {
                     {(sale.items || []).map((item, i) => (
                       <div key={i} className="flex items-center justify-between text-xs bg-gray-950 p-2.5 rounded-xl border border-gray-800">
                         <div>
-                          <p className="font-black text-white">{item.productName}</p>
-                          <p className="text-[10px] text-gray-500">{[item.color, item.size].filter(Boolean).join(' / ')}{item.alterationCharges ? ` +Alt:${item.alterationCharges}` : ''}</p>
+                          <p className="font-black text-white">{isUrdu ? toUrduName(item.productName) : item.productName}</p>
+                          <p className="text-[10px] text-gray-500">{[isUrdu ? toUrduName(item.color) : item.color, item.size].filter(Boolean).join(' / ')}{item.alterationCharges ? ` +Alt:${item.alterationCharges}` : ''}</p>
                         </div>
                         <div className="text-right">
                           <p className="font-bold text-white">{item.quantity} × {formatCurrency(item.unitPrice)}</p>

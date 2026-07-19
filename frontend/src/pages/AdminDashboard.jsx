@@ -51,6 +51,7 @@ import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../comp
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
 import { useLanguage } from '../context/LanguageContext';
+import { toUrduName } from '../utils/urduDictionary';
 import toast from 'react-hot-toast';
 import { PauseCircle, PlayCircle } from 'lucide-react';
 
@@ -832,7 +833,7 @@ const AdminDashboard = () => {
                         <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-gray-900/50 border border-gray-800">
                           <div className="flex items-center gap-2 min-w-0">
                             <Package size={12} className="text-purple-400 shrink-0" />
-                            <span className="text-[10px] font-bold text-white truncate">{item.productType || 'Item'} — {item.fabricType || 'STD'} / {item.color || '—'} / {item.size || '—'}</span>
+                            <span className="text-[10px] font-bold text-white truncate">{isUrdu ? toUrduName(item.productType || 'Item') : (item.productType || 'Item')} — {item.fabricType || 'STD'} / {(isUrdu ? toUrduName(item.color) : item.color) || '—'} / {item.size || '—'}</span>
                           </div>
                           <span className="text-[10px] font-black text-gray-400 shrink-0 ml-2">x{item.quantity || 1}</span>
                         </div>
@@ -1451,10 +1452,10 @@ const AdminDashboard = () => {
                                         <div key={i} className="flex items-center gap-2 py-1.5 border-b border-red-500/10 last:border-0">
                                           <span className="text-xs md:text-sm font-black text-red-400 w-4">{i + 1}.</span>
                                           <div>
-                                            <p className="text-xs font-bold theme-text-primary">{p.name}</p>
+                                            <p className="text-xs font-bold theme-text-primary">{isUrdu ? toUrduName(p.name) : p.name}</p>
                                             {(p.color || p.size) && (
-                                              <p className="text-xs font-medium theme-text-muted">
-                                                {[p.color, p.size].filter(Boolean).join(' / ')} × {p.qty}
+                                              <p className="text-[9px] theme-text-muted">
+                                                {[isUrdu ? toUrduName(p.color) : p.color, p.size].filter(Boolean).join(' / ')} × {p.qty}
                                               </p>
                                             )}
                                           </div>
@@ -1470,10 +1471,10 @@ const AdminDashboard = () => {
                                         <div key={i} className="flex items-center gap-2 py-1.5 border-b border-emerald-500/10 last:border-0">
                                           <span className="text-xs md:text-sm font-black text-emerald-400 w-4">{i + 1}.</span>
                                           <div>
-                                            <p className="text-xs font-bold theme-text-primary">{p.name}</p>
+                                            <p className="text-xs font-bold theme-text-primary">{isUrdu ? toUrduName(p.name) : p.name}</p>
                                             {(p.color || p.size) && (
-                                              <p className="text-xs font-medium theme-text-muted">
-                                                {[p.color, p.size].filter(Boolean).join(' / ')} × {p.qty}
+                                              <p className="text-[9px] theme-text-muted">
+                                                {[isUrdu ? toUrduName(p.color) : p.color, p.size].filter(Boolean).join(' / ')} × {p.qty}
                                               </p>
                                             )}
                                           </div>
@@ -1489,12 +1490,12 @@ const AdminDashboard = () => {
                                     <div className="space-y-1">
                                       {currentProducts.map((p, i) => (
                                         <p key={i} className="text-xs font-bold text-green-400">
-                                          +{p.qty} {p.name} {p.color ? `(${p.color}` : ''}{p.color && p.size ? ' / ' : ''}{p.size ? `${p.size})` : ''} returned to stock
+                                          +{p.qty} {isUrdu ? toUrduName(p.name) : p.name} {p.color ? `(${isUrdu ? toUrduName(p.color) : p.color}` : ''}{p.color && p.size ? ' / ' : ''}{p.size ? `${p.size})` : ''} returned to stock
                                         </p>
                                       ))}
                                       {requestedProducts.map((p, i) => (
                                         <p key={i} className="text-xs font-bold text-red-400">
-                                          -{p.qty} {p.name} {p.color ? `(${p.color}` : ''}{p.color && p.size ? ' / ' : ''}{p.size ? `${p.size})` : ''} deducted from stock
+                                          -{p.qty} {isUrdu ? toUrduName(p.name) : p.name} {p.color ? `(${isUrdu ? toUrduName(p.color) : p.color}` : ''}{p.color && p.size ? ' / ' : ''}{p.size ? `${p.size})` : ''} deducted from stock
                                         </p>
                                       ))}
                                     </div>

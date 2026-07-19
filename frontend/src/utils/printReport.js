@@ -1,4 +1,4 @@
-import { getUrduProductName } from './productUrduNames';
+import { toUrduName } from './urduDictionary';
 
 const PRINT_CSS = `
   @page { size: A4 portrait; margin: 4mm 6mm; }
@@ -1093,7 +1093,8 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const sec = lang === 'en' ? enSection : urduSection;
   const isUrdu = lang === 'ur';
   const ru = (t) => isUrdu && t ? romanToUrdu(t) : t;
-  const pu = (t) => isUrdu && t ? (getUrduProductName(t) || romanToUrdu(t)) : t;
+  const pu = (t) => isUrdu && t ? toUrduName(t) : t;
+  const vu = (t) => isUrdu && t ? (toUrduName(t) || romanToUrdu(t)) : t;
   const dir = isUrdu ? 'rtl' : 'ltr';
 
   const orderType = order.type || 'STANDARD';
@@ -1222,7 +1223,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       const verified = productVerification[String(idx)] === true;
       win.document.write(`<td style="font-weight:700">${verified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:#6366f120;color:#6366f1;border:1px solid #6366f140;font-size:10px;margin-right:4px" title="Verified">✓</span>' : ''}${pu(p.productType || p.name) || '—'}</td>`);
       // Fabric & Color column (no size mixed in)
-      const fcParts = [p.fabricType, ru(p.color)].filter(Boolean);
+      const fcParts = [vu(p.fabricType), vu(p.color)].filter(Boolean);
       win.document.write(`<td>${fcParts.join(' • ') || '—'}</td>`);
       // Size & Gender column (only size + gender)
       const sgParts = [p.size ? (isUrdu ? `سائز ${p.size}` : `Size ${p.size}`) : (isUrdu ? 'کسٹم' : 'Custom'), genDisplay(p.gender)].filter(Boolean);
@@ -1244,7 +1245,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     win.document.write(`<tr>`);
     const singleVerified = productVerification['0'] === true;
     win.document.write(`<td style="font-weight:700">${singleVerified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:#6366f120;color:#6366f1;border:1px solid #6366f140;font-size:10px;margin-right:4px" title="Verified">✓</span>' : ''}${pu(firstProduct.productType || firstProduct.name) || '—'}</td>`);
-    const fcParts = [firstProduct.fabricType, ru(firstProduct.color)].filter(Boolean);
+    const fcParts = [vu(firstProduct.fabricType), vu(firstProduct.color)].filter(Boolean);
     win.document.write(`<td>${fcParts.join(' • ') || '—'}</td>`);
     const sgParts = [firstProduct.size ? (isUrdu ? `سائز ${firstProduct.size}` : `Size ${firstProduct.size}`) : (isUrdu ? 'کسٹم' : 'Custom'), genDisplay(firstProduct.gender)].filter(Boolean);
     win.document.write(`<td>${sgParts.join(' • ') || '—'}</td>`);
@@ -1288,7 +1289,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           win.document.write(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding-bottom:6px;border-bottom:2px solid #eee">`);
           win.document.write(`<span style="background:#111;color:#fff;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:20px;font-weight:800">${idx + 1}</span>`);
             win.document.write(`<span style="font-weight:900;font-size:22px;text-transform:uppercase">${pu(p.productType || p.name) || 'Item ' + (idx + 1)}</span>`);
-          if (p.color) win.document.write(`<span style="font-size:18px;color:#000">(${ru(p.color)})</span>`);
+          if (p.color) win.document.write(`<span style="font-size:18px;color:#000">(${vu(p.color)})</span>`);
           win.document.write(`</div>`);
 
           if (c?.engravingType) {

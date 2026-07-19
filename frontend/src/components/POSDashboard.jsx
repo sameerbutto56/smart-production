@@ -1,10 +1,13 @@
 import React from 'react';
 import { usePOS } from '../context/POSContext';
+import { useLanguage } from '../context/LanguageContext';
+import { toUrduName } from '../utils/urduDictionary';
 import { formatCurrency, formatPaymentMethod } from '../utils/POSPrint';
 import { BarChart3, DollarSign, TrendingUp, Tag, RotateCcw, CheckCircle2, Clock, X, Award, CreditCard, Globe, ShoppingCart, Download, Calendar, RefreshCw, Package } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
 const POSDashboard = () => {
+  const { isUrdu } = useLanguage();
   const {
     dashboard, dashboardLoading, dashboardError, refreshDashboard,
     selectedOutlet, dashboardRange, setDashboardRange,
@@ -311,7 +314,7 @@ const POSDashboard = () => {
               <div className="space-y-2">
                 {dashboard.bestSellingProducts && dashboard.bestSellingProducts.map((p, idx) => (
                   <div key={idx} className="flex items-center justify-between text-xs bg-gray-950 p-2.5 rounded-xl border border-gray-800">
-                    <span className="font-black text-white">{p.name}</span>
+                    <span className="font-black text-white">{isUrdu ? toUrduName(p.name) : p.name}</span>
                     <span className="font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-lg">{p.qty} sold</span>
                   </div>
                 ))}
@@ -383,7 +386,7 @@ const POSDashboard = () => {
                     <div className="mt-1.5 space-y-0.5">
                       {ft.items && ft.items.map((item, idx) => (
                         <div key={idx} className="flex items-center justify-between text-[10px] text-gray-400">
-                          <span>{item.productName} {item.size ? `(${item.size})` : ''} {item.color ? `[${item.color}]` : ''}</span>
+                          <span>{isUrdu ? toUrduName(item.productName) : item.productName} {item.size ? `(${item.size})` : ''} {item.color ? `[${isUrdu ? toUrduName(item.color) : item.color}]` : ''}</span>
                           <span className="font-bold text-white">x{item.quantity}</span>
                         </div>
                       ))}

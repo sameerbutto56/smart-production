@@ -1,7 +1,10 @@
 import QRCode from 'qrcode';
 import toast from 'react-hot-toast';
+import { toUrduName } from '../utils/urduDictionary';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
+
+const isUrduReceipt = () => { try { return localStorage.getItem('opencode_language') === 'ur'; } catch { return false; } };
 
 export const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 export const formatPaymentMethod = (m) => m === 'CASH_ONLINE' ? 'Cash+Online' : m === 'CASH' ? 'Cash' : m === 'CARD' ? 'Card' : m === 'ONLINE' ? 'Online' : m || '—';
@@ -83,8 +86,9 @@ export async function printReceipt(sale, { includeInvoice = true, includeGatePas
       doc.write(`<div class="header"><img src="${logoUrl}" alt="ENAMELS" style="height:80px;margin-bottom:4px;"><p style="font-size:12px;font-style:italic;margin-bottom:8px;">Premium Medical Apparels</p>${isFT ? '<p style="font-size:22px;font-weight:900;color:#c00;margin:6px 0;text-transform:uppercase;letter-spacing:3px;">FAISAL TAKE — NO CHARGE</p>' : ''}<p>${sale.outletName || ''}</p>${phone ? `<p>${phone}</p>` : ''}<p>Invoice: ${sale.receiptNumber}</p><p>${new Date(sale.createdAt).toLocaleString()}</p><p>Cashier: ${sale.cashierName || ''}</p>${sale.customerName ? `<p>Customer: ${sale.customerName}</p>` : ''}${sale.customerPhone ? `<p>Phone: ${sale.customerPhone}</p>` : ''}</div>`);
       doc.write('<hr><div class="items"><div class="items-heading"><span class="col-item">ITEM</span><span class="col-qty">QTY × PRICE</span><span class="col-total">TOTAL</span></div>');
       (sale.items || []).forEach(item => {
-        const name = item.productName || '';
-        const variantParts = [item.color, item.size].filter(Boolean);
+        const isUrd = isUrduReceipt();
+        const name = isUrd ? toUrduName(item.productName || '') : (item.productName || '');
+        const variantParts = [isUrd ? toUrduName(item.color) : item.color, item.size].filter(Boolean);
         doc.write('<div class="item">');
         doc.write(`<div class="item-name">${name}</div>`);
         if (variantParts.length > 0) doc.write(`<div class="item-variant">${variantParts.join(' / ')}</div>`);

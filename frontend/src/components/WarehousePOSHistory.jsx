@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { Clock, Printer, RotateCcw, RefreshCw, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { useWarehousePOS } from '../context/WarehousePOSContext';
+import { useLanguage } from '../context/LanguageContext';
+import { toUrduName } from '../utils/urduDictionary';
 
 const WarehousePOSHistory = () => {
+  const { isUrdu } = useLanguage();
   const { sales, salesLoading, refreshSales, printReceipt, processRefundInvoice, refundLoading, formatCurrency } = useWarehousePOS();
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedId, setExpandedId] = useState(null);
@@ -57,7 +60,7 @@ const WarehousePOSHistory = () => {
             <div className="flex flex-wrap gap-1.5 mt-3">
               {(sale.items || []).map(item => (
                 <span key={item.id} className="text-[9px] bg-gray-700/50 text-gray-400 px-2 py-0.5 rounded-full">
-                  {item.productName} {item.color ? `(${item.color})` : ''}{item.size ? `/${item.size}` : ''} ×{item.quantity}
+                  {isUrdu ? toUrduName(item.productName) : item.productName} {item.color ? `(${isUrdu ? toUrduName(item.color) : item.color})` : ''}{item.size ? `/${item.size}` : ''} ×{item.quantity}
                 </span>
               ))}
             </div>

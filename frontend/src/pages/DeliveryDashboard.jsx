@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
+import { toUrduName } from '../utils/urduDictionary';
 import { PageLoader, LoadingSpinner } from '../components/LoadingSpinner';
 import { printDeliveryReport } from '../utils/printReport';
 
@@ -247,7 +248,7 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
           <div className="grid grid-cols-2 gap-2">
             <div className="bg-gray-800/60 rounded-2xl px-4 py-3">
               <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest">Product</p>
-              <p className="font-black theme-text-primary text-base mt-0.5 truncate">{pd.productType || order.type || '—'}</p>
+              <p className="font-black theme-text-primary text-base mt-0.5 truncate">{isUrdu ? toUrduName(pd.productType || order.type || '—') : (pd.productType || order.type || '—')}</p>
             </div>
             <div className="bg-gray-800/60 rounded-2xl px-4 py-3">
               <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest">Amount</p>

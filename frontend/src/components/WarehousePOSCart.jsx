@@ -1,6 +1,8 @@
 import React from 'react';
 import { ShoppingCart, Trash2, Plus, Minus, X, User, Phone } from 'lucide-react';
 import { useWarehousePOS } from '../context/WarehousePOSContext';
+import { useLanguage } from '../context/LanguageContext';
+import { toUrduName } from '../utils/urduDictionary';
 
 const WarehousePOSCart = () => {
   const {
@@ -95,15 +97,16 @@ const WarehousePOSCart = () => {
 };
 
 const CartItem = React.memo(({ item, idx }) => {
+  const { isUrdu } = useLanguage();
   const { set, removeFromCart, formatCurrency } = useWarehousePOS();
 
   return (
     <div className="bg-gray-800/70 rounded-lg p-2.5 border border-gray-700/50">
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
-          <div className="text-xs font-bold text-white truncate">{item.name}</div>
+          <div className="text-xs font-bold text-white truncate">{isUrdu ? toUrduName(item.name) : item.name}</div>
           <div className="text-[10px] text-gray-400">
-            {item.color || ''}{item.color && item.size ? ' / ' : ''}{item.size || ''}
+            {(isUrdu ? toUrduName(item.color) : item.color) || ''}{(item.color && item.size) ? ' / ' : ''}{item.size || ''}
             {item.barcode && <span className="text-gray-600 ml-1">| {item.barcode}</span>}
           </div>
         </div>

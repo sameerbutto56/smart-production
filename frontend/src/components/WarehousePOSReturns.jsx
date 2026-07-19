@@ -1,8 +1,11 @@
 import React from 'react';
 import { Barcode, Search, RotateCcw, X, Minus, Plus, FileText, RefreshCw } from 'lucide-react';
 import { useWarehousePOS } from '../context/WarehousePOSContext';
+import { useLanguage } from '../context/LanguageContext';
+import { toUrduName } from '../utils/urduDictionary';
 
 const WarehousePOSReturns = () => {
+  const { isUrdu } = useLanguage();
   const {
     returnTab, set, returnBarcodeInput, returnBarcodeRef, returnCart, returnReason,
     refundPaymentMethod, returnLoading, returnProductSearch,
@@ -89,7 +92,7 @@ const WarehousePOSReturns = () => {
                   <div className="flex flex-wrap gap-1 mt-1">
                     {sale.items.map(item => (
                       <span key={item.id} className="text-[9px] bg-gray-700 text-gray-400 px-1.5 py-0.5 rounded">
-                        {item.productName} ×{item.quantity}
+                        {isUrdu ? toUrduName(item.productName) : item.productName} ×{item.quantity}
                       </span>
                     ))}
                   </div>
@@ -113,9 +116,9 @@ const WarehousePOSReturns = () => {
               <div key={item.id || idx} className="bg-gray-800/70 rounded-lg p-2.5 border border-gray-700/50">
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
-                    <div className="text-xs font-bold text-white truncate">{item.name}</div>
+                    <div className="text-xs font-bold text-white truncate">{isUrdu ? toUrduName(item.name) : item.name}</div>
                     <div className="text-[10px] text-gray-400">
-                      {item.color || ''}{item.color && item.size ? ' / ' : ''}{item.size || ''}
+                      {(isUrdu ? toUrduName(item.color) : item.color) || ''}{item.color && item.size ? ' / ' : ''}{item.size || ''}
                       {item.saleId && <span className="text-gray-600 ml-1">| {item.saleId.slice(0, 8)}</span>}
                     </div>
                   </div>

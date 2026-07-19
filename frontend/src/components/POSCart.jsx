@@ -1,10 +1,13 @@
 import React from 'react';
 import { usePOS } from '../context/POSContext';
+import { useLanguage } from '../context/LanguageContext';
+import { toUrduName } from '../utils/urduDictionary';
 import { formatCurrency } from '../utils/POSPrint';
 import { ShoppingCart, Trash2, Minus, Plus, X, RotateCcw, BarChart3 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const POSCart = () => {
+  const { isUrdu } = useLanguage();
   const {
     cart, setCart, removeCartItem, updateQty, updateCartCustomization, updateCartDiscount,
     subtotal, altCharges, cust1Total, cust2Total, engraveTotal, logoDesignTotal, otherChargesTotal,
@@ -50,8 +53,8 @@ const POSCart = () => {
           <div key={i} className="bg-gray-800/60 rounded-xl border border-gray-700/50 p-2.5">
             <div className="flex items-start justify-between">
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-white">{item.productName}</p>
-                <p className="text-[10px] text-gray-400">{[item.color, item.size].filter(Boolean).join(' \u2022 ') || 'Standard'}</p>
+                <p className="text-xs font-bold text-white">{isUrdu ? toUrduName(item.productName) : item.productName}</p>
+                <p className="text-[10px] text-gray-400">{[isUrdu ? toUrduName(item.color) : item.color, item.size].filter(Boolean).join(' \u2022 ') || 'Standard'}</p>
                 <p className="text-xs font-black text-emerald-400 mt-0.5">{formatCurrency(item.unitPrice)} each</p>
               </div>
               <button onClick={() => removeCartItem(i)} className="text-gray-600 hover:text-red-400 ml-1"><X size={14} /></button>
