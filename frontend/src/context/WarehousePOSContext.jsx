@@ -372,7 +372,8 @@ export const WarehousePOSProvider = ({ children }) => {
       set('lookedUpReturnSale', found);
       // Pre-fill return cart with all items
       const items = found.items.map(i => {
-        const p = products.find(p => p.name === i.productName && (p.color || null) === (i.color || null) && (p.size || null) === (i.size || null));
+        let p = products.find(p => p.name === i.productName && (p.color || null) === (i.color || null) && (p.size || null) === (i.size || null));
+        if (!p) p = products.find(p => p.name === i.productName);
         return { id: i.id, productId: p?.id, name: i.productName, color: i.color, size: i.size,
           quantity: i.quantity, qty: 0, maxQty: i.quantity,
           unitPrice: i.unitPrice, lineTotal: i.lineTotal, saleId: found.id };
@@ -391,11 +392,12 @@ export const WarehousePOSProvider = ({ children }) => {
     set('returnLoading', true);
     try {
       for (const item of items) {
-        const match = item.productId ? null : products.find(p =>
+        let match = item.productId ? null : products.find(p =>
           p.name === item.name &&
           (p.color || null) === (item.color || null) &&
           (p.size || null) === (item.size || null)
         );
+        if (!match && !item.productId) match = products.find(p => p.name === item.name);
         const pid = item.productId || match?.id;
         if (!pid) { toast.error(`Product "${item.name}" not found in inventory`); continue; }
         await api.post('/api/warehouse/returns', {
