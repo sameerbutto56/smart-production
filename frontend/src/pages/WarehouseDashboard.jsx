@@ -6,7 +6,7 @@ import {
   RefreshCcw, Search, Clock, Truck, Building2, PlusCircle,
   Eye, ThumbsUp, ThumbsDown, FileText, BarChart3, MinusCircle, Minus, Plus,
   CheckCircle, AlertCircle, Download, TrendingUp, User, Gift, Send,
-  Factory, Trash2, ClipboardList, X, Activity
+  Factory, Trash2, ClipboardList, X, Activity, Printer, FileSpreadsheet, Layers, ArrowLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -20,7 +20,7 @@ import StoreDashboardAnalytics from '../components/StoreDashboardAnalytics';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
-const TABS = ['dashboard', 'analytics', 'inventory', 'production', 'allocation', 'demands'];
+const TABS = ['dashboard', 'analytics', 'inventory', 'inv-print', 'production', 'allocation', 'demands'];
 const COLORS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899'];
 const CATEGORIES = ['CAPS', 'SHIRTS', 'JACKETS', 'PANTS', 'ACCESSORIES', 'GENERAL'];
 
@@ -52,6 +52,141 @@ const WarehouseDashboard = () => {
   const [expandedCart, setExpandedCart] = useState(null);
   const [prodCategoryFilter, setProdCategoryFilter] = useState('');
 
+  // Inventory Print state
+  const [invPrintCategory, setInvPrintCategory] = useState(null);
+  const [printQty, setPrintQty] = useState({});
+  const [printNotes, setPrintNotes] = useState('');
+
+  const handlePrintQtyChange = (key, value) => {
+    setPrintQty(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handlePrintStockRequest = () => {
+    if (!invPrintCategory) return;
+    const items = inventory.filter(i => i.category === invPrintCategory);
+    if (!items.length) { toast.error('No items to print'); return; }
+
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-PK', { year: 'numeric', month: 'short', day: 'numeric' });
+    const timeStr = now.toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' });
+
+    const qtyEntered = Object.values(printQty).some(v => v !== '' && Number(v) > 0);
+    const catIcons = { CAPS: '🧢', SCRUBS: '🥼', COAT: '🧥', MASK: '😷', SOCKS: '🧦', SHOES: '👟', CLOGS: '🩴', LABCOAT: '🥼', FABRIC: '🧵', ACCESSORIES: '🎒', GENERAL: '📦' };
+
+    let tableRows = '';
+    let rowIdx = 0;
+    items.forEach(item => {
+      const vs = item.variants && Array.isArray(item.variants) && item.variants.length > 0 ? item.variants : null;
+      if (vs && vs.length > 0) {
+        vs.forEach(v => {
+          const key = `${item.id}-${v.color || ''}-${v.size || ''}`;
+          const qty = printQty[key] ?? '';
+          rowIdx++;
+          tableRows += `<tr>
+            <td style="padding: 6px 8px; font-size: 11px; color: #888;">${rowIdx}</td>
+            <td style="padding: 6px 8px; font-size: 12px; font-weight: 700; color: #fff;">${item.name}</td>
+            <td style="padding: 6px 8px; font-size: 11px; color: #aaa;">${v.color || '-'}</td>
+            <td style="padding: 6px 8px; font-size: 11px; color: #aaa;">${v.size || '-'}</td>
+            <td style="padding: 6px 8px; font-size: 12px; font-weight: 900; text-align: right; color: ${(v.stock ?? item.stock) <= 0 ? '#ef4444' : (v.stock ?? item.stock) <= 5 ? '#eab308' : '#10b981'};">${v.stock ?? item.stock}</td>
+            <td style="padding: 6px 8px; font-size: 12px; font-weight: 900; text-align: right; color: #f59e0b;">${qty !== '' && Number(qty) > 0 ? qty : '<span style="color:#555;">—</span>'}</td>
+          </tr>`;
+        });
+      } else {
+        const key = `${item.id}-${item.color || ''}-${item.size || ''}`;
+        const qty = printQty[key] ?? '';
+        rowIdx++;
+        tableRows += `<tr>
+          <td style="padding: 6px 8px; font-size: 11px; color: #888;">${rowIdx}</td>
+          <td style="padding: 6px 8px; font-size: 12px; font-weight: 700; color: #fff;">${item.name}</td>
+          <td style="padding: 6px 8px; font-size: 11px; color: #aaa;">${item.color || '-'}</td>
+          <td style="padding: 6px 8px; font-size: 11px; color: #aaa;">${item.size || '-'}</td>
+          <td style="padding: 6px 8px; font-size: 12px; font-weight: 900; text-align: right; color: ${item.stock <= 0 ? '#ef4444' : item.stock <= 5 ? '#eab308' : '#10b981'};">${item.stock}</td>
+          <td style="padding: 6px 8px; font-size: 12px; font-weight: 900; text-align: right; color: #f59e0b;">${qty !== '' && Number(qty) > 0 ? qty : '<span style="color:#555;">—</span>'}</td>
+        </tr>`;
+      }
+    });
+
+    const printContent = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Stock Request - ${invPrintCategory}</title>
+<style>
+  @page { margin: 15mm 10mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f0f0f; color: #e5e5e5; padding: 20px; }
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #333; }
+  .header-left h1 { font-size: 22px; font-weight: 900; color: #f59e0b; text-transform: uppercase; letter-spacing: 1px; }
+  .header-left h1 span { font-size: 26px; margin-right: 6px; }
+  .header-left p { font-size: 11px; color: #888; margin-top: 2px; }
+  .header-right { text-align: right; }
+  .header-right .date { font-size: 12px; color: #aaa; font-weight: 600; }
+  .header-right .badge { display: inline-block; margin-top: 4px; padding: 3px 12px; background: #1a1a2e; border: 1px solid #f59e0b33; border-radius: 20px; font-size: 10px; font-weight: 700; color: #f59e0b; text-transform: uppercase; letter-spacing: 1px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  thead th { padding: 10px 8px; font-size: 10px; font-weight: 800; color: #888; text-transform: uppercase; letter-spacing: 1.5px; text-align: left; border-bottom: 2px solid #333; background: #1a1a1a; }
+  thead th:last-child, thead th:nth-last-child(2) { text-align: right; }
+  tbody tr { border-bottom: 1px solid #222; }
+  tbody tr:last-child { border-bottom: none; }
+  .footer { margin-top: 24px; padding-top: 16px; border-top: 2px solid #333; }
+  .footer .notes-label { font-size: 10px; font-weight: 800; color: #888; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
+  .footer .notes-content { font-size: 12px; color: #ccc; line-height: 1.5; padding: 12px 16px; background: #1a1a1a; border-radius: 8px; border: 1px solid #333; min-height: 40px; }
+  .footer .print-meta { margin-top: 12px; font-size: 10px; color: #555; text-align: center; }
+  .summary-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 11px; color: #aaa; border-top: 1px solid #222; margin-top: 8px; }
+  .summary-row strong { color: #f59e0b; }
+  @media print {
+    body { background: #0f0f0f; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .no-print { display: none; }
+  }
+</style></head><body>
+  <div class="header">
+    <div class="header-left">
+      <h1><span>${catIcons[invPrintCategory] || '📦'}</span>${invPrintCategory}</h1>
+      <p>Stock Request Sheet</p>
+    </div>
+    <div class="header-right">
+      <div class="date">${dateStr} · ${timeStr}</div>
+      <div class="badge">Warehouse Inventory</div>
+    </div>
+  </div>
+  <table>
+    <thead><tr>
+      <th style="width:32px;">#</th>
+      <th>Product</th>
+      <th style="width:80px;">Color</th>
+      <th style="width:80px;">Size</th>
+      <th style="width:80px; text-align:right;">Stock</th>
+      <th style="width:100px; text-align:right;">Required Qty</th>
+    </tr></thead>
+    <tbody>${tableRows}</tbody>
+  </table>
+  <div class="summary-row">
+    <span>Total Items: <strong>${rowIdx}</strong></span>
+    <span>Total Current Stock: <strong>${items.reduce((s, i) => {
+      const vs = i.variants && Array.isArray(i.variants) && i.variants.length > 0 ? i.variants : null;
+      return vs ? s + vs.reduce((a, v) => a + (v.stock ?? i.stock), 0) : s + i.stock;
+    }, 0)}</strong></span>
+    <span>Items with Qty: <strong>${Object.values(printQty).filter(v => v !== '' && Number(v) > 0).length}</strong></span>
+  </div>
+  <div class="footer">
+    <div class="notes-label">Notes</div>
+    <div class="notes-content">${printNotes.trim() ? printNotes : '<span style="color:#555;">No additional notes</span>'}</div>
+    <div class="print-meta">Warehouse Stock Request · Printed on ${dateStr} at ${timeStr}</div>
+  </div>
+</body></html>`;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '-9999px';
+    iframe.style.bottom = '-9999px';
+    iframe.style.width = '800px';
+    iframe.style.height = '600px';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(printContent);
+    doc.close();
+    setTimeout(() => {
+      iframe.contentWindow.print();
+      setTimeout(() => document.body.removeChild(iframe), 500);
+    }, 500);
+  };
 
   const [demandRequests, setDemandRequests] = useState([]);
   const [demandStats, setDemandStats] = useState({ pending: 0, approved: 0, partiallyApproved: 0, rejected: 0, total: 0 });
@@ -346,6 +481,7 @@ const WarehouseDashboard = () => {
                 {tab === 'dashboard' && <><BarChart3 size={14} className="inline mr-2" />Dashboard</>}
                 {tab === 'analytics' && <><Activity size={14} className="inline mr-2" />Analytics</>}
                 {tab === 'inventory' && <><Package size={14} className="inline mr-2" />Inventory</>}
+                {tab === 'inv-print' && <><Printer size={14} className="inline mr-2" />Print Stock</>}
                 {tab === 'production' && <><Factory size={14} className="inline mr-2" />Production Inventory</>}
                 {tab === 'allocation' && <><Gift size={14} className="inline mr-2" />Allocation</>}
                 {tab === 'demands' && <><ShoppingCart size={14} className="inline mr-2" />Demands {demandStats.pending > 0 && <span className="ml-1 bg-red-500 text-white text-xs md:text-sm px-1.5 py-0.5 rounded-full">{demandStats.pending}</span>}</>}
@@ -679,6 +815,159 @@ const WarehouseDashboard = () => {
 
 
 
+
+          {/* Inventory Print Tab - Category Wise */}
+          {activeTab === 'inv-print' && (() => {
+            const allCats = [...new Set(inventory.map(i => i.category).filter(Boolean))].sort();
+            const catIcons = { CAPS: '🧢', SCRUBS: '🥼', COAT: '🧥', MASK: '😷', SOCKS: '🧦', SHOES: '👟', CLOGS: '🩴', LABCOAT: '🥼', FABRIC: '🧵', ACCESSORIES: '🎒', GENERAL: '📦' };
+            const catColors = { CAPS: 'bg-blue-500/10 border-blue-500/20', SCRUBS: 'bg-emerald-500/10 border-emerald-500/20', COAT: 'bg-purple-500/10 border-purple-500/20', MASK: 'bg-rose-500/10 border-rose-500/20', SOCKS: 'bg-orange-500/10 border-orange-500/20', SHOES: 'bg-amber-500/10 border-amber-500/20', CLOGS: 'bg-teal-500/10 border-teal-500/20', LABCOAT: 'bg-cyan-500/10 border-cyan-500/20', FABRIC: 'bg-pink-500/10 border-pink-500/20', ACCESSORIES: 'bg-violet-500/10 border-violet-500/20' };
+            const prodMap = {};
+            allCats.forEach(cat => { prodMap[cat] = inventory.filter(i => i.category === cat); });
+
+            return (
+              <div className="space-y-4 md:space-y-6">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-black theme-text-primary text-lg uppercase tracking-wider flex items-center gap-2">
+                    <Printer size={20} className="text-amber-400" />
+                    Stock Request Sheets
+                  </h2>
+                  <span className="text-xs font-bold theme-text-muted">{allCats.length} categories</span>
+                </div>
+
+                {!invPrintCategory ? (
+                  /* Category Grid */
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4">
+                    {allCats.map(cat => {
+                      const items = prodMap[cat] || [];
+                      const totalStock = items.reduce((s, i) => s + i.stock, 0);
+                      const variantCount = items.reduce((s, i) => {
+                        const vs = i.variants && Array.isArray(i.variants) ? i.variants : [];
+                        return s + (vs.length > 0 ? vs.length : (i.size || i.color ? 1 : 0));
+                      }, 0);
+                      return (
+                        <motion.button key={cat} onClick={() => setInvPrintCategory(cat)}
+                          whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                          className={`glass p-4 md:p-5 rounded-2xl border-2 text-left transition-all ${catColors[cat] || 'theme-border hover:border-amber-500/30'}`}>
+                          <div className="text-2xl mb-2">{catIcons[cat] || '📦'}</div>
+                          <h3 className="font-black theme-text-primary text-sm uppercase tracking-wider">{cat}</h3>
+                          <div className="flex items-center gap-2 mt-1.5">
+                            <span className="text-xs font-bold text-amber-400">{items.length} products</span>
+                            <span className="text-[10px] theme-text-muted">·</span>
+                            <span className="text-xs font-bold text-emerald-400">{totalStock} stock</span>
+                          </div>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  /* Product Listing for Selected Category */
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <button onClick={() => { setInvPrintCategory(null); setPrintQty({}); setPrintNotes(''); }}
+                          className="p-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-gray-400 transition-all active:scale-95">
+                          <ArrowLeft size={18} />
+                        </button>
+                        <h3 className="font-black theme-text-primary text-base uppercase tracking-wider flex items-center gap-2">
+                          <span>{catIcons[invPrintCategory] || '📦'}</span>
+                          {invPrintCategory}
+                        </h3>
+                        <span className="text-xs font-bold theme-text-muted">({prodMap[invPrintCategory]?.length || 0} items)</span>
+                      </div>
+                      <button onClick={handlePrintStockRequest}
+                        className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all active:scale-95 flex items-center gap-2 shadow-lg shadow-amber-900/20">
+                        <Printer size={16} />
+                        Print Stock Request
+                      </button>
+                    </div>
+
+                    {/* Products Table */}
+                    <div className="glass rounded-2xl border-2 theme-border overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                          <thead>
+                            <tr className="text-[10px] font-black theme-text-muted uppercase tracking-widest border-b theme-border bg-gray-900/50">
+                              <th className="p-3 pr-2">#</th>
+                              <th className="p-3 pr-2">Product</th>
+                              <th className="p-3 pr-2">Color</th>
+                              <th className="p-3 pr-2">Size</th>
+                              <th className="p-3 pr-2 text-right">Stock</th>
+                              <th className="p-3 text-right w-28">Required Qty</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(prodMap[invPrintCategory] || []).length === 0 ? (
+                              <tr><td colSpan="6" className="p-8 text-center"><p className="text-xs theme-text-muted font-bold">No items in this category</p></td></tr>
+                            ) : (() => {
+                              const rows = [];
+                              const items = prodMap[invPrintCategory] || [];
+                              let rowIdx = 0;
+                              items.forEach(item => {
+                                const vs = item.variants && Array.isArray(item.variants) && item.variants.length > 0 ? item.variants : null;
+                                if (vs && vs.length > 0) {
+                                  vs.forEach(v => {
+                                    const key = `${item.id}-${v.color || ''}-${v.size || ''}`;
+                                    const colorVal = v.color || '-';
+                                    const sizeVal = v.size || '-';
+                                    const stockVal = v.stock ?? item.stock;
+                                    rowIdx++;
+                                    rows.push(
+                                      <tr key={key} className="border-b border-gray-800/30 hover:bg-gray-800/20 transition-colors">
+                                        <td className="p-3 pr-2 text-[10px] theme-text-muted font-mono">{rowIdx}</td>
+                                        <td className="p-3 pr-2 font-bold theme-text-primary text-xs">{item.name}</td>
+                                        <td className="p-3 pr-2 text-xs theme-text-secondary">{colorVal}</td>
+                                        <td className="p-3 pr-2 text-xs theme-text-secondary">{sizeVal}</td>
+                                        <td className="p-3 pr-2 text-right"><span className={`text-xs font-black ${stockVal <= 0 ? 'text-red-400' : stockVal <= 5 ? 'text-yellow-400' : 'text-emerald-400'}`}>{stockVal}</span></td>
+                                        <td className="p-3 text-right">
+                                          <input type="number" min="0" value={printQty[key] ?? ''}
+                                            onChange={(e) => handlePrintQtyChange(key, e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value) || 0))}
+                                            className="w-20 theme-bg-subtle border-2 theme-border rounded-lg py-1.5 px-2 text-xs font-black text-white text-right outline-none focus:border-amber-500" placeholder="0" />
+                                        </td>
+                                      </tr>
+                                    );
+                                  });
+                                } else {
+                                  const key = `${item.id}-${item.color || ''}-${item.size || ''}`;
+                                  rowIdx++;
+                                  rows.push(
+                                    <tr key={key} className="border-b border-gray-800/30 hover:bg-gray-800/20 transition-colors">
+                                      <td className="p-3 pr-2 text-[10px] theme-text-muted font-mono">{rowIdx}</td>
+                                      <td className="p-3 pr-2 font-bold theme-text-primary text-xs">{item.name}</td>
+                                      <td className="p-3 pr-2 text-xs theme-text-secondary">{item.color || '-'}</td>
+                                      <td className="p-3 pr-2 text-xs theme-text-secondary">{item.size || '-'}</td>
+                                      <td className="p-3 pr-2 text-right"><span className={`text-xs font-black ${item.stock <= 0 ? 'text-red-400' : item.stock <= 5 ? 'text-yellow-400' : 'text-emerald-400'}`}>{item.stock}</span></td>
+                                      <td className="p-3 text-right">
+                                        <input type="number" min="0" value={printQty[key] ?? ''}
+                                          onChange={(e) => handlePrintQtyChange(key, e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value) || 0))}
+                                          className="w-20 theme-bg-subtle border-2 theme-border rounded-lg py-1.5 px-2 text-xs font-black text-white text-right outline-none focus:border-amber-500" placeholder="0" />
+                                      </td>
+                                    </tr>
+                                  );
+                                }
+                              });
+                              return rows;
+                            })()}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Notes Section */}
+                    <div className="glass p-4 md:p-5 rounded-2xl border-2 theme-border">
+                      <label className="text-xs font-black theme-text-muted uppercase tracking-wider flex items-center gap-2 mb-2">
+                        <FileText size={14} />
+                        Notes / Additional Instructions
+                      </label>
+                      <textarea value={printNotes} onChange={(e) => setPrintNotes(e.target.value)}
+                        placeholder="Enter any notes or instructions for this stock request..."
+                        className="w-full theme-bg-subtle border-2 theme-border rounded-xl py-3 px-4 focus:border-amber-500 outline-none font-medium theme-text-secondary resize-none text-xs"
+                        rows={3} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Production Inventory Tab - Category Wise */}
           {activeTab === 'production' && (
