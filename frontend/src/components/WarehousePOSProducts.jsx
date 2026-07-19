@@ -1,34 +1,38 @@
 import React from 'react';
-import { Grid3X3, ShoppingCart } from 'lucide-react';
+import { Package } from 'lucide-react';
 import { useWarehousePOS } from '../context/WarehousePOSContext';
 
 const WarehousePOSProducts = () => {
-  const { filteredProducts, categories, activeCategory, set, handleAddToCart, hideZeroStock, set: setState, productsLoading } = useWarehousePOS();
+  const { filteredProducts, categories, activeCategory, set, handleAddToCart, productsLoading } = useWarehousePOS();
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Category pills */}
-      <div className="flex gap-1.5 px-4 py-2 bg-gray-950 border-b border-gray-800 overflow-x-auto flex-shrink-0">
+      {/* Categories */}
+      <div className="flex gap-1.5 px-3 py-2 bg-gray-950 border-b border-gray-800 overflow-x-auto flex-shrink-0">
         <button onClick={() => set('activeCategory', '')}
-          className={`text-[9px] font-black px-3 py-1.5 rounded-lg uppercase tracking-wider whitespace-nowrap ${!activeCategory ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
-          <Grid3X3 size={12} className="inline mr-1" />All
+          className={`text-[10px] font-black px-3 py-1.5 rounded-lg whitespace-nowrap uppercase tracking-wider ${!activeCategory ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
+          All
         </button>
-        {categories.map(cat => (
-          <button key={cat} onClick={() => set('activeCategory', cat)}
-            className={`text-[9px] font-black px-3 py-1.5 rounded-lg uppercase tracking-wider whitespace-nowrap ${activeCategory === cat ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
-            {cat}
+        {categories.map(c => (
+          <button key={c} onClick={() => set('activeCategory', c)}
+            className={`text-[10px] font-black px-3 py-1.5 rounded-lg whitespace-nowrap uppercase tracking-wider ${activeCategory === c ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
+            {c}
           </button>
         ))}
       </div>
 
-      {/* Product grid */}
-      <div className="flex-1 overflow-y-auto p-4">
-        {productsLoading ? (
-          <div className="text-center text-gray-500 py-10 text-sm">Loading products...</div>
+      {/* Products grid */}
+      <div className="flex-1 overflow-y-auto p-3">
+        {productsLoading && filteredProducts.length === 0 ? (
+          <div className="flex items-center justify-center h-64 text-gray-600">
+            <span className="font-bold">Loading products...</span>
+          </div>
         ) : filteredProducts.length === 0 ? (
-          <div className="text-center text-gray-500 py-10 text-sm">No products found</div>
+          <div className="flex items-center justify-center h-64 text-gray-600">
+            <span className="font-bold">No products found</span>
+          </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
             {filteredProducts.map(group => (
               <ProductCard key={group.name} group={group} />
             ))}
@@ -41,51 +45,42 @@ const WarehousePOSProducts = () => {
 
 const ProductCard = React.memo(({ group }) => {
   const { handleAddToCart, formatCurrency } = useWarehousePOS();
-  const hasVariants = group._variants.length > 1;
+  const maxShow = 3;
+  const colorsMore = group.colors.length > maxShow ? group.colors.length - maxShow : 0;
+  const sizesMore = group.sizes.length > maxShow ? group.sizes.length - maxShow : 0;
+  const colorLabel = group.colors.length > 0
+    ? (colorsMore > 0 ? group.colors.slice(0, maxShow).join(', ') + ` +${colorsMore}` : group.colors.join(', '))
+    : null;
+  const sizeLabel = group.sizes.length > 0
+    ? (sizesMore > 0 ? group.sizes.slice(0, maxShow).join(', ') + ` +${sizesMore}` : group.sizes.join(', '))
+    : null;
+  const isOutOfStock = group.totalStock != null && group.totalStock <= 0;
 
   return (
-    <div onClick={() => handleAddToCart(group)}
-      className="bg-gray-800/50 border border-gray-700 rounded-xl p-3 hover:border-emerald-500/50 hover:bg-gray-800/80 transition-all cursor-pointer active:scale-[0.98]">
-      {/* Product name + category */}
-      <div className="text-xs font-bold text-white truncate font-data">{group.name}</div>
-      <div className="text-[10px] text-gray-500 mt-0.5 font-data">{group.category}</div>
-
-      {/* Color swatches (max 4) */}
-      {group.colors.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-2">
-          {group.colors.slice(0, 4).map(c => (
-            <span key={c} className="text-[9px] bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">{c}</span>
-          ))}
-          {group.colors.length > 4 && <span className="text-[9px] text-gray-500 px-1 py-0.5">+{group.colors.length - 4}</span>}
-        </div>
-      )}
-
-      {/* Size badges (max 4) */}
-      {group.sizes.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-1">
-          {group.sizes.slice(0, 4).map(s => (
-            <span key={s} className="text-[9px] bg-gray-700/50 text-gray-400 px-1.5 py-0.5 rounded">{s}</span>
-          ))}
-          {group.sizes.length > 4 && <span className="text-[9px] text-gray-500 px-1 py-0.5">+{group.sizes.length - 4}</span>}
-        </div>
-      )}
-
-      {/* Stock + Price row */}
-      <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-700/50">
-        <span className="text-[9px] text-gray-500">{group.totalStock} in stock</span>
-        <span className="text-[10px] font-bold text-emerald-400">
-          {group.minPrice === group.maxPrice
-            ? formatCurrency(group.minPrice)
-            : `${formatCurrency(group.minPrice)}-${formatCurrency(group.maxPrice)}`}
-        </span>
+    <button onClick={() => handleAddToCart(group)}
+      disabled={isOutOfStock}
+      className={`bg-gray-800/80 rounded-xl border-2 p-2 text-left transition-all active:scale-95 ${
+        isOutOfStock
+          ? 'border-red-900/30 opacity-50 cursor-not-allowed'
+          : 'border-gray-700/50 hover:border-blue-500/50'
+      }`}>
+      <div className="w-full h-20 bg-gray-800 rounded-lg mb-1.5 flex items-center justify-center">
+        <Package size={24} className="text-gray-600" />
       </div>
-
-      {/* Add to cart hint */}
-      <div className="mt-1.5 flex items-center justify-center gap-1 text-[9px] text-emerald-500/70 font-bold">
-        <ShoppingCart size={10} />
-        {hasVariants ? 'Select Variant' : 'Add to Cart'}
-      </div>
-    </div>
+      <p className="text-[10px] font-bold text-white leading-tight line-clamp-2 font-data">{group.name}</p>
+      {group._variants.length > 1 && (
+        <span className="inline-block text-[7px] font-bold text-blue-400 bg-blue-900/30 rounded-full px-1.5 py-0.5 mb-0.5">{group._variants.length} variants</span>
+      )}
+      {(colorLabel || sizeLabel) && (
+        <p className="text-[8px] text-gray-500 font-bold truncate">{[colorLabel, sizeLabel].filter(Boolean).join(' | ')}</p>
+      )}
+      <p className="text-xs font-black text-emerald-400 mt-0.5">
+        {group.minPrice === group.maxPrice
+          ? formatCurrency(group.minPrice)
+          : `${formatCurrency(group.minPrice)}-${formatCurrency(group.maxPrice)}`}
+      </p>
+      <p className={`text-[8px] font-bold ${isOutOfStock ? 'text-red-400' : 'text-gray-600'}`}>{isOutOfStock ? 'OUT OF STOCK' : `Stock: ${group.totalStock}`}</p>
+    </button>
   );
 });
 
