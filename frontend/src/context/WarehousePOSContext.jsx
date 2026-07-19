@@ -93,7 +93,7 @@ export const WarehousePOSProvider = ({ children }) => {
     refreshSales();
   }, [refreshProducts, refreshSales]);
 
-  // Grouped products — also compute colors, sizes, totalStock for config modal
+  // Grouped products — expand each product's variants array into individual _variants entries
   const groupedProducts = useMemo(() => {
     const map = {};
     for (const p of products) {
@@ -101,22 +101,32 @@ export const WarehousePOSProvider = ({ children }) => {
       if (!map[key]) {
         map[key] = { ...p, _variants: [], colors: [], sizes: [], totalStock: 0, minPrice: Infinity, maxPrice: 0 };
       }
-      const barcode = genBarcode(p.id, p.size || null, p.color || null);
       const variantDefs = Array.isArray(p.variants) ? p.variants : [];
-      const match = variantDefs.find(v => (v.color || null) === (p.color || null) && (v.size || null) === (p.size || null));
-      const variantStock = match ? (match.stock || 0) : (p.stock || 0);
-      const variantPrice = match ? (match.price || p.price || 0) : (p.price || 0);
-      map[key]._variants.push({
-        ...p,
-        barcode,
-        variantStock,
-        variantPrice,
-      });
-      if (p.color) { if (!map[key].colors.includes(p.color)) map[key].colors.push(p.color); }
-      if (p.size) { if (!map[key].sizes.includes(p.size)) map[key].sizes.push(p.size); }
-      map[key].totalStock += variantStock;
-      if (variantPrice < map[key].minPrice) map[key].minPrice = variantPrice;
-      if (variantPrice > map[key].maxPrice) map[key].maxPrice = variantPrice;
+      for (const v of variantDefs) {
+        const barcode = v.barcode || genBarcode(p.id, v.size || null, v.color || null);
+        const vStock = v.stock || 0;
+        const vPrice = v.price || p.price || 0;
+        // Deduplicate by color+size across all InventoryItems sharing the same name
+        const exists = map[key]._variants.some(
+          ev => (ev.color || null) === (v.color || null) && (ev.size || null) === (v.size || null)
+        );
+        if (exists) continue;
+        map[key]._variants.push({
+          id: p.id,
+          name: p.name,
+          category: p.category,
+          color: v.color || null,
+          size: v.size || null,
+          variantStock: vStock,
+          variantPrice: vPrice,
+          barcode,
+        });
+        if (v.color && !map[key].colors.includes(v.color)) map[key].colors.push(v.color);
+        if (v.size && !map[key].sizes.includes(v.size)) map[key].sizes.push(v.size);
+        map[key].totalStock += vStock;
+        if (vPrice < map[key].minPrice) map[key].minPrice = vPrice;
+        if (vPrice > map[key].maxPrice) map[key].maxPrice = vPrice;
+      }
     }
     return Object.values(map);
   }, [products]);
