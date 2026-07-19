@@ -92,6 +92,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Order Entry', path: '/order-entry', icon: ClipboardList, roles: ['ORDER_ENTRY', 'FAISAL'] },
     { name: 'Edit Request', path: '/edit-requests', icon: FileEdit, roles: [] },
     { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['STORE', 'PRODUCTION', 'LOGO_DESIGN', 'OUT_FOR_DELIVERY'] },
+    { name: 'Dashboard', path: '/store-dashboard', icon: LayoutDashboard, roles: ['STORE'] },
     { name: 'Warehouse', path: '/warehouse', icon: Warehouse, roles: ['STORE'] },
     { name: 'Warehouse POS', path: '/warehouse-pos', icon: ShoppingCart, roles: ['SUPER_ADMIN', 'ADMIN', 'STORE'] },
     { name: 'POS Inventory', path: '/pos-inventory', icon: Package, roles: ['STORE', 'OUTLET', 'FAISAL', 'INVENTORY_VIEW'] },

@@ -21,30 +21,43 @@ const getSalesAnalytics = async (range) => {
   const totalSales = allSales.length;
   const totalRevenue = allSales.reduce((s, sale) => s + (sale.grandTotal || 0), 0);
   const totalReturns = allSales.reduce((s, sale) => s + (sale.refundedAt ? 1 : 0), 0);
+  const totalDiscounts = allSales.reduce((s, sale) => s + (sale.discountAmount || 0) + (sale.discountPercent ? ((sale.grandTotal || 0) * (sale.discountPercent || 0) / 100) : 0), 0);
   const totalOrders = await prisma.order.count();
+
+  // COD vs Online breakdown
+  const codSales = allSales.filter(s => s.paymentMethod === 'COD').length;
+  const onlineSales = allSales.filter(s => s.paymentMethod === 'ONLINE').length;
+  const codRevenue = allSales.filter(s => s.paymentMethod === 'COD').reduce((sum, s) => sum + (s.grandTotal || 0), 0);
+  const onlineRevenue = allSales.filter(s => s.paymentMethod === 'ONLINE').reduce((sum, s) => sum + (s.grandTotal || 0), 0);
 
   // Trend by day
   const trendMap = {};
   for (const sale of allSales) {
     const day = sale.createdAt.toISOString().split('T')[0];
-    if (!trendMap[day]) trendMap[day] = { count: 0, revenue: 0, returns: 0 };
+    if (!trendMap[day]) trendMap[day] = { count: 0, revenue: 0, returns: 0, cod: 0, online: 0 };
     trendMap[day].count++;
     trendMap[day].revenue += sale.grandTotal || 0;
     if (sale.refundedAt) trendMap[day].returns++;
+    if (sale.paymentMethod === 'COD') trendMap[day].cod++;
+    else if (sale.paymentMethod === 'ONLINE') trendMap[day].online++;
   }
   const salesTrend = Object.entries(trendMap).sort(([a], [b]) => a.localeCompare(b)).map(([date, d]) => ({ date, ...d }));
 
-  return { totalSales, totalRevenue, totalOrders, totalReturns, salesTrend };
+  return { totalSales, totalRevenue, totalReturns, totalDiscounts, totalOrders, codSales, onlineSales, codRevenue, onlineRevenue, salesTrend };
 };
 
 const getInventoryAnalytics = async () => {
-  const items = await prisma.inventoryItem.findMany();
+  const items = await prisma.inventoryItem.findMany({ orderBy: { createdAt: 'desc' } });
   const totalItems = items.length;
   const totalWarehouseStock = items.reduce((s, i) => s + (i.stock || 0), 0);
   const totalStockValue = items.reduce((s, i) => s + ((i.stock || 0) * (i.price || 0)), 0);
 
   const lowStock = items.filter(i => i.stock > 0 && i.stock <= 5);
   const outOfStock = items.filter(i => i.stock === 0);
+
+  // Newly added (last 7 days)
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const newlyAdded = items.filter(i => new Date(i.createdAt) >= sevenDaysAgo);
 
   // Outlet inventory
   const outletItems = await prisma.outletInventory.findMany();
@@ -59,6 +72,8 @@ const getInventoryAnalytics = async () => {
     lowStockItems: lowStock.sort((a, b) => a.stock - b.stock).slice(0, 20),
     outOfStockCount: outOfStock.length,
     outOfStockItems: outOfStock.slice(0, 20),
+    newlyAddedCount: newlyAdded.length,
+    newlyAddedItems: newlyAdded.slice(0, 10),
   };
 };
 
@@ -70,17 +85,42 @@ const getTaskOverview = async () => {
     where: { stageName: 'STORE', status: 'IN_PROGRESS' }
   });
 
-  // Seen tasks: count distinct (orderId, stageName) from SeenTask where stageName = 'STORE'
   const seenTasks = await prisma.seenTask.count({
     where: { stageName: 'STORE' }
   });
 
-  // Orders received from Production (currentStage = 'STORE')
   const ordersInStore = await prisma.order.count({
     where: { currentStage: 'STORE', status: { not: 'COMPLETED' } }
   });
 
   return { unseenTasks, seenTasks, activeTasks, ordersInStore };
+};
+
+const getDemandAnalytics = async () => {
+  const allDemands = await prisma.outletDemandRequest.findMany();
+  const pendingDemands = allDemands.filter(d => d.status === 'PENDING').length;
+  const approvedDemands = allDemands.filter(d => d.status === 'APPROVED').length;
+  const rejectedDemands = allDemands.filter(d => d.status === 'REJECTED').length;
+  const completedDemands = allDemands.filter(d => d.status === 'COMPLETED' || d.status === 'ACCEPTED').length;
+
+  return { total: allDemands.length, pending: pendingDemands, approved: approvedDemands, rejected: rejectedDemands, completed: completedDemands };
+};
+
+const getAllocationAnalytics = async () => {
+  const allAllocations = await prisma.allocation.findMany();
+  const pendingAllocations = allAllocations.filter(a => a.status === 'PENDING').length;
+  const completedAllocations = allAllocations.filter(a => a.status === 'COMPLETED' || a.status === 'APPROVED').length;
+
+  // Group by person
+  const byPerson = {};
+  for (const a of allAllocations) {
+    const person = a.personName || 'Unknown';
+    if (!byPerson[person]) byPerson[person] = { count: 0, items: [] };
+    byPerson[person].count++;
+    byPerson[person].items.push(a);
+  }
+
+  return { total: allAllocations.length, pending: pendingAllocations, completed: completedAllocations, byPerson };
 };
 
 const getInvoiceAndOrderTracking = async (search) => {
@@ -242,7 +282,7 @@ exports.getOverview = async (req, res) => {
   try {
     const range = req.query.range || 'monthly';
     const search = req.query.search || '';
-    const [sales, inventory, tasks, invoiceTracking, products, returns, delays] = await Promise.all([
+    const [sales, inventory, tasks, invoiceTracking, products, returns, delays, demands, allocations] = await Promise.all([
       getSalesAnalytics(range),
       getInventoryAnalytics(),
       getTaskOverview(),
@@ -250,6 +290,8 @@ exports.getOverview = async (req, res) => {
       getProductAnalytics(),
       getReturnAnalytics(range),
       getDelayMonitoring(),
+      getDemandAnalytics(),
+      getAllocationAnalytics(),
     ]);
 
     // Warehouse performance metrics
@@ -277,6 +319,8 @@ exports.getOverview = async (req, res) => {
       returns,
       delays,
       performance,
+      demands,
+      allocations,
     });
   } catch (error) {
     console.error('Store dashboard error:', error);
