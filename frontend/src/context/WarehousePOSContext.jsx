@@ -10,7 +10,7 @@ const WarehousePOSContext = createContext(null);
 const STATE_KEYS = [
   'activeCategory', 'search', 'cart', 'showConfig', 'selectedSize', 'selectedColor', 'selectedQty', 'configGroup',
   'discountPct', 'discountFixed', 'customerName', 'customerPhone',
-  'paymentMethod', 'cashAmount', 'onlineAmount',
+  'paymentMethod',
   'showCheckout', 'checkoutLoading', 'lastSale',
   'tab', 'barcodeInput',
   'returnTab', 'returnBarcodeInput', 'returnCart', 'returnReason', 'refundPaymentMethod',
@@ -26,7 +26,7 @@ function whReducer(state, action) {
       const { key, value } = action;
       const newValue = typeof value === 'function' ? value(state[key]) : value;
       let newState = { ...state, [key]: newValue };
-      if (key === 'paymentMethod' && newValue !== 'CASH_ONLINE') {
+      if (key === 'paymentMethod' && newValue === 'COD') {
         newState.cashAmount = 0;
         newState.onlineAmount = 0;
       }
@@ -40,7 +40,7 @@ function whReducer(state, action) {
 const initialState = STATE_KEYS.reduce((acc, k) => {
   if (k === 'cart') acc[k] = [];
   else if (k === 'returnCart') acc[k] = [];
-  else if (k === 'paymentMethod') acc[k] = 'CASH';
+  else if (k === 'paymentMethod') acc[k] = 'COD';
   else if (k === 'returnTab') acc[k] = 'barcode';
   else if (k === 'printOpts') acc[k] = { includeInvoice: true, includeGatePass: false };
   else acc[k] = k.includes('Loading') ? false : k.includes('show') ? false : k.includes('open') ? false : '';
@@ -292,8 +292,6 @@ export const WarehousePOSProvider = ({ children }) => {
         customerName: state.customerName || undefined,
         customerPhone: state.customerPhone || undefined,
         paymentMethod: state.paymentMethod,
-        cashAmount: state.paymentMethod === 'CASH_ONLINE' ? parseFloat(state.cashAmount || 0) : undefined,
-        onlineAmount: state.paymentMethod === 'CASH_ONLINE' ? parseFloat(state.onlineAmount || 0) : undefined,
         cashierName: user?.name || 'Cashier',
         discountPercent: state.discountPct || 0,
         discountFixed: state.discountFixed || 0,

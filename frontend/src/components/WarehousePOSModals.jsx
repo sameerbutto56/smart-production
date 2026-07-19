@@ -14,7 +14,14 @@ const WarehousePOSModals = () => {
   return (
     <>
       {/* Config Modal — pick color/size/qty before adding to cart */}
-      {showConfig && configGroup && (
+      {showConfig && configGroup && (() => {
+        const selVariant = configGroup._variants.find(v =>
+          (v.color || null) === (selectedColor || null) &&
+          (v.size || null) === (selectedSize || null)
+        );
+        const selStock = selVariant ? (selVariant.variantStock || 0) : 0;
+        const selPrice = selVariant ? (selVariant.variantPrice || 0) : 0;
+        return (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => { set('showConfig', false); set('configGroup', null); }}>
           <div className="bg-gray-900 border border-gray-700 rounded-xl p-5 w-80 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
@@ -26,12 +33,16 @@ const WarehousePOSModals = () => {
               <div className="mb-3">
                 <label className="text-[10px] font-bold text-gray-500 uppercase mb-1.5 block">Color</label>
                 <div className="flex flex-wrap gap-1.5">
-                  {configGroup.colors.map(c => (
-                    <button key={c} onClick={() => set('selectedColor', c)}
-                      className={`px-3 py-1 rounded-lg text-[10px] font-bold border ${selectedColor === c ? 'border-emerald-500 bg-emerald-600/20 text-emerald-300' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>
-                      {c}
-                    </button>
-                  ))}
+                  {configGroup.colors.map(c => {
+                    const colorStock = configGroup._variants.filter(v => v.color === c).reduce((s, v) => s + (v.variantStock || 0), 0);
+                    const outOfStock = colorStock === 0;
+                    return (
+                      <button key={c} onClick={() => { if (!outOfStock) { set('selectedColor', c); set('selectedQty', 1); } }}
+                        className={`px-3 py-1 rounded-lg text-[10px] font-bold border ${outOfStock ? 'border-red-900/40 text-red-500/50 cursor-not-allowed' : selectedColor === c ? 'border-emerald-500 bg-emerald-600/20 text-emerald-300' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>
+                        {c} <span className="opacity-70">({colorStock})</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -40,12 +51,18 @@ const WarehousePOSModals = () => {
               <div className="mb-3">
                 <label className="text-[10px] font-bold text-gray-500 uppercase mb-1.5 block">Size</label>
                 <div className="flex flex-wrap gap-1.5">
-                  {configGroup.sizes.map(s => (
-                    <button key={s} onClick={() => set('selectedSize', s)}
-                      className={`px-3 py-1 rounded-lg text-[10px] font-bold border ${selectedSize === s ? 'border-emerald-500 bg-emerald-600/20 text-emerald-300' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>
-                      {s}
-                    </button>
-                  ))}
+                  {configGroup.sizes.map(s => {
+                    const sizeStock = selectedColor
+                      ? configGroup._variants.filter(v => v.size === s && v.color === selectedColor).reduce((a, v) => a + (v.variantStock || 0), 0)
+                      : configGroup._variants.filter(v => v.size === s).reduce((a, v) => a + (v.variantStock || 0), 0);
+                    const outOfStock = sizeStock === 0;
+                    return (
+                      <button key={s} onClick={() => { if (!outOfStock) { set('selectedSize', s); set('selectedQty', 1); } }}
+                        className={`px-3 py-1 rounded-lg text-[10px] font-bold border ${outOfStock ? 'border-red-900/40 text-red-500/50 cursor-not-allowed' : selectedSize === s ? 'border-emerald-500 bg-emerald-600/20 text-emerald-300' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>
+                        {s} <span className="opacity-70">({sizeStock})</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -56,18 +73,24 @@ const WarehousePOSModals = () => {
                 <button onClick={() => set('selectedQty', Math.max(1, (selectedQty || 1) - 1))}
                   className="w-8 h-8 rounded-lg bg-gray-800 text-gray-400 font-bold hover:bg-gray-700">-</button>
                 <span className="text-lg font-bold text-white w-8 text-center">{selectedQty || 1}</span>
-                <button onClick={() => set('selectedQty', (selectedQty || 1) + 1)}
+                <button onClick={() => set('selectedQty', Math.min(selStock || 999, (selectedQty || 1) + 1))}
                   className="w-8 h-8 rounded-lg bg-gray-800 text-gray-400 font-bold hover:bg-gray-700">+</button>
+              </div>
+              <div className="flex justify-between text-[10px] text-gray-500 mt-1.5">
+                <span>Available: {selStock}</span>
+                <span>{formatCurrency(selPrice)} each</span>
               </div>
             </div>
 
             <button onClick={() => { confirmConfig(); }}
-              className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
-              <ShoppingCart size={12} /> Add to Cart
+              disabled={selStock === 0}
+              className={`w-full py-2.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5 ${selStock === 0 ? 'bg-gray-800 text-gray-600 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}>
+              <ShoppingCart size={12} /> {selStock === 0 ? 'Out of Stock' : `Add to Cart • ${formatCurrency(selPrice * (selectedQty || 1))}`}
             </button>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Checkout Modal */}
       {showCheckout && (
@@ -108,13 +131,11 @@ const WarehousePOSModals = () => {
             <div className="mb-4">
               <label className="text-[10px] font-bold text-gray-500 uppercase mb-2 block">Payment Method</label>
               <div className="flex gap-2">
-                {['CASH', 'CARD', 'ONLINE', 'CASH_ONLINE'].map(m => {
-                  const labels = { CASH: 'Cash', CARD: 'Card', ONLINE: 'Online', CASH_ONLINE: 'Cash+Online' };
+                {['COD', 'ONLINE'].map(m => {
+                  const labels = { COD: 'COD', ONLINE: 'Online Paid' };
                   const colors = {
-                    CASH: 'border-emerald-500 bg-emerald-600/20 text-emerald-300',
-                    CARD: 'border-purple-500 bg-purple-600/20 text-purple-300',
+                    COD: 'border-emerald-500 bg-emerald-600/20 text-emerald-300',
                     ONLINE: 'border-blue-500 bg-blue-600/20 text-blue-300',
-                    CASH_ONLINE: 'border-amber-500 bg-amber-600/20 text-amber-300',
                   };
                   return (
                     <button key={m} onClick={() => set('paymentMethod', m)}
@@ -124,14 +145,6 @@ const WarehousePOSModals = () => {
                   );
                 })}
               </div>
-              {paymentMethod === 'CASH_ONLINE' && (
-                <div className="flex gap-2 mt-2">
-                  <input type="number" value={cashAmount} onChange={e => set('cashAmount', parseFloat(e.target.value) || 0)}
-                    placeholder="Cash" className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 outline-none" />
-                  <input type="number" value={onlineAmount} onChange={e => set('onlineAmount', parseFloat(e.target.value) || 0)}
-                    placeholder="Online" className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 outline-none" />
-                </div>
-              )}
             </div>
 
             {/* Cart items preview */}

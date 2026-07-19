@@ -46,12 +46,14 @@ const WarehousePOSInner = () => {
         <div className="flex items-center gap-1">
           <span className="text-xs font-bold text-gray-500 mr-1">Pay via:</span>
           <div className="flex gap-1">
-            {['CASH','CARD','ONLINE','CASH_ONLINE'].map(m => (
-              <button key={m} onClick={() => set('paymentMethod', m)}
-                className={`px-2 py-1.5 rounded-lg text-[10px] font-black border-2 ${paymentMethod === m ? (m === 'CARD' ? 'border-purple-500 bg-purple-600/20 text-purple-300' : m === 'CASH_ONLINE' ? 'border-amber-500 bg-amber-600/20 text-amber-300' : m === 'ONLINE' ? 'border-blue-500 bg-blue-600/20 text-blue-300' : 'border-emerald-500 bg-emerald-600/20 text-emerald-300') : 'border-gray-700 text-gray-500 hover:border-gray-500'}`}>
-                {m.replace('_', ' + ')}
-              </button>
-            ))}
+            <button onClick={() => set('paymentMethod', 'COD')}
+              className={`px-2 py-1.5 rounded-lg text-[10px] font-black border-2 ${paymentMethod === 'COD' ? 'border-emerald-500 bg-emerald-600/20 text-emerald-300' : 'border-gray-700 text-gray-500 hover:border-gray-500'}`}>
+              COD
+            </button>
+            <button onClick={() => set('paymentMethod', 'ONLINE')}
+              className={`px-2 py-1.5 rounded-lg text-[10px] font-black border-2 ${paymentMethod === 'ONLINE' ? 'border-blue-500 bg-blue-600/20 text-blue-300' : 'border-gray-700 text-gray-500 hover:border-gray-500'}`}>
+              Online
+            </button>
           </div>
         </div>
         <span className="text-[9px] text-gray-600 font-bold uppercase tracking-widest">WH</span>

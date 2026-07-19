@@ -124,12 +124,10 @@ const CartItem = React.memo(({ item, idx }) => {
 });
 
 const PaymentMethodBtn = React.memo(({ method, current, onClick }) => {
-  const labels = { CASH: 'Cash', CARD: 'Card', ONLINE: 'Online', CASH_ONLINE: 'Cash+Online' };
+  const labels = { COD: 'COD', ONLINE: 'Online Paid' };
   const colors = {
-    CASH: 'border-emerald-500 bg-emerald-600/20 text-emerald-300',
-    CARD: 'border-purple-500 bg-purple-600/20 text-purple-300',
+    COD: 'border-emerald-500 bg-emerald-600/20 text-emerald-300',
     ONLINE: 'border-blue-500 bg-blue-600/20 text-blue-300',
-    CASH_ONLINE: 'border-amber-500 bg-amber-600/20 text-amber-300',
   };
   return (
     <button onClick={onClick}

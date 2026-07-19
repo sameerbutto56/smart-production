@@ -307,15 +307,6 @@ const createSale = async (req, res) => {
     const cardChargesAmount = (netAfterItems * cardPct) / 100;
     const grandTotal = netAfterGlobal + cardChargesAmount + deliveryCharge;
 
-    // Validate CASH_ONLINE split
-    if (paymentMethod === 'CASH_ONLINE') {
-      const cash = parseFloat(cashAmount || 0);
-      const online = parseFloat(onlineAmount || 0);
-      if (cash + online !== grandTotal) {
-        return res.status(400).json({ message: `Cash+Online total (${cash + online}) must equal invoice amount (${grandTotal})` });
-      }
-    }
-
     const sale = await prisma.$transaction(async (tx) => {
       // Decrement stock from InventoryItem
       for (const item of items) {
@@ -367,7 +358,7 @@ const createSale = async (req, res) => {
           deliveryCharges: deliveryCharge,
           cardChargesPct: cardPct,
           cardChargesAmount,
-          paymentMethod: paymentMethod || 'CASH',
+          paymentMethod: paymentMethod || 'COD',
           cashAmount: parseFloat(cashAmount || 0),
           onlineAmount: parseFloat(onlineAmount || 0),
           items: { create: saleItems }

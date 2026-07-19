@@ -139,10 +139,10 @@ const WarehousePOSReturns = () => {
             <input value={returnReason} onChange={e => set('returnReason', e.target.value)} placeholder="Return reason"
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 outline-none" />
             <div className="flex gap-2">
-              {['CASH', 'CARD', 'ONLINE'].map(m => (
+              {['COD', 'ONLINE'].map(m => (
                 <button key={m} onClick={() => set('refundPaymentMethod', m)}
                   className={`flex-1 py-1.5 rounded-lg text-[9px] font-bold border ${refundPaymentMethod === m ? 'border-blue-500 bg-blue-600/20 text-blue-300' : 'border-gray-700 text-gray-500'}`}>
-                  {m}
+                  {m === 'COD' ? 'COD' : 'Online'}
                 </button>
               ))}
             </div>
