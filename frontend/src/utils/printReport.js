@@ -1,3 +1,5 @@
+import { getUrduProductName } from './productUrduNames';
+
 const PRINT_CSS = `
   @page { size: A4 portrait; margin: 4mm 6mm; }
   @font-face { font-family: 'Noto Nastaliq Urdu'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/NotoNastaliqUrdu-Regular.ttf') format('truetype'); }
@@ -1091,6 +1093,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const sec = lang === 'en' ? enSection : urduSection;
   const isUrdu = lang === 'ur';
   const ru = (t) => isUrdu && t ? romanToUrdu(t) : t;
+  const pu = (t) => isUrdu && t ? (getUrduProductName(t) || romanToUrdu(t)) : t;
   const dir = isUrdu ? 'rtl' : 'ltr';
 
   const orderType = order.type || 'STANDARD';
@@ -1217,7 +1220,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       win.document.write(`<tr>`);
       win.document.write(`<td style="font-weight:700">${idx + 1}</td>`);
       const verified = productVerification[String(idx)] === true;
-      win.document.write(`<td style="font-weight:700">${verified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:#6366f120;color:#6366f1;border:1px solid #6366f140;font-size:10px;margin-right:4px" title="Verified">✓</span>' : ''}${ru(p.productType || p.name) || '—'}</td>`);
+      win.document.write(`<td style="font-weight:700">${verified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:#6366f120;color:#6366f1;border:1px solid #6366f140;font-size:10px;margin-right:4px" title="Verified">✓</span>' : ''}${pu(p.productType || p.name) || '—'}</td>`);
       // Fabric & Color column (no size mixed in)
       const fcParts = [p.fabricType, ru(p.color)].filter(Boolean);
       win.document.write(`<td>${fcParts.join(' • ') || '—'}</td>`);
@@ -1240,7 +1243,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     win.document.write(`<table dir="${dir}"><thead><tr>${headers.map(h => '<th>' + h + '</th>').join('')}</tr></thead><tbody>`);
     win.document.write(`<tr>`);
     const singleVerified = productVerification['0'] === true;
-    win.document.write(`<td style="font-weight:700">${singleVerified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:#6366f120;color:#6366f1;border:1px solid #6366f140;font-size:10px;margin-right:4px" title="Verified">✓</span>' : ''}${ru(firstProduct.productType || firstProduct.name) || '—'}</td>`);
+    win.document.write(`<td style="font-weight:700">${singleVerified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:#6366f120;color:#6366f1;border:1px solid #6366f140;font-size:10px;margin-right:4px" title="Verified">✓</span>' : ''}${pu(firstProduct.productType || firstProduct.name) || '—'}</td>`);
     const fcParts = [firstProduct.fabricType, ru(firstProduct.color)].filter(Boolean);
     win.document.write(`<td>${fcParts.join(' • ') || '—'}</td>`);
     const sgParts = [firstProduct.size ? (isUrdu ? `سائز ${firstProduct.size}` : `Size ${firstProduct.size}`) : (isUrdu ? 'کسٹم' : 'Custom'), genDisplay(firstProduct.gender)].filter(Boolean);
@@ -1284,7 +1287,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px;page-break-inside:avoid">`);
           win.document.write(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding-bottom:6px;border-bottom:2px solid #eee">`);
           win.document.write(`<span style="background:#111;color:#fff;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:20px;font-weight:800">${idx + 1}</span>`);
-            win.document.write(`<span style="font-weight:900;font-size:22px;text-transform:uppercase">${ru(p.productType || p.name) || 'Item ' + (idx + 1)}</span>`);
+            win.document.write(`<span style="font-weight:900;font-size:22px;text-transform:uppercase">${pu(p.productType || p.name) || 'Item ' + (idx + 1)}</span>`);
           if (p.color) win.document.write(`<span style="font-size:18px;color:#000">(${ru(p.color)})</span>`);
           win.document.write(`</div>`);
 
@@ -1403,7 +1406,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
         const allSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'C'];
         win.document.write(`<div style="margin-bottom:6px;page-break-inside:avoid">`);
         if (isMultiItem) {
-          win.document.write(`<p style="font-size:20px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px">#${idx + 1} ${ru(p.productType || p.name) || ''}</p>`);
+          win.document.write(`<p style="font-size:20px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px">#${idx + 1} ${pu(p.productType || p.name) || ''}</p>`);
         }
         win.document.write(`<div style="display:flex;gap:4px;flex-wrap:wrap">`);
         allSizes.forEach(sz => {
