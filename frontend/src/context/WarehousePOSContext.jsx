@@ -344,7 +344,7 @@ export const WarehousePOSProvider = ({ children }) => {
         (i.size || null) === (item.size || null)
       );
       addToReturnCart({
-        id: saleItem.id, name: saleItem.productName, color: saleItem.color, size: saleItem.size,
+        id: saleItem.id, productId: item.id, name: saleItem.productName, color: saleItem.color, size: saleItem.size,
         quantity: 1, maxQty: saleItem.quantity, unitPrice: saleItem.unitPrice, saleId: matching[0].id
       });
       set('returnBarcodeInput', '');
@@ -371,18 +371,19 @@ export const WarehousePOSProvider = ({ children }) => {
       if (!found) return toast.error('Sale not found');
       set('lookedUpReturnSale', found);
       // Pre-fill return cart with all items
-      const items = found.items.map(i => ({
-        id: i.id, name: i.productName, color: i.color, size: i.size,
-        quantity: i.quantity, qty: 0, maxQty: i.quantity,
-        unitPrice: i.unitPrice, lineTotal: i.lineTotal, saleId: found.id
-      }));
+      const items = found.items.map(i => {
+        const p = products.find(p => p.name === i.productName && (p.color || null) === (i.color || null) && (p.size || null) === (i.size || null));
+        return { id: i.id, productId: p?.id, name: i.productName, color: i.color, size: i.size,
+          quantity: i.quantity, qty: 0, maxQty: i.quantity,
+          unitPrice: i.unitPrice, lineTotal: i.lineTotal, saleId: found.id };
+      });
       set('returnCart', items);
     } catch (e) {
       toast.error('Failed to look up invoice');
     } finally {
       set('invoiceReturnLoading', false);
     }
-  }, [state.invoiceReturnInput, sales, set]);
+  }, [state.invoiceReturnInput, sales, products, set]);
 
   const processReturns = async () => {
     const items = state.returnCart.filter(r => r.qty > 0);
@@ -390,19 +391,21 @@ export const WarehousePOSProvider = ({ children }) => {
     set('returnLoading', true);
     try {
       for (const item of items) {
-        const match = products.find(p =>
+        const match = item.productId ? null : products.find(p =>
           p.name === item.name &&
           (p.color || null) === (item.color || null) &&
           (p.size || null) === (item.size || null)
         );
+        const pid = item.productId || match?.id;
+        if (!pid) { toast.error(`Product "${item.name}" not found in inventory`); continue; }
         await api.post('/api/warehouse/returns', {
-          productId: match?.id || item.id,
+          productId: pid,
           color: item.color || undefined,
           size: item.size || undefined,
           quantity: item.qty,
           reason: state.returnReason || 'Customer return',
           saleId: item.saleId,
-          refundPaymentMethod: state.refundPaymentMethod || 'CASH'
+          refundPaymentMethod: state.refundPaymentMethod || 'COD'
         });
       }
       toast.success(`${items.length} item(s) returned`);

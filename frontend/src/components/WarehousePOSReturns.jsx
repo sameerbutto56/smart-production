@@ -7,7 +7,7 @@ const WarehousePOSReturns = () => {
     returnTab, set, returnBarcodeInput, returnBarcodeRef, returnCart, returnReason,
     refundPaymentMethod, returnLoading, returnProductSearch,
     invoiceReturnInput, invoiceReturnLoading, lookedUpReturnSale,
-    sales, handleReturnBarcode, handleReturnByInvoice, addToReturnCart,
+    sales, products, handleReturnBarcode, handleReturnByInvoice, addToReturnCart,
     processReturns, refreshSales, formatCurrency,
   } = useWarehousePOS();
 
@@ -80,7 +80,7 @@ const WarehousePOSReturns = () => {
                 s.items?.some(i => i.productName?.toLowerCase().includes(returnProductSearch.toLowerCase()))
               ).slice(0, 30).map(sale => (
                 <div key={sale.id} className="bg-gray-800/50 border border-gray-700 rounded-xl p-3 cursor-pointer hover:border-gray-500"
-                  onClick={() => { set('lookedUpReturnSale', sale); set('returnCart', sale.items.map(i => ({ id: i.id, name: i.productName, color: i.color, size: i.size, quantity: i.quantity, qty: 0, maxQty: i.quantity, unitPrice: i.unitPrice, lineTotal: i.lineTotal, saleId: sale.id }))); set('returnTab', 'invoice'); }}>
+                  onClick={() => { set('lookedUpReturnSale', sale); set('returnCart', sale.items.map(i => { const p = products.find(p => p.name === i.productName && (p.color || null) === (i.color || null) && (p.size || null) === (i.size || null)); return { id: i.id, productId: p?.id, name: i.productName, color: i.color, size: i.size, quantity: i.quantity, qty: 0, maxQty: i.quantity, unitPrice: i.unitPrice, lineTotal: i.lineTotal, saleId: sale.id }; })); set('returnTab', 'invoice'); }}>
                   <div className="flex justify-between">
                     <span className="text-xs font-bold text-white">{sale.receiptNumber}</span>
                     <span className="text-xs text-emerald-400">{formatCurrency(sale.grandTotal)}</span>
