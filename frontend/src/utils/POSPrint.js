@@ -50,8 +50,12 @@ export async function printReceipt(sale, { includeInvoice = true, includeGatePas
     const doc = iframe.contentWindow.document;
     doc.open();
     const receiptStyle = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt</title><style>
+      @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/NotoNaskhArabic-Regular.ttf') format('truetype'); }
+      @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/NotoNaskhArabic-Medium.ttf') format('truetype'); }
+      @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/NotoNaskhArabic-SemiBold.ttf') format('truetype'); }
+      @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/NotoNaskhArabic-Bold.ttf') format('truetype'); }
       @page { margin: 0; size: 80mm auto; }
-      body { font-family: monospace; font-size: 16px; padding: 4mm 6mm; color: #000; line-height: 1.5; background: #fff; margin: 0; }
+      body { font-family: 'Noto Naskh Arabic', monospace; font-size: 16px; padding: 4mm 6mm; color: #000; line-height: 1.5; background: #fff; margin: 0; }
       .header { text-align: center; margin-bottom: 6px; }
       .header h1 { font-size: 26px; font-weight: 900; margin: 0; }
       .header p { font-size: 14px; margin: 2px 0; font-weight: bold; }
@@ -244,7 +248,11 @@ export function printCloseBook(summary, opts, currentBook, selectedOutlet, trans
     const w = window.open('', '_blank', 'width=800,height=900');
     if (!w) return toast.error('Popup blocked');
     w.document.write(`<html><head><style>
-      body { font-family: Arial, sans-serif; padding: 40px; font-size: 14px; }
+      @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/NotoNaskhArabic-Regular.ttf') format('truetype'); }
+      @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/NotoNaskhArabic-Medium.ttf') format('truetype'); }
+      @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/NotoNaskhArabic-SemiBold.ttf') format('truetype'); }
+      @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/NotoNaskhArabic-Bold.ttf') format('truetype'); }
+      body { font-family: 'Noto Naskh Arabic', Arial, sans-serif; padding: 40px; font-size: 14px; }
       h1 { text-align: center; font-size: 20px; }
       h2 { font-size: 16px; margin-top: 20px; border-bottom: 2px solid #333; padding-bottom: 4px; }
       table { width: 100%; border-collapse: collapse; margin: 10px 0; }
@@ -310,7 +318,11 @@ export function printBalanceReceipt(lastBalancePayment, selectedBalanceInvoice) 
   const bp = lastBalancePayment;
   const w = window.open('', '_blank', 'width=400,height=700');
   w.document.write(`<html><head><title>Balance Receipt</title><style>
-    body{font-family:'Courier New',monospace;margin:0;padding:16px;font-size:14px;text-align:center;width:300px;background:#fff;color:#000;}
+    @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/NotoNaskhArabic-Regular.ttf') format('truetype'); }
+    @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/NotoNaskhArabic-Medium.ttf') format('truetype'); }
+    @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/NotoNaskhArabic-SemiBold.ttf') format('truetype'); }
+    @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/NotoNaskhArabic-Bold.ttf') format('truetype'); }
+    body{font-family:'Noto Naskh Arabic','Courier New',monospace;margin:0;padding:16px;font-size:14px;text-align:center;width:300px;background:#fff;color:#000;}
     h2{font-size:18px;font-weight:900;margin:0 0 4px;color:#000;text-transform:uppercase;}
     .sub{font-size:10px;color:#666;margin-bottom:12px;}
     hr{border:1px dashed #ccc;margin:10px 0;}

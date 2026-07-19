@@ -1,6 +1,13 @@
 const PRINT_CSS = `
   @page { size: A4 portrait; margin: 4mm 6mm; }
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;600;700&display=swap');
+  @font-face { font-family: 'Noto Nastaliq Urdu'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/NotoNastaliqUrdu-Regular.ttf') format('truetype'); }
+  @font-face { font-family: 'Noto Nastaliq Urdu'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/NotoNastaliqUrdu-Medium.ttf') format('truetype'); }
+  @font-face { font-family: 'Noto Nastaliq Urdu'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/NotoNastaliqUrdu-SemiBold.ttf') format('truetype'); }
+  @font-face { font-family: 'Noto Nastaliq Urdu'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/NotoNastaliqUrdu-Bold.ttf') format('truetype'); }
+  @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/NotoNaskhArabic-Regular.ttf') format('truetype'); }
+  @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/NotoNaskhArabic-Medium.ttf') format('truetype'); }
+  @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/NotoNaskhArabic-SemiBold.ttf') format('truetype'); }
+  @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/NotoNaskhArabic-Bold.ttf') format('truetype'); }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: 'Segoe UI', 'Helvetica Neue', Arial, 'Noto Nastaliq Urdu', sans-serif;

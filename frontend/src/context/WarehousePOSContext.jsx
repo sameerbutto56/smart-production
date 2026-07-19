@@ -447,7 +447,11 @@ export const WarehousePOSProvider = ({ children }) => {
     document.body.appendChild(iframe);
     const doc = iframe.contentWindow.document;
     doc.write(`<html><head><style>
-      body { font-family: 'Courier New', monospace; font-size: 12px; width: 80mm; margin: 0; padding: 10px; }
+      @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/NotoNaskhArabic-Regular.ttf') format('truetype'); }
+      @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/NotoNaskhArabic-Medium.ttf') format('truetype'); }
+      @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/NotoNaskhArabic-SemiBold.ttf') format('truetype'); }
+      @font-face { font-family: 'Noto Naskh Arabic'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/NotoNaskhArabic-Bold.ttf') format('truetype'); }
+      body { font-family: 'Noto Naskh Arabic', 'Courier New', monospace; font-size: 12px; width: 80mm; margin: 0; padding: 10px; }
       h2 { text-align: center; margin: 5px 0; font-size: 16px; }
       .center { text-align: center; }
       table { width: 100%; border-collapse: collapse; margin: 5px 0; }
