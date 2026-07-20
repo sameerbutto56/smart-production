@@ -7,11 +7,9 @@ import { debounce } from '../utils/debounce';
 import useCache from '../hooks/useCache';
 import {
   Truck, CheckCircle2, PhoneOff, Phone,
-  RefreshCw, Search, AlertCircle, Calendar,
+  RefreshCw, Search, AlertCircle,
   ChevronDown, ChevronUp, Clock, UserCheck, XCircle, RotateCcw,
-  Printer, DollarSign, BarChart3, Wallet, CreditCard, Building2, Eye,
-  Plus, Minus, TrendingUp, ListOrdered, Award,
-  ClipboardList
+  Printer, BarChart3, ClipboardList
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
@@ -20,39 +18,6 @@ import { PageLoader, LoadingSpinner } from '../components/LoadingSpinner';
 import { printDeliveryReport } from '../utils/printReport';
 
 const MAX_ATTEMPTS = 3;
-
-/* ─── multiple online inputs ─── */
-const MultipleOnlineInputs = ({ entries, setEntries }) => {
-  const addEntry = () => setEntries([...entries, { provider: '', amount: '', ref: '' }]);
-  const removeEntry = (i) => setEntries(entries.filter((_, idx) => idx !== i));
-  const updateEntry = (i, field, val) => {
-    const next = entries.map((e, idx) => idx === i ? { ...e, [field]: val } : e);
-    setEntries(next);
-  };
-  return (
-    <div className="space-y-2 bg-gray-800/40 rounded-xl p-3 border border-blue-500/20">
-      <p className="text-xs font-black text-blue-400 uppercase tracking-widest flex items-center gap-1.5">
-        <Building2 size={14} /> Multiple Online Sources
-      </p>
-      {entries.map((e, i) => (
-        <div key={i} className="grid grid-cols-3 gap-1.5">
-          <input type="text" placeholder="Source" value={e.provider} onChange={(v) => updateEntry(i, 'provider', v.target.value)}
-            className="px-2 py-1.5 rounded-lg bg-gray-900 border border-gray-700 text-xs font-bold text-white outline-none focus:border-blue-500" />
-          <input type="number" placeholder="Amount" value={e.amount} onChange={(v) => updateEntry(i, 'amount', v.target.value)}
-            className="px-2 py-1.5 rounded-lg bg-gray-900 border border-gray-700 text-xs font-bold text-white outline-none focus:border-blue-500" />
-          <div className="flex gap-1">
-            <input type="text" placeholder="Ref" value={e.ref} onChange={(v) => updateEntry(i, 'ref', v.target.value)}
-              className="flex-1 px-2 py-1.5 rounded-lg bg-gray-900 border border-gray-700 text-xs font-bold text-white outline-none focus:border-blue-500" />
-            {entries.length > 1 && <button onClick={() => removeEntry(i)} className="p-1.5 text-red-400 hover:text-red-300"><XCircle size={14} /></button>}
-          </div>
-        </div>
-      ))}
-      <button onClick={addEntry} className="text-xs font-black text-blue-400 hover:text-blue-300 flex items-center gap-1">
-        <Plus size={14} /> Add Source
-      </button>
-    </div>
-  );
-};
 
 /* ─── Attempt History Panel ─── */
 const AttemptHistory = ({ attempts, noResponseLogs }) => {
@@ -105,10 +70,60 @@ const AttemptHistory = ({ attempts, noResponseLogs }) => {
   );
 };
 
-/* ─── single order card ─── */
-const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
-  paymentMethods, setPaymentMethods, halfPayments, setHalfPayments, multiOnlineEntries, setMultiOnlineEntries, tab }) => {
+/* ─── Performance Panel (read-only stats) ─── */
+const PerformancePanel = () => {
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+
+  const fetchStats = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get(`/api/delivery/performance?riderName=${encodeURIComponent(user?.name || '')}`);
+      setStats(res.data);
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, [user?.name]);
+
+  useEffect(() => { fetchStats(); }, [fetchStats]);
+
+  if (loading) return <LoadingSpinner text="Loading stats..." />;
+  if (!stats) return null;
+
+  const items = [
+    { label: 'Assigned Today', value: stats.assignedToday, color: 'text-blue-400', icon: UserCheck },
+    { label: 'Delivered Today', value: stats.deliveredToday, color: 'text-emerald-400', icon: CheckCircle2 },
+    { label: 'This Week', value: stats.deliveredThisWeek, color: 'text-teal-400', icon: TrendingUp },
+    { label: 'This Month', value: stats.deliveredThisMonth, color: 'text-purple-400', icon: Award },
+    { label: 'All Time', value: stats.allTimeDelivered, color: 'text-amber-400', icon: ListOrdered },
+    { label: 'Pending', value: stats.pendingDeliveries, color: 'text-gray-400', icon: Clock },
+    { label: 'Active', value: stats.activeDeliveries, color: 'text-blue-400', icon: Truck },
+    { label: 'Returned', value: stats.returnedCount, color: 'text-orange-400', icon: RotateCcw },
+    { label: 'No Response', value: stats.noResponseCount, color: 'text-red-400', icon: PhoneOff },
+  ];
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-black text-blue-400 uppercase tracking-widest flex items-center gap-2">
+        <BarChart3 size={16} /> Performance
+      </h3>
+      <div className="grid grid-cols-3 gap-2">
+        {items.map((item) => (
+          <div key={item.label} className="bg-gray-800/50 rounded-xl p-2.5 border border-gray-700/30">
+            <item.icon size={14} className={item.color} />
+            <p className={`text-lg font-black ${item.color}`}>{item.value}</p>
+            <p className="text-[9px] text-gray-500 font-bold uppercase tracking-wider mt-0.5">{item.label}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/* ─── single order card (simplified — no payment UI) ─── */
+const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading, tab }) => {
   const [showHistory, setShowHistory] = useState(false);
+  const { isUrdu } = useLanguage();
 
   const isAccepted = !!order.riderAcceptedAt;
   const isDelivered = order.currentStage === 'DELIVERED' || order.status === 'COMPLETED';
@@ -129,8 +144,8 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
   const orderId = order.id;
   const totalRemaining = Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0));
 
-  // Multiple online entries state per order
-  const multiEntries = multiOnlineEntries[orderId] || [{ provider: '', amount: totalRemaining || '', ref: '' }];
+  const _isPaid = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID';
+  const _hasAdv = parseFloat(order.advanceAmount || 0) > 0;
 
   return (
     <motion.div
@@ -196,14 +211,12 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
                   {order.deliveryMethod}
                 </span>
               )}
-              {(() => {
-                const _isPaid = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID';
-                const _hasAdv = parseFloat(order.advanceAmount || 0) > 0;
-                const _rem = Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0));
-                if (_isPaid) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">PAID</span>;
-                if (_hasAdv) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black bg-orange-500/20 text-orange-400 border border-orange-500/30">COD: ₨{_rem.toLocaleString()}</span>;
-                return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black uppercase bg-red-500/20 text-red-400 border border-red-500/30">CASH ON DELIVERY</span>;
-              })()}
+              {_isPaid
+                ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">PAID</span>
+                : _hasAdv
+                ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black bg-orange-500/20 text-orange-400 border border-orange-500/30">COD: ₨{totalRemaining.toLocaleString()}</span>
+                : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black uppercase bg-red-500/20 text-red-400 border border-red-500/30">CASH ON DELIVERY</span>
+              }
             </div>
           </div>
           <div className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs md:text-sm font-black border ${
@@ -254,7 +267,7 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
               <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest">Amount</p>
               <p className="font-black text-emerald-400 text-base mt-0.5">₨{Number(order.totalPrice || 0).toLocaleString()}</p>
               <p className="text-xs md:text-sm theme-text-muted font-bold mt-0.5">
-                {order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? '✅ PAID' : `💰 COD: ₨${totalRemaining.toLocaleString()}`}
+                {_isPaid ? '✅ PAID' : `💰 COD: ₨${totalRemaining.toLocaleString()}`}
               </p>
             </div>
           </div>
@@ -269,7 +282,7 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
           </button>
         )}
 
-        {/* Active or No Response tab: Delivery actions */}
+        {/* Active or No Response tab: Delivery actions (simplified — no payment UI) */}
         {(isAccepted || isNoResp) && !isDelivered && !maxReached && (
           <>
             {noResponseCount > 0 && order.nextDeliveryDate && (
@@ -280,119 +293,37 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
                 </p>
               </div>
             )}
-            {(() => {
-              const _isPaid = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID';
-              const _hasAdv = parseFloat(order.advanceAmount || 0) > 0;
-              const statusBanner = _isPaid
-                ? <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-2.5 flex items-center gap-3"><span className="text-emerald-400 font-black text-xs uppercase tracking-wider">Payment Status: PAID</span></div>
-                : <div className="bg-orange-500/10 border border-orange-500/20 rounded-2xl px-4 py-2.5 flex items-center gap-3"><span className="text-orange-400 font-black text-xs uppercase tracking-wider">COD: ₨{totalRemaining.toLocaleString()}</span></div>;
-              if (_isPaid) return (
-                <div className="space-y-3">
-                  {statusBanner}
-                  <div className="grid grid-cols-3 gap-3">
-                    <button disabled={loading === order.id} onClick={() => onAction(order.id, 'DELIVERED', '', 'CASH', 0, 0, [])} className="py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-emerald-900/40 flex items-center justify-center gap-1.5">
-                      <span>✓</span> Deliver
-                    </button>
-                    <button disabled={loading === order.id} onClick={() => onAction(order.id, 'NOT_RESPONDED', '')} className="py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-amber-900/40 flex items-center justify-center gap-1.5">
-                      <PhoneOff size={14} /> No Reply
-                    </button>
-                    <button disabled={loading === order.id} onClick={() => onAction(order.id, 'CANCELLED', 'Returned')} className="py-3 rounded-xl bg-red-600/80 hover:bg-red-600 text-white font-black text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-red-900/40 flex items-center justify-center gap-1.5">
-                      <RotateCcw size={14} /> Return
-                    </button>
-                  </div>
-                </div>
-              );
-              return (
-                <div className="space-y-3">
-                  {statusBanner}
-                  {/* Payment Method Selection */}
-                  <div className="bg-gray-800/40 rounded-2xl p-3 border border-gray-700/50">
-                    <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest mb-2">Payment Method</p>
-                    <div className="flex flex-wrap gap-2">
-                      <button onClick={() => { setPaymentMethods(prev => ({ ...prev, [orderId]: 'CASH' })); setHalfPayments(prev => ({ ...prev, [orderId]: undefined })); setMultiOnlineEntries(prev => ({ ...prev, [orderId]: [{ provider: '', amount: totalRemaining || '', ref: '' }] })); }}
-                        className={`flex-1 min-w-[80px] py-2.5 rounded-xl text-xs font-black transition-all ${(paymentMethods[orderId] || 'CASH') === 'CASH' ? 'bg-emerald-600 text-white shadow-lg' : 'bg-gray-800 theme-text-secondary border border-gray-700'}`}>
-                        💵 Cash
-                      </button>
-                      <button onClick={() => { setPaymentMethods(prev => ({ ...prev, [orderId]: 'ONLINE' })); setHalfPayments(prev => ({ ...prev, [orderId]: undefined })); setMultiOnlineEntries(prev => ({ ...prev, [orderId]: [{ provider: '', amount: totalRemaining || '', ref: '' }] })); }}
-                        className={`flex-1 min-w-[80px] py-2.5 rounded-xl text-xs font-black transition-all ${paymentMethods[orderId] === 'ONLINE' ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-800 theme-text-secondary border border-gray-700'}`}>
-                        💳 Online
-                      </button>
-                      <button onClick={() => { setPaymentMethods(prev => ({ ...prev, [orderId]: 'CASH_ONLINE' })); if (!halfPayments?.[orderId]) { setHalfPayments(prev => ({ ...prev, [orderId]: { cash: Math.floor(totalRemaining / 2), online: Math.ceil(totalRemaining / 2) } })); } setMultiOnlineEntries(prev => ({ ...prev, [orderId]: [{ provider: '', amount: totalRemaining || '', ref: '' }] })); }}
-                        className={`flex-1 min-w-[80px] py-2.5 rounded-xl text-xs font-black transition-all ${paymentMethods[orderId] === 'CASH_ONLINE' ? 'bg-purple-600 text-white shadow-lg' : 'bg-gray-800 theme-text-secondary border border-gray-700'}`}>
-                        💜 Cash + Online
-                      </button>
-                      <button onClick={() => { setPaymentMethods(prev => ({ ...prev, [orderId]: 'MULTIPLE_ONLINE' })); setHalfPayments(prev => ({ ...prev, [orderId]: undefined })); }}
-                        className={`flex-1 min-w-[80px] py-2.5 rounded-xl text-xs font-black transition-all ${paymentMethods[orderId] === 'MULTIPLE_ONLINE' ? 'bg-cyan-600 text-white shadow-lg' : 'bg-gray-800 theme-text-secondary border border-gray-700'}`}>
-                        📱 Multiple Online
-                      </button>
-                    </div>
-
-                    {/* Cash+Online split inputs */}
-                    {paymentMethods[orderId] === 'CASH_ONLINE' && (
-                      <div className="grid grid-cols-2 gap-3 mt-3">
-                        <div>
-                          <p className="text-xs theme-text-muted font-black uppercase tracking-widest mb-1">Cash Amount</p>
-                          <input type="number" value={halfPayments?.[orderId]?.cash || 0} onChange={e => setHalfPayments(prev => ({ ...prev, [orderId]: { ...prev?.[orderId], cash: Math.min(Number(e.target.value) || 0, totalRemaining) } }))} className="w-full px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 text-white font-black text-sm outline-none focus:border-purple-500" min="0" max={totalRemaining} />
-                        </div>
-                        <div>
-                          <p className="text-xs theme-text-muted font-black uppercase tracking-widest mb-1">Online Amount</p>
-                          <input type="number" value={halfPayments?.[orderId]?.online || 0} onChange={e => setHalfPayments(prev => ({ ...prev, [orderId]: { ...prev?.[orderId], online: Math.min(Number(e.target.value) || 0, totalRemaining) } }))} className="w-full px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 text-white font-black text-sm outline-none focus:border-purple-500" min="0" max={totalRemaining} />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Multiple Online inputs */}
-                    {paymentMethods[orderId] === 'MULTIPLE_ONLINE' && (
-                      <div className="mt-3">
-                        <MultipleOnlineInputs entries={multiEntries} setEntries={(updater) => {
-                          const next = typeof updater === 'function' ? updater(multiEntries) : updater;
-                          setMultiOnlineEntries(prev => ({ ...prev, [orderId]: next }));
-                        }} />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Action buttons */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <button disabled={loading === order.id}
-                      onClick={() => {
-                        const method = paymentMethods[orderId] || 'CASH';
-                        if (method === 'CASH_ONLINE') {
-                          const hp = halfPayments?.[orderId] || { cash: 0, online: 0 };
-                          onAction(orderId, 'DELIVERED', '', method, hp.cash, hp.online, []);
-                        } else if (method === 'MULTIPLE_ONLINE') {
-                          const totalMulti = multiEntries.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
-                          onAction(orderId, 'DELIVERED', '', method, 0, totalMulti, multiEntries.filter(e => e.amount));
-                        } else if (method === 'CASH') {
-                          onAction(orderId, 'DELIVERED', '', method, totalRemaining, 0, []);
-                        } else {
-                          onAction(orderId, 'DELIVERED', '', method, 0, totalRemaining, []);
-                        }
-                      }}
-                      className="flex flex-col items-center justify-center gap-1.5 py-5 bg-emerald-600 text-white rounded-2xl font-black active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-emerald-900/40">
-                      {loading === order.id ? <LoadingSpinner size={16} text="Processing..." /> : <><CheckCircle2 size={28} /><span className="text-sm">Delivered</span><span className="text-xs opacity-70 font-bold">مل گیا</span></>}
-                    </button>
-                    <button disabled={loading === order.id} onClick={() => onAction(orderId, 'NOT_RESPONDED', '')}
-                      className="flex flex-col items-center justify-center gap-1.5 py-5 bg-gray-800 border-2 border-amber-500/40 text-amber-400 rounded-2xl font-black active:scale-95 transition-all disabled:opacity-50">
-                      {loading === order.id ? <LoadingSpinner size={16} text="Processing..." /> : <><PhoneOff size={28} /><span className="text-sm">No Response</span><span className="text-xs opacity-70 font-bold">جواب نہیں</span></>}
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button disabled={loading === order.id} onClick={() => { const reason = prompt('Reason for return:'); if (!reason) return; onAction(orderId, 'RETURN', reason); }}
-                      className="flex items-center justify-center gap-2 py-3 bg-orange-600/10 hover:bg-orange-600/20 rounded-2xl border border-orange-500/20 text-sm font-black uppercase tracking-wider text-orange-400 active:scale-95 transition-all">
-                      {loading === order.id ? <LoadingSpinner size={16} text="Processing..." /> : <><AlertCircle size={18} />Return</>}
-                    </button>
-                    {attempts.length > 0 && (
-                      <button onClick={() => setShowHistory(!showHistory)}
-                        className="flex items-center justify-center gap-2 py-3 bg-gray-800 rounded-2xl border border-gray-700 text-sm font-black text-gray-300 active:scale-95 transition-all">
-                        {showHistory ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                        History ({attempts.length})
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
+            <div className="space-y-3">
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-2.5 flex items-center gap-3">
+                <span className="text-emerald-400 font-black text-xs uppercase tracking-wider">
+                  {_isPaid ? 'Payment Status: PAID' : `COD: ₨${totalRemaining.toLocaleString()}`}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <button disabled={loading === order.id}
+                  onClick={() => onAction(order.id, 'DELIVERED', '')}
+                  className="flex flex-col items-center justify-center gap-1.5 py-5 bg-emerald-600 text-white rounded-2xl font-black active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-emerald-900/40">
+                  {loading === order.id ? <LoadingSpinner size={16} text="Processing..." /> : <><CheckCircle2 size={28} /><span className="text-sm">Delivered</span><span className="text-xs opacity-70 font-bold">مل گیا</span></>}
+                </button>
+                <button disabled={loading === order.id} onClick={() => onAction(orderId, 'NOT_RESPONDED', '')}
+                  className="flex flex-col items-center justify-center gap-1.5 py-5 bg-gray-800 border-2 border-amber-500/40 text-amber-400 rounded-2xl font-black active:scale-95 transition-all disabled:opacity-50">
+                  {loading === order.id ? <LoadingSpinner size={16} text="Processing..." /> : <><PhoneOff size={28} /><span className="text-sm">No Response</span><span className="text-xs opacity-70 font-bold">جواب نہیں</span></>}
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <button disabled={loading === order.id} onClick={() => { const reason = prompt('Reason for return:'); if (!reason) return; onAction(orderId, 'RETURN', reason); }}
+                  className="flex items-center justify-center gap-2 py-3 bg-orange-600/10 hover:bg-orange-600/20 rounded-2xl border border-orange-500/20 text-sm font-black uppercase tracking-wider text-orange-400 active:scale-95 transition-all">
+                  {loading === order.id ? <LoadingSpinner size={16} text="Processing..." /> : <><AlertCircle size={18} />Return</>}
+                </button>
+                {attempts.length > 0 && (
+                  <button onClick={() => setShowHistory(!showHistory)}
+                    className="flex items-center justify-center gap-2 py-3 bg-gray-800 rounded-2xl border border-gray-700 text-sm font-black text-gray-300 active:scale-95 transition-all">
+                    {showHistory ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                    History ({attempts.length})
+                  </button>
+                )}
+              </div>
+            </div>
           </>
         )}
 
@@ -434,262 +365,6 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
   );
 };
 
-/* ─── Delivery Charges Ledger ─── */
-const DeliveryChargesPanel = ({ refresh }) => {
-  const [chargesData, setChargesData] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  const fetchCharges = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await api.get('/api/delivery/charges');
-      setChargesData(res.data);
-    } catch { toast.error('Failed to load charges'); }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { fetchCharges(); }, [fetchCharges]);
-
-  const handleClear = async () => {
-    if (!confirm('Clear all pending delivery charges?')) return;
-    try {
-      const res = await api.post('/api/delivery/charges/clear');
-      toast.success(res.data.message);
-      fetchCharges();
-      if (refresh) refresh();
-    } catch { toast.error('Clear failed'); }
-  };
-
-  if (loading) return <LoadingSpinner text="Loading charges..." />;
-  if (!chargesData) return null;
-
-  const { charges, totalPending, payments, totalPaid } = chargesData;
-  let runningTotal = 0;
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-black text-emerald-400 uppercase tracking-widest flex items-center gap-2">
-          <DollarSign size={16} /> Delivery Charges Ledger
-        </h3>
-        <span className="text-xs font-black text-gray-500">PKR 200 / order</span>
-      </div>
-
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-gray-800/60 rounded-xl p-3 border border-emerald-500/20">
-          <p className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Pending</p>
-          <p className="text-xl font-black text-emerald-400">₨{totalPending.toLocaleString()}</p>
-          <p className="text-[10px] text-gray-500 font-bold">{charges.length} orders</p>
-        </div>
-        <div className="bg-gray-800/60 rounded-xl p-3 border border-blue-500/20">
-          <p className="text-[10px] text-blue-400 font-black uppercase tracking-widest">Total Paid</p>
-          <p className="text-xl font-black text-blue-400">₨{totalPaid.toLocaleString()}</p>
-          <p className="text-[10px] text-gray-500 font-bold">{payments?.length || 0} clearances</p>
-        </div>
-      </div>
-
-      {/* Charges list */}
-      {charges.length > 0 && (
-        <div className="bg-gray-800/40 rounded-xl border border-gray-700/50 overflow-hidden">
-          <div className="px-3 py-2 bg-gray-900/60 border-b border-gray-700/50 grid grid-cols-4 gap-2 text-[9px] font-black text-gray-500 uppercase tracking-widest">
-            <span>Order</span>
-            <span>Customer</span>
-            <span>Date</span>
-            <span className="text-right">Amount</span>
-          </div>
-          {charges.map((c) => {
-            runningTotal += c.amount;
-            return (
-              <div key={c.id} className="px-3 py-2 border-b border-gray-800/30 grid grid-cols-4 gap-2 text-xs font-bold text-gray-300">
-                <span className="text-blue-400">#{c.orderNumber || '—'}</span>
-                <span className="truncate">{c.customerName || '—'}</span>
-                <span className="text-gray-500">{new Date(c.deliveredAt).toLocaleDateString()}</span>
-                <span className="text-right text-emerald-400">₨{c.amount.toLocaleString()}</span>
-              </div>
-            );
-          })}
-          <div className="px-3 py-2 bg-gray-900/60 grid grid-cols-4 gap-2 text-xs font-black text-white">
-            <span>Total</span>
-            <span />
-            <span />
-            <span className="text-right text-emerald-400">₨{runningTotal.toLocaleString()}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Clear button */}
-      {totalPending > 0 && (
-        <button onClick={handleClear} className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-sm uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-emerald-900/40">
-          Clear — ₨{totalPending.toLocaleString()}
-        </button>
-      )}
-
-      {/* Payment history */}
-      {payments?.length > 0 && (
-        <div className="bg-gray-800/40 rounded-xl border border-gray-700/50 overflow-hidden mt-3">
-          <p className="px-3 py-2 text-[10px] font-black text-blue-400 uppercase tracking-widest border-b border-gray-700/50">Payment History</p>
-          {payments.map((p) => (
-            <div key={p.id} className="px-3 py-2 border-b border-gray-800/30 flex items-center justify-between text-xs">
-              <span className="text-gray-400">{new Date(p.paidAt).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-              <span className="font-black text-emerald-400">₨{(p.totalAmount || 0).toLocaleString()}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
-/* ─── COD Collection Panel ─── */
-const CODCollectionPanel = ({ refresh }) => {
-  const [codData, setCodData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [showDetails, setShowDetails] = useState(false);
-
-  const fetchCOD = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await api.get('/api/delivery/cod');
-      setCodData(res.data);
-    } catch { toast.error('Failed to load COD data'); }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { fetchCOD(); }, [fetchCOD]);
-
-  if (loading) return <LoadingSpinner text="Loading COD..." />;
-  if (!codData) return null;
-
-  const { todayCODAmount, todayCODOrders, pendingCODAmount, pendingCODOrders, pendingDeliveries, collections } = codData;
-
-  return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-black text-amber-400 uppercase tracking-widest flex items-center gap-2">
-        <Wallet size={16} /> COD Collection
-      </h3>
-
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-amber-500/10 rounded-xl p-3 border border-amber-500/20">
-          <p className="text-[10px] text-amber-400 font-black uppercase tracking-widest">Today's COD</p>
-          <p className="text-xl font-black text-amber-400">₨{todayCODAmount.toLocaleString()}</p>
-          <p className="text-[10px] text-gray-500 font-bold">{todayCODOrders} orders</p>
-        </div>
-        <div className="bg-orange-500/10 rounded-xl p-3 border border-orange-500/20">
-          <p className="text-[10px] text-orange-400 font-black uppercase tracking-widest">Pending COD</p>
-          <p className="text-xl font-black text-orange-400">₨{pendingCODAmount.toLocaleString()}</p>
-          <p className="text-[10px] text-gray-500 font-bold">{pendingCODOrders} orders</p>
-        </div>
-      </div>
-
-      {/* Pending deliveries detail */}
-      {pendingDeliveries?.length > 0 && (
-        <div>
-          <button onClick={() => setShowDetails(!showDetails)} className="flex items-center gap-2 text-xs font-black text-gray-400 hover:text-white uppercase tracking-widest">
-            {showDetails ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            Pending COD Orders ({pendingDeliveries.length})
-          </button>
-          {showDetails && (
-            <div className="mt-2 bg-gray-800/40 rounded-xl border border-gray-700/50 overflow-hidden">
-              <div className="px-3 py-2 bg-gray-900/60 border-b border-gray-700/50 grid grid-cols-4 gap-2 text-[9px] font-black text-gray-500 uppercase tracking-widest">
-                <span>Order</span>
-                <span>Customer</span>
-                <span>COD Amount</span>
-                <span>Date</span>
-              </div>
-              {pendingDeliveries.map((o) => {
-                const codAmount = Math.max(0, (o.totalPrice || 0) - parseFloat(o.advanceAmount || 0));
-                return (
-                  <div key={o.id} className="px-3 py-2 border-b border-gray-800/30 grid grid-cols-4 gap-2 text-xs font-bold text-gray-300">
-                    <span className="text-blue-400">#{o.orderNumber || '—'}</span>
-                    <span className="truncate">{o.customerName}</span>
-                    <span className="text-amber-400">₨{codAmount.toLocaleString()}</span>
-                    <span className="text-gray-500">{o.deliveredAt ? new Date(o.deliveredAt).toLocaleDateString() : '—'}</span>
-                  </div>
-                );
-              })}
-              <div className="px-3 py-2 bg-gray-900/60 grid grid-cols-4 gap-2 text-xs font-black text-white">
-                <span>Total COD</span>
-                <span />
-                <span className="text-amber-400">₨{pendingCODAmount.toLocaleString()}</span>
-                <span />
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Collection history */}
-      {collections?.length > 0 && (
-        <div className="bg-gray-800/40 rounded-xl border border-gray-700/50 overflow-hidden">
-          <p className="px-3 py-2 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-700/50">Clearance History</p>
-          {collections.map((c) => (
-            <div key={c.id} className="px-3 py-2 border-b border-gray-800/30 flex items-center justify-between text-xs">
-              <div>
-                <span className="text-gray-300 font-bold">{c.dispatchOfficer}</span>
-                {c.deliveryBoyName && <span className="text-gray-500 ml-2">→ {c.deliveryBoyName}</span>}
-                <p className="text-[10px] text-gray-600">{new Date(c.clearedAt).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-              </div>
-              <span className="font-black text-emerald-400">₨{(c.totalAmount || 0).toLocaleString()}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
-/* ─── Performance Panel ─── */
-const PerformancePanel = () => {
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
-
-  const fetchStats = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await api.get(`/api/delivery/performance?riderName=${encodeURIComponent(user?.name || '')}`);
-      setStats(res.data);
-    } catch { /* ignore */ }
-    setLoading(false);
-  }, [user?.name]);
-
-  useEffect(() => { fetchStats(); }, [fetchStats]);
-
-  if (loading) return <LoadingSpinner text="Loading stats..." />;
-  if (!stats) return null;
-
-  const items = [
-    { label: 'Assigned Today', value: stats.assignedToday, color: 'text-blue-400', icon: UserCheck },
-    { label: 'Delivered Today', value: stats.deliveredToday, color: 'text-emerald-400', icon: CheckCircle2 },
-    { label: 'This Week', value: stats.deliveredThisWeek, color: 'text-teal-400', icon: TrendingUp },
-    { label: 'This Month', value: stats.deliveredThisMonth, color: 'text-purple-400', icon: Award },
-    { label: 'All Time', value: stats.allTimeDelivered, color: 'text-amber-400', icon: ListOrdered },
-    { label: 'Pending', value: stats.pendingDeliveries, color: 'text-gray-400', icon: Clock },
-    { label: 'Active', value: stats.activeDeliveries, color: 'text-blue-400', icon: Truck },
-    { label: 'Returned', value: stats.returnedCount, color: 'text-orange-400', icon: RotateCcw },
-    { label: 'No Response', value: stats.noResponseCount, color: 'text-red-400', icon: PhoneOff },
-  ];
-
-  return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-black text-blue-400 uppercase tracking-widest flex items-center gap-2">
-        <BarChart3 size={16} /> Performance
-      </h3>
-      <div className="grid grid-cols-3 gap-2">
-        {items.map((item) => (
-          <div key={item.label} className="bg-gray-800/50 rounded-xl p-2.5 border border-gray-700/30">
-            <item.icon size={14} className={item.color} />
-            <p className={`text-lg font-black ${item.color}`}>{item.value}</p>
-            <p className="text-[9px] text-gray-500 font-bold uppercase tracking-wider mt-0.5">{item.label}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
 /* ─── main page ─── */
 const DeliveryDashboard = () => {
   const { user } = useAuth();
@@ -701,10 +376,7 @@ const DeliveryDashboard = () => {
   const [tab, setTab] = useState('pending');
   const [selectedDate, setSelectedDate] = useState('');
   const [orderNoSearch, setOrderNoSearch] = useState('');
-  const [paymentMethods, setPaymentMethods] = useState({});
-  const [halfPayments, setHalfPayments] = useState({});
-  const [multiOnlineEntries, setMultiOnlineEntries] = useState({});
-  const [view, setView] = useState('orders'); // orders, charges, cod, performance
+  const [view, setView] = useState('orders'); // orders, performance
 
   const dt = user?.name?.toLowerCase().includes('enamels') ? 'ENAMELS' : '';
   const cacheKey = `orders:delivery:${dt || 'default'}:v2`;
@@ -746,7 +418,7 @@ const DeliveryDashboard = () => {
     }
   };
 
-  const handleAction = async (orderId, deliveryStatus, remarks, paymentMethod, cashAmount, onlineAmount, multiOnline) => {
+  const handleAction = async (orderId, deliveryStatus, remarks) => {
     try {
       setActionLoading(orderId);
       if (deliveryStatus === 'RETURN') {
@@ -761,12 +433,7 @@ const DeliveryDashboard = () => {
         refresh();
         return;
       }
-      const body = { paymentMethod, riderName: user?.name };
-      if (paymentMethod === 'CASH') { body.cashAmount = onlineAmount ? 0 : parseFloat(cashAmount) || 0; body.onlineAmount = 0; }
-      else if (paymentMethod === 'ONLINE') { body.cashAmount = 0; body.onlineAmount = parseFloat(onlineAmount) || 0; }
-      else if (paymentMethod === 'CASH_ONLINE') { body.cashAmount = cashAmount || 0; body.onlineAmount = onlineAmount || 0; }
-      else if (paymentMethod === 'MULTIPLE_ONLINE') { body.cashAmount = 0; body.onlineAmount = parseFloat(onlineAmount) || 0; body.multipleOnlineDetails = multiOnline || []; }
-      await api.put(`/api/delivery/${orderId}/deliver`, body);
+      await api.put(`/api/delivery/${orderId}/deliver`, { paymentMethod: 'CASH', riderName: user?.name });
       toast.success('Delivered!', { duration: 3000 });
       refresh();
     } catch {
@@ -796,12 +463,8 @@ const DeliveryDashboard = () => {
     return matchSearch && matchOrderNo && matchDate;
   });
 
-  const bottomBarCOD = pending
-    .filter(o => !(parseFloat(o.advanceAmount) > 0))
-    .reduce((s, o) => s + (Number(o.totalPrice) || 0), 0);
-
   return (
-    <div className="max-w-xl mx-auto pb-36 px-3 space-y-3">
+    <div className="max-w-xl mx-auto pb-24 px-3 space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between pt-3 pb-0">
         <div className="flex items-center gap-3">
@@ -823,12 +486,10 @@ const DeliveryDashboard = () => {
         </div>
       </div>
 
-      {/* View switcher */}
+      {/* View switcher (Orders + Stats only) */}
       <div className="flex gap-1 bg-gray-900/60 rounded-2xl p-1 border border-gray-800 overflow-x-auto">
         {[
           { key: 'orders', label: 'Orders', icon: Truck },
-          { key: 'charges', label: 'Charges', icon: DollarSign },
-          { key: 'cod', label: 'COD', icon: Wallet },
           { key: 'performance', label: 'Stats', icon: BarChart3 },
         ].map(v => (
           <button key={v.key} onClick={() => setView(v.key)}
@@ -894,46 +555,15 @@ const DeliveryDashboard = () => {
               {filtered.map((order, idx) => (
                 <OrderCard key={order.id} order={order} idx={idx} tab={tab}
                   onAction={handleAction} onAccept={handleAccept}
-                  loading={actionLoading} acceptLoading={acceptLoading}
-                  paymentMethods={paymentMethods} setPaymentMethods={setPaymentMethods}
-                  halfPayments={halfPayments} setHalfPayments={setHalfPayments}
-                  multiOnlineEntries={multiOnlineEntries} setMultiOnlineEntries={setMultiOnlineEntries} />
+                  loading={actionLoading} acceptLoading={acceptLoading} />
               ))}
             </div>
           )}
         </>
       )}
 
-      {/* Delivery Charges View */}
-      {view === 'charges' && <DeliveryChargesPanel refresh={refresh} />}
-
-      {/* COD Collection View */}
-      {view === 'cod' && <CODCollectionPanel refresh={refresh} />}
-
-      {/* Performance View */}
+      {/* Performance View (read-only stats) */}
       {view === 'performance' && <PerformancePanel />}
-
-      {/* Fixed bottom bar */}
-      {view === 'orders' && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 theme-bg/95 backdrop-blur-xl border-t-2 theme-border px-5 py-3">
-          <div className="max-w-xl mx-auto flex items-center justify-between">
-            <div>
-              <p className="text-[10px] theme-text-muted font-black uppercase tracking-widest">COD to Collect</p>
-              <p className="text-lg font-black text-amber-400">₨{bottomBarCOD.toLocaleString()}</p>
-            </div>
-            <div className="h-8 w-px bg-gray-800" />
-            <div className="text-center">
-              <p className="text-[10px] theme-text-muted font-black uppercase tracking-widest">Collected</p>
-              <p className="text-lg font-black text-emerald-400">₨{completed.reduce((s, o) => s + (Number(o.totalPrice) || 0), 0).toLocaleString()}</p>
-            </div>
-            <div className="h-8 w-px bg-gray-800" />
-            <div className="text-right">
-              <p className="text-[10px] theme-text-muted font-black uppercase tracking-widest">Remaining</p>
-              <p className="text-lg font-black theme-text-primary">{active.length} left</p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
