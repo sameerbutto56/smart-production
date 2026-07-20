@@ -1314,9 +1314,9 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
 
           if (hasSpecs) {
             win.document.write(`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">`);
-            if (c.nameColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fce7f3;color:#9d174d">${sec.color}: ${c.nameColor}</span>`);
+            if (c.nameColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fce7f3;color:#9d174d">${sec.color}: ${vu(c.nameColor)}</span>`);
             if (c.logoPlacement) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#ccfbf1;color:#0f766e">${sec.position}: ${c.logoPlacement}</span>`);
-            if (c.logoColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#92400e">${isUrdu ? 'لوگو:' : 'Logo:'} ${c.logoColor}</span>`);
+            if (c.logoColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#92400e">${isUrdu ? 'لوگو:' : 'Logo:'} ${vu(c.logoColor)}</span>`);
             win.document.write(`</div>`);
           }
 
@@ -1332,8 +1332,8 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           if (hasNotes) {
             const notesDisplay = c.designNotes;
             win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px">`);
-            win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
-            win.document.write(`<p style="font-size:22px;font-style:italic;color:#000"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
+            win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
+            win.document.write(`<p style="font-size:22px;font-weight:700;color:#000"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
           }
 
           win.document.write(`</div>`);
@@ -1372,14 +1372,14 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
         }
         if (order.engravingInstructions) {
           win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px;margin-top:6px">`);
-          win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:2px">${sec.specialNote}</p>`);
-          win.document.write(`<p style="font-size:22px;font-style:italic;color:#000">${order.engravingInstructions}</p></div>`);
+          win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px">${sec.specialNote}</p>`);
+          win.document.write(`<p style="font-size:22px;font-weight:700;color:#000">${order.engravingInstructions}</p></div>`);
         }
         if (order.instructionNotes) {
           const notesDisplay = isUrdu ? romanToUrdu(order.instructionNotes) : order.instructionNotes;
           win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px;margin-top:6px">`);
-          win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${sec.instructionNotes}</p>`);
-          win.document.write(`<p style="font-size:22px;font-weight:700;color:#000"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
+          win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.instructionNotes}</p>`);
+          win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
         }
         win.document.write(`</div>`);
       }
@@ -1453,9 +1453,9 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       if (!hasMeasValues) {
         win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
       }
-      win.document.write(`<div style="margin-top:8px;background:#fef9e7;border:2px solid #f0c040;border-radius:8px;padding:10px 14px">`);
-      win.document.write(`<p style="font-size:18px;font-weight:800;color:#b8860b;margin-bottom:4px"${isUrdu ? ' class="urdu-text"' : ''}>${sec.specialNote}:</p>`);
-      win.document.write(`<p style="font-size:20px;font-weight:600;color:#8b6914;font-style:italic"${isUrdu ? ' class="urdu-text"' : ''}>${ru(measSpecialNote)}</p>`);
+      win.document.write(`<div style="margin-top:12px;background:#fffbeb;border:2px solid #d97706;border-radius:8px;padding:12px 16px">`);
+      win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#92400e;margin-bottom:6px;border-bottom:2px solid #f59e0b60;padding-bottom:4px"${isUrdu ? ' class="urdu-text"' : ''}>${sec.specialNote}</p>`);
+      win.document.write(`<p style="font-size:20px;font-weight:700;color:#78350f;line-height:1.5;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu-text"' : ''}>${ru(measSpecialNote)}</p>`);
       win.document.write(`</div>`);
     }
   }
