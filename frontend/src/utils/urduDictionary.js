@@ -431,6 +431,14 @@ export function toUrduName(text) {
         return urduDictionary[prefixMatchKey] + ' ' + suffixTranslated;
       }
     }
+    
+    // Fallback: translate individual words if no multi-word prefix matches
+    const translatedWords = words.map(w => {
+      const lowerW = w.toLowerCase();
+      const wMatchKey = Object.keys(urduDictionary).find(k => k.toLowerCase() === lowerW);
+      return wMatchKey ? urduDictionary[wMatchKey] : w;
+    });
+    return translatedWords.join(' ');
   }
   return key;
 }
