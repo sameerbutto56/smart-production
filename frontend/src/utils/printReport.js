@@ -271,6 +271,16 @@ const customDict = {
 
 export function romanToUrdu(text) {
   try {
+    if (!text) return '';
+    const lines = text.split('\n');
+    return lines.map(line => romanToUrduSingleLine(line)).join('\n');
+  } catch (e) {
+    return text;
+  }
+}
+
+function romanToUrduSingleLine(text) {
+  try {
   if (!text) return '';
   if (/^[\d\s\-./#]+$/.test(text)) return text;
   // Check custom phonetic dictionary first (exact match)
@@ -281,7 +291,7 @@ export function romanToUrdu(text) {
 
   // ─── PRE-PROCESSING ───
   // Normalize whitespace
-  result = result.replace(/\s+/g, ' ');
+  result = result.replace(/[ \t]+/g, ' ');
   // If already mostly Urdu, return as-is
   const urduChars = (result.match(/[\u0600-\u06FF]/g) || []).length;
   const totalChars = result.replace(/\s/g, '').length;
@@ -701,7 +711,7 @@ export function romanToUrdu(text) {
   }).join('');
 
   // Clean up extra whitespace
-  result = result.replace(/\s+/g, ' ').trim();
+  result = result.replace(/[ \t]+/g, ' ').trim();
 
   return result || text;
   } catch (e) { return text; }
@@ -1083,16 +1093,40 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const colSleeveUR = { 'full':'فل', 'half':'ہاف', 'three-quarter':'تھری کوارٹر', 'regular':'ریگولر', 'medium':'میڈیم' };
   const colLengthEN = { 'long':'Long', 'regular':'Regular', 'short':'Short' };
   const colLengthUR = { 'long':'لانگ', 'regular':'ریگولر', 'short':'شارٹ' };
-  const colSleeveDisp = (v) => v ? (isUrdu ? (colSleeveUR[v] || v) : (colSleeveEN[v] || v)) : '—';
-  const colLengthDisp = (v) => v ? (isUrdu ? (colLengthUR[v] || v) : (colLengthEN[v] || v)) : '—';
-  const slDisplay = (v) => v ? (isUrdu ? (urduSlMap[v] || v) : (slMap[v] || v)) : '';
-  const shDisplay = (v) => v ? (isUrdu ? (urduShMap[v] || v) : (shMap[v] || v)) : '';
-  const genDisplay = (g) => g ? (isUrdu ? (g === 'Male' ? 'مرد' : g === 'Female' ? 'عورت' : g) : g) : '';
-  const sec = lang === 'en' ? enSection : urduSection;
   const isUrdu = lang === 'ur';
+  const sec = lang === 'en' ? enSection : urduSection;
+
+  const tu = (t) => {
+    if (!t) return '';
+    if (!isUrdu) return t;
+    const urdu = toUrduName(t);
+    if (urdu === t) {
+      return romanToUrdu(t);
+    }
+    return urdu;
+  };
+
   const ru = (t) => isUrdu && t ? romanToUrdu(t) : t;
-  const pu = (t) => isUrdu && t ? toUrduName(t) : t;
-  const vu = (t) => isUrdu && t ? toUrduName(t) : t;
+  const pu = tu;
+  const vu = tu;
+
+  const colSleeveDisp = (v) => {
+    if (!v) return '—';
+    const key = v.toLowerCase().trim();
+    return isUrdu ? (colSleeveUR[key] || tu(v)) : (colSleeveEN[key] || v);
+  };
+  const colLengthDisp = (v) => {
+    if (!v) return '—';
+    const key = v.toLowerCase().trim();
+    return isUrdu ? (colLengthUR[key] || tu(v)) : (colLengthEN[key] || v);
+  };
+  const slDisplay = (v) => v ? (isUrdu ? (urduSlMap[v.toLowerCase().trim()] || tu(v)) : (slMap[v] || v)) : '';
+  const shDisplay = (v) => v ? (isUrdu ? (urduShMap[v.toLowerCase().trim()] || tu(v)) : (shMap[v] || v)) : '';
+  const genDisplay = (g) => {
+    if (!g) return '';
+    const key = g.toLowerCase().trim();
+    return isUrdu ? (key === 'male' ? 'مرد' : key === 'female' ? 'عورت' : tu(g)) : g;
+  };
   const dir = isUrdu ? 'rtl' : 'ltr';
 
   const orderType = order.type || 'STANDARD';
@@ -1224,7 +1258,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       const fcParts = [vu(p.fabricType), vu(p.color)].filter(Boolean);
       win.document.write(`<td>${fcParts.join(' • ') || '—'}</td>`);
       // Size & Gender column (only size + gender)
-      const sgParts = [p.size ? (isUrdu ? `سائز ${p.size}` : `Size ${p.size}`) : (isUrdu ? 'کسٹم' : 'Custom'), genDisplay(p.gender)].filter(Boolean);
+      const sgParts = [p.size ? (isUrdu ? `سائز ${pu(p.size)}` : `Size ${p.size}`) : (isUrdu ? 'کسٹم' : 'Custom'), genDisplay(p.gender)].filter(Boolean);
       win.document.write(`<td>${sgParts.join(' • ') || '—'}</td>`);
       win.document.write(`<td style="text-align:center;font-weight:700">${item.quantity || 1}</td>`);
       if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;color:#000">${capQty || '—'}</td>`);
@@ -1245,13 +1279,48 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     win.document.write(`<td style="font-weight:700">${singleVerified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:#6366f120;color:#6366f1;border:1px solid #6366f140;font-size:10px;margin-right:4px" title="Verified">✓</span>' : ''}${pu(firstProduct.productType || firstProduct.name) || '—'}</td>`);
     const fcParts = [vu(firstProduct.fabricType), vu(firstProduct.color)].filter(Boolean);
     win.document.write(`<td>${fcParts.join(' • ') || '—'}</td>`);
-    const sgParts = [firstProduct.size ? (isUrdu ? `سائز ${firstProduct.size}` : `Size ${firstProduct.size}`) : (isUrdu ? 'کسٹم' : 'Custom'), genDisplay(firstProduct.gender)].filter(Boolean);
+    const sgParts = [firstProduct.size ? (isUrdu ? `سائز ${pu(firstProduct.size)}` : `Size ${firstProduct.size}`) : (isUrdu ? 'کسٹم' : 'Custom'), genDisplay(firstProduct.gender)].filter(Boolean);
     win.document.write(`<td>${sgParts.join(' • ') || '—'}</td>`);
     win.document.write(`<td style="text-align:center;font-weight:700">${order.quantity || 1}</td>`);
     if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;color:#000">${capQty || '—'}</td>`);
     win.document.write(`<td style="text-align:center;font-weight:600;font-size:16px">${colSleeveDisp(sv)}</td>`);
     win.document.write(`<td style="text-align:center;font-weight:600;font-size:16px">${colLengthDisp(lv)}</td>`);
     win.document.write(`</tr></tbody></table>`);
+  }
+
+  // ─── MEASUREMENTS SECTION ───
+  if (showMeas) {
+    win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
+    win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 12px;margin-bottom:8px;page-break-inside:avoid">`);
+    if (isMultiItem) {
+      allItems.forEach((item, idx) => {
+        const p = getItemProduct(item);
+        const pName = p.productType || p.name;
+        const sizeVal = p.size ? pu(p.size) : (isUrdu ? 'کسٹم' : 'Custom');
+        const perProductSizes = (rawSizes && typeof rawSizes === 'object' && !Array.isArray(rawSizes) && rawSizes[pName]) ? rawSizes[pName] : null;
+        const sizeSpecialNote = perProductSizes?.specialNote || item.sizeData?.specialNote;
+        
+        win.document.write(`<div style="margin-bottom:6px;${idx > 0 ? 'border-top:1px solid #eee;padding-top:6px;' : ''}">`);
+        win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;margin-bottom:2px">`);
+        win.document.write(`<span style="background:#111;color:#fff;width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;margin-right:6px">${idx + 1}</span>`);
+        win.document.write(`${pu(pName)} — ${isUrdu ? 'سائز' : 'Size'}: <span style="font-weight:900">${sizeVal}</span>`);
+        win.document.write(`</p>`);
+        if (sizeSpecialNote) {
+          win.document.write(`<p style="font-size:20px;font-weight:700;color:#d97706;white-space:pre-wrap;word-break:break-word;margin-top:2px"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'پیمائش نوٹ: ' + romanToUrdu(sizeSpecialNote) : 'Measurement Note: ' + sizeSpecialNote}</p>`);
+        }
+        win.document.write(`</div>`);
+      });
+    } else {
+      const sizeVal = firstProduct.size ? pu(firstProduct.size) : (isUrdu ? 'کسٹم' : 'Custom');
+      const sizeSpecialNote = (rawSizes && rawSizes.specialNote) || (sizes && sizes.specialNote);
+      win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;margin-bottom:2px">`);
+      win.document.write(`${isUrdu ? 'سائز' : 'Size'}: <span style="font-weight:900">${sizeVal}</span>`);
+      win.document.write(`</p>`);
+      if (sizeSpecialNote) {
+        win.document.write(`<p style="font-size:20px;font-weight:700;color:#d97706;white-space:pre-wrap;word-break:break-word;margin-top:2px"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'پیمائش نوٹ: ' + romanToUrdu(sizeSpecialNote) : 'Measurement Note: ' + sizeSpecialNote}</p>`);
+      }
+    }
+    win.document.write(`</div>`);
   }
 
   // ─── ENGRAVING / BRANDING ───
@@ -1313,7 +1382,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           if (hasSpecs) {
             win.document.write(`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">`);
             if (c.nameColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fce7f3;color:#9d174d">${sec.color}: ${vu(c.nameColor)}</span>`);
-            if (c.logoPlacement) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#ccfbf1;color:#0f766e">${sec.position}: ${c.logoPlacement}</span>`);
+            if (c.logoPlacement) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#ccfbf1;color:#0f766e">${sec.position}: ${vu(c.logoPlacement)}</span>`);
             if (c.logoColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#92400e">${isUrdu ? 'لوگو:' : 'Logo:'} ${vu(c.logoColor)}</span>`);
             win.document.write(`</div>`);
           }
@@ -1336,10 +1405,10 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
             win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px">`);
             win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
             if (hasNotes) {
-              win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;white-space:pre-wrap;margin-bottom:${sizeSpecialNote ? '6px' : '0'}"${isUrdu ? ' class="urdu"' : ''}>${c.designNotes}</p>`);
+              win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;white-space:pre-wrap;word-break:break-word;margin-bottom:${sizeSpecialNote ? '6px' : '0'}"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? romanToUrdu(c.designNotes) : c.designNotes}</p>`);
             }
             if (sizeSpecialNote) {
-              win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? romanToUrdu(sizeSpecialNote) : sizeSpecialNote}</p>`);
+              win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;white-space:pre-wrap;word-break:break-word"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? romanToUrdu(sizeSpecialNote) : sizeSpecialNote}</p>`);
             }
             win.document.write(`</div>`);
           }
@@ -1356,8 +1425,9 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
         win.document.write(`</div>`);
 
         if (order.engravingType) {
-          const etLabel = order.engravingType === 'direct' ? 'Direct Engraving' : 'Patch Engraving';
-          win.document.write(`<p style="font-size:20px;font-weight:800;color:#7c3aed;margin-bottom:4px">Type: ${etLabel}</p>`);
+          const etLabel = order.engravingType === 'direct' ? (isUrdu ? 'ڈائریکٹ اینگرونگ' : 'Direct Engraving') : (isUrdu ? 'پیچ اینگرونگ' : 'Patch Engraving');
+          const typeLabel = isUrdu ? 'قسم' : 'Type';
+          win.document.write(`<p style="font-size:20px;font-weight:800;color:#7c3aed;margin-bottom:4px"${isUrdu ? ' class="urdu"' : ''}>${typeLabel}: ${etLabel}</p>`);
         }
         if (order.engravingText) {
           win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;margin-bottom:4px">${sec.engravingType}: ${order.engravingText}</p>`);
@@ -1379,15 +1449,16 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           });
         }
         if (order.engravingInstructions) {
+          const engInstDisplay = isUrdu ? romanToUrdu(order.engravingInstructions) : order.engravingInstructions;
           win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px;margin-top:6px">`);
-          win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px">${sec.specialNote}</p>`);
-          win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;white-space:pre-wrap">${order.engravingInstructions}</p></div>`);
+          win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
+          win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;white-space:pre-wrap;word-break:break-word"${isUrdu ? ' class="urdu"' : ''}>${engInstDisplay}</p></div>`);
         }
         if (order.instructionNotes) {
           const notesDisplay = isUrdu ? romanToUrdu(order.instructionNotes) : order.instructionNotes;
           win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px;margin-top:6px">`);
           win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.instructionNotes}</p>`);
-          win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
+          win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap;word-break:break-word"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
         }
         win.document.write(`</div>`);
       }

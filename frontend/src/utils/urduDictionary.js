@@ -389,15 +389,29 @@ const urduDictionary = {
 export function toUrduName(text) {
   if (!text) return '';
   const key = typeof text === 'string' ? text.trim() : String(text);
+  
+  // Try exact match first
   if (urduDictionary[key]) return urduDictionary[key];
-  // Compound match: try progressively shorter prefixes, then translate remaining words
+  
+  // Try case-insensitive exact match
+  const lowerKey = key.toLowerCase();
+  const exactMatchKey = Object.keys(urduDictionary).find(k => k.toLowerCase() === lowerKey);
+  if (exactMatchKey) return urduDictionary[exactMatchKey];
+  
+  // Try case-insensitive matches for parts
   const words = key.split(/\s+/);
   if (words.length > 1) {
     for (let i = words.length - 1; i >= 1; i--) {
       const prefix = words.slice(0, i).join(' ');
-      if (urduDictionary[prefix]) {
-        const suffix = words.slice(i).map(w => urduDictionary[w] || w).join(' ');
-        return urduDictionary[prefix] + ' ' + suffix;
+      const lowerPrefix = prefix.toLowerCase();
+      const prefixMatchKey = Object.keys(urduDictionary).find(k => k.toLowerCase() === lowerPrefix);
+      if (prefixMatchKey) {
+        const suffix = words.slice(i).map(w => {
+          const lowerW = w.toLowerCase();
+          const wMatchKey = Object.keys(urduDictionary).find(k => k.toLowerCase() === lowerW);
+          return wMatchKey ? urduDictionary[wMatchKey] : w;
+        }).join(' ');
+        return urduDictionary[prefixMatchKey] + ' ' + suffix;
       }
     }
   }
