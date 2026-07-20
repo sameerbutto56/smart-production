@@ -275,7 +275,10 @@ const getCODSummary = async (req, res) => {
       where: {
         currentStage: 'DELIVERED',
         deliveredAt: { gte: today },
-        paymentMethod: { in: ['CASH', 'CASH_ONLINE', null] }
+        OR: [
+          { paymentMethod: { in: ['CASH', 'CASH_ONLINE'] } },
+          { paymentMethod: null }
+        ]
       },
       select: { id: true, orderNumber: true, customerName: true, totalPrice: true, deliveredAt: true, advanceAmount: true }
     });

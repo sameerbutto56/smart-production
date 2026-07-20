@@ -536,7 +536,7 @@ const CODCollectionPanel = ({ refresh }) => {
     try {
       const res = await api.get('/api/delivery/cod');
       setCodData(res.data);
-    } catch { toast.error('Failed to load COD data'); }
+    } catch (err) { console.error('COD fetch error:', err?.response?.data || err.message); toast.error(err?.response?.data?.error || 'Failed to load COD data'); }
     setLoading(false);
   }, []);
 
