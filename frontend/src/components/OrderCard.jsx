@@ -2251,7 +2251,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             ...(product?.sleeveLength ? [{ label: 'Sleeves بازو', val: product.sleeveLength === 'full' ? 'Full' : product.sleeveLength === 'half' ? 'Half ہاف' : product.sleeveLength === 'three-quarter' ? '3 Quarter' : 'Quarter' }] : []),
                             ...(product?.shirtLength ? [{ label: t('Length'), val: product.shirtLength === 'long' ? 'Long' : product.shirtLength === 'regular' ? 'Regular ریگولر' : 'Short' }] : []),
                             ...(product?.fabricSourceProduct ? [{ label: 'Fabric Required', val: product.fabricSourceProduct }] : []),
-                            ...(product?.colorSourceProduct ? [{ label: 'Color Required', val: product.colorSourceProduct }] : []),
+                            ...(product?.colorSourceProduct ? [{ label: 'Color Required', val: isUrdu ? toUrduName(product.colorSourceProduct) : product.colorSourceProduct }] : []),
                             ...(product?.designSourceProduct ? [{ label: 'Design Required', val: product.designSourceProduct }] : []),
                             ...(product?.sizeSourceProduct ? [{ label: 'Size Required', val: product.sizeSourceProduct }] : []),
                             ...(product?.additionalProductRef ? [{ label: 'Additional Ref', val: product.additionalProductRef }] : []),

@@ -706,7 +706,7 @@ const AllOrders = () => {
                       {(product?.fabricSourceProduct || product?.colorSourceProduct || product?.designSourceProduct || product?.sizeSourceProduct || product?.additionalProductRef) && (
                         <div className="flex flex-wrap gap-1.5 mt-1">
                           {product?.fabricSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Fabric: {product.fabricSourceProduct}</span>}
-                          {product?.colorSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Color: {product.colorSourceProduct}</span>}
+                          {product?.colorSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Color: {isUrdu ? toUrduName(product.colorSourceProduct) : product.colorSourceProduct}</span>}
                           {product?.designSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Design: {product.designSourceProduct}</span>}
                           {product?.sizeSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Size: {product.sizeSourceProduct}</span>}
                           {product?.additionalProductRef && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Extra: {product.additionalProductRef}</span>}
@@ -1053,7 +1053,7 @@ const AllOrders = () => {
                         ...(product?.sleeveLength ? [{ label: 'Sleeve Length', val: ({'full':'Full','half':'Half ہاف','three-quarter':'3 Quarter'}[product.sleeveLength] || product.sleeveLength) }] : []),
                         ...(product?.shirtLength ? [{ label: 'Shirt Length', val: ({'long':'Long','short':'Short','regular':'Regular ریگولر'}[product.shirtLength] || product.shirtLength) }] : []),
                         ...(product?.fabricSourceProduct ? [{ label: 'Fabric Required', val: product.fabricSourceProduct }] : []),
-                        ...(product?.colorSourceProduct ? [{ label: 'Color Required', val: product.colorSourceProduct }] : []),
+                        ...(product?.colorSourceProduct ? [{ label: 'Color Required', val: isUrdu ? toUrduName(product.colorSourceProduct) : product.colorSourceProduct }] : []),
                         ...(product?.designSourceProduct ? [{ label: 'Design Required', val: product.designSourceProduct }] : []),
                         ...(product?.sizeSourceProduct ? [{ label: 'Size Required', val: product.sizeSourceProduct }] : []),
                         ...(product?.additionalProductRef ? [{ label: 'Additional Reference', val: product.additionalProductRef }] : []),
