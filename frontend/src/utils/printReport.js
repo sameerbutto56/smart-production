@@ -959,7 +959,7 @@ const urduSection = {
   sizeGender: 'سائز اور جنس',
   qty: 'تعداد',
   cap: 'کیپ',
-  sleeves: 'Sleeves بازو',
+  sleeves: 'بازو',
   length: 'لمبائی',
   nameLines: 'نام کی لائنیں',
   logos: 'لوگو',
@@ -1085,8 +1085,8 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const shMap = { 'long':'Long', 'short':'Short', 'regular':'Regular ریگولر' };
   const femSlMap = { 'full':'Full', 'half':'Half ہاف', 'medium':'Medium' };
   const femShMap = { 'long':'Long', 'short':'Short' };
-  const urduSlMap = { 'full':'فل بازو', 'half':'Half ہاف', 'three-quarter':'کوارٹر', 'quarter':'کوارٹر' };
-  const urduShMap = { 'long':'لمبی بازو', 'short':'چھوٹی بازو', 'regular':'Regular ریگولر' };
+  const urduSlMap = { 'full':'فل بازو', 'half':'ہاف', 'three-quarter':'تھری کوارٹر', 'quarter':'کوارٹر' };
+  const urduShMap = { 'long':'لمبے بازو', 'short':'چھوٹے بازو', 'regular':'ریگولر' };
   const urduFemSlMap = { 'full':'فل بازو', 'half':'Half ہاف', 'medium':'درمیانی' };
   const urduFemShMap = { 'long':'لمبی بازو', 'short':'چھوٹی بازو' };
   // Sleeve & Length column display maps (values only, no label prefix)
@@ -1167,7 +1167,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   win.document.write(`<div style="text-align:center;margin-bottom:8px;border-bottom:3px solid #111;padding-bottom:8px">`);
   win.document.write(`<h1 style="font-size:28px;font-weight:900;text-transform:uppercase;letter-spacing:1px;color:#000">${sec.jobSheet}</h1>`);
   win.document.write(`<p style="font-size:20px;color:#000;margin-top:2px;font-weight:700">${isUrdu ? 'آرڈر #' : 'Order #'}${order.orderNumber || order.id?.slice(0, 8)}</p>`);
-  win.document.write(`<p style="font-size:18px;color:#555;font-weight:600;margin-top:2px">ENAMELS Production</p>`);
+  win.document.write(`<p style="font-size:18px;color:#555;font-weight:600;margin-top:2px"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'اینملز پروڈکشن' : 'ENAMELS Production'}</p>`);
   win.document.write(`<p style="font-size:15px;color:#999;font-weight:500;margin-top:2px">${isUrdu ? 'تیار کردہ:' : 'Generated:'} ${generatedDate} ${generatedTime}</p>`);
   win.document.write(`</div>`);
 
@@ -1206,7 +1206,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   // ─── OUTLET SOURCE LABEL ───
   if (order.source === 'OUTLET' && order.outletName) {
     win.document.write(`<div style="background:#7c3aed10;border:2px solid #7c3aed40;border-radius:6px;padding:6px 12px;margin-bottom:8px;text-align:center">`);
-    win.document.write(`<span style="font-size:22px;font-weight:900;color:#7c3aed;text-transform:uppercase">Source: Outlet — ${order.outletName}</span>`);
+    win.document.write(`<span style="font-size:22px;font-weight:900;color:#7c3aed;text-transform:uppercase"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'ماخذ: آؤٹ لیٹ —' : 'Source: Outlet —'} ${order.outletName}</span>`);
     win.document.write(`</div>`);
   }
 
@@ -1359,7 +1359,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px;page-break-inside:avoid">`);
           win.document.write(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding-bottom:6px;border-bottom:2px solid #eee">`);
           win.document.write(`<span style="background:#111;color:#fff;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:20px;font-weight:800">${idx + 1}</span>`);
-            win.document.write(`<span style="font-weight:900;font-size:22px;text-transform:uppercase">${pu(p.productType || p.name) || 'Item ' + (idx + 1)}</span>`);
+            win.document.write(`<span style="font-weight:900;font-size:22px;text-transform:uppercase">${pu(p.productType || p.name) || (isUrdu ? 'آئٹم ' : 'Item ') + (idx + 1)}</span>`);
           if (p.color) win.document.write(`<span style="font-size:18px;color:#000">(${vu(p.color)})</span>`);
           win.document.write(`</div>`);
 
@@ -1414,7 +1414,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
         win.document.write(`<div style="border:2px solid #7c3aed40;border-radius:8px;padding:8px 10px;margin-bottom:8px;page-break-inside:avoid">`);
         win.document.write(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding-bottom:6px;border-bottom:2px solid #7c3aed20">`);
         win.document.write(`<span style="background:#7c3aed;color:#fff;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:20px;font-weight:800">✦</span>`);
-        win.document.write(`<span style="font-weight:900;font-size:22px;text-transform:uppercase;color:#7c3aed">Outlet Engraving</span>`);
+        win.document.write(`<span style="font-weight:900;font-size:22px;text-transform:uppercase;color:#7c3aed"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'آؤٹ لیٹ اینگرونگ' : 'Outlet Engraving'}</span>`);
         win.document.write(`</div>`);
 
         if (order.engravingType) {
@@ -1468,18 +1468,19 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   closePrintWindow(win);
 }
 
-export function printDispatchSheet(order) {
-  const isUrdu = false;
-  const pu = (t) => t || '—';
-  const vu = (t) => t || '—';
-  const title = 'Dispatch Sheet — ' + (order.orderNumber || order.id?.slice(0, 8));
+export function printDispatchSheet(order, lang = 'ur') {
+  const isUrdu = lang === 'ur';
+  const ru = (t) => isUrdu && t ? romanToUrdu(t) : t;
+  const pu = (t) => { if (!t) return '—'; if (!isUrdu) return t; const u = toUrduName(t); return u !== t ? u : romanToUrdu(t); };
+  const vu = pu;
+  const title = (isUrdu ? 'ڈسپیچ شیٹ — ' : 'Dispatch Sheet — ') + (order.orderNumber || order.id?.slice(0, 8));
   const win = window.open('', '_blank');
   win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>${PRINT_CSS}</style></head><body>`);
   win.document.write(getPrintLogoHTML());
 
   // ─── ORDER NUMBER ───
   win.document.write(`<div style="text-align:center;margin-bottom:10px">`);
-  win.document.write(`<h2 style="font-size:36px;font-weight:900;text-transform:uppercase;color:#000;letter-spacing:1px">Order #${order.orderNumber || order.id?.slice(0, 8)}</h2>`);
+  win.document.write(`<h2 style="font-size:36px;font-weight:900;text-transform:uppercase;color:#000;letter-spacing:1px"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'آرڈر نمبر' : 'Order #'}${order.orderNumber || order.id?.slice(0, 8)}</h2>`);
   win.document.write(`</div>`);
 
   // ─── CUSTOMER DETAILS ───
@@ -1487,11 +1488,20 @@ export function printDispatchSheet(order) {
   win.document.write(`<p style="font-size:22px;font-weight:900;color:#000;margin-bottom:4px">${order.customerName || '—'}</p>`);
   win.document.write(`<p style="font-size:18px;font-weight:600;color:#000;margin-bottom:2px">${order.customerPhone || ''}</p>`);
   if (order.address) win.document.write(`<p style="font-size:16px;color:#000;margin-bottom:2px">${order.address}</p>`);
-  if (order.city) win.document.write(`<p style="font-size:20px;font-weight:900;color:#000;background:#fef3c7;display:inline-block;padding:4px 14px;border-radius:6px;margin-top:4px;text-transform:uppercase">CITY: ${order.city}</p>`);
+  if (order.city) win.document.write(`<p style="font-size:20px;font-weight:900;color:#000;background:#fef3c7;display:inline-block;padding:4px 14px;border-radius:6px;margin-top:4px;text-transform:uppercase"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'شہر:' : 'CITY:'} ${order.city}</p>`);
   win.document.write(`</div>`);
 
   // ─── ORDER META ───
   win.document.write(`<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">`);
+  const badgeLabels = {
+    'PAID': isUrdu ? 'ادا شدہ' : 'PAID',
+    'COD': isUrdu ? 'نقد ڈلیوری' : 'COD',
+    'CASH ON DELIVERY': isUrdu ? 'نقد ڈلیوری' : 'CASH ON DELIVERY',
+    'SUPER_URGENT': isUrdu ? 'انتہائی ارجنٹ' : 'SUPER URGENT',
+    'URGENT': isUrdu ? 'ارجنٹ' : 'URGENT',
+    'FULL_CUSTOM': isUrdu ? 'فل کسٹم' : 'FULL CUSTOM',
+    'STANDARD': isUrdu ? 'اسٹینڈرڈ' : 'STANDARD',
+  };
   const payLabel = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? 'PAID' : 'COD';
   [order.type, order.priority, order.outletName || order.source, payLabel].filter(Boolean).forEach(label => {
     let color = '#6b7280';
@@ -1500,25 +1510,29 @@ export function printDispatchSheet(order) {
     else if (label === 'URGENT') color = '#d97706';
     else if (label === 'CASH ON DELIVERY' || label === 'COD') color = '#dc2626';
     else if (label === 'FULL_CUSTOM') color = '#059669';
-    if (label === 'CASH ON DELIVERY') label = 'COD';
-    win.document.write(`<span style="padding:3px 12px;border-radius:6px;font-size:18px;font-weight:700;text-transform:uppercase;background:${color}20;color:${color};border:2px solid ${color}40">${label}</span>`);
+    const displayLabel = badgeLabels[label] || ru(label);
+    win.document.write(`<span style="padding:3px 12px;border-radius:6px;font-size:18px;font-weight:700;text-transform:uppercase;background:${color}20;color:${color};border:2px solid ${color}40"${isUrdu ? ' class="urdu-text"' : ''}>${displayLabel}</span>`);
   });
   win.document.write(`</div>`);
 
   // ─── PRODUCTS TABLE ───
-  win.document.write(`<div class="section-title" style="font-size:24px;margin-top:4px">Products</div>`);
+  win.document.write(`<div class="section-title${isUrdu ? ' urdu' : ''}" style="font-size:24px;margin-top:4px">${isUrdu ? 'آرٹیکلز' : 'Products'}</div>`);
   const rawPd = parseJSON(order.productDetails);
   const allItems = Array.isArray(rawPd) ? rawPd : null;
   const firstProduct = allItems ? getItemProduct(allItems[0]) : (rawPd || {});
   const isMultiItem = allItems && allItems.length > 0;
 
   if (isMultiItem) {
-    win.document.write(`<table><thead><tr><th>#</th><th>Product</th><th>Color / Size</th><th style="text-align:center">Qty</th><th style="text-align:right">Price</th></tr></thead><tbody>`);
+    const th = (t) => isUrdu ? t : t;
+    const thU = (en, ur) => isUrdu ? ur : en;
+    win.document.write(`<table><thead><tr><th>#</th><th>${thU('Product', 'آرٹیکل')}</th><th>${thU('Color / Size', 'رنگ / سائز')}</th><th style="text-align:center">${thU('Qty', 'تعداد')}</th><th style="text-align:right">${thU('Price', 'قیمت')}</th></tr></thead><tbody>`);
     allItems.forEach((item, idx) => {
       const p = getItemProduct(item);
-      const slMap = { 'full':'Full', 'half':'Half', 'three-quarter':'3 Quarter' };
-      const shMap = { 'long':'Long', 'short':'Short', 'regular':'Regular' };
-      const extras = [p.sleeveLength ? `Sleeve: ${slMap[p.sleeveLength] || p.sleeveLength}` : null, p.shirtLength ? `Length: ${shMap[p.shirtLength] || p.shirtLength}` : null].filter(Boolean).join(' | ');
+      const slMap = isUrdu ? { 'full':'فل', 'half':'ہاف', 'three-quarter':'تھری کوارٹر' } : { 'full':'Full', 'half':'Half', 'three-quarter':'3 Quarter' };
+      const shMap = isUrdu ? { 'long':'لانگ', 'short':'شارٹ', 'regular':'ریگولر' } : { 'long':'Long', 'short':'Short', 'regular':'Regular' };
+      const sleeveLabel = isUrdu ? 'آستین:' : 'Sleeve:';
+      const lengthLabel = isUrdu ? 'لمبائی:' : 'Length:';
+      const extras = [p.sleeveLength ? `${sleeveLabel} ${slMap[p.sleeveLength] || p.sleeveLength}` : null, p.shirtLength ? `${lengthLabel} ${shMap[p.shirtLength] || p.shirtLength}` : null].filter(Boolean).join(' | ');
       win.document.write(`<tr>`);
       win.document.write(`<td style="font-weight:700">${idx + 1}</td>`);
       win.document.write(`<td style="font-weight:700">${pu(p.productType || p.name) || '—'}</td>`);
@@ -1529,7 +1543,8 @@ export function printDispatchSheet(order) {
     });
     win.document.write(`</tbody></table>`);
   } else {
-    win.document.write(`<table><thead><tr><th>Product</th><th>Color / Size</th><th style="text-align:center">Qty</th><th style="text-align:right">Price</th></tr></thead><tbody>`);
+    const thU = (en, ur) => isUrdu ? ur : en;
+    win.document.write(`<table><thead><tr><th>${thU('Product', 'آرٹیکل')}</th><th>${thU('Color / Size', 'رنگ / سائز')}</th><th style="text-align:center">${thU('Qty', 'تعداد')}</th><th style="text-align:right">${thU('Price', 'قیمت')}</th></tr></thead><tbody>`);
     win.document.write(`<tr>`);
     win.document.write(`<td style="font-weight:700">${pu(firstProduct.productType || firstProduct.name) || '—'}</td>`);
     win.document.write(`<td>${[vu(firstProduct.fabricType), vu(firstProduct.color), firstProduct.size, firstProduct.gender].filter(Boolean).join(' • ') || '—'}</td>`);
@@ -1539,40 +1554,40 @@ export function printDispatchSheet(order) {
   }
 
   // ─── FINANCIAL SUMMARY ───
-  win.document.write(`<div class="section-title" style="font-size:24px;margin-top:8px">Financial Summary</div>`);
+  win.document.write(`<div class="section-title${isUrdu ? ' urdu' : ''}" style="font-size:24px;margin-top:8px">${isUrdu ? 'مالی خلاصہ' : 'Financial Summary'}</div>`);
   win.document.write(`<div style="border:2px solid #ccc;border-radius:8px;padding:10px 14px">`);
-  win.document.write(summaryRow('Total Price', currency(order.totalPrice)));
+  win.document.write(summaryRow(isUrdu ? 'کل قیمت' : 'Total Price', currency(order.totalPrice)));
   if (parseFloat(order.deliveryCharges || 0) > 0) {
-    win.document.write(summaryRow('Delivery Charges', currency(order.deliveryCharges)));
+    win.document.write(summaryRow(isUrdu ? 'ڈلیوری چارجز' : 'Delivery Charges', currency(order.deliveryCharges)));
   }
   if (parseFloat(order.discount || 0) > 0) {
-    win.document.write(summaryRow('Discount', `-${currency(order.discount)}`));
+    win.document.write(summaryRow(isUrdu ? 'ڈسکاؤنٹ' : 'Discount', `-${currency(order.discount)}`));
   }
   if (parseFloat(order.advanceAmount || 0) > 0) {
-    win.document.write(summaryRow('Advance Paid', `-${currency(order.advanceAmount)}`));
+    win.document.write(summaryRow(isUrdu ? 'ایڈوانس ادا شدہ' : 'Advance Paid', `-${currency(order.advanceAmount)}`));
   }
-  win.document.write(`<div style="display:flex;justify-content:space-between;padding:8px 0 0;border-top:3px solid #000;margin-top:6px;font-size:22px">`);
-  win.document.write(`<span style="font-weight:900">Grand Total</span>`);
+  win.document.write(`<div style="display:flex;justify-content:space-between;padding:8px 0 0;border-top:3px solid #000;margin-top:6px;font-size:22px"${isUrdu ? ' class="urdu"' : ''}>`);
+  win.document.write(`<span style="font-weight:900">${isUrdu ? 'کل رقم' : 'Grand Total'}</span>`);
   win.document.write(`<span style="font-weight:900">${currency(order.totalPrice)}</span>`);
   win.document.write(`</div>`);
   if (order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID') {
-    win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;background:#05966920;border:2px solid #059669;border-radius:6px;font-size:20px;font-weight:900;color:#059669">PAID ✓</div>`);
+    win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;background:#05966920;border:2px solid #059669;border-radius:6px;font-size:20px;font-weight:900;color:#059669"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'ادا شدہ ✓' : 'PAID ✓'}</div>`);
   } else if (parseFloat(order.advanceAmount || 0) > 0) {
-    win.document.write(`<div style="display:flex;justify-content:space-between;margin-top:8px;padding:6px 10px;background:#d9770620;border:2px solid #d97706;border-radius:6px;font-size:18px;font-weight:700">`);
-    win.document.write(`<span style="color:#d97706">Advance Received: ${currency(order.advanceAmount)}</span>`);
-    win.document.write(`<span style="color:#d97706">Remaining: ${currency(parseFloat(order.totalPrice) - parseFloat(order.advanceAmount || 0))}</span>`);
+    win.document.write(`<div style="display:flex;justify-content:space-between;margin-top:8px;padding:6px 10px;background:#d9770620;border:2px solid #d97706;border-radius:6px;font-size:18px;font-weight:700"${isUrdu ? ' class="urdu"' : ''}>`);
+    win.document.write(`<span style="color:#d97706">${isUrdu ? 'ایڈوانس موصول:' : 'Advance Received:'} ${currency(order.advanceAmount)}</span>`);
+    win.document.write(`<span style="color:#d97706">${isUrdu ? 'باقی:' : 'Remaining:'} ${currency(parseFloat(order.totalPrice) - parseFloat(order.advanceAmount || 0))}</span>`);
     win.document.write(`</div>`);
   } else {
-    win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;background:#dc262620;border:2px solid #dc2626;border-radius:6px;font-size:20px;font-weight:900;color:#dc2626">CASH ON DELIVERY</div>`);
+    win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;background:#dc262620;border:2px solid #dc2626;border-radius:6px;font-size:20px;font-weight:900;color:#dc2626"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'نقد ڈلیوری' : 'CASH ON DELIVERY'}</div>`);
   }
   win.document.write(`</div>`);
 
   // ─── DISPATCH METHOD ───
   if (order.deliveryMethod) {
-    win.document.write(`<div style="margin-top:10px;padding:8px 14px;background:#7c3aed20;border:2px solid #7c3aed;border-radius:8px;text-align:center">`);
-    win.document.write(`<span style="font-size:20px;font-weight:900;color:#7c3aed;text-transform:uppercase">Dispatch Method: ${order.deliveryMethod}</span>`);
+    win.document.write(`<div style="margin-top:10px;padding:8px 14px;background:#7c3aed20;border:2px solid #7c3aed;border-radius:8px;text-align:center"${isUrdu ? ' class="urdu"' : ''}>`);
+    win.document.write(`<span style="font-size:20px;font-weight:900;color:#7c3aed;text-transform:uppercase">${isUrdu ? 'ڈسپیچ طریقہ:' : 'Dispatch Method:'} ${order.deliveryMethod}</span>`);
     if (order.trackingNumber) {
-      win.document.write(`<p style="font-size:18px;font-weight:700;color:#000;margin-top:4px">Tracking: ${order.trackingNumber}</p>`);
+      win.document.write(`<p style="font-size:18px;font-weight:700;color:#000;margin-top:4px">${isUrdu ? 'ٹریکنگ:' : 'Tracking:'} ${order.trackingNumber}</p>`);
     }
     win.document.write(`</div>`);
   }
