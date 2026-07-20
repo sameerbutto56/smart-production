@@ -229,7 +229,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
             >
                <span className="font-bold uppercase tracking-tighter text-gray-400">
                  {productVerification[String(idx)] === true && <span className="inline-flex items-center justify-center w-4 h-4 rounded-md bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 text-[9px] mr-1" title="Verified">✓</span>}
-                 #{idx + 1} {(isUrdu ? toUrduName(p.productType || p.name || 'Item') : (p.productType || p.name || 'Item'))}: {p.fabricType || 'STD'} / {(isUrdu ? toUrduName(p.color) : p.color) || '—'} / Size {p.size || '—'}
+                  #{idx + 1} {(isUrdu ? toUrduName(p.productType || p.name || 'Item') : (p.productType || p.name || 'Item'))}: {(isUrdu ? toUrduName(p.fabricType || 'STD') : (p.fabricType || 'STD'))} / {(isUrdu ? toUrduName(p.color) : p.color) || '—'} / Size {p.size || '—'}
                  {p.alteration && (p.alteration.trouserLength || p.alteration.shirtLength || p.alteration.sleeveLength) ? <span className="ml-1.5 text-amber-400 bg-amber-500/20 border border-amber-500/30 px-1 py-0.5 rounded text-[9px]">Alt: {[p.alteration.trouserLength && `Trouser ${p.alteration.trouserLength}"`, p.alteration.shirtLength && `Shirt ${p.alteration.shirtLength}"`, p.alteration.sleeveLength && `Sleeve ${p.alteration.sleeveLength}"`].filter(Boolean).join(' ')}</span> : ''}
                </span>
               {isStoreRole && (
@@ -247,9 +247,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
         });
       }
       const items = [
-        { label: 'Fabric', val: product?.fabricType },
-        { label: 'Color', val: product?.color },
-        { label: 'Base', val: product?.productType },
+        { label: 'Fabric', val: isUrdu ? toUrduName(product?.fabricType) : product?.fabricType },
+        { label: 'Color', val: isUrdu ? toUrduName(product?.color) : product?.color },
+        { label: 'Base', val: isUrdu ? toUrduName(product?.productType) : product?.productType },
         ...(product?.alteration && (product.alteration.trouserLength || product.alteration.shirtLength || product.alteration.sleeveLength) ? [{ label: 'Alteration', val: [product.alteration.trouserLength && `Trouser ${product.alteration.trouserLength}"`, product.alteration.shirtLength && `Shirt ${product.alteration.shirtLength}"`, product.alteration.sleeveLength && `Sleeve ${product.alteration.sleeveLength}"`].filter(Boolean).join(' ') }] : [])
       ];
       return (
@@ -336,8 +336,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 )}
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    { l: t('Fabric'), v: p?.fabricType },
-                    { l: t('Color'), v: p?.color },
+                    { l: t('Fabric'), v: isUrdu ? toUrduName(p?.fabricType) : p?.fabricType },
+                    { l: t('Color'), v: isUrdu ? toUrduName(p?.color) : p?.color },
                     { l: 'Size', v: p?.size },
                   ].filter(m => m.v).map((m, mi) => (
                     <div key={mi} className="bg-blue-500/5 p-2 rounded-lg border border-blue-500/10 text-center">
@@ -408,27 +408,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   </div>
                 </div>
 
-                {hasSizes && (
-                  <div className="bg-gray-950/50 p-3 rounded-xl border border-gray-800/50 mt-3">
-                    <p className="text-xs md:text-sm text-gray-500 font-black uppercase tracking-widest mb-2 px-1">Measurements</p>
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="border-b border-gray-800">
-                          <th className="text-left text-gray-500 font-black uppercase tracking-wider py-1.5 pr-2">Measurement</th>
-                          <th className="text-right text-gray-500 font-black uppercase tracking-wider py-1.5 pl-2 w-16">Inches</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {Object.entries(s).filter(([k, v]) => v && k !== 'specialNote').map(([key, val], si) => (
-                          <tr key={si} className="border-b border-gray-800/30">
-                            <td className="text-gray-400 font-bold py-1.5 pr-2 capitalize">{key}</td>
-                            <td className="text-right text-white font-black py-1.5 pl-2">{val}"</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+
 
                 {s?.specialNote && (
                   <div className="bg-yellow-500/5 p-3 rounded-xl border border-yellow-500/10 mt-3">
@@ -722,15 +702,15 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
           {(product?.color || product?.size || product?.fabricType || product?.productType || order.quantity > 0 || order.customizationPrice > 0 || order.logoCharges > 0 || order.namePrintingCharges > 0) && (
             <div className="mb-3 flex flex-wrap items-center gap-1.5 bg-gray-950/50 p-2 rounded-xl border border-gray-800/50">
               {(product?.productType || product?.name) && (
-                <span className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-tighter bg-gray-900 px-2 py-0.5 rounded-md truncate max-w-[100px]">{product.productType}</span>
+                <span className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-tighter bg-gray-900 px-2 py-0.5 rounded-md truncate max-w-[100px]">{isUrdu ? toUrduName(product.productType) : product.productType}</span>
               )}
               {product?.fabricType && (
-                <span className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-tighter bg-gray-900 px-2 py-0.5 rounded-md truncate max-w-[100px]">{product.fabricType}</span>
+                <span className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-tighter bg-gray-900 px-2 py-0.5 rounded-md truncate max-w-[100px]">{isUrdu ? toUrduName(product.fabricType) : product.fabricType}</span>
               )}
               {product?.color && (
                 <span className="text-[9px] md:text-[10px] font-black text-white uppercase tracking-tighter bg-gray-900 px-2 py-0.5 rounded-md flex items-center gap-1 truncate max-w-[100px]">
                   <span className="w-2 h-2 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: product.color.toLowerCase() }}></span>
-                  {product.color}
+                  {isUrdu ? toUrduName(product.color) : product.color}
                 </span>
               )}
               {product?.size && (
@@ -795,9 +775,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         </div>
                         <div className="grid grid-cols-2 gap-1.5 text-[10px]">
                           {p.category && <div><span className="text-gray-500">Category:</span> <span className="text-white font-bold">{p.category}</span></div>}
-                          {p.color && <div><span className="text-gray-500">Color:</span> <span className="text-white font-bold">{p.color}</span></div>}
+                          {p.color && <div><span className="text-gray-500">Color:</span> <span className="text-white font-bold">{isUrdu ? toUrduName(p.color) : p.color}</span></div>}
                           {p.size && <div><span className="text-gray-500">Size:</span> <span className="text-white font-bold">{p.size}</span></div>}
-                          {p.fabricType && <div><span className="text-gray-500">Fabric:</span> <span className="text-white font-bold">{p.fabricType}</span></div>}
+                          {p.fabricType && <div><span className="text-gray-500">Fabric:</span> <span className="text-white font-bold">{isUrdu ? toUrduName(p.fabricType) : p.fabricType}</span></div>}
                           {p.gender && <div><span className="text-gray-500">Gender:</span> <span className="text-white font-bold">{p.gender}</span></div>}
                         </div>
                         {(slv || shl || ic?.fitType) && (
@@ -845,11 +825,11 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 ) : (
                   <div className="border border-gray-800 rounded-xl p-2.5 space-y-2">
                     <div className="grid grid-cols-2 gap-1.5 text-[10px]">
-                      {(product?.productType || product?.name) && <div><span className="text-gray-500">Product:</span> <span className="text-white font-bold">{product.productType}</span></div>}
+                      {(product?.productType || product?.name) && <div><span className="text-gray-500">Product:</span> <span className="text-white font-bold">{isUrdu ? toUrduName(product.productType) : product.productType}</span></div>}
                       {product?.category && <div><span className="text-gray-500">Category:</span> <span className="text-white font-bold">{product.category}</span></div>}
-                      {product?.color && <div><span className="text-gray-500">Color:</span> <span className="text-white font-bold">{product.color}</span></div>}
+                      {product?.color && <div><span className="text-gray-500">Color:</span> <span className="text-white font-bold">{isUrdu ? toUrduName(product.color) : product.color}</span></div>}
                       {product?.size && <div><span className="text-gray-500">Size:</span> <span className="text-white font-bold">{product.size}</span></div>}
-                      {product?.fabricType && <div><span className="text-gray-500">Fabric:</span> <span className="text-white font-bold">{product.fabricType}</span></div>}
+                      {product?.fabricType && <div><span className="text-gray-500">Fabric:</span> <span className="text-white font-bold">{isUrdu ? toUrduName(product.fabricType) : product.fabricType}</span></div>}
                       {product?.gender && <div><span className="text-gray-500">Gender:</span> <span className="text-white font-bold">{product.gender}</span></div>}
                       <div><span className="text-gray-500">Qty:</span> <span className="text-white font-bold">{order.quantity || 1}</span></div>
                       <div><span className="text-gray-500">Type:</span> <span className="text-white font-bold">{order.type || 'STANDARD'}</span></div>
@@ -1615,7 +1595,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           const p = item.productDetails || {};
                           return (
                             <div key={idx} className="flex items-center justify-between p-2 bg-blue-900/10 rounded-lg border border-blue-500/20">
-                              <span className="text-xs font-bold text-blue-300 uppercase">{isUrdu ? toUrduName(p.productType || p.name || 'Item') : (p.productType || p.name || 'Item')}: {p.fabricType || '—'} / {(isUrdu ? toUrduName(p.color) : p.color) || '—'}</span>
+                              <span className="text-xs font-bold text-blue-300 uppercase">{isUrdu ? toUrduName(p.productType || p.name || 'Item') : (p.productType || p.name || 'Item')}: {(isUrdu ? toUrduName(p.fabricType || '—') : (p.fabricType || '—'))} / {(isUrdu ? toUrduName(p.color) : p.color) || '—'}</span>
                               <span className="text-xs font-black text-blue-400">x{item.quantity || 1}</span>
                             </div>
                           );
@@ -2158,7 +2138,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                    </td>
                                   <td className="py-4 px-4">
                                     <div className="uppercase text-gray-300">
-                                      {[p.fabricType, isUrdu ? toUrduName(p.color) : p.color].filter(Boolean).join(' • ') || '—'}
+                                      {[isUrdu ? toUrduName(p.fabricType) : p.fabricType, isUrdu ? toUrduName(p.color) : p.color].filter(Boolean).join(' • ') || '—'}
                                     </div>
                                   </td>
                                   <td className="py-4 px-4 uppercase">
@@ -2240,24 +2220,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                     </td>
                                   </tr>
                                 )}
-                                {itemSizes && Object.entries(itemSizes).some(([k, v]) => v && k !== 'specialNote') && (
-                                  <tr className="bg-blue-900/5 border-b border-gray-800/50">
-                                    <td colSpan={7} className="py-3 px-6">
-                                      <div className="flex flex-wrap gap-x-6 gap-y-1">
-                                        {Object.entries(itemSizes).filter(([k, v]) => v && k !== 'specialNote' && k !== '_extra' && k !== '_standardSize').map(([k, v]) => (
-                                          <span key={k} className="text-[10px] md:text-xs font-bold text-blue-300">
-                                            <span className="text-gray-500 uppercase tracking-wider">{k}:</span> {v}"
-                                          </span>
-                                        ))}
-                                      </div>
-                                      {itemSizes.specialNote && (
-                                        <div className="mt-2 text-[10px] md:text-xs text-yellow-400 font-black bg-yellow-900/20 px-2 py-1 rounded italic leading-tight">
-                                          Special Note: {itemSizes.specialNote}
-                                        </div>
-                                      )}
-                                    </td>
-                                  </tr>
-                                )}
+
                               </React.Fragment>
                             ;
                           })}
@@ -2275,9 +2238,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         </thead>
                         <tbody>
                           {[
-                            { label: t('Product'), val: (productVerification['0'] === true ? '✓ ' : '') + (product?.productType || product?.name) },
-                            { label: t('Fabric'), val: product?.fabricType },
-                            { label: t('Color'), val: product?.color },
+                            { label: t('Product'), val: (productVerification['0'] === true ? '✓ ' : '') + (isUrdu ? toUrduName(product?.productType || product?.name) : (product?.productType || product?.name)) },
+                            { label: t('Fabric'), val: isUrdu ? toUrduName(product?.fabricType) : product?.fabricType },
+                            { label: t('Color'), val: isUrdu ? toUrduName(product?.color) : product?.color },
                             { label: t('Size'), val: product?.size },
                             { label: t('Gender'), val: product?.gender },
                             ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
@@ -2372,72 +2335,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   );
                 })()}
 
-              {!isMultiItem && order.type === 'FULL_CUSTOM' && (
-                <section className="bg-blue-600/5 p-4 md:p-8 rounded-xl md:rounded-[2rem] border border-blue-500/10">
-                  <h4 className="text-xs md:text-sm font-black text-blue-400 uppercase tracking-[0.3em] mb-6">{t('02. Precise Measurements (Inches)')}</h4>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-blue-500/20">
-                          <th className="text-left text-blue-400 font-black uppercase tracking-wider py-2 pr-4">{t('Measurement')}</th>
-                          <th className="text-right text-blue-400 font-black uppercase tracking-wider py-2 pl-4 w-24">{t('Inches')}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {Object.entries(sizes || {}).filter(([k, v]) => k !== 'specialNote' && v).map(([key, val], i) => (
-                          <tr key={i} className="border-b border-blue-500/5">
-                            <td className="text-gray-300 font-bold py-2 pr-4 capitalize">{key}</td>
-                            <td className="text-right text-white font-black py-2 pl-4">{val}"</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  {(product?.sleeveLength || (product?.gender === 'Female' && product?.femaleOptions?.sleeves)) && (
-                    <div className="mt-3 flex justify-between items-center p-3 bg-gray-900 rounded-xl border border-pink-500/20">
-                      <span className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter">{'SLEEVES بازو'}</span>
-                      <span className="text-sm font-black text-white uppercase">{product.sleeveLength ? ({'full':'Full','half':'Half ہاف','three-quarter':'3 Quarter'}[product.sleeveLength] || product.sleeveLength) : ({'full':'Full','half':'Half ہاف','medium':'Medium'}[product.femaleOptions?.sleeves] || product.femaleOptions?.sleeves || '—')}</span>
-                    </div>
-                  )}
-                  {(product?.shirtLength || (product?.gender === 'Female' && product?.femaleOptions?.shirtLength)) && (
-                    <div className="mt-2 flex justify-between items-center p-3 bg-gray-900 rounded-xl border border-pink-500/20">
-                      <span className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter">{t('SHIRT LENGTH')}</span>
-                      <span className="text-sm font-black text-white uppercase">{product.shirtLength ? ({'long':'Long','short':'Short','regular':'Regular ریگولر'}[product.shirtLength] || product.shirtLength) : ({'long':'Long','short':'Short'}[product.femaleOptions?.shirtLength] || product.femaleOptions?.shirtLength || '—')}</span>
-                    </div>
-                  )}
-                  {product?.alteration && (product.alteration.trouserLength || product.alteration.shirtLength || product.alteration.sleeveLength) && (
-                    <div className="mt-3 bg-amber-500/10 border border-amber-500/30 rounded-xl p-4">
-                      <p className="text-xs font-black text-amber-400 uppercase tracking-wider mb-2">Alteration</p>
-                      <div className="grid grid-cols-3 gap-2">
-                        {product.alteration.trouserLength ? (
-                          <div className="text-center p-2 bg-gray-900 rounded-lg border border-amber-500/20">
-                            <span className="text-[9px] text-amber-500 font-black uppercase block">Trouser</span>
-                            <span className="text-sm font-black text-amber-400">{product.alteration.trouserLength}"</span>
-                          </div>
-                        ) : null}
-                        {product.alteration.shirtLength ? (
-                          <div className="text-center p-2 bg-gray-900 rounded-lg border border-amber-500/20">
-                            <span className="text-[9px] text-amber-500 font-black uppercase block">Shirt</span>
-                            <span className="text-sm font-black text-amber-400">{product.alteration.shirtLength}"</span>
-                          </div>
-                        ) : null}
-                        {product.alteration.sleeveLength ? (
-                          <div className="text-center p-2 bg-gray-900 rounded-lg border border-amber-500/20">
-                            <span className="text-[9px] text-amber-500 font-black uppercase block">Sleeve</span>
-                            <span className="text-sm font-black text-amber-400">{product.alteration.sleeveLength}"</span>
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  )}
-                  {sizes?.specialNote && (
-                    <div className="mt-3 p-3 bg-yellow-500/5 rounded-xl border border-yellow-500/10">
-                      <p className="text-xs md:text-sm text-yellow-400 font-black uppercase tracking-tighter mb-1">Special Note</p>
-                      <p className="text-sm font-bold text-yellow-300/90 italic leading-tight">{sizes.specialNote}</p>
-                    </div>
-                  )}
-                </section>
-              )}
+
+
+
 
               {order.type !== 'STANDARD' && (
               <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8">

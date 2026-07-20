@@ -1092,7 +1092,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const isUrdu = lang === 'ur';
   const ru = (t) => isUrdu && t ? romanToUrdu(t) : t;
   const pu = (t) => isUrdu && t ? toUrduName(t) : t;
-  const vu = (t) => isUrdu && t ? (toUrduName(t) || romanToUrdu(t)) : t;
+  const vu = (t) => isUrdu && t ? toUrduName(t) : t;
   const dir = isUrdu ? 'rtl' : 'ltr';
 
   const orderType = order.type || 'STANDARD';
@@ -1383,80 +1383,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       }
     }
   }
-  // ─── MEASUREMENTS ───
-  if (orderType === 'FULL_CUSTOM' && showMeas) {
-    const measItems = isMultiItem ? allItems : [{ productDetails: firstProduct, sizeData: sizes }];
-    const hasMeasValues = measItems.some(item => {
-      const rawS = item.sizeData || sizes || {};
-      const s_ = rawS && typeof rawS === 'object' && !Array.isArray(rawS) && Object.values(rawS).some(v => typeof v === 'object' && v !== null && !Array.isArray(v) && !v._extra)
-        ? Object.values(rawS).reduce((acc, v) => ({ ...acc, ...v }), {})
-        : rawS;
-      return Object.entries(s_).some(([k, v]) => v && k !== 'specialNote');
-    });
-    if (hasMeasValues) {
-      win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
-      measItems.forEach((item, idx) => {
-        const p = getItemProduct(item);
-        const rawS = item.sizeData || sizes || {};
-        const s_ = rawS && typeof rawS === 'object' && !Array.isArray(rawS) && Object.values(rawS).some(v => typeof v === 'object' && v !== null && !Array.isArray(v) && !v._extra)
-          ? Object.values(rawS).reduce((acc, v) => ({ ...acc, ...v }), {})
-          : rawS;
-        const productSize = p.size || 'Custom';
-        const allSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'C'];
-        win.document.write(`<div style="margin-bottom:6px;page-break-inside:avoid">`);
-        if (isMultiItem) {
-          win.document.write(`<p style="font-size:20px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px">#${idx + 1} ${pu(p.productType || p.name) || ''}</p>`);
-        }
-        win.document.write(`<div style="display:flex;gap:4px;flex-wrap:wrap">`);
-        allSizes.forEach(sz => {
-          const isSelected = sz === productSize || (sz === 'C' && productSize === 'Custom');
-          win.document.write(`<div style="text-align:center;border:2px solid ${isSelected ? '#000' : '#ccc'};border-radius:6px;padding:6px 14px;background:${isSelected ? '#000' : '#fff'};color:${isSelected ? '#fff' : '#666'};font-size:18px;font-weight:800">${sz}</div>`);
-        });
-        win.document.write(`</div>`);
-        const measEntries = Object.entries(s_).filter(([k, v]) => v && k !== 'specialNote' && k !== '_extra' && k !== '_standardSize');
-        if (measEntries.length > 0) {
-          win.document.write(`<table style="margin-top:6px;width:100%;border-collapse:collapse;font-size:18px">`);
-          measEntries.forEach(([k, v]) => {
-            win.document.write(`<tr><td style="font-weight:700;color:#333;border:1px solid #ccc;padding:2px 8px">${k}</td><td style="font-weight:900;color:#000;border:1px solid #ccc;padding:2px 8px;text-align:center">${v}"</td></tr>`);
-          });
-          win.document.write(`</table>`);
-        }
 
-        const ic = item.customization ? (typeof item.customization === 'string' ? JSON.parse(item.customization) : item.customization) : custom;
-        const hasAttr = p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct || p.additionalProductRef;
-        if (hasAttr) {
-          win.document.write(`<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">`);
-          if (p.fabricSourceProduct) win.document.write(`<span style="font-size:16px;font-weight:700;padding:4px 10px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.fabricSource}: ${ru(p.fabricSourceProduct)}</span>`);
-          if (p.colorSourceProduct) win.document.write(`<span style="font-size:16px;font-weight:700;padding:4px 10px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.colorSource}: ${ru(p.colorSourceProduct)}</span>`);
-          if (p.designSourceProduct) win.document.write(`<span style="font-size:16px;font-weight:700;padding:4px 10px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.designSource}: ${ru(p.designSourceProduct)}</span>`);
-          if (p.sizeSourceProduct) win.document.write(`<span style="font-size:16px;font-weight:700;padding:4px 10px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.sizeSource}: ${ru(p.sizeSourceProduct)}</span>`);
-          if (p.additionalProductRef) win.document.write(`<span style="font-size:16px;font-weight:700;padding:4px 10px;border-radius:4px;background:#fef3c7;color:#d97706;border:1px solid #f59e0b">${sec.extra}: ${ru(p.additionalProductRef)}</span>`);
-          win.document.write(`</div>`);
-        }
-        win.document.write(`</div>`);
-      });
-    }
-    // Extract first specialNote from sizeData (any product)
-    const measSpecialNote = (() => {
-      for (const item of measItems) {
-        const rawS = item.sizeData || sizes || {};
-        const s_ = rawS && typeof rawS === 'object' && !Array.isArray(rawS) && Object.values(rawS).some(v => typeof v === 'object' && v !== null && !Array.isArray(v) && !v._extra)
-          ? Object.values(rawS).reduce((acc, v) => ({ ...acc, ...v }), {})
-          : rawS;
-        if (s_.specialNote) return s_.specialNote;
-      }
-      return null;
-    })();
-    if (measSpecialNote) {
-      if (!hasMeasValues) {
-        win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
-      }
-      win.document.write(`<div style="margin-top:12px;background:#fffbeb;border:2px solid #d97706;border-radius:8px;padding:12px 16px">`);
-      win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#92400e;margin-bottom:6px;border-bottom:2px solid #f59e0b60;padding-bottom:4px"${isUrdu ? ' class="urdu-text"' : ''}>${sec.specialNote}</p>`);
-      win.document.write(`<p style="font-size:20px;font-weight:700;color:#78350f;line-height:1.5;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu-text"' : ''}>${ru(measSpecialNote)}</p>`);
-      win.document.write(`</div>`);
-    }
-  }
 
   // ─── FOOTER ───
   win.document.write(`<div style="display:flex;justify-content:space-between;font-size:18px;color:#000;border-top:2px solid #ddd;padding-top:6px;margin-top:8px">`);
@@ -1468,6 +1395,9 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
 }
 
 export function printDispatchSheet(order) {
+  const isUrdu = false;
+  const pu = (t) => t || '—';
+  const vu = (t) => t || '—';
   const title = 'Dispatch Sheet — ' + (order.orderNumber || order.id?.slice(0, 8));
   const win = window.open('', '_blank');
   win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>${PRINT_CSS}</style></head><body>`);

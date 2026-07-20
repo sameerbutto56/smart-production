@@ -687,7 +687,7 @@ const AllOrders = () => {
                       </div>
                       <div className="flex flex-wrap items-center gap-2 mt-1">
                         <span className="text-xs md:text-sm theme-text-muted font-medium bg-gray-800/50 px-2 py-0.5 rounded border border-gray-700/50">
-                          {product?.fabricType || 'STD FABRIC'}
+                          {isUrdu ? toUrduName(product?.fabricType || 'STD FABRIC') : (product?.fabricType || 'STD FABRIC')}
                         </span>
                         {product?.color && (
                           <div className="flex items-center space-x-1 bg-gray-800/50 px-2 py-0.5 rounded border border-gray-700/50">
@@ -960,17 +960,13 @@ const AllOrders = () => {
                                         )}
                                       </div>
                                     )}
-                                    {hasSizeValues && (
-                                      <div className="mt-1.5 text-xs md:text-sm theme-text-secondary font-normal normal-case">
-                                        <span className="font-bold theme-text-muted uppercase tracking-wider text-xs md:text-sm">Sizes:</span> {Object.entries(s).filter(([k, v]) => v && k !== 'specialNote').map(([k, v]) => `${k.toUpperCase()}:${v}"`).join(', ')}
-                                      </div>
-                                    )}
+
                                     {hasSpecialNote && (
                                       <div className="mt-1 text-[10px] text-yellow-400 font-black bg-yellow-900/20 px-1.5 py-0.5 rounded italic leading-tight">📝 Special Note: {s.specialNote}</div>
                                     )}
                                   </td>
                                   <td className="py-4 theme-text-secondary">
-                                    <div>{p.fabricType || 'STD FABRIC'}</div>
+                                    <div>{isUrdu ? toUrduName(p.fabricType || 'STD FABRIC') : (p.fabricType || 'STD FABRIC')}</div>
                                     <div className="text-xs md:text-sm theme-text-muted font-medium uppercase mt-0.5 flex items-center gap-1.5">
                                       {p.color && (
                                         <>
@@ -1049,8 +1045,8 @@ const AllOrders = () => {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6">
                       {[
                         { label: 'Product Base', val: (selectedOrder.productVerification && selectedOrder.productVerification['0'] === true ? '✓ ' : '') + (isUrdu ? toUrduName(product?.productType || product?.name) : (product?.productType || product?.name)) },
-                        { label: 'Fabric Type', val: product?.fabricType },
-                        { label: 'Primary Color', val: product?.color },
+                        { label: 'Fabric Type', val: isUrdu ? toUrduName(product?.fabricType) : product?.fabricType },
+                        { label: 'Primary Color', val: isUrdu ? toUrduName(product?.color) : product?.color },
                         { label: 'Order Size', val: product?.size },
                         { label: 'Gender', val: product?.gender },
                         ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
@@ -1176,62 +1172,7 @@ const AllOrders = () => {
                   })()}
                 </section>
 
-                {!isMultiItem && selectedOrder.type === 'FULL_CUSTOM' && (
-                  <section className="bg-blue-600/5 p-4 md:p-8 rounded-[2rem] border border-blue-500/10">
-                    <h4 className="text-xs md:text-sm font-black text-blue-400 uppercase tracking-[0.3em] mb-6">02. Precise Measurements (Inches)</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                      {Object.entries(sizes || {}).filter(([k, v]) => v && k !== 'specialNote').map(([key, val], i) => (
-                        <div key={i} className="text-center p-4 theme-bg-subtle rounded-2xl border theme-border shadow-sm">
-                          <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-tighter mb-1">{key.replace(/([A-Z])/g, ' $1')}</p>
-                          <p className="text-xl font-black text-blue-400">{val}"</p>
-                        </div>
-                      ))}
-                      {(product?.sleeveLength || (product?.gender === 'Female' && product?.femaleOptions?.sleeves)) && (
-                        <div className="text-center p-4 theme-bg-subtle rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
-                          <p className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter mb-1">SLEEVES بازو</p>
-                          <p className="text-sm font-black text-white uppercase">{product.sleeveLength ? ({'full':'Full','half':'Half ہاف','three-quarter':'3 Quarter'}[product.sleeveLength] || product.sleeveLength) : ({'full':'Full','half':'Half ہاف','medium':'Medium'}[product.femaleOptions?.sleeves] || product.femaleOptions?.sleeves || '—')}</p>
-                        </div>
-                      )}
-                      {(product?.shirtLength || (product?.gender === 'Female' && product?.femaleOptions?.shirtLength)) && (
-                        <div className="text-center p-4 theme-bg-subtle rounded-2xl border border-pink-500/20 shadow-sm flex flex-col justify-center">
-                          <p className="text-xs md:text-sm text-pink-500 font-black uppercase tracking-tighter mb-1">SHIRT LENGTH</p>
-                          <p className="text-sm font-black text-white uppercase">{product.shirtLength ? ({'long':'Long','short':'Short','regular':'Regular ریگولر'}[product.shirtLength] || product.shirtLength) : ({'long':'Long','short':'Short'}[product.femaleOptions?.shirtLength] || product.femaleOptions?.shirtLength || '—')}</p>
-                        </div>
-                      )}
-                      {product?.alteration && (product.alteration.trouserLength || product.alteration.shirtLength || product.alteration.sleeveLength) && (
-                        <div className="col-span-full bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4">
-                          <p className="text-xs font-black text-amber-400 uppercase tracking-wider mb-3">Alteration</p>
-                          <div className="grid grid-cols-3 gap-3">
-                            {product.alteration.trouserLength ? (
-                              <div className="text-center p-3 theme-bg-subtle rounded-xl border border-amber-500/20">
-                                <p className="text-[10px] text-amber-500 font-black uppercase tracking-tighter mb-1">TROUSER</p>
-                                <p className="text-lg font-black text-amber-400">{product.alteration.trouserLength}"</p>
-                              </div>
-                            ) : null}
-                            {product.alteration.shirtLength ? (
-                              <div className="text-center p-3 theme-bg-subtle rounded-xl border border-amber-500/20">
-                                <p className="text-[10px] text-amber-500 font-black uppercase tracking-tighter mb-1">SHIRT</p>
-                                <p className="text-lg font-black text-amber-400">{product.alteration.shirtLength}"</p>
-                              </div>
-                            ) : null}
-                            {product.alteration.sleeveLength ? (
-                              <div className="text-center p-3 theme-bg-subtle rounded-xl border border-amber-500/20">
-                                <p className="text-[10px] text-amber-500 font-black uppercase tracking-tighter mb-1">SLEEVE</p>
-                                <p className="text-lg font-black text-amber-400">{product.alteration.sleeveLength}"</p>
-                              </div>
-                            ) : null}
-                          </div>
-                        </div>
-                      )}
-                      {sizes?.specialNote && (
-                        <div className="col-span-full text-center p-4 bg-yellow-500/5 rounded-2xl border border-yellow-500/10 shadow-sm">
-                          <p className="text-xs md:text-sm text-yellow-400 font-black uppercase tracking-tighter mb-1">Special Note</p>
-                          <p className="text-sm font-bold text-yellow-300/90 italic leading-tight">{sizes.specialNote}</p>
-                        </div>
-                      )}
-                    </div>
-                  </section>
-                )}
+
 
                 {selectedOrder.type !== 'STANDARD' && hasCustomData && (
                 <section>

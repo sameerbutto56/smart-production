@@ -30,6 +30,7 @@ import {
   FileText,
   MessageCircle,
   StickyNote,
+  BellRing,
   UserCheck,
   Lock,
   Eye,
@@ -37,6 +38,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import socket from '../socket';
+import useDemandNotification from '../hooks/useDemandNotification';
 import toast from 'react-hot-toast';
 import { useSearch } from '../context/SearchContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -407,6 +409,8 @@ const Layout = () => {
     };
   }, []);
 
+  const { activeAlert, acknowledge } = useDemandNotification();
+
   if (user?.role === 'FAISAL' && !faisalLoggedIn) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'var(--background)', color: 'var(--text-primary)' }}>
@@ -549,6 +553,50 @@ const Layout = () => {
           <div className="bg-red-600/20 border-b-2 border-red-500/30 px-6 py-3 flex items-center justify-center gap-3 flex-shrink-0">
             <PauseCircle className="text-red-400 animate-pulse" size={16} />
             <span className="text-red-300 font-black text-xs uppercase tracking-widest">System Paused — All production operations are suspended for holidays</span>
+          </div>
+        )}
+
+        {activeAlert && (
+          <div className="bg-amber-500/15 border-b-2 border-amber-400/40 px-4 md:px-6 py-2.5 flex items-center justify-between gap-4 flex-shrink-0">
+            <div className="flex items-center gap-3 min-w-0">
+              <BellRing className="text-amber-400 animate-bounce shrink-0" size={18} />
+              <span className="text-amber-300 font-bold text-xs md:text-sm uppercase tracking-wider truncate">{activeAlert.message}</span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {activeAlert.type === 'demand:new' && (
+                <Link
+                  to="/warehouse"
+                  onClick={acknowledge}
+                  className="bg-amber-500 hover:bg-amber-400 text-black px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all"
+                >
+                  Receive
+                </Link>
+              )}
+              {activeAlert.type === 'demand:accepted' && (
+                <Link
+                  to="/warehouse"
+                  onClick={acknowledge}
+                  className="bg-amber-500 hover:bg-amber-400 text-black px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all"
+                >
+                  View
+                </Link>
+              )}
+              {activeAlert.type === 'demand:updated' && (
+                <Link
+                  to="/outlet-requests"
+                  onClick={acknowledge}
+                  className="bg-amber-500 hover:bg-amber-400 text-black px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all"
+                >
+                  View
+                </Link>
+              )}
+              <button
+                onClick={acknowledge}
+                className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all"
+              >
+                OK
+              </button>
+            </div>
           </div>
         )}
 

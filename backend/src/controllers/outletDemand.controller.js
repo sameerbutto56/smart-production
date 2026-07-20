@@ -45,6 +45,17 @@ const createDemandRequest = async (req, res) => {
         transferNumber: await generateTransferNumber()
       }
     });
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('demand:new', {
+        id: demand.id,
+        outletName: demand.outletName,
+        transferNumber: demand.transferNumber,
+        status: demand.status,
+        itemCount: items.length,
+        createdAt: demand.createdAt
+      });
+    }
     res.status(201).json(demand);
   } catch (error) {
     res.status(500).json({ message: 'Error creating demand request', error: error.message });
@@ -133,6 +144,17 @@ const approveDemandRequest = async (req, res) => {
         performedBy: req.user.id
       }
     });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('demand:updated', {
+        id: updated.id,
+        outletName: updated.outletName,
+        transferNumber: updated.transferNumber,
+        status: updated.status,
+        storeNotes: updated.storeNotes
+      });
+    }
 
     res.json(updated);
   } catch (error) {
@@ -272,6 +294,16 @@ const acceptDemandRequest = async (req, res) => {
       where: { id },
       data: { acceptedAt: new Date(), acceptedById: req.user.id }
     });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('demand:accepted', {
+        id,
+        outletName: existing.outletName,
+        transferNumber: existing.transferNumber,
+        status: existing.status
+      });
+    }
 
     res.json({ message: 'Demand accepted. Processing items in background.' });
 
