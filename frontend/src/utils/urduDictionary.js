@@ -82,6 +82,8 @@ const urduDictionary = {
   'Clogs Work Duo': 'کلاگز ورک ڈوو',
 
   // SHOES
+  Contrast: 'کانٹراسٹ',
+  contrast: 'کانٹراسٹ',
   'White Clinic Shoes': 'وائٹ کلینک شوز',
   'Orthopedic Sneakers': 'آرتھوپیڈک اسنیکرز',
   'Aeros Shoes': 'ایروز شوز',
@@ -246,6 +248,8 @@ const urduDictionary = {
 
   // I
   Indigo: 'انڈیگو',
+  Influential: 'انفلوئنشل',
+  influential: 'انفلوئنشل',
   'Influental Leaf': 'انفلوئنٹل لیف',
   'Influential Contrast': 'انفلوئنشل کانٹراسٹ',
   'Influential Grey': 'انفلوئنشل گرے',
