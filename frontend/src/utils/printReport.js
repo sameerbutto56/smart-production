@@ -1425,13 +1425,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           });
           win.document.write(`</div>`);
         }
-        // Sleeve / Shirt Length
-        const slv = p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves ? p.femaleOptions.sleeves : null);
-        const slen = p.shirtLength || (p.gender === 'Female' && p.femaleOptions?.shirtLength ? p.femaleOptions.shirtLength : null);
-        const opts = [slv ? `${sec.sleeves}: ${slv && p.sleeveLength ? slDisplay(slv) : (femSlMap[slv] || slv)}` : null, slen ? `${sec.length}: ${slen && p.shirtLength ? shDisplay(slen) : (femShMap[slen] || slen)}` : null, (p.gender === 'Female' && p.femaleOptions?.dupatta) ? sec.dupatta : null].filter(Boolean);
-        if (opts.length > 0) {
-          win.document.write(`<p style="font-size:20px;margin-top:6px;color:#000;font-weight:700">${opts.join(' | ')}</p>`);
-        }
+
         const ic = item.customization ? (typeof item.customization === 'string' ? JSON.parse(item.customization) : item.customization) : custom;
         const hasAttr = p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct || p.additionalProductRef;
         if (hasAttr) {
