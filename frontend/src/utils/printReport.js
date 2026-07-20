@@ -1415,15 +1415,13 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           win.document.write(`<div style="text-align:center;border:2px solid ${isSelected ? '#000' : '#ccc'};border-radius:6px;padding:6px 14px;background:${isSelected ? '#000' : '#fff'};color:${isSelected ? '#fff' : '#666'};font-size:18px;font-weight:800">${sz}</div>`);
         });
         win.document.write(`</div>`);
-        // Custom measurement values from sizeData — exclude the specific keys user wants hidden
-        const hiddenMeasKeys = ['chest','hips','sleeve','bottom','shirtLength','shoulder','trouserLength'];
-        const measEntries = Object.entries(s_).filter(([k, v]) => v && k !== 'specialNote' && k !== '_extra' && k !== '_standardSize' && !hiddenMeasKeys.includes(k));
+        const measEntries = Object.entries(s_).filter(([k, v]) => v && k !== 'specialNote' && k !== '_extra' && k !== '_standardSize');
         if (measEntries.length > 0) {
-          win.document.write(`<div style="margin-top:6px;display:grid;grid-template-columns:1fr 1fr;gap:3px;font-size:18px">`);
+          win.document.write(`<table style="margin-top:6px;width:100%;border-collapse:collapse;font-size:18px">`);
           measEntries.forEach(([k, v]) => {
-            win.document.write(`<div style="display:flex;justify-content:space-between;padding:2px 6px;background:#f5f5f5;border-radius:3px"><span style="font-weight:700;color:#333">${k}</span><span style="font-weight:900;color:#000">${v}"</span></div>`);
+            win.document.write(`<tr><td style="font-weight:700;color:#333;border:1px solid #ccc;padding:2px 8px">${k}</td><td style="font-weight:900;color:#000;border:1px solid #ccc;padding:2px 8px;text-align:center">${v}"</td></tr>`);
           });
-          win.document.write(`</div>`);
+          win.document.write(`</table>`);
         }
 
         const ic = item.customization ? (typeof item.customization === 'string' ? JSON.parse(item.customization) : item.customization) : custom;
