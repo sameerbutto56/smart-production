@@ -48,6 +48,7 @@ const urduDictionary = {
   'New Article': 'نیو آرٹیکل',
   'Under Scrubs Unisex': 'انڈر سکربز یونی سیکس',
   'Ajrak Scrub': 'اجرک سکرب',
+  'Bell Bottom': 'بیل باٹم',
   'Inner T': 'اِنر ٹی',
 
   // CAPS

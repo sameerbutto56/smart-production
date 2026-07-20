@@ -405,15 +405,19 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         <p className="text-xs md:text-sm font-black text-white">{p.shirtLength === 'long' ? 'Long' : p.shirtLength === 'regular' ? 'Regular ریگولر' : 'Short'}</p>
                       </div>
                     )}
+                    {order.type === 'FULL_CUSTOM' && p?.size && (
+                      <div className="bg-gray-950/50 p-2 rounded-lg">
+                        <p className="text-[9px] text-gray-500 font-black uppercase">Size</p>
+                        <p className="text-xs md:text-sm font-black text-white">{p.size}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
-
-
 
                 {s?.specialNote && (
                   <div className="bg-yellow-500/5 p-3 rounded-xl border border-yellow-500/10 mt-3">
                     <p className="text-xs md:text-sm font-black text-yellow-400 uppercase tracking-widest mb-1">Special Note</p>
-                    <p className="text-xs md:text-sm font-bold text-yellow-300/90 italic leading-tight">{s.specialNote}</p>
+                    <p className="text-xs md:text-sm font-bold text-yellow-300/90 italic leading-tight whitespace-pre-wrap">{s.specialNote}</p>
                   </div>
                 )}
 
@@ -2321,13 +2325,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         {order.engravingInstructions && (
                           <div className="bg-yellow-900/20 border border-yellow-500/20 rounded-lg p-3">
                             <p className="text-xs font-black text-yellow-400 uppercase mb-1">Special Notes:</p>
-                            <p className="text-sm text-yellow-300 font-medium italic">{order.engravingInstructions}</p>
+                            <p className="text-sm text-yellow-300 font-medium italic whitespace-pre-wrap">{order.engravingInstructions}</p>
                           </div>
                         )}
                         {order.instructionNotes && (
                           <div className="bg-yellow-900/20 border border-yellow-500/20 rounded-lg p-3 mt-2">
                             <p className="text-xs font-black text-yellow-400 uppercase mb-1">Instruction Notes:</p>
-                            <p className="text-sm text-yellow-300 font-medium italic">{order.instructionNotes}</p>
+                            <p className="text-sm text-yellow-300 font-medium italic whitespace-pre-wrap">{order.instructionNotes}</p>
                           </div>
                         )}
                       </div>

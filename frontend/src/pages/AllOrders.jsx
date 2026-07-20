@@ -1157,13 +1157,13 @@ const AllOrders = () => {
                           {selectedOrder.engravingInstructions && (
                             <div className="bg-yellow-900/20 border border-yellow-500/20 rounded-lg p-3">
                               <p className="text-xs font-black text-yellow-400 uppercase mb-1">Special Notes:</p>
-                              <p className="text-sm text-yellow-300 font-medium italic">{selectedOrder.engravingInstructions}</p>
+                              <p className="text-sm text-yellow-300 font-medium italic whitespace-pre-wrap">{selectedOrder.engravingInstructions}</p>
                             </div>
                           )}
                           {selectedOrder.instructionNotes && (
                             <div className="bg-yellow-900/20 border border-yellow-500/20 rounded-lg p-3 mt-2">
                               <p className="text-xs font-black text-yellow-400 uppercase mb-1">Instruction Notes:</p>
-                              <p className="text-sm text-yellow-300 font-medium italic">{selectedOrder.instructionNotes}</p>
+                              <p className="text-sm text-yellow-300 font-medium italic whitespace-pre-wrap">{selectedOrder.instructionNotes}</p>
                             </div>
                           )}
                         </div>
@@ -1257,7 +1257,7 @@ const AllOrders = () => {
                             {c.designNotes && (
                               <div className="mt-3 bg-yellow-500/5 p-3 rounded-xl border border-yellow-500/10">
                                 <p className="text-[10px] text-yellow-400 font-black uppercase tracking-widest mb-0.5">Special Note</p>
-                                <p className="text-xs font-bold text-yellow-300/90 italic leading-tight">{c.designNotes}</p>
+                                <p className="text-xs font-bold text-yellow-300/90 italic leading-tight whitespace-pre-wrap">{c.designNotes}</p>
                               </div>
                             )}
                           </div>

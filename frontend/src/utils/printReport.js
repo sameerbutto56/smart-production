@@ -1331,7 +1331,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
             const notesDisplay = c.designNotes;
             win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px">`);
             win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
-            win.document.write(`<p style="font-size:22px;font-weight:700;color:#000"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
+            win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
           }
 
           win.document.write(`</div>`);
@@ -1371,7 +1371,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
         if (order.engravingInstructions) {
           win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px;margin-top:6px">`);
           win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px">${sec.specialNote}</p>`);
-          win.document.write(`<p style="font-size:22px;font-weight:700;color:#000">${order.engravingInstructions}</p></div>`);
+          win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;white-space:pre-wrap">${order.engravingInstructions}</p></div>`);
         }
         if (order.instructionNotes) {
           const notesDisplay = isUrdu ? romanToUrdu(order.instructionNotes) : order.instructionNotes;
