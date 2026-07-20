@@ -447,7 +447,7 @@ const createOrder = async (req, res) => {
     // Re-fetch order with stages so frontend has currentStage info immediately
     const orderWithStages = await prisma.order.findUnique({
       where: { id: order.id },
-      include: { stages: { orderBy: { createdAt: 'asc' } } }
+      include: { stages: { orderBy: { createdAt: 'asc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } } }
     });
 
     const io = req.app.get('io');
@@ -1377,7 +1377,7 @@ const bulkRouteOrders = async (req, res) => {
 
     for (const orderId of orderIds) {
       try {
-        const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: true } });
+        const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: { select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } } } });
         if (!order) { errors.push({ orderId, error: 'Order not found' }); continue; }
 
         const currentStage = order.stages.find(s =>
@@ -1768,7 +1768,7 @@ const addOrderToInventory = async (req, res) => {
 const sendForDelivery = async (req, res) => {
   const { orderId } = req.params;
   try {
-    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: true } });
+    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: { select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } } } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
     // Complete the current active stage
@@ -2166,7 +2166,7 @@ const manualRouteOrder = async (req, res) => {
   }
 
   try {
-    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: true } });
+    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: { select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } } } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
     // Complete current active stage
@@ -2442,7 +2442,7 @@ const acceptTask = async (req, res) => {
   try {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { stages: true }
+      include: { stages: { select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } } }
     });
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
@@ -2487,7 +2487,7 @@ const acceptTask = async (req, res) => {
 
     const updated = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { stages: { orderBy: { createdAt: 'asc' } } }
+      include: { stages: { orderBy: { createdAt: 'asc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } } }
     });
 
     res.json({ message: 'Task accepted', order: updated, delay: Math.round((acceptedAt - new Date(pendingStage.createdAt)) / 60000) });
@@ -2581,7 +2581,7 @@ const acceptStoreOrder = async (req, res) => {
   try {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { stages: true }
+      include: { stages: { select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } } }
     });
     if (!order) return res.status(404).json({ message: 'Order not found' });
     if (order.currentStage !== 'STORE') return res.status(400).json({ message: 'Order is not in STORE stage' });
@@ -2608,7 +2608,7 @@ const acceptStoreOrder = async (req, res) => {
 
     const updated = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { stages: { orderBy: { createdAt: 'asc' } } }
+      include: { stages: { orderBy: { createdAt: 'asc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } } }
     });
 
     res.json({ message: 'Order accepted at Store', order: updated });
@@ -2629,7 +2629,7 @@ const storeRouteOrder = async (req, res) => {
   try {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { stages: true }
+      include: { stages: { select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } } }
     });
     if (!order) return res.status(404).json({ message: 'Order not found' });
     if (!['STORE', 'STORE_RECEIVE'].includes(order.currentStage)) return res.status(400).json({ message: 'Order must be in STORE or STORE_RECEIVE stage' });
@@ -2698,7 +2698,7 @@ const storeRouteOrder = async (req, res) => {
 
     const updated = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { stages: { orderBy: { createdAt: 'asc' } } }
+      include: { stages: { orderBy: { createdAt: 'asc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } } }
     });
 
     res.json({ message: `Order routed to ${destinationStage}`, order: updated });
@@ -2719,7 +2719,7 @@ const returnToStore = async (req, res) => {
   try {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { stages: true }
+      include: { stages: { select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } } }
     });
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
@@ -2765,7 +2765,7 @@ const returnToStore = async (req, res) => {
 
     const updated = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { stages: { orderBy: { createdAt: 'asc' } } }
+      include: { stages: { orderBy: { createdAt: 'asc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } } }
     });
 
     res.json({ message: `Order returned to Store from ${returnedFrom}`, order: updated });
@@ -2779,7 +2779,7 @@ const returnToOutlet = async (req, res) => {
   try {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { stages: true }
+      include: { stages: { select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } } }
     });
     if (!order) return res.status(404).json({ message: 'Order not found' });
     if (order.source !== 'OUTLET') return res.status(400).json({ message: 'Only outlet orders can be returned to outlet' });
@@ -2834,7 +2834,7 @@ const returnToOutlet = async (req, res) => {
 
     const updated = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { stages: { orderBy: { createdAt: 'asc' } } }
+      include: { stages: { orderBy: { createdAt: 'asc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } } }
     });
 
     res.json({ message: `Order returned to ${order.outletName || 'Outlet'}`, order: updated });
@@ -2919,7 +2919,7 @@ const dispatchOrder = async (req, res) => {
   }
 
   try {
-    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: true } });
+    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: { select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } } } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
     if (order.currentStage !== 'DISPATCH') {
       return res.status(400).json({ message: 'Order is not in DISPATCH stage' });
@@ -3185,13 +3185,13 @@ const trackOrder = async (req, res) => {
     let order = await prisma.order.findUnique({
       where: { orderNumber },
       include: {
-        stages: { orderBy: { createdAt: 'asc' } }
+        stages: { orderBy: { createdAt: 'asc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } }
       }
     });
     if (!order) {
       const matches = await prisma.order.findMany({
         where: { orderNumber: { contains: orderNumber } },
-        include: { stages: { orderBy: { createdAt: 'asc' } } },
+        include: { stages: { orderBy: { createdAt: 'asc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } } },
         orderBy: { createdAt: 'desc' },
         take: 1
       });

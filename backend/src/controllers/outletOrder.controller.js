@@ -112,7 +112,7 @@ const createOutletOrder = async (req, res) => {
 
       return tx.order.findUnique({
         where: { id: created.id },
-        include: { stages: { orderBy: { createdAt: 'asc' } } }
+        include: { stages: { orderBy: { createdAt: 'asc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } } }
       });
     });
 
@@ -347,7 +347,7 @@ const customerTaken = async (req, res) => {
   const { orderId } = req.params;
   try {
     const outletName = getOutletName(req) || 'Unknown Outlet';
-    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: true } });
+    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: { select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } } } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
     if (order.outletName !== outletName) return res.status(403).json({ message: 'Order belongs to a different outlet' });
     if (order.currentStage !== 'OUTLET_RECEIVE') return res.status(400).json({ message: 'Order must be in OUTLET_RECEIVE stage' });
@@ -386,7 +386,7 @@ const sendOutletForDelivery = async (req, res) => {
   const { orderId } = req.params;
   try {
     const outletName = getOutletName(req) || 'Unknown Outlet';
-    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: true } });
+    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: { select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } } } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
     if (order.outletName !== outletName) return res.status(403).json({ message: 'Order belongs to a different outlet' });
     if (order.currentStage !== 'OUTLET_RECEIVE') return res.status(400).json({ message: 'Order must be in OUTLET_RECEIVE stage' });
@@ -449,7 +449,7 @@ const inHouseDelivery = async (req, res) => {
   const { orderId } = req.params;
   try {
     const outletName = getOutletName(req) || 'Unknown Outlet';
-    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: true } });
+    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: { select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } } } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
     if (order.outletName !== outletName) return res.status(403).json({ message: 'Order belongs to a different outlet' });
     if (order.currentStage !== 'OUTLET_RECEIVE') return res.status(400).json({ message: 'Order must be in OUTLET_RECEIVE stage' });

@@ -145,7 +145,7 @@ const getInvoiceAndOrderTracking = async (search) => {
   }
   const orders = await prisma.order.findMany({
     where: orderWhere,
-    include: { stages: { orderBy: { createdAt: 'desc' }, take: 10 } },
+    include: { stages: { orderBy: { createdAt: 'desc' }, take: 10, select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } } },
     orderBy: { createdAt: 'desc' },
     take: 50
   });

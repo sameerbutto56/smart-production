@@ -52,7 +52,7 @@ const updateDeliveryStatus = asyncHandler(async (req, res) => {
     const paymentStatus = totalPaid >= (order.totalPrice || 0) ? 'FULL_PAID' : 'PARTIAL_PAID';
     const updateData = { status: 'COMPLETED', currentStage: 'DELIVERED', paymentStatus, advancePaid: true, dispatchStatus: 'DELIVERED', paymentMethod: paymentMethod || 'CASH', courierDetails, deliveredAt: new Date(), updatedAt: new Date() };
     if (deliveryMethod) updateData.deliveryMethod = deliveryMethod;
-    const updatedOrder = await prisma.order.update({ where: { id: orderId }, data: updateData, include: { stages: true } });
+    const updatedOrder = await prisma.order.update({ where: { id: orderId }, data: updateData, include: { stages: { select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } } } });
     await prisma.deliveryAttempt.create({ data: { orderId, attemptNumber: (order.noResponseCount || 0) + 1, status: 'DELIVERED', riderId: userId, riderName, notes: remarks || 'Order delivered successfully' } });
     await calculateAndRecordRevenue(updatedOrder);
     await createAuditLog(orderId, 'DELIVERED', remarks || 'Order delivered', userId);
@@ -64,7 +64,7 @@ const updateDeliveryStatus = asyncHandler(async (req, res) => {
   await prisma.order.update({ where: { id: orderId }, data: { updatedAt: new Date() } });
   await createAuditLog(orderId, 'DELIVERY_STATUS_UPDATED', `Status: ${deliveryStatus}. ${remarks || ''}`, userId);
   const io = req.app.get('io');
-  const freshOrder = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: { orderBy: { createdAt: 'desc' } } } });
+  const freshOrder = await prisma.order.findUnique({ where: { id: orderId }, include: { stages: { orderBy: { createdAt: 'desc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } } } });
   io.emit('order-updated', { order: freshOrder, createdById: order.createdById });
   res.json(freshOrder);
 });
@@ -77,7 +77,7 @@ const acceptDelivery = asyncHandler(async (req, res) => {
   if (!order) throw new AppError('Order not found', 404);
   if (order.dispatchStatus === 'DELIVERED') throw new AppError('Already delivered', 400);
   if (order.riderAcceptedAt) throw new AppError('Already accepted', 400);
-  const updatedOrder = await prisma.order.update({ where: { id: orderId }, data: { riderAcceptedAt: new Date(), dispatchStatus: 'ACCEPTED', updatedAt: new Date() }, include: { stages: { orderBy: { createdAt: 'desc' } } } });
+  const updatedOrder = await prisma.order.update({ where: { id: orderId }, data: { riderAcceptedAt: new Date(), dispatchStatus: 'ACCEPTED', updatedAt: new Date() }, include: { stages: { orderBy: { createdAt: 'desc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } } } });
   await createAuditLog(orderId, 'DELIVERY_ACCEPTED', 'Rider accepted delivery', userId);
   req.app.get('io').emit('order-updated', { order: updatedOrder, createdById: order.createdById });
   res.json(updatedOrder);

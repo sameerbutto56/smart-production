@@ -124,6 +124,7 @@ model Order {
   @@index([currentStage, status])
   @@index([type, createdAt])
   @@index([createdAt])
+  @@index([refundedAt])
   dispatchOfficer   String?
   forwardedBy       String?
   deliveryPayments  DeliveryPayment[]
@@ -355,6 +356,7 @@ model OrderEditRequest {
 
   @@index([orderId])
   @@index([status])
+  @@index([requestedAt])
 }
 
 model DeletedOrder {
@@ -703,6 +705,7 @@ model PosBookSession {
   status          String    @default("OPEN") // OPEN, CLOSED
 
   @@index([outletName, status])
+  @@index([closedAt])
 }
 
 model OutletEmployee {

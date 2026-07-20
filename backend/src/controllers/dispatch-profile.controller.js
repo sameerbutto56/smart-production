@@ -173,7 +173,7 @@ const acceptDispatchOrder = async (req, res) => {
   try {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { stages: { where: { stageName: 'DISPATCH' } } }
+      include: { stages: { where: { stageName: 'DISPATCH' }, select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } } }
     });
     if (!order) return res.status(404).json({ message: 'Order not found' });
     if (order.currentStage !== 'DISPATCH') {
@@ -246,7 +246,7 @@ const dispatchFromProfile = async (req, res) => {
   try {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { stages: true }
+      include: { stages: { select: { id: true, stageName: true, status: true, deadlineAt: true, startedAt: true, completedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } } }
     });
     if (!order) return res.status(404).json({ message: 'Order not found' });
     if (order.currentStage !== 'DISPATCH') {
