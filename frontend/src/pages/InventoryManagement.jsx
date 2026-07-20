@@ -28,7 +28,7 @@ import {
   Eye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-
+import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
@@ -493,6 +493,7 @@ const InventoryManagement = () => {
 </style>
 </head>
 <body>
+  ${getPrintLogoHTML()}
   ${Array(count).fill(null).map(() => `
   <div class="label">
     <div class="name">${productName} ${[variant.color, variant.size].filter(Boolean).join(' • ')}</div>
@@ -500,6 +501,7 @@ const InventoryManagement = () => {
     <div class="bctext">${barcode}</div>
     <div class="price">${formatCurr(variant.price || item.price || 0)}</div>
   </div>`).join('')}
+  ${getPrintFooterHTML()}
 </body>
 </html>`);
     pw.document.close();
