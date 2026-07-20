@@ -293,8 +293,8 @@ const getCODSummary = async (req, res) => {
           { paymentMethod: { in: ['CASH', null] } },
           { advanceAmount: { gt: 0 } }
         ],
-        // Exclude already cleared
-        id: { notIn: (await prisma.cODCollection.findMany({ select: { orderIds: true } })).flatMap(c => c.orderIds) }
+        // Exclude already cleared (null-safe flatMap)
+        id: { notIn: (await prisma.cODCollection.findMany({ select: { orderIds: true } })).flatMap(c => Array.isArray(c.orderIds) ? c.orderIds : []) }
       },
       select: { id: true, orderNumber: true, customerName: true, totalPrice: true, deliveredAt: true, advanceAmount: true, paymentMethod: true }
     });
