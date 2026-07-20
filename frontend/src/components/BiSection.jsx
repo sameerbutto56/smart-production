@@ -9,6 +9,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart as RePieChart, Pie, Cell, LineChart, Line, CartesianGrid, Legend
 } from 'recharts';
+import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
 
 const LOCATIONS = ['Johar Town', 'Jail Road', 'Abbottabad'];
 const DATE_PRESETS = [
@@ -158,6 +159,7 @@ const BiSection = ({ source: parentSource, startDate: parentStartDate, endDate: 
       .kpi-label{font-size:11px;color:#666;text-transform:uppercase}
       .kpi-value{font-size:18px;font-weight:bold;color:#111}
     </style></head><body>`);
+    w.document.write(getPrintLogoHTML());
     w.document.write('<h1>Business Intelligence Report</h1>');
     w.document.write(`<p>Period: ${datePreset} | Source: ${source} | Branch: ${branchFilter}</p>`);
     w.document.write(`<p>Generated: ${new Date().toLocaleString()}</p>`);
@@ -195,6 +197,7 @@ const BiSection = ({ source: parentSource, startDate: parentStartDate, endDate: 
       w.document.write(`<div class="kpi-item"><div class="kpi-label">Margin</div><div class="kpi-value">${(pa?.profitMargin||0).toFixed(1)}%</div></div>`);
       w.document.write('</div></div>');
     }
+    w.document.write(getPrintFooterHTML());
     w.document.write('</body></html>');
     w.document.close();
     setTimeout(() => { w.print(); }, 500);

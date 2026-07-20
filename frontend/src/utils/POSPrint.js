@@ -1,6 +1,7 @@
 import QRCode from 'qrcode';
 import toast from 'react-hot-toast';
 import { toUrduName } from '../utils/urduDictionary';
+import { getPrintLogoHTML, getPrintFooterHTML } from './printTemplate';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -155,7 +156,7 @@ export async function printReceipt(sale, { includeInvoice = true, includeGatePas
       }
       doc.write('<div style="font-size:11px;font-weight:bold;margin:6px 0 0;border-top:2px solid #000;padding-top:4px;"><p style="font-size:12px;font-weight:900;text-align:center;margin:0 0 3px;">TERMS &amp; CONDITIONS</p><p style="margin:2px 0;text-align:center;">Exchanges are allowed only within 7 days with original tags and invoice.</p></div>');
       doc.write(`<div style="text-align:center;margin:6px 0 0;padding:3px;"><img src="${qrDataUrl || 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(reviewUrl)}" width="150" height="150" alt="Review QR" style="display:inline-block;"><p style="font-size:8px;margin:3px 0 0;font-weight:bold;">Scan to Review us and Avail Special Offers</p><p style="font-size:13px;font-weight:900;margin:4px 0 0;">Thank you for shopping! Visit Again!</p></div>`);
-      doc.write('<hr><p style="text-align:center;font-size:9px;margin-top:4px;">Software is develop by Sameer Butt</p>');
+      doc.write(getPrintFooterHTML());
       doc.write('<br><br>');
     }
     if (includeGatePass) {
@@ -268,6 +269,7 @@ export function printCloseBook(summary, opts, currentBook, selectedOutlet, trans
       .section { margin-top: 24px; }
       .section h3 { font-size: 14px; font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 2px; }
     </style></head><body>
+      ${getPrintLogoHTML()}
       <h1>${outlet.toUpperCase()}</h1>
       <p style="text-align:center;font-size:16px;font-weight:bold;">CLOSE BOOK REPORT</p>
       <div class="section"><h3>Register Information</h3><table>
@@ -310,6 +312,7 @@ export function printCloseBook(summary, opts, currentBook, selectedOutlet, trans
         ${transferred > 0 ? `<tr><td>Transfer to System</td><td class="right">-${formatCurrency(transferred)}</td></tr><tr class="total"><td>Remaining Cash in Locker</td><td class="right">${formatCurrency(remaining)}</td></tr>` : ''}
       </table>
       <div class="footer">BOOK CLOSED</div>
+      ${getPrintFooterHTML()}
     </body></html>`);
     w.document.close();
     w.focus();
@@ -338,6 +341,7 @@ export function printBalanceReceipt(lastBalancePayment, selectedBalanceInvoice) 
     .zero{color:#059669;font-weight:900;}
     .footer{font-size:9px;color:#999;margin-top:12px;}
   </style></head><body>
+    ${getPrintLogoHTML()}
     <h2>Remaining Balance Payment</h2>
     <p class="sub">Payment Receipt</p>
     <hr/>
@@ -358,7 +362,7 @@ export function printBalanceReceipt(lastBalancePayment, selectedBalanceInvoice) 
     </table>
     ${bp.outstandingBalanceAfterPayment <= 0 ? '<p style="color:#059669;font-weight:900;font-size:14px;margin-top:10px;">✓ FULLY PAID</p>' : ''}
     <hr/>
-    <p class="footer">Software is developed by Sameer Butt</p>
+    ${getPrintFooterHTML()}
   </body></html>`);
   w.document.close();
   setTimeout(() => w.print(), 300);

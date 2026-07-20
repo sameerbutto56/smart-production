@@ -9,6 +9,7 @@ import { PageLoader, LoadingSpinner } from '../components/LoadingSpinner';
 import socket from '../socket';
 import { debounce } from '../utils/debounce';
 import { printDispatchSheet } from '../utils/printReport';
+import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
 import { Truck, Package, Eye, Send, Search, Loader2, Clock, Phone, MapPin, CheckCircle2, X, Printer, LogIn, User, MessageCircle, TrendingUp, Activity, UserCheck } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -338,7 +339,7 @@ const DispatchPage = () => {
       doc.write(`<div style="text-align:center"><div style="width:150px;border-top:1.5px solid #000;margin:0 auto 2px"></div><span style="font-size:10px;font-weight:700">Receiver Signature</span></div>`);
       doc.write(`</div></div>`);
     }
-    doc.write(`<p style="text-align:center;font-size:8px;margin:6px 0 0;color:#666">Software is develop by Sameer Butt</p>`);
+    doc.write(getPrintFooterHTML());
     doc.write(`</body></html>`);
     doc.close();
     setTimeout(() => { iframe.contentWindow.print(); setTimeout(() => { document.body.removeChild(iframe); if (logoUrl.startsWith('blob:')) URL.revokeObjectURL(logoUrl); }, 1000); }, 300);

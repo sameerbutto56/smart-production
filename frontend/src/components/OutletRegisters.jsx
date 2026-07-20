@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { Clock, Printer, Search, X, ChevronDown, ChevronUp, Book, User, DollarSign, CreditCard, Globe, FileText, RotateCcw, RefreshCw } from 'lucide-react';
+import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
 
 const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 
@@ -76,9 +77,11 @@ const OutletRegisters = ({ outlet }) => {
     lines.push('─'.repeat(32));
     lines.push('   BOOK CLOSED');
     lines.push('─'.repeat(32));
-    const w = window.open('', '_blank', 'width=400,height=600');
-    if (!w) { toast.error('Popup blocked'); return; }
-    w.document.write(`<pre style="font-family:monospace;font-size:12px;padding:16px;margin:0;">${lines.join('\n')}</pre>`);
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+    const w = iframe.contentWindow;
+    w.document.write(`<pre style="font-family:monospace;font-size:12px;padding:16px;margin:0;">${lines.join('\n')}</pre><div style="text-align:center;font-size:10px;color:#888;margin-top:12px;padding-top:6px;border-top:1px solid #ccc;">Software is developed by Sameer Butt</div>`);
     w.document.close();
     w.focus();
     w.print();
@@ -91,8 +94,10 @@ const OutletRegisters = ({ outlet }) => {
     const avail = s.availableCash || 0;
     const transferred = s.transferToSystem || 0;
     const remaining = avail - transferred;
-    const w = window.open('', '_blank', 'width=800,height=900');
-    if (!w) { toast.error('Popup blocked'); return; }
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+    const w = iframe.contentWindow;
     w.document.write(`<html><head><style>
       body { font-family: Arial, sans-serif; padding: 40px; font-size: 14px; }
       h1 { text-align: center; font-size: 20px; }
@@ -102,10 +107,10 @@ const OutletRegisters = ({ outlet }) => {
       th { background: #f5f5f5; font-weight: bold; }
       .total { font-weight: bold; font-size: 15px; }
       .right { text-align: right; }
-      .footer { margin-top: 30px; text-align: center; font-size: 16px; font-weight: bold; }
       .section { margin-top: 24px; }
       .section h3 { font-size: 14px; font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 2px; }
     </style></head><body>
+      ${getPrintLogoHTML()}
       <h1>${outlet.toUpperCase()}</h1>
       <p style="text-align:center;font-size:16px;font-weight:bold;">CLOSE BOOK REPORT</p>
       <div class="section">
@@ -154,7 +159,7 @@ const OutletRegisters = ({ outlet }) => {
         <tr class="total"><td>Available Cash</td><td class="right">${formatCurrency(avail)}</td></tr>
         ${transferred > 0 ? `<tr><td>Transfer to System</td><td class="right">-${formatCurrency(transferred)}</td></tr><tr class="total"><td>Remaining Cash in Locker</td><td class="right">${formatCurrency(remaining)}</td></tr>` : ''}
       </table>
-      <div class="footer">BOOK CLOSED</div>
+      ${getPrintFooterHTML()}
     </body></html>`);
     w.document.close();
     w.focus();

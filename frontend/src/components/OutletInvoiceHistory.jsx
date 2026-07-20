@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { toUrduName } from '../utils/urduDictionary';
+import { getPrintFooterHTML } from '../utils/printTemplate';
 import { Search, Clock, Printer, RefreshCw, DollarSign, AlertTriangle, Download, ChevronDown, ChevronUp, X, CreditCard, RotateCcw } from 'lucide-react';
 import QRCode from 'qrcode';
 import toast from 'react-hot-toast';
@@ -196,7 +197,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
     }
     doc.write('<div style="font-size:11px;font-weight:bold;margin:6px 0 0;border-top:2px solid #000;padding-top:4px;"><p style="font-size:12px;font-weight:900;text-align:center;margin:0 0 3px;">TERMS &amp; CONDITIONS</p><p style="margin:2px 0;text-align:center;">Exchanges are allowed only within 7 days with original tags and invoice.</p></div>');
     doc.write(`<div style="text-align:center;margin:6px 0 0;padding:3px;"><img src="${qrDataUrl || 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(reviewUrl)}" width="150" height="150" alt="Review QR" style="display:inline-block;"><p style="font-size:8px;margin:3px 0 0;font-weight:bold;">Scan to Review us and Avail Special Offers</p><p style="font-size:13px;font-weight:900;margin:4px 0 0;">Thank you for shopping! Visit Again!</p></div>`);
-    doc.write('<hr><p style="text-align:center;font-size:9px;margin-top:4px;">Software is develop by Sameer Butt</p>');
+    doc.write(getPrintFooterHTML());
     doc.write('</body></html>');
     doc.close();
     setTimeout(() => {
@@ -293,7 +294,7 @@ const OutletInvoiceHistory = ({ outlet }) => {
     doc.write(`<tr><td class="label">Remaining</td><td class="${(bp.remaining || 0) <= 0 ? 'zero' : ''}">${(bp.remaining || 0) <= 0 ? 'FULLY PAID' : formatCurrency(bp.remaining)}</td></tr>`);
     doc.write(`<tr><td class="label">Payment Method</td><td>${bp.paymentMethod || 'CASH'}</td></tr>`);
     doc.write('</table><hr>');
-    doc.write('<p style="font-size:10px;color:#999;">Thank you!</p>');
+    doc.write(getPrintFooterHTML());
     doc.write('</body></html>');
     doc.close();
     setTimeout(() => {

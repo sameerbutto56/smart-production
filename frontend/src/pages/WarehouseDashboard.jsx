@@ -17,6 +17,7 @@ import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../comp
 import { usePolling } from '../hooks/usePolling';
 import InventoryManagement from './InventoryManagement';
 import StoreDashboardAnalytics from '../components/StoreDashboardAnalytics';
+import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
 
 const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
 
@@ -137,6 +138,7 @@ const WarehouseDashboard = () => {
     .no-print { display: none; }
   }
 </style></head><body>
+  ${getPrintLogoHTML()}
   <div class="header">
     <div class="header-left">
       <h1><span>${catIcons[invPrintCategory] || '📦'}</span>${invPrintCategory}</h1>
@@ -170,7 +172,7 @@ const WarehouseDashboard = () => {
   <div class="footer">
     <div class="notes-label">Notes</div>
     <div class="notes-content">${printNotes.trim() ? printNotes : '<span style="color:#555;">No additional notes</span>'}</div>
-    <div class="print-meta">Warehouse Stock Request · Printed on ${dateStr} at ${timeStr}</div>
+    ${getPrintFooterHTML()}
   </div>
 </body></html>`;
 

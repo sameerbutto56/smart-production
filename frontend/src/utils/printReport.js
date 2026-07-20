@@ -1,4 +1,5 @@
 import { toUrduName } from './urduDictionary';
+import { getPrintLogoHTML, getPrintFooterHTML } from './printTemplate';
 
 const PRINT_CSS = `
   @page { size: A4 portrait; margin: 4mm 6mm; }
@@ -710,6 +711,7 @@ export function openPrintWindow(title, isRtl = false) {
   const win = window.open('', '_blank');
   const bodyAttrs = isRtl ? ' dir="rtl" class="rtl"' : '';
   win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>${PRINT_CSS}</style></head><body${bodyAttrs}>`);
+  win.document.write(getPrintLogoHTML());
   win.document.write('<div class="report-header">');
   win.document.write(`<h1>${title}</h1>`);
   win.document.write(`<p>Enamels Production — Generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>`);
@@ -717,12 +719,8 @@ export function openPrintWindow(title, isRtl = false) {
   return win;
 }
 
-export function closePrintWindow(win, isUrdu = false) {
-  if (isUrdu) {
-    win.document.write('<div class="footer">اینملز پروڈکشن — یہ کمپیوٹر سے تیار کردہ رپورٹ ہے۔<br><span style="font-size:16px;font-weight:400;color:#aaa">سافٹ ویئر ڈویلپر: ثمر بٹ</span></div>');
-  } else {
-    win.document.write('<div class="footer">Enamels Production — This is a computer-generated report.<br><span style="font-size:16px;font-weight:400;color:#aaa">Software is developed by Sameer Butt</span></div>');
-  }
+export function closePrintWindow(win) {
+  win.document.write(getPrintFooterHTML());
   win.document.write('</body></html>');
   win.document.close();
   win.focus();
@@ -1466,19 +1464,14 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   win.document.write(`<span${isUrdu ? ' class="urdu-text"' : ''}>${ru(orderType.replace(/_/g, ' '))}</span>`);
   win.document.write(`</div>`);
 
-  closePrintWindow(win, isUrdu);
+  closePrintWindow(win);
 }
 
 export function printDispatchSheet(order) {
   const title = 'Dispatch Sheet — ' + (order.orderNumber || order.id?.slice(0, 8));
   const win = window.open('', '_blank');
   win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>${PRINT_CSS}</style></head><body>`);
-
-  // ─── ENAMELS LOGO ───
-  win.document.write(`<div style="text-align:center;margin-bottom:12px;padding-bottom:8px;border-bottom:4px solid #000">`);
-  win.document.write(`<h1 style="font-size:42px;font-weight:900;letter-spacing:4px;text-transform:uppercase;color:#000;margin:0">ENAMELS</h1>`);
-  win.document.write(`<p style="font-size:18px;font-weight:800;color:#000;text-transform:uppercase;letter-spacing:2px;margin-top:2px">DISPATCH SHEET</p>`);
-  win.document.write(`</div>`);
+  win.document.write(getPrintLogoHTML());
 
   // ─── ORDER NUMBER ───
   win.document.write(`<div style="text-align:center;margin-bottom:10px">`);

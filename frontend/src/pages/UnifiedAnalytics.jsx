@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import { PageLoader } from '../components/LoadingSpinner';
 import BiSection from '../components/BiSection';
+import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
 
 const outletForSource = (sourceId) => {
   if (sourceId === 'jail_road') return 'Jail Road';
@@ -777,6 +778,7 @@ const UnifiedAnalytics = () => {
                       .summary-label{font-size:10px;color:#666;text-transform:uppercase}
                       .summary-value{font-size:16px;font-weight:bold;color:#111}
                     </style></head><body>`);
+                    w.document.write(getPrintLogoHTML());
                     w.document.write(`<h2>Cashier Invoice Report — ${branchCashier}</h2>`);
                     w.document.write(`<p>Branch: ${selectedOutlet} | Period: ${getDateRange().startDate || 'All'} → ${getDateRange().endDate || 'All'}</p>`);
                     const totalSales = cashierInvoices.reduce((s, inv) => s + (inv.grandTotal || 0), 0);
@@ -795,7 +797,7 @@ const UnifiedAnalytics = () => {
                       w.document.write(`<tr><td>${inv.receiptNumber || ''}</td><td>${new Date(inv.createdAt).toLocaleDateString()}</td><td>${inv.customerName || 'Walk-in'}</td><td>${items}</td><td>${qty}</td><td>₨${(inv.grandTotal || 0).toLocaleString()}</td><td>₨${(inv.discountAmount || 0).toLocaleString()}</td><td>${inv.paymentMethod || ''}</td><td>${inv._balanceStatus || 'paid'}</td></tr>`);
                     });
                     w.document.write('</tbody></table>');
-                    w.document.write(`<p>Generated: ${new Date().toLocaleString()} | Branch: ${selectedOutlet} | Cashier: ${branchCashier}</p>`);
+                    w.document.write(getPrintFooterHTML());
                     w.document.write('</body></html>');
                     w.document.close(); w.print();
                   }} className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"><Printer size={11} /> Print</button>
@@ -1111,6 +1113,7 @@ const UnifiedAnalytics = () => {
                       th,td{padding:6px 10px;text-align:left;border:1px solid #ddd;font-size:11px}
                       th{background:#f0f0f0;font-weight:bold}
                     </style></head><body>`);
+                    w.document.write(getPrintLogoHTML());
                     w.document.write(`<h2>${detailModal === 'sales' ? 'Sales History' : detailModal === 'revenue' ? 'Revenue Breakdown' : 'Transaction History'}${selectedOutlet ? ` — ${selectedOutlet}` : ''}</h2>`);
                     w.document.write('<table><thead><tr><th>Invoice#</th><th>Date</th><th>Customer</th><th>Cashier</th><th>Products</th><th>Qty</th><th>Amount</th><th>Payment</th><th>Returns</th></tr></thead><tbody>');
                     detailData.forEach(s => {
@@ -1120,7 +1123,7 @@ const UnifiedAnalytics = () => {
                       w.document.write(`<tr><td>${s.receiptNumber || ''}</td><td>${new Date(s.createdAt).toLocaleDateString()}</td><td>${s.customerName || 'Walk-in'}</td><td>${s.cashierName || ''}</td><td>${items}</td><td>${qty}</td><td>₨${(s.grandTotal || 0).toLocaleString()}</td><td>${s.paymentMethod || ''}</td><td>${retTxt}</td></tr>`);
                     });
                     w.document.write('</tbody></table>');
-                    w.document.write(`<p>Generated: ${new Date().toLocaleString()} | Total: ${detailData.length} invoices</p>`);
+                    w.document.write(getPrintFooterHTML());
                     w.document.write('</body></html>');
                     w.document.close(); w.print();
                   }} className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"><Printer size={11} /> Print</button>

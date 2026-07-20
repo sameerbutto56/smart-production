@@ -2,6 +2,7 @@ import React, { createContext, useContext, useReducer, useEffect, useRef, useMem
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { toUrduName } from '../utils/urduDictionary';
+import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
 import toast from 'react-hot-toast';
 import useCache from '../hooks/useCache';
 import { debounce } from '../utils/debounce';
@@ -462,6 +463,7 @@ export const WarehousePOSProvider = ({ children }) => {
       .total { border-top: 1px solid #000; font-weight: bold; }
       .mt { margin-top: 8px; }
     </style></head><body>
+      ${getPrintLogoHTML()}
       <h2>WAREHOUSE POS</h2>
       <p class="center">Receipt: ${sale.receiptNumber}<br>${new Date(sale.createdAt).toLocaleString()}</p>
       <p class="center">Cashier: ${sale.cashierName || '-'}</p>
@@ -479,7 +481,7 @@ export const WarehousePOSProvider = ({ children }) => {
         <tr class="total"><td>Grand Total</td><td class="right">${formatCurrency(sale.grandTotal)}</td></tr>
         <tr><td>Payment</td><td class="right">${sale.paymentMethod}</td></tr>
       </table>
-      <p class="center mt">Thank you!</p>
+      ${getPrintFooterHTML()}
     </body></html>`);
     doc.close();
     setTimeout(() => {

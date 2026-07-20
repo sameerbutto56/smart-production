@@ -4,6 +4,7 @@ import { Package, Search, ChevronDown, ChevronUp, RefreshCw, Warehouse, Plus, X,
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import useCache, { setCache } from '../hooks/useCache';
+import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
 
 const ALL_OUTLETS = ['Johar Town', 'Jail Road', 'Abbottabad', 'Warehouse'];
 const OUTLET_SHORT = { 'Johar Town': 'JT', 'Jail Road': 'JR', 'Abbottabad': 'AB', 'Warehouse': 'WH' };
@@ -251,13 +252,16 @@ const ManagementInventory = () => {
       td { padding: 6px; border-bottom: 1px solid #ccc; font-size: 13px; }
       tr:nth-child(even) td { background: #f5f5f5; }
     </style></head><body>`);
+    w.document.write(getPrintLogoHTML());
     w.document.write(`<h1>Available Stock</h1><h2>${selectedOutlet}</h2>`);
     w.document.write(`<p style="text-align:right;font-size:12px;color:#888;">${new Date().toLocaleString()}</p>`);
     w.document.write('<table><thead><tr><th>Product Name</th><th>Color</th><th>Size</th><th>Qty</th></tr></thead><tbody>');
     available.forEach(i => {
       w.document.write(`<tr><td>${i.name || ''}</td><td>${i.color || ''}</td><td>${i.size || ''}</td><td>${i.stock || 0}</td></tr>`);
     });
-    w.document.write('</tbody></table></body></html>');
+    w.document.write('</tbody></table>');
+    w.document.write(getPrintFooterHTML());
+    w.document.write('</body></html>');
     w.document.close();
     w.focus();
     setTimeout(() => w.print(), 300);
