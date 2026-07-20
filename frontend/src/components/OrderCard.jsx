@@ -357,7 +357,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 {(p?.fabricSourceProduct || p?.colorSourceProduct || p?.designSourceProduct || p?.sizeSourceProduct || p?.additionalProductRef) && (
                   <div className="flex flex-wrap gap-1.5 mt-2">
                     {p?.fabricSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Fabric: {p.fabricSourceProduct}</span>}
-                    {p?.colorSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Color: {p.colorSourceProduct}</span>}
+                    {p?.colorSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Color: {isUrdu ? toUrduName(p.colorSourceProduct) : p.colorSourceProduct}</span>}
                     {p?.designSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Design: {p.designSourceProduct}</span>}
                     {p?.sizeSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Size: {p.sizeSourceProduct}</span>}
                     {p?.additionalProductRef && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Extra: {p.additionalProductRef}</span>}
@@ -724,7 +724,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
               {(product?.fabricSourceProduct || product?.colorSourceProduct || product?.designSourceProduct || product?.sizeSourceProduct || product?.additionalProductRef) && (
                 <>
                   {product?.fabricSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-md border border-amber-500/20 truncate max-w-[100px]">F:{product.fabricSourceProduct}</span>}
-                  {product?.colorSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-md border border-amber-500/20 truncate max-w-[100px]">C:{product.colorSourceProduct}</span>}
+                  {product?.colorSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-md border border-amber-500/20 truncate max-w-[100px]">C:{isUrdu ? toUrduName(product.colorSourceProduct) : product.colorSourceProduct}</span>}
                   {product?.designSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-md border border-amber-500/20 truncate max-w-[100px]">D:{product.designSourceProduct}</span>}
                   {product?.sizeSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-md border border-amber-500/20 truncate max-w-[100px]">S:{product.sizeSourceProduct}</span>}
                   {product?.additionalProductRef && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-md border border-amber-500/20 truncate max-w-[100px]">E:{product.additionalProductRef}</span>}
@@ -817,7 +817,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             {ic.designNotes && <p className="text-[9px] text-yellow-500 italic">Note: {ic.designNotes}</p>}
                             {(ic.nameColor || ic.logoPlacement) && (
                               <div className="flex gap-1">
-                                {ic.nameColor && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-pink-900/30 text-pink-400">Color: {ic.nameColor}</span>}
+                                {ic.nameColor && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-pink-900/30 text-pink-400">Color: {isUrdu ? toUrduName(ic.nameColor) : ic.nameColor}</span>}
                                 {ic.logoPlacement && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-teal-900/30 text-teal-400">Pos: {ic.logoPlacement}</span>}
                               </div>
                             )}
@@ -880,7 +880,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         {custom.designNotes && <p className="text-[9px] text-yellow-500 italic">Note: {custom.designNotes}</p>}
                         {(custom.nameColor || custom.logoPlacement) && (
                           <div className="flex gap-1">
-                            {custom.nameColor && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-pink-900/30 text-pink-400">Color: {custom.nameColor}</span>}
+                            {custom.nameColor && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-pink-900/30 text-pink-400">Color: {isUrdu ? toUrduName(custom.nameColor) : custom.nameColor}</span>}
                             {custom.logoPlacement && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-teal-900/30 text-teal-400">Pos: {custom.logoPlacement}</span>}
                           </div>
                         )}
@@ -2204,7 +2204,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                         {(p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct || p.additionalProductRef) && (
                                           <>
                                             {p.fabricSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">{t('Fabric:')} {p.fabricSourceProduct}</span>}
-                                            {p.colorSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">{t('Color:')} {p.colorSourceProduct}</span>}
+                                            {p.colorSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">{t('Color:')} {isUrdu ? toUrduName(p.colorSourceProduct) : p.colorSourceProduct}</span>}
                                             {p.designSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">{t('Design:')} {p.designSourceProduct}</span>}
                                             {p.sizeSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">{t('Size:')} {p.sizeSourceProduct}</span>}
                                             {p.additionalProductRef && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">{t('Extra:')} {p.additionalProductRef}</span>}
@@ -2379,7 +2379,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     )}
                     {[
                       { l: t('Engraving Type'), v: custom?.engravingType === 'direct' ? t('Direct Engraving') : custom?.engravingType === 'patch' ? t('Patch Engraving') : null },
-                      { l: t('Embroidery Color'), v: custom?.nameColor },
+                      { l: t('Embroidery Color'), v: custom?.nameColor ? (isUrdu ? toUrduName(custom.nameColor) : custom.nameColor) : null },
                       { l: t('Logo Location'), v: custom?.logoPlacement },
                       { l: t('Fit Type'), v: custom?.fitType }
                     ].filter(i => i.v).map((item, i) => (

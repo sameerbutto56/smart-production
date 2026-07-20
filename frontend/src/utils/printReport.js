@@ -1259,7 +1259,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     // Parse order-level outlet engraving fields
     const outEngravingNames = order.engravingNames ? parseJSON(order.engravingNames) : [];
     const outEngravingLogos = order.engravingLogos ? parseJSON(order.engravingLogos) : [];
-    const outHasEngraving = order.engravingRequired && (outEngravingNames.length > 0 || outEngravingLogos.length > 0 || order.engravingText || order.engravingInstructions || order.logoRequired) || !!order.instructionNotes;
+    const outHasEngraving = (order.engravingRequired && (outEngravingNames.length > 0 || outEngravingLogos.length > 0 || order.engravingText || order.engravingInstructions || order.logoRequired)) || !!order.instructionNotes || !!order.engravingInstructions;
 
     const brandingItems = isMultiItem ? allItems : [{ productDetails: firstProduct, customization: custom }];
     const hasAnyCustomization = brandingItems.some(item => {
@@ -1327,11 +1327,21 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
             win.document.write(`</div>`);
           }
 
-          if (hasNotes) {
-            const notesDisplay = c.designNotes;
+          // Also check per-product sizeData specialNote
+          const pName = p.productType || p.name;
+          const perProductSizes = (rawSizes && typeof rawSizes === 'object' && !Array.isArray(rawSizes) && rawSizes[pName]) ? rawSizes[pName] : null;
+          const sizeSpecialNote = perProductSizes?.specialNote || (isMultiItem ? null : sizes?.specialNote);
+          const hasAnyNote = hasNotes || !!sizeSpecialNote;
+          if (hasAnyNote) {
             win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px">`);
             win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
-            win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
+            if (hasNotes) {
+              win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;white-space:pre-wrap;margin-bottom:${sizeSpecialNote ? '6px' : '0'}"${isUrdu ? ' class="urdu"' : ''}>${c.designNotes}</p>`);
+            }
+            if (sizeSpecialNote) {
+              win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? romanToUrdu(sizeSpecialNote) : sizeSpecialNote}</p>`);
+            }
+            win.document.write(`</div>`);
           }
 
           win.document.write(`</div>`);

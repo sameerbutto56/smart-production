@@ -931,9 +931,9 @@ const AllOrders = () => {
                                           <div className="flex flex-wrap gap-1">
                                             {c.engravingType && <span className="text-[9px] font-black text-violet-400 bg-violet-900/30 px-1.5 py-0.5 rounded">{c.engravingType === 'direct' ? 'Direct' : 'Patch'} Engraving</span>}
                                             {c.fitType && <span className="text-[9px] font-black text-indigo-400 bg-indigo-900/30 px-1.5 py-0.5 rounded">{c.fitType} Fit</span>}
-                                            {c.nameColor && <span className="text-[9px] font-black text-rose-400 bg-rose-900/30 px-1.5 py-0.5 rounded">Color: {c.nameColor}</span>}
+                                            {c.nameColor && <span className="text-[9px] font-black text-rose-400 bg-rose-900/30 px-1.5 py-0.5 rounded">Color: {isUrdu ? toUrduName(c.nameColor) : c.nameColor}</span>}
                                             {c.logoPlacement && <span className="text-[9px] font-black text-teal-400 bg-teal-900/30 px-1.5 py-0.5 rounded">Pos: {c.logoPlacement}</span>}
-                                            {c.logoColor && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded">Logo: {c.logoColor}</span>}
+                                            {c.logoColor && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded">Logo: {isUrdu ? toUrduName(c.logoColor) : c.logoColor}</span>}
                                           </div>
                                         )}
                                         {/* Logos */}
@@ -948,7 +948,7 @@ const AllOrders = () => {
                                         {(p.fabricSourceProduct || p.colorSourceProduct || p.designSourceProduct || p.sizeSourceProduct || p.additionalProductRef) && (
                                           <div className="flex flex-wrap gap-1">
                                             {p.fabricSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Fabric Req: {p.fabricSourceProduct}</span>}
-                                            {p.colorSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Color Req: {p.colorSourceProduct}</span>}
+                                            {p.colorSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Color Req: {isUrdu ? toUrduName(p.colorSourceProduct) : p.colorSourceProduct}</span>}
                                             {p.designSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Design Req: {p.designSourceProduct}</span>}
                                             {p.sizeSourceProduct && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Size Req: {p.sizeSourceProduct}</span>}
                                             {p.additionalProductRef && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-500/20">Extra: {p.additionalProductRef}</span>}
@@ -1221,9 +1221,9 @@ const AllOrders = () => {
                                     <div className="grid grid-cols-2 gap-2">
                                       {c.engravingType && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Engraving</span><p className="text-xs font-black text-violet-400">{c.engravingType === 'direct' ? 'Direct' : 'Patch'}</p></div>}
                                       {c.fitType && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Fit</span><p className="text-xs font-black text-white">{c.fitType}</p></div>}
-                                      {c.nameColor && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Color</span><p className="text-xs font-black text-rose-400">{c.nameColor}</p></div>}
+                                      {c.nameColor && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Color</span><p className="text-xs font-black text-rose-400">{isUrdu ? toUrduName(c.nameColor) : c.nameColor}</p></div>}
                                       {c.logoPlacement && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Position</span><p className="text-xs font-black text-teal-400">{c.logoPlacement}</p></div>}
-                                      {c.logoColor && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Logo Color</span><p className="text-xs font-black text-amber-400">{c.logoColor}</p></div>}
+                                      {c.logoColor && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Logo Color</span><p className="text-xs font-black text-amber-400">{isUrdu ? toUrduName(c.logoColor) : c.logoColor}</p></div>}
                                     </div>
                                   </div>
                                 )}
@@ -1233,7 +1233,7 @@ const AllOrders = () => {
                                     <p className="text-[10px] text-amber-400 font-black uppercase tracking-widest mb-2">Custom Requirements</p>
                                     <div className="grid grid-cols-2 gap-2">
                                       {p.fabricSourceProduct && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Fabric Req</span><p className="text-xs font-black text-amber-300">{p.fabricSourceProduct}</p></div>}
-                                      {p.colorSourceProduct && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Color Req</span><p className="text-xs font-black text-amber-300">{p.colorSourceProduct}</p></div>}
+                                      {p.colorSourceProduct && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Color Req</span><p className="text-xs font-black text-amber-300">{isUrdu ? toUrduName(p.colorSourceProduct) : p.colorSourceProduct}</p></div>}
                                       {p.designSourceProduct && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Design Req</span><p className="text-xs font-black text-amber-300">{p.designSourceProduct}</p></div>}
                                       {p.sizeSourceProduct && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Size Req</span><p className="text-xs font-black text-amber-300">{p.sizeSourceProduct}</p></div>}
                                       {p.additionalProductRef && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Extra Ref</span><p className="text-xs font-black text-amber-300">{p.additionalProductRef}</p></div>}
@@ -1271,7 +1271,7 @@ const AllOrders = () => {
                           {[
                             { l: 'Engraving Type', v: custom?.engravingType === 'direct' ? 'Direct Engraving' : custom?.engravingType === 'patch' ? 'Patch Engraving' : null },
                             { l: 'Branding Name', v: custom?.nameSpelling },
-                            { l: 'Embroidery Color', v: custom?.nameColor },
+                            { l: 'Embroidery Color', v: custom?.nameColor ? (isUrdu ? toUrduName(custom.nameColor) : custom.nameColor) : null },
                             { l: 'Logo Location', v: custom?.logoPlacement },
                             { l: 'Fit Type', v: custom?.fitType },
                           ].filter(item => item.v).map((item, i) => (
