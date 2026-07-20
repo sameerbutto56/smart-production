@@ -1532,8 +1532,8 @@ export function printDispatchSheet(order) {
       const extras = [p.sleeveLength ? `Sleeve: ${slMap[p.sleeveLength] || p.sleeveLength}` : null, p.shirtLength ? `Length: ${shMap[p.shirtLength] || p.shirtLength}` : null].filter(Boolean).join(' | ');
       win.document.write(`<tr>`);
       win.document.write(`<td style="font-weight:700">${idx + 1}</td>`);
-      win.document.write(`<td style="font-weight:700">${p.productType || p.name || '—'}</td>`);
-      win.document.write(`<td>${[p.fabricType, p.color, p.size, p.gender].filter(Boolean).join(' • ') || '—'}${extras ? ` • ${extras}` : ''}</td>`);
+      win.document.write(`<td style="font-weight:700">${pu(p.productType || p.name) || '—'}</td>`);
+      win.document.write(`<td>${[vu(p.fabricType), vu(p.color), p.size, p.gender].filter(Boolean).join(' • ') || '—'}${extras ? ` • ${extras}` : ''}</td>`);
       win.document.write(`<td style="text-align:center;font-weight:700">${item.quantity || 1}</td>`);
       win.document.write(`<td style="text-align:right;font-weight:700">${currency(item.totalPrice)}</td>`);
       win.document.write(`</tr>`);
@@ -1542,8 +1542,8 @@ export function printDispatchSheet(order) {
   } else {
     win.document.write(`<table><thead><tr><th>Product</th><th>Color / Size</th><th style="text-align:center">Qty</th><th style="text-align:right">Price</th></tr></thead><tbody>`);
     win.document.write(`<tr>`);
-    win.document.write(`<td style="font-weight:700">${firstProduct.productType || firstProduct.name || '—'}</td>`);
-    win.document.write(`<td>${[firstProduct.fabricType, firstProduct.color, firstProduct.size, firstProduct.gender].filter(Boolean).join(' • ') || '—'}</td>`);
+    win.document.write(`<td style="font-weight:700">${pu(firstProduct.productType || firstProduct.name) || '—'}</td>`);
+    win.document.write(`<td>${[vu(firstProduct.fabricType), vu(firstProduct.color), firstProduct.size, firstProduct.gender].filter(Boolean).join(' • ') || '—'}</td>`);
     win.document.write(`<td style="text-align:center;font-weight:700">${order.quantity || 1}</td>`);
     win.document.write(`<td style="text-align:right;font-weight:700">${currency(order.totalPrice)}</td>`);
     win.document.write(`</tr></tbody></table>`);
