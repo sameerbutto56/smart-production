@@ -1259,7 +1259,8 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       const fcParts = [vu(p.fabricType), vu(p.color)].filter(Boolean);
       win.document.write(`<td>${fcParts.join(' • ') || '—'}</td>`);
       // Size & Gender column (only size + gender)
-      const sgParts = [p.size ? (isUrdu ? `سائز ${pu(p.size)}` : `Size ${p.size}`) : (isUrdu ? 'کسٹم' : 'Custom'), genDisplay(p.gender)].filter(Boolean);
+      const sizeVal = p.size ? (p.size.trim().toUpperCase() === 'CUSTOM' ? 'C' : p.size.trim().toUpperCase()) : 'C';
+      const sgParts = [isUrdu ? `سائز ${sizeVal}` : `Size ${sizeVal}`, genDisplay(p.gender)].filter(Boolean);
       win.document.write(`<td>${sgParts.join(' • ') || '—'}</td>`);
       win.document.write(`<td style="text-align:center;font-weight:700">${item.quantity || 1}</td>`);
       if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;color:#000">${capQty || '—'}</td>`);
@@ -1280,7 +1281,8 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     win.document.write(`<td style="font-weight:700">${singleVerified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:#6366f120;color:#6366f1;border:1px solid #6366f140;font-size:10px;margin-right:4px" title="Verified">✓</span>' : ''}${pu(firstProduct.productType || firstProduct.name) || '—'}</td>`);
     const fcParts = [vu(firstProduct.fabricType), vu(firstProduct.color)].filter(Boolean);
     win.document.write(`<td>${fcParts.join(' • ') || '—'}</td>`);
-    const sgParts = [firstProduct.size ? (isUrdu ? `سائز ${pu(firstProduct.size)}` : `Size ${firstProduct.size}`) : (isUrdu ? 'کسٹم' : 'Custom'), genDisplay(firstProduct.gender)].filter(Boolean);
+    const singleSizeVal = firstProduct.size ? (firstProduct.size.trim().toUpperCase() === 'CUSTOM' ? 'C' : firstProduct.size.trim().toUpperCase()) : 'C';
+    const sgParts = [isUrdu ? `سائز ${singleSizeVal}` : `Size ${singleSizeVal}`, genDisplay(firstProduct.gender)].filter(Boolean);
     win.document.write(`<td>${sgParts.join(' • ') || '—'}</td>`);
     win.document.write(`<td style="text-align:center;font-weight:700">${order.quantity || 1}</td>`);
     if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;color:#000">${capQty || '—'}</td>`);
@@ -1297,7 +1299,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       allItems.forEach((item, idx) => {
         const p = getItemProduct(item);
         const pName = p.productType || p.name;
-        const sizeVal = p.size ? pu(p.size) : (isUrdu ? 'کسٹم' : 'Custom');
+        const sizeVal = p.size ? (p.size.trim().toUpperCase() === 'CUSTOM' ? 'C' : p.size.trim().toUpperCase()) : 'C';
         const perProductSizes = (rawSizes && typeof rawSizes === 'object' && !Array.isArray(rawSizes) && rawSizes[pName]) ? rawSizes[pName] : null;
         const sizeSpecialNote = perProductSizes?.specialNote || item.sizeData?.specialNote;
         
@@ -1312,7 +1314,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
         win.document.write(`</div>`);
       });
     } else {
-      const sizeVal = firstProduct.size ? pu(firstProduct.size) : (isUrdu ? 'کسٹم' : 'Custom');
+      const sizeVal = firstProduct.size ? (firstProduct.size.trim().toUpperCase() === 'CUSTOM' ? 'C' : firstProduct.size.trim().toUpperCase()) : 'C';
       const sizeSpecialNote = (rawSizes && rawSizes.specialNote) || (sizes && sizes.specialNote);
       win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;margin-bottom:2px">`);
       win.document.write(`${isUrdu ? 'سائز' : 'Size'}: <span style="font-weight:900">${sizeVal}</span>`);
