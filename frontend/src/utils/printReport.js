@@ -1306,7 +1306,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
         win.document.write(`<div style="margin-bottom:6px;${idx > 0 ? 'border-top:1px solid #eee;padding-top:6px;' : ''}">`);
         win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;margin-bottom:2px">`);
         win.document.write(`<span style="background:#111;color:#fff;width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;margin-right:6px">${idx + 1}</span>`);
-        win.document.write(`${pu(pName)} — ${isUrdu ? 'سائز' : 'Size'}: <span style="font-weight:900">${sizeVal}</span>`);
+        win.document.write(`${pu(pName)} — ${isUrdu ? 'جنس' : 'Gender'}: <span style="font-weight:900">${genDisplay(p.gender) || '—'}</span> • ${isUrdu ? 'سائز' : 'Size'}: <span style="font-weight:900">${sizeVal}</span>`);
         win.document.write(`</p>`);
         if (sizeSpecialNote) {
           win.document.write(`<p style="font-size:20px;font-weight:700;color:#d97706;white-space:pre-wrap;word-break:break-word;margin-top:2px"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'پیمائش نوٹ: ' + romanToUrdu(sizeSpecialNote) : 'Measurement Note: ' + sizeSpecialNote}</p>`);
@@ -1317,7 +1317,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       const sizeVal = firstProduct.size ? (firstProduct.size.trim().toUpperCase() === 'CUSTOM' ? 'C' : firstProduct.size.trim().toUpperCase()) : 'C';
       const sizeSpecialNote = (rawSizes && rawSizes.specialNote) || (sizes && sizes.specialNote);
       win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;margin-bottom:2px">`);
-      win.document.write(`${isUrdu ? 'سائز' : 'Size'}: <span style="font-weight:900">${sizeVal}</span>`);
+      win.document.write(`${isUrdu ? 'جنس' : 'Gender'}: <span style="font-weight:900">${genDisplay(firstProduct.gender) || '—'}</span> • ${isUrdu ? 'سائز' : 'Size'}: <span style="font-weight:900">${sizeVal}</span>`);
       win.document.write(`</p>`);
       if (sizeSpecialNote) {
         win.document.write(`<p style="font-size:20px;font-weight:700;color:#d97706;white-space:pre-wrap;word-break:break-word;margin-top:2px"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'پیمائش نوٹ: ' + romanToUrdu(sizeSpecialNote) : 'Measurement Note: ' + sizeSpecialNote}</p>`);
