@@ -1260,7 +1260,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       win.document.write(`<td>${fcParts.join(' • ') || '—'}</td>`);
       // Size & Gender column (only size + gender)
       const sizeVal = p.size ? (p.size.trim().toUpperCase() === 'CUSTOM' ? 'C' : p.size.trim().toUpperCase()) : 'C';
-      const sgParts = [isUrdu ? `سائز ${sizeVal}` : `Size ${sizeVal}`, genDisplay(p.gender)].filter(Boolean);
+      const sgParts = [isUrdu ? `سائز ${pu(sizeVal)}` : `Size ${sizeVal}`, genDisplay(p.gender)].filter(Boolean);
       win.document.write(`<td>${sgParts.join(' • ') || '—'}</td>`);
       win.document.write(`<td style="text-align:center;font-weight:700">${item.quantity || 1}</td>`);
       if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;color:#000">${capQty || '—'}</td>`);
@@ -1282,7 +1282,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     const fcParts = [vu(firstProduct.fabricType), vu(firstProduct.color)].filter(Boolean);
     win.document.write(`<td>${fcParts.join(' • ') || '—'}</td>`);
     const singleSizeVal = firstProduct.size ? (firstProduct.size.trim().toUpperCase() === 'CUSTOM' ? 'C' : firstProduct.size.trim().toUpperCase()) : 'C';
-    const sgParts = [isUrdu ? `سائز ${singleSizeVal}` : `Size ${singleSizeVal}`, genDisplay(firstProduct.gender)].filter(Boolean);
+    const sgParts = [isUrdu ? `سائز ${pu(singleSizeVal)}` : `Size ${singleSizeVal}`, genDisplay(firstProduct.gender)].filter(Boolean);
     win.document.write(`<td>${sgParts.join(' • ') || '—'}</td>`);
     win.document.write(`<td style="text-align:center;font-weight:700">${order.quantity || 1}</td>`);
     if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;color:#000">${capQty || '—'}</td>`);
@@ -1303,53 +1303,25 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
         const perProductSizes = (rawSizes && typeof rawSizes === 'object' && !Array.isArray(rawSizes) && rawSizes[pName]) ? rawSizes[pName] : null;
         const itemSizeData = perProductSizes || (item.sizeData ? (typeof item.sizeData === 'string' ? JSON.parse(item.sizeData) : item.sizeData) : null) || {};
         const sizeSpecialNote = itemSizeData?.specialNote;
-        const measFields = Object.entries(itemSizeData).filter(([k, v]) => v && k !== 'specialNote' && k !== '_extra' && k !== '_standardSize');
-        const extraFields = Array.isArray(itemSizeData?._extra) ? itemSizeData._extra.filter(e => e.name && e.value) : [];
         
         win.document.write(`<div style="margin-bottom:6px;${idx > 0 ? 'border-top:1px solid #eee;padding-top:6px;' : ''}">`);
         win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;margin-bottom:2px">`);
         win.document.write(`<span style="background:#111;color:#fff;width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;margin-right:6px">${idx + 1}</span>`);
-        win.document.write(`${pu(pName)} — ${isUrdu ? 'جنس' : 'Gender'}: <span style="font-weight:900">${genDisplay(p.gender) || '—'}</span> • ${isUrdu ? 'سائز' : 'Size'}: <span style="font-weight:900">${sizeVal}</span>`);
+        win.document.write(`${pu(pName)} — ${isUrdu ? 'جنس' : 'Gender'}: <span style="font-weight:900">${genDisplay(p.gender) || '—'}</span> • ${isUrdu ? 'سائز' : 'Size'}: <span style="font-weight:900">${pu(sizeVal)}</span>`);
         win.document.write(`</p>`);
-        if (measFields.length > 0 || extraFields.length > 0) {
-          win.document.write(`<table style="width:100%;border-collapse:collapse;margin:4px 0;font-size:18px"><tbody>`);
-          measFields.forEach(([k, v]) => {
-            const labelEn = k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
-            const labelUr = urduLabels[k] || romanToUrdu(labelEn);
-            win.document.write(`<tr><td style="padding:2px 8px;border:1px solid #ddd;font-weight:700;background:#f9f9f9;width:40%">${isUrdu ? labelUr : labelEn}</td><td style="padding:2px 8px;border:1px solid #ddd;font-weight:900">${v}</td></tr>`);
-          });
-          extraFields.forEach(e => {
-            win.document.write(`<tr><td style="padding:2px 8px;border:1px solid #ddd;font-weight:700;background:#f9f9f9;width:40%">${e.name}</td><td style="padding:2px 8px;border:1px solid #ddd;font-weight:900">${e.value}</td></tr>`);
-          });
-          win.document.write(`</tbody></table>`);
-        }
         if (sizeSpecialNote) {
-          win.document.write(`<p style="font-size:20px;font-weight:700;color:#d97706;white-space:pre-wrap;word-break:break-word;margin-top:2px"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'پیمائش نوٹ: ' + romanToUrdu(sizeSpecialNote) : 'Measurement Note: ' + sizeSpecialNote}</p>`);
+          win.document.write(`<p style="font-size:20px;font-weight:700;color:#d97706;white-space:pre-wrap;word-break:break-word;margin-top:2px"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? romanToUrdu(sizeSpecialNote) : sizeSpecialNote}</p>`);
         }
         win.document.write(`</div>`);
       });
     } else {
       const sizeVal = firstProduct.size ? (firstProduct.size.trim().toUpperCase() === 'CUSTOM' ? 'C' : firstProduct.size.trim().toUpperCase()) : 'C';
       const sizeSpecialNote = (rawSizes && rawSizes.specialNote) || (sizes && sizes.specialNote);
-      const measFields = Object.entries(sizes).filter(([k, v]) => v && k !== 'specialNote' && k !== '_extra' && k !== '_standardSize');
-      const extraFields = Array.isArray(sizes?._extra) ? sizes._extra.filter(e => e.name && e.value) : [];
       win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;margin-bottom:2px">`);
-      win.document.write(`${isUrdu ? 'جنس' : 'Gender'}: <span style="font-weight:900">${genDisplay(firstProduct.gender) || '—'}</span> • ${isUrdu ? 'سائز' : 'Size'}: <span style="font-weight:900">${sizeVal}</span>`);
+      win.document.write(`${isUrdu ? 'جنس' : 'Gender'}: <span style="font-weight:900">${genDisplay(firstProduct.gender) || '—'}</span> • ${isUrdu ? 'سائز' : 'Size'}: <span style="font-weight:900">${pu(sizeVal)}</span>`);
       win.document.write(`</p>`);
-      if (measFields.length > 0 || extraFields.length > 0) {
-        win.document.write(`<table style="width:100%;border-collapse:collapse;margin:4px 0;font-size:18px"><tbody>`);
-        measFields.forEach(([k, v]) => {
-          const labelEn = k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
-          const labelUr = urduLabels[k] || romanToUrdu(labelEn);
-          win.document.write(`<tr><td style="padding:2px 8px;border:1px solid #ddd;font-weight:700;background:#f9f9f9;width:40%">${isUrdu ? labelUr : labelEn}</td><td style="padding:2px 8px;border:1px solid #ddd;font-weight:900">${v}</td></tr>`);
-        });
-        extraFields.forEach(e => {
-          win.document.write(`<tr><td style="padding:2px 8px;border:1px solid #ddd;font-weight:700;background:#f9f9f9;width:40%">${e.name}</td><td style="padding:2px 8px;border:1px solid #ddd;font-weight:900">${e.value}</td></tr>`);
-        });
-        win.document.write(`</tbody></table>`);
-      }
       if (sizeSpecialNote) {
-        win.document.write(`<p style="font-size:20px;font-weight:700;color:#d97706;white-space:pre-wrap;word-break:break-word;margin-top:2px"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'پیمائش نوٹ: ' + romanToUrdu(sizeSpecialNote) : 'Measurement Note: ' + sizeSpecialNote}</p>`);
+        win.document.write(`<p style="font-size:20px;font-weight:700;color:#d97706;white-space:pre-wrap;word-break:break-word;margin-top:2px"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? romanToUrdu(sizeSpecialNote) : sizeSpecialNote}</p>`);
       }
     }
     win.document.write(`</div>`);
@@ -1428,21 +1400,10 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
             win.document.write(`</div>`);
           }
 
-          // Also check per-product sizeData specialNote
-          const pName = p.productType || p.name;
-          const perProductSizes = (rawSizes && typeof rawSizes === 'object' && !Array.isArray(rawSizes) && rawSizes[pName]) ? rawSizes[pName] : null;
-          const sizeSpecialNote = perProductSizes?.specialNote || (isMultiItem ? null : sizes?.specialNote);
-          const hasAnyNote = hasNotes || !!sizeSpecialNote;
-          if (hasAnyNote) {
+          if (hasNotes) {
             win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px">`);
             win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
-            if (hasNotes) {
-              win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;white-space:pre-wrap;word-break:break-word;margin-bottom:${sizeSpecialNote ? '6px' : '0'}"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? romanToUrdu(c.designNotes) : c.designNotes}</p>`);
-            }
-            if (sizeSpecialNote) {
-              win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;white-space:pre-wrap;word-break:break-word"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? romanToUrdu(sizeSpecialNote) : sizeSpecialNote}</p>`);
-            }
-            win.document.write(`</div>`);
+            win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;white-space:pre-wrap;word-break:break-word"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? romanToUrdu(c.designNotes) : c.designNotes}</p></div>`);
           }
 
           win.document.write(`</div>`);
