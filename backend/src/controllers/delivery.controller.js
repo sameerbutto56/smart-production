@@ -286,15 +286,21 @@ const getCODSummary = async (req, res) => {
     }, 0);
 
     // All pending COD (delivered but not cleared)
+    const clearedOrderIds = (await prisma.cODCollection.findMany({ select: { orderIds: true } }))
+      .flatMap(c => Array.isArray(c.orderIds) ? c.orderIds : []);
     const pendingCODDeliveries = await prisma.order.findMany({
       where: {
         currentStage: 'DELIVERED',
-        OR: [
-          { paymentMethod: { in: ['CASH', null] } },
-          { advanceAmount: { gt: 0 } }
-        ],
-        // Exclude already cleared (null-safe flatMap)
-        id: { notIn: (await prisma.cODCollection.findMany({ select: { orderIds: true } })).flatMap(c => Array.isArray(c.orderIds) ? c.orderIds : []) }
+        AND: [
+          {
+            OR: [
+              { paymentMethod: 'CASH' },
+              { paymentMethod: null },
+              { advanceAmount: { gt: 0 } }
+            ]
+          },
+          clearedOrderIds.length > 0 ? { id: { notIn: clearedOrderIds } } : {}
+        ]
       },
       select: { id: true, orderNumber: true, customerName: true, totalPrice: true, deliveredAt: true, advanceAmount: true, paymentMethod: true }
     });
@@ -317,7 +323,8 @@ const getCODSummary = async (req, res) => {
       collections
     });
   } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch COD summary', error: error.message });
+    console.error('getCODSummary error:', error);
+    res.status(500).json({ message: 'Failed to fetch COD summary', error: error.message, stack: error.stack });
   }
 };
 
