@@ -634,6 +634,7 @@ function romanToUrduSingleLine(text) {
     'xl': 'ایکس ایل',
     'xxl': 'ڈبل ایکس ایل',
     'xxxl': 'ٹرپل ایکس ایل',
+    'c': 'کسٹم', 'C': 'کسٹم', 'custom': 'کسٹم',
 
     // English words that should stay/not be translated
     'id': 'آئی ڈی',

@@ -374,11 +374,27 @@ const urduDictionary = {
   // X
   'X-Ray': 'ایکس رے',
 
-  // Y
-  Yellow: 'ییلو',
-
+  Yelllow: 'یلو',
+  Yellow: 'یلو',
   // Z
   Zinc: 'زنک',
+  // Sizes & Special Codes
+  C: 'کسٹم',
+  c: 'کسٹم',
+  Custom: 'کسٹم',
+  custom: 'کسٹم',
+  S: 'ایس',
+  s: 'ایس',
+  M: 'ایم',
+  m: 'ایم',
+  L: 'ایل',
+  l: 'ایل',
+  XL: 'ایکس ایل',
+  xl: 'ایکس ایل',
+  XXL: 'ڈبل ایکس ایل',
+  xxl: 'ڈبل ایکس ایل',
+  XXXL: 'ٹرپل ایکس ایل',
+  xxxl: 'ٹرپل ایکس ایل',
 };
 
 /**
@@ -406,12 +422,9 @@ export function toUrduName(text) {
       const lowerPrefix = prefix.toLowerCase();
       const prefixMatchKey = Object.keys(urduDictionary).find(k => k.toLowerCase() === lowerPrefix);
       if (prefixMatchKey) {
-        const suffix = words.slice(i).map(w => {
-          const lowerW = w.toLowerCase();
-          const wMatchKey = Object.keys(urduDictionary).find(k => k.toLowerCase() === lowerW);
-          return wMatchKey ? urduDictionary[wMatchKey] : w;
-        }).join(' ');
-        return urduDictionary[prefixMatchKey] + ' ' + suffix;
+        const suffixText = words.slice(i).join(' ');
+        const suffixTranslated = toUrduName(suffixText);
+        return urduDictionary[prefixMatchKey] + ' ' + suffixTranslated;
       }
     }
   }
