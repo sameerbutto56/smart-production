@@ -297,23 +297,23 @@ const DispatchPage = () => {
     iframe.style.width = '0'; iframe.style.height = '0'; iframe.style.position = 'absolute'; iframe.style.left = '0'; iframe.style.top = '0';
     document.body.appendChild(iframe);
     const doc = iframe.contentWindow.document;
-    const PRINT_CSS = `@page{margin:6mm}body{font-family:sans-serif;color:#000;padding:6px;font-size:11px}table{width:100%;border-collapse:collapse;margin:4px 0}th,td{padding:3px 5px;border:1px solid #000;text-align:left}th{font-size:10px;font-weight:700;text-transform:uppercase}td{font-size:11px}`;
+    const PRINT_CSS = `@page{margin:6mm}body{font-family:sans-serif;color:#000;padding:6px;font-size:11px}table{width:100%;border-collapse:collapse;margin:4px 0}th,td{padding:3px 5px;border:1px solid #000;text-align:left}th{background:#f3f4f6;font-size:10px;font-weight:900;text-transform:uppercase}td{font-size:11px}`;
     doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>${PRINT_CSS}</style></head><body>`);
     doc.write(`<div style="text-align:center;margin-bottom:4px;padding-bottom:4px;border-bottom:3px solid #000">`);
-    doc.write(`<img src="${logoUrl}" alt="ENAMELS" style="height:50px;margin-bottom:2px;"><p style="font-size:12px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:0;margin:0${isUrdu ? ';direction:rtl' : ''}">${isUrdu ? 'ڈسپیچ شیٹ' : 'DISPATCH SHEET'}</p></div>`);
+    doc.write(`<img src="${logoUrl}" alt="ENAMELS" style="height:50px;margin-bottom:2px;"><p style="font-size:12px;font-weight:800;color:#000;text-transform:uppercase;letter-spacing:2px;margin:0${isUrdu ? ';direction:rtl' : ''}">${isUrdu ? 'ڈسپیچ شیٹ' : 'DISPATCH SHEET'}</p></div>`);
     if (officerName) {
       doc.write(`<div style="text-align:center;margin-bottom:4px">`);
-      doc.write(`<span style="font-size:13px;font-weight:700;color:#000;display:inline-block;padding:3px 12px;border:1px solid #000${isUrdu ? ';direction:rtl' : ''}">${isUrdu ? 'ڈسپیچ آفیسر:' : 'Dispatch Officer:'} ${officerName}</span></div>`);
+      doc.write(`<span style="font-size:13px;font-weight:900;color:#1d4ed8;background:#dbeafe;display:inline-block;padding:3px 12px${isUrdu ? ';direction:rtl' : ''}">${isUrdu ? 'ڈسپیچ آفیسر:' : 'Dispatch Officer:'} ${officerName}</span></div>`);
     }
     doc.write(`<div style="text-align:center;margin-bottom:4px">`);
-    doc.write(`<h2 style="font-size:16px;font-weight:700;text-transform:uppercase;color:#000;letter-spacing:0;margin:0${isUrdu ? ';direction:rtl' : ''}">${isUrdu ? 'آرڈر نمبر' : 'Order #'}${order.orderNumber || order.id?.slice(0, 8)}</h2></div>`);
+    doc.write(`<h2 style="font-size:18px;font-weight:900;text-transform:uppercase;color:#000;letter-spacing:1px;margin:0${isUrdu ? ';direction:rtl' : ''}">${isUrdu ? 'آرڈر نمبر' : 'Order #'}${order.orderNumber || order.id?.slice(0, 8)}</h2></div>`);
     doc.write(`<div style="border:1.5px solid #000;padding:5px 8px;margin-bottom:4px">`);
-    doc.write(`<p style="font-size:14px;font-weight:700;color:#000;margin:0 0 2px">${order.customerName || '—'}</p>`);
+    doc.write(`<p style="font-size:14px;font-weight:900;color:#000;margin:0 0 2px">${order.customerName || '—'}</p>`);
     doc.write(`<p style="font-size:12px;font-weight:600;color:#000;margin:0 0 1px">${order.customerPhone || ''}</p>`);
     if (order.address) doc.write(`<p style="font-size:11px;color:#000;margin:0 0 1px">${order.address}</p>`);
-    if (order.city) doc.write(`<span style="font-size:13px;font-weight:700;color:#000;display:inline-block;padding:2px 8px;margin-top:2px;text-transform:uppercase;border:1px solid #000${isUrdu ? ';direction:rtl' : ''}">${isUrdu ? 'شہر:' : 'CITY:'} ${order.city}</span>`);
+    if (order.city) doc.write(`<span style="font-size:13px;font-weight:900;color:#000;background:#fef3c7;display:inline-block;padding:2px 8px;margin-top:2px;text-transform:uppercase${isUrdu ? ';direction:rtl' : ''}">${isUrdu ? 'شہر:' : 'CITY:'} ${order.city}</span>`);
     doc.write(`</div>`);
-    doc.write(`<div style="font-size:12px;font-weight:700;text-transform:uppercase;margin:4px 0 2px;padding-bottom:2px;border-bottom:1.5px solid #000${isUrdu ? ';direction:rtl' : ''}">${isUrdu ? 'آرٹیکلز' : 'Products'}</div>`);
+    doc.write(`<div style="font-size:12px;font-weight:900;text-transform:uppercase;margin:4px 0 2px;padding-bottom:2px;border-bottom:2px solid #000${isUrdu ? ';direction:rtl' : ''}">${isUrdu ? 'آرٹیکلز' : 'Products'}</div>`);
     const rawPd = parseJSON(order.productDetails);
     const allItems = Array.isArray(rawPd) ? rawPd : null;
     const firstProduct = allItems ? (allItems[0]?.productDetails || allItems[0] || {}) : (rawPd || {});
@@ -329,7 +329,7 @@ const DispatchPage = () => {
     } else {
       const fpName = isUrdu ? toUrduName(firstProduct.productType || firstProduct.name || '—') : (firstProduct.productType || firstProduct.name || '—');
       const fpColor = isUrdu ? toUrduName(firstProduct.color) : firstProduct.color;
-      doc.write(`<div style="padding:4px 6px;margin-bottom:4px"><p style="font-size:12px;font-weight:700;margin:0">${fpName}</p><p style="font-size:11px;margin:0">${[firstProduct.fabricType, fpColor, firstProduct.size, firstProduct.gender].filter(Boolean).join(' • ') || '—'}</p><p style="font-size:11px;font-weight:700;margin:2px 0 0">${isUrdu ? 'تعداد: 1' : 'Qty: 1'} | ₨${parseFloat(order.totalPrice || 0).toLocaleString()}</p></div>`);
+      doc.write(`<div style="padding:4px 6px;margin-bottom:4px"><p style="font-size:12px;font-weight:900;margin:0">${fpName}</p><p style="font-size:11px;margin:0">${[firstProduct.fabricType, fpColor, firstProduct.size, firstProduct.gender].filter(Boolean).join(' • ') || '—'}</p><p style="font-size:11px;font-weight:700;margin:2px 0 0">${isUrdu ? 'تعداد: 1' : 'Qty: 1'} | ₨${parseFloat(order.totalPrice || 0).toLocaleString()}</p></div>`);
     }
     if (officerName) {
       doc.write(`<div style="margin-top:6px;border-top:2px solid #000;padding-top:4px;text-align:center">`);
