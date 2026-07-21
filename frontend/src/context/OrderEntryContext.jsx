@@ -320,6 +320,7 @@ export const OrderEntryProvider = ({ children }) => {
           shopifyOrderDate: formData.shopifyOrderDate || null,
           deliveryCharges: parseFloat(formData.deliveryCharges) || 0,
           engravingInstructions: formData.engravingInstructions || null,
+          engravingRequired: !formData.skipEngraving,
           instructionNotes: [formData.instructionNotes, formData.measurements.specialNote].filter(Boolean).join('\n---\n') || null
         },
         reason: editReason
@@ -480,6 +481,7 @@ export const OrderEntryProvider = ({ children }) => {
         quantity: finalItems.reduce((sum, item) => sum + (item.quantity || 1), 0),
         totalPrice: adjTotal,
         engravingInstructions: formData.engravingInstructions || '',
+        engravingRequired: !formData.skipEngraving,
         instructionNotes: [formData.instructionNotes, formData.measurements.specialNote].filter(Boolean).join('\n---\n') || '',
         shopifyOrderDate: formData.shopifyOrderDate || null,
         placedBy: faisalEmp

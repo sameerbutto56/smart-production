@@ -127,23 +127,23 @@ export async function printReceipt(sale, { includeInvoice = true, includeGatePas
         if (sale.cardChargesPct > 0) doc.write(`<tr><td>Card Charges (${sale.cardChargesPct}%)</td><td class="value">+${pf(sale.cardChargesAmount)}</td></tr>`);
         const balance = sale.grandTotal - adv;
         if (isRefunded) {
-          doc.write(`<tr style="font-size:17px;font-weight:900;color:#c00;"><td>Refunded</td><td class="value">-${pf(sale.grandTotal)}</td></tr>`);
+          doc.write(`<tr style="font-size:17px;font-weight:900;"><td>Refunded</td><td class="value">-${pf(sale.grandTotal)}</td></tr>`);
         } else if (isOrderSale) {
           doc.write(`<tr class="final"><td>Total</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
           doc.write(`<tr><td>Paid (This Transaction)</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
-          doc.write(`<tr><td>Advance (Previous)</td><td class="value">${pf(adv)}</td></tr>`);
+          doc.write(`<tr style="font-weight:900;"><td>Advance (Previous)</td><td class="value" style="font-weight:900;">${pf(adv)}</td></tr>`);
           doc.write(`<tr style="font-size:17px;font-weight:900;"><td>Cumulative Paid</td><td class="value">${pf(sale.grandTotal + adv)}</td></tr>`);
-          doc.write(`<tr><td style="font-size:11px;color:#070;font-weight:900;">Status</td><td class="value" style="font-size:11px;color:#070;font-weight:900;">Fully Paid</td></tr>`);
+          doc.write(`<tr><td style="font-size:11px;font-weight:900;">Status</td><td class="value" style="font-size:11px;font-weight:900;">Fully Paid</td></tr>`);
         } else if (isPartialPayment) {
           doc.write(`<tr class="final"><td>Total Bill</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
-          doc.write(`<tr><td>Paid</td><td class="value">${pf(adv)}</td></tr>`);
-          doc.write(`<tr style="font-size:17px;font-weight:900;color:#c00;"><td>Balance</td><td class="value" style="color:#c00;">${pf(balance)}</td></tr>`);
-          doc.write(`<tr><td style="font-size:11px;color:#c00;font-weight:900;">Status</td><td class="value" style="font-size:11px;color:#c00;font-weight:900;">Partially Paid</td></tr>`);
+          doc.write(`<tr style="font-weight:900;"><td>Paid</td><td class="value" style="font-weight:900;">${pf(adv)}</td></tr>`);
+          doc.write(`<tr style="font-size:17px;font-weight:900;"><td>Balance</td><td class="value" style="font-weight:900;">${pf(balance)}</td></tr>`);
+          doc.write(`<tr><td style="font-size:11px;font-weight:900;">Status</td><td class="value" style="font-size:11px;font-weight:900;">Partially Paid</td></tr>`);
         } else {
           doc.write(`<tr class="final"><td>Total Bill</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
-          doc.write(`<tr><td>Paid</td><td class="value">${pf(sale.grandTotal)}</td></tr>`);
-          doc.write(`<tr><td>Balance</td><td class="value">₨0</td></tr>`);
-          doc.write(`<tr><td style="font-size:11px;color:#070;font-weight:900;">Status</td><td class="value" style="font-size:11px;color:#070;font-weight:900;">Fully Paid</td></tr>`);
+          doc.write(`<tr style="font-weight:900;"><td>Paid</td><td class="value" style="font-weight:900;">${pf(sale.grandTotal)}</td></tr>`);
+          doc.write(`<tr style="font-weight:900;"><td>Balance</td><td class="value" style="font-weight:900;">₨0</td></tr>`);
+          doc.write(`<tr><td style="font-size:11px;font-weight:900;">Status</td><td class="value" style="font-size:11px;font-weight:900;">Fully Paid</td></tr>`);
         }
         if (sale.paymentMethod === 'CASH_ONLINE') {
           doc.write(`<tr><td>Cash Amount</td><td class="value">${pf(sale.cashAmount)}</td></tr>`);
@@ -166,8 +166,8 @@ export async function printReceipt(sale, { includeInvoice = true, includeGatePas
       doc.write('<table style="width:100%;font-size:14px;font-weight:bold;border-collapse:collapse;">');
       doc.write(`<tr><td style="text-align:left;padding:2px 4px;">Total Products</td><td style="text-align:right;padding:2px 4px;">${totalQty}</td></tr>`);
       doc.write(`<tr><td style="text-align:left;padding:2px 4px;">Total Amount</td><td style="text-align:right;padding:2px 4px;">${pf(sale.grandTotal)}</td></tr>`);
-      doc.write(`<tr><td style="text-align:left;padding:2px 4px;">Paid Amount</td><td style="text-align:right;padding:2px 4px;">${pf(gpPaid)}</td></tr>`);
-      doc.write(`<tr><td style="text-align:left;padding:2px 4px;">Balance Amount</td><td style="text-align:right;padding:2px 4px;">${pf(gpBalance)}</td></tr>`);
+      doc.write(`<tr><td style="text-align:left;padding:2px 4px;font-weight:900;">Paid Amount</td><td style="text-align:right;padding:2px 4px;font-weight:900;">${pf(gpPaid)}</td></tr>`);
+      doc.write(`<tr><td style="text-align:left;padding:2px 4px;font-weight:900;">Balance Amount</td><td style="text-align:right;padding:2px 4px;font-weight:900;">${pf(gpBalance)}</td></tr>`);
       doc.write('</table></div>');
     }
     doc.write('</body></html>');

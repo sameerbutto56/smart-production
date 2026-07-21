@@ -1121,7 +1121,7 @@ const AllOrders = () => {
                   {(() => {
                     const en = selectedOrder.engravingNames ? (typeof selectedOrder.engravingNames === 'string' ? (() => { try { return JSON.parse(selectedOrder.engravingNames); } catch { return []; } })() : selectedOrder.engravingNames) : [];
                     const el = selectedOrder.engravingLogos ? (typeof selectedOrder.engravingLogos === 'string' ? (() => { try { return JSON.parse(selectedOrder.engravingLogos); } catch { return []; } })() : selectedOrder.engravingLogos) : [];
-                    const hasEng = selectedOrder.engravingRequired && (en.length > 0 || el.length > 0 || selectedOrder.engravingText || selectedOrder.engravingInstructions || selectedOrder.logoRequired) || selectedOrder.instructionNotes;
+                    const hasEng = en.length > 0 || el.length > 0 || selectedOrder.engravingText || selectedOrder.engravingInstructions || selectedOrder.logoRequired || selectedOrder.instructionNotes;
                     if (!hasEng) return null;
                     return (
                       <section className="bg-purple-600/5 p-4 md:p-8 rounded-[2rem] border border-purple-500/10 mt-4">

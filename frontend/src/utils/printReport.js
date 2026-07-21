@@ -1261,23 +1261,43 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     const rawS = typeof sizes === 'object' && sizes ? sizes : {};
     const selectedSize = order.size || rawS._standardSize || '';
     const measNote = order.instructionNotes || '';
-    if (selectedSize || measNote) {
+    const measSpecialNote = rawS.specialNote || '';
+    const measEntries = Object.entries(rawS).filter(([k, v]) => v && k !== 'specialNote' && k !== '_standardSize' && k !== '_extra');
+    const hasMeasValues = measEntries.length > 0;
+    if (selectedSize || measNote || measSpecialNote || hasMeasValues) {
       win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
       win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px">`);
       if (selectedSize) {
-        win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;margin-bottom:${measNote ? '6px' : '0'}">${isUrdu ? 'منتخب سائز:' : 'Selected Size:'} ${selectedSize}</p>`);
+        win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;margin-bottom:${(hasMeasValues || measSpecialNote || measNote) ? '6px' : '0'}">${isUrdu ? 'منتخب سائز:' : 'Selected Size:'} ${selectedSize}</p>`);
+      }
+      if (hasMeasValues) {
+        win.document.write(`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:${(measSpecialNote || measNote) ? '6px' : '0'}">`);
+        measEntries.forEach(([k, v]) => {
+          const label = isUrdu ? (urduLabels[k.toLowerCase()] || romanToUrdu(k)) : k;
+          win.document.write(`<span style="background:#f3f4f6;border:1px solid #e5e7eb;border-radius:4px;padding:2px 8px;font-size:17px;font-weight:700;color:#000">${label}: ${v}</span>`);
+        });
+        win.document.write(`</div>`);
+      }
+      if (measSpecialNote) {
+        const noteDisplay = isUrdu ? measSpecialNote.split('\n').map(l => romanToUrdu(l)).join('\n') : measSpecialNote;
+        win.document.write(`<div style="background:#fef3c7;border-${borderAccent}:4px solid #d97706;padding:6px 10px;border-radius:4px;margin-top:${(selectedSize || hasMeasValues) ? '6px' : '0'}">`);
+        win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
+        win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${noteDisplay}</p></div>`);
       }
       if (measNote) {
         const notesDisplay = isUrdu ? romanToUrdu(measNote) : measNote;
-        win.document.write(`<div style="background:#fef3c7;border-${borderAccent}:4px solid #d97706;padding:6px 10px;border-radius:4px;${selectedSize ? 'margin-top:6px' : ''}">`);
-        win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
+        const noteBg = measSpecialNote ? 'dbeafe' : 'fef3c7';
+        const noteBorder = measSpecialNote ? '3b82f6' : 'd97706';
+        const noteLabel = measSpecialNote ? sec.instructionNotes : sec.specialNote;
+        win.document.write(`<div style="background:#${noteBg};border-${borderAccent}:4px solid #${noteBorder};padding:6px 10px;border-radius:4px;margin-top:${(selectedSize || hasMeasValues || measSpecialNote) ? '6px' : '0'}">`);
+        win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #${noteBorder}60;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${noteLabel}</p>`);
         win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
       }
       win.document.write(`</div>`);
     }
   }
 
-  // ─── MEASUREMENT SPECIAL NOTE (also shown standalone when engraving is disabled) ───
+  // ─── MEASUREMENT NOTES (standalone when engraving is disabled) ───
   if (order.instructionNotes && !showMeas) {
     const notesDisplay = isUrdu ? romanToUrdu(order.instructionNotes) : order.instructionNotes;
     win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
@@ -1293,7 +1313,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     // Parse order-level outlet engraving fields
     const outEngravingNames = order.engravingNames ? parseJSON(order.engravingNames) : [];
     const outEngravingLogos = order.engravingLogos ? parseJSON(order.engravingLogos) : [];
-    const outHasEngraving = order.engravingRequired && (outEngravingNames.length > 0 || outEngravingLogos.length > 0 || order.engravingText || order.engravingInstructions || order.logoRequired) || !!order.instructionNotes;
+    const outHasEngraving = outEngravingNames.length > 0 || outEngravingLogos.length > 0 || order.engravingText || order.engravingInstructions || order.logoRequired || !!order.instructionNotes;
 
     const brandingItems = isMultiItem ? allItems : [{ productDetails: firstProduct, customization: custom }];
     const hasAnyCustomization = brandingItems.some(item => {

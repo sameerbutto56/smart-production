@@ -320,6 +320,7 @@ const approveEditRequest = async (req, res) => {
       'priority', 'advancePaid', 'advanceAmount', 'logoDesign', 'logoName',
       'logoCharges', 'namePrintingCharges', 'customizationPrice',
       'deliveryCharges', 'instructionNotes',
+      'engravingInstructions', 'engravingRequired',
       'shopifyOrderDate'
     ];
 
