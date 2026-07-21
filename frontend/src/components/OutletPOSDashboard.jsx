@@ -3,6 +3,7 @@ import api from '../services/api';
 import useCache from '../hooks/useCache';
 import { useLanguage } from '../context/LanguageContext';
 import { toUrduName } from '../utils/urduDictionary';
+import { debounce } from '../utils/debounce';
 import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
 import toast from 'react-hot-toast';
 import {
@@ -37,7 +38,7 @@ const OutletPOSDashboard = ({ outlet }) => {
     api.get(`/api/pos/employees?outlet=${outlet}`).then(r => setEmployees(r.data)).catch(() => {});
   }, [outlet]);
 
-  const dashboardKey = `pos:dashboard:${cacheVersion.current}:${outlet}:${range}:${dateFrom}:${dateTo}:${cashier}`;
+  const dashboardKey = `pos:dashboard:${cacheVersion.current}:${outlet}:${range}:${dateFrom}:${dateTo}`;
   const salesKey = `pos:sales:${cacheVersion.current}:${outlet}`;
 
   const { data: dashboard = null, loading, error, refresh } = useCache(dashboardKey, {
@@ -58,12 +59,11 @@ const OutletPOSDashboard = ({ outlet }) => {
   const journalRef = useRef(null);
 
   const fetchJournal = useCallback(async () => {
-    const cacheBust = Date.now();
     setJournalLoading(true);
     try {
       const [entriesRes, cashRes] = await Promise.all([
-        api.get(`/api/journal?outlet=${outlet}&_=${cacheBust}`),
-        api.get(`/api/journal/cash-summary?outlet=${outlet}&_=${cacheBust}`)
+        api.get(`/api/journal?outlet=${outlet}`),
+        api.get(`/api/journal/cash-summary?outlet=${outlet}`)
       ]);
       setJournalEntries(entriesRes.data);
       setCashSummary(cashRes.data);
@@ -76,9 +76,12 @@ const OutletPOSDashboard = ({ outlet }) => {
 
   useEffect(() => { fetchJournal(); }, [fetchJournal]);
 
+  // Debounced journal fetch — coalesces rapid triggers (focus + visibility + broadcast)
+  const debouncedFetchJournal = useCallback(debounce(() => fetchJournal(), 500), [fetchJournal]);
+
   // Re-fetch when tab becomes visible or window regains focus (covers navigation back)
   useEffect(() => {
-    const handler = () => fetchJournal();
+    const handler = () => debouncedFetchJournal();
     window.addEventListener('journal-entry-saved', handler);
     window.addEventListener('focus', handler);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') handler(); });
@@ -86,19 +89,19 @@ const OutletPOSDashboard = ({ outlet }) => {
       window.removeEventListener('journal-entry-saved', handler);
       window.removeEventListener('focus', handler);
     };
-  }, [fetchJournal]);
+  }, [debouncedFetchJournal]);
 
   // Cross-tab sync via BroadcastChannel
   useEffect(() => {
     try {
       const bc = new BroadcastChannel('smart-production');
       bc.onmessage = (e) => {
-        if (e.data === 'journal-entry-saved' || e.data?.type === 'journal-entry-saved') fetchJournal();
+        if (e.data === 'journal-entry-saved' || e.data?.type === 'journal-entry-saved') debouncedFetchJournal();
       };
       journalRef.current = bc;
     } catch (_) {}
     return () => { try { journalRef.current?.close(); } catch (_) {} };
-  }, [fetchJournal]);
+  }, [debouncedFetchJournal]);
 
   const kpis = dashboard ? [
     { icon: DollarSign, label: 'Total Sales', value: formatCurrency(dashboard.totalSales), sub: `${dashboard.totalOrders || 0} orders`, color: 'from-blue-600 to-cyan-600' },

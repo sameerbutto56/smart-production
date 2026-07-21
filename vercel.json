@@ -1,12 +1,17 @@
 {
   "framework": null,
-  "installCommand": "npm install && cd backend && npx prisma db push --accept-data-loss && npx prisma generate",
+  "installCommand": "npm install && cd backend && npx prisma generate",
   "buildCommand": "npm --prefix frontend run build",
   "outputDirectory": "frontend/dist",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api" },
     { "source": "/((?!.*\\..*).*)", "destination": "/index.html" }
-  ]
+  ],
+  "functions": {
+    "api/**/*.js": {
+      "maxDuration": 30
+    }
+  }
 }
 
 

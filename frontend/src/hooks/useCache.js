@@ -4,7 +4,7 @@ import api from '../services/api';
 
 const DEFAULT_TTL = 5 * 60 * 1000;
 
-export default function useCache(key, { fetcher, ttl = DEFAULT_TTL, staleWhileRevalidate = true } = {}) {
+export default function useCache(key, { fetcher, ttl = DEFAULT_TTL, staleWhileRevalidate = true, freshMs } = {}) {
   const [data, setData] = useState(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -12,6 +12,7 @@ export default function useCache(key, { fetcher, ttl = DEFAULT_TTL, staleWhileRe
   const keyRef = useRef(key);
   const fetcherRef = useRef(fetcher);
   const reqRef = useRef(0);
+  const lastFetchRef = useRef({});
   fetcherRef.current = fetcher;
 
   const load = useCallback(async (skipCache = false) => {
@@ -22,12 +23,26 @@ export default function useCache(key, { fetcher, ttl = DEFAULT_TTL, staleWhileRe
     let hadCachedData = false;
 
     if (!skipCache) {
+      // Freshness check: skip fetch if data was fetched recently enough
+      if (freshMs && lastFetchRef.current[currentKey]) {
+        const age = Date.now() - lastFetchRef.current[currentKey];
+        if (age < freshMs) {
+          setLoading(false);
+          return;
+        }
+      }
+
       // 1. Hot cache (memory) — if staleWhileRevalidate, show stale but still revalidate
       const hot = getHot(currentKey);
       if (hot !== null) {
         setData(hot);
         setError(null);
         if (staleWhileRevalidate) {
+          // With freshMs and staleWhileRevalidate, check if hot cache is fresh enough
+          if (freshMs) {
+            const hotAge = Date.now() - (lastFetchRef.current[currentKey] || 0);
+            if (hotAge < freshMs) { setLoading(false); return; }
+          }
           setLoading(false);
           hadCachedData = true;
         } else {
@@ -62,6 +77,7 @@ export default function useCache(key, { fetcher, ttl = DEFAULT_TTL, staleWhileRe
       if (!mountRef.current || reqRef.current !== reqId) return;
       setData(freshData);
       setError(null);
+      lastFetchRef.current[currentKey] = Date.now();
       setHot(currentKey, freshData, ttl);
       await setItem(currentKey, freshData, ttl);
     } catch (err) {
@@ -70,7 +86,7 @@ export default function useCache(key, { fetcher, ttl = DEFAULT_TTL, staleWhileRe
     } finally {
       if (mountRef.current && reqRef.current === reqId) setLoading(false);
     }
-  }, [ttl, staleWhileRevalidate]);
+  }, [ttl, staleWhileRevalidate, freshMs]);
 
   useEffect(() => {
     mountRef.current = true;

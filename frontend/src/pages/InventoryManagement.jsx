@@ -76,12 +76,12 @@ const InventoryManagement = () => {
   }, [authLoading, user]);
 
   usePolling(async () => {
-    if (authLoading || !user) return;
+    if (authLoading || !user || document.hidden) return;
     try {
       const response = await api.get('/api/inventory');
       setItems(response.data);
     } catch (error) {}
-  }, 15000);
+  }, 60000);
 
   if (authLoading) {
     return null;

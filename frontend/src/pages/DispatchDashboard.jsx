@@ -61,17 +61,18 @@ const DispatchDashboard = () => {
     setEnamelsLoading(false);
   }, [loggedIn, employeeName]);
 
-  // Auto-refresh enamels data every 30s
+  // Auto-refresh enamels data every 60s
+  const POLL_INTERVAL = 60000;
   useEffect(() => {
     if (!loggedIn) return;
-    enamelsRefreshRef.current = setInterval(fetchEnamelsData, 30000);
+    enamelsRefreshRef.current = setInterval(fetchEnamelsData, POLL_INTERVAL);
     return () => { if (enamelsRefreshRef.current) clearInterval(enamelsRefreshRef.current); };
   }, [loggedIn, fetchEnamelsData]);
 
-  // Socket-driven refresh
+  // Socket-driven refresh — no need to re-create the interval, socket events replace polling
   useEffect(() => {
     if (!loggedIn) return;
-    const doRefresh = () => { if (enamelsRefreshRef.current) { clearInterval(enamelsRefreshRef.current); fetchEnamelsData(); enamelsRefreshRef.current = setInterval(fetchEnamelsData, 30000); } };
+    const doRefresh = () => { fetchEnamelsData(); };
     socket.on('order-updated', doRefresh);
     socket.on('dispatch-request', doRefresh);
     return () => { socket.off('order-updated', doRefresh); socket.off('dispatch-request', doRefresh); };

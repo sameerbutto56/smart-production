@@ -34,16 +34,38 @@ app.use(cors({
   credentials: frontendUrl !== "*"
 }));
 app.use(express.json());
-app.use('/api/', rateLimit({
+// Rate limiting per endpoint category
+const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200,
-  message: { message: 'Too many requests, please try again later' }
-}));
+  max: 2000,
+  message: { message: 'Too many requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const heavyLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: { message: 'Too many requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Global baseline — high enough for normal multi-tab usage on Vercel
+app.use('/api/', apiLimiter);
+
+// Stricter limits for heavy dashboard/analytics endpoints
+app.use('/api/pos/sales/dashboard', heavyLimiter);
+app.use('/api/pos/book/:id/summary', heavyLimiter);
+app.use('/api/analytics/', heavyLimiter);
+app.use('/api/store-dashboard', heavyLimiter);
+app.use('/api/inventory', heavyLimiter);
+
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// Prevent caching of dynamic API responses
+// Allow CDN/browser caching for GET API responses (5s) to reduce duplicate requests
 app.use('/api', (req, res, next) => {
-  if (req.method === 'GET') res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  if (req.method === 'GET') res.set('Cache-Control', 'public, max-age=5, s-maxage=10');
   next();
 });
 
