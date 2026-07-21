@@ -2,7 +2,7 @@ const LOGO_URL = window.location.origin + '/logo.png';
 
 export function getPrintLogoHTML() {
   return `<div class="print-logo" style="text-align:center;margin-bottom:6px;padding-bottom:6px;border-bottom:2px solid #ccc;">
-    <img src="${LOGO_URL}" alt="ENAMELS" style="height:50px;width:auto;display:inline-block;">
+    <img src="${LOGO_URL}" alt="ENAMELS" style="width:170px;height:auto;display:inline-block;">
   </div>`;
 }
 

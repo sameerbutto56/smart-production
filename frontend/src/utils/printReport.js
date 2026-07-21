@@ -1,4 +1,4 @@
-import { toUrduName } from './urduDictionary';
+﻿import { toUrduName } from './urduDictionary';
 import { getPrintLogoHTML, getPrintFooterHTML } from './printTemplate';
 
 const PRINT_CSS = `
@@ -47,14 +47,13 @@ const PRINT_CSS = `
     width: 100%;
     border-collapse: collapse;
     margin-bottom: 8px;
-    font-size: 16px;
   }
   th {
     background: none;
     color: #000;
     padding: 10px 12px;
     text-align: left;
-    font-size: 16px;
+    font-size: 17px;
     font-weight: 700;
     text-transform: uppercase;
     border-bottom: 1.2px solid #000;
@@ -63,8 +62,16 @@ const PRINT_CSS = `
   td {
     padding: 10px 12px;
     border: 1.2px solid #000;
+    font-weight: 500;
+    font-size: 17px;
+    line-height: 2.1;
+  }
+  td.num {
+    font-family: Inter, Arial, sans-serif;
+    font-size: 15px;
     font-weight: 600;
   }
+  .product-name { font-size: 18px; font-weight: 600; line-height: 2.1; }
   .section-title {
     font-size: 19px;
     font-weight: 700;
@@ -100,8 +107,9 @@ const PRINT_CSS = `
   .summary-row:last-child { border-bottom: none; }
   .footer {
     text-align: center;
-    font-size: 16px;
-    font-weight: 700;
+    font-family: Inter, Arial, sans-serif;
+    font-size: 12px;
+    font-weight: 500;
     color: #000;
     border-top: 1.2px solid #000;
     padding-top: 8px;
@@ -145,138 +153,138 @@ const PRINT_CSS = `
 
 /**
  * Smart Urdu Translation Engine
- * Handles: English → Urdu, Roman Urdu → Urdu, mixed text
+ * Handles: English â†’ Urdu, Roman Urdu â†’ Urdu, mixed text
  * Preserves numbers, codes, IDs
  * Pattern-based for natural Roman Urdu phrases
  */
-/** Custom phonetic dictionary — checked before patterns/dictionary */
+/** Custom phonetic dictionary â€” checked before patterns/dictionary */
 const customDict = {
-  // Colors (phonetic — not literal)
-  'purple': 'پرپل', 'black': 'بلیک', 'white': 'وائٹ', 'blue': 'بلیو',
-  'red': 'ریڈ', 'green': 'گرین', 'yellow': 'یلو', 'pink': 'پنک',
-  'orange': 'اورینج', 'golden': 'گولڈن', 'silver': 'سلور',
-  'grey': 'گرے', 'gray': 'گرے', 'brown': 'براؤن',
-  'maroon': 'میرون', 'cream': 'کریم', 'beige': 'بیج',
-  'navy': 'نیوی', 'mustard': 'مسٹرڈ',
+  // Colors (phonetic â€” not literal)
+  'purple': 'Ù¾Ø±Ù¾Ù„', 'black': 'Ø¨Ù„ÛŒÚ©', 'white': 'ÙˆØ§Ø¦Ù¹', 'blue': 'Ø¨Ù„ÛŒÙˆ',
+  'red': 'Ø±ÛŒÚˆ', 'green': 'Ú¯Ø±ÛŒÙ†', 'yellow': 'ÛŒÙ„Ùˆ', 'pink': 'Ù¾Ù†Ú©',
+  'orange': 'Ø§ÙˆØ±ÛŒÙ†Ø¬', 'golden': 'Ú¯ÙˆÙ„ÚˆÙ†', 'silver': 'Ø³Ù„ÙˆØ±',
+  'grey': 'Ú¯Ø±Û’', 'gray': 'Ú¯Ø±Û’', 'brown': 'Ø¨Ø±Ø§Ø¤Ù†',
+  'maroon': 'Ù…ÛŒØ±ÙˆÙ†', 'cream': 'Ú©Ø±ÛŒÙ…', 'beige': 'Ø¨ÛŒØ¬',
+  'navy': 'Ù†ÛŒÙˆÛŒ', 'mustard': 'Ù…Ø³Ù¹Ø±Úˆ',
   // Multi-word & specialty colors
-  'navy blue': 'نیوی بلیو',
-  'royal blue': 'رائل بلیو',
-  'sky blue': 'اسکائی بلیو',
-  'dark grey': 'ڈارک گرے',
-  'dark gray': 'ڈارک گرے',
-  'silver grey': 'سلور گرے',
-  'silver gray': 'سلور گرے',
-  'sage': 'سیج',
-  'sage green': 'سیج گرین',
-  'olive green': 'اولیو گرین',
-  'olive emboss': 'اولیو ایمبوس',
-  'ivy green': 'آئیوی گرین',
-  'sea green': 'سی گرین',
-  'bell bottom sea-green': 'بیل باٹم سی گرین',
-  'ecg white': 'ای سی جی وائٹ',
-  'ecg black': 'ای سی جی بلیک',
-  'ecg': 'ای سی جی',
-  'propofol': 'پروپوفول',
-  'ent': 'ای این ٹی',
-  'molar': 'مولر',
-  'ajrak': 'اجرک',
-  'batman': 'بیٹ مین',
-  'x-ray': 'ایکس رے',
-  'brain': 'برین',
-  'funky radiology': 'فنکی ریڈیالوجی',
-  'general surgery': 'جنرل سرجری',
-  'medical logos': 'میڈیکل لوگوز',
-  'cardinal rosa': 'کارڈینل روزا',
-  'vat navy': 'ویٹ نیوی',
-  'montana pick': 'مونٹانا پِک',
-  'peach dusk': 'پیچ ڈسک',
-  'black shine': 'بلیک شائن',
-  'zinc': 'زنک',
-  'burgundy': 'برگنڈی',
-  'camel': 'کیمل',
-  'rust': 'رسٹ',
-  'mehroon': 'مہرون',
-  'grace': 'گریس',
-  'maternity': 'میٹرنٹی',
-  'stormy': 'سٹورمی',
-  'dental': 'ڈینٹل',
-  'gray nova': 'گرے نووا',
-  'grey nova': 'گرے نووا',
-  'navy nova': 'نیوی نووا',
-  'pink nova': 'پنک نووا',
-  'influential pink nova': 'انفلوئنشل پنک نووا',
-  'grey nova 2': 'گرے نووا 2',
-  'black nova 2.0': 'بلیک نووا 2.0',
+  'navy blue': 'Ù†ÛŒÙˆÛŒ Ø¨Ù„ÛŒÙˆ',
+  'royal blue': 'Ø±Ø§Ø¦Ù„ Ø¨Ù„ÛŒÙˆ',
+  'sky blue': 'Ø§Ø³Ú©Ø§Ø¦ÛŒ Ø¨Ù„ÛŒÙˆ',
+  'dark grey': 'ÚˆØ§Ø±Ú© Ú¯Ø±Û’',
+  'dark gray': 'ÚˆØ§Ø±Ú© Ú¯Ø±Û’',
+  'silver grey': 'Ø³Ù„ÙˆØ± Ú¯Ø±Û’',
+  'silver gray': 'Ø³Ù„ÙˆØ± Ú¯Ø±Û’',
+  'sage': 'Ø³ÛŒØ¬',
+  'sage green': 'Ø³ÛŒØ¬ Ú¯Ø±ÛŒÙ†',
+  'olive green': 'Ø§ÙˆÙ„ÛŒÙˆ Ú¯Ø±ÛŒÙ†',
+  'olive emboss': 'Ø§ÙˆÙ„ÛŒÙˆ Ø§ÛŒÙ…Ø¨ÙˆØ³',
+  'ivy green': 'Ø¢Ø¦ÛŒÙˆÛŒ Ú¯Ø±ÛŒÙ†',
+  'sea green': 'Ø³ÛŒ Ú¯Ø±ÛŒÙ†',
+  'bell bottom sea-green': 'Ø¨ÛŒÙ„ Ø¨Ø§Ù¹Ù… Ø³ÛŒ Ú¯Ø±ÛŒÙ†',
+  'ecg white': 'Ø§ÛŒ Ø³ÛŒ Ø¬ÛŒ ÙˆØ§Ø¦Ù¹',
+  'ecg black': 'Ø§ÛŒ Ø³ÛŒ Ø¬ÛŒ Ø¨Ù„ÛŒÚ©',
+  'ecg': 'Ø§ÛŒ Ø³ÛŒ Ø¬ÛŒ',
+  'propofol': 'Ù¾Ø±ÙˆÙ¾ÙˆÙÙˆÙ„',
+  'ent': 'Ø§ÛŒ Ø§ÛŒÙ† Ù¹ÛŒ',
+  'molar': 'Ù…ÙˆÙ„Ø±',
+  'ajrak': 'Ø§Ø¬Ø±Ú©',
+  'batman': 'Ø¨ÛŒÙ¹ Ù…ÛŒÙ†',
+  'x-ray': 'Ø§ÛŒÚ©Ø³ Ø±Û’',
+  'brain': 'Ø¨Ø±ÛŒÙ†',
+  'funky radiology': 'ÙÙ†Ú©ÛŒ Ø±ÛŒÚˆÛŒØ§Ù„ÙˆØ¬ÛŒ',
+  'general surgery': 'Ø¬Ù†Ø±Ù„ Ø³Ø±Ø¬Ø±ÛŒ',
+  'medical logos': 'Ù…ÛŒÚˆÛŒÚ©Ù„ Ù„ÙˆÚ¯ÙˆØ²',
+  'cardinal rosa': 'Ú©Ø§Ø±ÚˆÛŒÙ†Ù„ Ø±ÙˆØ²Ø§',
+  'vat navy': 'ÙˆÛŒÙ¹ Ù†ÛŒÙˆÛŒ',
+  'montana pick': 'Ù…ÙˆÙ†Ù¹Ø§Ù†Ø§ Ù¾ÙÚ©',
+  'peach dusk': 'Ù¾ÛŒÚ† ÚˆØ³Ú©',
+  'black shine': 'Ø¨Ù„ÛŒÚ© Ø´Ø§Ø¦Ù†',
+  'zinc': 'Ø²Ù†Ú©',
+  'burgundy': 'Ø¨Ø±Ú¯Ù†ÚˆÛŒ',
+  'camel': 'Ú©ÛŒÙ…Ù„',
+  'rust': 'Ø±Ø³Ù¹',
+  'mehroon': 'Ù…ÛØ±ÙˆÙ†',
+  'grace': 'Ú¯Ø±ÛŒØ³',
+  'maternity': 'Ù…ÛŒÙ¹Ø±Ù†Ù¹ÛŒ',
+  'stormy': 'Ø³Ù¹ÙˆØ±Ù…ÛŒ',
+  'dental': 'ÚˆÛŒÙ†Ù¹Ù„',
+  'gray nova': 'Ú¯Ø±Û’ Ù†ÙˆÙˆØ§',
+  'grey nova': 'Ú¯Ø±Û’ Ù†ÙˆÙˆØ§',
+  'navy nova': 'Ù†ÛŒÙˆÛŒ Ù†ÙˆÙˆØ§',
+  'pink nova': 'Ù¾Ù†Ú© Ù†ÙˆÙˆØ§',
+  'influential pink nova': 'Ø§Ù†ÙÙ„ÙˆØ¦Ù†Ø´Ù„ Ù¾Ù†Ú© Ù†ÙˆÙˆØ§',
+  'grey nova 2': 'Ú¯Ø±Û’ Ù†ÙˆÙˆØ§ 2',
+  'black nova 2.0': 'Ø¨Ù„ÛŒÚ© Ù†ÙˆÙˆØ§ 2.0',
   // Production measurements (phonetic)
-  'bottom': 'باٹم', 'hip': 'ہپ', 'hips': 'ہپ',
-  'waist': 'ویسٹ', 'thigh': 'تھائی', 'thighs': 'تھائز',
-  'belt': 'بیلٹ', 'narrow': 'نیرو',
+  'bottom': 'Ø¨Ø§Ù¹Ù…', 'hip': 'ÛÙ¾', 'hips': 'ÛÙ¾',
+  'waist': 'ÙˆÛŒØ³Ù¹', 'thigh': 'ØªÚ¾Ø§Ø¦ÛŒ', 'thighs': 'ØªÚ¾Ø§Ø¦Ø²',
+  'belt': 'Ø¨ÛŒÙ„Ù¹', 'narrow': 'Ù†ÛŒØ±Ùˆ',
   // Proper Urdu for specific terms
-  'chest': 'چھاتی',
-  'length': 'لمبائی', 'sleeve': 'آستین',
-  'shoulder': 'کندھا', 'neck': 'گردن',
-  'armhole': 'بغل', 'bicep': 'عضلہ',
-  'wrist': 'کلائی', 'inseam': 'ان سیون',
-  'outseam': 'آؤٹ سیون', 'calf': 'پنڈلی',
-  'ankle': 'ٹخنہ', 'mori': 'موڑی', 'ganda': 'گانڈا',
-  'trouser': 'پتلون',
+  'chest': 'Ú†Ú¾Ø§ØªÛŒ',
+  'length': 'Ù„Ù…Ø¨Ø§Ø¦ÛŒ', 'sleeve': 'Ø¢Ø³ØªÛŒÙ†',
+  'shoulder': 'Ú©Ù†Ø¯Ú¾Ø§', 'neck': 'Ú¯Ø±Ø¯Ù†',
+  'armhole': 'Ø¨ØºÙ„', 'bicep': 'Ø¹Ø¶Ù„Û',
+  'wrist': 'Ú©Ù„Ø§Ø¦ÛŒ', 'inseam': 'Ø§Ù† Ø³ÛŒÙˆÙ†',
+  'outseam': 'Ø¢Ø¤Ù¹ Ø³ÛŒÙˆÙ†', 'calf': 'Ù¾Ù†ÚˆÙ„ÛŒ',
+  'ankle': 'Ù¹Ø®Ù†Û', 'mori': 'Ù…ÙˆÚ‘ÛŒ', 'ganda': 'Ú¯Ø§Ù†ÚˆØ§',
+  'trouser': 'Ù¾ØªÙ„ÙˆÙ†',
   // Product names
-  'sprinter': 'سپرنٹر',
-  'unisex': 'یونی سیکس',
-  'joggers': 'جاگرز',
-  'ketamine': 'کیٹامین',
-  'katamine': 'کیٹامین',
-  'men': 'مین',
-  'women': 'ویمن',
+  'sprinter': 'Ø³Ù¾Ø±Ù†Ù¹Ø±',
+  'unisex': 'ÛŒÙˆÙ†ÛŒ Ø³ÛŒÚ©Ø³',
+  'joggers': 'Ø¬Ø§Ú¯Ø±Ø²',
+  'ketamine': 'Ú©ÛŒÙ¹Ø§Ù…ÛŒÙ†',
+  'katamine': 'Ú©ÛŒÙ¹Ø§Ù…ÛŒÙ†',
+  'men': 'Ù…ÛŒÙ†',
+  'women': 'ÙˆÛŒÙ…Ù†',
   // Full product names
-  'accessories': 'ایکسسریز',
-  'plain surgical caps': 'پلےن سورگیکال کاپس',
-  'inner tees': 'انر ٹیز',
-  'sleeves': 'سلیوز',
-  'bottle': 'باٹل',
-  'temperature bottle': 'ٹیمپریچر باٹل',
-  'caps': 'کاپس',
-  'sprinter cap unisex': 'سپرنٹر کیپ یونی سیکس',
-  'clogs': 'کلاگز',
-  'flufftail': 'فلف ٹیل',
-  'monostarlings': 'مونو سٹارلنگز',
-  'muffle bird sole': 'مفل برڈ سول',
-  'snug-blockies': 'سنگ بلاکیز',
-  'tumble jays': 'ٹمبل جیز',
-  'work duo': 'ورک ڈوؤ',
-  'labcoat': 'لیب کوٹ',
-  'lab coat women wrinkle free': 'لیب کوٹ ویمن رِنکل فری',
-  'lab-coat women wrinkle free': 'لیب کوٹ ویمن رِنکل فری',
-  'lab-coat men suiting': 'لیب کوٹ مین سوٹنگ',
-  'lab coat men suiting': 'لیب کوٹ مین سوٹنگ',
-  'lab-coat men wrinkle free': 'لیب کوٹ مین رِنکل فری',
-  'lab coat men wrinkle free': 'لیب کوٹ مین رِنکل فری',
-  'scrubs': 'اسکربز',
-  'basic men': 'بیسک مین',
-  'cotton': 'کاٹن',
-  'crown women': 'کراؤن ویمن',
-  'crown men': 'کراؤن مین',
-  'flexfit unisex': 'فلیکس فٹ یونی سیکس',
-  'lab-coat women suiting': 'لیب کوٹ ویمن سوٹنگ',
-  'lab coat women suiting': 'لیب کوٹ ویمن سوٹنگ',
-  'sprinter explode men': 'سپرنٹر ایکسپلوڈ مین',
-  'sprinter explode women': 'سپرنٹر ایکسپلوڈ ویمن',
-  'sprinter gradient men': 'سپرنٹر گریڈینٹ مین',
-  'sprinter gradient women': 'سپرنٹر گریڈینٹ ویمن',
-  'sprinter joggers men': 'سپرنٹر جاگرز مین',
-  'sprinter joggers women': 'سپرنٹر جاگرز ویمن',
-  'sprinter men': 'سپرنٹر مین',
-  'sprinter nova men': 'سپرنٹر نووا مین',
-  'sprinter nova women': 'سپرنٹر نووا ویمن',
-  'sprinter women': 'سپرنٹر ویمن',
-  'tote bag': 'ٹوٹ بیگ',
-  'velora men': 'ویلورا مین',
-  'velora men summit': 'ویلورا مین سمٹ',
-  'velora women': 'ویلورا ویمن',
-  'velora women long skirt': 'ویلورا ویمن لانگ اسکرٹ',
-  'velora women summit': 'ویلورا ویمن سمٹ',
-  'aeros': 'ایروس',
-  'socks': 'ساکس',
+  'accessories': 'Ø§ÛŒÚ©Ø³Ø³Ø±ÛŒØ²',
+  'plain surgical caps': 'Ù¾Ù„Û’Ù† Ø³ÙˆØ±Ú¯ÛŒÚ©Ø§Ù„ Ú©Ø§Ù¾Ø³',
+  'inner tees': 'Ø§Ù†Ø± Ù¹ÛŒØ²',
+  'sleeves': 'Ø³Ù„ÛŒÙˆØ²',
+  'bottle': 'Ø¨Ø§Ù¹Ù„',
+  'temperature bottle': 'Ù¹ÛŒÙ…Ù¾Ø±ÛŒÚ†Ø± Ø¨Ø§Ù¹Ù„',
+  'caps': 'Ú©Ø§Ù¾Ø³',
+  'sprinter cap unisex': 'Ø³Ù¾Ø±Ù†Ù¹Ø± Ú©ÛŒÙ¾ ÛŒÙˆÙ†ÛŒ Ø³ÛŒÚ©Ø³',
+  'clogs': 'Ú©Ù„Ø§Ú¯Ø²',
+  'flufftail': 'ÙÙ„Ù Ù¹ÛŒÙ„',
+  'monostarlings': 'Ù…ÙˆÙ†Ùˆ Ø³Ù¹Ø§Ø±Ù„Ù†Ú¯Ø²',
+  'muffle bird sole': 'Ù…ÙÙ„ Ø¨Ø±Úˆ Ø³ÙˆÙ„',
+  'snug-blockies': 'Ø³Ù†Ú¯ Ø¨Ù„Ø§Ú©ÛŒØ²',
+  'tumble jays': 'Ù¹Ù…Ø¨Ù„ Ø¬ÛŒØ²',
+  'work duo': 'ÙˆØ±Ú© ÚˆÙˆØ¤',
+  'labcoat': 'Ù„ÛŒØ¨ Ú©ÙˆÙ¹',
+  'lab coat women wrinkle free': 'Ù„ÛŒØ¨ Ú©ÙˆÙ¹ ÙˆÛŒÙ…Ù† Ø±ÙÙ†Ú©Ù„ ÙØ±ÛŒ',
+  'lab-coat women wrinkle free': 'Ù„ÛŒØ¨ Ú©ÙˆÙ¹ ÙˆÛŒÙ…Ù† Ø±ÙÙ†Ú©Ù„ ÙØ±ÛŒ',
+  'lab-coat men suiting': 'Ù„ÛŒØ¨ Ú©ÙˆÙ¹ Ù…ÛŒÙ† Ø³ÙˆÙ¹Ù†Ú¯',
+  'lab coat men suiting': 'Ù„ÛŒØ¨ Ú©ÙˆÙ¹ Ù…ÛŒÙ† Ø³ÙˆÙ¹Ù†Ú¯',
+  'lab-coat men wrinkle free': 'Ù„ÛŒØ¨ Ú©ÙˆÙ¹ Ù…ÛŒÙ† Ø±ÙÙ†Ú©Ù„ ÙØ±ÛŒ',
+  'lab coat men wrinkle free': 'Ù„ÛŒØ¨ Ú©ÙˆÙ¹ Ù…ÛŒÙ† Ø±ÙÙ†Ú©Ù„ ÙØ±ÛŒ',
+  'scrubs': 'Ø§Ø³Ú©Ø±Ø¨Ø²',
+  'basic men': 'Ø¨ÛŒØ³Ú© Ù…ÛŒÙ†',
+  'cotton': 'Ú©Ø§Ù¹Ù†',
+  'crown women': 'Ú©Ø±Ø§Ø¤Ù† ÙˆÛŒÙ…Ù†',
+  'crown men': 'Ú©Ø±Ø§Ø¤Ù† Ù…ÛŒÙ†',
+  'flexfit unisex': 'ÙÙ„ÛŒÚ©Ø³ ÙÙ¹ ÛŒÙˆÙ†ÛŒ Ø³ÛŒÚ©Ø³',
+  'lab-coat women suiting': 'Ù„ÛŒØ¨ Ú©ÙˆÙ¹ ÙˆÛŒÙ…Ù† Ø³ÙˆÙ¹Ù†Ú¯',
+  'lab coat women suiting': 'Ù„ÛŒØ¨ Ú©ÙˆÙ¹ ÙˆÛŒÙ…Ù† Ø³ÙˆÙ¹Ù†Ú¯',
+  'sprinter explode men': 'Ø³Ù¾Ø±Ù†Ù¹Ø± Ø§ÛŒÚ©Ø³Ù¾Ù„ÙˆÚˆ Ù…ÛŒÙ†',
+  'sprinter explode women': 'Ø³Ù¾Ø±Ù†Ù¹Ø± Ø§ÛŒÚ©Ø³Ù¾Ù„ÙˆÚˆ ÙˆÛŒÙ…Ù†',
+  'sprinter gradient men': 'Ø³Ù¾Ø±Ù†Ù¹Ø± Ú¯Ø±ÛŒÚˆÛŒÙ†Ù¹ Ù…ÛŒÙ†',
+  'sprinter gradient women': 'Ø³Ù¾Ø±Ù†Ù¹Ø± Ú¯Ø±ÛŒÚˆÛŒÙ†Ù¹ ÙˆÛŒÙ…Ù†',
+  'sprinter joggers men': 'Ø³Ù¾Ø±Ù†Ù¹Ø± Ø¬Ø§Ú¯Ø±Ø² Ù…ÛŒÙ†',
+  'sprinter joggers women': 'Ø³Ù¾Ø±Ù†Ù¹Ø± Ø¬Ø§Ú¯Ø±Ø² ÙˆÛŒÙ…Ù†',
+  'sprinter men': 'Ø³Ù¾Ø±Ù†Ù¹Ø± Ù…ÛŒÙ†',
+  'sprinter nova men': 'Ø³Ù¾Ø±Ù†Ù¹Ø± Ù†ÙˆÙˆØ§ Ù…ÛŒÙ†',
+  'sprinter nova women': 'Ø³Ù¾Ø±Ù†Ù¹Ø± Ù†ÙˆÙˆØ§ ÙˆÛŒÙ…Ù†',
+  'sprinter women': 'Ø³Ù¾Ø±Ù†Ù¹Ø± ÙˆÛŒÙ…Ù†',
+  'tote bag': 'Ù¹ÙˆÙ¹ Ø¨ÛŒÚ¯',
+  'velora men': 'ÙˆÛŒÙ„ÙˆØ±Ø§ Ù…ÛŒÙ†',
+  'velora men summit': 'ÙˆÛŒÙ„ÙˆØ±Ø§ Ù…ÛŒÙ† Ø³Ù…Ù¹',
+  'velora women': 'ÙˆÛŒÙ„ÙˆØ±Ø§ ÙˆÛŒÙ…Ù†',
+  'velora women long skirt': 'ÙˆÛŒÙ„ÙˆØ±Ø§ ÙˆÛŒÙ…Ù† Ù„Ø§Ù†Ú¯ Ø§Ø³Ú©Ø±Ù¹',
+  'velora women summit': 'ÙˆÛŒÙ„ÙˆØ±Ø§ ÙˆÛŒÙ…Ù† Ø³Ù…Ù¹',
+  'aeros': 'Ø§ÛŒØ±ÙˆØ³',
+  'socks': 'Ø³Ø§Ú©Ø³',
 };
 
 export function romanToUrdu(text) {
@@ -299,7 +307,7 @@ function romanToUrduSingleLine(text) {
 
   let result = text.trim();
 
-  // ─── PRE-PROCESSING ───
+  // â”€â”€â”€ PRE-PROCESSING â”€â”€â”€
   // Normalize whitespace
   result = result.replace(/[ \t]+/g, ' ');
   // If already mostly Urdu, return as-is
@@ -309,353 +317,353 @@ function romanToUrduSingleLine(text) {
 
   const lower = result.toLowerCase();
 
-  // ─── PATTERN-BASED REPLACEMENTS (Roman Urdu grammar) ───
+  // â”€â”€â”€ PATTERN-BASED REPLACEMENTS (Roman Urdu grammar) â”€â”€â”€
   // These handle common Roman Urdu sentence structures
   const patterns = [
-    // "[adj] color" → "[adj] رنگ"  (e.g., "lal color" → "لال رنگ")
-    { regex: /\b(lal|laal)\s+color\b/gi, replace: 'لال رنگ' },
-    { regex: /\b(neela|neela|nila)\s+color\b/gi, replace: 'نیلا رنگ' },
-    { regex: /\b(hara|haara)\s+color\b/gi, replace: 'سبز رنگ' },
-    { regex: /\b(peela|peela|pila)\s+color\b/gi, replace: 'پیلا رنگ' },
-    { regex: /\b(narangi|orange)\s+color\b/gi, replace: 'نارنجی رنگ' },
-    { regex: /\b(gulabi|pink)\s+color\b/gi, replace: 'گلابی رنگ' },
-    { regex: /\b(bhoora|brown)\s+color\b/gi, replace: 'بھورا رنگ' },
-    { regex: /\b(safed|white)\s+color\b/gi, replace: 'سفید رنگ' },
-    { regex: /\b(kala|kalaa|black)\s+color\b/gi, replace: 'سیاہ رنگ' },
-    { regex: /\b(surkh?i?|red)\s+color\b/gi, replace: 'سرخ رنگ' },
-    { regex: /\b(grey|gray)\s+color\b/gi, replace: 'گرے رنگ' },
-    { regex: /\b(badami|skin)\s+color\b/gi, replace: 'بادامی رنگ' },
-    { regex: /\b(bottle green|bottle)\s+color\b/gi, replace: 'بوتل گرین' },
-    { regex: /\b(navy|navy blue)\s+color\b/gi, replace: 'نیوی بلیو' },
-    { regex: /\b(maroon)\s+color\b/gi, replace: 'میرون رنگ' },
-    { regex: /\b(golden|gold)\s+color\b/gi, replace: 'گولڈن رنگ' },
-    { regex: /\b(silver)\s+color\b/gi, replace: 'سلور رنگ' },
-    { regex: /\b(purple)\s+color\b/gi, replace: 'پرپل رنگ' },
+    // "[adj] color" â†’ "[adj] Ø±Ù†Ú¯"  (e.g., "lal color" â†’ "Ù„Ø§Ù„ Ø±Ù†Ú¯")
+    { regex: /\b(lal|laal)\s+color\b/gi, replace: 'Ù„Ø§Ù„ Ø±Ù†Ú¯' },
+    { regex: /\b(neela|neela|nila)\s+color\b/gi, replace: 'Ù†ÛŒÙ„Ø§ Ø±Ù†Ú¯' },
+    { regex: /\b(hara|haara)\s+color\b/gi, replace: 'Ø³Ø¨Ø² Ø±Ù†Ú¯' },
+    { regex: /\b(peela|peela|pila)\s+color\b/gi, replace: 'Ù¾ÛŒÙ„Ø§ Ø±Ù†Ú¯' },
+    { regex: /\b(narangi|orange)\s+color\b/gi, replace: 'Ù†Ø§Ø±Ù†Ø¬ÛŒ Ø±Ù†Ú¯' },
+    { regex: /\b(gulabi|pink)\s+color\b/gi, replace: 'Ú¯Ù„Ø§Ø¨ÛŒ Ø±Ù†Ú¯' },
+    { regex: /\b(bhoora|brown)\s+color\b/gi, replace: 'Ø¨Ú¾ÙˆØ±Ø§ Ø±Ù†Ú¯' },
+    { regex: /\b(safed|white)\s+color\b/gi, replace: 'Ø³ÙÛŒØ¯ Ø±Ù†Ú¯' },
+    { regex: /\b(kala|kalaa|black)\s+color\b/gi, replace: 'Ø³ÛŒØ§Û Ø±Ù†Ú¯' },
+    { regex: /\b(surkh?i?|red)\s+color\b/gi, replace: 'Ø³Ø±Ø® Ø±Ù†Ú¯' },
+    { regex: /\b(grey|gray)\s+color\b/gi, replace: 'Ú¯Ø±Û’ Ø±Ù†Ú¯' },
+    { regex: /\b(badami|skin)\s+color\b/gi, replace: 'Ø¨Ø§Ø¯Ø§Ù…ÛŒ Ø±Ù†Ú¯' },
+    { regex: /\b(bottle green|bottle)\s+color\b/gi, replace: 'Ø¨ÙˆØªÙ„ Ú¯Ø±ÛŒÙ†' },
+    { regex: /\b(navy|navy blue)\s+color\b/gi, replace: 'Ù†ÛŒÙˆÛŒ Ø¨Ù„ÛŒÙˆ' },
+    { regex: /\b(maroon)\s+color\b/gi, replace: 'Ù…ÛŒØ±ÙˆÙ† Ø±Ù†Ú¯' },
+    { regex: /\b(golden|gold)\s+color\b/gi, replace: 'Ú¯ÙˆÙ„ÚˆÙ† Ø±Ù†Ú¯' },
+    { regex: /\b(silver)\s+color\b/gi, replace: 'Ø³Ù„ÙˆØ± Ø±Ù†Ú¯' },
+    { regex: /\b(purple)\s+color\b/gi, replace: 'Ù¾Ø±Ù¾Ù„ Ø±Ù†Ú¯' },
 
     // "left/right [body part] [action]" patterns
-    // "left sleeve logo" → "بائیں آستین پر لوگو"
-    { regex: /\bleft\s+(sleeve|arm|chest|pocket|side|shoulder|thigh|leg)\s+logo\b/gi, replace: 'بائیں $1 پر لوگو' },
-    { regex: /\bright\s+(sleeve|arm|chest|pocket|side|shoulder|thigh|leg)\s+logo\b/gi, replace: 'دائیں $1 پر لوگو' },
-    { regex: /\bleft\s+(sleeve|arm|chest|pocket|side|shoulder|thigh|leg)\s+name\b/gi, replace: 'بائیں $1 پر نام' },
-    { regex: /\bright\s+(sleeve|arm|chest|pocket|side|shoulder|thigh|leg)\s+name\b/gi, replace: 'دائیں $1 پر نام' },
-    { regex: /\bleft\s+side\b/gi, replace: 'بائیں جانب' },
-    { regex: /\bright\s+side\b/gi, replace: 'دائیں جانب' },
+    // "left sleeve logo" â†’ "Ø¨Ø§Ø¦ÛŒÚº Ø¢Ø³ØªÛŒÙ† Ù¾Ø± Ù„ÙˆÚ¯Ùˆ"
+    { regex: /\bleft\s+(sleeve|arm|chest|pocket|side|shoulder|thigh|leg)\s+logo\b/gi, replace: 'Ø¨Ø§Ø¦ÛŒÚº $1 Ù¾Ø± Ù„ÙˆÚ¯Ùˆ' },
+    { regex: /\bright\s+(sleeve|arm|chest|pocket|side|shoulder|thigh|leg)\s+logo\b/gi, replace: 'Ø¯Ø§Ø¦ÛŒÚº $1 Ù¾Ø± Ù„ÙˆÚ¯Ùˆ' },
+    { regex: /\bleft\s+(sleeve|arm|chest|pocket|side|shoulder|thigh|leg)\s+name\b/gi, replace: 'Ø¨Ø§Ø¦ÛŒÚº $1 Ù¾Ø± Ù†Ø§Ù…' },
+    { regex: /\bright\s+(sleeve|arm|chest|pocket|side|shoulder|thigh|leg)\s+name\b/gi, replace: 'Ø¯Ø§Ø¦ÛŒÚº $1 Ù¾Ø± Ù†Ø§Ù…' },
+    { regex: /\bleft\s+side\b/gi, replace: 'Ø¨Ø§Ø¦ÛŒÚº Ø¬Ø§Ù†Ø¨' },
+    { regex: /\bright\s+side\b/gi, replace: 'Ø¯Ø§Ø¦ÛŒÚº Ø¬Ø§Ù†Ø¨' },
 
     // "[body part] pe/par [action]" patterns
-    // "name chest pe" → "سینے پر نام"
-    { regex: /\b(name|logo|design|embroidery|print|writing)\s+(chest|seena|sine|gala|neck|sleeve|bazu|kandha|shoulder|pocket|back|pith|thigh|leg)\s+(pe|par|pai)\b/gi, replace: '$2 پر $1' },
-    // "chest pe name" → "سینے پر نام"
-    { regex: /\b(chest|seena|sine|gala|neck|sleeve|bazu|kandha|shoulder|pocket|back|pith|thigh)\s+(pe|par|pai)\s+(name|logo|design|embroidery|print)\b/gi, replace: '$1 پر $3' },
+    // "name chest pe" â†’ "Ø³ÛŒÙ†Û’ Ù¾Ø± Ù†Ø§Ù…"
+    { regex: /\b(name|logo|design|embroidery|print|writing)\s+(chest|seena|sine|gala|neck|sleeve|bazu|kandha|shoulder|pocket|back|pith|thigh|leg)\s+(pe|par|pai)\b/gi, replace: '$2 Ù¾Ø± $1' },
+    // "chest pe name" â†’ "Ø³ÛŒÙ†Û’ Ù¾Ø± Ù†Ø§Ù…"
+    { regex: /\b(chest|seena|sine|gala|neck|sleeve|bazu|kandha|shoulder|pocket|back|pith|thigh)\s+(pe|par|pai)\s+(name|logo|design|embroidery|print)\b/gi, replace: '$1 Ù¾Ø± $3' },
 
-    // "samne [thing]" → "سامنے [thing]"
-    { regex: /\bsamne\s+(logo|name|design|print|embroidery|writing)\b/gi, replace: 'سامنے $1' },
-    // "[thing] samne" → "[thing] سامنے"
-    { regex: /\b(logo|name|design|print|embroidery)\s+samne\b/gi, replace: '$1 سامنے' },
+    // "samne [thing]" â†’ "Ø³Ø§Ù…Ù†Û’ [thing]"
+    { regex: /\bsamne\s+(logo|name|design|print|embroidery|writing)\b/gi, replace: 'Ø³Ø§Ù…Ù†Û’ $1' },
+    // "[thing] samne" â†’ "[thing] Ø³Ø§Ù…Ù†Û’"
+    { regex: /\b(logo|name|design|print|embroidery)\s+samne\b/gi, replace: '$1 Ø³Ø§Ù…Ù†Û’' },
 
-    // "andar [thing]" → "اندر [thing]"
-    { regex: /\bandar\s+(logo|name|design|print|writing|embroidery)\b/gi, replace: 'اندر $1' },
-    // "[thing] andar" → "[thing] کے اندر"
-    { regex: /\b(logo|name|design|print|writing)\s+andar\b/gi, replace: '$1 کے اندر' },
+    // "andar [thing]" â†’ "Ø§Ù†Ø¯Ø± [thing]"
+    { regex: /\bandar\s+(logo|name|design|print|writing|embroidery)\b/gi, replace: 'Ø§Ù†Ø¯Ø± $1' },
+    // "[thing] andar" â†’ "[thing] Ú©Û’ Ø§Ù†Ø¯Ø±"
+    { regex: /\b(logo|name|design|print|writing)\s+andar\b/gi, replace: '$1 Ú©Û’ Ø§Ù†Ø¯Ø±' },
 
-    // "gala [adj] karna" → "[adj] گلا بنائیں"
-    { regex: /\bgala\s+(round|gol|chota|small|bara|large|v|deep)\s+(karna|karain|karein|rakhna)\b/gi, replace: '$1 گلا بنائیں' },
-    { regex: /\b(gola|round)\s+gala\b/gi, replace: 'گول گلا' },
-    { regex: /\bgala\s+(round|gol)\b/gi, replace: 'گول گلا' },
-    { regex: /\bgala\s+(chota|small)\b/gi, replace: 'چھوٹا گلا' },
-    { regex: /\bgala\s+(bara|bada|large)\b/gi, replace: 'بڑا گلا' },
+    // "gala [adj] karna" â†’ "[adj] Ú¯Ù„Ø§ Ø¨Ù†Ø§Ø¦ÛŒÚº"
+    { regex: /\bgala\s+(round|gol|chota|small|bara|large|v|deep)\s+(karna|karain|karein|rakhna)\b/gi, replace: '$1 Ú¯Ù„Ø§ Ø¨Ù†Ø§Ø¦ÛŒÚº' },
+    { regex: /\b(gola|round)\s+gala\b/gi, replace: 'Ú¯ÙˆÙ„ Ú¯Ù„Ø§' },
+    { regex: /\bgala\s+(round|gol)\b/gi, replace: 'Ú¯ÙˆÙ„ Ú¯Ù„Ø§' },
+    { regex: /\bgala\s+(chota|small)\b/gi, replace: 'Ú†Ú¾ÙˆÙ¹Ø§ Ú¯Ù„Ø§' },
+    { regex: /\bgala\s+(bara|bada|large)\b/gi, replace: 'Ø¨Ú‘Ø§ Ú¯Ù„Ø§' },
 
-    // "sleeve [adj] karna" → "[adj] آستین"
-    { regex: /\bsleeve\s+(short|chota|full|lamba|long|half|aadha|quarter)\s+(karna|karain|rakhna)\b/gi, replace: '$2 آستین' },
-    { regex: /\bsleeve\s+(short|chota|small)\b/gi, replace: 'چھوٹی آستین' },
-    { regex: /\bsleeve\s+(long|full|lamba)\b/gi, replace: 'لمبی آستین' },
-    { regex: /\bsleeve\s+(half|aadha)\b/gi, replace: 'آدھی آستین' },
-    { regex: /\bsleeve\s+(quarter)\b/gi, replace: 'چوتھائی آستین' },
+    // "sleeve [adj] karna" â†’ "[adj] Ø¢Ø³ØªÛŒÙ†"
+    { regex: /\bsleeve\s+(short|chota|full|lamba|long|half|aadha|quarter)\s+(karna|karain|rakhna)\b/gi, replace: '$2 Ø¢Ø³ØªÛŒÙ†' },
+    { regex: /\bsleeve\s+(short|chota|small)\b/gi, replace: 'Ú†Ú¾ÙˆÙ¹ÛŒ Ø¢Ø³ØªÛŒÙ†' },
+    { regex: /\bsleeve\s+(long|full|lamba)\b/gi, replace: 'Ù„Ù…Ø¨ÛŒ Ø¢Ø³ØªÛŒÙ†' },
+    { regex: /\bsleeve\s+(half|aadha)\b/gi, replace: 'Ø¢Ø¯Ú¾ÛŒ Ø¢Ø³ØªÛŒÙ†' },
+    { regex: /\bsleeve\s+(quarter)\b/gi, replace: 'Ú†ÙˆØªÚ¾Ø§Ø¦ÛŒ Ø¢Ø³ØªÛŒÙ†' },
 
-    // "shirt [adj] karna" → "[adj] قمیض"
-    { regex: /\bshirt\s+(long|lamba|short|chota|regular)\s+(karna|karain|rakhna)\b/gi, replace: '$2 قمیض' },
-    { regex: /\bshirt\s+(long|lamba)\b/gi, replace: 'لمبی قمیض' },
-    { regex: /\bshirt\s+(short|chota)\b/gi, replace: 'چھوٹی قمیض' },
-    { regex: /\bshirt\s+(regular)\b/gi, replace: 'ریگولر قمیض' },
+    // "shirt [adj] karna" â†’ "[adj] Ù‚Ù…ÛŒØ¶"
+    { regex: /\bshirt\s+(long|lamba|short|chota|regular)\s+(karna|karain|rakhna)\b/gi, replace: '$2 Ù‚Ù…ÛŒØ¶' },
+    { regex: /\bshirt\s+(long|lamba)\b/gi, replace: 'Ù„Ù…Ø¨ÛŒ Ù‚Ù…ÛŒØ¶' },
+    { regex: /\bshirt\s+(short|chota)\b/gi, replace: 'Ú†Ú¾ÙˆÙ¹ÛŒ Ù‚Ù…ÛŒØ¶' },
+    { regex: /\bshirt\s+(regular)\b/gi, replace: 'Ø±ÛŒÚ¯ÙˆÙ„Ø± Ù‚Ù…ÛŒØ¶' },
 
     // "karna" verb suffix
     { regex: /\b(karna|karain|karein|rakhna|rakho|rako|lagana)\b/gi, replace: '' },
 
     // Common Roman Urdu measurement patterns
-    { regex: /\b(lamba?i?|length)?\s*(\d+)\s*(inch|fit|feet|cm|meter)\b/gi, replace: '$2 انچ' },
+    { regex: /\b(lamba?i?|length)?\s*(\d+)\s*(inch|fit|feet|cm|meter)\b/gi, replace: '$2 Ø§Ù†Ú†' },
   ];
 
   for (const p of patterns) {
     result = result.replace(p.regex, p.replace);
   }
 
-  // ─── DICTIONARY-BASED REPLACEMENT (industry-specific terms) ───
+  // â”€â”€â”€ DICTIONARY-BASED REPLACEMENT (industry-specific terms) â”€â”€â”€
   const dictionary = {
-    // Colors (English → phonetic; Roman Urdu → literal)
-    'lal': 'لال', 'laal': 'لال', 'red': 'ریڈ',
-    'neela': 'نیلا', 'nila': 'نیلا', 'blue': 'بلیو', 'navy blue': 'نیوی بلیو',
-    'hara': 'سبز', 'haara': 'سبز', 'green': 'گرین', 'bottle green': 'بوتل گرین',
-    'peela': 'پیلا', 'pila': 'پیلا', 'yellow': 'یلو',
-    'narangi': 'نارنجی', 'orange': 'اورینج',
-    'gulabi': 'گلابی', 'pink': 'پنک',
-    'bhoora': 'بھورا', 'brown': 'براؤن',
-    'safed': 'سفید', 'white': 'وائٹ',
-    'kala': 'سیاہ', 'kalaa': 'سیاہ', 'black': 'بلیک',
-    'surkh': 'سرخ', 'surkhi': 'سرخ',
-    'golden': 'گولڈن', 'gold': 'گولڈن',
-    'silver': 'سلور',
-    'grey': 'گرے', 'gray': 'گرے',
-    'purple': 'پرپل', 'jamni': 'جامنی',
-    'maroon': 'میرون',
-    'badami': 'بادامی', 'skin': 'بادامی',
-    'mustard': 'مسٹرڈ',
-    'khaki': 'خاکی',
-    'indigo': 'انڈگو',
-    'cream': 'کریم',
-    'beige': 'بیج',
-    'magenta': 'میجنٹا',
-    'turquoise': 'فیروزی',
-    'olive': 'اولیو',
-    'emboss': 'ایمبوس',
+    // Colors (English â†’ phonetic; Roman Urdu â†’ literal)
+    'lal': 'Ù„Ø§Ù„', 'laal': 'Ù„Ø§Ù„', 'red': 'Ø±ÛŒÚˆ',
+    'neela': 'Ù†ÛŒÙ„Ø§', 'nila': 'Ù†ÛŒÙ„Ø§', 'blue': 'Ø¨Ù„ÛŒÙˆ', 'navy blue': 'Ù†ÛŒÙˆÛŒ Ø¨Ù„ÛŒÙˆ',
+    'hara': 'Ø³Ø¨Ø²', 'haara': 'Ø³Ø¨Ø²', 'green': 'Ú¯Ø±ÛŒÙ†', 'bottle green': 'Ø¨ÙˆØªÙ„ Ú¯Ø±ÛŒÙ†',
+    'peela': 'Ù¾ÛŒÙ„Ø§', 'pila': 'Ù¾ÛŒÙ„Ø§', 'yellow': 'ÛŒÙ„Ùˆ',
+    'narangi': 'Ù†Ø§Ø±Ù†Ø¬ÛŒ', 'orange': 'Ø§ÙˆØ±ÛŒÙ†Ø¬',
+    'gulabi': 'Ú¯Ù„Ø§Ø¨ÛŒ', 'pink': 'Ù¾Ù†Ú©',
+    'bhoora': 'Ø¨Ú¾ÙˆØ±Ø§', 'brown': 'Ø¨Ø±Ø§Ø¤Ù†',
+    'safed': 'Ø³ÙÛŒØ¯', 'white': 'ÙˆØ§Ø¦Ù¹',
+    'kala': 'Ø³ÛŒØ§Û', 'kalaa': 'Ø³ÛŒØ§Û', 'black': 'Ø¨Ù„ÛŒÚ©',
+    'surkh': 'Ø³Ø±Ø®', 'surkhi': 'Ø³Ø±Ø®',
+    'golden': 'Ú¯ÙˆÙ„ÚˆÙ†', 'gold': 'Ú¯ÙˆÙ„ÚˆÙ†',
+    'silver': 'Ø³Ù„ÙˆØ±',
+    'grey': 'Ú¯Ø±Û’', 'gray': 'Ú¯Ø±Û’',
+    'purple': 'Ù¾Ø±Ù¾Ù„', 'jamni': 'Ø¬Ø§Ù…Ù†ÛŒ',
+    'maroon': 'Ù…ÛŒØ±ÙˆÙ†',
+    'badami': 'Ø¨Ø§Ø¯Ø§Ù…ÛŒ', 'skin': 'Ø¨Ø§Ø¯Ø§Ù…ÛŒ',
+    'mustard': 'Ù…Ø³Ù¹Ø±Úˆ',
+    'khaki': 'Ø®Ø§Ú©ÛŒ',
+    'indigo': 'Ø§Ù†ÚˆÚ¯Ùˆ',
+    'cream': 'Ú©Ø±ÛŒÙ…',
+    'beige': 'Ø¨ÛŒØ¬',
+    'magenta': 'Ù…ÛŒØ¬Ù†Ù¹Ø§',
+    'turquoise': 'ÙÛŒØ±ÙˆØ²ÛŒ',
+    'olive': 'Ø§ÙˆÙ„ÛŒÙˆ',
+    'emboss': 'Ø§ÛŒÙ…Ø¨ÙˆØ³',
 
     // Body parts (tailoring)
-    'chest': 'چھاتی', 'seena': 'سینہ', 'sina': 'سینہ',
-    'shoulder': 'کندھا', 'kandha': 'کندھا',
-    'waist': 'ویسٹ', 'kamar': 'کمر',
-    'sleeve': 'آستین', 'bazu': 'آستین',
-    'length': 'لمبائی',
-    'thigh': 'تھائی',
-    'neck': 'گردن', 'gardan': 'گردن',
-    'gala': 'گلا',
-    'armhole': 'بغل', 'baghal': 'بغل',
-    'bicep': 'عضلہ',
-    'wrist': 'کلائی',
-    'inseam': 'ان سیون',
-    'outseam': 'آؤٹ سیون',
-    'calf': 'پنڈلی',
-    'ankle': 'ٹخنہ',
-    'trouser': 'پتلون', 'pant': 'پتلون', 'pataloon': 'پتلون',
-    'shirt': 'قمیص', 'kameez': 'قمیص',
-    'dupatta': 'دوپٹہ',
-    'zip': 'زپ',
-    'button': 'بٹن', 'butan': 'بٹن',
-    'pocket': 'جیب', 'jeb': 'جیب',
-    'collar': 'کالر', 'kolar': 'کالر',
-    'back': 'پشت', 'pith': 'پشت', 'peeth': 'پشت',
-    'front': 'سامنے', 'samne': 'سامنے', 'agay': 'سامنے',
-    'side': 'جانب', 'janib': 'جانب',
+    'chest': 'Ú†Ú¾Ø§ØªÛŒ', 'seena': 'Ø³ÛŒÙ†Û', 'sina': 'Ø³ÛŒÙ†Û',
+    'shoulder': 'Ú©Ù†Ø¯Ú¾Ø§', 'kandha': 'Ú©Ù†Ø¯Ú¾Ø§',
+    'waist': 'ÙˆÛŒØ³Ù¹', 'kamar': 'Ú©Ù…Ø±',
+    'sleeve': 'Ø¢Ø³ØªÛŒÙ†', 'bazu': 'Ø¢Ø³ØªÛŒÙ†',
+    'length': 'Ù„Ù…Ø¨Ø§Ø¦ÛŒ',
+    'thigh': 'ØªÚ¾Ø§Ø¦ÛŒ',
+    'neck': 'Ú¯Ø±Ø¯Ù†', 'gardan': 'Ú¯Ø±Ø¯Ù†',
+    'gala': 'Ú¯Ù„Ø§',
+    'armhole': 'Ø¨ØºÙ„', 'baghal': 'Ø¨ØºÙ„',
+    'bicep': 'Ø¹Ø¶Ù„Û',
+    'wrist': 'Ú©Ù„Ø§Ø¦ÛŒ',
+    'inseam': 'Ø§Ù† Ø³ÛŒÙˆÙ†',
+    'outseam': 'Ø¢Ø¤Ù¹ Ø³ÛŒÙˆÙ†',
+    'calf': 'Ù¾Ù†ÚˆÙ„ÛŒ',
+    'ankle': 'Ù¹Ø®Ù†Û',
+    'trouser': 'Ù¾ØªÙ„ÙˆÙ†', 'pant': 'Ù¾ØªÙ„ÙˆÙ†', 'pataloon': 'Ù¾ØªÙ„ÙˆÙ†',
+    'shirt': 'Ù‚Ù…ÛŒØµ', 'kameez': 'Ù‚Ù…ÛŒØµ',
+    'dupatta': 'Ø¯ÙˆÙ¾Ù¹Û',
+    'zip': 'Ø²Ù¾',
+    'button': 'Ø¨Ù¹Ù†', 'butan': 'Ø¨Ù¹Ù†',
+    'pocket': 'Ø¬ÛŒØ¨', 'jeb': 'Ø¬ÛŒØ¨',
+    'collar': 'Ú©Ø§Ù„Ø±', 'kolar': 'Ú©Ø§Ù„Ø±',
+    'back': 'Ù¾Ø´Øª', 'pith': 'Ù¾Ø´Øª', 'peeth': 'Ù¾Ø´Øª',
+    'front': 'Ø³Ø§Ù…Ù†Û’', 'samne': 'Ø³Ø§Ù…Ù†Û’', 'agay': 'Ø³Ø§Ù…Ù†Û’',
+    'side': 'Ø¬Ø§Ù†Ø¨', 'janib': 'Ø¬Ø§Ù†Ø¨',
 
     // Positions & Directions
-    'left': 'بائیں', 'bayen': 'بائیں', 'bayein': 'بائیں',
-    'right': 'دائیں', 'dayen': 'دائیں', 'dayein': 'دائیں',
-    'center': 'درمیان', 'centre': 'درمیان', 'middle': 'درمیان', 'darmiyan': 'درمیان',
-    'up': 'اوپر', 'upper': 'اوپر', 'uper': 'اوپر',
-    'down': 'نیچے', 'lower': 'نیچے', 'neeche': 'نیچے',
-    'inside': 'اندر', 'andar': 'اندر',
-    'outside': 'باہر', 'bahar': 'باہر',
-    'top': 'اوپر',
-    'above': 'اوپر',
-    'below': 'نیچے',
+    'left': 'Ø¨Ø§Ø¦ÛŒÚº', 'bayen': 'Ø¨Ø§Ø¦ÛŒÚº', 'bayein': 'Ø¨Ø§Ø¦ÛŒÚº',
+    'right': 'Ø¯Ø§Ø¦ÛŒÚº', 'dayen': 'Ø¯Ø§Ø¦ÛŒÚº', 'dayein': 'Ø¯Ø§Ø¦ÛŒÚº',
+    'center': 'Ø¯Ø±Ù…ÛŒØ§Ù†', 'centre': 'Ø¯Ø±Ù…ÛŒØ§Ù†', 'middle': 'Ø¯Ø±Ù…ÛŒØ§Ù†', 'darmiyan': 'Ø¯Ø±Ù…ÛŒØ§Ù†',
+    'up': 'Ø§ÙˆÙ¾Ø±', 'upper': 'Ø§ÙˆÙ¾Ø±', 'uper': 'Ø§ÙˆÙ¾Ø±',
+    'down': 'Ù†ÛŒÚ†Û’', 'lower': 'Ù†ÛŒÚ†Û’', 'neeche': 'Ù†ÛŒÚ†Û’',
+    'inside': 'Ø§Ù†Ø¯Ø±', 'andar': 'Ø§Ù†Ø¯Ø±',
+    'outside': 'Ø¨Ø§ÛØ±', 'bahar': 'Ø¨Ø§ÛØ±',
+    'top': 'Ø§ÙˆÙ¾Ø±',
+    'above': 'Ø§ÙˆÙ¾Ø±',
+    'below': 'Ù†ÛŒÚ†Û’',
 
     // Fabrics
-    'cotton': 'سوتی', 'suti': 'سوتی',
-    'silk': 'ریشم', 'resham': 'ریشم',
-    'aspire': 'اسپائر',
-    'surgical': 'سورگیکال',
-    'plain': 'پلےن',
-    'caps': 'کاپس',
-    'polyester': 'پالئیےسٹر',
-    'jersey': 'جرسی',
-    'denim': 'ڈینم',
-    'canvas': 'کینوس',
-    'velvet': 'مخمل', 'makhmal': 'مخمل',
-    'wool': 'اون', 'oen': 'اون',
-    'lace': 'لیس',
-    'net': 'نیٹ',
-    'chiffon': 'شیفون',
-    'georgette': 'جارجٹ',
-    'drill': 'ڈرل',
-    'satin': 'ساٹن',
-    'mesh': 'میش',
+    'cotton': 'Ø³ÙˆØªÛŒ', 'suti': 'Ø³ÙˆØªÛŒ',
+    'silk': 'Ø±ÛŒØ´Ù…', 'resham': 'Ø±ÛŒØ´Ù…',
+    'aspire': 'Ø§Ø³Ù¾Ø§Ø¦Ø±',
+    'surgical': 'Ø³ÙˆØ±Ú¯ÛŒÚ©Ø§Ù„',
+    'plain': 'Ù¾Ù„Û’Ù†',
+    'caps': 'Ú©Ø§Ù¾Ø³',
+    'polyester': 'Ù¾Ø§Ù„Ø¦ÛŒÛ’Ø³Ù¹Ø±',
+    'jersey': 'Ø¬Ø±Ø³ÛŒ',
+    'denim': 'ÚˆÛŒÙ†Ù…',
+    'canvas': 'Ú©ÛŒÙ†ÙˆØ³',
+    'velvet': 'Ù…Ø®Ù…Ù„', 'makhmal': 'Ù…Ø®Ù…Ù„',
+    'wool': 'Ø§ÙˆÙ†', 'oen': 'Ø§ÙˆÙ†',
+    'lace': 'Ù„ÛŒØ³',
+    'net': 'Ù†ÛŒÙ¹',
+    'chiffon': 'Ø´ÛŒÙÙˆÙ†',
+    'georgette': 'Ø¬Ø§Ø±Ø¬Ù¹',
+    'drill': 'ÚˆØ±Ù„',
+    'satin': 'Ø³Ø§Ù¹Ù†',
+    'mesh': 'Ù…ÛŒØ´',
 
     // Actions & Verbs
-    'print': 'پرنٹ', 'printing': 'پرنٹنگ',
-    'embroidery': 'کڑھائی', 'embroidary': 'کڑھائی', 'kadhai': 'کڑھائی',
-    'stitch': 'سلائی', 'stitching': 'سلائی',
-    'cut': 'کٹ', 'cutting': 'کٹنگ',
-    'sew': 'سلائی کرو', 'sewing': 'سلائی',
-    'design': 'ڈیزائن',
-    'make': 'بنائیں', 'banaye': 'بنائیں',
-    'fix': 'لگائیں', 'fit': 'فٹ',
-    'attach': 'لگائیں', 'lagao': 'لگائیں',
-    'remove': 'ہٹائیں', 'hataye': 'ہٹائیں',
-    'add': 'شامل کریں', 'dalain': 'شامل کریں',
-    'patch': 'پیچ',
-    'direct': 'ڈائریکٹ',
-    'wash': 'دھلائی', 'dhulai': 'دھلائی',
-    'iron': 'استری', 'istari': 'استری',
-    'fold': 'تہہ', 'teh': 'تہہ',
+    'print': 'Ù¾Ø±Ù†Ù¹', 'printing': 'Ù¾Ø±Ù†Ù¹Ù†Ú¯',
+    'embroidery': 'Ú©Ú‘Ú¾Ø§Ø¦ÛŒ', 'embroidary': 'Ú©Ú‘Ú¾Ø§Ø¦ÛŒ', 'kadhai': 'Ú©Ú‘Ú¾Ø§Ø¦ÛŒ',
+    'stitch': 'Ø³Ù„Ø§Ø¦ÛŒ', 'stitching': 'Ø³Ù„Ø§Ø¦ÛŒ',
+    'cut': 'Ú©Ù¹', 'cutting': 'Ú©Ù¹Ù†Ú¯',
+    'sew': 'Ø³Ù„Ø§Ø¦ÛŒ Ú©Ø±Ùˆ', 'sewing': 'Ø³Ù„Ø§Ø¦ÛŒ',
+    'design': 'ÚˆÛŒØ²Ø§Ø¦Ù†',
+    'make': 'Ø¨Ù†Ø§Ø¦ÛŒÚº', 'banaye': 'Ø¨Ù†Ø§Ø¦ÛŒÚº',
+    'fix': 'Ù„Ú¯Ø§Ø¦ÛŒÚº', 'fit': 'ÙÙ¹',
+    'attach': 'Ù„Ú¯Ø§Ø¦ÛŒÚº', 'lagao': 'Ù„Ú¯Ø§Ø¦ÛŒÚº',
+    'remove': 'ÛÙ¹Ø§Ø¦ÛŒÚº', 'hataye': 'ÛÙ¹Ø§Ø¦ÛŒÚº',
+    'add': 'Ø´Ø§Ù…Ù„ Ú©Ø±ÛŒÚº', 'dalain': 'Ø´Ø§Ù…Ù„ Ú©Ø±ÛŒÚº',
+    'patch': 'Ù¾ÛŒÚ†',
+    'direct': 'ÚˆØ§Ø¦Ø±ÛŒÚ©Ù¹',
+    'wash': 'Ø¯Ú¾Ù„Ø§Ø¦ÛŒ', 'dhulai': 'Ø¯Ú¾Ù„Ø§Ø¦ÛŒ',
+    'iron': 'Ø§Ø³ØªØ±ÛŒ', 'istari': 'Ø§Ø³ØªØ±ÛŒ',
+    'fold': 'ØªÛÛ', 'teh': 'ØªÛÛ',
 
     // Tailoring/Production terms
-    'tailoring': 'درزی', 'darzi': 'درزی',
-    'cutting': 'کٹنگ',
-    'stitching': 'سلائی',
-    'finishing': 'فنشنگ',
-    'checking': 'چیکنگ',
-    'packing': 'پیکنگ',
-    'dispatch': 'ڈسپیچ',
-    'production': 'پروڈکشن',
-    'sewing': 'سلائی',
-    'fitting': 'فٹنگ',
-    'alteration': 'ترمیم',
-    'repair': 'مرمت', 'marammat': 'مرمت',
-    'measure': 'ناپ', 'naap': 'ناپ',
-    'measurement': 'پیمائش', 'measurements': 'پیمائش',
+    'tailoring': 'Ø¯Ø±Ø²ÛŒ', 'darzi': 'Ø¯Ø±Ø²ÛŒ',
+    'cutting': 'Ú©Ù¹Ù†Ú¯',
+    'stitching': 'Ø³Ù„Ø§Ø¦ÛŒ',
+    'finishing': 'ÙÙ†Ø´Ù†Ú¯',
+    'checking': 'Ú†ÛŒÚ©Ù†Ú¯',
+    'packing': 'Ù¾ÛŒÚ©Ù†Ú¯',
+    'dispatch': 'ÚˆØ³Ù¾ÛŒÚ†',
+    'production': 'Ù¾Ø±ÙˆÚˆÚ©Ø´Ù†',
+    'sewing': 'Ø³Ù„Ø§Ø¦ÛŒ',
+    'fitting': 'ÙÙ¹Ù†Ú¯',
+    'alteration': 'ØªØ±Ù…ÛŒÙ…',
+    'repair': 'Ù…Ø±Ù…Øª', 'marammat': 'Ù…Ø±Ù…Øª',
+    'measure': 'Ù†Ø§Ù¾', 'naap': 'Ù†Ø§Ù¾',
+    'measurement': 'Ù¾ÛŒÙ…Ø§Ø¦Ø´', 'measurements': 'Ù¾ÛŒÙ…Ø§Ø¦Ø´',
 
     // Accessories
-    'zip': 'زپ',
-    'button': 'بٹن',
-    'hook': 'ہک',
-    'eye': 'آئی',
-    'thread': 'دھاگہ', 'dhaga': 'دھاگہ',
-    'ribbon': 'ربن',
-    'lace': 'لیس',
-    'elastic': 'لچک', 'loochak': 'لچک',
-    'label': 'لیبل',
-    'tag': 'ٹیگ',
-    'badge': 'بیج',
-    'matching cap': 'میچنگ کیپ',
-    'cap': 'کیپ',
+    'zip': 'Ø²Ù¾',
+    'button': 'Ø¨Ù¹Ù†',
+    'hook': 'ÛÚ©',
+    'eye': 'Ø¢Ø¦ÛŒ',
+    'thread': 'Ø¯Ú¾Ø§Ú¯Û', 'dhaga': 'Ø¯Ú¾Ø§Ú¯Û',
+    'ribbon': 'Ø±Ø¨Ù†',
+    'lace': 'Ù„ÛŒØ³',
+    'elastic': 'Ù„Ú†Ú©', 'loochak': 'Ù„Ú†Ú©',
+    'label': 'Ù„ÛŒØ¨Ù„',
+    'tag': 'Ù¹ÛŒÚ¯',
+    'badge': 'Ø¨ÛŒØ¬',
+    'matching cap': 'Ù…ÛŒÚ†Ù†Ú¯ Ú©ÛŒÙ¾',
+    'cap': 'Ú©ÛŒÙ¾',
 
     // Order Status
-    'standard': 'اسٹینڈرڈ',
-    'custom': 'کسٹم',
-    'ready logo': 'ریڈی لوگو',
-    'full custom': 'فل کسٹم',
-    'urgent': 'ارجنٹ',
-    'super urgent': 'انتہائی ارجنٹ',
-    'normal': 'عام',
-    'pending': 'زیر التوا',
-    'paid': 'ادا شدہ',
-    'unpaid': 'غیر ادا شدہ',
-    'completed': 'مکمل',
-    'delivered': 'ڈلیورڈ',
-    'returned': 'واپس',
-    'cancelled': 'منسوخ',
-    'processing': 'پروسیسنگ',
-    'ready': 'تیار',
-    'hold': 'ہولڈ',
-    'delivery': 'ڈلیوری',
-    'advance': 'ایڈوانس',
+    'standard': 'Ø§Ø³Ù¹ÛŒÙ†ÚˆØ±Úˆ',
+    'custom': 'Ú©Ø³Ù¹Ù…',
+    'ready logo': 'Ø±ÛŒÚˆÛŒ Ù„ÙˆÚ¯Ùˆ',
+    'full custom': 'ÙÙ„ Ú©Ø³Ù¹Ù…',
+    'urgent': 'Ø§Ø±Ø¬Ù†Ù¹',
+    'super urgent': 'Ø§Ù†ØªÛØ§Ø¦ÛŒ Ø§Ø±Ø¬Ù†Ù¹',
+    'normal': 'Ø¹Ø§Ù…',
+    'pending': 'Ø²ÛŒØ± Ø§Ù„ØªÙˆØ§',
+    'paid': 'Ø§Ø¯Ø§ Ø´Ø¯Û',
+    'unpaid': 'ØºÛŒØ± Ø§Ø¯Ø§ Ø´Ø¯Û',
+    'completed': 'Ù…Ú©Ù…Ù„',
+    'delivered': 'ÚˆÙ„ÛŒÙˆØ±Úˆ',
+    'returned': 'ÙˆØ§Ù¾Ø³',
+    'cancelled': 'Ù…Ù†Ø³ÙˆØ®',
+    'processing': 'Ù¾Ø±ÙˆØ³ÛŒØ³Ù†Ú¯',
+    'ready': 'ØªÛŒØ§Ø±',
+    'hold': 'ÛÙˆÙ„Úˆ',
+    'delivery': 'ÚˆÙ„ÛŒÙˆØ±ÛŒ',
+    'advance': 'Ø§ÛŒÚˆÙˆØ§Ù†Ø³',
 
     // Quantity & Numbers
-    'one': 'ایک', 'ek': 'ایک',
-    'two': 'دو', 'do': 'دو',
-    'three': 'تین', 'teen': 'تین',
-    'four': 'چار', 'chaar': 'چار',
-    'five': 'پانچ', 'panch': 'پانچ',
-    'single': 'سنگل',
-    'double': 'ڈبل',
-    'qty': 'تعداد', 'quantity': 'تعداد',
-    'total': 'کل',
-    'half': 'ہاف', 'aadha': 'آدھا', 'aadhi': 'آدھی',
-    'full': 'پورا', 'poora': 'پورا',
-    'all': 'تمام',
-    'some': 'کچھ',
-    'many': 'بہت',
-    'few': 'تھوڑے', 'thora': 'تھوڑا',
-    'more': 'مزید', 'mazeed': 'مزید',
+    'one': 'Ø§ÛŒÚ©', 'ek': 'Ø§ÛŒÚ©',
+    'two': 'Ø¯Ùˆ', 'do': 'Ø¯Ùˆ',
+    'three': 'ØªÛŒÙ†', 'teen': 'ØªÛŒÙ†',
+    'four': 'Ú†Ø§Ø±', 'chaar': 'Ú†Ø§Ø±',
+    'five': 'Ù¾Ø§Ù†Ú†', 'panch': 'Ù¾Ø§Ù†Ú†',
+    'single': 'Ø³Ù†Ú¯Ù„',
+    'double': 'ÚˆØ¨Ù„',
+    'qty': 'ØªØ¹Ø¯Ø§Ø¯', 'quantity': 'ØªØ¹Ø¯Ø§Ø¯',
+    'total': 'Ú©Ù„',
+    'half': 'ÛØ§Ù', 'aadha': 'Ø¢Ø¯Ú¾Ø§', 'aadhi': 'Ø¢Ø¯Ú¾ÛŒ',
+    'full': 'Ù¾ÙˆØ±Ø§', 'poora': 'Ù¾ÙˆØ±Ø§',
+    'all': 'ØªÙ…Ø§Ù…',
+    'some': 'Ú©Ú†Ú¾',
+    'many': 'Ø¨ÛØª',
+    'few': 'ØªÚ¾ÙˆÚ‘Û’', 'thora': 'ØªÚ¾ÙˆÚ‘Ø§',
+    'more': 'Ù…Ø²ÛŒØ¯', 'mazeed': 'Ù…Ø²ÛŒØ¯',
 
     // Financial
-    'price': 'قیمت', 'qimat': 'قیمت',
-    'cost': 'لاگت', 'lagat': 'لاگت',
-    'discount': 'چھوٹ', 'chhoot': 'چھوٹ',
-    'payment': 'ادائیگی',
-    'total price': 'کل قیمت',
-    'grand total': 'کل رقم',
-    'advance': 'ایڈوانس',
-    'remaining': 'باقی', 'baqi': 'باقی',
-    'balance': 'بیلنس',
-    'free': 'فری', 'muft': 'مفت',
-    'delivery charges': 'ڈلیوری چارجز',
-    'charges': 'چارجز',
+    'price': 'Ù‚ÛŒÙ…Øª', 'qimat': 'Ù‚ÛŒÙ…Øª',
+    'cost': 'Ù„Ø§Ú¯Øª', 'lagat': 'Ù„Ø§Ú¯Øª',
+    'discount': 'Ú†Ú¾ÙˆÙ¹', 'chhoot': 'Ú†Ú¾ÙˆÙ¹',
+    'payment': 'Ø§Ø¯Ø§Ø¦ÛŒÚ¯ÛŒ',
+    'total price': 'Ú©Ù„ Ù‚ÛŒÙ…Øª',
+    'grand total': 'Ú©Ù„ Ø±Ù‚Ù…',
+    'advance': 'Ø§ÛŒÚˆÙˆØ§Ù†Ø³',
+    'remaining': 'Ø¨Ø§Ù‚ÛŒ', 'baqi': 'Ø¨Ø§Ù‚ÛŒ',
+    'balance': 'Ø¨ÛŒÙ„Ù†Ø³',
+    'free': 'ÙØ±ÛŒ', 'muft': 'Ù…ÙØª',
+    'delivery charges': 'ÚˆÙ„ÛŒÙˆØ±ÛŒ Ú†Ø§Ø±Ø¬Ø²',
+    'charges': 'Ú†Ø§Ø±Ø¬Ø²',
 
     // General
-    'order': 'آرڈر',
-    'product': 'پروڈکٹ',
-    'products': 'پروڈکٹس',
-    'customer': 'کسٹمر',
-    'name': 'نام',
-    'phone': 'فون',
-    'address': 'پتہ', 'pata': 'پتہ',
-    'city': 'شہر', 'sheher': 'شہر',
-    'note': 'نوٹ', 'notes': 'نوٹس',
-    'special note': 'خصوصی نوٹ',
-    'instruction notes': 'ہدایات',
-    'instruction': 'ہدایت',
-    'remark': 'ریمارکس', 'remarks': 'ریمارکس',
-    'engraving': 'اینگرونگ',
-    'measurements': 'پیمائش',
-    'financial summary': 'مالی خلاصہ',
-    'job sheet': 'جاب شیٹ',
-    'branding': 'اینگرونگ',
-    'logo': 'لوگو',
-    'sleeves': 'آستین',
-    'color': 'رنگ',
-    'size': 'سائز',
-    'gender': 'جنس', 'jins': 'جنس',
-    'male': 'مرد', 'mard': 'مرد',
-    'female': 'خاتون', 'khawateen': 'خواتین',
-    'fit': 'فٹ',
-    'regular': 'ریگولر',
-    'slim': 'سلم',
-    'loose': 'ڈھیلا', 'dheela': 'ڈھیلا',
-    'tight': 'تنگ', 'tang': 'تنگ',
-    'medium': 'درمیانہ',
+    'order': 'Ø¢Ø±ÚˆØ±',
+    'product': 'Ù¾Ø±ÙˆÚˆÚ©Ù¹',
+    'products': 'Ù¾Ø±ÙˆÚˆÚ©Ù¹Ø³',
+    'customer': 'Ú©Ø³Ù¹Ù…Ø±',
+    'name': 'Ù†Ø§Ù…',
+    'phone': 'ÙÙˆÙ†',
+    'address': 'Ù¾ØªÛ', 'pata': 'Ù¾ØªÛ',
+    'city': 'Ø´ÛØ±', 'sheher': 'Ø´ÛØ±',
+    'note': 'Ù†ÙˆÙ¹', 'notes': 'Ù†ÙˆÙ¹Ø³',
+    'special note': 'Ø®ØµÙˆØµÛŒ Ù†ÙˆÙ¹',
+    'instruction notes': 'ÛØ¯Ø§ÛŒØ§Øª',
+    'instruction': 'ÛØ¯Ø§ÛŒØª',
+    'remark': 'Ø±ÛŒÙ…Ø§Ø±Ú©Ø³', 'remarks': 'Ø±ÛŒÙ…Ø§Ø±Ú©Ø³',
+    'engraving': 'Ø§ÛŒÙ†Ú¯Ø±ÙˆÙ†Ú¯',
+    'measurements': 'Ù¾ÛŒÙ…Ø§Ø¦Ø´',
+    'financial summary': 'Ù…Ø§Ù„ÛŒ Ø®Ù„Ø§ØµÛ',
+    'job sheet': 'Ø¬Ø§Ø¨ Ø´ÛŒÙ¹',
+    'branding': 'Ø§ÛŒÙ†Ú¯Ø±ÙˆÙ†Ú¯',
+    'logo': 'Ù„ÙˆÚ¯Ùˆ',
+    'sleeves': 'Ø¢Ø³ØªÛŒÙ†',
+    'color': 'Ø±Ù†Ú¯',
+    'size': 'Ø³Ø§Ø¦Ø²',
+    'gender': 'Ø¬Ù†Ø³', 'jins': 'Ø¬Ù†Ø³',
+    'male': 'Ù…Ø±Ø¯', 'mard': 'Ù…Ø±Ø¯',
+    'female': 'Ø®Ø§ØªÙˆÙ†', 'khawateen': 'Ø®ÙˆØ§ØªÛŒÙ†',
+    'fit': 'ÙÙ¹',
+    'regular': 'Ø±ÛŒÚ¯ÙˆÙ„Ø±',
+    'slim': 'Ø³Ù„Ù…',
+    'loose': 'ÚˆÚ¾ÛŒÙ„Ø§', 'dheela': 'ÚˆÚ¾ÛŒÙ„Ø§',
+    'tight': 'ØªÙ†Ú¯', 'tang': 'ØªÙ†Ú¯',
+    'medium': 'Ø¯Ø±Ù…ÛŒØ§Ù†Û',
 
     // Locations
-    'enamels': 'اینملز',
-    'johar town': 'جوہر ٹاؤن',
-    'jail road': 'جیل روڈ',
-    'abbottabad': 'ایبٹ آباد',
-    'lahore': 'لاہور', 'lhr': 'لاہور',
-    'islamabad': 'اسلام آباد',
-    'karachi': 'کراچی', 'khi': 'کراچی',
-    'rawalpindi': 'راولپنڈی',
-    'lab coat': 'لب کوٹ',
-    'lab-coat': 'لب-کوٹ',
-    'wrinkle': 'رنکل',
-    'faisalabad': 'فیصل آباد',
-    'multan': 'ملتان',
-    'gujranwala': 'گوجرانوالہ',
-    'online': 'آن لائن',
-    'outlet': 'آؤٹ لیٹ',
+    'enamels': 'Ø§ÛŒÙ†Ù…Ù„Ø²',
+    'johar town': 'Ø¬ÙˆÛØ± Ù¹Ø§Ø¤Ù†',
+    'jail road': 'Ø¬ÛŒÙ„ Ø±ÙˆÚˆ',
+    'abbottabad': 'Ø§ÛŒØ¨Ù¹ Ø¢Ø¨Ø§Ø¯',
+    'lahore': 'Ù„Ø§ÛÙˆØ±', 'lhr': 'Ù„Ø§ÛÙˆØ±',
+    'islamabad': 'Ø§Ø³Ù„Ø§Ù… Ø¢Ø¨Ø§Ø¯',
+    'karachi': 'Ú©Ø±Ø§Ú†ÛŒ', 'khi': 'Ú©Ø±Ø§Ú†ÛŒ',
+    'rawalpindi': 'Ø±Ø§ÙˆÙ„Ù¾Ù†ÚˆÛŒ',
+    'lab coat': 'Ù„Ø¨ Ú©ÙˆÙ¹',
+    'lab-coat': 'Ù„Ø¨-Ú©ÙˆÙ¹',
+    'wrinkle': 'Ø±Ù†Ú©Ù„',
+    'faisalabad': 'ÙÛŒØµÙ„ Ø¢Ø¨Ø§Ø¯',
+    'multan': 'Ù…Ù„ØªØ§Ù†',
+    'gujranwala': 'Ú¯ÙˆØ¬Ø±Ø§Ù†ÙˆØ§Ù„Û',
+    'online': 'Ø¢Ù† Ù„Ø§Ø¦Ù†',
+    'outlet': 'Ø¢Ø¤Ù¹ Ù„ÛŒÙ¹',
 
     // Product names
-    'sprinter': 'سپرانٹر',
-    'joggers': 'جوگرز',
-    'unisex': 'یونیسیکس',
-    'men': 'مین',
-    'women': 'ویمن',
+    'sprinter': 'Ø³Ù¾Ø±Ø§Ù†Ù¹Ø±',
+    'joggers': 'Ø¬ÙˆÚ¯Ø±Ø²',
+    'unisex': 'ÛŒÙˆÙ†ÛŒØ³ÛŒÚ©Ø³',
+    'men': 'Ù…ÛŒÙ†',
+    'women': 'ÙˆÛŒÙ…Ù†',
 
     // Sizes
-    'xs': 'ایکس ایس', 'small': 'چھوٹا', 's': 'ایس',
-    'medium': 'درمیانہ', 'm': 'ایم',
-    'large': 'بڑا', 'l': 'ایل',
-    'xl': 'ایکس ایل',
-    'xxl': 'ڈبل ایکس ایل',
-    'xxxl': 'ٹرپل ایکس ایل',
-    'c': 'کسٹم', 'C': 'کسٹم', 'custom': 'کسٹم',
+    'xs': 'Ø§ÛŒÚ©Ø³ Ø§ÛŒØ³', 'small': 'Ú†Ú¾ÙˆÙ¹Ø§', 's': 'Ø§ÛŒØ³',
+    'medium': 'Ø¯Ø±Ù…ÛŒØ§Ù†Û', 'm': 'Ø§ÛŒÙ…',
+    'large': 'Ø¨Ú‘Ø§', 'l': 'Ø§ÛŒÙ„',
+    'xl': 'Ø§ÛŒÚ©Ø³ Ø§ÛŒÙ„',
+    'xxl': 'ÚˆØ¨Ù„ Ø§ÛŒÚ©Ø³ Ø§ÛŒÙ„',
+    'xxxl': 'Ù¹Ø±Ù¾Ù„ Ø§ÛŒÚ©Ø³ Ø§ÛŒÙ„',
+    'c': 'Ú©Ø³Ù¹Ù…', 'C': 'Ú©Ø³Ù¹Ù…', 'custom': 'Ú©Ø³Ù¹Ù…',
 
     // English words that should stay/not be translated
-    'id': 'آئی ڈی',
-    'date': 'تاریخ',
-    'time': 'وقت',
+    'id': 'Ø¢Ø¦ÛŒ ÚˆÛŒ',
+    'date': 'ØªØ§Ø±ÛŒØ®',
+    'time': 'ÙˆÙ‚Øª',
 
     // Additional common terms
-    'thread color': 'دھاگے کا رنگ',
-    'embroidery color': 'کڑھائی کا رنگ',
-    'embroidery type': 'کڑھائی کی قسم',
-    'embroidery thread': 'کڑھائی کا دھاگہ',
+    'thread color': 'Ø¯Ú¾Ø§Ú¯Û’ Ú©Ø§ Ø±Ù†Ú¯',
+    'embroidery color': 'Ú©Ú‘Ú¾Ø§Ø¦ÛŒ Ú©Ø§ Ø±Ù†Ú¯',
+    'embroidery type': 'Ú©Ú‘Ú¾Ø§Ø¦ÛŒ Ú©ÛŒ Ù‚Ø³Ù…',
+    'embroidery thread': 'Ú©Ú‘Ú¾Ø§Ø¦ÛŒ Ú©Ø§ Ø¯Ú¾Ø§Ú¯Û',
   };
 
   // Sort dictionary keys by length (longest first) to match multi-word phrases before single words
@@ -668,27 +676,27 @@ function romanToUrduSingleLine(text) {
     result = result.replace(regex, dictionary[key]);
   }
 
-  // ─── POST-PROCESSING: Map remaining Roman Urdu via transliteration ───
+  // â”€â”€â”€ POST-PROCESSING: Map remaining Roman Urdu via transliteration â”€â”€â”€
   // Improved char mapping with digraph support
   const digraphMap = {
-    'sh': 'ش', 'ch': 'چ', 'kh': 'خ', 'gh': 'غ', 'zh': 'ژ',
-    'th': 'تھ', 'dh': 'دھ', 'nh': 'نہ', 'nh': 'نہ',
-    'aa': 'آ', 'ee': 'ی', 'oo': 'و', 'ai': 'ے', 'au': 'او',
-    'iy': 'ی', 'ay': 'ے', 'ya': 'یا', 'yu': 'یو',
+    'sh': 'Ø´', 'ch': 'Ú†', 'kh': 'Ø®', 'gh': 'Øº', 'zh': 'Ú˜',
+    'th': 'ØªÚ¾', 'dh': 'Ø¯Ú¾', 'nh': 'Ù†Û', 'nh': 'Ù†Û',
+    'aa': 'Ø¢', 'ee': 'ÛŒ', 'oo': 'Ùˆ', 'ai': 'Û’', 'au': 'Ø§Ùˆ',
+    'iy': 'ÛŒ', 'ay': 'Û’', 'ya': 'ÛŒØ§', 'yu': 'ÛŒÙˆ',
   };
   const charMap = {
-    'a': 'ا', 'b': 'ب', 'p': 'پ', 't': 'ت', 's': 'س', 'j': 'ج',
-    'h': 'ہ', 'k': 'ک', 'l': 'ل', 'm': 'م', 'n': 'ن', 'w': 'و',
-    'y': 'ی', 'r': 'ر', 'z': 'ز', 'f': 'ف', 'q': 'ق', 'd': 'د',
-    'g': 'گ', 'e': 'ے', 'i': 'ی', 'o': 'و', 'u': 'و', 'c': 'ک',
-    'v': 'و', 'x': 'کس',
+    'a': 'Ø§', 'b': 'Ø¨', 'p': 'Ù¾', 't': 'Øª', 's': 'Ø³', 'j': 'Ø¬',
+    'h': 'Û', 'k': 'Ú©', 'l': 'Ù„', 'm': 'Ù…', 'n': 'Ù†', 'w': 'Ùˆ',
+    'y': 'ÛŒ', 'r': 'Ø±', 'z': 'Ø²', 'f': 'Ù', 'q': 'Ù‚', 'd': 'Ø¯',
+    'g': 'Ú¯', 'e': 'Û’', 'i': 'ÛŒ', 'o': 'Ùˆ', 'u': 'Ùˆ', 'c': 'Ú©',
+    'v': 'Ùˆ', 'x': 'Ú©Ø³',
   };
 
   // Process each word: transliterate remaining English/Roman words
   const words = result.split(/(\s+)/);
   result = words.map(word => {
     if (!word.trim() || /[\u0600-\u06FF]/.test(word)) return word; // already Urdu or whitespace
-    if (/^\d+$/.test(word)) return word; // pure numbers – keep
+    if (/^\d+$/.test(word)) return word; // pure numbers â€“ keep
     // Preserve codes (mixed letters+numbers, uppercase)
     if (/[A-Z0-9]/.test(word) && !/[a-z]/.test(word) && word.length > 1) return word;
 
@@ -735,7 +743,7 @@ export function openPrintWindow(title, isRtl = false) {
   win.document.write(getPrintLogoHTML());
   win.document.write('<div class="report-header">');
   win.document.write(`<h1>${title}</h1>`);
-  win.document.write(`<p>Enamels Production — Generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>`);
+  win.document.write(`<p>Enamels Production â€” Generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>`);
   win.document.write('</div>');
   return win;
 }
@@ -782,7 +790,7 @@ export function printAnalyticsReport(data, branch) {
     win.document.write('<div class="section-title">Production by Product</div>');
     win.document.write('<table><thead><tr><th>Product</th><th style="text-align:right">Quantity</th><th style="text-align:right">Profit</th></tr></thead><tbody>');
     prod.byProduct.forEach(p => {
-      win.document.write(`<tr><td>${p.productName || '—'}</td><td style="text-align:right">${p.quantity || 0} units</td><td style="text-align:right;font-weight:700">${currency(p.profit)}</td></tr>`);
+      win.document.write(`<tr><td>${p.productName || 'â€”'}</td><td style="text-align:right">${p.quantity || 0} units</td><td style="text-align:right;font-weight:700">${currency(p.profit)}</td></tr>`);
     });
     win.document.write('</tbody></table>');
   }
@@ -834,7 +842,7 @@ export function printInventoryReport(items, filter = 'ALL') {
     win.document.write(`<div class="section-title">${cat} (${catItems.length} items)</div>`);
     win.document.write('<table><thead><tr><th>Product</th><th>Color</th><th>Size</th><th style="text-align:right">Stock</th><th style="text-align:right">Price</th><th style="text-align:right">Value</th><th>Status</th></tr></thead><tbody>');
     catItems.forEach(item => {
-      const variants = item.variants && item.variants.length > 0 ? item.variants : [{ color: '—', size: '—', stock: 0, price: item.price || 0 }];
+      const variants = item.variants && item.variants.length > 0 ? item.variants : [{ color: 'â€”', size: 'â€”', stock: 0, price: item.price || 0 }];
       variants.filter(v => variantMatchesFilter(v.stock || 0)).forEach(v => {
         const stock = v.stock || 0;
         const price = v.price || 0;
@@ -843,7 +851,7 @@ export function printInventoryReport(items, filter = 'ALL') {
         let statusText = 'In Stock';
         if (stock === 0) { statusClass = 'status-bad'; statusText = 'Out of Stock'; }
         else if (stock <= 5) { statusClass = 'status-warn'; statusText = 'Low Stock'; }
-        win.document.write(`<tr><td style="font-weight:700">${item.name}</td><td>${v.color || '—'}</td><td>${v.size || '—'}</td><td style="text-align:right;font-weight:700">${stock}</td><td style="text-align:right">${currency(price)}</td><td style="text-align:right;font-weight:700">${currency(val)}</td><td><span class="status-badge ${statusClass}">${statusText}</span></td></tr>`);
+        win.document.write(`<tr><td style="font-weight:700">${item.name}</td><td>${v.color || 'â€”'}</td><td>${v.size || 'â€”'}</td><td style="text-align:right;font-weight:700">${stock}</td><td style="text-align:right">${currency(price)}</td><td style="text-align:right;font-weight:700">${currency(val)}</td><td><span class="status-badge ${statusClass}">${statusText}</span></td></tr>`);
       });
     });
     win.document.write('</tbody></table>');
@@ -876,8 +884,8 @@ export function printDeliveryReport(orders) {
     win.document.write('<table><thead><tr><th>Order ID</th><th>Customer</th><th>Phone</th><th>Amount</th><th>Area</th><th>Method</th><th>Attempts</th></tr></thead><tbody>');
     active.forEach(o => {
       const attemptStr = o.noResponseCount ? `${o.noResponseCount}/3` : '0';
-      const method = o.deliveryMethod || o.deliveryType || '—';
-      win.document.write(`<tr><td style="font-weight:700">${o.orderNumber || o.id?.slice(0, 8)}</td><td>${o.customerName || '—'}</td><td>${o.customerPhone || '—'}</td><td style="text-align:right;font-weight:700">${currency(o.totalPrice)}</td><td>${o.outletName || '—'}</td><td>${method}</td><td style="text-align:center;font-weight:700">${attemptStr}</td></tr>`);
+      const method = o.deliveryMethod || o.deliveryType || 'â€”';
+      win.document.write(`<tr><td style="font-weight:700">${o.orderNumber || o.id?.slice(0, 8)}</td><td>${o.customerName || 'â€”'}</td><td>${o.customerPhone || 'â€”'}</td><td style="text-align:right;font-weight:700">${currency(o.totalPrice)}</td><td>${o.outletName || 'â€”'}</td><td>${method}</td><td style="text-align:center;font-weight:700">${attemptStr}</td></tr>`);
     });
     win.document.write('</tbody></table>');
   }
@@ -887,7 +895,7 @@ export function printDeliveryReport(orders) {
     win.document.write('<div class="section-title">Completed Deliveries</div>');
     win.document.write('<table><thead><tr><th>Order ID</th><th>Customer</th><th>Phone</th><th>Amount</th><th>Delivered At</th><th>Method</th></tr></thead><tbody>');
     completed.forEach(o => {
-      win.document.write(`<tr><td style="font-weight:700">${o.orderNumber || o.id?.slice(0, 8)}</td><td>${o.customerName || '—'}</td><td>${o.customerPhone || '—'}</td><td style="text-align:right;font-weight:700">${currency(o.totalPrice)}</td><td>${o.deliveredAt ? new Date(o.deliveredAt).toLocaleString() : '—'}</td><td>${o.deliveryMethod || o.deliveryType || '—'}</td></tr>`);
+      win.document.write(`<tr><td style="font-weight:700">${o.orderNumber || o.id?.slice(0, 8)}</td><td>${o.customerName || 'â€”'}</td><td>${o.customerPhone || 'â€”'}</td><td style="text-align:right;font-weight:700">${currency(o.totalPrice)}</td><td>${o.deliveredAt ? new Date(o.deliveredAt).toLocaleString() : 'â€”'}</td><td>${o.deliveryMethod || o.deliveryType || 'â€”'}</td></tr>`);
     });
     win.document.write('</tbody></table>');
   }
@@ -928,7 +936,7 @@ function summaryRow(label, value) {
 }
 
 function currency(v) {
-  return `₨${(v || 0).toLocaleString()}`;
+  return `â‚¨${(v || 0).toLocaleString()}`;
 }
 
 function parseJSON(data) {
@@ -945,74 +953,74 @@ const getItemProduct = (item) => {
 
 /** Format date for display */
 function fmtDate(d) {
-  if (!d) return '—';
+  if (!d) return 'â€”';
   const dt = new Date(d);
-  if (isNaN(dt.getTime())) return '—';
+  if (isNaN(dt.getTime())) return 'â€”';
   return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function fmtDateTime(d) {
-  if (!d) return '—';
+  if (!d) return 'â€”';
   const dt = new Date(d);
-  if (isNaN(dt.getTime())) return '—';
+  if (isNaN(dt.getTime())) return 'â€”';
   return dt.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 /** Urdu labels for production sections */
 const urduSection = {
-  products: 'آرٹیکلز',
-  engraving: 'کڑھائی',
-  measurements: 'پیمائش',
-  instructionNotes: 'ہدایات (نوٹس)',
-  product: 'آرٹیکل',
-  fabricColor: 'کپڑا اور رنگ',
-  sizeGender: 'سائز اور جنس',
-  qty: 'تعداد',
-  cap: 'کیپ',
-  sleeves: 'بازو',
-  length: 'لمبائی',
-  nameLines: 'نام کی لائنیں',
-  logos: 'لوگو',
-  specialNote: 'خصوصی نوٹ',
-  matchingCap: 'میچنگ کیپ',
-  fitType: 'فٹ',
-  color: 'رنگ',
-  position: 'مقام',
-  orderEntryDate: 'آرڈر انٹری کی تاریخ',
-  shopifyDate: 'شاپیفائے آرڈر کی تاریخ',
-  orderDate: 'آرڈر کی تاریخ',
-  engravingType: 'کڑھائی کی قسم',
-  directEngraving: 'ڈائریکٹ اینگرونگ',
-  patchEngraving: 'پیچ اینگرونگ',
-  customAttributes: 'کسٹم ایٹریبیوٹس',
-  fabricSource: 'مطلوبہ کپڑا',
-  colorSource: 'مطلوبہ رنگ',
-  designSource: 'مطلوبہ ڈیزائن',
-  sizeSource: 'مطلوبہ سائز',
-  sourceProducts: 'کسٹم ضروریات',
-  jobSheet: 'جاب شیٹ',
-  specialNote: 'خصوصی نوٹ',
-  price: 'قیمت',
-  fabric: 'کپڑا',
-  color: 'رنگ',
-  size: 'سائز',
-  gender: 'جنس',
-  qty: 'تعداد',
-  orderNo: 'آرڈر نمبر',
-  status: 'حالت',
-  customerInfo: 'کسٹمر کی معلومات',
-  phone: 'فون',
-  city: 'شہر',
-  COD: 'نقد ڈلیوری',
-  paid: 'ادا شدہ',
-  fullyPaid: 'مکمل ادا شدہ',
-  custom: 'کسٹم',
-  standard: 'اسٹینڈرڈ',
-  readyLogo: 'ریڈی لوگو',
-  male: 'مرد',
-  female: 'عورت',
-  dupatta: 'دوپٹہ',
-  extra: 'اضافی',
+  products: 'Ø¢Ø±Ù¹ÛŒÚ©Ù„Ø²',
+  engraving: 'Ú©Ú‘Ú¾Ø§Ø¦ÛŒ',
+  measurements: 'Ù¾ÛŒÙ…Ø§Ø¦Ø´',
+  instructionNotes: 'ÛØ¯Ø§ÛŒØ§Øª (Ù†ÙˆÙ¹Ø³)',
+  product: 'Ø¢Ø±Ù¹ÛŒÚ©Ù„',
+  fabricColor: 'Ú©Ù¾Ú‘Ø§ Ø§ÙˆØ± Ø±Ù†Ú¯',
+  sizeGender: 'Ø³Ø§Ø¦Ø² Ø§ÙˆØ± Ø¬Ù†Ø³',
+  qty: 'ØªØ¹Ø¯Ø§Ø¯',
+  cap: 'Ú©ÛŒÙ¾',
+  sleeves: 'Ø¨Ø§Ø²Ùˆ',
+  length: 'Ù„Ù…Ø¨Ø§Ø¦ÛŒ',
+  nameLines: 'Ù†Ø§Ù… Ú©ÛŒ Ù„Ø§Ø¦Ù†ÛŒÚº',
+  logos: 'Ù„ÙˆÚ¯Ùˆ',
+  specialNote: 'Ø®ØµÙˆØµÛŒ Ù†ÙˆÙ¹',
+  matchingCap: 'Ù…ÛŒÚ†Ù†Ú¯ Ú©ÛŒÙ¾',
+  fitType: 'ÙÙ¹',
+  color: 'Ø±Ù†Ú¯',
+  position: 'Ù…Ù‚Ø§Ù…',
+  orderEntryDate: 'Ø¢Ø±ÚˆØ± Ø§Ù†Ù¹Ø±ÛŒ Ú©ÛŒ ØªØ§Ø±ÛŒØ®',
+  shopifyDate: 'Ø´Ø§Ù¾ÛŒÙØ§Ø¦Û’ Ø¢Ø±ÚˆØ± Ú©ÛŒ ØªØ§Ø±ÛŒØ®',
+  orderDate: 'Ø¢Ø±ÚˆØ± Ú©ÛŒ ØªØ§Ø±ÛŒØ®',
+  engravingType: 'Ú©Ú‘Ú¾Ø§Ø¦ÛŒ Ú©ÛŒ Ù‚Ø³Ù…',
+  directEngraving: 'ÚˆØ§Ø¦Ø±ÛŒÚ©Ù¹ Ø§ÛŒÙ†Ú¯Ø±ÙˆÙ†Ú¯',
+  patchEngraving: 'Ù¾ÛŒÚ† Ø§ÛŒÙ†Ú¯Ø±ÙˆÙ†Ú¯',
+  customAttributes: 'Ú©Ø³Ù¹Ù… Ø§ÛŒÙ¹Ø±ÛŒØ¨ÛŒÙˆÙ¹Ø³',
+  fabricSource: 'Ù…Ø·Ù„ÙˆØ¨Û Ú©Ù¾Ú‘Ø§',
+  colorSource: 'Ù…Ø·Ù„ÙˆØ¨Û Ø±Ù†Ú¯',
+  designSource: 'Ù…Ø·Ù„ÙˆØ¨Û ÚˆÛŒØ²Ø§Ø¦Ù†',
+  sizeSource: 'Ù…Ø·Ù„ÙˆØ¨Û Ø³Ø§Ø¦Ø²',
+  sourceProducts: 'Ú©Ø³Ù¹Ù… Ø¶Ø±ÙˆØ±ÛŒØ§Øª',
+  jobSheet: 'Ø¬Ø§Ø¨ Ø´ÛŒÙ¹',
+  specialNote: 'Ø®ØµÙˆØµÛŒ Ù†ÙˆÙ¹',
+  price: 'Ù‚ÛŒÙ…Øª',
+  fabric: 'Ú©Ù¾Ú‘Ø§',
+  color: 'Ø±Ù†Ú¯',
+  size: 'Ø³Ø§Ø¦Ø²',
+  gender: 'Ø¬Ù†Ø³',
+  qty: 'ØªØ¹Ø¯Ø§Ø¯',
+  orderNo: 'Ø¢Ø±ÚˆØ± Ù†Ù…Ø¨Ø±',
+  status: 'Ø­Ø§Ù„Øª',
+  customerInfo: 'Ú©Ø³Ù¹Ù…Ø± Ú©ÛŒ Ù…Ø¹Ù„ÙˆÙ…Ø§Øª',
+  phone: 'ÙÙˆÙ†',
+  city: 'Ø´ÛØ±',
+  COD: 'Ù†Ù‚Ø¯ ÚˆÙ„ÛŒÙˆØ±ÛŒ',
+  paid: 'Ø§Ø¯Ø§ Ø´Ø¯Û',
+  fullyPaid: 'Ù…Ú©Ù…Ù„ Ø§Ø¯Ø§ Ø´Ø¯Û',
+  custom: 'Ú©Ø³Ù¹Ù…',
+  standard: 'Ø§Ø³Ù¹ÛŒÙ†ÚˆØ±Úˆ',
+  readyLogo: 'Ø±ÛŒÚˆÛŒ Ù„ÙˆÚ¯Ùˆ',
+  male: 'Ù…Ø±Ø¯',
+  female: 'Ø¹ÙˆØ±Øª',
+  dupatta: 'Ø¯ÙˆÙ¾Ù¹Û',
+  extra: 'Ø§Ø¶Ø§ÙÛŒ',
 };
 
 /** English labels for production sections */
@@ -1026,7 +1034,7 @@ const enSection = {
   sizeGender: 'Size & Gender',
   qty: 'Qty',
   cap: 'Cap',
-  sleeves: 'Sleeves بازو',
+  sleeves: 'Sleeves Ø¨Ø§Ø²Ùˆ',
   length: 'Length',
   nameLines: 'Name Lines',
   logos: 'Logos',
@@ -1074,13 +1082,13 @@ const enSection = {
 
 /** Urdu measurement labels */
 const urduLabels = {
-  shoulder: 'کندھا',
-  chest: 'سینہ',
-  waist: 'کمر',
-  shirtLength: 'قمیض کی لمبائی',
-  sleeve: 'آستین',
-  trouserLength: 'پتلون کی لمبائی',
-  length: 'لمبائی'
+  shoulder: 'Ú©Ù†Ø¯Ú¾Ø§',
+  chest: 'Ø³ÛŒÙ†Û',
+  waist: 'Ú©Ù…Ø±',
+  shirtLength: 'Ù‚Ù…ÛŒØ¶ Ú©ÛŒ Ù„Ù…Ø¨Ø§Ø¦ÛŒ',
+  sleeve: 'Ø¢Ø³ØªÛŒÙ†',
+  trouserLength: 'Ù¾ØªÙ„ÙˆÙ† Ú©ÛŒ Ù„Ù…Ø¨Ø§Ø¦ÛŒ',
+  length: 'Ù„Ù…Ø¨Ø§Ø¦ÛŒ'
 };
 
 /** Capitalize first letter */
@@ -1091,19 +1099,19 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const showEngraving = sections.engraving !== false;
   const showPrice = ['SUPER_ADMIN', 'ADMIN'].includes(userRole);
 
-  const slMap = { 'full':'Full', 'half':'Half ہاف', 'three-quarter':'3 Quarter' };
-  const shMap = { 'long':'Long', 'short':'Short', 'regular':'Regular ریگولر' };
-  const femSlMap = { 'full':'Full', 'half':'Half ہاف', 'medium':'Medium' };
+  const slMap = { 'full':'Full', 'half':'Half ÛØ§Ù', 'three-quarter':'3 Quarter' };
+  const shMap = { 'long':'Long', 'short':'Short', 'regular':'Regular Ø±ÛŒÚ¯ÙˆÙ„Ø±' };
+  const femSlMap = { 'full':'Full', 'half':'Half ÛØ§Ù', 'medium':'Medium' };
   const femShMap = { 'long':'Long', 'short':'Short' };
-  const urduSlMap = { 'full':'فل بازو', 'half':'ہاف', 'three-quarter':'تھری کوارٹر', 'quarter':'کوارٹر' };
-  const urduShMap = { 'long':'لمبے بازو', 'short':'چھوٹے بازو', 'regular':'ریگولر' };
-  const urduFemSlMap = { 'full':'فل بازو', 'half':'Half ہاف', 'medium':'درمیانی' };
-  const urduFemShMap = { 'long':'لمبی بازو', 'short':'چھوٹی بازو' };
+  const urduSlMap = { 'full':'ÙÙ„ Ø¨Ø§Ø²Ùˆ', 'half':'ÛØ§Ù', 'three-quarter':'ØªÚ¾Ø±ÛŒ Ú©ÙˆØ§Ø±Ù¹Ø±', 'quarter':'Ú©ÙˆØ§Ø±Ù¹Ø±' };
+  const urduShMap = { 'long':'Ù„Ù…Ø¨Û’ Ø¨Ø§Ø²Ùˆ', 'short':'Ú†Ú¾ÙˆÙ¹Û’ Ø¨Ø§Ø²Ùˆ', 'regular':'Ø±ÛŒÚ¯ÙˆÙ„Ø±' };
+  const urduFemSlMap = { 'full':'ÙÙ„ Ø¨Ø§Ø²Ùˆ', 'half':'Half ÛØ§Ù', 'medium':'Ø¯Ø±Ù…ÛŒØ§Ù†ÛŒ' };
+  const urduFemShMap = { 'long':'Ù„Ù…Ø¨ÛŒ Ø¨Ø§Ø²Ùˆ', 'short':'Ú†Ú¾ÙˆÙ¹ÛŒ Ø¨Ø§Ø²Ùˆ' };
   // Sleeve & Length column display maps (values only, no label prefix)
   const colSleeveEN = { 'full':'Full', 'half':'Half', 'three-quarter':'Three Quarter', 'regular':'Regular', 'medium':'Medium' };
-  const colSleeveUR = { 'full':'فل', 'half':'ہاف', 'three-quarter':'تھری کوارٹر', 'regular':'ریگولر', 'medium':'میڈیم' };
+  const colSleeveUR = { 'full':'ÙÙ„', 'half':'ÛØ§Ù', 'three-quarter':'ØªÚ¾Ø±ÛŒ Ú©ÙˆØ§Ø±Ù¹Ø±', 'regular':'Ø±ÛŒÚ¯ÙˆÙ„Ø±', 'medium':'Ù…ÛŒÚˆÛŒÙ…' };
   const colLengthEN = { 'long':'Long', 'regular':'Regular', 'short':'Short' };
-  const colLengthUR = { 'long':'لانگ', 'regular':'ریگولر', 'short':'شارٹ' };
+  const colLengthUR = { 'long':'Ù„Ø§Ù†Ú¯', 'regular':'Ø±ÛŒÚ¯ÙˆÙ„Ø±', 'short':'Ø´Ø§Ø±Ù¹' };
   const isUrdu = lang === 'ur';
   const sec = lang === 'en' ? enSection : urduSection;
 
@@ -1118,12 +1126,12 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const vu = tu;
 
   const colSleeveDisp = (v) => {
-    if (!v) return '—';
+    if (!v) return 'â€”';
     const key = v.toLowerCase().trim();
     return isUrdu ? (colSleeveUR[key] || tu(v)) : (colSleeveEN[key] || v);
   };
   const colLengthDisp = (v) => {
-    if (!v) return '—';
+    if (!v) return 'â€”';
     const key = v.toLowerCase().trim();
     return isUrdu ? (colLengthUR[key] || tu(v)) : (colLengthEN[key] || v);
   };
@@ -1132,12 +1140,12 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const genDisplay = (g) => {
     if (!g) return '';
     const key = g.toLowerCase().trim();
-    return isUrdu ? (key === 'male' ? 'مرد' : key === 'female' ? 'عورت' : tu(g)) : g;
+    return isUrdu ? (key === 'male' ? 'Ù…Ø±Ø¯' : key === 'female' ? 'Ø¹ÙˆØ±Øª' : tu(g)) : g;
   };
   const dir = isUrdu ? 'rtl' : 'ltr';
 
   const orderType = order.type || 'STANDARD';
-  const title = `${sec.jobSheet} — ${order.orderNumber || order.id?.slice(0, 8)}`;
+  const title = `${sec.jobSheet} â€” ${order.orderNumber || order.id?.slice(0, 8)}`;
   const win = openPrintWindow(title, isUrdu);
 
   const rawPd = parseJSON(order.productDetails);
@@ -1151,82 +1159,82 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const sizes = (flatSizes && Object.keys(flatSizes).length > 0) ? flatSizes : ({});
   const productVerification = order.productVerification && typeof order.productVerification === 'object' ? order.productVerification : {};
 
-  // Hide the default .report-header from openPrintWindow — we write our own header below
+  // Hide the default .report-header from openPrintWindow â€” we write our own header below
   win.document.write('<style>.report-header{display:none!important}</style>');
 
-  // ─── GENERATED DATE/TIME ───
+  // â”€â”€â”€ GENERATED DATE/TIME â”€â”€â”€
   const now = new Date();
   const generatedDate = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   const generatedTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
-  // ─── ENTRY DATE/TIME & SHOPIFY DATE ───
+  // â”€â”€â”€ ENTRY DATE/TIME & SHOPIFY DATE â”€â”€â”€
   const entryDt = order.createdAt ? new Date(order.createdAt) : null;
   const entryDate = entryDt && !isNaN(entryDt.getTime())
     ? entryDt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-    : '—';
+    : 'â€”';
   const entryTime = entryDt && !isNaN(entryDt.getTime())
     ? entryDt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-    : '—';
+    : 'â€”';
   const shopifyDate = order.shopifyOrderDate ? fmtDate(order.shopifyOrderDate) : null;
 
-  // ─── HEADER ───
+  // â”€â”€â”€ HEADER â”€â”€â”€
   win.document.write(`<div style="text-align:center;margin-bottom:8px;border-bottom:3px solid #111;padding-bottom:8px">`);
   win.document.write(`<h1 style="font-size:20px;font-weight:700;text-transform:uppercase;letter-spacing:0;color:#000">${sec.jobSheet}</h1>`);
-  win.document.write(`<p style="font-size:20px;color:#000;margin-top:2px;font-weight:700">${isUrdu ? 'آرڈر #' : 'Order #'}${order.orderNumber || order.id?.slice(0, 8)}</p>`);
-  win.document.write(`<p style="font-size:18px;color:#000;font-weight:600;margin-top:2px"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'اینملز پروڈکشن' : 'ENAMELS Production'}</p>`);
-  win.document.write(`<p style="font-size:15px;color:#000;font-weight:500;margin-top:2px">${isUrdu ? 'تیار کردہ:' : 'Generated:'} ${generatedDate} ${generatedTime}</p>`);
+  win.document.write(`<p style="font-size:20px;color:#000;margin-top:2px;font-weight:700">${isUrdu ? 'Ø¢Ø±ÚˆØ± #' : 'Order #'}<span style="font-family:Inter,Arial,sans-serif;font-size:15px;font-weight:600">${order.orderNumber || order.id?.slice(0, 8)}</span></p>`);
+  win.document.write(`<p style="font-size:18px;color:#000;font-weight:600;margin-top:2px"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'Ø§ÛŒÙ†Ù…Ù„Ø² Ù¾Ø±ÙˆÚˆÚ©Ø´Ù†' : 'ENAMELS Production'}</p>`);
+  win.document.write(`<p style="font-size:15px;color:#000;font-weight:500;margin-top:2px">${isUrdu ? 'ØªÛŒØ§Ø± Ú©Ø±Ø¯Û:' : 'Generated:'} <span style="font-family:Inter,Arial,sans-serif;font-size:15px;font-weight:600">${generatedDate} ${generatedTime}</span></p>`);
   win.document.write(`</div>`);
 
-  // ─── CUSTOMER INFO (always LTR — customer data is English/Roman script) ───
+  // â”€â”€â”€ CUSTOMER INFO (always LTR â€” customer data is English/Roman script) â”€â”€â”€
   win.document.write(`<div dir="ltr" style="border:1.2px solid #000;border-radius:0;padding:8px 12px;margin-bottom:8px">`);
-  win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;margin-bottom:2px">${order.customerName || '—'}</p>`);
+  win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;margin-bottom:2px">${order.customerName || 'â€”'}</p>`);
   if (order.customerPhone) {
-    win.document.write(`<p style="font-size:18px;font-weight:700;color:#000;margin-bottom:2px">${order.customerPhone}</p>`);
+    win.document.write(`<p style="font-family:Inter,Arial,sans-serif;font-size:15px;font-weight:600;color:#000;margin-bottom:2px">${order.customerPhone}</p>`);
   }
   if (order.address) {
     win.document.write(`<p style="font-size:16px;color:#000;margin-bottom:2px">${order.address}</p>`);
   }
   if (order.city) {
-    const cityLabel = isUrdu ? 'شہر:' : 'CITY:';
+    const cityLabel = isUrdu ? 'Ø´ÛØ±:' : 'CITY:';
     win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;display:inline-block;padding:4px 14px;border-radius:0;margin-top:4px;text-transform:uppercase;border:1.2px solid #000">${cityLabel} ${order.city}</p>`);
   }
   win.document.write(`</div>`);
 
-  // ─── DATES ROW (always LTR — date values are English) ───
+  // â”€â”€â”€ DATES ROW (always LTR â€” date values are English) â”€â”€â”€
   win.document.write(`<div dir="ltr" style="display:flex;justify-content:space-between;margin-bottom:8px;border:1.2px solid #000;border-radius:0;padding:6px 10px;flex-wrap:wrap">`);
-  win.document.write(`<div><span style="font-size:16px;font-weight:700;color:#000">${sec.orderEntryDate}:</span> <span style="font-size:18px;font-weight:700;color:#000">${entryDate}</span></div>`);
-  win.document.write(`<div><span style="font-size:16px;font-weight:700;color:#000">${isUrdu ? 'اندراج کا وقت:' : 'Entry Time:'}</span> <span style="font-size:18px;font-weight:700;color:#000">${entryTime}</span></div>`);
+  win.document.write(`<div><span style="font-size:16px;font-weight:700;color:#000">${sec.orderEntryDate}:</span> <span style="font-family:Inter,Arial,sans-serif;font-size:15px;font-weight:600;color:#000">${entryDate}</span></div>`);
+  win.document.write(`<div><span style="font-size:16px;font-weight:700;color:#000">${isUrdu ? 'Ø§Ù†Ø¯Ø±Ø§Ø¬ Ú©Ø§ ÙˆÙ‚Øª:' : 'Entry Time:'}</span> <span style="font-family:Inter,Arial,sans-serif;font-size:15px;font-weight:600;color:#000">${entryTime}</span></div>`);
   if (shopifyDate) {
-    win.document.write(`<div><span style="font-size:16px;font-weight:700;color:#000">${sec.shopifyDate}:</span> <span style="font-size:18px;font-weight:700;color:#000">${shopifyDate}</span></div>`);
+    win.document.write(`<div><span style="font-size:16px;font-weight:700;color:#000">${sec.shopifyDate}:</span> <span style="font-family:Inter,Arial,sans-serif;font-size:15px;font-weight:600;color:#000">${shopifyDate}</span></div>`);
   }
   win.document.write(`</div>`);
 
-  // ─── ORDER PLACED BY ───
+  // â”€â”€â”€ ORDER PLACED BY â”€â”€â”€
   if (order.placedBy) {
-    const placedLabel = isUrdu ? 'آرڈر کس نے دیا:' : 'Order Placed By:';
+    const placedLabel = isUrdu ? 'Ø¢Ø±ÚˆØ± Ú©Ø³ Ù†Û’ Ø¯ÛŒØ§:' : 'Order Placed By:';
     win.document.write(`<div style="border:1.2px solid #000;border-radius:0;padding:5px 10px;margin-bottom:8px;text-align:center">`);
     win.document.write(`<span style="font-size:18px;font-weight:700;color:#000">${placedLabel} ${order.placedBy}</span>`);
     win.document.write(`</div>`);
   }
 
-  // ─── OUTLET SOURCE LABEL ───
+  // â”€â”€â”€ OUTLET SOURCE LABEL â”€â”€â”€
   if (order.source === 'OUTLET' && order.outletName) {
     win.document.write(`<div style="border:1.2px solid #000;border-radius:0;padding:6px 12px;margin-bottom:8px;text-align:center">`);
-    win.document.write(`<span style="font-size:20px;font-weight:700;color:#000;text-transform:uppercase"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'ماخذ: آؤٹ لیٹ —' : 'Source: Outlet —'} ${order.outletName}</span>`);
+    win.document.write(`<span style="font-size:20px;font-weight:700;color:#000;text-transform:uppercase"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'Ù…Ø§Ø®Ø°: Ø¢Ø¤Ù¹ Ù„ÛŒÙ¹ â€”' : 'Source: Outlet â€”'} ${order.outletName}</span>`);
     win.document.write(`</div>`);
   }
 
-  // ─── ORDER META BADGES ───
+  // â”€â”€â”€ ORDER META BADGES â”€â”€â”€
   win.document.write(`<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">`);
   const badgeLabels = {
-    'PAID': isUrdu ? 'ادا شدہ' : 'PAID',
-    'FULL_CUSTOM': isUrdu ? 'فل کسٹم' : 'FULL CUSTOM',
-    'STANDARD': isUrdu ? 'اسٹینڈرڈ' : 'STANDARD',
-    'READY_LOGO': isUrdu ? 'ریڈی لوگو' : 'READY LOGO',
-    'SUPER_URGENT': isUrdu ? 'انتہائی ارجنٹ' : 'SUPER URGENT',
-    'URGENT': isUrdu ? 'ارجنٹ' : 'URGENT',
-    'OUTLET': isUrdu ? 'آؤٹ لیٹ' : 'OUTLET',
-    'CASH ON DELIVERY': isUrdu ? 'نقد ڈلیوری' : 'CASH ON DELIVERY',
+    'PAID': isUrdu ? 'Ø§Ø¯Ø§ Ø´Ø¯Û' : 'PAID',
+    'FULL_CUSTOM': isUrdu ? 'ÙÙ„ Ú©Ø³Ù¹Ù…' : 'FULL CUSTOM',
+    'STANDARD': isUrdu ? 'Ø§Ø³Ù¹ÛŒÙ†ÚˆØ±Úˆ' : 'STANDARD',
+    'READY_LOGO': isUrdu ? 'Ø±ÛŒÚˆÛŒ Ù„ÙˆÚ¯Ùˆ' : 'READY LOGO',
+    'SUPER_URGENT': isUrdu ? 'Ø§Ù†ØªÛØ§Ø¦ÛŒ Ø§Ø±Ø¬Ù†Ù¹' : 'SUPER URGENT',
+    'URGENT': isUrdu ? 'Ø§Ø±Ø¬Ù†Ù¹' : 'URGENT',
+    'OUTLET': isUrdu ? 'Ø¢Ø¤Ù¹ Ù„ÛŒÙ¹' : 'OUTLET',
+    'CASH ON DELIVERY': isUrdu ? 'Ù†Ù‚Ø¯ ÚˆÙ„ÛŒÙˆØ±ÛŒ' : 'CASH ON DELIVERY',
   };
   const _payLabel = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? 'PAID' : 'CASH ON DELIVERY';
   [order.type, order.priority, order.outletName || order.source, _payLabel].filter(Boolean).forEach(label => {
@@ -1241,9 +1249,9 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   });
   win.document.write(`</div>`);
 
-  // ─── PRODUCTS TABLE ───
-  const sleeveLabel = isUrdu ? 'بازو' : 'Sleeve';
-  const lengthLabel = isUrdu ? 'لمبائی' : 'Length';
+  // â”€â”€â”€ PRODUCTS TABLE â”€â”€â”€
+  const sleeveLabel = isUrdu ? 'Ø¨Ø§Ø²Ùˆ' : 'Sleeve';
+  const lengthLabel = isUrdu ? 'Ù„Ù…Ø¨Ø§Ø¦ÛŒ' : 'Length';
   win.document.write(`<div class="section-title" style="font-size:26px">${sec.products}</div>`);
   // Helper to extract sleeve/length value from product
   const getSleeveVal = (p) => p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves ? p.femaleOptions.sleeves : null);
@@ -1260,16 +1268,16 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       win.document.write(`<tr>`);
       win.document.write(`<td style="font-weight:700">${idx + 1}</td>`);
       const verified = productVerification[String(idx)] === true;
-      win.document.write(`<td style="font-weight:700">${verified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:0;background:#fff;color:#000;border:1.2px solid #000;font-size:10px;margin-right:4px" title="Verified">✓</span>' : ''}${pu(p.productType || p.name) || '—'}</td>`);
+      win.document.write(`<td class="product-name">${verified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:0;background:#fff;color:#000;border:1.2px solid #000;font-size:10px;margin-right:4px" title="Verified">âœ“</span>' : ''}${pu(p.productType || p.name) || 'â€”'}</td>`);
       // Fabric & Color column (no size mixed in)
       const fcParts = [vu(p.fabricType), vu(p.color)].filter(Boolean);
-      win.document.write(`<td>${fcParts.join(' • ') || '—'}</td>`);
+      win.document.write(`<td>${fcParts.join(' â€¢ ') || 'â€”'}</td>`);
       // Size & Gender column (only size + gender)
       const sizeVal = p.size ? (p.size.trim().toUpperCase() === 'CUSTOM' ? 'C' : p.size.trim().toUpperCase()) : 'C';
-      const sgParts = [isUrdu ? `سائز ${pu(sizeVal)}` : `Size ${sizeVal}`, genDisplay(p.gender)].filter(Boolean);
-      win.document.write(`<td>${sgParts.join(' • ') || '—'}</td>`);
+      const sgParts = [isUrdu ? `Ø³Ø§Ø¦Ø² ${pu(sizeVal)}` : `Size ${sizeVal}`, genDisplay(p.gender)].filter(Boolean);
+      win.document.write(`<td>${sgParts.join(' â€¢ ') || 'â€”'}</td>`);
       win.document.write(`<td style="text-align:center;font-weight:700">${item.quantity || 1}</td>`);
-      if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;color:#000">${capQty || '—'}</td>`);
+      if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;color:#000">${capQty || 'â€”'}</td>`);
       win.document.write(`<td style="text-align:center;font-weight:600;font-size:16px">${colSleeveDisp(sv)}</td>`);
       win.document.write(`<td style="text-align:center;font-weight:600;font-size:16px">${colLengthDisp(lv)}</td>`);
       win.document.write(`</tr>`);
@@ -1284,20 +1292,20 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     win.document.write(`<table dir="${dir}"><thead><tr>${headers.map(h => '<th>' + h + '</th>').join('')}</tr></thead><tbody>`);
     win.document.write(`<tr>`);
     const singleVerified = productVerification['0'] === true;
-    win.document.write(`<td style="font-weight:700">${singleVerified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:0;background:#fff;color:#000;border:1.2px solid #000;font-size:10px;margin-right:4px" title="Verified">✓</span>' : ''}${pu(firstProduct.productType || firstProduct.name) || '—'}</td>`);
+    win.document.write(`<td class="product-name">${singleVerified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:0;background:#fff;color:#000;border:1.2px solid #000;font-size:10px;margin-right:4px" title="Verified">âœ“</span>' : ''}${pu(firstProduct.productType || firstProduct.name) || 'â€”'}</td>`);
     const fcParts = [vu(firstProduct.fabricType), vu(firstProduct.color)].filter(Boolean);
-    win.document.write(`<td>${fcParts.join(' • ') || '—'}</td>`);
+    win.document.write(`<td>${fcParts.join(' â€¢ ') || 'â€”'}</td>`);
     const singleSizeVal = firstProduct.size ? (firstProduct.size.trim().toUpperCase() === 'CUSTOM' ? 'C' : firstProduct.size.trim().toUpperCase()) : 'C';
-    const sgParts = [isUrdu ? `سائز ${pu(singleSizeVal)}` : `Size ${singleSizeVal}`, genDisplay(firstProduct.gender)].filter(Boolean);
-    win.document.write(`<td>${sgParts.join(' • ') || '—'}</td>`);
+    const sgParts = [isUrdu ? `Ø³Ø§Ø¦Ø² ${pu(singleSizeVal)}` : `Size ${singleSizeVal}`, genDisplay(firstProduct.gender)].filter(Boolean);
+    win.document.write(`<td>${sgParts.join(' â€¢ ') || 'â€”'}</td>`);
     win.document.write(`<td style="text-align:center;font-weight:700">${order.quantity || 1}</td>`);
-    if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;color:#000">${capQty || '—'}</td>`);
+    if (showCap) win.document.write(`<td style="text-align:center;font-weight:700;color:#000">${capQty || 'â€”'}</td>`);
     win.document.write(`<td style="text-align:center;font-weight:600;font-size:16px">${colSleeveDisp(sv)}</td>`);
     win.document.write(`<td style="text-align:center;font-weight:600;font-size:16px">${colLengthDisp(lv)}</td>`);
     win.document.write(`</tr></tbody></table>`);
   }
 
-  // ─── MEASUREMENTS SECTION ───
+  // â”€â”€â”€ MEASUREMENTS SECTION â”€â”€â”€
   if (showMeas) {
     win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
     win.document.write(`<div style="border:1.2px solid #000;border-radius:0;padding:8px 12px;margin-bottom:8px;page-break-inside:avoid">`);
@@ -1313,10 +1321,10 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
         win.document.write(`<div style="margin-bottom:6px;${idx > 0 ? 'border-top:1.2px solid #000;padding-top:6px;' : ''}">`);
         win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;margin-bottom:2px">`);
         win.document.write(`<span style="background:#111;color:#fff;width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;margin-right:6px">${idx + 1}</span>`);
-        win.document.write(`${pu(pName)} — ${isUrdu ? 'جنس' : 'Gender'}: <span style="font-weight:700">${genDisplay(p.gender) || '—'}</span> • ${isUrdu ? 'سائز' : 'Size'}: <span style="font-weight:700">${pu(sizeVal)}</span>`);
+        win.document.write(`${pu(pName)} â€” ${isUrdu ? 'Ø¬Ù†Ø³' : 'Gender'}: <span style="font-weight:700">${genDisplay(p.gender) || 'â€”'}</span> â€¢ ${isUrdu ? 'Ø³Ø§Ø¦Ø²' : 'Size'}: <span style="font-weight:700">${pu(sizeVal)}</span>`);
         win.document.write(`</p>`);
         if (sizeSpecialNote) {
-          win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;white-space:pre-wrap;word-break:break-word;margin-top:2px"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? romanToUrdu(sizeSpecialNote) : sizeSpecialNote}</p>`);
+          win.document.write(`<p style="font-size:17px;font-weight:500;line-height:2.2;color:#000;white-space:pre-wrap;word-break:break-word;margin-top:2px"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? romanToUrdu(sizeSpecialNote) : sizeSpecialNote}</p>`);
         }
         win.document.write(`</div>`);
       });
@@ -1324,16 +1332,16 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       const sizeVal = firstProduct.size ? (firstProduct.size.trim().toUpperCase() === 'CUSTOM' ? 'C' : firstProduct.size.trim().toUpperCase()) : 'C';
       const sizeSpecialNote = (rawSizes && rawSizes.specialNote) || (sizes && sizes.specialNote);
       win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;margin-bottom:2px">`);
-      win.document.write(`${isUrdu ? 'جنس' : 'Gender'}: <span style="font-weight:900">${genDisplay(firstProduct.gender) || '—'}</span> • ${isUrdu ? 'سائز' : 'Size'}: <span style="font-weight:700">${pu(sizeVal)}</span>`);
+      win.document.write(`${isUrdu ? 'Ø¬Ù†Ø³' : 'Gender'}: <span style="font-weight:900">${genDisplay(firstProduct.gender) || 'â€”'}</span> â€¢ ${isUrdu ? 'Ø³Ø§Ø¦Ø²' : 'Size'}: <span style="font-weight:700">${pu(sizeVal)}</span>`);
       win.document.write(`</p>`);
       if (sizeSpecialNote) {
-        win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;white-space:pre-wrap;word-break:break-word;margin-top:2px"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? romanToUrdu(sizeSpecialNote) : sizeSpecialNote}</p>`);
+        win.document.write(`<p style="font-size:17px;font-weight:500;line-height:2.2;color:#000;white-space:pre-wrap;word-break:break-word;margin-top:2px"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? romanToUrdu(sizeSpecialNote) : sizeSpecialNote}</p>`);
       }
     }
     win.document.write(`</div>`);
   }
 
-  // ─── ENGRAVING / BRANDING ───
+  // â”€â”€â”€ ENGRAVING / BRANDING â”€â”€â”€
   if (orderType !== 'STANDARD' && showEngraving) {
     // Parse order-level outlet engraving fields
     const outEngravingNames = order.engravingNames ? parseJSON(order.engravingNames) : [];
@@ -1365,14 +1373,14 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           win.document.write(`<div style="border:1.2px solid #000;border-radius:0;padding:8px 10px;margin-bottom:8px;page-break-inside:avoid">`);
           win.document.write(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding-bottom:6px;border-bottom:1.2px solid #000">`);
           win.document.write(`<span style="background:#111;color:#fff;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:20px;font-weight:700">${idx + 1}</span>`);
-            win.document.write(`<span style="font-weight:700;font-size:19px;text-transform:uppercase">${pu(p.productType || p.name) || (isUrdu ? 'آئٹم ' : 'Item ') + (idx + 1)}</span>`);
+            win.document.write(`<span style="font-weight:700;font-size:19px;text-transform:uppercase">${pu(p.productType || p.name) || (isUrdu ? 'Ø¢Ø¦Ù¹Ù… ' : 'Item ') + (idx + 1)}</span>`);
           if (p.color) win.document.write(`<span style="font-size:18px;color:#000">(${vu(p.color)})</span>`);
           win.document.write(`</div>`);
 
           if (c?.engravingType) {
             win.document.write(`<div style="margin-bottom:6px">`);
             const engravingLabel = c.engravingType === 'direct' ? sec.directEngraving : sec.patchEngraving;
-            win.document.write(`<p style="font-size:18px;font-weight:700;text-transform:uppercase;color:#000;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${sec.engravingType}: ${engravingLabel}</p>`);
+            win.document.write(`<p style="font-family:Inter,Arial,sans-serif;font-size:15px;font-weight:600;text-transform:uppercase;color:#000;margin-bottom:2px">${sec.engravingType}: ${engravingLabel}</p>`);
             win.document.write(`</div>`);
           }
 
@@ -1393,7 +1401,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
             win.document.write(`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">`);
             if (c.nameColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:0;border:1.2px solid #000;color:#000">${sec.color}: ${vu(c.nameColor)}</span>`);
             if (c.logoPlacement) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:0;border:1.2px solid #000;color:#000">${sec.position}: ${vu(c.logoPlacement)}</span>`);
-            if (c.logoColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:0;border:1.2px solid #000;color:#000">${isUrdu ? 'لوگو:' : 'Logo:'} ${vu(c.logoColor)}</span>`);
+            if (c.logoColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:0;border:1.2px solid #000;color:#000">${isUrdu ? 'Ù„ÙˆÚ¯Ùˆ:' : 'Logo:'} ${vu(c.logoColor)}</span>`);
             win.document.write(`</div>`);
           }
 
@@ -1401,7 +1409,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
             win.document.write(`<div style="margin-bottom:6px">`);
             win.document.write(`<p style="font-size:20px;font-weight:700;text-transform:uppercase;color:#000;margin-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.logos}</p>`);
             c.logos.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).forEach((l, li) => {
-              win.document.write(`<div style="font-size:20px;font-weight:700;padding:3px 8px;border-radius:0;margin-bottom:2px;border:1.2px solid #000">${l.name || l.design}${l.name && l.design ? ` — ${l.design}` : ''}</div>`);
+              win.document.write(`<div style="font-size:20px;font-weight:700;padding:3px 8px;border-radius:0;margin-bottom:2px;border:1.2px solid #000">${l.name || l.design}${l.name && l.design ? ` â€” ${l.design}` : ''}</div>`);
             });
             win.document.write(`</div>`);
           }
@@ -1409,7 +1417,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           if (hasNotes) {
             win.document.write(`<div style="border-left:1.2px solid #000;padding:6px 10px;border-radius:0">`);
             win.document.write(`<p style="font-size:20px;font-weight:700;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:1.2px solid #000;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
-            win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;white-space:pre-wrap;word-break:break-word"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? romanToUrdu(c.designNotes) : c.designNotes}</p></div>`);
+            win.document.write(`<p style="font-size:17px;font-weight:500;line-height:2.2;color:#000;white-space:pre-wrap;word-break:break-word"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? romanToUrdu(c.designNotes) : c.designNotes}</p></div>`);
           }
 
           win.document.write(`</div>`);
@@ -1419,17 +1427,17 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       if (outHasEngraving) {
         win.document.write(`<div style="border:1.2px solid #000;border-radius:0;padding:8px 10px;margin-bottom:8px;page-break-inside:avoid">`);
         win.document.write(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding-bottom:6px;border-bottom:1.2px solid #000">`);
-        win.document.write(`<span style="background:#000;color:#fff;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:20px;font-weight:700">✦</span>`);
-        win.document.write(`<span style="font-weight:700;font-size:19px;text-transform:uppercase;color:#000"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'آؤٹ لیٹ اینگرونگ' : 'Outlet Engraving'}</span>`);
+        win.document.write(`<span style="background:#000;color:#fff;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:20px;font-weight:700">âœ¦</span>`);
+        win.document.write(`<span style="font-weight:700;font-size:19px;text-transform:uppercase;color:#000"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'Ø¢Ø¤Ù¹ Ù„ÛŒÙ¹ Ø§ÛŒÙ†Ú¯Ø±ÙˆÙ†Ú¯' : 'Outlet Engraving'}</span>`);
         win.document.write(`</div>`);
 
         if (order.engravingType) {
-          const etLabel = order.engravingType === 'direct' ? (isUrdu ? 'ڈائریکٹ اینگرونگ' : 'Direct Engraving') : (isUrdu ? 'پیچ اینگرونگ' : 'Patch Engraving');
-          const typeLabel = isUrdu ? 'قسم' : 'Type';
-          win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;margin-bottom:4px"${isUrdu ? ' class="urdu"' : ''}>${typeLabel}: ${etLabel}</p>`);
+          const etLabel = order.engravingType === 'direct' ? (isUrdu ? 'ÚˆØ§Ø¦Ø±ÛŒÚ©Ù¹ Ø§ÛŒÙ†Ú¯Ø±ÙˆÙ†Ú¯' : 'Direct Engraving') : (isUrdu ? 'Ù¾ÛŒÚ† Ø§ÛŒÙ†Ú¯Ø±ÙˆÙ†Ú¯' : 'Patch Engraving');
+          const typeLabel = isUrdu ? 'Ù‚Ø³Ù…' : 'Type';
+          win.document.write(`<p style="font-family:Inter,Arial,sans-serif;font-size:15px;font-weight:600;color:#000;margin-bottom:4px">${typeLabel}: ${etLabel}</p>`);
         }
         if (order.engravingText) {
-          win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;margin-bottom:4px">${sec.engravingType}: ${order.engravingText}</p>`);
+          win.document.write(`<p style="font-family:Inter,Arial,sans-serif;font-size:15px;font-weight:600;color:#000;margin-bottom:4px">${sec.engravingType}: ${order.engravingText}</p>`);
         }
         if (outEngravingNames.length > 0) {
           win.document.write(`<p style="font-size:20px;font-weight:700;text-transform:uppercase;color:#000;margin-bottom:3px">${sec.nameLines}</p>`);
@@ -1451,13 +1459,13 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           const engInstDisplay = isUrdu ? romanToUrdu(order.engravingInstructions) : order.engravingInstructions;
           win.document.write(`<div style="border-left:1.2px solid #000;padding:6px 10px;border-radius:0;margin-top:6px">`);
           win.document.write(`<p style="font-size:20px;font-weight:700;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:1.2px solid #000;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
-          win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;white-space:pre-wrap;word-break:break-word"${isUrdu ? ' class="urdu"' : ''}>${engInstDisplay}</p></div>`);
+          win.document.write(`<p style="font-size:17px;font-weight:500;line-height:2.2;color:#000;white-space:pre-wrap;word-break:break-word"${isUrdu ? ' class="urdu"' : ''}>${engInstDisplay}</p></div>`);
         }
         if (order.instructionNotes) {
           const notesDisplay = isUrdu ? romanToUrdu(order.instructionNotes) : order.instructionNotes;
           win.document.write(`<div style="border-left:1.2px solid #000;padding:6px 10px;border-radius:0;margin-top:6px">`);
           win.document.write(`<p style="font-size:20px;font-weight:700;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:1.2px solid #000;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.instructionNotes}</p>`);
-          win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap;word-break:break-word"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
+          win.document.write(`<p style="font-size:17px;font-weight:500;line-height:2.2;color:#000;white-space:pre-wrap;word-break:break-word"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
         }
         win.document.write(`</div>`);
       }
@@ -1465,7 +1473,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   }
 
 
-  // ─── FOOTER ───
+  // â”€â”€â”€ FOOTER â”€â”€â”€
   win.document.write(`<div style="display:flex;justify-content:space-between;font-size:18px;color:#000;border-top:1.2px solid #000;padding-top:6px;margin-top:8px">`);
   win.document.write(`<span>${sec.orderEntryDate}: ${entryDate}</span>`);
   win.document.write(`<span${isUrdu ? ' class="urdu-text"' : ''}>${ru(orderType.replace(/_/g, ' '))}</span>`);
@@ -1477,36 +1485,36 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
 export function printDispatchSheet(order, lang = 'ur') {
   const isUrdu = lang === 'ur';
   const ru = (t) => isUrdu && t ? romanToUrdu(t) : t;
-  const pu = (t) => { if (!t) return '—'; if (!isUrdu) return t; return toUrduName(t); };
+  const pu = (t) => { if (!t) return 'â€”'; if (!isUrdu) return t; return toUrduName(t); };
   const vu = pu;
-  const title = (isUrdu ? 'ڈسپیچ شیٹ — ' : 'Dispatch Sheet — ') + (order.orderNumber || order.id?.slice(0, 8));
+  const title = (isUrdu ? 'ÚˆØ³Ù¾ÛŒÚ† Ø´ÛŒÙ¹ â€” ' : 'Dispatch Sheet â€” ') + (order.orderNumber || order.id?.slice(0, 8));
   const win = window.open('', '_blank');
   win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>${PRINT_CSS}</style></head><body>`);
   win.document.write(getPrintLogoHTML());
 
-  // ─── ORDER NUMBER ───
+  // â”€â”€â”€ ORDER NUMBER â”€â”€â”€
   win.document.write(`<div style="text-align:center;margin-bottom:10px">`);
-  win.document.write(`<h2 style="font-size:20px;font-weight:700;text-transform:uppercase;color:#000;letter-spacing:0"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'آرڈر نمبر' : 'Order #'}${order.orderNumber || order.id?.slice(0, 8)}</h2>`);
+  win.document.write(`<h2 style="font-size:20px;font-weight:700;text-transform:uppercase;color:#000;letter-spacing:0"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'Ø¢Ø±ÚˆØ± Ù†Ù…Ø¨Ø±' : 'Order #'}<span style="font-family:Inter,Arial,sans-serif;font-size:15px;font-weight:600">${order.orderNumber || order.id?.slice(0, 8)}</span></h2>`);
   win.document.write(`</div>`);
 
-  // ─── CUSTOMER DETAILS ───
+  // â”€â”€â”€ CUSTOMER DETAILS â”€â”€â”€
   win.document.write(`<div style="border:1.2px solid #000;border-radius:0;padding:10px 14px;margin-bottom:12px">`);
-  win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;margin-bottom:4px">${order.customerName || '—'}</p>`);
-  win.document.write(`<p style="font-size:18px;font-weight:600;color:#000;margin-bottom:2px">${order.customerPhone || ''}</p>`);
+  win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;margin-bottom:4px">${order.customerName || 'â€”'}</p>`);
+  win.document.write(`<p style="font-family:Inter,Arial,sans-serif;font-size:15px;font-weight:600;color:#000;margin-bottom:2px">${order.customerPhone || ''}</p>`);
   if (order.address) win.document.write(`<p style="font-size:16px;color:#000;margin-bottom:2px">${order.address}</p>`);
-  if (order.city) win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;display:inline-block;padding:4px 14px;border-radius:0;margin-top:4px;text-transform:uppercase;border:1.2px solid #000"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'شہر:' : 'CITY:'} ${order.city}</p>`);
+  if (order.city) win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;display:inline-block;padding:4px 14px;border-radius:0;margin-top:4px;text-transform:uppercase;border:1.2px solid #000"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'Ø´ÛØ±:' : 'CITY:'} ${order.city}</p>`);
   win.document.write(`</div>`);
 
-  // ─── ORDER META ───
+  // â”€â”€â”€ ORDER META â”€â”€â”€
   win.document.write(`<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">`);
   const badgeLabels = {
-    'PAID': isUrdu ? 'ادا شدہ' : 'PAID',
-    'COD': isUrdu ? 'نقد ڈلیوری' : 'COD',
-    'CASH ON DELIVERY': isUrdu ? 'نقد ڈلیوری' : 'CASH ON DELIVERY',
-    'SUPER_URGENT': isUrdu ? 'انتہائی ارجنٹ' : 'SUPER URGENT',
-    'URGENT': isUrdu ? 'ارجنٹ' : 'URGENT',
-    'FULL_CUSTOM': isUrdu ? 'فل کسٹم' : 'FULL CUSTOM',
-    'STANDARD': isUrdu ? 'اسٹینڈرڈ' : 'STANDARD',
+    'PAID': isUrdu ? 'Ø§Ø¯Ø§ Ø´Ø¯Û' : 'PAID',
+    'COD': isUrdu ? 'Ù†Ù‚Ø¯ ÚˆÙ„ÛŒÙˆØ±ÛŒ' : 'COD',
+    'CASH ON DELIVERY': isUrdu ? 'Ù†Ù‚Ø¯ ÚˆÙ„ÛŒÙˆØ±ÛŒ' : 'CASH ON DELIVERY',
+    'SUPER_URGENT': isUrdu ? 'Ø§Ù†ØªÛØ§Ø¦ÛŒ Ø§Ø±Ø¬Ù†Ù¹' : 'SUPER URGENT',
+    'URGENT': isUrdu ? 'Ø§Ø±Ø¬Ù†Ù¹' : 'URGENT',
+    'FULL_CUSTOM': isUrdu ? 'ÙÙ„ Ú©Ø³Ù¹Ù…' : 'FULL CUSTOM',
+    'STANDARD': isUrdu ? 'Ø§Ø³Ù¹ÛŒÙ†ÚˆØ±Úˆ' : 'STANDARD',
   };
   const payLabel = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? 'PAID' : 'COD';
   [order.type, order.priority, order.outletName || order.source, payLabel].filter(Boolean).forEach(label => {
@@ -1521,8 +1529,8 @@ export function printDispatchSheet(order, lang = 'ur') {
   });
   win.document.write(`</div>`);
 
-  // ─── PRODUCTS TABLE ───
-  win.document.write(`<div class="section-title${isUrdu ? ' urdu' : ''}" style="font-size:24px;margin-top:4px">${isUrdu ? 'آرٹیکلز' : 'Products'}</div>`);
+  // â”€â”€â”€ PRODUCTS TABLE â”€â”€â”€
+  win.document.write(`<div class="section-title${isUrdu ? ' urdu' : ''}" style="margin-top:4px">${isUrdu ? 'Ø¢Ø±Ù¹ÛŒÚ©Ù„Ø²' : 'Products'}</div>`);
   const rawPd = parseJSON(order.productDetails);
   const allItems = Array.isArray(rawPd) ? rawPd : null;
   const firstProduct = allItems ? getItemProduct(allItems[0]) : (rawPd || {});
@@ -1531,18 +1539,18 @@ export function printDispatchSheet(order, lang = 'ur') {
   if (isMultiItem) {
     const th = (t) => isUrdu ? t : t;
     const thU = (en, ur) => isUrdu ? ur : en;
-    win.document.write(`<table><thead><tr><th>#</th><th>${thU('Product', 'آرٹیکل')}</th><th>${thU('Color / Size', 'رنگ / سائز')}</th><th style="text-align:center">${thU('Qty', 'تعداد')}</th><th style="text-align:right">${thU('Price', 'قیمت')}</th></tr></thead><tbody>`);
+    win.document.write(`<table><thead><tr><th>#</th><th>${thU('Product', 'Ø¢Ø±Ù¹ÛŒÚ©Ù„')}</th><th>${thU('Color / Size', 'Ø±Ù†Ú¯ / Ø³Ø§Ø¦Ø²')}</th><th style="text-align:center">${thU('Qty', 'ØªØ¹Ø¯Ø§Ø¯')}</th><th style="text-align:right">${thU('Price', 'Ù‚ÛŒÙ…Øª')}</th></tr></thead><tbody>`);
     allItems.forEach((item, idx) => {
       const p = getItemProduct(item);
-      const slMap = isUrdu ? { 'full':'فل', 'half':'ہاف', 'three-quarter':'تھری کوارٹر' } : { 'full':'Full', 'half':'Half', 'three-quarter':'3 Quarter' };
-      const shMap = isUrdu ? { 'long':'لانگ', 'short':'شارٹ', 'regular':'ریگولر' } : { 'long':'Long', 'short':'Short', 'regular':'Regular' };
-      const sleeveLabel = isUrdu ? 'آستین:' : 'Sleeve:';
-      const lengthLabel = isUrdu ? 'لمبائی:' : 'Length:';
+      const slMap = isUrdu ? { 'full':'ÙÙ„', 'half':'ÛØ§Ù', 'three-quarter':'ØªÚ¾Ø±ÛŒ Ú©ÙˆØ§Ø±Ù¹Ø±' } : { 'full':'Full', 'half':'Half', 'three-quarter':'3 Quarter' };
+      const shMap = isUrdu ? { 'long':'Ù„Ø§Ù†Ú¯', 'short':'Ø´Ø§Ø±Ù¹', 'regular':'Ø±ÛŒÚ¯ÙˆÙ„Ø±' } : { 'long':'Long', 'short':'Short', 'regular':'Regular' };
+      const sleeveLabel = isUrdu ? 'Ø¢Ø³ØªÛŒÙ†:' : 'Sleeve:';
+      const lengthLabel = isUrdu ? 'Ù„Ù…Ø¨Ø§Ø¦ÛŒ:' : 'Length:';
       const extras = [p.sleeveLength ? `${sleeveLabel} ${slMap[p.sleeveLength] || p.sleeveLength}` : null, p.shirtLength ? `${lengthLabel} ${shMap[p.shirtLength] || p.shirtLength}` : null].filter(Boolean).join(' | ');
       win.document.write(`<tr>`);
       win.document.write(`<td style="font-weight:700">${idx + 1}</td>`);
-      win.document.write(`<td style="font-weight:700">${pu(p.productType || p.name) || '—'}</td>`);
-      win.document.write(`<td>${[vu(p.fabricType), vu(p.color), p.size, p.gender].filter(Boolean).join(' • ') || '—'}${extras ? ` • ${extras}` : ''}</td>`);
+      win.document.write(`<td class="product-name">${pu(p.productType || p.name) || 'â€”'}</td>`);
+      win.document.write(`<td>${[vu(p.fabricType), vu(p.color), p.size, p.gender].filter(Boolean).join(' â€¢ ') || 'â€”'}${extras ? ` â€¢ ${extras}` : ''}</td>`);
       win.document.write(`<td style="text-align:center;font-weight:700">${item.quantity || 1}</td>`);
       win.document.write(`<td style="text-align:right;font-weight:700">${currency(item.totalPrice)}</td>`);
       win.document.write(`</tr>`);
@@ -1550,53 +1558,56 @@ export function printDispatchSheet(order, lang = 'ur') {
     win.document.write(`</tbody></table>`);
   } else {
     const thU = (en, ur) => isUrdu ? ur : en;
-    win.document.write(`<table><thead><tr><th>${thU('Product', 'آرٹیکل')}</th><th>${thU('Color / Size', 'رنگ / سائز')}</th><th style="text-align:center">${thU('Qty', 'تعداد')}</th><th style="text-align:right">${thU('Price', 'قیمت')}</th></tr></thead><tbody>`);
+    win.document.write(`<table><thead><tr><th>${thU('Product', 'Ø¢Ø±Ù¹ÛŒÚ©Ù„')}</th><th>${thU('Color / Size', 'Ø±Ù†Ú¯ / Ø³Ø§Ø¦Ø²')}</th><th style="text-align:center">${thU('Qty', 'ØªØ¹Ø¯Ø§Ø¯')}</th><th style="text-align:right">${thU('Price', 'Ù‚ÛŒÙ…Øª')}</th></tr></thead><tbody>`);
     win.document.write(`<tr>`);
-    win.document.write(`<td style="font-weight:700">${pu(firstProduct.productType || firstProduct.name) || '—'}</td>`);
-    win.document.write(`<td>${[vu(firstProduct.fabricType), vu(firstProduct.color), firstProduct.size, firstProduct.gender].filter(Boolean).join(' • ') || '—'}</td>`);
+    win.document.write(`<td style="font-weight:700">${pu(firstProduct.productType || firstProduct.name) || 'â€”'}</td>`);
+    win.document.write(`<td>${[vu(firstProduct.fabricType), vu(firstProduct.color), firstProduct.size, firstProduct.gender].filter(Boolean).join(' â€¢ ') || 'â€”'}</td>`);
     win.document.write(`<td style="text-align:center;font-weight:700">${order.quantity || 1}</td>`);
     win.document.write(`<td style="text-align:right;font-weight:700">${currency(order.totalPrice)}</td>`);
     win.document.write(`</tr></tbody></table>`);
   }
 
-  // ─── FINANCIAL SUMMARY ───
-  win.document.write(`<div class="section-title${isUrdu ? ' urdu' : ''}" style="font-size:24px;margin-top:8px">${isUrdu ? 'مالی خلاصہ' : 'Financial Summary'}</div>`);
+  // â”€â”€â”€ FINANCIAL SUMMARY â”€â”€â”€
+  win.document.write(`<div class="section-title${isUrdu ? ' urdu' : ''}" style="margin-top:8px">${isUrdu ? 'Ù…Ø§Ù„ÛŒ Ø®Ù„Ø§ØµÛ' : 'Financial Summary'}</div>`);
   win.document.write(`<div style="border:1.2px solid #000;border-radius:0;padding:10px 14px">`);
-  win.document.write(summaryRow(isUrdu ? 'کل قیمت' : 'Total Price', currency(order.totalPrice)));
+  win.document.write(summaryRow(isUrdu ? 'Ú©Ù„ Ù‚ÛŒÙ…Øª' : 'Total Price', currency(order.totalPrice)));
   if (parseFloat(order.deliveryCharges || 0) > 0) {
-    win.document.write(summaryRow(isUrdu ? 'ڈلیوری چارجز' : 'Delivery Charges', currency(order.deliveryCharges)));
+    win.document.write(summaryRow(isUrdu ? 'ÚˆÙ„ÛŒÙˆØ±ÛŒ Ú†Ø§Ø±Ø¬Ø²' : 'Delivery Charges', currency(order.deliveryCharges)));
   }
   if (parseFloat(order.discount || 0) > 0) {
-    win.document.write(summaryRow(isUrdu ? 'ڈسکاؤنٹ' : 'Discount', `-${currency(order.discount)}`));
+    win.document.write(summaryRow(isUrdu ? 'ÚˆØ³Ú©Ø§Ø¤Ù†Ù¹' : 'Discount', `-${currency(order.discount)}`));
   }
   if (parseFloat(order.advanceAmount || 0) > 0) {
-    win.document.write(summaryRow(isUrdu ? 'ایڈوانس ادا شدہ' : 'Advance Paid', `-${currency(order.advanceAmount)}`));
+    win.document.write(summaryRow(isUrdu ? 'Ø§ÛŒÚˆÙˆØ§Ù†Ø³ Ø§Ø¯Ø§ Ø´Ø¯Û' : 'Advance Paid', `-${currency(order.advanceAmount)}`));
   }
   win.document.write(`<div style="display:flex;justify-content:space-between;padding:8px 0 0;border-top:3px solid #000;margin-top:6px;font-size:22px"${isUrdu ? ' class="urdu"' : ''}>`);
-  win.document.write(`<span style="font-weight:700">${isUrdu ? 'کل رقم' : 'Grand Total'}</span>`);
-  win.document.write(`<span style="font-weight:700">${currency(order.totalPrice)}</span>`);
+  win.document.write(`<span style="font-weight:700">${isUrdu ? 'Ú©Ù„ Ø±Ù‚Ù…' : 'Grand Total'}</span>`);
+  win.document.write(`<span style="font-family:Inter,Arial,sans-serif;font-size:15px;font-weight:600">${currency(order.totalPrice)}</span>`);
   win.document.write(`</div>`);
   if (order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID') {
-    win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;border:1.2px solid #000;border-radius:0;font-size:20px;font-weight:700;color:#000"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'ادا شدہ ✓' : 'PAID ✓'}</div>`);
+    win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;border:1.2px solid #000;border-radius:0;font-size:20px;font-weight:700;color:#000"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'Ø§Ø¯Ø§ Ø´Ø¯Û âœ“' : 'PAID âœ“'}</div>`);
   } else if (parseFloat(order.advanceAmount || 0) > 0) {
     win.document.write(`<div style="display:flex;justify-content:space-between;margin-top:8px;padding:6px 10px;border:1.2px solid #000;border-radius:0;font-size:18px;font-weight:700"${isUrdu ? ' class="urdu"' : ''}>`);
-    win.document.write(`<span style="color:#000">${isUrdu ? 'ایڈوانس موصول:' : 'Advance Received:'} ${currency(order.advanceAmount)}</span>`);
-    win.document.write(`<span style="color:#000">${isUrdu ? 'باقی:' : 'Remaining:'} ${currency(parseFloat(order.totalPrice) - parseFloat(order.advanceAmount || 0))}</span>`);
+    win.document.write(`<span style="color:#000">${isUrdu ? 'Ø§ÛŒÚˆÙˆØ§Ù†Ø³ Ù…ÙˆØµÙˆÙ„:' : 'Advance Received:'} <span style="font-family:Inter,Arial,sans-serif;font-size:15px;font-weight:600">${currency(order.advanceAmount)}</span></span>`);
+    win.document.write(`<span style="color:#000">${isUrdu ? 'Ø¨Ø§Ù‚ÛŒ:' : 'Remaining:'} <span style="font-family:Inter,Arial,sans-serif;font-size:15px;font-weight:600">${currency(parseFloat(order.totalPrice) - parseFloat(order.advanceAmount || 0))}</span></span>`);
     win.document.write(`</div>`);
   } else {
-    win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;border:1.2px solid #000;border-radius:0;font-size:20px;font-weight:700;color:#000"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'نقد ڈلیوری' : 'CASH ON DELIVERY'}</div>`);
+    win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;border:1.2px solid #000;border-radius:0;font-size:20px;font-weight:700;color:#000"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'Ù†Ù‚Ø¯ ÚˆÙ„ÛŒÙˆØ±ÛŒ' : 'CASH ON DELIVERY'}</div>`);
   }
   win.document.write(`</div>`);
 
-  // ─── DISPATCH METHOD ───
+  // â”€â”€â”€ DISPATCH METHOD â”€â”€â”€
   if (order.deliveryMethod) {
     win.document.write(`<div style="margin-top:10px;padding:8px 14px;border:1.2px solid #000;border-radius:0;text-align:center"${isUrdu ? ' class="urdu"' : ''}>`);
-    win.document.write(`<span style="font-size:20px;font-weight:700;color:#000;text-transform:uppercase">${isUrdu ? 'ڈسپیچ طریقہ:' : 'Dispatch Method:'} ${order.deliveryMethod}</span>`);
+    win.document.write(`<span style="font-size:20px;font-weight:700;color:#000;text-transform:uppercase">${isUrdu ? 'ÚˆØ³Ù¾ÛŒÚ† Ø·Ø±ÛŒÙ‚Û:' : 'Dispatch Method:'} ${order.deliveryMethod}</span>`);
     if (order.trackingNumber) {
-      win.document.write(`<p style="font-size:18px;font-weight:700;color:#000;margin-top:4px">${isUrdu ? 'ٹریکنگ:' : 'Tracking:'} ${order.trackingNumber}</p>`);
+      win.document.write(`<p style="font-size:18px;font-weight:700;color:#000;margin-top:4px">${isUrdu ? 'Ù¹Ø±ÛŒÚ©Ù†Ú¯:' : 'Tracking:'} ${order.trackingNumber}</p>`);
     }
     win.document.write(`</div>`);
   }
 
   closePrintWindow(win);
 }
+
+
+
