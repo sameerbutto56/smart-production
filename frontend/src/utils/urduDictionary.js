@@ -642,6 +642,7 @@ const urduDictionary = {
   'Jack-Set': 'جیک سیٹ',
   'V-Neck': 'وی نیک',
   'VNeck': 'وی نیک',
+  'RightChest': 'رائٹ چیسٹ',
 
   // Medical / Facilities
   'Clinic': 'کلینک',
