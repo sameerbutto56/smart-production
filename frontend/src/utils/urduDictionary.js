@@ -424,6 +424,7 @@ const urduDictionary = {
   'Designer': 'ڈیزائنر',
   'Executive': 'ایگزیکٹو',
   'Free': 'فری',
+  'free': 'فری',
   'Inner': 'اِنر',
   'Manual': 'مینوئل',
   'Matching': 'میچنگ',

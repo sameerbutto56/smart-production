@@ -142,7 +142,16 @@
 - **WarehousePOSCart.jsx**: Cart items show name + color in Urdu
 - **WarehousePOSHistory.jsx**: History chips show name + color in Urdu
 - **WarehousePOSReturns.jsx**: Sales items + return cart show name + color in Urdu
-- Build passes with 0 errors, dictionary is 12.22 kB (3.91 kB gzipped)
+- Build passes with 0 errors, dictionary is ~19.92 kB (6.83 kB gzipped)
+
+### Fixed This Session — `toUrduName()` Rewrite — Token-By-Token Always, No Exact-Match Shortcut
+- **Root cause**: The original `toUrduName()` tried an exact‑match on the entire string first (e.g., `'3M N95 Face Mask'`). If that lookup failed, it fell through to token‑by‑token splitting. This violated the requirement “Do **not** translate as a single string” — and meant any new product name without a specific compound entry would render fully in English instead of translating known tokens.
+- **Fix**: Removed the `if (urduDictionary[str])` exact‑match shortcut. `toUrduName()` now **always** splits on whitespace, iterates each token, strips leading/trailing non‑alphanumeric characters (parentheses `. , etc.) before dictionary lookup, preserves original formatting/punctuation around the translated core, and joins the result. Unknown tokens are returned as‑is.
+- **Token stripping logic**: For each token, finds the span of contiguous alphanumeric/`'-` charaters at the core (via `match(/[a-zA-Z0-9'-]+/`), extracts the suffix/prefix of non‑alnum chars (e.g., `(Black)` → `(` + `Black` + `)`), looks up the core in dictionary, then reassembles as `prefix + translation + suffix`. This means `C.` → `C` + `.`, and `C` → `سی`, so `C.` → `سی.` **but only if** `'C.'` is not already in the dictionary. `'C.'` has now been added as `'سی'` to bypass the stripping path.
+- **Added ~150 missing Urdu words** from the 330‑entry table (colors, medical terms, fabric names, size abbreviations, compound colors, pack/qty terms, misc).
+- **Added 17 more Urdu words** from the second table (`2.0`, `And`, `Bird`, `Blurry`, `Bottom`, `Chetha`, `D.`, `Dusk`, `Games`, `Jagger`, `Prints`, `Ray`, `Sex`, `Sneakers`, `Uni`, `X`).
+- **Dictionary now covers ≈360 unique English→Urdu entries** (individual words + single‑token compounds like `CT-Scan`, `V-Neck`, `Flexfit`, `2.0`). No multi‑word product‑name entries needed.
+- **Verification**: Build passes with 0 errors, `npx vite build` succeeds both locally and on Vercel. Deployed commit `722fb60` to `https://smart-production-v3.vercel.app`.
 
 ### Fixed This Session — Reprint/Print Not Working (Popup Blocker)
 - **Root cause**: `printReceipt` in `OutletPOS.jsx` and `OutletInvoiceHistory.jsx` used `window.open('', '_blank')` at the TOP of an `async` function — after `await` calls (logo fetch, QR code generation), the browser's popup blocker would prevent the window from opening because the user gesture was no longer in scope.
@@ -171,6 +180,9 @@
 - ErrorBoundary should NOT auto-reload on `ReferenceError` + "before initialization" — that pattern is a real TDZ error (not a stale chunk), and reloading would create an infinite loop if the error is deterministic.
 - Store dashboard and unseen-tasks endpoints now require an active (PENDING/IN_PROGRESS) stage record matching the role's stage — prevents orders with completed/inactive stages from appearing.
 - `requestStageCompletion` validates transitions BEFORE marking stage COMPLETED — eliminates inconsistent state from validation failures.
+- `toUrduName()` exact-match shortcut removed — pure token-based lookup ensures new product names work automatically without compound entries
+- Punctuation stripping added for tokens — parentheses `(Black)`, trailing periods `C.` preserve original formatting while translating the core word
+- `C.` added as standalone dictionary key to bypass the stripping path for this common token
 - Balance revenue uses payment-date-based methodology (advance on sale date, balance payments on their dates) for accurate daily tracking.
 - `printReceipt` accepts options parameter instead of creating separate functions for invoice vs gate pass.
 - Client measurements stored flat in `clientMeasurements` state; per-product nesting built dynamically when product is added to cart.
@@ -189,7 +201,7 @@
 - (none — all current work is complete)
 
 ## Critical Context
-- Latest commits: `124a8b0` — auto-reload stale chunk; `033af46` — Logo Design cart option; `76579d5` + `371b346` — Urdu labels; `3bad1ba` — Close Book sync + drill-down; `fcac5a7` — summary sync fix, employee auth for Open/Close, print register info; `d644db2` — Extract modals to sharedModals, fix Dashboard/History/Returns tabs missing modals; `757a6a0` — OrderEntry split context + 4 tab components; latest — Warehouse POS variant selection config modal
+- Latest commits: `124a8b0` — auto-reload stale chunk; `033af46` — Logo Design cart option; `76579d5` + `371b346` — Urdu labels; `3bad1ba` — Close Book sync + drill-down; `fcac5a7` — summary sync fix, employee auth for Open/Close, print register info; `d644db2` — Extract modals to sharedModals, fix Dashboard/History/Returns tabs missing modals; `757a6a0` — OrderEntry split context + 4 tab components; `722fb60` — toUrduName() rewrite (token-only, no exact-match, punctuation stripping, ~360 entries); latest — deploy to production
 - Build passes with 0 errors.
 - `isAccessory` uses substring matching (`catUpper.includes('COAT')`).
 - `calculateAndRecordRevenue` at line 2482 of `order.controller.js` is idempotent.
@@ -240,6 +252,7 @@
 - `frontend/src/components/EngravingTab.jsx`: Engraving/branding tab UI (new).
 - `frontend/src/components/SizeChartTab.jsx`: Sizes/measurements tab UI (new).
 - `frontend/src/pages/OrderEntry.jsx`: Cap quantity, delivery charges, paymentStatus toggle, branding tab for CAPS — now thin shell importing context + 4 tab components
+- `frontend/src/utils/urduDictionary.js`: `toUrduName()` — always token-by-token with punctuation stripping, ~360 entries; no exact-match shortcut; used by POS products/cart/history/returns, OrderCard, AllOrders, printReport, OutletPOSDashboard, WarehousePOS
 - `frontend/src/hooks/useCache.js`: Race condition guard (`reqRef`), hot cache revalidation when `staleWhileRevalidate=true`
 - `frontend/src/components/ErrorBoundary.jsx`: Error message visible in production
 - `frontend/src/utils/printReport.js`: `printJobSheet` — now flattens Outlet per-product sizeData and displays measurement values grid
