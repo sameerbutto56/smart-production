@@ -1068,27 +1068,26 @@ const urduLabels = {
 const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
 
 export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
-  const showMeas = sections.measurements !== false;
-  const showEngraving = sections.engraving !== false;
   const showPrice = ['SUPER_ADMIN', 'ADMIN'].includes(userRole);
+  const orderType = order.type || 'STANDARD';
+  const isLogoEngraving = orderType !== 'STANDARD';
+  const isFullCustom = orderType === 'FULL_CUSTOM';
+  // Measurements only for FULL_CUSTOM (unless explicitly overridden)
+  const showMeas = sections.measurements !== undefined ? sections.measurements : isFullCustom;
+  // Engraving section shown when order has engraving data and is not STANDARD (unless overridden)
+  const showEngraving = sections.engraving !== undefined ? sections.engraving : isLogoEngraving;
 
+  // Sleeve & Length maps
   const slMap = { 'full':'Full', 'half':'Half', 'three-quarter':'3 Quarter' };
   const shMap = { 'long':'Long', 'short':'Short', 'regular':'Regular' };
-  const femSlMap = { 'full':'Full', 'half':'Half', 'medium':'Medium' };
-  const femShMap = { 'long':'Long', 'short':'Short' };
   const urduSlMap = { 'full':'فل بازو', 'half':'ہاف', 'three-quarter':'تھری کوارٹر', 'quarter':'تھری کوارٹر' };
   const urduShMap = { 'long':'لمبی بازو', 'short':'چھوٹی بازو', 'regular':'ریگولر' };
-  const urduFemSlMap = { 'full':'فل بازو', 'half':'ہاف', 'medium':'درمیانی' };
-  const urduFemShMap = { 'long':'لمبی بازو', 'short':'چھوٹی بازو' };
-  // Sleeve & Length column display maps (values only, no label prefix)
   const colSleeveEN = { 'full':'Full', 'half':'Half', 'three-quarter':'Three Quarter', 'regular':'Regular', 'medium':'Medium' };
   const colSleeveUR = { 'full':'فل', 'half':'ہاف', 'three-quarter':'تھری کوارٹر', 'regular':'ریگولر', 'medium':'میڈیم' };
   const colLengthEN = { 'long':'Long', 'regular':'Regular', 'short':'Short' };
   const colLengthUR = { 'long':'لانگ', 'regular':'ریگولر', 'short':'شارٹ' };
   const colSleeveDisp = (v) => v ? (isUrdu ? (colSleeveUR[v] || v) : (colSleeveEN[v] || v)) : '—';
   const colLengthDisp = (v) => v ? (isUrdu ? (colLengthUR[v] || v) : (colLengthEN[v] || v)) : '—';
-  const slDisplay = (v) => v ? (isUrdu ? (urduSlMap[v] || v) : (slMap[v] || v)) : '';
-  const shDisplay = (v) => v ? (isUrdu ? (urduShMap[v] || v) : (shMap[v] || v)) : '';
   const genDisplay = (g) => g ? (isUrdu ? (g === 'Male' ? 'مرد' : g === 'Female' ? 'عورت' : g) : g) : '';
   const sec = lang === 'en' ? enSection : urduSection;
   const isUrdu = lang === 'ur';
@@ -1096,11 +1095,15 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const pu = (t) => isUrdu && t ? toUrduName(t) : t;
   const vu = (t) => isUrdu && t ? toUrduName(t) : t;
   const dir = isUrdu ? 'rtl' : 'ltr';
+  const LOGO_URL = window.location.origin + '/logo.png';
 
-  const orderType = order.type || 'STANDARD';
   const title = `${sec.jobSheet} — ${order.orderNumber || order.id?.slice(0, 8)}`;
   const win = openPrintWindow(title, isUrdu);
 
+  // Hide default logo / header / footer from openPrintWindow
+  win.document.write('<style>.print-logo,.report-header,.print-footer{display:none!important}</style>');
+
+  // Parse data
   const rawPd = parseJSON(order.productDetails);
   const allItems = Array.isArray(rawPd) ? rawPd : null;
   const isMultiItem = allItems && allItems.length > 0;
@@ -1112,15 +1115,10 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const sizes = (flatSizes && Object.keys(flatSizes).length > 0) ? flatSizes : ({});
   const productVerification = order.productVerification && typeof order.productVerification === 'object' ? order.productVerification : {};
 
-  // Hide the default .report-header from openPrintWindow — we write our own header below
-  win.document.write('<style>.report-header{display:none!important}</style>');
-
-  // ─── GENERATED DATE/TIME ───
+  // Date/time helpers
   const now = new Date();
   const generatedDate = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   const generatedTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-
-  // ─── ENTRY DATE/TIME & SHOPIFY DATE ───
   const entryDt = order.createdAt ? new Date(order.createdAt) : null;
   const entryDate = entryDt && !isNaN(entryDt.getTime())
     ? entryDt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -1128,57 +1126,15 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const entryTime = entryDt && !isNaN(entryDt.getTime())
     ? entryDt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
     : '—';
-  const shopifyDate = order.shopifyOrderDate ? fmtDate(order.shopifyOrderDate) : null;
 
-  // ─── HEADER ───
-  win.document.write(`<div style="text-align:center;margin-bottom:8px;border-bottom:3px solid #111;padding-bottom:8px">`);
-  win.document.write(`<h1 style="font-size:28px;font-weight:900;text-transform:uppercase;letter-spacing:1px;color:#000">${sec.jobSheet}</h1>`);
-  win.document.write(`<p style="font-size:20px;color:#000;margin-top:2px;font-weight:700">${isUrdu ? 'آرڈر #' : 'Order #'}${order.orderNumber || order.id?.slice(0, 8)}</p>`);
-  win.document.write(`<p style="font-size:18px;color:#555;font-weight:600;margin-top:2px">ENAMELS Production</p>`);
-  win.document.write(`<p style="font-size:15px;color:#999;font-weight:500;margin-top:2px">${isUrdu ? 'تیار کردہ:' : 'Generated:'} ${generatedDate} ${generatedTime}</p>`);
-  win.document.write(`</div>`);
-
-  // ─── CUSTOMER INFO (always LTR — customer data is English/Roman script) ───
-  win.document.write(`<div dir="ltr" style="border:2px solid #ddd;border-radius:8px;padding:8px 12px;margin-bottom:8px">`);
-  win.document.write(`<p style="font-size:22px;font-weight:900;color:#000;margin-bottom:2px">${order.customerName || '—'}</p>`);
-  if (order.customerPhone) {
-    win.document.write(`<p style="font-size:18px;font-weight:700;color:#000;margin-bottom:2px">${order.customerPhone}</p>`);
-  }
-  if (order.address) {
-    win.document.write(`<p style="font-size:16px;color:#333;margin-bottom:2px">${order.address}</p>`);
-  }
-  if (order.city) {
-    const cityLabel = isUrdu ? 'شہر:' : 'CITY:';
-    win.document.write(`<p style="font-size:20px;font-weight:900;color:#000;background:#fef3c7;display:inline-block;padding:4px 14px;border-radius:6px;margin-top:4px;text-transform:uppercase">${cityLabel} ${pu(order.city)}</p>`);
-  }
-  win.document.write(`</div>`);
-
-  // ─── DATES ROW (always LTR — date values are English) ───
-  win.document.write(`<div dir="ltr" style="display:flex;justify-content:space-between;margin-bottom:8px;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:6px 10px;flex-wrap:wrap">`);
-  win.document.write(`<div><span style="font-size:16px;font-weight:700;color:#000">${sec.orderEntryDate}:</span> <span style="font-size:18px;font-weight:900;color:#111">${entryDate}</span></div>`);
-  win.document.write(`<div><span style="font-size:16px;font-weight:700;color:#000">${isUrdu ? 'اندراج کا وقت:' : 'Entry Time:'}</span> <span style="font-size:18px;font-weight:900;color:#111">${entryTime}</span></div>`);
-  if (shopifyDate) {
-    win.document.write(`<div><span style="font-size:16px;font-weight:700;color:#000">${sec.shopifyDate}:</span> <span style="font-size:18px;font-weight:900;color:#111">${shopifyDate}</span></div>`);
-  }
-  win.document.write(`</div>`);
-
-  // ─── ORDER PLACED BY ───
-  if (order.placedBy) {
-    const placedLabel = isUrdu ? 'آرڈر کس نے دیا:' : 'Order Placed By:';
-    win.document.write(`<div style="background:#dbeafe;border:1px solid #93c5fd;border-radius:6px;padding:5px 10px;margin-bottom:8px;text-align:center">`);
-    win.document.write(`<span style="font-size:18px;font-weight:900;color:#1e40af">${placedLabel} ${order.placedBy}</span>`);
-    win.document.write(`</div>`);
-  }
-
-  // ─── OUTLET SOURCE LABEL ───
-  if (order.source === 'OUTLET' && order.outletName) {
-    win.document.write(`<div style="background:#7c3aed10;border:2px solid #7c3aed40;border-radius:6px;padding:6px 12px;margin-bottom:8px;text-align:center">`);
-    win.document.write(`<span style="font-size:22px;font-weight:900;color:#7c3aed;text-transform:uppercase">${isUrdu ? 'ماخذ:' : 'Source:'} ${pu(order.outletName)}</span>`);
-    win.document.write(`</div>`);
-  }
-
-  // ─── ORDER META BADGES ───
-  win.document.write(`<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">`);
+  // Badge color helper
+  const badgeColor = (label) => {
+    if (label === 'PAID' || label === 'FULL_CUSTOM') return '#059669';
+    if (label === 'SUPER_URGENT') return '#dc2626';
+    if (label === 'URGENT') return '#d97706';
+    if (label === 'OUTLET' || label === 'CASH ON DELIVERY') return '#dc2626';
+    return '#6b7280';
+  };
   const badgeLabels = {
     'PAID': isUrdu ? 'ادا شدہ' : 'PAID',
     'FULL_CUSTOM': isUrdu ? 'فل کسٹم' : 'FULL CUSTOM',
@@ -1189,28 +1145,68 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     'OUTLET': isUrdu ? 'آؤٹ لیٹ' : 'OUTLET',
     'CASH ON DELIVERY': isUrdu ? 'نقد ڈلیوری' : 'CASH ON DELIVERY',
   };
-  const _payLabel = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? 'PAID' : 'CASH ON DELIVERY';
-  [order.type, order.priority, order.outletName || order.source, _payLabel].filter(Boolean).forEach(label => {
-    let color = '#6b7280';
-    if (label === 'PAID' || label === 'FULL_CUSTOM') color = '#059669';
-    else if (label === 'SUPER_URGENT') color = '#dc2626';
-    else if (label === 'URGENT') color = '#d97706';
-    else if (label === 'OUTLET') color = '#7c3aed';
-    else if (label === 'CASH ON DELIVERY') color = '#dc2626';
-    const displayLabel = badgeLabels[label] || pu(label);
-    win.document.write(`<span style="padding:3px 12px;border-radius:6px;font-size:20px;font-weight:700;text-transform:uppercase;background:${color}20;color:${color};border:2px solid ${color}40"${isUrdu ? ' class="urdu-text"' : ''}>${displayLabel}</span>`);
-  });
+
+  // ─────────────────────────────────────────────────
+  // 1. HEADER — Logo + Title + Metadata
+  // ─────────────────────────────────────────────────
+  win.document.write(`<div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:10px;border-bottom:3px solid #111;padding-bottom:10px">`);
+  // Left: Logo
+  win.document.write(`<div style="flex-shrink:0;padding-top:2px"><img src="${LOGO_URL}" alt="ENAMELS" style="height:55px;width:auto"></div>`);
+  // Right: Title + metadata
+  win.document.write(`<div style="flex:1;text-align:right"${isUrdu ? ' dir="rtl"' : ''}>`);
+  win.document.write(`<h1 style="font-size:30px;font-weight:900;text-transform:uppercase;letter-spacing:2px;color:#000;margin-bottom:6px">${sec.jobSheet}</h1>`);
+  // Metadata grid (2 columns)
+  win.document.write(`<div style="font-size:15px;color:#000;line-height:1.7;display:inline-grid;grid-template-columns:auto auto;gap:2px 20px;text-align:left"${isUrdu ? ' dir="ltr"' : ''}>`);
+  const metaRow = (label, val) => `<span style="font-weight:600;color:#555;text-transform:uppercase">${label}</span><span style="font-weight:800;color:#000">${val || '—'}</span>`;
+  win.document.write(metaRow(isUrdu ? 'آرڈر نمبر:' : 'Order #', order.orderNumber || order.id?.slice(0, 8) || '—'));
+  win.document.write(metaRow(isUrdu ? 'تاریخ:' : 'Entry Date', entryDate));
+  win.document.write(metaRow(isUrdu ? 'وقت:' : 'Entry Time', entryTime));
+  win.document.write(metaRow(isUrdu ? 'آرڈر کی قسم:' : 'Order Type', badgeLabels[orderType] || orderType));
+  win.document.write(metaRow(isUrdu ? 'ترجیح:' : 'Priority', order.priority || 'Normal'));
+  win.document.write(metaRow(isUrdu ? 'بنانے والا:' : 'Created By', order.placedBy || order.createdBy || '—'));
+  win.document.write(metaRow(isUrdu ? 'سیلز چینل:' : 'Channel', order.source === 'OUTLET' ? (order.outletName || 'Outlet') : (order.source || 'Online')));
+  win.document.write(`</div>`);
+  // Badges row
+  const payLabel = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? 'PAID' : 'CASH ON DELIVERY';
+  const badgeItems = [orderType, order.priority, payLabel].filter(Boolean);
+  if (badgeItems.length > 0) {
+    win.document.write(`<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;justify-content:flex-end">`);
+    badgeItems.forEach(label => {
+      const c = badgeColor(label);
+      win.document.write(`<span style="padding:2px 10px;border-radius:4px;font-size:14px;font-weight:700;text-transform:uppercase;background:${c}18;color:${c};border:1.5px solid ${c}30"${isUrdu ? ' class="urdu-text"' : ''}>${badgeLabels[label] || label}</span>`);
+    });
+    win.document.write(`</div>`);
+  }
+  win.document.write(`</div></div>`);
+
+  // ─────────────────────────────────────────────────
+  // 2. CUSTOMER INFORMATION
+  // ─────────────────────────────────────────────────
+  win.document.write(`<div class="section-title" style="font-size:22px">${sec.customerInfo}</div>`);
+  win.document.write(`<div dir="ltr" style="border:2px solid #ddd;border-radius:8px;padding:8px 12px;margin-bottom:8px">`);
+  win.document.write(`<p style="font-size:22px;font-weight:900;color:#000;margin-bottom:2px">${order.customerName || '—'}</p>`);
+  if (order.customerPhone) {
+    win.document.write(`<p style="font-size:17px;font-weight:700;color:#000;margin-bottom:2px">${order.customerPhone}</p>`);
+  }
+  if (order.address) {
+    win.document.write(`<p style="font-size:15px;color:#333;margin-bottom:2px">${order.address}</p>`);
+  }
+  if (order.city) {
+    win.document.write(`<p style="font-size:18px;font-weight:900;color:#000;background:#fef3c7;display:inline-block;padding:3px 12px;border-radius:6px;margin-top:3px;text-transform:uppercase">${isUrdu ? 'شہر:' : 'CITY:'} ${pu(order.city)}</p>`);
+  }
   win.document.write(`</div>`);
 
-  // ─── PRODUCTS TABLE ───
+  // ─────────────────────────────────────────────────
+  // 3. PRODUCT INFORMATION
+  // ─────────────────────────────────────────────────
   const sleeveLabel = isUrdu ? 'بازو' : 'Sleeve';
   const lengthLabel = isUrdu ? 'لمبائی' : 'Length';
-  win.document.write(`<div class="section-title" style="font-size:26px">${sec.products}</div>`);
-  // Helper to extract sleeve/length value from product
+  win.document.write(`<div class="section-title" style="font-size:22px">${sec.products}</div>`);
   const getSleeveVal = (p) => p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves ? p.femaleOptions.sleeves : null);
   const getLengthVal = (p) => p.shirtLength || (p.gender === 'Female' && p.femaleOptions?.shirtLength ? p.femaleOptions.shirtLength : null);
+  const showCap = isLogoEngraving;
+
   if (isMultiItem) {
-    const showCap = orderType !== 'STANDARD';
     const headers = ['#', sec.product, sec.fabricColor, sec.sizeGender, sec.qty].concat(showCap ? [sec.cap] : []).concat([sleeveLabel, lengthLabel]);
     win.document.write(`<table dir="${dir}"><thead><tr>${headers.map(h => '<th>' + h + '</th>').join('')}</tr></thead><tbody>`);
     allItems.forEach((item, idx) => {
@@ -1222,10 +1218,8 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       win.document.write(`<td style="font-weight:700">${idx + 1}</td>`);
       const verified = productVerification[String(idx)] === true;
       win.document.write(`<td style="font-weight:700">${verified ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:#6366f120;color:#6366f1;border:1px solid #6366f140;font-size:10px;margin-right:4px" title="Verified">✓</span>' : ''}${pu(p.productType || p.name) || '—'}</td>`);
-      // Fabric & Color column (no size mixed in)
       const fcParts = [vu(p.fabricType), vu(p.color)].filter(Boolean);
       win.document.write(`<td>${fcParts.join(' • ') || '—'}</td>`);
-      // Size & Gender column (only size + gender)
       const sgParts = [p.size ? (isUrdu ? `سائز ${p.size}` : `Size ${p.size}`) : (isUrdu ? 'کسٹم' : 'Custom'), genDisplay(p.gender)].filter(Boolean);
       win.document.write(`<td>${sgParts.join(' • ') || '—'}</td>`);
       win.document.write(`<td style="text-align:center;font-weight:700">${item.quantity || 1}</td>`);
@@ -1236,7 +1230,6 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     });
     win.document.write(`</tbody></table>`);
   } else {
-    const showCap = orderType !== 'STANDARD';
     const capQty = showCap && firstProduct.matchingCap ? (firstProduct.matchingCapQty || 0) : 0;
     const sv = getSleeveVal(firstProduct);
     const lv = getLengthVal(firstProduct);
@@ -1256,60 +1249,14 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     win.document.write(`</tr></tbody></table>`);
   }
 
-  // ─── MEASUREMENT SECTION ───
-  if (showMeas) {
-    const rawS = typeof sizes === 'object' && sizes ? sizes : {};
-    const selectedSize = order.size || firstProduct?.size || rawS._standardSize || '';
-    const measSpecNote = rawS.specialNote || '';
-    const measNote = order.instructionNotes || '';
-    const hasMeasContent = selectedSize || measSpecNote || measNote;
-    if (hasMeasContent) {
-      win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
-      win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px">`);
-      if (selectedSize) {
-        win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;margin-bottom:${(measSpecNote || measNote) ? '6px' : '0'}">${isUrdu ? 'منتخب سائز:' : 'Selected Size:'} ${selectedSize}</p>`);
-      }
-      if (measSpecNote) {
-        const notesDisplay = isUrdu ? measSpecNote.split('\n').map(l => romanToUrdu(l)).join('\n') : measSpecNote;
-        win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px;${selectedSize ? 'margin-top:6px' : ''}">`);
-        win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'پیمائش نوٹ' : 'Measurement Note'}</p>`);
-        win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
-      }
-      if (measNote) {
-        const notesDisplay = isUrdu ? measNote.split('\n').map(l => romanToUrdu(l)).join('\n') : measNote;
-        win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px;${(selectedSize || measSpecNote) ? 'margin-top:6px' : ''}">`);
-        win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
-        win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
-      }
-      win.document.write(`</div>`);
-    }
-  }
-
-  // ─── TAILORING SECTION ───
-  const tailoringFit = custom?.fitType || firstProduct?.fitType || '';
-  const tailoringNote = custom?.designNotes || '';
-  if (tailoringFit || tailoringNote) {
-    win.document.write(`<div class="section-title" style="font-size:26px">${isUrdu ? 'تیلرنگ' : 'Tailoring'}</div>`);
-    win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px">`);
-    if (tailoringFit) {
-      win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;margin-bottom:${tailoringNote ? '6px' : '0'}">${isUrdu ? 'فٹ:' : 'Fit:'} ${isUrdu ? toUrduName(tailoringFit) : tailoringFit}</p>`);
-    }
-    if (tailoringNote) {
-      const notesDisplay = isUrdu ? tailoringNote.split('\n').map(l => romanToUrdu(l)).join('\n') : tailoringNote;
-      win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px;${tailoringFit ? 'margin-top:6px' : ''}">`);
-      win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'تیلرنگ نوٹ' : 'Tailoring Note'}</p>`);
-      win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
-    }
-    win.document.write(`</div>`);
-  }
-
-  // ─── ENGRAVING / BRANDING ───
-  if (orderType !== 'STANDARD' && showEngraving) {
-    // Parse order-level outlet engraving fields
+  // ─────────────────────────────────────────────────
+  // 4. ENGRAVING (only for non-STANDARD orders when data exists)
+  // ─────────────────────────────────────────────────
+  if (showEngraving) {
+    // Determine if order has actual engraving data
     const outEngravingNames = order.engravingNames ? parseJSON(order.engravingNames) : [];
     const outEngravingLogos = order.engravingLogos ? parseJSON(order.engravingLogos) : [];
-    const outHasEngraving = order.engravingRequired && (outEngravingNames.length > 0 || outEngravingLogos.length > 0 || order.engravingText || order.engravingInstructions || order.logoRequired) || !!order.instructionNotes;
-
+    const outHasEngraving = !!(order.engravingRequired && (outEngravingNames.length > 0 || outEngravingLogos.length > 0 || order.engravingText || order.engravingInstructions || order.logoRequired)) || !!order.instructionNotes;
     const brandingItems = isMultiItem ? allItems : [{ productDetails: firstProduct, customization: custom }];
     const hasAnyCustomization = brandingItems.some(item => {
       const c = item.customization ? (typeof item.customization === 'string' ? JSON.parse(item.customization) : item.customization) : custom;
@@ -1318,8 +1265,9 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     });
 
     if (hasAnyCustomization || outHasEngraving) {
-      win.document.write(`<div class="section-title" style="font-size:26px">${sec.engraving}</div>`);
-      // Per-item customization (standard flow)
+      win.document.write(`<div class="section-title" style="font-size:22px">${isUrdu ? 'کڑھائی (اینگریونگ)' : 'Engraving (کڑھائی)'}</div>`);
+
+      // Per-item customization
       if (hasAnyCustomization) {
         brandingItems.forEach((item, idx) => {
           const p = getItemProduct(item);
@@ -1329,117 +1277,134 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           const hasLogos = c?.logos?.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).length > 0;
           const hasSpecs = c?.nameColor || c?.logoPlacement || c?.engravingType;
           const hasNotes = c?.designNotes;
-
           if (!hasNames && !hasLogos && !hasSpecs && !hasNotes) return;
 
           win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px;page-break-inside:avoid">`);
           win.document.write(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding-bottom:6px;border-bottom:2px solid #eee">`);
           win.document.write(`<span style="background:#111;color:#fff;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:20px;font-weight:800">${idx + 1}</span>`);
-            win.document.write(`<span style="font-weight:900;font-size:22px;text-transform:uppercase">${pu(p.productType || p.name) || 'Item ' + (idx + 1)}</span>`);
+          win.document.write(`<span style="font-weight:900;font-size:22px;text-transform:uppercase">${pu(p.productType || p.name) || 'Item ' + (idx + 1)}</span>`);
           if (p.color) win.document.write(`<span style="font-size:18px;color:#000">(${vu(p.color)})</span>`);
           win.document.write(`</div>`);
 
           if (c?.engravingType) {
-            win.document.write(`<div style="margin-bottom:6px">`);
-            const engravingLabel = c.engravingType === 'direct' ? sec.directEngraving : c.engravingType === 'emboss' ? sec.embossEngraving : sec.patchEngraving;
-            win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${sec.engravingType}: ${engravingLabel}</p>`);
-            win.document.write(`</div>`);
+            const etLabel = c.engravingType === 'direct' ? sec.directEngraving : c.engravingType === 'emboss' ? sec.embossEngraving : sec.patchEngraving;
+            win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:4px"${isUrdu ? ' class="urdu"' : ''}>${sec.engravingType}: ${etLabel}</p>`);
           }
 
           if (hasNames) {
-            win.document.write(`<div style="margin-bottom:6px">`);
-            win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.nameLines}</p>`);
+            win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.nameLines}</p>`);
             if (filteredNames.length > 0) {
               filteredNames.forEach((an, ai) => {
-                win.document.write(`<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span style="background:#7c3aed20;color:#7c3aed;font-size:18px;font-weight:800;padding:2px 6px;border-radius:3px">L${ai + 1}</span><span style="font-size:24px;font-weight:700">${an}</span></div>`);
+                if (an?.trim()) win.document.write(`<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span style="background:#7c3aed20;color:#7c3aed;font-size:16px;font-weight:800;padding:2px 6px;border-radius:3px">L${ai + 1}</span><span style="font-size:22px;font-weight:700">${an}</span></div>`);
               });
             } else {
-              win.document.write(`<div style="display:flex;align-items:center;gap:6px"><span style="background:#7c3aed20;color:#7c3aed;font-size:18px;font-weight:800;padding:2px 6px;border-radius:3px">L1</span><span style="font-size:24px;font-weight:700">${c.nameSpelling}</span></div>`);
+              win.document.write(`<div style="display:flex;align-items:center;gap:6px"><span style="background:#7c3aed20;color:#7c3aed;font-size:16px;font-weight:800;padding:2px 6px;border-radius:3px">L1</span><span style="font-size:22px;font-weight:700">${c.nameSpelling}</span></div>`);
             }
-            win.document.write(`</div>`);
-          }
-
-          if (hasSpecs) {
-            win.document.write(`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">`);
-            if (c.nameColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fce7f3;color:#9d174d">${sec.color}: ${vu(c.nameColor)}</span>`);
-            if (c.logoPlacement) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#ccfbf1;color:#0f766e">${sec.position}: ${vu(c.logoPlacement)}</span>`);
-            if (c.logoColor) win.document.write(`<span style="font-size:18px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#92400e">${isUrdu ? 'لوگو:' : 'Logo:'} ${vu(c.logoColor)}</span>`);
-            win.document.write(`</div>`);
           }
 
           if (hasLogos) {
-            win.document.write(`<div style="margin-bottom:6px">`);
-            win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.logos}</p>`);
+            win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#000;margin:6px 0 3px"${isUrdu ? ' class="urdu"' : ''}>${sec.logos}</p>`);
             c.logos.filter(l => (l.name && l.design) || (l.name?.length > 2 || l.design?.length > 2)).forEach((l, li) => {
-              win.document.write(`<div style="font-size:22px;font-weight:700;background:#fffbeb;padding:3px 8px;border-radius:4px;margin-bottom:2px;border:2px solid #fef3c7">${l.name || l.design}${l.name && l.design ? ` — ${l.design}` : ''}</div>`);
+              win.document.write(`<div style="font-size:20px;font-weight:700;background:#fffbeb;padding:3px 8px;border-radius:4px;margin-bottom:2px;border:2px solid #fef3c7">${l.name || l.design}${l.name && l.design ? ` — ${l.design}` : ''}</div>`);
             });
+          }
+
+          if (hasSpecs) {
+            win.document.write(`<div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0">`);
+            if (c.nameColor) win.document.write(`<span style="font-size:16px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fce7f3;color:#9d174d">${sec.color}: ${vu(c.nameColor)}</span>`);
+            if (c.logoPlacement) win.document.write(`<span style="font-size:16px;font-weight:700;padding:3px 8px;border-radius:4px;background:#ccfbf1;color:#0f766e">${sec.position}: ${vu(c.logoPlacement)}</span>`);
+            if (c.logoColor) win.document.write(`<span style="font-size:16px;font-weight:700;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#92400e">${isUrdu ? 'لوگو:' : 'Logo:'} ${vu(c.logoColor)}</span>`);
             win.document.write(`</div>`);
           }
 
           if (hasNotes) {
             const notesDisplay = isUrdu ? c.designNotes.split('\n').map(l => romanToUrdu(l)).join('\n') : c.designNotes;
-            win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px">`);
-            win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
-            win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
+            win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px;margin-top:6px">`);
+            win.document.write(`<p style="font-size:18px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'کڑھائی نوٹ' : 'Engraving Note'}</p>`);
+            win.document.write(`<p style="font-size:18px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
           }
-
           win.document.write(`</div>`);
         });
       }
-      // Outlet-style engraving (order-level fields)
+
+      // Outlet-level engraving
       if (outHasEngraving) {
         win.document.write(`<div style="border:2px solid #7c3aed40;border-radius:8px;padding:8px 10px;margin-bottom:8px;page-break-inside:avoid">`);
         win.document.write(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding-bottom:6px;border-bottom:2px solid #7c3aed20">`);
         win.document.write(`<span style="background:#7c3aed;color:#fff;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:20px;font-weight:800">✦</span>`);
-        win.document.write(`<span style="font-weight:900;font-size:22px;text-transform:uppercase;color:#7c3aed">${isUrdu ? 'آؤٹ لیٹ کڑھائی' : 'Outlet Engraving'}</span>`);
+        win.document.write(`<span style="font-weight:900;font-size:20px;text-transform:uppercase;color:#7c3aed">${isUrdu ? 'آؤٹ لیٹ کڑھائی' : 'Outlet Engraving'}</span>`);
         win.document.write(`</div>`);
 
         if (order.engravingType) {
           const etLabel = order.engravingType === 'direct' ? sec.directEngraving : order.engravingType === 'emboss' ? sec.embossEngraving : sec.patchEngraving;
-          win.document.write(`<p style="font-size:20px;font-weight:800;color:#7c3aed;margin-bottom:4px">${sec.engravingType}: ${etLabel}</p>`);
+          win.document.write(`<p style="font-size:18px;font-weight:800;color:#7c3aed;margin-bottom:4px">${sec.engravingType}: ${etLabel}</p>`);
         }
         if (order.engravingText) {
-          win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;margin-bottom:4px">${sec.engravingType}: ${order.engravingText}</p>`);
+          win.document.write(`<p style="font-size:18px;font-weight:700;color:#000;margin-bottom:4px">${sec.engravingType}: ${order.engravingText}</p>`);
         }
         if (outEngravingNames.length > 0) {
-          win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:3px">${sec.nameLines}</p>`);
+          win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:3px">${sec.nameLines}</p>`);
           outEngravingNames.forEach((an, ai) => {
             if (an?.trim()) {
-              win.document.write(`<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span style="background:#7c3aed20;color:#7c3aed;font-size:18px;font-weight:800;padding:2px 6px;border-radius:3px">L${ai + 1}</span><span style="font-size:24px;font-weight:700">${an}</span></div>`);
+              win.document.write(`<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span style="background:#7c3aed20;color:#7c3aed;font-size:16px;font-weight:800;padding:2px 6px;border-radius:3px">L${ai + 1}</span><span style="font-size:22px;font-weight:700">${an}</span></div>`);
             }
           });
         }
         if (order.logoRequired && outEngravingLogos.length > 0) {
-          win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#000;margin:6px 0 3px">${sec.logos}</p>`);
+          win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#000;margin:6px 0 3px">${sec.logos}</p>`);
           outEngravingLogos.forEach((logo, li) => {
             if (logo?.trim()) {
-              win.document.write(`<div style="font-size:22px;font-weight:700;background:#fffbeb;padding:3px 8px;border-radius:4px;margin-bottom:2px;border:2px solid #fef3c7">${logo}</div>`);
+              win.document.write(`<div style="font-size:20px;font-weight:700;background:#fffbeb;padding:3px 8px;border-radius:4px;margin-bottom:2px;border:2px solid #fef3c7">${logo}</div>`);
             }
           });
         }
         if (order.engravingInstructions) {
-          const engravingDisplay = isUrdu ? order.engravingInstructions.split('\n').map(l => romanToUrdu(l)).join('\n') : order.engravingInstructions;
+          const ed = isUrdu ? order.engravingInstructions.split('\n').map(l => romanToUrdu(l)).join('\n') : order.engravingInstructions;
           win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px;margin-top:6px">`);
-          win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
-          win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${engravingDisplay}</p></div>`);
+          win.document.write(`<p style="font-size:18px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
+          win.document.write(`<p style="font-size:18px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${ed}</p></div>`);
         }
         if (order.instructionNotes) {
-          const notesDisplay = isUrdu ? order.instructionNotes.split('\n').map(l => romanToUrdu(l)).join('\n') : order.instructionNotes;
+          const nd = isUrdu ? order.instructionNotes.split('\n').map(l => romanToUrdu(l)).join('\n') : order.instructionNotes;
           win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px;margin-top:6px">`);
-          win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.instructionNotes}</p>`);
-          win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
+          win.document.write(`<p style="font-size:18px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.instructionNotes}</p>`);
+          win.document.write(`<p style="font-size:18px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${nd}</p></div>`);
         }
         win.document.write(`</div>`);
       }
     }
   }
 
-
-  // ─── FOOTER ───
-  win.document.write(`<div style="display:flex;justify-content:space-between;font-size:18px;color:#000;border-top:2px solid #ddd;padding-top:6px;margin-top:8px">`);
-  win.document.write(`<span>${sec.orderEntryDate}: ${entryDate}</span>`);
-  win.document.write(`<span${isUrdu ? ' class="urdu-text"' : ''}>${ru(orderType.replace(/_/g, ' '))}</span>`);
-  win.document.write(`</div>`);
+  // ─────────────────────────────────────────────────
+  // 5. MEASUREMENTS (only for FULL_CUSTOM)
+  // ─────────────────────────────────────────────────
+  if (showMeas) {
+    const rawS = typeof sizes === 'object' && sizes ? sizes : {};
+    const selectedSize = order.size || firstProduct?.size || rawS._standardSize || '';
+    const measSpecNote = rawS.specialNote || '';
+    const measNote = order.instructionNotes || '';
+    const hasMeasContent = selectedSize || measSpecNote || measNote;
+    if (hasMeasContent) {
+      win.document.write(`<div class="section-title" style="font-size:22px">${isUrdu ? 'ماپ (Measurements)' : 'Measurements (ماپ)'}</div>`);
+      win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px">`);
+      if (selectedSize) {
+        win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;margin-bottom:${(measSpecNote || measNote) ? '6px' : '0'}">${isUrdu ? 'منتخب سائز:' : 'Selected Size:'} ${selectedSize}</p>`);
+      }
+      if (measSpecNote) {
+        const nd = isUrdu ? measSpecNote.split('\n').map(l => romanToUrdu(l)).join('\n') : measSpecNote;
+        win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px;${selectedSize ? 'margin-top:6px' : ''}">`);
+        win.document.write(`<p style="font-size:18px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'ماپ نوٹ' : 'Measurement Note'}</p>`);
+        win.document.write(`<p style="font-size:18px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${nd}</p></div>`);
+      }
+      if (measNote) {
+        const nd = isUrdu ? measNote.split('\n').map(l => romanToUrdu(l)).join('\n') : measNote;
+        win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px;${(selectedSize || measSpecNote) ? 'margin-top:6px' : ''}">`);
+        win.document.write(`<p style="font-size:18px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
+        win.document.write(`<p style="font-size:18px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${nd}</p></div>`);
+      }
+      win.document.write(`</div>`);
+    }
+  }
 
   closePrintWindow(win);
 }
