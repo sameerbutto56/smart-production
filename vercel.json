@@ -1,5 +1,5 @@
 {
-  "framework": null,
+  "framework": "vite",
   "installCommand": "npm install && cd backend && npx prisma db push --accept-data-loss && npx prisma generate",
   "buildCommand": "npm --prefix frontend run build",
   "outputDirectory": "frontend/dist",
