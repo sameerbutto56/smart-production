@@ -1172,66 +1172,45 @@ const AllOrders = () => {
                   })()}
                 </section>
 
-                {/* 02. Measurements */}
+                {/* 02. Measurements — Size + Special Note only */}
                 {(() => {
-                  const measLabels = {
-                    'Shirt Length': 'Shirt Length', 'Shoulder': 'Shoulder',
-                    'Sleeves Length': 'Sleeves Length', 'Sleeves Hole': 'Sleeves Hole',
-                    'Chest': 'Chest', 'Bottom': 'Bottom', 'Waist': 'Waist',
-                    'Length': 'Length', 'Pancha': 'Pancha', 'Thighs': 'Thighs', 'Asan': 'Asan',
-                  };
-                  const getMeasRows = (sizeObj) => {
-                    if (!sizeObj || typeof sizeObj !== 'object') return [];
-                    const rows = Object.entries(sizeObj).filter(([k, v]) => v && k !== 'specialNote' && k !== '_extra' && k !== '_standardSize');
-                    const extras = Array.isArray(sizeObj._extra) ? sizeObj._extra.filter(e => e.name && e.value) : [];
-                    return [...rows.map(([k, v]) => ({ label: measLabels[k] || k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()), value: v })),
-                            ...extras.map(e => ({ label: e.name, value: e.value }))];
+                  const getSpecialNote = (sizeObj) => {
+                    if (!sizeObj || typeof sizeObj !== 'object') return '';
+                    return sizeObj.specialNote || '';
                   };
                   if (isMultiItem) {
-                    const itemsWithMeas = allItems.map((item, idx) => {
+                    const itemsWithData = allItems.map((item, idx) => {
                       const p = item.productDetails || {};
                       const pName = p.productType || p.name;
                       const perProd = (rawSizes && typeof rawSizes === 'object' && !Array.isArray(rawSizes) && rawSizes[pName]) ? rawSizes[pName] : null;
                       const itemSD = perProd || (item.sizeData ? (typeof item.sizeData === 'string' ? (() => { try { return JSON.parse(item.sizeData); } catch { return {}; } })() : item.sizeData) : null) || {};
-                      const rows = getMeasRows(itemSD);
-                      return { idx, pName, p, rows, specialNote: itemSD?.specialNote };
-                    }).filter(x => x.rows.length > 0 || x.specialNote);
-                    if (itemsWithMeas.length === 0) return null;
+                      return { idx, pName, p, specialNote: getSpecialNote(itemSD) };
+                    }).filter(x => x.specialNote);
+                    if (!itemsWithData.some(x => x.specialNote)) return null;
                     return (
                       <section>
                         <h4 className="text-xs md:text-sm font-black text-teal-500 uppercase tracking-[0.3em] mb-6">02. Measurements</h4>
                         <div className="space-y-4">
-                          {itemsWithMeas.map(({ idx, pName, p, rows, specialNote }) => (
-                            <div key={idx} className="bg-teal-500/5 border border-teal-500/20 rounded-2xl p-4">
-                              <p className="text-xs font-black text-teal-400 uppercase tracking-widest mb-3">
-                                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-800 text-gray-300 text-[10px] font-black mr-2">{idx + 1}</span>
-                                {isUrdu ? toUrduName(pName) : pName} — Size: {p.size || 'C'} • {p.gender || ''}
-                              </p>
-                              {rows.length > 0 && (
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                  {rows.map((r, ri) => (
-                                    <div key={ri} className="flex justify-between items-center theme-bg-subtle px-3 py-2 rounded-xl border theme-border">
-                                      <span className="text-[10px] font-black text-gray-500 uppercase tracking-wider">{r.label}</span>
-                                      <span className="text-sm font-black theme-text-primary ml-2">{r.value}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                              {specialNote && (
-                                <div className="mt-3 bg-yellow-900/20 border border-yellow-500/20 rounded-xl px-3 py-2">
+                          {itemsWithData.map(({ idx, pName, p, specialNote }) => (
+                            specialNote ? (
+                              <div key={idx} className="bg-teal-500/5 border border-teal-500/20 rounded-2xl p-4">
+                                <p className="text-xs font-black text-teal-400 uppercase tracking-widest mb-3">
+                                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-800 text-gray-300 text-[10px] font-black mr-2">{idx + 1}</span>
+                                  {isUrdu ? toUrduName(pName) : pName} — Size: {p.size || 'C'} • {p.gender || ''}
+                                </p>
+                                <div className="bg-yellow-900/20 border border-yellow-500/20 rounded-xl px-3 py-2">
                                   <p className="text-xs font-black text-yellow-400 uppercase mb-1">Special Note</p>
                                   <p className="text-sm text-yellow-300 italic">{specialNote}</p>
                                 </div>
-                              )}
-                            </div>
+                              </div>
+                            ) : null
                           ))}
                         </div>
                       </section>
                     );
                   } else {
-                    const rows = getMeasRows(flatSizes);
-                    const specialNote = flatSizes?.specialNote;
-                    if (rows.length === 0 && !specialNote) return null;
+                    const specialNote = getSpecialNote(flatSizes);
+                    if (!specialNote) return null;
                     return (
                       <section>
                         <h4 className="text-xs md:text-sm font-black text-teal-500 uppercase tracking-[0.3em] mb-6">02. Measurements</h4>
@@ -1239,22 +1218,10 @@ const AllOrders = () => {
                           <p className="text-xs font-black text-teal-400 uppercase tracking-widest mb-3">
                             Size: {product?.size || 'C'} • {product?.gender || ''}
                           </p>
-                          {rows.length > 0 && (
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                              {rows.map((r, ri) => (
-                                <div key={ri} className="flex justify-between items-center theme-bg-subtle px-3 py-2 rounded-xl border theme-border">
-                                  <span className="text-[10px] font-black text-gray-500 uppercase tracking-wider">{r.label}</span>
-                                  <span className="text-sm font-black theme-text-primary ml-2">{r.value}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          {specialNote && (
-                            <div className="mt-3 bg-yellow-900/20 border border-yellow-500/20 rounded-xl px-3 py-2">
-                              <p className="text-xs font-black text-yellow-400 uppercase mb-1">Special Note</p>
-                              <p className="text-sm text-yellow-300 italic">{specialNote}</p>
-                            </div>
-                          )}
+                          <div className="bg-yellow-900/20 border border-yellow-500/20 rounded-xl px-3 py-2">
+                            <p className="text-xs font-black text-yellow-400 uppercase mb-1">Special Note</p>
+                            <p className="text-sm text-yellow-300 italic">{specialNote}</p>
+                          </div>
                         </div>
                       </section>
                     );

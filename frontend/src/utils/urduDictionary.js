@@ -402,8 +402,33 @@ const urduDictionary = {
 };
 
 /**
+ * Cache of word-level Urdu translations derived from compound dictionary entries.
+ * Built lazily on first use.
+ * Example: from 'Sprinter Women': 'سپرنٹر ویمن' we derive 'sprinter' → 'سپرنٹر' and 'women' → 'ویمن'
+ */
+let _derivedWordMap = null;
+
+function _buildDerivedWordMap() {
+  if (_derivedWordMap) return _derivedWordMap;
+  _derivedWordMap = {};
+  for (const [engKey, urValue] of Object.entries(urduDictionary)) {
+    const engWords = engKey.split(/\s+/);
+    const urWords = urValue.split(/\s+/);
+    if (engWords.length === urWords.length && engWords.length > 1) {
+      engWords.forEach((ew, i) => {
+        const lowerEw = ew.toLowerCase();
+        if (!_derivedWordMap[lowerEw]) {
+          _derivedWordMap[lowerEw] = urWords[i];
+        }
+      });
+    }
+  }
+  return _derivedWordMap;
+}
+
+/**
  * Single source of truth for Urdu transliteration.
- * Looks up text in the dictionary; returns Urdu value if found, original if not.
+ * Strategy: exact match → case-insensitive match → longest prefix match → word-by-word with derived fallback
  * Never crashes on missing keys.
  */
 export function toUrduName(text) {
@@ -418,7 +443,7 @@ export function toUrduName(text) {
   const exactMatchKey = Object.keys(urduDictionary).find(k => k.toLowerCase() === lowerKey);
   if (exactMatchKey) return urduDictionary[exactMatchKey];
   
-  // Try case-insensitive matches for parts
+  // Try case-insensitive matches for parts (longest prefix first)
   const words = key.split(/\s+/);
   if (words.length > 1) {
     for (let i = words.length - 1; i >= 1; i--) {
@@ -432,14 +457,24 @@ export function toUrduName(text) {
       }
     }
     
-    // Fallback: translate individual words if no multi-word prefix matches
+    // Word-by-word translation: check standalone dict, then derived map, then keep original
+    const derivedMap = _buildDerivedWordMap();
     const translatedWords = words.map(w => {
       const lowerW = w.toLowerCase();
       const wMatchKey = Object.keys(urduDictionary).find(k => k.toLowerCase() === lowerW);
-      return wMatchKey ? urduDictionary[wMatchKey] : w;
+      if (wMatchKey) return urduDictionary[wMatchKey];
+      return derivedMap[lowerW] || w;
     });
     return translatedWords.join(' ');
   }
+  
+  // Single word: try derived map as last resort
+  if (words.length === 1 && words[0].length > 2) {
+    const derivedMap = _buildDerivedWordMap();
+    const derived = derivedMap[words[0].toLowerCase()];
+    if (derived) return derived;
+  }
+  
   return key;
 }
 
