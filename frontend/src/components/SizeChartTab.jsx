@@ -55,7 +55,7 @@ const SizeChartTab = () => {
           </div>
         </div>
 
-        {(formData.type === 'FULL_CUSTOM' || formData.size === 'Custom') && (
+        {(formData.type === 'FULL_CUSTOM' || formData.size === 'C' || formData.size === 'Custom') && (
           <>
             <div className="relative flex flex-col md:flex-row items-center justify-center max-w-6xl mx-auto gap-4 lg:gap-12">
               <div className="flex flex-row flex-wrap justify-center md:flex-col space-y-0 md:space-y-16 gap-4 md:gap-0 w-full md:w-1/3 z-20 items-center md:items-end">

@@ -165,6 +165,24 @@
 - **Fix 4** (`frontend/package.json`): Updated `"react": "19.2.5"` → `"react": "19.2.6"` and `"react-dom": "19.2.5"` → `"react-dom": "19.2.6"` to match the hoisted peer dependency version at root, eliminating the version mismatch.
 - **Verification**: `npm install` removed 355 packages (including duplicate React), added 2; `npm run build` passes with 0 errors.
 
+### Fixed This Session — Job Sheet Print: Remove full measurement chart, add Size + Special Note only; wrap all size/color values in Urdu
+- **Root cause**: User reported Special Note not showing in Job Sheets, color not translating to Urdu, and full measurement chart (Chest/Waist/Sleeve etc.) cluttering the Measurement section.
+- **Fix 1** (`printReport.js`): Fixed `outHasEngraving` guard to include `engravingInstructions` — engraving section renders even when `engravingRequired` is false.
+- **Fix 2** (`printReport.js` single-item section): Removed the full measurement table (`measFields` + `extraFields`) — now shows only Size + Special Note. Removed dead `measFields`/`extraFields` variables from multi-item section too.
+- **Fix 3** (`printReport.js`): Wrapped all size values with `pu()` in the products table (multi-item + single-item `sizeVal`, `singleSizeVal`).
+- **Fix 4** (`printReport.js`): Removed `sizeSpecialNote` from engraving section (reverted my earlier erroneous addition) — special note belongs in Measurement, not Engraving.
+- **Fix 5** (`printReport.js`): Added `white-space:pre-wrap` to all note displays, used `romanToUrdu()` for Urdu notes fallback.
+- **Fix 6** (`OrderCard.jsx` + `AllOrders.jsx`): Wrapped `colorSourceProduct`, `nameColor`, `logoColor` in `toUrduName()` — 10+ spots now translate predefined color values to Urdu.
+- **Verification**: `npx vite build` passes with 0 errors. Commit `4d3f9fd`. Pushed and deployed to Vercel.
+
+### Fixed This Session — Every word translates individually in Job Sheet + Dispatch Sheet
+- **`urduSlMap`/`urduShMap`** — pure Urdu values ("ہاف" not "Half ہاف", "ریگولر" not "Regular ریگولر", etc.)
+- **`urduSection.sleeves`** — "بازو" (was mixed "Sleeves بازو")
+- **`printJobSheet` remaining strings** — "ENAMELS Production" → "اینملز پروڈکشن", "Item N" → "آئٹم N", "Outlet Engraving" → "آؤٹ لیٹ اینگرونگ", "Source: Outlet —" → "ماخذ: آؤٹ لیٹ —"
+- **`printDispatchSheet`** — Added `lang` parameter, wired `isUrdu`/`pu`/`vu`/`ru`, translated all ~30 English strings (badges, table headers, financial summary, dispatch method, etc.) with pure Urdu values
+- **`DispatchPage.jsx` inline print** — Translated all labels: DISPATCH SHEET, Dispatch Officer, Order #, CITY, Products, table headers (Product/Color/Size/Qty/Price), signature lines — all conditionally Urdu
+- **Verification**: `npx vite build` passes with 0 errors. Commit `b608898`. Pushed to Vercel.
+
 ## Key Decisions
 - Only one React version (19.2.6) must exist in the workspace — version mismatch caused dedupe workaround which triggered TDZ error in Vite production bundle.
 - `resolve.dedupe` is no longer needed because React versions are now consistent across all workspaces.
@@ -186,10 +204,14 @@
 - Balance Collection custom range: date inputs added in card UI, `fetchBalanceCollections` passes `dateFrom`/`dateTo` only when `range === 'custom'`.
 
 ## Next Steps
-- (none — all current work is complete)
+- Hard refresh (Ctrl+F5) at `smart-production-v2.vercel.app` to verify Urdu/size/specialNote changes take effect
+- If color still not Urdu, check `printDispatchSheet` has `isUrdu = false` hardcoded — change to dynamic
+- Add common size values (S, M, L, XL, XXL) to Urdu dictionary if needed
+- Verify multi-line special note formatting end-to-end (print preview + on-screen)
+- Verify DispatchSheet prints in Urdu when language toggle is set
 
 ## Critical Context
-- Latest commits: `124a8b0` — auto-reload stale chunk; `033af46` — Logo Design cart option; `76579d5` + `371b346` — Urdu labels; `3bad1ba` — Close Book sync + drill-down; `fcac5a7` — summary sync fix, employee auth for Open/Close, print register info; `d644db2` — Extract modals to sharedModals, fix Dashboard/History/Returns tabs missing modals; `757a6a0` — OrderEntry split context + 4 tab components; latest — Warehouse POS variant selection config modal
+- Latest commits: `124a8b0` — auto-reload stale chunk; `033af46` — Logo Design cart option; `76579d5` + `371b346` — Urdu labels; `3bad1ba` — Close Book sync + drill-down; `fcac5a7` — summary sync fix, employee auth for Open/Close, print register info; `d644db2` — Extract modals to sharedModals, fix Dashboard/History/Returns tabs missing modals; `757a6a0` — OrderEntry split context + 4 tab components; latest — `4d3f9fd` — Job Sheet print: remove measurement chart, add Size+Special Note only, wrap all size/color in Urdu; `b608898` — Every word translates individually (pure Urdu, Dispatch Sheet full support)
 - Build passes with 0 errors.
 - `isAccessory` uses substring matching (`catUpper.includes('COAT')`).
 - `calculateAndRecordRevenue` at line 2482 of `order.controller.js` is idempotent.
@@ -242,7 +264,7 @@
 - `frontend/src/pages/OrderEntry.jsx`: Cap quantity, delivery charges, paymentStatus toggle, branding tab for CAPS — now thin shell importing context + 4 tab components
 - `frontend/src/hooks/useCache.js`: Race condition guard (`reqRef`), hot cache revalidation when `staleWhileRevalidate=true`
 - `frontend/src/components/ErrorBoundary.jsx`: Error message visible in production
-- `frontend/src/utils/printReport.js`: `printJobSheet` — now flattens Outlet per-product sizeData and displays measurement values grid
+- `frontend/src/utils/printReport.js`: `printJobSheet` — measurement section now shows only Size + Special Note (no full chart); `outHasEngraving` guard includes `engravingInstructions`; all size/color values wrapped in `pu()`/`vu()`; `white-space:pre-wrap` on notes; `printDispatchSheet` — full Urdu support with `lang` parameter, all ~30 strings translated
 - `frontend/src/pages/AllOrders.jsx`: Job Sheet modal — Outlet per-product sizeData flattening, clean filter, per-product name lookup for multi-item inline
 - `frontend/src/components/OrderCard.jsx`: Full Sheet modal + PRODUCTION card — Outlet per-product flattening, dynamic measurement table (replaced hardcoded 6-field). Stage fallback at line 14 creates synthetic stage when DB has no entry matching `order.currentStage`.
 - `frontend/src/pages/OutletDashboard.jsx`: State-based tab switching with dropdown menu — Dashboard, POS Dashboard, Total Invoices, Order Track, Tasks tabs
