@@ -1268,15 +1268,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
       win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px">`);
       if (selectedSize) {
-        win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;margin-bottom:${(hasMeasValues || measSpecialNote || measNote) ? '6px' : '0'}">${isUrdu ? 'منتخب سائز:' : 'Selected Size:'} ${selectedSize}</p>`);
-      }
-      if (hasMeasValues) {
-        win.document.write(`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:${(measSpecialNote || measNote) ? '6px' : '0'}">`);
-        measEntries.forEach(([k, v]) => {
-          const label = isUrdu ? (urduLabels[k.toLowerCase()] || romanToUrdu(k)) : k;
-          win.document.write(`<span style="background:#f3f4f6;border:1px solid #e5e7eb;border-radius:4px;padding:2px 8px;font-size:17px;font-weight:700;color:#000">${label}: ${v}</span>`);
-        });
-        win.document.write(`</div>`);
+        win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;margin-bottom:${(measSpecialNote || measNote) ? '6px' : '0'}">${isUrdu ? 'منتخب سائز:' : 'Selected Size:'} ${selectedSize}</p>`);
       }
       if (measSpecialNote) {
         const noteDisplay = isUrdu ? measSpecialNote.split('\n').map(l => romanToUrdu(l)).join('\n') : measSpecialNote;
