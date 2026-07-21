@@ -711,14 +711,14 @@ const OutletOrderEntry = () => {
                 <div>
                   <label className="text-xs font-bold text-gray-400 block mb-1">Engraving Type</label>
                   <div className="flex gap-2">
-                    {['direct', 'patch', 'emboss'].map(type => (
+                    {['direct', 'patch'].map(type => (
                       <button key={type} type="button" onClick={() => setEngravingType(type)}
                         className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all border-2 ${
                           engravingType === type
                             ? 'bg-amber-500/20 text-amber-400 border-amber-500'
                             : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-600'
                         }`}>
-                        {type === 'direct' ? 'Direct Engraving' : type === 'emboss' ? 'Emboss Engraving' : 'Patch Engraving'}
+                        {type === 'direct' ? 'Direct Engraving' : 'Patch Engraving'}
                       </button>
                     ))}
                   </div>

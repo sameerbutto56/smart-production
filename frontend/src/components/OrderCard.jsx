@@ -374,7 +374,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     {!c?.skipEngraving && c?.engravingType && (
                       <div className="bg-gray-950/50 p-2 rounded-lg">
                         <p className="text-[9px] text-gray-500 font-black uppercase">Engraving</p>
-                        <p className="text-xs md:text-sm font-black text-violet-400">{c.engravingType === 'direct' ? 'Direct' : c.engravingType === 'emboss' ? 'Emboss' : 'Patch'}</p>
+                        <p className="text-xs md:text-sm font-black text-violet-400">{c.engravingType === 'direct' ? 'Direct' : 'Patch'}</p>
                       </div>
                     )}
                     {p?.gender === 'Female' && (
@@ -799,7 +799,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             {(ic.engravingType || ic.nameSpelling || ic.articleNames?.length > 0) && (
                               <div>
                                 <span className="text-[9px] font-black text-amber-500 uppercase">Engraving</span>
-                                {ic.engravingType && <span className="text-[9px] font-bold text-amber-400 ml-2">{isUrdu ? toUrduName(ic.engravingType === 'direct' ? 'Direct Engraving' : ic.engravingType === 'emboss' ? 'Emboss Engraving' : 'Patch Engraving') : (ic.engravingType === 'direct' ? 'Direct Engraving' : ic.engravingType === 'emboss' ? 'Emboss Engraving' : 'Patch Engraving')}</span>}
+                                {ic.engravingType && <span className="text-[9px] font-bold text-amber-400 ml-2">{isUrdu ? toUrduName(ic.engravingType === 'direct' ? 'Direct Engraving' : 'Patch Engraving') : (ic.engravingType === 'direct' ? 'Direct Engraving' : 'Patch Engraving')}</span>}
                                 {ic.articleNames?.length > 0 ? ic.articleNames.map((n, ai) => (
                                   <p key={ai} className="text-[10px] text-white font-bold ml-2">L{ai + 1}: {n}</p>
                                 )) : ic.nameSpelling && <p className="text-[10px] text-white font-bold ml-2">{ic.nameSpelling}</p>}
@@ -862,7 +862,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         {(custom.engravingType || custom.nameSpelling || custom.articleNames?.length > 0) && (
                           <div>
                             <span className="text-[9px] font-black text-amber-500 uppercase">Engraving</span>
-                            {custom.engravingType && <span className="text-[9px] font-bold text-amber-400 ml-2">{custom.engravingType === 'direct' ? 'Direct Engraving' : custom.engravingType === 'emboss' ? 'Emboss Engraving' : 'Patch Engraving'}</span>}
+                            {custom.engravingType && <span className="text-[9px] font-bold text-amber-400 ml-2">{custom.engravingType === 'direct' ? 'Direct Engraving' : 'Patch Engraving'}</span>}
                             {custom.articleNames?.length > 0 ? custom.articleNames.map((n, ai) => (
                               <p key={ai} className="text-[10px] text-white font-bold ml-2">L{ai + 1}: {n}</p>
                             )) : custom.nameSpelling && <p className="text-[10px] text-white font-bold ml-2">{custom.nameSpelling}</p>}
@@ -2294,7 +2294,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       <div className="space-y-3">
                         {order.engravingType && (
                           <p className="text-purple-400 font-black text-xs uppercase tracking-wider">
-                            Type: {order.engravingType === 'direct' ? 'Direct Engraving' : order.engravingType === 'emboss' ? 'Emboss Engraving' : 'Patch Engraving'}
+                            Type: {order.engravingType === 'direct' ? 'Direct Engraving' : 'Patch Engraving'}
                           </p>
                         )}
                         {order.engravingText && <p className="text-white font-bold">{order.engravingText}</p>}
@@ -2374,7 +2374,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       </>
                     )}
                     {[
-                      { l: t('Engraving Type'), v: custom?.engravingType === 'direct' ? t('Direct Engraving') : custom?.engravingType === 'patch' ? t('Patch Engraving') : custom?.engravingType === 'emboss' ? t('Emboss Engraving') : custom?.engravingType },
+                      { l: t('Engraving Type'), v: custom?.engravingType === 'direct' ? t('Direct Engraving') : custom?.engravingType === 'patch' ? t('Patch Engraving') : null },
                       { l: t('Embroidery Color'), v: custom?.nameColor },
                       { l: t('Logo Location'), v: custom?.logoPlacement },
                       { l: t('Fit Type'), v: custom?.fitType }

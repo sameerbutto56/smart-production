@@ -14,8 +14,3 @@ backups/
 backend/err.log
 backend/out.log
 .env*
-frontend/auth.json
-frontend/config.json
-frontend/telemetry-device.json
-frontend/telemetry-session.json
-
