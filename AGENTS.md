@@ -112,9 +112,6 @@
 ### In Progress
 - (none)
 
-### Reverted This Session — printJobSheet 5‑section rewrite
-- **Reverted `printJobSheet` to pre‑rewrite version (commit `4fc96ac`)**: Removed the conditional STANDARD/READY_LOGO/FULL_CUSTOM gating (`showMeas = isFullCustom`, `showEngraving = isLogoEngraving`) — restored `showMeas = sections.measurements !== false` (always shown by default) and `showEngraving = sections.engraving !== false` (always shown by default, engraving section still gated by `orderType !== 'STANDARD'` as before). Restored original layout/formatting and field placement. Only `printJobSheet` was reverted; no other file changed. Build passes with 0 errors. File size: 1542 lines (was 1522).
-
 ### Blocked
 - (none)
 
