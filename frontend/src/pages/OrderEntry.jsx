@@ -381,7 +381,7 @@ const SmartOrderForm = () => {
                       {(cartItems || []).map((item, idx) => {
                         const pd = item.productDetails || {};
                         const cust = item.customization || {};
-                        const hasCust = cust.nameSpelling || cust.fitType || cust.designNotes || item.logoName || item.logoDesign || cust.logos || cust.engravingType;
+                        const hasCust = cust.nameSpelling || cust.designNotes || item.logoName || item.logoDesign || cust.logos || cust.engravingType;
                         return (
                           <div key={idx} className="bg-gray-900/50 rounded-xl border border-gray-800/70 p-3 md:p-4">
                             <div className="flex items-start justify-between gap-2">
@@ -438,10 +438,9 @@ const SmartOrderForm = () => {
                                         </div>
                                       </div>
                                     )}
-                                    {(cust.fitType || cust.nameColor || cust.logoColor || cust.logoPlacement || cust.engravingType) && (
+                                    {(cust.nameColor || cust.logoColor || cust.logoPlacement || cust.engravingType) && (
                                       <div className="flex flex-wrap gap-1.5">
                                         {cust.engravingType && <span className="text-[10px] font-black text-violet-400 bg-violet-900/30 px-2 py-0.5 rounded border border-violet-500/20">{cust.engravingType === 'direct' ? 'Direct Engraving' : 'Patch Engraving'}</span>}
-                                        {cust.fitType && <span className="text-[10px] font-black text-indigo-400 bg-indigo-900/30 px-2 py-0.5 rounded border border-indigo-500/20">{cust.fitType} Fit</span>}
                                         {cust.nameColor && <span className="text-[10px] font-black text-rose-400 bg-rose-900/30 px-2 py-0.5 rounded border border-rose-500/20">Color: {cust.nameColor}</span>}
                                         {cust.logoColor && <span className="text-[10px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/20">Logo: {cust.logoColor}</span>}
                                         {cust.logoPlacement && <span className="text-[10px] font-black text-teal-400 bg-teal-900/30 px-2 py-0.5 rounded border border-teal-500/20">Position: {cust.logoPlacement}</span>}

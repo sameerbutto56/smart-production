@@ -637,6 +637,7 @@ const urduDictionary = {
   'SeaGreen': 'سی گرین',
   'Sea-Green': 'سی گرین',
   'Bell-Bottom': 'بیل باٹم',
+  'Bellbuttom': 'بیل باٹم',
   'Lab-Coat': 'لیب کوٹ',
   'Jack-Set': 'جیک سیٹ',
   'V-Neck': 'وی نیک',

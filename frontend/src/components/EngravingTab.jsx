@@ -135,6 +135,14 @@ const EngravingTab = () => {
                 </div>
               ))}
             </div>
+
+            <div className="space-y-3">
+              <label className="text-xs font-black theme-text-muted uppercase tracking-[0.3em] ml-2">{useUrdu ? 'اینگرونگ ہدایات' : 'Engraving Instructions'}</label>
+              <textarea value={formData.engravingInstructions || ''}
+                onChange={e => setFormData({ ...formData, engravingInstructions: e.target.value })}
+                className="w-full theme-input rounded-2xl py-4 px-5 text-sm font-bold resize-none" rows={2}
+                placeholder={useUrdu ? 'فونٹ، پوزیشن، سٹائل وغیرہ...' : 'Font, position, style, etc...'} />
+            </div>
           </>)}
         </div>
       </div>

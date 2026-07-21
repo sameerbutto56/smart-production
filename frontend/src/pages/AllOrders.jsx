@@ -811,9 +811,9 @@ const AllOrders = () => {
         const hasCustomData = isMultiItem
           ? allItems.some(item => {
               const c = item.customization || {};
-              return !c.skipEngraving && (c.engravingType || c.nameSpelling || c.nameColor || c.logoPlacement || c.fitType || c.logos?.length > 0 || c.designNotes || c.designReference || c.articleNames?.length > 0);
+              return !c.skipEngraving && (c.engravingType || c.nameSpelling || c.nameColor || c.logoPlacement || c.logos?.length > 0 || c.designNotes || c.designReference || c.articleNames?.length > 0);
             })
-          : !custom?.skipEngraving && (custom?.engravingType || custom?.nameSpelling || custom?.nameColor || custom?.logoPlacement || custom?.fitType || custom?.logos?.length > 0 || custom?.designNotes || custom?.designReference || custom?.articleNames?.length > 0);
+          : !custom?.skipEngraving && (custom?.engravingType || custom?.nameSpelling || custom?.nameColor || custom?.logoPlacement || custom?.logos?.length > 0 || custom?.designNotes || custom?.designReference || custom?.articleNames?.length > 0);
         
         return (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8">
@@ -909,7 +909,7 @@ const AllOrders = () => {
                                     {p.femaleOptions?.dupatta && (
                                       <span className="ml-2 bg-pink-500/20 text-pink-400 border border-pink-500/30 text-xs md:text-sm px-1.5 py-0.5 rounded font-black uppercase">Dupatta</span>
                                     )}
-                                    {(c.nameSpelling || c.articleNames?.length || c.fitType || c.logos?.length) && (
+                                    {(c.nameSpelling || c.articleNames?.length || c.logos?.length) && (
                                       <div className="mt-1.5 space-y-1.5 text-xs md:text-sm theme-text-secondary font-normal normal-case">
                                         {/* Name Lines */}
                                         {(c.articleNames?.length > 0 || c.nameSpelling) && (
@@ -927,10 +927,9 @@ const AllOrders = () => {
                                           </div>
                                         )}
                                         {/* Branding specs */}
-                                        {(c.nameColor || c.logoPlacement || c.fitType || c.logoColor || c.engravingType) && (
+                                        {(c.nameColor || c.logoPlacement || c.logoColor || c.engravingType) && (
                                           <div className="flex flex-wrap gap-1">
                                             {c.engravingType && <span className="text-[9px] font-black text-violet-400 bg-violet-900/30 px-1.5 py-0.5 rounded">{c.engravingType === 'direct' ? 'Direct' : 'Patch'} Engraving</span>}
-                                            {c.fitType && <span className="text-[9px] font-black text-indigo-400 bg-indigo-900/30 px-1.5 py-0.5 rounded">{c.fitType} Fit</span>}
                                             {c.nameColor && <span className="text-[9px] font-black text-rose-400 bg-rose-900/30 px-1.5 py-0.5 rounded">Color: {c.nameColor}</span>}
                                             {c.logoPlacement && <span className="text-[9px] font-black text-teal-400 bg-teal-900/30 px-1.5 py-0.5 rounded">Pos: {c.logoPlacement}</span>}
                                             {c.logoColor && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded">Logo: {c.logoColor}</span>}
@@ -1215,12 +1214,11 @@ const AllOrders = () => {
                               )}
                               {/* Branding Specs */}
                               <div className="space-y-2">
-                                {(c.fitType || c.nameColor || c.logoPlacement || c.engravingType) && (
+                                {(c.nameColor || c.logoPlacement || c.engravingType) && (
                                   <div className="bg-indigo-500/5 p-3 rounded-xl border border-indigo-500/10">
                                     <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest mb-2">Tailoring Specs</p>
                                     <div className="grid grid-cols-2 gap-2">
                                       {c.engravingType && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Engraving</span><p className="text-xs font-black text-violet-400">{c.engravingType === 'direct' ? 'Direct' : 'Patch'}</p></div>}
-                                      {c.fitType && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Fit</span><p className="text-xs font-black text-white">{c.fitType}</p></div>}
                                       {c.nameColor && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Color</span><p className="text-xs font-black text-rose-400">{c.nameColor}</p></div>}
                                       {c.logoPlacement && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Position</span><p className="text-xs font-black text-teal-400">{c.logoPlacement}</p></div>}
                                       {c.logoColor && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Logo Color</span><p className="text-xs font-black text-amber-400">{c.logoColor}</p></div>}
@@ -1273,7 +1271,6 @@ const AllOrders = () => {
                             { l: 'Branding Name', v: custom?.nameSpelling },
                             { l: 'Embroidery Color', v: custom?.nameColor },
                             { l: 'Logo Location', v: custom?.logoPlacement },
-                            { l: 'Fit Type', v: custom?.fitType },
                           ].filter(item => item.v).map((item, i) => (
                             <div key={i} className="flex justify-between items-center p-4 theme-bg rounded-2xl border theme-border">
                               <span className="text-xs md:text-sm theme-text-muted font-bold uppercase tracking-widest">{item.l}</span>

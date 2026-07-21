@@ -156,7 +156,6 @@ const EditRequestDashboard = () => {
             qty: item.quantity || 1,
             totalPrice: item.totalPrice || 0,
             nameSpelling: cust.nameSpelling || '',
-            fitType: cust.fitType || '',
             logoDesign: cust.logoDesign || item.logoDesign || ''
           });
         });
@@ -171,7 +170,6 @@ const EditRequestDashboard = () => {
           qty: data?.quantity || 1,
           totalPrice: pd.totalPrice || 0,
           nameSpelling: cust.nameSpelling || '',
-          fitType: cust.fitType || '',
           logoDesign: cust.logoDesign || ''
         });
       }
@@ -504,7 +502,6 @@ const EditRequestDashboard = () => {
                                         { label: 'Quantity', oldVal: String(old?.qty ?? '—'), newVal: String(nw?.qty ?? '—') },
                                         { label: 'Price', oldVal: old?.totalPrice ? `₨${Number(old.totalPrice).toLocaleString()}` : '—', newVal: nw?.totalPrice ? `₨${Number(nw.totalPrice).toLocaleString()}` : '—' },
                                         { label: 'Name Spelling', oldVal: old?.nameSpelling || '—', newVal: nw?.nameSpelling || '—' },
-                                        { label: 'Fit', oldVal: old?.fitType || '—', newVal: nw?.fitType || '—' },
                                         { label: 'Logo Design', oldVal: old?.logoDesign || '—', newVal: nw?.logoDesign || '—' },
                                       ];
                                       return rows.map((row, ri) => {

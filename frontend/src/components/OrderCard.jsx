@@ -367,10 +367,6 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 <div className="bg-indigo-600/10 p-3 rounded-xl border border-indigo-600/20 mt-3">
                   <p className="text-xs text-indigo-400 font-black uppercase tracking-widest mb-2">Production Specs</p>
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="bg-gray-950/50 p-2 rounded-lg">
-                      <p className="text-[9px] text-gray-500 font-black uppercase">Fit</p>
-                      <p className="text-xs md:text-sm font-black text-white">{c?.fitType || 'REGULAR'}</p>
-                    </div>
                     {!c?.skipEngraving && c?.engravingType && (
                       <div className="bg-gray-950/50 p-2 rounded-lg">
                         <p className="text-[9px] text-gray-500 font-black uppercase">Engraving</p>
@@ -780,11 +776,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                           {p.fabricType && <div><span className="text-gray-500">Fabric:</span> <span className="text-white font-bold">{isUrdu ? toUrduName(p.fabricType) : p.fabricType}</span></div>}
                           {p.gender && <div><span className="text-gray-500">Gender:</span> <span className="text-white font-bold">{p.gender}</span></div>}
                         </div>
-                        {(slv || shl || ic?.fitType) && (
+                        {(slv || shl) && (
                           <div className="flex flex-wrap gap-1">
                             {slv && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-400">{isUrdu ? toUrduName(slip[slv] || fsl[slv] || slv) : (slip[slv] || fsl[slv] || slv)}</span>}
                             {shl && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-400">{isUrdu ? toUrduName(shmp[shl] || fsh[shl] || shl) : (shmp[shl] || fsh[shl] || shl)}</span>}
-                            {ic?.fitType && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-900/30 text-purple-400">{ic.fitType} Fit</span>}
                           </div>
                         )}
                         {order.type === 'FULL_CUSTOM' && p.size && (
@@ -841,12 +836,10 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       const fsh = { 'long':'Long','short':'Short' };
                       const slv = product?.sleeveLength || (product?.gender === 'Female' && product?.femaleOptions?.sleeves ? product.femaleOptions.sleeves : null);
                       const shl = product?.shirtLength || (product?.gender === 'Female' && product?.femaleOptions?.shirtLength ? product.femaleOptions.shirtLength : null);
-                      const hasCustom = slv || shl || custom?.fitType;
-                      return hasCustom ? (
+                      return (slv || shl) ? (
                         <div className="flex flex-wrap gap-1">
                           {slv && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-400">{isUrdu ? toUrduName(slip[slv] || fsl[slv] || slv) : (slip[slv] || fsl[slv] || slv)}</span>}
                           {shl && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-400">{isUrdu ? toUrduName(shmp[shl] || fsh[shl] || shl) : (shmp[shl] || fsh[shl] || shl)}</span>}
-                          {custom?.fitType && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-900/30 text-purple-400">{custom.fitType} Fit</span>}
                         </div>
                       ) : null;
                     })()}
@@ -2126,7 +2119,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                               const hasShirtLength = p.shirtLength || (p.femaleOptions?.shirtLength && p.femaleOptions.shirtLength !== 'long');
                               const hasArticleNames = itemCust?.articleNames && itemCust.articleNames.length > 0;
                               const hasLogos = itemCust?.logos && itemCust.logos.length > 0;
-                              const hasCust = hasArticleNames || hasLogos || itemCust?.nameSpelling || itemCust?.fitType;
+                              const hasCust = hasArticleNames || hasLogos || itemCust?.nameSpelling;
                               const isProdStage = currentStage?.stageName === 'PRODUCTION';
                               const isStoreRecv = currentStage?.stageName === 'STORE_RECEIVE';
                               return <React.Fragment key={idx}>
@@ -2205,11 +2198,6 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                             {p.sizeSourceProduct && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">{t('Size:')} {p.sizeSourceProduct}</span>}
                                             {p.additionalProductRef && <span className="text-[10px] font-bold text-amber-400 bg-amber-900/30 px-2 py-1 rounded-md border border-amber-500/20">{t('Extra:')} {p.additionalProductRef}</span>}
                                           </>
-                                        )}
-                                        {itemCust?.fitType && (
-                                          <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded-md">
-                                            {itemCust.fitType}{t(' Fit')}
-                                          </span>
                                         )}
                                         {itemCust?.designNotes && (
                                           <span className="text-[10px] font-bold text-yellow-400 bg-yellow-500/10 px-2 py-1 rounded-md italic truncate max-w-[200px]">
@@ -2377,7 +2365,6 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       { l: t('Engraving Type'), v: custom?.engravingType === 'direct' ? t('Direct Engraving') : custom?.engravingType === 'patch' ? t('Patch Engraving') : null },
                       { l: t('Embroidery Color'), v: custom?.nameColor },
                       { l: t('Logo Location'), v: custom?.logoPlacement },
-                      { l: t('Fit Type'), v: custom?.fitType }
                     ].filter(i => i.v).map((item, i) => (
                       <div key={i} className="flex justify-between items-center p-4 bg-gray-950/30 rounded-2xl border border-gray-800/30">
                         <span className="text-xs md:text-sm text-gray-500 font-bold uppercase tracking-widest">{item.l}</span>

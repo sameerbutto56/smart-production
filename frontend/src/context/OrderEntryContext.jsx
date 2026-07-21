@@ -10,7 +10,7 @@ const URDU_LABELS = {
   orderType: 'آرڈر کی قسم', urgent: 'ارجنٹ', totalPrice: 'کل قیمت', quantity: 'تعداد',
   productSelection: 'پروڈکٹ کا انتخاب', productBase: 'پروڈکٹ کی بنیاد', fabric: 'کپڑا', color: 'رنگ', size: 'سائز',
   branding: 'اینگرونگ (Engraving)', articleName: 'آرٹیکل کا نام', embroideryColor: 'کڑھائی کا رنگ', placement: 'جگہ',
-  stitching: 'سلائی کی تفصیلات', fitProfile: 'فٹ پروفائل', notes: 'خصوصی ہدایات (نوٹس)',
+  stitching: 'سلائی کی تفصیلات', notes: 'خصوصی ہدایات (نوٹس)',
   measurements: 'پیمائش (انچ میں)', chest: 'چھاتی', shoulder: 'گندھا', shirtLength: 'شرٹ لمبائی', sleeves: 'بازو',
   waist: 'ویسٹ', hips: 'ہپس', trouserLength: 'لمبائی', thigh: 'تھائی', bottom: 'بوٹم / پہنچا', mori: 'موری',
   options: 'آپشنز', dupatta: 'دوپٹہ', zip: 'زپ', cap: 'کیپ', submit: 'آرڈر درج کریں', next: 'اگلا مرحلہ', back: 'پیچھے',
@@ -50,10 +50,10 @@ const INITIAL_FORM_DATA = {
   fabricSourceProduct: '', colorSourceProduct: '', designSourceProduct: '', sizeSourceProduct: '', additionalProductRef: '',
   customProductName: '', customFabric: '', customMaterial: '', customColor: '', customDesign: '',
   customRequirements: '', customSpecifications: '',
-  engravingType: '', skipEngraving: true,
+  engravingType: '', skipEngraving: true, engravingInstructions: '',
   logoDesign: '', logoName: '', nameSpelling: '', nameColor: '', logoColor: '', logoPlacement: '',
   logoCharges: '', namePrintingCharges: '', customizationPrice: '', deliveryCharges: '',
-  fitType: 'Regular', designNotes: '', designReference: '', additionalFeatures: [],
+  designNotes: '', designReference: '', additionalFeatures: [],
   measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hip: '', hips: '',
     shirtLength: '', trouserLength: '', bottom: '', thigh: '', mori: '', ganda: '', specialNote: '' },
   gender: 'Male',
@@ -64,7 +64,7 @@ const INITIAL_FORM_DATA = {
 const CLEAR_FORM_AFTER_CART = {
   quantity: 1, totalPrice: '', logoCharges: '', namePrintingCharges: '', customizationPrice: '',
   productType: '', fabricType: '', color: '', size: '', logoDesign: '', logoName: '', nameSpelling: '',
-  nameColor: '', logoColor: '', logoPlacement: '', fitType: 'Regular', designNotes: '', designReference: '',
+  nameColor: '', logoColor: '', logoPlacement: '', designNotes: '', designReference: '',
   additionalFeatures: [], matchingCap: false, matchingCapQty: 0, sleeveLength: '', shirtLength: '',
   alteration: { trouserLength: '', shirtLength: '', sleeveLength: '' },
   measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hip: '', hips: '',
@@ -73,7 +73,7 @@ const CLEAR_FORM_AFTER_CART = {
   femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
   fabricSourceProduct: '', colorSourceProduct: '', designSourceProduct: '', sizeSourceProduct: '', additionalProductRef: '',
   customProductName: '', customFabric: '', customMaterial: '', customColor: '', customDesign: '',
-    customRequirements: '', customSpecifications: '', engravingType: '', skipEngraving: true
+    customRequirements: '', customSpecifications: '', engravingType: '', skipEngraving: true, engravingInstructions: ''
 };
 
 export const OrderEntryProvider = ({ children }) => {
@@ -214,7 +214,7 @@ export const OrderEntryProvider = ({ children }) => {
           logoDesign: found.logoDesign || '', logoName: found.logoName || '', nameSpelling: '', nameColor: '',
           logoColor: '', logoPlacement: '', logoCharges: found.logoCharges?.toString() || '',
           namePrintingCharges: found.namePrintingCharges?.toString() || '',
-          customizationPrice: found.customizationPrice?.toString() || '', fitType: 'Regular', designNotes: '', designReference: '',
+          customizationPrice: found.customizationPrice?.toString() || '', designNotes: '', designReference: '',
           additionalFeatures: [],
           measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hips: '',
             shirtLength: '', trouserLength: '', bottom: '', thigh: '', mori: '', ganda: '', specialNote: '' },
@@ -248,7 +248,7 @@ export const OrderEntryProvider = ({ children }) => {
             customization: {
               nameSpelling: custItem.nameSpelling || '', nameColor: custItem.nameColor || '',
               logoColor: custItem.logoColor || '', logoPlacement: custItem.logoPlacement || '',
-              fitType: custItem.fitType || 'Regular', designNotes: custItem.designNotes || '',
+              designNotes: custItem.designNotes || '',
               designReference: custItem.designReference || '', additionalFeatures: custItem.additionalFeatures || []
             },
             sizeData: item.sizeData || {}, totalPrice: parseFloat(item.totalPrice) || 0
@@ -319,7 +319,8 @@ export const OrderEntryProvider = ({ children }) => {
           customizationPrice: cartItems.reduce((s, i) => s + (parseFloat(i.customizationPrice) || 0), 0),
           shopifyOrderDate: formData.shopifyOrderDate || null,
           deliveryCharges: parseFloat(formData.deliveryCharges) || 0,
-          instructionNotes: formData.instructionNotes || null
+          engravingInstructions: formData.engravingInstructions || null,
+          instructionNotes: [formData.instructionNotes, formData.measurements.specialNote].filter(Boolean).join('\n---\n') || null
         },
         reason: editReason
       });
@@ -353,7 +354,7 @@ export const OrderEntryProvider = ({ children }) => {
     if (!formData.customerPhone.trim()) return t('customerPhone') + ' ' + t('required');
     if (formData.type === 'FULL_CUSTOM' && !(parseFloat(formData.advanceAmount) > 0)) return 'Advance payment is compulsory for custom orders.';
     if (!formData.productType && formData.type !== 'FULL_CUSTOM') return 'Please select a Product first.';
-    if (formData.type !== 'STANDARD' && formData.type === 'FULL_CUSTOM' && !formData.fitType) return 'Please select a Fit Profile.';
+
     return null;
   }, [formData, t]);
 
@@ -368,7 +369,6 @@ export const OrderEntryProvider = ({ children }) => {
       if (!formData.productType && formData.type !== 'FULL_CUSTOM') return 'Please select a Product.';
     }
     if (activeTab === 'custom') {
-      if (formData.type === 'FULL_CUSTOM' && !formData.fitType) return 'Please select a Fit Profile.';
     }
     return null;
   }, [activeTab, formData, t]);
@@ -420,7 +420,7 @@ export const OrderEntryProvider = ({ children }) => {
       logoDesign: item.logoDesign || '', logoName: item.logoName || '',
       nameSpelling: cust.nameSpelling || '', nameColor: cust.nameColor || '',
       logoColor: cust.logoColor || '', logoPlacement: cust.logoPlacement || '',
-      fitType: cust.fitType || 'Regular', designNotes: cust.designNotes || '',
+      designNotes: cust.designNotes || '',
       designReference: cust.designReference || '', additionalFeatures: cust.additionalFeatures || [],
       measurements: {
         chest: item.sizeData?.chest || '', shoulder: item.sizeData?.shoulder || '',
@@ -478,7 +478,9 @@ export const OrderEntryProvider = ({ children }) => {
         items: finalItems, productDetails: finalItems[0].productDetails,
         customization: finalItems[0].customization, sizeData: finalItems[0].sizeData,
         quantity: finalItems.reduce((sum, item) => sum + (item.quantity || 1), 0),
-        totalPrice: adjTotal, instructionNotes: formData.instructionNotes || '',
+        totalPrice: adjTotal,
+        engravingInstructions: formData.engravingInstructions || '',
+        instructionNotes: [formData.instructionNotes, formData.measurements.specialNote].filter(Boolean).join('\n---\n') || '',
         shopifyOrderDate: formData.shopifyOrderDate || null,
         placedBy: faisalEmp
       });
@@ -634,7 +636,7 @@ export const OrderEntryProvider = ({ children }) => {
       customization: {
         nameSpelling: articleNameEntries.filter(Boolean).join(', '), articleNames: articleNameEntries,
         nameColor: formData.nameColor, logoColor: formData.logoColor, logoPlacement: formData.logoPlacement,
-        fitType: formData.fitType, designNotes: formData.designNotes, designReference: formData.designReference,
+        designNotes: formData.designNotes, designReference: formData.designReference,
         additionalFeatures: formData.additionalFeatures, logos: logoEntries,
         engravingType: formData.engravingType || '', skipEngraving: formData.skipEngraving || false
       },

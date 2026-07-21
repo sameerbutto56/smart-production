@@ -118,7 +118,6 @@ const DICT = {
   'Patch Engraving': 'پیچ اینگرونگ',
   'Embroidery Color': 'کڑھائی کا رنگ',
   'Logo Location': 'لوگو کا مقام',
-  'Fit Type': 'فٹ کی قسم',
   'Stitching Style': 'سلائی کا انداز',
   '02. Precise Measurements (Inches)': '02۔ درست پیمائش (انچ)',
   'SLEEVES': 'آستین',
