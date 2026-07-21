@@ -5,7 +5,7 @@ import api from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import Button from './Button';
 import { LoadingSpinner } from './LoadingSpinner';
-import { printJobSheet } from '../utils/printReport';
+import { printJobSheet, romanToUrdu } from '../utils/printReport';
 import { toUrduName } from '../utils/urduDictionary';
 import toast from 'react-hot-toast';
 
@@ -457,7 +457,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       <MessageSquare size={10} />
                       <span>Special Note:</span>
                     </p>
-                    <p className="text-xs md:text-sm text-gray-300 italic font-medium leading-tight">"{c.designNotes}"</p>
+                    <p className="text-xs md:text-sm text-gray-300 italic font-medium leading-tight">"{isUrdu ? romanToUrdu(c.designNotes) : c.designNotes}"</p>
                   </div>
                 )}
 
@@ -810,7 +810,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                 <p key={li} className="text-[10px] text-white font-bold ml-2">{l.name}{l.design ? ` — ${l.design}` : ''}</p>
                               ))}</div>
                             )}
-                            {ic.designNotes && <p className="text-[9px] text-yellow-500 italic">Note: {ic.designNotes}</p>}
+                            {ic.designNotes && <p className="text-[9px] text-yellow-500 italic">Note: {isUrdu ? romanToUrdu(ic.designNotes) : ic.designNotes}</p>}
                             {(ic.nameColor || ic.logoPlacement) && (
                               <div className="flex gap-1">
                                 {ic.nameColor && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-pink-900/30 text-pink-400">Color: {ic.nameColor}</span>}
@@ -873,7 +873,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             <p key={li} className="text-[10px] text-white font-bold ml-2">{l.name}{l.design ? ` — ${l.design}` : ''}</p>
                           ))}</div>
                         )}
-                        {custom.designNotes && <p className="text-[9px] text-yellow-500 italic">Note: {custom.designNotes}</p>}
+                        {custom.designNotes && <p className="text-[9px] text-yellow-500 italic">Note: {isUrdu ? romanToUrdu(custom.designNotes) : custom.designNotes}</p>}
                         {(custom.nameColor || custom.logoPlacement) && (
                           <div className="flex gap-1">
                             {custom.nameColor && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-pink-900/30 text-pink-400">Color: {custom.nameColor}</span>}
@@ -2213,7 +2213,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                         )}
                                         {itemCust?.designNotes && (
                                           <span className="text-[10px] font-bold text-yellow-400 bg-yellow-500/10 px-2 py-1 rounded-md italic truncate max-w-[200px]">
-                                            📝 {itemCust.designNotes}
+                                            📝 {isUrdu ? romanToUrdu(itemCust.designNotes) : itemCust.designNotes}
                                           </span>
                                         )}
                                       </div>
@@ -2297,7 +2297,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             Type: {order.engravingType === 'direct' ? 'Direct Engraving' : 'Patch Engraving'}
                           </p>
                         )}
-                        {order.engravingText && <p className="text-white font-bold">{order.engravingText}</p>}
+                        {order.engravingText && <p className="text-white font-bold">{isUrdu ? romanToUrdu(order.engravingText) : order.engravingText}</p>}
                         {en.length > 0 && (
                           <div>
                             <p className="text-xs font-black text-purple-400 uppercase mb-2">Names:</p>
@@ -2321,7 +2321,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         {order.engravingInstructions && (
                           <div className="bg-yellow-900/20 border border-yellow-500/20 rounded-lg p-3">
                             <p className="text-xs font-black text-yellow-400 uppercase mb-1">Special Notes:</p>
-                            <p className="text-sm text-yellow-300 font-medium italic">{order.engravingInstructions}</p>
+                            <p className="text-sm text-yellow-300 font-medium italic">{isUrdu ? romanToUrdu(order.engravingInstructions) : order.engravingInstructions}</p>
                           </div>
                         )}
                         {order.instructionNotes && (
@@ -2390,7 +2390,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                   <h4 className="text-xs md:text-sm font-black text-yellow-500 uppercase tracking-[0.3em] mb-6">{t('04. Design Notes & Special Requests')}</h4>
                   <div className="h-full min-h-[200px] bg-yellow-500/5 p-4 md:p-8 rounded-3xl border border-yellow-500/10 text-gray-300 leading-relaxed text-sm shadow-inner">
                     {custom?.designNotes ? (
-                      <p className="italic mb-4">{custom.designNotes}</p>
+                      <p className="italic mb-4">{isUrdu ? romanToUrdu(custom.designNotes) : custom.designNotes}</p>
                     ) : (
                       <p className="italic text-gray-500">{t('No special design notes provided for this order.')}</p>
                     )}

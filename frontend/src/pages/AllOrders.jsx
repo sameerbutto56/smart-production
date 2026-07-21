@@ -22,7 +22,7 @@ import {
   Grid
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { printJobSheet } from '../utils/printReport';
+import { printJobSheet, romanToUrdu } from '../utils/printReport';
 import { toUrduName } from '../utils/urduDictionary';
 import socket from '../socket';
 import { useAuth } from '../context/AuthContext';
@@ -956,13 +956,13 @@ const AllOrders = () => {
                                         )}
                                         {/* Special Notes */}
                                         {c.designNotes && (
-                                          <div className="text-[10px] text-yellow-400 font-black bg-yellow-900/20 px-1.5 py-0.5 rounded italic leading-tight">📝 {c.designNotes}</div>
+                                          <div className="text-[10px] text-yellow-400 font-black bg-yellow-900/20 px-1.5 py-0.5 rounded italic leading-tight">📝 {isUrdu ? romanToUrdu(c.designNotes) : c.designNotes}</div>
                                         )}
                                       </div>
                                     )}
 
                                     {hasSpecialNote && (
-                                      <div className="mt-1 text-[10px] text-yellow-400 font-black bg-yellow-900/20 px-1.5 py-0.5 rounded italic leading-tight">📝 Special Note: {s.specialNote}</div>
+                                      <div className="mt-1 text-[10px] text-yellow-400 font-black bg-yellow-900/20 px-1.5 py-0.5 rounded italic leading-tight">📝 Special Note: {isUrdu ? romanToUrdu(s.specialNote) : s.specialNote}</div>
                                     )}
                                   </td>
                                   <td className="py-4 theme-text-secondary">
@@ -1133,7 +1133,7 @@ const AllOrders = () => {
                               Type: {selectedOrder.engravingType === 'direct' ? 'Direct Engraving' : 'Patch Engraving'}
                             </p>
                           )}
-                          {selectedOrder.engravingText && <p className="text-white font-bold">{selectedOrder.engravingText}</p>}
+                          {selectedOrder.engravingText && <p className="text-white font-bold">{isUrdu ? romanToUrdu(selectedOrder.engravingText) : selectedOrder.engravingText}</p>}
                           {en.length > 0 && (
                             <div>
                               <p className="text-xs font-black text-purple-400 uppercase mb-2">Names:</p>
@@ -1157,7 +1157,7 @@ const AllOrders = () => {
                           {selectedOrder.engravingInstructions && (
                             <div className="bg-yellow-900/20 border border-yellow-500/20 rounded-lg p-3">
                               <p className="text-xs font-black text-yellow-400 uppercase mb-1">Special Notes:</p>
-                              <p className="text-sm text-yellow-300 font-medium italic">{selectedOrder.engravingInstructions}</p>
+                              <p className="text-sm text-yellow-300 font-medium italic">{isUrdu ? romanToUrdu(selectedOrder.engravingInstructions) : selectedOrder.engravingInstructions}</p>
                             </div>
                           )}
                           {selectedOrder.instructionNotes && (
@@ -1257,7 +1257,7 @@ const AllOrders = () => {
                             {c.designNotes && (
                               <div className="mt-3 bg-yellow-500/5 p-3 rounded-xl border border-yellow-500/10">
                                 <p className="text-[10px] text-yellow-400 font-black uppercase tracking-widest mb-0.5">Special Note</p>
-                                <p className="text-xs font-bold text-yellow-300/90 italic leading-tight">{c.designNotes}</p>
+                                <p className="text-xs font-bold text-yellow-300/90 italic leading-tight">{isUrdu ? romanToUrdu(c.designNotes) : c.designNotes}</p>
                               </div>
                             )}
                           </div>
@@ -1287,7 +1287,7 @@ const AllOrders = () => {
                         <div className="space-y-4">
                           <div className="bg-yellow-500/5 p-4 md:p-6 rounded-3xl border border-yellow-500/10 italic theme-text-secondary text-sm shadow-inner">
                             <p className="text-xs md:text-sm text-yellow-600 font-black uppercase mb-2">Instructions:</p>
-                            {custom?.designNotes || 'No special design notes.'}
+                            {custom?.designNotes ? (isUrdu ? romanToUrdu(custom.designNotes) : custom.designNotes) : 'No special design notes.'}
                           </div>
                           {custom?.designReference && (
                             <div className="bg-blue-500/5 p-4 md:p-6 rounded-3xl border border-blue-500/10 italic theme-text-secondary text-sm shadow-inner">

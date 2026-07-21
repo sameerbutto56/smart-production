@@ -21,7 +21,7 @@ const PRINT_CSS = `
     padding: 0;
     direction: ltr;
   }
-  .urdu { font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', serif; direction: rtl; text-align: right; }
+  .urdu { font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', serif; direction: rtl; text-align: right; line-height: 1.5; white-space: pre-wrap; word-spacing: 0.05em; }
   .report-header {
     text-align: center;
     border-bottom: 4px solid #000;
@@ -49,7 +49,7 @@ const PRINT_CSS = `
   th {
     background: none;
     color: #000;
-    padding: 6px 10px;
+    padding: 8px 10px;
     text-align: left;
     font-size: 18px;
     font-weight: 900;
@@ -57,8 +57,13 @@ const PRINT_CSS = `
     border-bottom: 3px solid #000;
     letter-spacing: 0.5px;
   }
+  .rtl th { text-align: right; }
+  .rtl td { text-align: right; }
+  .rtl td[style*="text-align:center"] { text-align: center !important; }
+  .rtl td[style*="text-align:left"] { text-align: left !important; }
+  .rtl td[style*="text-align:right"] { text-align: left !important; }
   td {
-    padding: 3px 6px;
+    padding: 5px 8px;
     border: 1px solid #ccc;
     font-weight: 700;
   }
@@ -121,15 +126,12 @@ const PRINT_CSS = `
 
   /* RTL / Urdu-specific overrides */
   .rtl { direction: rtl; text-align: right; }
-  .rtl table th { text-align: right; }
-  .rtl table td { text-align: right; }
   .rtl .report-header { text-align: center; }
   .rtl .report-meta { flex-direction: row-reverse; }
   .rtl .section-title { text-align: right; }
   .rtl .summary-row { flex-direction: row-reverse; }
   .rtl .summary-card { text-align: center; }
   .rtl .urdu-text { font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', serif; }
-  .rtl td[style*="text-align:right"] { text-align: left !important; }
   .rtl .footer { text-align: center; }
 `;
 
@@ -1094,6 +1096,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const pu = (t) => isUrdu && t ? toUrduName(t) : t;
   const vu = (t) => isUrdu && t ? toUrduName(t) : t;
   const dir = isUrdu ? 'rtl' : 'ltr';
+  const borderAccent = isUrdu ? 'right' : 'left';
 
   const orderType = order.type || 'STANDARD';
   const title = `${sec.jobSheet} — ${order.orderNumber || order.id?.slice(0, 8)}`;
@@ -1267,7 +1270,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       }
       if (measNote) {
         const notesDisplay = isUrdu ? romanToUrdu(measNote) : measNote;
-        win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px;${selectedSize ? 'margin-top:6px' : ''}">`);
+        win.document.write(`<div style="background:#fef3c7;border-${borderAccent}:4px solid #d97706;padding:6px 10px;border-radius:4px;${selectedSize ? 'margin-top:6px' : ''}">`);
         win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
         win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
       }
@@ -1280,7 +1283,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     const notesDisplay = isUrdu ? romanToUrdu(order.instructionNotes) : order.instructionNotes;
     win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
     win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px">`);
-    win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px">`);
+    win.document.write(`<div style="background:#fef3c7;border-${borderAccent}:4px solid #d97706;padding:6px 10px;border-radius:4px">`);
     win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
     win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
     win.document.write(`</div>`);
@@ -1360,8 +1363,8 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           }
 
           if (hasNotes) {
-            const notesDisplay = c.designNotes;
-            win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px">`);
+            const notesDisplay = isUrdu ? romanToUrdu(c.designNotes) : c.designNotes;
+            win.document.write(`<div style="background:#fef3c7;border-${borderAccent}:4px solid #d97706;padding:6px 10px;border-radius:4px">`);
             win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
             win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
           }
@@ -1382,7 +1385,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           win.document.write(`<p style="font-size:20px;font-weight:800;color:#7c3aed;margin-bottom:4px">${sec.engravingType}: ${etLabel}</p>`);
         }
         if (order.engravingText) {
-          win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;margin-bottom:4px">${sec.engravingType}: ${order.engravingText}</p>`);
+          win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;margin-bottom:4px">${sec.engravingType}: ${ru(order.engravingText)}</p>`);
         }
         if (outEngravingNames.length > 0) {
           win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:3px">${sec.nameLines}</p>`);
@@ -1401,14 +1404,14 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           });
         }
         if (order.engravingInstructions) {
-          const engravingDisplay = isUrdu ? order.engravingInstructions.split('\n').map(l => toUrduName(l)).join('\n') : order.engravingInstructions;
-          win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px;margin-top:6px">`);
+          const engravingDisplay = isUrdu ? order.engravingInstructions.split('\n').map(l => romanToUrdu(l)).join('\n') : order.engravingInstructions;
+          win.document.write(`<div style="background:#fef3c7;border-${borderAccent}:4px solid #d97706;padding:6px 10px;border-radius:4px;margin-top:6px">`);
           win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
           win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${engravingDisplay}</p></div>`);
         }
         if (order.instructionNotes) {
           const notesDisplay = isUrdu ? romanToUrdu(order.instructionNotes) : order.instructionNotes;
-          win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px;margin-top:6px">`);
+          win.document.write(`<div style="background:#fef3c7;border-${borderAccent}:4px solid #d97706;padding:6px 10px;border-radius:4px;margin-top:6px">`);
           win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.instructionNotes}</p>`);
           win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
         }

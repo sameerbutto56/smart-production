@@ -789,17 +789,41 @@ const urduDictionary = {
  * This ensures any product name (existing or future) works automatically
  * as long as its individual words exist in the dictionary.
  */
+/** Helper: case-insensitive dictionary lookup */
+function dictLookup(s) {
+  if (!s) return null;
+  if (urduDictionary[s]) return urduDictionary[s];
+  const lc = s.toLowerCase();
+  if (lc !== s && urduDictionary[lc]) return urduDictionary[lc];
+  const cc = s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+  if (cc !== s && urduDictionary[cc]) return urduDictionary[cc];
+  const uc = s.toUpperCase();
+  if (uc !== s && urduDictionary[uc]) return urduDictionary[uc];
+  return null;
+}
+
 export function toUrduName(text) {
   if (!text) return '';
   const key = typeof text === 'string' ? text.trim() : String(text);
   return key.split(/\s+/).map(w => {
-    if (urduDictionary[w]) return urduDictionary[w];
-    // Strip surrounding non-alphanumeric chars for lookup
-    const clean = w.replace(/^[^a-zA-Z0-9]+/, '').replace(/[^a-zA-Z0-9]+$/, '');
-    if (clean !== w && urduDictionary[clean]) {
-      const leading = w.slice(0, w.indexOf(clean));
-      const trailing = w.slice(w.indexOf(clean) + clean.length);
-      return leading + urduDictionary[clean] + trailing;
+    if (!w) return w;
+    // 1. Try exact match with case variations
+    let r = dictLookup(w);
+    if (r) return r;
+    // 2. Strip surrounding punctuation and try matching the core
+    const clean = w.replace(/^[^a-zA-Z0-9'\u0600-\u06FF]+/, '').replace(/[^a-zA-Z0-9'\u0600-\u06FF]+$/, '');
+    if (clean !== w) {
+      const sIdx = w.indexOf(clean);
+      const prefix = w.slice(0, sIdx);
+      const suffix = w.slice(sIdx + clean.length);
+      r = dictLookup(clean);
+      if (r) return prefix + r + suffix;
+    }
+    // 3. Try splitting by internal separators (hyphen, slash, underscore, dot)
+    const parts = w.split(/[-/_.]+/);
+    if (parts.length > 1) {
+      const sep = w.match(/[-/_.]+/);
+      return parts.map(p => dictLookup(p) || p).join(sep ? sep[0] : '-');
     }
     return w;
   }).join(' ');
