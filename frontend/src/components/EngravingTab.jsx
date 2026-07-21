@@ -48,7 +48,7 @@ const EngravingTab = () => {
             <div className="space-y-3">
               <label className="text-xs font-black theme-text-muted uppercase tracking-[0.3em] ml-2">Engraving Method</label>
               <div className="flex p-2 theme-bg rounded-[1.5rem] border-2 theme-border h-[72px]">
-                {[{ value: 'direct', label: 'Direct Engraving' }, { value: 'patch', label: 'Patch Engraving' }].map(opt => (
+                {[{ value: 'direct', label: 'Direct Engraving' }, { value: 'patch', label: 'Patch Engraving' }, { value: 'emboss', label: 'Emboss Engraving' }].map(opt => (
                   <button key={opt.value} type="button"
                     onClick={() => setFormData({ ...formData, skipEngraving: false, engravingType: opt.value })}
                     className={`flex-1 rounded-xl text-xs md:text-sm font-black transition-all ${formData.engravingType === opt.value ? 'bg-purple-600 text-white shadow-xl' : 'text-gray-600 hover:text-white'}`}>

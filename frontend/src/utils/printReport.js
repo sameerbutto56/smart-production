@@ -963,6 +963,7 @@ const urduSection = {
   engravingType: 'کڑھائی کی قسم',
   directEngraving: 'ڈائریکٹ اینگرونگ',
   patchEngraving: 'پیچ اینگرونگ',
+  embossEngraving: 'ایمبوس اینگرونگ',
   customAttributes: 'کسٹم ایٹریبیوٹس',
   fabricSource: 'مطلوبہ کپڑا',
   colorSource: 'مطلوبہ رنگ',
@@ -1020,6 +1021,7 @@ const enSection = {
   engravingType: 'Engraving Type',
   directEngraving: 'Direct Engraving',
   patchEngraving: 'Patch Engraving',
+  embossEngraving: 'Emboss Engraving',
   customAttributes: 'Custom Attributes',
   fabricSource: 'Fabric Required',
   colorSource: 'Color Required',
@@ -1324,7 +1326,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
 
           if (c?.engravingType) {
             win.document.write(`<div style="margin-bottom:6px">`);
-            const engravingLabel = c.engravingType === 'direct' ? sec.directEngraving : sec.patchEngraving;
+            const engravingLabel = c.engravingType === 'direct' ? sec.directEngraving : c.engravingType === 'emboss' ? sec.embossEngraving : sec.patchEngraving;
             win.document.write(`<p style="font-size:18px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${sec.engravingType}: ${engravingLabel}</p>`);
             win.document.write(`</div>`);
           }
@@ -1378,7 +1380,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
         win.document.write(`</div>`);
 
         if (order.engravingType) {
-          const etLabel = order.engravingType === 'direct' ? sec.directEngraving : sec.patchEngraving;
+          const etLabel = order.engravingType === 'direct' ? sec.directEngraving : order.engravingType === 'emboss' ? sec.embossEngraving : sec.patchEngraving;
           win.document.write(`<p style="font-size:20px;font-weight:800;color:#7c3aed;margin-bottom:4px">${sec.engravingType}: ${etLabel}</p>`);
         }
         if (order.engravingText) {
@@ -1401,7 +1403,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           });
         }
         if (order.engravingInstructions) {
-          const engravingDisplay = isUrdu ? order.engravingInstructions.split('\n').map(l => toUrduName(l)).join('\n') : order.engravingInstructions;
+          const engravingDisplay = isUrdu ? order.engravingInstructions.split('\n').map(l => romanToUrdu(l)).join('\n') : order.engravingInstructions;
           win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px;margin-top:6px">`);
           win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
           win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${engravingDisplay}</p></div>`);

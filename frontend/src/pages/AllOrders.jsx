@@ -929,7 +929,7 @@ const AllOrders = () => {
                                         {/* Branding specs */}
                                         {(c.nameColor || c.logoPlacement || c.fitType || c.logoColor || c.engravingType) && (
                                           <div className="flex flex-wrap gap-1">
-                                            {c.engravingType && <span className="text-[9px] font-black text-violet-400 bg-violet-900/30 px-1.5 py-0.5 rounded">{c.engravingType === 'direct' ? 'Direct' : 'Patch'} Engraving</span>}
+                                            {c.engravingType && <span className="text-[9px] font-black text-violet-400 bg-violet-900/30 px-1.5 py-0.5 rounded">{c.engravingType === 'direct' ? 'Direct' : c.engravingType === 'emboss' ? 'Emboss' : 'Patch'} Engraving</span>}
                                             {c.fitType && <span className="text-[9px] font-black text-indigo-400 bg-indigo-900/30 px-1.5 py-0.5 rounded">{c.fitType} Fit</span>}
                                             {c.nameColor && <span className="text-[9px] font-black text-rose-400 bg-rose-900/30 px-1.5 py-0.5 rounded">Color: {c.nameColor}</span>}
                                             {c.logoPlacement && <span className="text-[9px] font-black text-teal-400 bg-teal-900/30 px-1.5 py-0.5 rounded">Pos: {c.logoPlacement}</span>}
@@ -1130,7 +1130,7 @@ const AllOrders = () => {
                         <div className="space-y-3">
                           {selectedOrder.engravingType && (
                             <p className="text-purple-400 font-black text-xs uppercase tracking-wider">
-                              Type: {selectedOrder.engravingType === 'direct' ? 'Direct Engraving' : 'Patch Engraving'}
+                              Type: {selectedOrder.engravingType === 'direct' ? 'Direct Engraving' : selectedOrder.engravingType === 'emboss' ? 'Emboss Engraving' : 'Patch Engraving'}
                             </p>
                           )}
                           {selectedOrder.engravingText && <p className="text-white font-bold">{selectedOrder.engravingText}</p>}
@@ -1219,7 +1219,7 @@ const AllOrders = () => {
                                   <div className="bg-indigo-500/5 p-3 rounded-xl border border-indigo-500/10">
                                     <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest mb-2">Tailoring Specs</p>
                                     <div className="grid grid-cols-2 gap-2">
-                                      {c.engravingType && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Engraving</span><p className="text-xs font-black text-violet-400">{c.engravingType === 'direct' ? 'Direct' : 'Patch'}</p></div>}
+                                      {c.engravingType && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Engraving</span><p className="text-xs font-black text-violet-400">{c.engravingType === 'direct' ? 'Direct' : c.engravingType === 'emboss' ? 'Emboss' : 'Patch'}</p></div>}
                                       {c.fitType && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Fit</span><p className="text-xs font-black text-white">{c.fitType}</p></div>}
                                       {c.nameColor && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Color</span><p className="text-xs font-black text-rose-400">{c.nameColor}</p></div>}
                                       {c.logoPlacement && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Position</span><p className="text-xs font-black text-teal-400">{c.logoPlacement}</p></div>}
@@ -1269,7 +1269,7 @@ const AllOrders = () => {
                       <div>
                         <div className="space-y-4">
                           {[
-                            { l: 'Engraving Type', v: custom?.engravingType === 'direct' ? 'Direct Engraving' : custom?.engravingType === 'patch' ? 'Patch Engraving' : null },
+                            { l: 'Engraving Type', v: custom?.engravingType === 'direct' ? 'Direct Engraving' : custom?.engravingType === 'patch' ? 'Patch Engraving' : custom?.engravingType === 'emboss' ? 'Emboss Engraving' : custom?.engravingType },
                             { l: 'Branding Name', v: custom?.nameSpelling },
                             { l: 'Embroidery Color', v: custom?.nameColor },
                             { l: 'Logo Location', v: custom?.logoPlacement },

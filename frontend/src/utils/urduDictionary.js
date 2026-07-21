@@ -803,10 +803,10 @@ function lookupWord(w) {
 export function toUrduName(text) {
   if (!text) return '';
   const key = typeof text === 'string' ? text.trim() : String(text);
-  return key.split(/\s+/).map(w => {
+  return key.split(/[-\/_.(),\s]+/).filter(Boolean).map(w => {
     const direct = lookupWord(w);
     if (direct !== null) return direct;
-    // Strip surrounding non-alphanumeric chars for lookup
+    // Strip remaining surrounding non-alphanumeric chars for lookup
     const clean = w.replace(/^[^a-zA-Z0-9]+/, '').replace(/[^a-zA-Z0-9]+$/, '');
     if (clean !== w) {
       const found = lookupWord(clean);
