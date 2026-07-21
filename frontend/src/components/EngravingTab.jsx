@@ -86,14 +86,21 @@ const EngravingTab = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
               <div className="space-y-3">
                 <label className="text-xs font-black theme-text-muted uppercase tracking-[0.3em] ml-2">{t('embroideryColor')}</label>
-                <select value={formData.nameColor} onChange={(e) => setFormData({ ...formData, nameColor: e.target.value })}
+                <select value={formData.nameColor === 'Custom' ? 'Custom' : (formData.nameColor && !['','Gold','Silver','Navy','Wine'].includes(formData.nameColor) ? 'Custom' : formData.nameColor)}
+                  onChange={(e) => setFormData({ ...formData, nameColor: e.target.value === 'Custom' ? 'Custom' : e.target.value, customColor: e.target.value === 'Custom' ? (formData.customColor || '') : formData.customColor })}
                   className={`w-full theme-input rounded-2xl py-5 px-8 font-bold appearance-none ${useUrdu ? 'text-right' : ''}`}>
                   <option value="">Standard White</option>
                   <option value="Gold">Metallic Gold</option>
                   <option value="Silver">Polished Silver</option>
                   <option value="Navy">Royal Navy</option>
                   <option value="Wine">Premium Wine</option>
+                  <option value="Custom">Custom Color</option>
                 </select>
+                {formData.nameColor === 'Custom' && (
+                  <input type="text" value={formData.customColor || ''} placeholder="Enter custom color"
+                    onChange={(e) => setFormData({ ...formData, customColor: e.target.value })}
+                    className={`w-full theme-input rounded-2xl py-4 px-5 text-sm font-bold ${useUrdu ? 'text-right' : ''}`} />
+                )}
               </div>
               <div className="space-y-3">
                 <label className="text-xs font-black theme-text-muted uppercase tracking-[0.3em] ml-2">{t('placement')}</label>

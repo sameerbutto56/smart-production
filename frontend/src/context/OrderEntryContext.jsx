@@ -51,7 +51,7 @@ const INITIAL_FORM_DATA = {
   customProductName: '', customFabric: '', customMaterial: '', customColor: '', customDesign: '',
   customRequirements: '', customSpecifications: '',
   engravingType: '', skipEngraving: true, engravingInstructions: '',
-  logoDesign: '', logoName: '', nameSpelling: '', nameColor: '', logoColor: '', logoPlacement: '',
+  logoDesign: '', logoName: '', nameSpelling: '', nameColor: '', customColor: '', logoColor: '', logoPlacement: '',
   logoCharges: '', namePrintingCharges: '', customizationPrice: '', deliveryCharges: '',
   designNotes: '', designReference: '', additionalFeatures: [],
   measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hip: '', hips: '',
@@ -64,7 +64,7 @@ const INITIAL_FORM_DATA = {
 const CLEAR_FORM_AFTER_CART = {
   quantity: 1, totalPrice: '', logoCharges: '', namePrintingCharges: '', customizationPrice: '',
   productType: '', fabricType: '', color: '', size: '', logoDesign: '', logoName: '', nameSpelling: '',
-  nameColor: '', logoColor: '', logoPlacement: '', designNotes: '', designReference: '',
+  nameColor: '', customColor: '', logoColor: '', logoPlacement: '', designNotes: '', designReference: '',
   additionalFeatures: [], matchingCap: false, matchingCapQty: 0, sleeveLength: '', shirtLength: '',
   alteration: { trouserLength: '', shirtLength: '', sleeveLength: '' },
   measurements: { chest: '', shoulder: '', length: '', sleeve: '', waist: '', hip: '', hips: '',
@@ -211,7 +211,7 @@ export const OrderEntryProvider = ({ children }) => {
           address: found.address || '', city: found.city || '', type: found.type || 'STANDARD', priority: found.priority || 'NORMAL',
           advancePaid: !!found.advancePaid, advanceAmount: found.advanceAmount || '', totalPrice: found.totalPrice || '',
           quantity: found.quantity || 1, productType: '', fabricType: '', color: '', size: '',
-          logoDesign: found.logoDesign || '', logoName: found.logoName || '', nameSpelling: '', nameColor: '',
+          logoDesign: found.logoDesign || '', logoName: found.logoName || '', nameSpelling: '', nameColor: '', customColor: '',
           logoColor: '', logoPlacement: '', logoCharges: found.logoCharges?.toString() || '',
           namePrintingCharges: found.namePrintingCharges?.toString() || '',
           customizationPrice: found.customizationPrice?.toString() || '', designNotes: '', designReference: '',
@@ -637,7 +637,7 @@ export const OrderEntryProvider = ({ children }) => {
       },
       customization: {
         nameSpelling: articleNameEntries.filter(Boolean).join(', '), articleNames: articleNameEntries,
-        nameColor: formData.nameColor, logoColor: formData.logoColor, logoPlacement: formData.logoPlacement,
+        nameColor: formData.nameColor === 'Custom' ? (formData.customColor || 'Custom') : formData.nameColor, logoColor: formData.logoColor, logoPlacement: formData.logoPlacement,
         designNotes: formData.designNotes, designReference: formData.designReference,
         additionalFeatures: formData.additionalFeatures, logos: logoEntries,
         engravingType: formData.engravingType || '', skipEngraving: formData.skipEngraving || false
