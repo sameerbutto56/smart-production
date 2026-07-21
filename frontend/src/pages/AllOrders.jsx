@@ -1172,45 +1172,43 @@ const AllOrders = () => {
                   })()}
                 </section>
 
-                {/* 02. Measurements — Size + Special Note only */}
+                {/* 02. Measurements — Size always shown, Special Note if present */}
                 {(() => {
                   const getSpecialNote = (sizeObj) => {
                     if (!sizeObj || typeof sizeObj !== 'object') return '';
                     return sizeObj.specialNote || '';
                   };
                   if (isMultiItem) {
-                    const itemsWithData = allItems.map((item, idx) => {
+                    const itemsWithSize = allItems.map((item, idx) => {
                       const p = item.productDetails || {};
                       const pName = p.productType || p.name;
                       const perProd = (rawSizes && typeof rawSizes === 'object' && !Array.isArray(rawSizes) && rawSizes[pName]) ? rawSizes[pName] : null;
                       const itemSD = perProd || (item.sizeData ? (typeof item.sizeData === 'string' ? (() => { try { return JSON.parse(item.sizeData); } catch { return {}; } })() : item.sizeData) : null) || {};
                       return { idx, pName, p, specialNote: getSpecialNote(itemSD) };
-                    }).filter(x => x.specialNote);
-                    if (!itemsWithData.some(x => x.specialNote)) return null;
+                    });
                     return (
                       <section>
                         <h4 className="text-xs md:text-sm font-black text-teal-500 uppercase tracking-[0.3em] mb-6">02. Measurements</h4>
                         <div className="space-y-4">
-                          {itemsWithData.map(({ idx, pName, p, specialNote }) => (
-                            specialNote ? (
-                              <div key={idx} className="bg-teal-500/5 border border-teal-500/20 rounded-2xl p-4">
-                                <p className="text-xs font-black text-teal-400 uppercase tracking-widest mb-3">
-                                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-800 text-gray-300 text-[10px] font-black mr-2">{idx + 1}</span>
-                                  {isUrdu ? toUrduName(pName) : pName} — Size: {p.size || 'C'} • {p.gender || ''}
-                                </p>
+                          {itemsWithSize.map(({ idx, pName, p, specialNote }) => (
+                            <div key={idx} className="bg-teal-500/5 border border-teal-500/20 rounded-2xl p-4">
+                              <p className="text-xs font-black text-teal-400 uppercase tracking-widest mb-3">
+                                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-800 text-gray-300 text-[10px] font-black mr-2">{idx + 1}</span>
+                                {isUrdu ? toUrduName(pName) : pName} — Size: {p.size || 'C'} • {p.gender || ''}
+                              </p>
+                              {specialNote && (
                                 <div className="bg-yellow-900/20 border border-yellow-500/20 rounded-xl px-3 py-2">
                                   <p className="text-xs font-black text-yellow-400 uppercase mb-1">Special Note</p>
-                                  <p className="text-sm text-yellow-300 italic">{specialNote}</p>
+                                  <p className="text-sm text-yellow-300 italic whitespace-pre-wrap">{specialNote}</p>
                                 </div>
-                              </div>
-                            ) : null
+                              )}
+                            </div>
                           ))}
                         </div>
                       </section>
                     );
                   } else {
                     const specialNote = getSpecialNote(flatSizes);
-                    if (!specialNote) return null;
                     return (
                       <section>
                         <h4 className="text-xs md:text-sm font-black text-teal-500 uppercase tracking-[0.3em] mb-6">02. Measurements</h4>
@@ -1218,10 +1216,12 @@ const AllOrders = () => {
                           <p className="text-xs font-black text-teal-400 uppercase tracking-widest mb-3">
                             Size: {product?.size || 'C'} • {product?.gender || ''}
                           </p>
-                          <div className="bg-yellow-900/20 border border-yellow-500/20 rounded-xl px-3 py-2">
-                            <p className="text-xs font-black text-yellow-400 uppercase mb-1">Special Note</p>
-                            <p className="text-sm text-yellow-300 italic">{specialNote}</p>
-                          </div>
+                          {specialNote && (
+                            <div className="bg-yellow-900/20 border border-yellow-500/20 rounded-xl px-3 py-2">
+                              <p className="text-xs font-black text-yellow-400 uppercase mb-1">Special Note</p>
+                              <p className="text-sm text-yellow-300 italic whitespace-pre-wrap">{specialNote}</p>
+                            </div>
+                          )}
                         </div>
                       </section>
                     );

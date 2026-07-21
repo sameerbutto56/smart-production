@@ -1110,11 +1110,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const tu = (t) => {
     if (!t) return '';
     if (!isUrdu) return t;
-    const urdu = toUrduName(t);
-    if (urdu === t) {
-      return romanToUrdu(t);
-    }
-    return urdu;
+    return toUrduName(t);
   };
 
   const ru = (t) => isUrdu && t ? romanToUrdu(t) : t;
@@ -1481,7 +1477,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
 export function printDispatchSheet(order, lang = 'ur') {
   const isUrdu = lang === 'ur';
   const ru = (t) => isUrdu && t ? romanToUrdu(t) : t;
-  const pu = (t) => { if (!t) return '—'; if (!isUrdu) return t; const u = toUrduName(t); return u !== t ? u : romanToUrdu(t); };
+  const pu = (t) => { if (!t) return '—'; if (!isUrdu) return t; return toUrduName(t); };
   const vu = pu;
   const title = (isUrdu ? 'ڈسپیچ شیٹ — ' : 'Dispatch Sheet — ') + (order.orderNumber || order.id?.slice(0, 8));
   const win = window.open('', '_blank');
