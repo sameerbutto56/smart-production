@@ -382,13 +382,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         {(p?.sleeveLength || (female.sleeves && female.sleeves !== 'full')) && (
                           <div className="bg-gray-950/50 p-2 rounded-lg">
                             <p className="text-[9px] text-gray-500 font-black uppercase">Sleeves بازو</p>
-                            <p className="text-xs md:text-sm font-black text-white">{p.sleeveLength ? ({'full':'Full','half':'Half ہاف','three-quarter':'3 Quarter'}[p.sleeveLength] || p.sleeveLength) : ({'full':'Full','half':'Half ہاف','medium':'Medium'}[female.sleeves] || female.sleeves || 'N/A')}</p>
+                            <p className="text-xs md:text-sm font-black text-white">{p.sleeveLength ? (isUrdu ? toUrduName({'full':'Full','half':'Half','three-quarter':'3 Quarter'}[p.sleeveLength] || p.sleeveLength) : ({'full':'Full','half':'Half','three-quarter':'3 Quarter'}[p.sleeveLength] || p.sleeveLength)) : (isUrdu ? toUrduName({'full':'Full','half':'Half','medium':'Medium'}[female.sleeves] || female.sleeves) : ({'full':'Full','half':'Half','medium':'Medium'}[female.sleeves] || female.sleeves || 'N/A'))}</p>
                           </div>
                         )}
                         {(p?.shirtLength || (female.shirtLength && female.shirtLength !== 'long')) && (
                           <div className="bg-gray-950/50 p-2 rounded-lg">
                             <p className="text-[9px] text-gray-500 font-black uppercase">Shirt L.</p>
-                            <p className="text-xs md:text-sm font-black text-white">{p.shirtLength ? ({'long':'Long','short':'Short','regular':'Regular ریگولر'}[p.shirtLength] || p.shirtLength) : ({'long':'Long','short':'Short'}[female.shirtLength] || female.shirtLength || 'N/A')}</p>
+                            <p className="text-xs md:text-sm font-black text-white">{p.shirtLength ? (isUrdu ? toUrduName({'long':'Long','short':'Short','regular':'Regular'}[p.shirtLength] || p.shirtLength) : ({'long':'Long','short':'Short','regular':'Regular'}[p.shirtLength] || p.shirtLength)) : (isUrdu ? toUrduName({'long':'Long','short':'Short'}[female.shirtLength] || female.shirtLength) : ({'long':'Long','short':'Short'}[female.shirtLength] || female.shirtLength || 'N/A'))}</p>
                           </div>
                         )}
                       </>
@@ -396,13 +396,13 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     {p?.sleeveLength && p?.gender !== 'Female' && (
                       <div className="bg-gray-950/50 p-2 rounded-lg">
                         <p className="text-[9px] text-gray-500 font-black uppercase">Sleeves بازو</p>
-                        <p className="text-xs md:text-sm font-black text-white">{p.sleeveLength === 'full' ? 'Full' : p.sleeveLength === 'three-quarter' ? '3 Quarter' : p.sleeveLength === 'half' ? 'Half ہاف' : p.sleeveLength || 'Quarter'}</p>
+                        <p className="text-xs md:text-sm font-black text-white">{isUrdu ? toUrduName(p.sleeveLength === 'full' ? 'Full' : p.sleeveLength === 'three-quarter' ? '3 Quarter' : p.sleeveLength === 'half' ? 'Half' : p.sleeveLength || 'Quarter') : (p.sleeveLength === 'full' ? 'Full' : p.sleeveLength === 'three-quarter' ? '3 Quarter' : p.sleeveLength === 'half' ? 'Half' : p.sleeveLength || 'Quarter')}</p>
                       </div>
                     )}
                     {p?.shirtLength && p?.gender !== 'Female' && (
                       <div className="bg-gray-950/50 p-2 rounded-lg">
                         <p className="text-[9px] text-gray-500 font-black uppercase">Shirt L.</p>
-                        <p className="text-xs md:text-sm font-black text-white">{p.shirtLength === 'long' ? 'Long' : p.shirtLength === 'regular' ? 'Regular ریگولر' : 'Short'}</p>
+                        <p className="text-xs md:text-sm font-black text-white">{isUrdu ? toUrduName(p.shirtLength === 'long' ? 'Long' : p.shirtLength === 'regular' ? 'Regular' : 'Short') : (p.shirtLength === 'long' ? 'Long' : p.shirtLength === 'regular' ? 'Regular' : 'Short')}</p>
                       </div>
                     )}
                   </div>
@@ -761,9 +761,9 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     const p = item.productDetails || item;
                     const ic = item.customization ? parseJSON(item.customization) : custom;
                     const isz = item.sizeData ? parseJSON(item.sizeData) : sizes;
-                    const slip = { 'full':'Full','half':'Half ہاف','three-quarter':'3 Quarter' };
-                    const shmp = { 'long':'Long','short':'Short','regular':'Regular ریگولر' };
-                    const fsl = { 'full':'Full','half':'Half ہاف','medium':'Medium' };
+                    const slip = { 'full':'Full','half':'Half','three-quarter':'3 Quarter' };
+                    const shmp = { 'long':'Long','short':'Short','regular':'Regular' };
+                    const fsl = { 'full':'Full','half':'Half','medium':'Medium' };
                     const fsh = { 'long':'Long','short':'Short' };
                     const slv = p.sleeveLength || (p.gender === 'Female' && p.femaleOptions?.sleeves ? p.femaleOptions.sleeves : null);
                     const shl = p.shirtLength || (p.gender === 'Female' && p.femaleOptions?.shirtLength ? p.femaleOptions.shirtLength : null);
@@ -782,8 +782,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         </div>
                         {(slv || shl || ic?.fitType) && (
                           <div className="flex flex-wrap gap-1">
-                            {slv && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-400">{slip[slv] || fsl[slv] || slv}</span>}
-                            {shl && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-400">{shmp[shl] || fsh[shl] || shl}</span>}
+                            {slv && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-400">{isUrdu ? toUrduName(slip[slv] || fsl[slv] || slv) : (slip[slv] || fsl[slv] || slv)}</span>}
+                            {shl && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-400">{isUrdu ? toUrduName(shmp[shl] || fsh[shl] || shl) : (shmp[shl] || fsh[shl] || shl)}</span>}
                             {ic?.fitType && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-900/30 text-purple-400">{ic.fitType} Fit</span>}
                           </div>
                         )}
@@ -799,7 +799,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             {(ic.engravingType || ic.nameSpelling || ic.articleNames?.length > 0) && (
                               <div>
                                 <span className="text-[9px] font-black text-amber-500 uppercase">Engraving</span>
-                                {ic.engravingType && <span className="text-[9px] font-bold text-amber-400 ml-2">{ic.engravingType === 'direct' ? 'Direct Engraving' : 'Patch Engraving'}</span>}
+                                {ic.engravingType && <span className="text-[9px] font-bold text-amber-400 ml-2">{isUrdu ? toUrduName(ic.engravingType === 'direct' ? 'Direct Engraving' : 'Patch Engraving') : (ic.engravingType === 'direct' ? 'Direct Engraving' : 'Patch Engraving')}</span>}
                                 {ic.articleNames?.length > 0 ? ic.articleNames.map((n, ai) => (
                                   <p key={ai} className="text-[10px] text-white font-bold ml-2">L{ai + 1}: {n}</p>
                                 )) : ic.nameSpelling && <p className="text-[10px] text-white font-bold ml-2">{ic.nameSpelling}</p>}
@@ -835,17 +835,17 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       <div><span className="text-gray-500">Type:</span> <span className="text-white font-bold">{order.type || 'STANDARD'}</span></div>
                     </div>
                     {(() => {
-                      const slip = { 'full':'Full','half':'Half ہاف','three-quarter':'3 Quarter' };
-                      const shmp = { 'long':'Long','short':'Short','regular':'Regular ریگولر' };
-                      const fsl = { 'full':'Full','half':'Half ہاف','medium':'Medium' };
+                      const slip = { 'full':'Full','half':'Half','three-quarter':'3 Quarter' };
+                      const shmp = { 'long':'Long','short':'Short','regular':'Regular' };
+                      const fsl = { 'full':'Full','half':'Half','medium':'Medium' };
                       const fsh = { 'long':'Long','short':'Short' };
                       const slv = product?.sleeveLength || (product?.gender === 'Female' && product?.femaleOptions?.sleeves ? product.femaleOptions.sleeves : null);
                       const shl = product?.shirtLength || (product?.gender === 'Female' && product?.femaleOptions?.shirtLength ? product.femaleOptions.shirtLength : null);
                       const hasCustom = slv || shl || custom?.fitType;
                       return hasCustom ? (
                         <div className="flex flex-wrap gap-1">
-                          {slv && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-400">{slip[slv] || fsl[slv] || slv}</span>}
-                          {shl && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-400">{shmp[shl] || fsh[shl] || shl}</span>}
+                          {slv && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-400">{isUrdu ? toUrduName(slip[slv] || fsl[slv] || slv) : (slip[slv] || fsl[slv] || slv)}</span>}
+                          {shl && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-400">{isUrdu ? toUrduName(shmp[shl] || fsh[shl] || shl) : (shmp[shl] || fsh[shl] || shl)}</span>}
                           {custom?.fitType && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-900/30 text-purple-400">{custom.fitType} Fit</span>}
                         </div>
                       ) : null;
@@ -2147,7 +2147,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                     </div>
                                     {(hasSleeves || hasShirtLength) && (
                                       <div className="text-xs md:text-sm font-black mt-0.5 text-pink-400">
-                                        {hasSleeves && `${'Sleeves بازو'}: ${p.sleeveLength ? ({'full':'Full','half':'Half ہاف','three-quarter':'3 Quarter'}[p.sleeveLength] || p.sleeveLength) : ({'full':'Full','half':'Half ہاف','medium':'Medium'}[p.femaleOptions?.sleeves] || p.femaleOptions?.sleeves || '')}`} {hasShirtLength && `| ${t('Length')}: ${p.shirtLength ? ({'long':'Long','short':'Short','regular':'Regular ریگولر'}[p.shirtLength] || p.shirtLength) : ({'long':'Long','short':'Short'}[p.femaleOptions?.shirtLength] || p.femaleOptions?.shirtLength || '')}`}
+                                        {hasSleeves && `${'Sleeves بازو'}: ${p.sleeveLength ? (isUrdu ? toUrduName({'full':'Full','half':'Half','three-quarter':'3 Quarter'}[p.sleeveLength] || p.sleeveLength) : ({'full':'Full','half':'Half','three-quarter':'3 Quarter'}[p.sleeveLength] || p.sleeveLength)) : (isUrdu ? toUrduName({'full':'Full','half':'Half','medium':'Medium'}[p.femaleOptions?.sleeves] || p.femaleOptions?.sleeves) : ({'full':'Full','half':'Half','medium':'Medium'}[p.femaleOptions?.sleeves] || p.femaleOptions?.sleeves || ''))}`} {hasShirtLength && `| ${t('Length')}: ${p.shirtLength ? (isUrdu ? toUrduName({'long':'Long','short':'Short','regular':'Regular'}[p.shirtLength] || p.shirtLength) : ({'long':'Long','short':'Short','regular':'Regular'}[p.shirtLength] || p.shirtLength)) : (isUrdu ? toUrduName({'long':'Long','short':'Short'}[p.femaleOptions?.shirtLength] || p.femaleOptions?.shirtLength) : ({'long':'Long','short':'Short'}[p.femaleOptions?.shirtLength] || p.femaleOptions?.shirtLength || ''))}`}
                                         {p.alteration && (p.alteration.trouserLength || p.alteration.shirtLength || p.alteration.sleeveLength) && (
                                           <span className="ml-1 text-amber-400 bg-amber-500/20 border border-amber-500/30 px-1.5 py-0.5 rounded text-[9px]">
                                             Alt: {[p.alteration.trouserLength && `Trouser ${p.alteration.trouserLength}"`, p.alteration.shirtLength && `Shirt ${p.alteration.shirtLength}"`, p.alteration.sleeveLength && `Sleeve ${p.alteration.sleeveLength}"`].filter(Boolean).join(' ')}
@@ -2244,8 +2244,8 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             { label: t('Size'), val: product?.size },
                             { label: t('Gender'), val: product?.gender },
                             ...(product?.femaleOptions?.dupatta ? [{ label: 'Dupatta', val: 'Included' }] : []),
-                            ...(product?.sleeveLength ? [{ label: 'Sleeves بازو', val: product.sleeveLength === 'full' ? 'Full' : product.sleeveLength === 'half' ? 'Half ہاف' : product.sleeveLength === 'three-quarter' ? '3 Quarter' : 'Quarter' }] : []),
-                            ...(product?.shirtLength ? [{ label: t('Length'), val: product.shirtLength === 'long' ? 'Long' : product.shirtLength === 'regular' ? 'Regular ریگولر' : 'Short' }] : []),
+                            ...(product?.sleeveLength ? [{ label: 'Sleeves بازو', val: isUrdu ? toUrduName(product.sleeveLength === 'full' ? 'Full' : product.sleeveLength === 'half' ? 'Half' : product.sleeveLength === 'three-quarter' ? '3 Quarter' : 'Quarter') : (product.sleeveLength === 'full' ? 'Full' : product.sleeveLength === 'half' ? 'Half' : product.sleeveLength === 'three-quarter' ? '3 Quarter' : 'Quarter') }] : []),
+                            ...(product?.shirtLength ? [{ label: t('Length'), val: isUrdu ? toUrduName(product.shirtLength === 'long' ? 'Long' : product.shirtLength === 'regular' ? 'Regular' : 'Short') : (product.shirtLength === 'long' ? 'Long' : product.shirtLength === 'regular' ? 'Regular' : 'Short') }] : []),
                             ...(product?.fabricSourceProduct ? [{ label: 'Fabric Required', val: product.fabricSourceProduct }] : []),
                             ...(product?.colorSourceProduct ? [{ label: 'Color Required', val: product.colorSourceProduct }] : []),
                             ...(product?.designSourceProduct ? [{ label: 'Design Required', val: product.designSourceProduct }] : []),

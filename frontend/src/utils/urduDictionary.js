@@ -378,27 +378,225 @@ const urduDictionary = {
 
   // Z
   Zinc: 'زنک',
+
+  // ==========================================================================
+  // INDIVIDUAL COMMON WORDS (used for word-by-word translation)
+  // ==========================================================================
+
+  // Gender
+  'Female': 'فیمیل',
+  'Male': 'میل',
+  'Men': 'مین',
+  'Unisex': 'یونی سیکس',
+
+  // Fit / Sleeve / Length
+  'Full': 'فل',
+  'Half': 'ہاف',
+  'Long': 'لانگ',
+  'Medium': 'میڈیم',
+  'Quarter': 'کوارٹر',
+  'Regular': 'ریگولر',
+  'Short': 'شارٹ',
+
+  // Product Types
+  'Bag': 'بیگ',
+  'Bottle': 'بوٹل',
+  'Cap': 'کیپ',
+  'Caps': 'کیپس',
+  'Clogs': 'کلاگز',
+  'Gown': 'گاؤن',
+  'Jacket': 'جیکٹ',
+  'Pants': 'پینٹس',
+  'Scrub': 'اسکرب',
+  'Scrubs': 'اسکربس',
+  'Shoes': 'شوز',
+  'Tunic': 'ٹیونک',
+  'Top': 'ٹاپ',
+
+  // Product Qualifiers
+  'Additional': 'ایڈیشنل',
+  'Basic': 'بیسک',
+  'Cargo': 'کارگو',
+  'Classic': 'کلاسک',
+  'Compression': 'کمپریشن',
+  'Custom': 'کسٹم',
+  'Customised': 'کسٹمائزڈ',
+  'Designer': 'ڈیزائنر',
+  'Executive': 'ایگزیکٹو',
+  'Free': 'فری',
+  'Inner': 'اِنر',
+  'Manual': 'مینوئل',
+  'Matching': 'میچنگ',
+  'New': 'نیو',
+  'Orthopedic': 'آرتھوپیڈک',
+  'Plain': 'پلین',
+  'Premium': 'پریمیم',
+  'Pro': 'پرو',
+  'Standard': 'اسٹینڈرڈ',
+  'Stretch': 'اسٹریچ',
+  'Suiting': 'سوٹنگ',
+  'Under': 'انڈر',
+  'Washable': 'واش ایبل',
+  'Wrinkle': 'رِنکل',
+
+  // Color Modifiers
+  'Charcoal': 'چارکول',
+  'Dark': 'ڈارک',
+  'Ivy': 'آئیوی',
+  'Light': 'لائٹ',
+  'Midnight': 'مڈنائٹ',
+  'Pure': 'پیور',
+  'Sage': 'سیج',
+  'Sea': 'سی',
+  'Sky': 'اسکائی',
+
+  // Engraving / Branding Terms
+  'Back': 'بیک',
+  'Chest': 'چیسٹ',
+  'Cuff': 'کف',
+  'Design': 'ڈیزائن',
+  'Direct': 'ڈائریکٹ',
+  'Engraving': 'اینگریونگ',
+  'Left': 'لیفٹ',
+  'Logo': 'لوگو',
+  'Logos': 'لوگوز',
+  'Metallic': 'میٹالک',
+  'Name': 'نیم',
+  'Patch': 'پیچ',
+  'Plate': 'پلیٹ',
+  'Polished': 'پالشڈ',
+  'Print': 'پرنٹ',
+  'Printing': 'پرنٹنگ',
+  'Right': 'رائٹ',
+  'Service': 'سروس',
+  'Sleeve': 'سلیو',
+  'Upper': 'اپر',
+  'Zip': 'زِپ',
+
+  // Medical Specialties
+  'Cardiac': 'کارڈیک',
+  'General': 'جنرل',
+  'Kidney': 'کڈنی',
+  'Neonatal': 'نیونیٹل',
+  'Neuro': 'نیورو',
+  'Ortho': 'آرتھو',
+  'Paeds': 'پیڈز',
+  'Radiology': 'ریڈیالوجی',
+  'Surgery': 'سرجری',
+  'Urologist': 'یورولوجسٹ',
+
+  // Fabric / Material
+  'Blend': 'بلینڈ',
+  'Bouffant': 'بوفنٹ',
+  'Cotton': 'کاٹن',
+  'Elastane': 'الاسٹین',
+  'Leather': 'لیدر',
+  'Mesh': 'میش',
+  'Non': 'نان',
+  'Nurse': 'نرس',
+  'Polyester': 'پالئیسٹر',
+  'Skull': 'سکل',
+  'Woven': 'وون',
+
+  // Measurement / Chart
+  'Anatomical': 'ایناٹومیکل',
+  'Chart': 'چارٹ',
+  'Measurements': 'میژرمنٹس',
+  'Plus': 'پلس',
+  'Precision': 'پریسیژن',
+  'Selection': 'سلیکشن',
+
+  // POS / Financial
+  'Available': 'اویلیبل',
+  'Card': 'کارڈ',
+  'Cash': 'کیش',
+  'Charges': 'چارجز',
+  'Complete': 'کمپلیٹ',
+  'Deduction': 'ڈیڈکشن',
+  'Delivery': 'ڈیلیوری',
+  'Entry': 'انٹری',
+  'Expenses': 'ایکسپینسز',
+  'Faisal': 'فیصل',
+  'Gate': 'گیٹ',
+  'Grand': 'گرینڈ',
+  'Invoice': 'انوائس',
+  'Items': 'آئٹمز',
+  'Journal': 'جرنل',
+  'Low': 'لو',
+  'Method': 'میتھڈ',
+  'Out': 'آؤٹ',
+  'Pass': 'پاس',
+  'Payment': 'پیمنٹ',
+  'Processing': 'پروسیسنگ',
+  'Stock': 'اسٹاک',
+  'Total': 'ٹوٹل',
+
+  // Miscellaneous
+  'Ajrak': 'اجرک',
+  'Also': 'آل سو',
+  'Crown': 'کراؤن',
+  'Department': 'ڈیپارٹمنٹ',
+  'Duty': 'ڈیوٹی',
+  'Employee': 'ایمپلائی',
+  'Enamels': 'ایناملز',
+  'Fabric': 'فیبرک',
+  'Fit': 'فِٹ',
+  'Flame': 'فلیم',
+  'Gradient': 'گریڈینٹ',
+  'Internal': 'انٹرنل',
+  'Jogger': 'جاگر',
+  'Joints': 'جوائنٹس',
+  'Login': 'لاگ اِن',
+  'Multiple': 'ملٹیپل',
+  'Number': 'نمبر',
+  'Production': 'پروڈکشن',
+  'Send': 'سینڈ',
+  'Set': 'سیٹ',
+  'Single': 'سنگل',
+  'Skirt': 'اسکرٹ',
+  'Splash': 'اسپلیش',
+  'Strike': 'اسٹرائیک',
+  'Store': 'اسٹور',
+  'Trender': 'ٹرینڈر',
+  'Variable': 'ویری ایبل',
+
+  // Brand / Collection Names (phonetic)
+  'Aeros': 'ایروس',
+  'Aspire': 'اسپائر',
+  'Flex': 'فلیکس',
+  'Flexfit': 'فلیکس فِٹ',
+  'Sprinter': 'سپرنٹر',
+  'Galaxy': 'گلیکسی',
+  'Ocean': 'اوشن',
+  'Nova': 'نووا',
+  'Texture': 'ٹیکسچر',
+  'Influential': 'انفلوئنشل',
+  'Signature': 'سگنیچر',
+
+  // Abbreviations
+  'STD': 'ایس ٹی ڈی',
 };
 
 /**
  * Single source of truth for Urdu transliteration.
  * Looks up text in the dictionary; returns Urdu value if found, original if not.
  * Never crashes on missing keys.
+ *
+ * Strategy:
+ * 1. Exact match on the full string (fast path for compound entries).
+ * 2. Word-by-word: each word looked up independently; only words found in the
+ *    dictionary are replaced — unknown words stay as-is. This prevents mixed
+ *    English/Urdu output for words that have no translation.
  */
 export function toUrduName(text) {
   if (!text) return '';
   const key = typeof text === 'string' ? text.trim() : String(text);
   if (urduDictionary[key]) return urduDictionary[key];
-  // Compound match: try progressively shorter prefixes, then translate remaining words
+  // Word-by-word: each word independently looked up
   const words = key.split(/\s+/);
   if (words.length > 1) {
-    for (let i = words.length - 1; i >= 1; i--) {
-      const prefix = words.slice(0, i).join(' ');
-      if (urduDictionary[prefix]) {
-        const suffix = words.slice(i).map(w => urduDictionary[w] || w).join(' ');
-        return urduDictionary[prefix] + ' ' + suffix;
-      }
-    }
+    const translated = words.map(w => urduDictionary[w] || w).join(' ');
+    if (translated !== key) return translated;
   }
   return key;
 }
