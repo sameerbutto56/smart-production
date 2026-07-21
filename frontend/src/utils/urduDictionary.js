@@ -790,33 +790,44 @@ const urduDictionary = {
  * as long as its individual words exist in the dictionary.
  */
 function lookupWord(w) {
+  if (!w) return null;
   if (urduDictionary[w]) return urduDictionary[w];
-  const wLower = w.toLowerCase();
-  if (wLower !== w && urduDictionary[wLower]) return urduDictionary[wLower];
-  const wCap = w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
-  if (wCap !== w && wCap !== wLower && urduDictionary[wCap]) return urduDictionary[wCap];
-  const wUpper = w.toUpperCase();
-  if (wUpper !== w && wUpper !== wLower && wUpper !== wCap && urduDictionary[wUpper]) return urduDictionary[wUpper];
-  return null;
+  const wTrimmed = w.trim();
+  if (wTrimmed !== w && urduDictionary[wTrimmed]) return urduDictionary[wTrimmed];
+  const wLower = wTrimmed.toLowerCase();
+  if (wLower !== wTrimmed && urduDictionary[wLower]) return urduDictionary[wLower];
+  const wCap = wTrimmed.charAt(0).toUpperCase() + wTrimmed.slice(1).toLowerCase();
+  if (wCap !== wTrimmed && wCap !== wLower && urduDictionary[wCap]) return urduDictionary[wCap];
+  const wUpper = wTrimmed.toUpperCase();
+  if (wUpper !== wTrimmed && wUpper !== wLower && wUpper !== wCap && urduDictionary[wUpper]) return urduDictionary[wUpper];
+  return urduDictionary[wTrimmed.replace(/[']/g, '')] ||
+         urduDictionary[wTrimmed.replace(/[']/g, '').toLowerCase()] ||
+         urduDictionary[wTrimmed.replace(/[']/g, '').charAt(0).toUpperCase() + wTrimmed.replace(/[']/g, '').slice(1).toLowerCase()] ||
+         null;
 }
 
 export function toUrduName(text) {
   if (!text) return '';
   const key = typeof text === 'string' ? text.trim() : String(text);
-  return key.split(/[-\/_.(),\s]+/).filter(Boolean).map(w => {
-    const direct = lookupWord(w);
+  // Strip zero-width characters and non-standard whitespace, normalize all spaces
+  const normalized = key.replace(/[\u200B-\u200D\uFEFF\u00A0\u2060]/g, '').replace(/\s+/g, ' ');
+  return normalized.split(/[-\/_.(),\s]+/).filter(Boolean).map(w => {
+    // Strip any remaining non-printable/invisible chars from the token
+    const cleanW = w.replace(/[\x00-\x1F\x7F\u200B-\u200D\uFEFF\u00A0\u2060\u180E]/g, '');
+    const direct = lookupWord(cleanW);
     if (direct !== null) return direct;
     // Strip remaining surrounding non-alphanumeric chars for lookup
-    const clean = w.replace(/^[^a-zA-Z0-9]+/, '').replace(/[^a-zA-Z0-9]+$/, '');
-    if (clean !== w) {
+    const clean = cleanW.replace(/^[^a-zA-Z0-9]+/, '').replace(/[^a-zA-Z0-9]+$/, '');
+    if (clean !== cleanW) {
       const found = lookupWord(clean);
       if (found !== null) {
-        const leading = w.slice(0, w.indexOf(clean));
-        const trailing = w.slice(w.indexOf(clean) + clean.length);
+        const idx = cleanW.indexOf(clean);
+        const leading = cleanW.slice(0, idx);
+        const trailing = cleanW.slice(idx + clean.length);
         return leading + found + trailing;
       }
     }
-    return w;
+    return cleanW;
   }).join(' ');
 }
 

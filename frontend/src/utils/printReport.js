@@ -1259,17 +1259,25 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   // ─── MEASUREMENT SECTION ───
   if (showMeas) {
     const rawS = typeof sizes === 'object' && sizes ? sizes : {};
-    const selectedSize = order.size || rawS._standardSize || '';
+    const selectedSize = order.size || firstProduct?.size || rawS._standardSize || '';
+    const measSpecNote = rawS.specialNote || '';
     const measNote = order.instructionNotes || '';
-    if (selectedSize || measNote) {
+    const hasMeasContent = selectedSize || measSpecNote || measNote;
+    if (hasMeasContent) {
       win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
       win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px">`);
       if (selectedSize) {
-        win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;margin-bottom:${measNote ? '6px' : '0'}">${isUrdu ? 'منتخب سائز:' : 'Selected Size:'} ${selectedSize}</p>`);
+        win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;margin-bottom:${(measSpecNote || measNote) ? '6px' : '0'}">${isUrdu ? 'منتخب سائز:' : 'Selected Size:'} ${selectedSize}</p>`);
+      }
+      if (measSpecNote) {
+        const notesDisplay = isUrdu ? measSpecNote.split('\n').map(l => romanToUrdu(l)).join('\n') : measSpecNote;
+        win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px;${selectedSize ? 'margin-top:6px' : ''}">`);
+        win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'پیمائش نوٹ' : 'Measurement Note'}</p>`);
+        win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
       }
       if (measNote) {
-        const notesDisplay = isUrdu ? romanToUrdu(measNote) : measNote;
-        win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px;${selectedSize ? 'margin-top:6px' : ''}">`);
+        const notesDisplay = isUrdu ? measNote.split('\n').map(l => romanToUrdu(l)).join('\n') : measNote;
+        win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px;${(selectedSize || measSpecNote) ? 'margin-top:6px' : ''}">`);
         win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
         win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
       }
@@ -1277,14 +1285,21 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     }
   }
 
-  // ─── MEASUREMENT SPECIAL NOTE (also shown standalone when engraving is disabled) ───
-  if (order.instructionNotes && !showMeas) {
-    const notesDisplay = isUrdu ? romanToUrdu(order.instructionNotes) : order.instructionNotes;
-    win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
+  // ─── TAILORING SECTION ───
+  const tailoringFit = custom?.fitType || firstProduct?.fitType || '';
+  const tailoringNote = custom?.designNotes || '';
+  if (tailoringFit || tailoringNote) {
+    win.document.write(`<div class="section-title" style="font-size:26px">${isUrdu ? 'تیلرنگ' : 'Tailoring'}</div>`);
     win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px">`);
-    win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px">`);
-    win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
-    win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
+    if (tailoringFit) {
+      win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;margin-bottom:${tailoringNote ? '6px' : '0'}">${isUrdu ? 'فٹ:' : 'Fit:'} ${isUrdu ? toUrduName(tailoringFit) : tailoringFit}</p>`);
+    }
+    if (tailoringNote) {
+      const notesDisplay = isUrdu ? tailoringNote.split('\n').map(l => romanToUrdu(l)).join('\n') : tailoringNote;
+      win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px;${tailoringFit ? 'margin-top:6px' : ''}">`);
+      win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${isUrdu ? 'تیلرنگ نوٹ' : 'Tailoring Note'}</p>`);
+      win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
+    }
     win.document.write(`</div>`);
   }
 
@@ -1362,7 +1377,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           }
 
           if (hasNotes) {
-            const notesDisplay = c.designNotes;
+            const notesDisplay = isUrdu ? c.designNotes.split('\n').map(l => romanToUrdu(l)).join('\n') : c.designNotes;
             win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px">`);
             win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
             win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
@@ -1409,7 +1424,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${engravingDisplay}</p></div>`);
         }
         if (order.instructionNotes) {
-          const notesDisplay = isUrdu ? romanToUrdu(order.instructionNotes) : order.instructionNotes;
+          const notesDisplay = isUrdu ? order.instructionNotes.split('\n').map(l => romanToUrdu(l)).join('\n') : order.instructionNotes;
           win.document.write(`<div style="background:#fef3c7;border-left:4px solid #d97706;padding:6px 10px;border-radius:4px;margin-top:6px">`);
           win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.instructionNotes}</p>`);
           win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
