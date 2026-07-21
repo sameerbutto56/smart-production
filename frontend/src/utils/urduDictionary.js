@@ -789,17 +789,32 @@ const urduDictionary = {
  * This ensures any product name (existing or future) works automatically
  * as long as its individual words exist in the dictionary.
  */
+function lookupWord(w) {
+  if (urduDictionary[w]) return urduDictionary[w];
+  const wLower = w.toLowerCase();
+  if (wLower !== w && urduDictionary[wLower]) return urduDictionary[wLower];
+  const wCap = w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+  if (wCap !== w && wCap !== wLower && urduDictionary[wCap]) return urduDictionary[wCap];
+  const wUpper = w.toUpperCase();
+  if (wUpper !== w && wUpper !== wLower && wUpper !== wCap && urduDictionary[wUpper]) return urduDictionary[wUpper];
+  return null;
+}
+
 export function toUrduName(text) {
   if (!text) return '';
   const key = typeof text === 'string' ? text.trim() : String(text);
   return key.split(/\s+/).map(w => {
-    if (urduDictionary[w]) return urduDictionary[w];
+    const direct = lookupWord(w);
+    if (direct !== null) return direct;
     // Strip surrounding non-alphanumeric chars for lookup
     const clean = w.replace(/^[^a-zA-Z0-9]+/, '').replace(/[^a-zA-Z0-9]+$/, '');
-    if (clean !== w && urduDictionary[clean]) {
-      const leading = w.slice(0, w.indexOf(clean));
-      const trailing = w.slice(w.indexOf(clean) + clean.length);
-      return leading + urduDictionary[clean] + trailing;
+    if (clean !== w) {
+      const found = lookupWord(clean);
+      if (found !== null) {
+        const leading = w.slice(0, w.indexOf(clean));
+        const trailing = w.slice(w.indexOf(clean) + clean.length);
+        return leading + found + trailing;
+      }
     }
     return w;
   }).join(' ');
