@@ -600,6 +600,7 @@ const urduDictionary = {
   'n': 'این',
   'E': 'ای',
   'C': 'سی',
+  'C.': 'سی',
   'T': 'ٹی',
   'V': 'وی',
   'D': 'ڈی',
@@ -775,26 +776,32 @@ const urduDictionary = {
 
 /**
  * Single source of truth for Urdu transliteration.
- * Looks up text in the dictionary; returns Urdu value if found, original if not.
- * Never crashes on missing keys.
+ * Splits product name into individual tokens, looks up each independently.
+ * Never crashes on missing keys — unknown tokens stay as-is.
  *
  * Strategy:
- * 1. Exact match on the full string (fast path for compound entries).
- * 2. Word-by-word: each word looked up independently; only words found in the
- *    dictionary are replaced — unknown words stay as-is. This prevents mixed
- *    English/Urdu output for words that have no translation.
+ * 1. Split by whitespace into tokens.
+ * 2. For each token: try exact dictionary match, then try stripping surrounding
+ *    punctuation (parentheses, periods, etc.) and matching the core word.
+ * 3. Rejoin in original order.
+ *
+ * This ensures any product name (existing or future) works automatically
+ * as long as its individual words exist in the dictionary.
  */
 export function toUrduName(text) {
   if (!text) return '';
   const key = typeof text === 'string' ? text.trim() : String(text);
-  if (urduDictionary[key]) return urduDictionary[key];
-  // Word-by-word: each word independently looked up
-  const words = key.split(/\s+/);
-  if (words.length > 1) {
-    const translated = words.map(w => urduDictionary[w] || w).join(' ');
-    if (translated !== key) return translated;
-  }
-  return key;
+  return key.split(/\s+/).map(w => {
+    if (urduDictionary[w]) return urduDictionary[w];
+    // Strip surrounding non-alphanumeric chars for lookup
+    const clean = w.replace(/^[^a-zA-Z0-9]+/, '').replace(/[^a-zA-Z0-9]+$/, '');
+    if (clean !== w && urduDictionary[clean]) {
+      const leading = w.slice(0, w.indexOf(clean));
+      const trailing = w.slice(w.indexOf(clean) + clean.length);
+      return leading + urduDictionary[clean] + trailing;
+    }
+    return w;
+  }).join(' ');
 }
 
 export default urduDictionary;
