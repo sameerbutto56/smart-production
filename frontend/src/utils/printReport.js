@@ -1309,7 +1309,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   }
 
   // ─── ENGRAVING / BRANDING ───
-  if (orderType !== 'STANDARD' && showEngraving) {
+  if (showEngraving) {
     // Parse order-level outlet engraving fields
     const outEngravingNames = order.engravingNames ? parseJSON(order.engravingNames) : [];
     const outEngravingLogos = order.engravingLogos ? parseJSON(order.engravingLogos) : [];
