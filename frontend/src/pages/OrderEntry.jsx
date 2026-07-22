@@ -598,6 +598,15 @@ const SmartOrderForm = () => {
                               <td className="text-right text-orange-400 font-black text-sm py-2 px-2">₨{fmt(Math.max(0, calcTotal - advanceAmt))}</td>
                               <td className="text-right text-orange-400 font-black text-lg py-2 pl-2">₨{fmt(remainingBalance)}</td>
                             </tr>
+                            <tr className="border-t-2 border-gray-700">
+                              <td className="text-red-400 font-black text-sm py-2 pr-2 uppercase">{useUrdu ? 'کیش آن ڈلیوری' : 'COD Amount'}</td>
+                              <td className="text-right text-red-400 font-black text-sm py-2 px-2">
+                                {formData.paymentStatus === 'PAID' ? '₨0' : `₨${fmt(remainingBalance)}`}
+                              </td>
+                              <td className="text-right text-red-400 font-black text-lg py-2 pl-2">
+                                {formData.paymentStatus === 'PAID' ? '₨0 (PAID)' : `₨${fmt(remainingBalance)}`}
+                              </td>
+                            </tr>
                           </tbody>
                         </table>
                       </div>

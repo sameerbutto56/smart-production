@@ -480,6 +480,7 @@ model PersonalNote {
   id          String   @id @default(uuid())
   ownerName   String
   outletName  String   @default("")
+  profileType String   @default("")
   title       String   @default("")
   content     String   @default("")
   createdAt   DateTime @default(now())
@@ -487,6 +488,7 @@ model PersonalNote {
 
   @@index([ownerName])
   @@index([outletName])
+  @@index([profileType])
 }
 
 model ChatMessage {

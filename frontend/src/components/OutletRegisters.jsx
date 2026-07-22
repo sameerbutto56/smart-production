@@ -1,15 +1,20 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { Clock, Printer, Search, X, ChevronDown, ChevronUp, Book, User, DollarSign, CreditCard, Globe, FileText, RotateCcw, RefreshCw } from 'lucide-react';
+import { Clock, Printer, Search, X, ChevronDown, ChevronUp, Book, User, DollarSign, CreditCard, Globe, FileText, RotateCcw, RefreshCw, Download, Calendar, Filter } from 'lucide-react';
 import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
+import * as XLSX from 'xlsx';
 
 const formatCurrency = (n) => `₨${(n || 0).toLocaleString()}`;
 
-const formatPaymentMethod = (m) => {
-  const map = { CASH: 'Cash', CARD: 'Card', ONLINE: 'Online', CASH_ONLINE: 'Cash + Online' };
-  return map[m] || m;
-};
+const PRESETS = [
+  { label: 'Today', getRange: () => { const d = new Date(); return { from: d.toISOString().slice(0, 10), to: d.toISOString().slice(0, 10) }; } },
+  { label: 'Yesterday', getRange: () => { const d = new Date(); d.setDate(d.getDate() - 1); return { from: d.toISOString().slice(0, 10), to: d.toISOString().slice(0, 10) }; } },
+  { label: 'Last 7 Days', getRange: () => { const to = new Date(); const from = new Date(); from.setDate(from.getDate() - 6); return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) }; } },
+  { label: 'Last 30 Days', getRange: () => { const to = new Date(); const from = new Date(); from.setDate(from.getDate() - 29); return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) }; } },
+  { label: 'This Month', getRange: () => { const now = new Date(); return { from: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10), to: now.toISOString().slice(0, 10) }; } },
+  { label: 'All Time', getRange: () => ({ from: '', to: '' }) },
+];
 
 const OutletRegisters = ({ outlet }) => {
   const [registers, setRegisters] = useState([]);
@@ -17,28 +22,66 @@ const OutletRegisters = ({ outlet }) => {
   const [expandedId, setExpandedId] = useState(null);
   const [search, setSearch] = useState('');
 
+  // Date filter state
+  const [activePreset, setActivePreset] = useState('All Time');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  const applyPreset = (preset) => {
+    const range = preset.getRange();
+    setActivePreset(preset.label);
+    setDateFrom(range.from);
+    setDateTo(range.to);
+    setShowDatePicker(false);
+  };
+
+  const applyCustomDates = () => {
+    setActivePreset('Custom');
+    setShowDatePicker(false);
+  };
+
+  const clearDateFilter = () => {
+    setActivePreset('All Time');
+    setDateFrom('');
+    setDateTo('');
+  };
+
+  const isFiltered = dateFrom || dateTo;
+
   const fetchRegisters = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get(`/api/pos/book/history?outlet=${outlet}&_=${Date.now()}`);
+      const params = new URLSearchParams({ outlet, _: Date.now() });
+      if (dateFrom) params.set('dateFrom', dateFrom);
+      if (dateTo) params.set('dateTo', dateTo);
+      const res = await api.get(`/api/pos/book/history?${params.toString()}`);
       setRegisters(res.data);
     } catch (e) {
       console.error('Failed to fetch register history:', e);
       toast.error('Failed to load register history');
     }
     setLoading(false);
-  }, [outlet]);
+  }, [outlet, dateFrom, dateTo]);
 
   useEffect(() => { fetchRegisters(); }, [fetchRegisters]);
 
-  // Print thermal
-  const printThermal = (reg) => {
+  const filtered = useMemo(() =>
+    registers.filter(r =>
+      !search || r.openedBy?.toLowerCase().includes(search.toLowerCase()) ||
+      r.closedBy?.toLowerCase().includes(search.toLowerCase()) ||
+      new Date(r.openedAt).toLocaleDateString().includes(search)
+    ), [registers, search]);
+
+  // ─── Print helpers ──────────────────────────────────────────
+  const buildThermalLines = (reg) => {
     const s = reg.summary;
-    if (!s) { toast.error('No summary data'); return; }
+    if (!s) return null;
     const lines = [];
     lines.push(`${outlet.toUpperCase()}\nCLOSE BOOK REPORT\n`);
     lines.push('REGISTER INFORMATION');
     lines.push('─'.repeat(32));
+    lines.push(`Register #:  ${reg.id?.slice(0, 8) || 'N/A'}`);
     lines.push(`Opened by:  ${reg.openedBy || 'N/A'}`);
     lines.push(`Open Date:  ${new Date(reg.openedAt).toLocaleDateString()}`);
     lines.push(`Open Time:  ${new Date(reg.openedAt).toLocaleTimeString()}`);
@@ -77,45 +120,20 @@ const OutletRegisters = ({ outlet }) => {
     lines.push('─'.repeat(32));
     lines.push('   BOOK CLOSED');
     lines.push('─'.repeat(32));
-    const iframe = document.createElement('iframe');
-    iframe.style.display = 'none';
-    document.body.appendChild(iframe);
-    const w = iframe.contentWindow;
-    w.document.write(`<pre style="font-family:monospace;font-size:12px;padding:16px;margin:0;">${lines.join('\n')}</pre><div style="text-align:center;font-size:10px;color:#888;margin-top:12px;padding-top:6px;border-top:1px solid #ccc;">Software is developed by Sameer Butt</div>`);
-    w.document.close();
-    w.focus();
-    w.print();
+    return lines;
   };
 
-  // Print A4
-  const printA4 = (reg) => {
+  const buildA4Body = (reg) => {
     const s = reg.summary;
-    if (!s) { toast.error('No summary data'); return; }
+    if (!s) return '';
     const avail = s.availableCash || 0;
     const transferred = s.transferToSystem || 0;
     const remaining = avail - transferred;
-    const iframe = document.createElement('iframe');
-    iframe.style.display = 'none';
-    document.body.appendChild(iframe);
-    const w = iframe.contentWindow;
-    w.document.write(`<html><head><style>
-      body { font-family: Arial, sans-serif; padding: 40px; font-size: 14px; }
-      h1 { text-align: center; font-size: 20px; }
-      h2 { font-size: 16px; margin-top: 20px; border-bottom: 2px solid #333; padding-bottom: 4px; }
-      table { width: 100%; border-collapse: collapse; margin: 10px 0; }
-      th, td { padding: 6px 10px; text-align: left; border-bottom: 1px solid #ddd; }
-      th { background: #f5f5f5; font-weight: bold; }
-      .total { font-weight: bold; font-size: 15px; }
-      .right { text-align: right; }
-      .section { margin-top: 24px; }
-      .section h3 { font-size: 14px; font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 2px; }
-    </style></head><body>
-      ${getPrintLogoHTML()}
-      <h1>${outlet.toUpperCase()}</h1>
-      <p style="text-align:center;font-size:16px;font-weight:bold;">CLOSE BOOK REPORT</p>
-      <div class="section">
+    return `
+      <div class="section" style="page-break-inside:avoid;">
         <h3>Register Information</h3>
         <table>
+          <tr><td>Register #</td><td><strong>${reg.id?.slice(0, 8) || 'N/A'}</strong></td></tr>
           <tr><td>Opened by</td><td><strong>${reg.openedBy || 'N/A'}</strong></td></tr>
           <tr><td>Open Date</td><td><strong>${new Date(reg.openedAt).toLocaleDateString()}</strong></td></tr>
           <tr><td>Open Time</td><td><strong>${new Date(reg.openedAt).toLocaleTimeString()}</strong></td></tr>
@@ -159,6 +177,49 @@ const OutletRegisters = ({ outlet }) => {
         <tr class="total"><td>Available Cash</td><td class="right">${formatCurrency(avail)}</td></tr>
         ${transferred > 0 ? `<tr><td>Transfer to System</td><td class="right">-${formatCurrency(transferred)}</td></tr><tr class="total"><td>Remaining Cash in Locker</td><td class="right">${formatCurrency(remaining)}</td></tr>` : ''}
       </table>
+    `;
+  };
+
+  // Single register thermal print
+  const printThermal = (reg) => {
+    const lines = buildThermalLines(reg);
+    if (!lines) { toast.error('No summary data'); return; }
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+    const w = iframe.contentWindow;
+    w.document.write(`<pre style="font-family:monospace;font-size:12px;padding:16px;margin:0;">${lines.join('\n')}</pre><div style="text-align:center;font-size:10px;color:#888;margin-top:12px;padding-top:6px;border-top:1px solid #ccc;">Software is developed by Sameer Butt</div>`);
+    w.document.close();
+    w.focus();
+    w.print();
+  };
+
+  // Single register A4 print
+  const printA4 = (reg) => {
+    const body = buildA4Body(reg);
+    if (!body) { toast.error('No summary data'); return; }
+    const dateLabel = new Date(reg.closedAt || reg.openedAt).toLocaleDateString();
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+    const w = iframe.contentWindow;
+    w.document.write(`<html><head><style>
+      body { font-family: Arial, sans-serif; padding: 40px; font-size: 14px; }
+      h1 { text-align: center; font-size: 20px; }
+      h2 { font-size: 16px; margin-top: 20px; border-bottom: 2px solid #333; padding-bottom: 4px; }
+      table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+      th, td { padding: 6px 10px; text-align: left; border-bottom: 1px solid #ddd; }
+      th { background: #f5f5f5; font-weight: bold; }
+      .total { font-weight: bold; font-size: 15px; }
+      .right { text-align: right; }
+      .section { margin-top: 24px; }
+      .section h3 { font-size: 14px; font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 2px; }
+      @media print { body { padding: 20px; } }
+    </style></head><body>
+      ${getPrintLogoHTML()}
+      <h1>${outlet.toUpperCase()}</h1>
+      <p style="text-align:center;font-size:16px;font-weight:bold;">CLOSE BOOK REPORT — ${dateLabel}</p>
+      ${body}
       ${getPrintFooterHTML()}
     </body></html>`);
     w.document.close();
@@ -166,11 +227,179 @@ const OutletRegisters = ({ outlet }) => {
     w.print();
   };
 
-  const filtered = registers.filter(r =>
-    !search || r.openedBy?.toLowerCase().includes(search.toLowerCase()) ||
-    r.closedBy?.toLowerCase().includes(search.toLowerCase()) ||
-    new Date(r.openedAt).toLocaleDateString().includes(search)
-  );
+  // ─── Bulk Print ─────────────────────────────────────────────
+  const printBulk = (type) => {
+    if (filtered.length === 0) { toast.error('No registers to print'); return; }
+    const isThermal = type === 'thermal';
+    const allBody = filtered.map((reg, i) => {
+      const dateLabel = new Date(reg.closedAt || reg.openedAt).toLocaleDateString();
+      const openedLabel = new Date(reg.openedAt).toLocaleDateString();
+      const closedLabel = reg.closedAt ? new Date(reg.closedAt).toLocaleDateString() : 'N/A';
+      if (isThermal) {
+        const lines = buildThermalLines(reg);
+        if (!lines) return '';
+        return lines.join('\n');
+      }
+      return `
+        <div style="page-break-before:always;">
+          ${getPrintLogoHTML()}
+          <h1>${outlet.toUpperCase()}</h1>
+          <p style="text-align:center;font-size:16px;font-weight:bold;">CLOSE BOOK REPORT — ${dateLabel}</p>
+          ${buildA4Body(reg)}
+          ${getPrintFooterHTML()}
+        </div>
+      `;
+    }).filter(Boolean);
+
+    if (isThermal) {
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+      const w = iframe.contentWindow;
+      w.document.write(`<pre style="font-family:monospace;font-size:12px;padding:16px;margin:0;white-space:pre-wrap;">${allBody.join('\n\n\n')}</pre><div style="text-align:center;font-size:10px;color:#888;margin-top:12px;padding-top:6px;border-top:1px solid #ccc;">Software is developed by Sameer Butt</div>`);
+      w.document.close();
+      w.focus();
+      w.print();
+    } else {
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+      const w = iframe.contentWindow;
+      w.document.write(`<html><head><style>
+        body { font-family: Arial, sans-serif; padding: 20px; font-size: 14px; }
+        h1 { text-align: center; font-size: 20px; }
+        h2 { font-size: 16px; margin-top: 20px; border-bottom: 2px solid #333; padding-bottom: 4px; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        th, td { padding: 6px 10px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f5f5f5; font-weight: bold; }
+        .total { font-weight: bold; font-size: 15px; }
+        .right { text-align: right; }
+        .section { margin-top: 24px; }
+        .section h3 { font-size: 14px; font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 2px; }
+        @media print { body { padding: 10px; } }
+      </style></head><body>${allBody.join('')}</body></html>`);
+      w.document.close();
+      w.focus();
+      w.print();
+    }
+    toast.success(`Printing ${filtered.length} register(s)...`);
+  };
+
+  // ─── Bulk Excel Export ──────────────────────────────────────
+  const exportExcel = () => {
+    if (filtered.length === 0) { toast.error('No registers to export'); return; }
+    const rows = [];
+    for (const reg of filtered) {
+      const s = reg.summary || {};
+      const ps = s.paymentSummary || {};
+      const rs = s.returnSummary || {};
+      const dateLabel = new Date(reg.closedAt || reg.openedAt).toLocaleDateString();
+      const openTime = new Date(reg.openedAt).toLocaleTimeString();
+      const closeTime = reg.closedAt ? new Date(reg.closedAt).toLocaleTimeString() : 'N/A';
+
+      rows.push({
+        'Register Date': dateLabel,
+        'Outlet': outlet,
+        'Register ID': reg.id?.slice(0, 8) || 'N/A',
+        'Opened By': reg.openedBy || 'N/A',
+        'Open Time': `${dateLabel} ${openTime}`,
+        'Closed By': reg.closedBy || 'N/A',
+        'Close Time': reg.closedAt ? `${dateLabel} ${closeTime}` : 'N/A',
+        'Status': reg.status,
+        'Grand Total': ps.grandTotal || 0,
+        'Cash': ps.cash || 0,
+        'Card': ps.card || 0,
+        'Online': ps.online || 0,
+        'Cash+Online': ps.cashOnlineTotal || 0,
+        'Cash Collected (Raw)': ps.cashCollected || 0,
+        'Total Faisal Take': s.totalFaisalTake || 0,
+        'Journal Entries': s.totalJournalEntries || 0,
+        'Total Returns': rs.total || 0,
+        'Cash Returns': rs.cash || 0,
+        'Card Returns': rs.card || 0,
+        'Online Returns': rs.online || 0,
+        'Available Cash': s.availableCash || 0,
+        'Transfer to System': s.transferToSystem || 0,
+      });
+
+      // Employee collections sub-rows
+      for (const ec of (s.employeeCollections || [])) {
+        rows.push({
+          'Register Date': dateLabel,
+          'Outlet': outlet,
+          'Register ID': reg.id?.slice(0, 8) || 'N/A',
+          'Opened By': `  → ${ec.name}`,
+          'Open Time': '',
+          'Closed By': '',
+          'Close Time': '',
+          'Status': '',
+          'Grand Total': ec.total || 0,
+          'Cash': ec.cash || 0,
+          'Card': ec.card || 0,
+          'Online': ec.online || 0,
+          'Cash+Online': 0,
+          'Cash Collected (Raw)': 0,
+          'Total Faisal Take': 0,
+          'Journal Entries': 0,
+          'Total Returns': 0,
+          'Cash Returns': 0,
+          'Card Returns': 0,
+          'Online Returns': 0,
+          'Available Cash': 0,
+          'Transfer to System': 0,
+        });
+      }
+
+      // Separator row
+      rows.push({});
+    }
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    // Column widths
+    ws['!cols'] = [
+      { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 20 }, { wch: 22 },
+      { wch: 20 }, { wch: 22 }, { wch: 8 }, { wch: 14 },
+      { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 18 },
+      { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 14 },
+      { wch: 16 }, { wch: 16 }, { wch: 18 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Registers');
+
+    // Summary sheet
+    const summaryRows = filtered.map(reg => {
+      const s = reg.summary || {};
+      const ps = s.paymentSummary || {};
+      const rs = s.returnSummary || {};
+      return {
+        'Date': new Date(reg.closedAt || reg.openedAt).toLocaleDateString(),
+        'Outlet': outlet,
+        'ID': reg.id?.slice(0, 8) || 'N/A',
+        'Opened By': reg.openedBy || 'N/A',
+        'Closed By': reg.closedBy || 'N/A',
+        'Grand Total': ps.grandTotal || 0,
+        'Cash': ps.cash || 0,
+        'Card': ps.card || 0,
+        'Online': ps.online || 0,
+        'Faisal Take': s.totalFaisalTake || 0,
+        'Journal': s.totalJournalEntries || 0,
+        'Returns': rs.total || 0,
+        'Available Cash': s.availableCash || 0,
+        'Transfer': s.transferToSystem || 0,
+      };
+    });
+    const ws2 = XLSX.utils.json_to_sheet(summaryRows);
+    ws2['!cols'] = [
+      { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 20 }, { wch: 20 },
+      { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 },
+      { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 16 },
+    ];
+    XLSX.utils.book_append_sheet(wb, ws2, 'Summary');
+
+    const range = isFiltered ? `${dateFrom || 'start'}_to_${dateTo || 'now'}` : 'all';
+    XLSX.writeFile(wb, `Registers_${outlet}_${range}.xlsx`);
+    toast.success(`Exported ${filtered.length} register(s)`);
+  };
 
   return (
     <div className="space-y-4">
@@ -179,7 +408,7 @@ const OutletRegisters = ({ outlet }) => {
         <div className="flex items-center gap-2">
           <Book size={20} className="text-blue-400" />
           <h2 className="text-lg font-black text-white">Register History</h2>
-          <span className="text-xs text-gray-500 font-bold bg-gray-800 px-2 py-0.5 rounded-lg">{registers.length} closed</span>
+          <span className="text-xs text-gray-500 font-bold bg-gray-800 px-2 py-0.5 rounded-lg">{filtered.length} of {registers.length} closed</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
@@ -190,6 +419,76 @@ const OutletRegisters = ({ outlet }) => {
         </div>
       </div>
 
+      {/* Date Range Filter */}
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Calendar size={14} className="text-blue-400" />
+            <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Date Range Filter</span>
+            {isFiltered && (
+              <span className="text-[10px] font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">
+                {dateFrom || '...'} to {dateTo || '...'}
+              </span>
+            )}
+          </div>
+          {isFiltered && (
+            <button onClick={clearDateFilter} className="text-[10px] font-bold text-gray-500 hover:text-white transition-all flex items-center gap-1">
+              <X size={10} /> Clear
+            </button>
+          )}
+        </div>
+
+        {/* Preset buttons */}
+        <div className="flex flex-wrap gap-1.5">
+          {PRESETS.map(p => (
+            <button key={p.label} onClick={() => applyPreset(p)}
+              className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all ${
+                activePreset === p.label
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
+              }`}>
+              {p.label}
+            </button>
+          ))}
+          <button onClick={() => setShowDatePicker(!showDatePicker)}
+            className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all flex items-center gap-1 ${
+              activePreset === 'Custom' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
+            }`}>
+            <Filter size={10} /> Custom Range
+          </button>
+        </div>
+
+        {/* Custom date picker */}
+        {showDatePicker && (
+          <div className="flex items-center gap-2 pt-1">
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+              className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs font-bold text-white outline-none focus:border-blue-500" />
+            <span className="text-gray-500 text-xs font-bold">to</span>
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+              className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs font-bold text-white outline-none focus:border-blue-500" />
+            <button onClick={applyCustomDates} className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg transition-all">
+              Apply
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Bulk Actions */}
+      {filtered.length > 0 && (
+        <div className="flex items-center gap-2">
+          <button onClick={() => printBulk('a4')} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all">
+            <Printer size={14} /> Print All (A4)
+          </button>
+          <button onClick={() => printBulk('thermal')} className="flex items-center gap-1.5 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white text-xs font-bold rounded-xl transition-all">
+            <Printer size={14} /> Print All (Thermal)
+          </button>
+          <button onClick={exportExcel} className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all">
+            <Download size={14} /> Export to Excel
+          </button>
+        </div>
+      )}
+
+      {/* Register List */}
       {loading ? (
         <div className="flex items-center justify-center py-20"><RefreshCw size={24} className="animate-spin text-gray-500" /></div>
       ) : filtered.length === 0 ? (
@@ -205,6 +504,7 @@ const OutletRegisters = ({ outlet }) => {
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-black text-white">{new Date(reg.openedAt).toLocaleDateString()}</span>
+                      <span className="text-[10px] font-bold text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded-md">{reg.id?.slice(0, 8)}</span>
                       <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${reg.status === 'CLOSED' ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400'}`}>{reg.status}</span>
                     </div>
                     <div className="flex items-center gap-3 mt-0.5 text-[10px] text-gray-500 font-bold">
@@ -217,7 +517,7 @@ const OutletRegisters = ({ outlet }) => {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-black text-emerald-400">{formatCurrency(reg.summary?.paymentSummary?.grandTotal || 0)}</span>
-                  <span className="text-[10px] font-bold text-gray-500 bg-gray-800 px-2 py-1 rounded-lg">₨{formatCurrency(reg.summary?.availableCash || 0)} cash</span>
+                  <span className="text-[10px] font-bold text-gray-500 bg-gray-800 px-2 py-1 rounded-lg">{formatCurrency(reg.summary?.availableCash || 0)} cash</span>
                   {expandedId === reg.id ? <ChevronUp size={16} className="text-gray-500" /> : <ChevronDown size={16} className="text-gray-500" />}
                 </div>
               </div>
@@ -254,10 +554,10 @@ const OutletRegisters = ({ outlet }) => {
                           <div key={i} className="flex items-center justify-between bg-gray-950 p-2.5 rounded-xl border border-gray-800 text-xs">
                             <span className="font-bold text-white">{e.name} <span className="text-gray-500">({e.salesCount} sales)</span></span>
                             <div className="flex items-center gap-3">
-                              <span className="text-emerald-400 font-bold">₨{formatCurrency(e.cash)}</span>
-                              <span className="text-purple-400 font-bold">₨{formatCurrency(e.card)}</span>
-                              <span className="text-blue-400 font-bold">₨{formatCurrency(e.online)}</span>
-                              <span className="text-white font-black">₨{formatCurrency(e.total)}</span>
+                              <span className="text-emerald-400 font-bold">{formatCurrency(e.cash)}</span>
+                              <span className="text-purple-400 font-bold">{formatCurrency(e.card)}</span>
+                              <span className="text-blue-400 font-bold">{formatCurrency(e.online)}</span>
+                              <span className="text-white font-black">{formatCurrency(e.total)}</span>
                             </div>
                           </div>
                         ))}

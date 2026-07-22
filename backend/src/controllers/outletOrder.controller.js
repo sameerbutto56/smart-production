@@ -33,7 +33,7 @@ const DESTINATION_STAGES = {
 
 const createOutletOrder = async (req, res) => {
   try {
-    const { orderNumber: customOrderNumber, clientNumber, customerName, customerPhone, address, city, notes, products, engravingRequired, engravingText, engravingType, engravingInstructions, logoRequired, engravingNames, engravingLogos, sizeData, advanceAmount, orderDestination, placedBy } = req.body;
+    const { orderNumber: customOrderNumber, clientNumber, isNewCustomer, customerName, customerPhone, address, city, notes, products, engravingRequired, engravingText, engravingType, engravingInstructions, logoRequired, logoDesign, engravingNames, engravingLogos, sizeData, standardSize, measurementChart, advanceAmount, orderDestination, placedBy } = req.body;
 
     if (!customerName) return res.status(400).json({ message: 'Customer name is required' });
     if (!products || !Array.isArray(products) || products.length === 0) return res.status(400).json({ message: 'At least one product is required' });
@@ -76,6 +76,7 @@ const createOutletOrder = async (req, res) => {
           engravingType: engravingType || null,
           engravingInstructions: engravingInstructions || null,
           logoRequired: logoRequired || false,
+          logoDesign: logoDesign || null,
           engravingNames: engravingNames ? JSON.stringify(engravingNames) : null,
           engravingLogos: engravingLogos ? JSON.stringify(engravingLogos) : null,
           orderDestination,
@@ -116,9 +117,99 @@ const createOutletOrder = async (req, res) => {
       });
     });
 
-    // Do NOT write back sizeData to Client.sizeDetails — the order owns its own
-    // measurement snapshot. Writing back would corrupt the flat Client Registration
-    // format with the per-product nested format.
+    // Auto-create new customer in Client Registration
+    if (isNewCustomer && customerPhone && customerName) {
+      try {
+        // Check if a client with this phone already exists
+        const existingClient = await prisma.client.findFirst({
+          where: { phone: { contains: customerPhone }, isActive: true },
+          select: { id: true }
+        });
+        if (!existingClient) {
+          // Generate client number — fetch all numeric clientNumbers and sort numerically
+          const allClients = await prisma.client.findMany({
+            where: { clientNumber: { not: null } },
+            select: { clientNumber: true }
+          });
+          let nextNum = 1000;
+          if (allClients.length > 0) {
+            const maxNum = Math.max(...allClients.map(c => parseInt(c.clientNumber, 10)).filter(n => !isNaN(n)));
+            nextNum = maxNum + 1;
+          }
+          if (nextNum > 99999) nextNum = 1000;
+
+          // Build sizeDetails for new client
+          let clientSizeDetails = null;
+          if (sizeData && typeof sizeData === 'object' && Object.keys(sizeData).length > 0) {
+            clientSizeDetails = JSON.stringify(sizeData);
+          } else if (standardSize) {
+            clientSizeDetails = standardSize;
+          }
+
+          // Retry on unique constraint violation (race condition)
+          let clientCreated = false;
+          for (let attempt = 0; attempt < 5 && !clientCreated; attempt++) {
+            try {
+              await prisma.client.create({
+                data: {
+                  clientNumber: String(nextNum + attempt),
+                  name: customerName,
+                  phone: customerPhone,
+                  gender: 'Other',
+                  permanentAddress: address || null,
+                  city: city || null,
+                  outletName,
+                  deliveryAddresses: city ? [city] : [],
+                  sizeDetails: clientSizeDetails,
+                  measurementChart: measurementChart || null,
+                  standardSizes: standardSize ? [standardSize] : [],
+                  createdById: req.user?.id
+                }
+              });
+              clientCreated = true;
+              console.log(`Auto-created client ${nextNum + attempt} for new customer ${customerName}`);
+            } catch (createErr) {
+              if (createErr.code === 'P2002' && attempt < 4) {
+                console.log(`Client number ${nextNum + attempt} already exists, retrying...`);
+                continue;
+              }
+              throw createErr;
+            }
+          }
+          if (!clientCreated) {
+            console.error('Failed to auto-create client after 5 attempts');
+          }
+        } else {
+          console.log(`Client with phone ${customerPhone} already exists — skipping auto-create`);
+        }
+      } catch (clientErr) {
+        // Non-critical: log but don't fail the order
+        console.error('Failed to auto-create client:', clientErr.message);
+      }
+    }
+
+    // For existing clients: save sizeData to client if provided
+    if (clientNumber && sizeData && typeof sizeData === 'object' && Object.keys(sizeData).length > 0) {
+      try {
+        const client = await prisma.client.findUnique({ where: { clientNumber } });
+        if (client) {
+          const existingSize = client.sizeDetails;
+          const hasExisting = existingSize && (
+            (typeof existingSize === 'string' && existingSize.trim()) ||
+            (typeof existingSize === 'object' && Object.keys(existingSize).length > 0)
+          );
+          // Only write back if client has no existing sizeDetails
+          if (!hasExisting) {
+            await prisma.client.update({
+              where: { clientNumber },
+              data: { sizeDetails: JSON.stringify(sizeData) }
+            });
+          }
+        }
+      } catch (sizeErr) {
+        console.error('Failed to save sizeData to client:', sizeErr.message);
+      }
+    }
 
     if (req.app.get('io')) req.app.get('io').emit('new-order', { orderId: order.id, orderNumber: order.orderNumber, source: 'OUTLET', outletName });
 

@@ -1,12 +1,15 @@
 const prisma = require('../prisma');
 
-const ensureColumn = (() => {
+const ensureColumns = (() => {
   let done = false;
   return async () => {
     if (done) return;
     try {
       await prisma.$executeRawUnsafe(`ALTER TABLE "PersonalNote" ADD COLUMN IF NOT EXISTS "outletName" TEXT DEFAULT '';`);
-    } catch (_e) { /* already exists or no perms */ }
+    } catch (_e) {}
+    try {
+      await prisma.$executeRawUnsafe(`ALTER TABLE "PersonalNote" ADD COLUMN IF NOT EXISTS "profileType" TEXT DEFAULT '';`);
+    } catch (_e) {}
     done = true;
   };
 })();
@@ -23,7 +26,15 @@ const getOutletName = (req) => {
 
 const getNotes = async (req, res) => {
   try {
-    await ensureColumn();
+    await ensureColumns();
+    const profileType = req.query.profileType || '';
+    if (profileType) {
+      const notes = await prisma.personalNote.findMany({
+        where: { profileType },
+        orderBy: { createdAt: 'desc' },
+      });
+      return res.json(notes);
+    }
     const outlet = getOutletName(req);
     const notes = await prisma.personalNote.findMany({
       where: { outletName: outlet },
@@ -37,14 +48,20 @@ const getNotes = async (req, res) => {
 
 const createNote = async (req, res) => {
   try {
-    await ensureColumn();
-    const { employeeName, content } = req.body;
+    await ensureColumns();
+    const { employeeName, content, profileType } = req.body;
     if (!employeeName) return res.status(400).json({ message: 'employeeName required' });
     if (!content) return res.status(400).json({ message: 'content required' });
     const outlet = getOutletName(req);
 
     const note = await prisma.personalNote.create({
-      data: { ownerName: employeeName, outletName: outlet, content: content || '', title: '' },
+      data: {
+        ownerName: employeeName,
+        outletName: profileType || outlet,
+        profileType: profileType || '',
+        content: content || '',
+        title: ''
+      },
     });
     res.status(201).json(note);
   } catch (error) {

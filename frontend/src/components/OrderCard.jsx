@@ -7,6 +7,7 @@ import Button from './Button';
 import { LoadingSpinner } from './LoadingSpinner';
 import { printJobSheet, romanToUrdu } from '../utils/printReport';
 import { toUrduName } from '../utils/urduDictionary';
+import { isPaidOrder, getRemainingBalance } from '../utils/paymentUtils';
 import toast from 'react-hot-toast';
 
 const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSeen, selected, onToggleSelect }) => {
@@ -45,6 +46,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   const [selectedDeliveryType, setSelectedDeliveryType] = useState('');
   const [showForceModal, setShowForceModal] = useState(false);
   const [storeRouteDest, setStoreRouteDest] = useState('DISPATCH');
+  const [verifiedProducts, setVerifiedProducts] = useState(new Set());
   const [forceAction, setForceAction] = useState('FORCE_MOVE');
   const [forceStage, setForceStage] = useState('');
   const [forceHours, setForceHours] = useState('');
@@ -584,11 +586,11 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     </span>
                   )}
                   {(() => {
-                    const isPaid = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID';
+                    const paid = isPaidOrder(order);
+                    const remaining = getRemainingBalance(order);
                     const hasAdvance = parseFloat(order.advanceAmount || 0) > 0;
-                    const remainingAmt = Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0));
-                    if (isPaid) return <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black tracking-tighter bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">PAID</span>;
-                    if (hasAdvance) return <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black tracking-tighter bg-orange-500/20 text-orange-400 border border-orange-500/30">REMAINING COD: ₨{remainingAmt.toLocaleString()}</span>;
+                    if (paid) return <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black tracking-tighter bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">PAID</span>;
+                    if (hasAdvance) return <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black tracking-tighter bg-orange-500/20 text-orange-400 border border-orange-500/30">COD: ₨{remaining.toLocaleString()}</span>;
                     return <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black tracking-tighter bg-red-500/20 text-red-400 border border-red-500/30">CASH ON DELIVERY</span>;
                   })()}
                 </div>
@@ -1580,16 +1582,51 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         </div>
                       </div>
                     </div>
-                    {/* Produced Items List */}
+                    {/* Produced Items List with Verification Checkboxes */}
                     {isMultiItem && orderItems?.length > 1 && (
                       <div className="w-full mb-3 space-y-1.5">
-                        <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1.5">Items from Production</p>
+                        <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1.5">Items from Production — Verify to Add</p>
                         {orderItems.filter(item => item.availabilityStatus === 'not_available' || item.availabilityStatus === 'produced').map((item, idx) => {
                           const p = item.productDetails || {};
+                          const actualIdx = orderItems.indexOf(item);
+                          const isVerified = productVerification[String(actualIdx)] === true;
+                          const isAlreadyProduced = item.availabilityStatus === 'produced';
                           return (
-                            <div key={idx} className="flex items-center justify-between p-2 bg-blue-900/10 rounded-lg border border-blue-500/20">
-                              <span className="text-xs font-bold text-blue-300 uppercase">{isUrdu ? toUrduName(p.productType || p.name || 'Item') : (p.productType || p.name || 'Item')}: {(isUrdu ? toUrduName(p.fabricType || '—') : (p.fabricType || '—'))} / {(isUrdu ? toUrduName(p.color) : p.color) || '—'}</span>
-                              <span className="text-xs font-black text-blue-400">x{item.quantity || 1}</span>
+                            <div key={idx} className={`flex items-center justify-between p-2 rounded-lg border transition-all ${
+                              isAlreadyProduced
+                                ? 'bg-emerald-900/10 border-emerald-500/20 opacity-60'
+                                : isVerified
+                                  ? 'bg-blue-900/20 border-blue-500/30'
+                                  : 'bg-blue-900/10 border-blue-500/20'
+                            }`}>
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                {!isAlreadyProduced && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleVerificationToggle(actualIdx); }}
+                                    className={`flex-shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
+                                      isVerified
+                                        ? 'bg-blue-500 border-blue-500 text-white'
+                                        : 'border-gray-600 hover:border-blue-400'
+                                    }`}
+                                  >
+                                    {isVerified && <Check size={12} strokeWidth={3} />}
+                                  </button>
+                                )}
+                                {isAlreadyProduced && (
+                                  <span className="flex-shrink-0 w-5 h-5 rounded-md bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
+                                    <Check size={10} className="text-emerald-400" strokeWidth={3} />
+                                  </span>
+                                )}
+                                <span className={`text-xs font-bold uppercase truncate ${
+                                  isAlreadyProduced ? 'text-emerald-300/60' : isVerified ? 'text-blue-200' : 'text-blue-300'
+                                }`}>
+                                  {isUrdu ? toUrduName(p.productType || p.name || 'Item') : (p.productType || p.name || 'Item')}: {(isUrdu ? toUrduName(p.fabricType || '—') : (p.fabricType || '—'))} / {(isUrdu ? toUrduName(p.color) : p.color) || '—'}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {isAlreadyProduced && <span className="text-[9px] font-black text-emerald-400 uppercase">Added</span>}
+                                <span className="text-xs font-black text-blue-400">x{item.quantity || 1}</span>
+                              </div>
                             </div>
                           );
                         })}
@@ -1615,7 +1652,19 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             <button
                               onClick={async () => {
                                 try {
-                                                              await api.post(`/api/orders/${order.id}/add-to-inventory`, {});
+                                  const verifiedIndices = isMultiItem && orderItems
+                                    ? orderItems
+                                        .map((item, idx) => ({ item, idx }))
+                                        .filter(({ item, idx }) => productVerification[String(idx)] === true && item.availabilityStatus !== 'produced')
+                                        .map(({ idx }) => idx)
+                                    : [];
+                                  if (isMultiItem && orderItems && verifiedIndices.length === 0) {
+                                    toast.error('Verify at least one product first');
+                                    return;
+                                  }
+                                  await api.post(`/api/orders/${order.id}/add-to-inventory`, {
+                                    verifiedItems: isMultiItem ? verifiedIndices : undefined
+                                  });
                                   setLocalInventoryAdded(true);
                                   toast.success('Inventory updated!');
                                 } catch (err) {
@@ -1627,7 +1676,12 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             >
                               <Package size={14} />
                               <span>{inventoryAdded ? 'Inventory Added ✓' : 'Add to Inventory'}</span>
-                              {!inventoryAdded && <span className="text-[6px] md:text-[9px] text-blue-200 tracking-widest">→ UPDATE STOCK</span>}
+                              {!inventoryAdded && isMultiItem && orderItems && (
+                                <span className="text-[6px] md:text-[9px] text-blue-200 tracking-widest">
+                                  → {orderItems.filter((item, idx) => productVerification[String(idx)] === true && item.availabilityStatus !== 'produced').length} item(s) selected
+                                </span>
+                              )}
+                              {!inventoryAdded && !isMultiItem && <span className="text-[6px] md:text-[9px] text-blue-200 tracking-widest">→ UPDATE STOCK</span>}
                             </button>
                             <button
                               onClick={async () => {
@@ -2274,7 +2328,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                 {(() => {
                   const en = order.engravingNames ? (typeof order.engravingNames === 'string' ? (() => { try { return JSON.parse(order.engravingNames); } catch { return []; } })() : order.engravingNames) : [];
                   const el = order.engravingLogos ? (typeof order.engravingLogos === 'string' ? (() => { try { return JSON.parse(order.engravingLogos); } catch { return []; } })() : order.engravingLogos) : [];
-                  const hasEng = en.length > 0 || el.length > 0 || order.engravingText || order.engravingInstructions || order.logoRequired || order.instructionNotes;
+                  const hasEng = en.length > 0 || el.length > 0 || order.engravingText || order.engravingInstructions || order.logoRequired || order.logoDesign || order.instructionNotes;
                   if (!hasEng) return null;
                   return (
                     <section className="bg-purple-600/5 p-4 md:p-8 rounded-xl md:rounded-[2rem] border border-purple-500/10 mt-4">
@@ -2285,7 +2339,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             Type: {order.engravingType === 'direct' ? 'Direct Engraving' : 'Patch Engraving'}
                           </p>
                         )}
-                        {order.engravingText && <p className="text-white font-bold">{isUrdu ? romanToUrdu(order.engravingText) : order.engravingText}</p>}
+                        {order.engravingText && <p className="text-white font-bold">{order.engravingText}</p>}
                         {en.length > 0 && (
                           <div>
                             <p className="text-xs font-black text-purple-400 uppercase mb-2">Names:</p>
@@ -2294,6 +2348,12 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                                 <span key={i} className="text-xs font-black text-purple-300 bg-purple-900/30 px-1.5 py-0.5 rounded">L{i+1}: {n}</span>
                               ))}
                             </div>
+                          </div>
+                        )}
+                        {order.logoDesign && (
+                          <div>
+                            <p className="text-xs font-black text-purple-400 uppercase mb-2">Logo:</p>
+                            <span className="text-xs font-black text-amber-300 bg-amber-900/30 px-2 py-1 rounded">{order.logoDesign}</span>
                           </div>
                         )}
                         {order.logoRequired && el.length > 0 && (

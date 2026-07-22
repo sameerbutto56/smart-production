@@ -23,6 +23,7 @@ import { PageLoader, LoadingSpinner, SkeletonLoader, CardSkeleton, TableSkeleton
 import { printDeliveryReport } from '../utils/printReport';
 import useCache from '../hooks/useCache';
 import toast from 'react-hot-toast';
+import { isPaidOrder, getRemainingBalance, getCodAmount } from '../utils/paymentUtils';
 
 const DeliverySheet = () => {
   const { user } = useAuth();
@@ -94,12 +95,16 @@ const DeliverySheet = () => {
 
     filteredOrders.forEach(o => {
       const amt = Number(o.totalPrice || 0);
-      const isCOD = !(parseFloat(o.advanceAmount) > 0); // If no advance amount, it's COD
+      const isFullyPaid = isPaidOrder(o);
+      const isCOD = !isFullyPaid && !(parseFloat(o.advanceAmount) > 0);
 
-      if (isCOD) {
+      if (isFullyPaid) {
+        totalOnline += amt;
+      } else if (isCOD) {
         totalCash += amt;
       } else {
-        totalOnline += amt;
+        totalOnline += parseFloat(o.advanceAmount || 0);
+        totalCash += getRemainingBalance(o);
       }
       totalAmount += amt;
     });
@@ -407,11 +412,11 @@ const DeliverySheet = () => {
                         </td>
                         <td className="py-4 px-3 text-xs font-black">
                           {(() => {
-                            const _isPaid = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID';
-                            const _hasAdv = parseFloat(order.advanceAmount || 0) > 0;
-                            const _rem = Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0));
-                            if (_isPaid) return <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">PAID</span>;
-                            if (_hasAdv) return <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black bg-orange-500/20 text-orange-400 border border-orange-500/30">REMAINING COD: ₨{_rem.toLocaleString()}</span>;
+                            const paid = isPaidOrder(order);
+                            const remaining = getRemainingBalance(order);
+                            const hasAdv = parseFloat(order.advanceAmount || 0) > 0;
+                            if (paid) return <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">PAID</span>;
+                            if (hasAdv) return <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black bg-orange-500/20 text-orange-400 border border-orange-500/30">COD: ₨{remaining.toLocaleString()}</span>;
                             return <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-black uppercase bg-red-500/10 text-red-400 border border-red-500/20">CASH ON DELIVERY</span>;
                           })()}
                         </td>
@@ -589,7 +594,7 @@ const DeliverySheet = () => {
                     <td>{deliveryDate?.completedAt ? new Date(deliveryDate.completedAt).toLocaleDateString() : '—'}</td>
                     <td style={{ fontWeight: 'bold', color: order.noResponseCount >= 3 ? '#dc2626' : order.noResponseCount > 0 ? '#d97706' : '#000' }}>{order.noResponseCount ? `${order.noResponseCount}/3` : '—'}</td>
                     <td>{order.nextDeliveryDate ? new Date(order.nextDeliveryDate).toLocaleDateString() : '—'}</td>
-                    <td style={{ fontWeight: 'bold', color: (order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID') ? '#059669' : '#dc2626' }}>{order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? 'PAID' : parseFloat(order.advanceAmount) > 0 ? `REMAINING COD: ₨${Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0)).toLocaleString()}` : 'CASH ON DELIVERY'}</td>
+                    <td style={{ fontWeight: 'bold', color: isPaidOrder(order) ? '#059669' : '#dc2626' }}>{isPaidOrder(order) ? 'PAID' : getRemainingBalance(order) > 0 ? `COD: ₨${getRemainingBalance(order).toLocaleString()}` : 'CASH ON DELIVERY'}</td>
                     <td>{order.status === 'COMPLETED' || order.currentStage === 'DELIVERED' ? 'Completed' : 'Pending'}</td>
                     <td style={{ fontWeight: 'bold' }}>₨ {Number(order.totalPrice || 0).toLocaleString()}</td>
                   </tr>

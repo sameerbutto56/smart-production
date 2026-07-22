@@ -325,15 +325,25 @@ const closeBook = async (req, res) => {
   }
 };
 
-// List all closed book sessions for an outlet
+// List all closed book sessions for an outlet (with optional date range filter)
 const getBookHistory = async (req, res) => {
   try {
     const outlet = getOutletName(req);
+    const { dateFrom, dateTo } = req.query;
+    const where = { outletName: outlet, status: 'CLOSED' };
+    if (dateFrom || dateTo) {
+      where.closedAt = {};
+      if (dateFrom) where.closedAt.gte = new Date(dateFrom);
+      if (dateTo) {
+        const to = new Date(dateTo);
+        to.setHours(23, 59, 59, 999);
+        where.closedAt.lte = to;
+      }
+    }
     const sessions = await prisma.posBookSession.findMany({
-      where: { outletName: outlet, status: 'CLOSED' },
+      where,
       orderBy: { closedAt: 'desc' },
     });
-    // Parse stored summary JSON
     const result = sessions.map(s => {
       const summary = typeof s.summary === 'string' ? JSON.parse(s.summary) : (s.summary || {});
       return { ...s, summary };

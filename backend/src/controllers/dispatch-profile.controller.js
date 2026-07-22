@@ -231,10 +231,10 @@ const dispatchFromProfile = async (req, res) => {
     return res.status(400).json({ message: 'employeeName must be Khawar or Faisal' });
   }
 
-  // Khawar can only use ENAMELS or FORWARD_TO_FAISAL
-  // Faisal can only use TCS, POST, CUSTOMER_TAKEAWAY
-  const khawarMethods = ['ENAMELS', 'FORWARD_TO_FAISAL'];
-  const faisalMethods = ['TCS', 'POST', 'CUSTOMER_TAKEAWAY'];
+  // Khawar can use ENAMELS, TCS, POST_EX, CUSTOMER_TAKEAWAY
+  // Faisal can use ENAMELS, TCS, POST_EX, CUSTOMER_TAKEAWAY
+  const khawarMethods = ['ENAMELS', 'TCS', 'POST_EX', 'CUSTOMER_TAKEAWAY'];
+  const faisalMethods = ['ENAMELS', 'TCS', 'POST_EX', 'CUSTOMER_TAKEAWAY'];
 
   if (employeeName === 'Khawar' && !khawarMethods.includes(dispatchMethod)) {
     return res.status(400).json({ message: `Khawar can only use: ${khawarMethods.join(', ')}` });
@@ -288,6 +288,7 @@ const dispatchFromProfile = async (req, res) => {
       'ENAMELS': 'ENAMELS',
       'TCS': 'TCS',
       'POST': 'POST_EX',
+      'POST_EX': 'POST_EX',
       'CUSTOMER_TAKEAWAY': 'WALK_IN'
     };
     const mappedDeliveryType = deliveryTypeMap[dispatchMethod];

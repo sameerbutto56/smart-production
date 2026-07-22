@@ -54,6 +54,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { toUrduName } from '../utils/urduDictionary';
 import toast from 'react-hot-toast';
 import { PauseCircle, PlayCircle } from 'lucide-react';
+import { isPaidOrder, getRemainingBalance } from '../utils/paymentUtils';
 
 
 const TOP_TABS = [
@@ -708,10 +709,10 @@ const AdminDashboard = () => {
                   'bg-gray-500/10 text-gray-400 border-gray-500/20'
                 }`}>{trackedOrder.priority || 'NORMAL'}</span>
                 <span className={`px-2.5 py-1 rounded-full text-[10px] md:text-xs font-black uppercase tracking-widest border ${
-                  trackedOrder.paymentStatus === 'PAID' || trackedOrder.paymentStatus === 'FULL_PAID' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
-                  parseFloat(trackedOrder.advanceAmount || 0) > 0 ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' :
+                  isPaidOrder(trackedOrder) ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+                  getRemainingBalance(trackedOrder) > 0 ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' :
                   'bg-red-500/20 text-red-400 border-red-500/30'
-                }`}>{trackedOrder.paymentStatus === 'PAID' || trackedOrder.paymentStatus === 'FULL_PAID' ? 'PAID' : parseFloat(trackedOrder.advanceAmount || 0) > 0 ? 'ADVANCE' : 'COD'}</span>
+                }`}>{isPaidOrder(trackedOrder) ? 'PAID' : getRemainingBalance(trackedOrder) > 0 ? `COD: ₨${getRemainingBalance(trackedOrder).toLocaleString()}` : 'CASH ON DELIVERY'}</span>
                 <span className="bg-blue-500/10 text-blue-400 px-2.5 py-1 rounded-full text-[10px] md:text-xs font-black uppercase tracking-widest border border-blue-500/20">
                   {trackedOrder.status.replace(/_/g, ' ')}
                 </span>
@@ -1648,12 +1649,11 @@ const AdminDashboard = () => {
                                 'bg-red-500/20 text-red-400'
                               }`}>{o.status}</span>
                               {(() => {
-                                const _p = o.paymentStatus === 'PAID' || o.paymentStatus === 'FULL_PAID';
-                                const _a = parseFloat(o.advanceAmount || 0) > 0;
-                                const _r = Math.max(0, (o.totalPrice || 0) - parseFloat(o.advanceAmount || 0));
-                                if (_p) return <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-emerald-500/20 text-emerald-400">PAID</span>;
-                                if (_a) return <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-orange-500/20 text-orange-400">REMAINING COD</span>;
-                                return <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-red-500/20 text-red-400">COD</span>;
+                                const paid = isPaidOrder(o);
+                                const remaining = getRemainingBalance(o);
+                                if (paid) return <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-emerald-500/20 text-emerald-400">PAID</span>;
+                                if (remaining > 0) return <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-orange-500/20 text-orange-400">COD: ₨{remaining.toLocaleString()}</span>;
+                                return <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-red-500/20 text-red-400">CASH ON DELIVERY</span>;
                               })()}
                             </td>
                             <td className="py-3 pr-4 text-right font-bold text-white">₨{o.totalPrice || 0}</td>

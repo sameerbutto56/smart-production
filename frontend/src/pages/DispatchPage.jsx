@@ -19,13 +19,16 @@ const EMPLOYEES = {
 };
 
 const KHAWAR_OPTIONS = [
-  { id: 'ENAMELS', label: 'Enamels Delivery', type: 'dispatch', desc: 'Send via Enamels delivery team' },
-  { id: 'FORWARD_TO_FAISAL', label: 'Forward to Faisal', type: 'forward', desc: 'Send to Faisal for TCS/Post/Takeaway' }
+  { id: 'ENAMELS', label: 'Enamels Delivery (BHC)', type: 'dispatch', desc: 'Assign to Enamels delivery team' },
+  { id: 'TCS', label: 'TCS', type: 'courier', desc: 'Book TCS courier' },
+  { id: 'POST_EX', label: 'PostEx', type: 'courier', desc: 'Book PostEx courier' },
+  { id: 'CUSTOMER_TAKEAWAY', label: 'Customer Takeaway', type: 'walkin', desc: 'Customer picks up directly' }
 ];
 
 const FAISAL_OPTIONS = [
+  { id: 'ENAMELS', label: 'Enamels Delivery (BHC)', type: 'dispatch', desc: 'Assign to Enamels delivery team' },
   { id: 'TCS', label: 'TCS', type: 'courier', desc: 'Book TCS courier' },
-  { id: 'POST', label: 'Post', type: 'courier', desc: 'Book Post courier' },
+  { id: 'POST_EX', label: 'PostEx', type: 'courier', desc: 'Book PostEx courier' },
   { id: 'CUSTOMER_TAKEAWAY', label: 'Customer Takeaway', type: 'walkin', desc: 'Customer picks up directly' }
 ];
 
@@ -732,13 +735,13 @@ const DispatchPage = () => {
                         className={`py-3 px-4 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all border-2 text-left flex items-center gap-2 ${
                           selectedOption?.id === m.id ? 'border-emerald-500 bg-emerald-600 text-white' : 'theme-border theme-bg theme-text-muted hover:border-gray-500'
                         }`}>
-                        <div className={`w-3 h-3 rounded-full ${m.id === 'ENAMELS' ? 'bg-emerald-500' : m.id === 'FORWARD_TO_FAISAL' ? 'bg-blue-500' : m.id === 'TCS' ? 'bg-purple-500' : m.id === 'POST' ? 'bg-indigo-500' : 'bg-emerald-500'} ${selectedOption?.id === m.id ? 'opacity-100' : 'opacity-50'}`} />
+                        <div className={`w-3 h-3 rounded-full ${m.id === 'ENAMELS' ? 'bg-emerald-500' : m.id === 'TCS' ? 'bg-purple-500' : m.id === 'POST_EX' ? 'bg-indigo-500' : 'bg-emerald-500'} ${selectedOption?.id === m.id ? 'opacity-100' : 'opacity-50'}`} />
                         <div><p>{m.label}</p><p className="text-[10px] font-bold opacity-60">{m.desc}</p></div>
                       </button>
                     ))}
                   </div>
                 </div>
-                {selectedOption && selectedOption.type !== 'walkin' && selectedOption.id !== 'FORWARD_TO_FAISAL' && (
+                {selectedOption && selectedOption.type !== 'walkin' && (
                   <div>
                     <label className="text-xs md:text-sm font-black theme-text-muted uppercase tracking-widest mb-2 block">Tracking URL / Number (optional)</label>
                     <input type="text" value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)}
@@ -749,11 +752,6 @@ const DispatchPage = () => {
                 {selectedOption?.id === 'CUSTOMER_TAKEAWAY' && (
                   <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 text-center">
                     <p className="text-xs md:text-sm font-black text-emerald-400">Order will be marked as received by customer directly.</p>
-                  </div>
-                )}
-                {selectedOption?.id === 'FORWARD_TO_FAISAL' && (
-                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 text-center">
-                    <p className="text-xs md:text-sm font-black text-blue-400">Order will be forwarded to Faisal for dispatch via TCS/Post/Takeaway.</p>
                   </div>
                 )}
               </div>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import api from '../services/api';
 import useCache from '../hooks/useCache';
 import { Store, DollarSign, ShoppingCart, CalendarDays, Loader2 } from 'lucide-react';
+import { isPaidOrder, getRemainingBalance } from '../utils/paymentUtils';
 
 const BRANCHES = [
   { value: '', label: 'All Outlets' },
@@ -184,11 +185,11 @@ const OutletAnalytics = () => {
                             'bg-red-500/20 text-red-400'
                           }`}>{o.status}</span>
                           {(() => {
-                            const _p = o.paymentStatus === 'PAID' || o.paymentStatus === 'FULL_PAID';
-                            const _a = parseFloat(o.advanceAmount || 0) > 0;
-                            if (_p) return <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-emerald-500/20 text-emerald-400">PAID</span>;
-                            if (_a) return <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-orange-500/20 text-orange-400">REMAINING COD</span>;
-                            return <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-red-500/20 text-red-400">COD</span>;
+                            const paid = isPaidOrder(o);
+                            const remaining = getRemainingBalance(o);
+                            if (paid) return <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-emerald-500/20 text-emerald-400">PAID</span>;
+                            if (remaining > 0) return <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-orange-500/20 text-orange-400">COD: ₨{remaining.toLocaleString()}</span>;
+                            return <span className="ml-1 text-xs font-black px-2 py-1 rounded bg-red-500/20 text-red-400">CASH ON DELIVERY</span>;
                           })()}
                         </td>
                         <td className="py-2 pr-4 text-right font-bold text-white">₨{o.totalPrice || 0}</td>

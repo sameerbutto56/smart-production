@@ -24,6 +24,7 @@ import {
 import { motion } from 'framer-motion';
 import { printJobSheet, romanToUrdu } from '../utils/printReport';
 import { toUrduName } from '../utils/urduDictionary';
+import { isPaidOrder, getRemainingBalance, getCodAmount } from '../utils/paymentUtils';
 import socket from '../socket';
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
@@ -716,7 +717,7 @@ const AllOrders = () => {
                         </div>
                       )}
                       <div className="text-xs md:text-sm theme-text-muted mt-1">
-                        {order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? 'Fully Paid' : parseFloat(order.advanceAmount) > 0 ? `Remaining COD: ₨${Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0)).toLocaleString()}` : 'CASH ON DELIVERY'}
+                        {isPaidOrder(order) ? 'Fully Paid' : getRemainingBalance(order) > 0 ? `COD: ₨${getRemainingBalance(order).toLocaleString()}` : 'CASH ON DELIVERY'}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -744,11 +745,11 @@ const AllOrders = () => {
                         {order.status.replace(/_/g, ' ')}
                       </span>
                       {(() => {
-                        const _isPaid = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID';
-                        const _hasAdv = parseFloat(order.advanceAmount) > 0;
-                        const _rem = Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0));
-                        if (_isPaid) return <span className="text-xs md:text-sm font-black px-2 py-1 rounded-full uppercase border ml-2 bg-emerald-500/10 text-emerald-400 border-emerald-500/20">PAID</span>;
-                        if (_hasAdv) return <span className="text-xs md:text-sm font-black px-2 py-1 rounded-full border ml-2 bg-orange-500/10 text-orange-400 border-orange-500/20">REMAINING COD: ₨{_rem.toLocaleString()}</span>;
+                        const paid = isPaidOrder(order);
+                        const remaining = getRemainingBalance(order);
+                        const hasAdv = parseFloat(order.advanceAmount) > 0;
+                        if (paid) return <span className="text-xs md:text-sm font-black px-2 py-1 rounded-full uppercase border ml-2 bg-emerald-500/10 text-emerald-400 border-emerald-500/20">PAID</span>;
+                        if (hasAdv) return <span className="text-xs md:text-sm font-black px-2 py-1 rounded-full border ml-2 bg-orange-500/10 text-orange-400 border-orange-500/20">COD: ₨{remaining.toLocaleString()}</span>;
                         return <span className="text-xs md:text-sm font-black px-2 py-1 rounded-full uppercase border ml-2 bg-red-500/10 text-red-400 border-red-500/20">CASH ON DELIVERY</span>;
                       })()}
                     </td>
@@ -1059,24 +1060,17 @@ const AllOrders = () => {
                         ...(product?.designSourceProduct ? [{ label: 'Design Required', val: product.designSourceProduct }] : []),
                         ...(product?.sizeSourceProduct ? [{ label: 'Size Required', val: product.sizeSourceProduct }] : []),
                         ...(product?.additionalProductRef ? [{ label: 'Additional Reference', val: product.additionalProductRef }] : []),
-                        { label: 'Payment', val: (() => {
-                          const _isPaid = selectedOrder.paymentStatus === 'PAID' || selectedOrder.paymentStatus === 'FULL_PAID';
-                          const _hasAdv = parseFloat(selectedOrder.advanceAmount || 0) > 0;
-                          if (_isPaid) return 'PAID';
-                          if (_hasAdv) return 'REMAINING';
-                          return 'COD';
-                        })() },
+                        { label: 'Payment', val: isPaidOrder(selectedOrder) ? 'PAID' : getRemainingBalance(selectedOrder) > 0 ? 'COD' : 'COD' },
                         { label: 'Stock', val: 'toggle' }
                       ].filter(i => i.val).map((item, i) => (
                         <div key={i} className="theme-bg p-4 md:p-6 rounded-3xl border theme-border">
                           <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest mb-2">{item.label}</p>
                           {item.label === 'Payment' ? (
                             (() => {
-                              const _isPaid = selectedOrder.paymentStatus === 'PAID' || selectedOrder.paymentStatus === 'FULL_PAID';
-                              const _hasAdv = parseFloat(selectedOrder.advanceAmount || 0) > 0;
-                              const _rem = Math.max(0, (selectedOrder.totalPrice || 0) - parseFloat(selectedOrder.advanceAmount || 0));
-                              if (_isPaid) return <span className="text-lg font-black px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">PAID</span>;
-                              if (_hasAdv) return <span className="text-lg font-black px-3 py-1 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">REMAINING COD: ₨{_rem.toLocaleString()}</span>;
+                              const paid = isPaidOrder(selectedOrder);
+                              const remaining = getRemainingBalance(selectedOrder);
+                              if (paid) return <span className="text-lg font-black px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">PAID</span>;
+                              if (remaining > 0) return <span className="text-lg font-black px-3 py-1 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">COD: ₨{remaining.toLocaleString()}</span>;
                               return <span className="text-lg font-black px-3 py-1 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">CASH ON DELIVERY</span>;
                             })()
                           ) : item.label === 'Stock' ? (
@@ -1124,7 +1118,7 @@ const AllOrders = () => {
                   {(() => {
                     const en = selectedOrder.engravingNames ? (typeof selectedOrder.engravingNames === 'string' ? (() => { try { return JSON.parse(selectedOrder.engravingNames); } catch { return []; } })() : selectedOrder.engravingNames) : [];
                     const el = selectedOrder.engravingLogos ? (typeof selectedOrder.engravingLogos === 'string' ? (() => { try { return JSON.parse(selectedOrder.engravingLogos); } catch { return []; } })() : selectedOrder.engravingLogos) : [];
-                    const hasEng = en.length > 0 || el.length > 0 || selectedOrder.engravingText || selectedOrder.engravingInstructions || selectedOrder.logoRequired || selectedOrder.instructionNotes;
+                    const hasEng = en.length > 0 || el.length > 0 || selectedOrder.engravingText || selectedOrder.engravingInstructions || selectedOrder.logoRequired || selectedOrder.logoDesign || selectedOrder.instructionNotes;
                     if (!hasEng) return null;
                     return (
                       <section className="bg-purple-600/5 p-4 md:p-8 rounded-[2rem] border border-purple-500/10 mt-4">
@@ -1144,6 +1138,12 @@ const AllOrders = () => {
                                   <span key={i} className="text-xs font-black text-purple-300 bg-purple-900/30 px-1.5 py-0.5 rounded">L{i+1}: {n}</span>
                                 ))}
                               </div>
+                            </div>
+                          )}
+                          {selectedOrder.logoDesign && (
+                            <div>
+                              <p className="text-xs font-black text-purple-400 uppercase mb-2">Logo:</p>
+                              <span className="text-xs font-black text-amber-300 bg-amber-900/30 px-2 py-1 rounded">{selectedOrder.logoDesign}</span>
                             </div>
                           )}
                           {selectedOrder.logoRequired && el.length > 0 && (

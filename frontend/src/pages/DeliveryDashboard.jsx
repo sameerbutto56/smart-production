@@ -16,6 +16,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
 import { toUrduName } from '../utils/urduDictionary';
+import { isPaidOrder, getRemainingBalance, getCodAmount } from '../utils/paymentUtils';
 import { PageLoader, LoadingSpinner } from '../components/LoadingSpinner';
 import { printDeliveryReport } from '../utils/printReport';
 
@@ -109,6 +110,7 @@ const AttemptHistory = ({ attempts, noResponseLogs }) => {
 const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
   paymentMethods, setPaymentMethods, halfPayments, setHalfPayments, multiOnlineEntries, setMultiOnlineEntries, tab }) => {
   const [showHistory, setShowHistory] = useState(false);
+  const [showCODSummary, setShowCODSummary] = useState(false);
   const { isUrdu } = useLanguage();
 
   const isAccepted = !!order.riderAcceptedAt;
@@ -122,13 +124,24 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
   const deliveredAt = order.deliveredAt || deliveryStage?.completedAt || deliveryStage?.updatedAt || order.updatedAt;
 
   let pd = {};
-  try { let raw = order.productDetails || {}; pd = Array.isArray(raw) ? (raw[0]?.productDetails || raw[0] || {}) : (raw || {}); } catch {}
+  let allProducts = [];
+  try {
+    const raw = order.productDetails;
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (Array.isArray(parsed)) {
+      allProducts = parsed.map(item => item?.productDetails || item || {});
+      pd = allProducts[0] || {};
+    } else {
+      pd = parsed || {};
+      allProducts = [pd];
+    }
+  } catch { pd = {}; allProducts = [{}]; }
 
   const isPending = tab === 'pending';
   const isNoResp = tab === 'noresponse';
 
   const orderId = order.id;
-  const totalRemaining = Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0));
+  const totalRemaining = getRemainingBalance(order);
 
   // Multiple online entries state per order
   const multiEntries = multiOnlineEntries[orderId] || [{ provider: '', amount: totalRemaining || '', ref: '' }];
@@ -198,11 +211,10 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
                 </span>
               )}
               {(() => {
-                const _isPaid = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID';
-                const _hasAdv = parseFloat(order.advanceAmount || 0) > 0;
-                const _rem = Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0));
-                if (_isPaid) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">PAID</span>;
-                if (_hasAdv) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black bg-orange-500/20 text-orange-400 border border-orange-500/30">COD: ₨{_rem.toLocaleString()}</span>;
+                const paid = isPaidOrder(order);
+                const remaining = getRemainingBalance(order);
+                if (paid) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">PAID</span>;
+                if (remaining > 0) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black bg-orange-500/20 text-orange-400 border border-orange-500/30">COD: ₨{remaining.toLocaleString()}</span>;
                 return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-black uppercase bg-red-500/20 text-red-400 border border-red-500/30">CASH ON DELIVERY</span>;
               })()}
             </div>
@@ -246,17 +258,33 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2">
             <div className="bg-gray-800/60 rounded-2xl px-4 py-3">
-              <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest">Product</p>
-              <p className="font-black theme-text-primary text-base mt-0.5 truncate">{isUrdu ? toUrduName(pd.productType || order.type || '—') : (pd.productType || order.type || '—')}</p>
+              <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest">Products ({allProducts.length})</p>
+              <div className="space-y-1 mt-1">
+                {allProducts.map((p, i) => (
+                  <div key={i} className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-black text-blue-400 bg-blue-500/20 px-1 rounded">{i + 1}</span>
+                    <p className="font-black theme-text-primary text-sm truncate">
+                      {isUrdu ? toUrduName(p.productType || p.name || '—') : (p.productType || p.name || '—')}
+                      {p.color ? <span className="text-xs text-gray-500"> ({p.color})</span> : null}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="bg-gray-800/60 rounded-2xl px-4 py-3">
               <p className="text-xs md:text-sm theme-text-muted font-black uppercase tracking-widest">Amount</p>
               <p className="font-black text-emerald-400 text-base mt-0.5">₨{Number(order.totalPrice || 0).toLocaleString()}</p>
-              <p className="text-xs md:text-sm theme-text-muted font-bold mt-0.5">
-                {order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? '✅ PAID' : `💰 COD: ₨${totalRemaining.toLocaleString()}`}
-              </p>
+              {!isPaidOrder(order) && totalRemaining > 0 ? (
+                <button onClick={() => setShowCODSummary(true)} className="w-full text-left mt-0.5 group">
+                  <p className="text-xs md:text-sm font-bold mt-0.5 text-orange-400 group-hover:text-orange-300 underline decoration-dotted">💰 COD: ₨{totalRemaining.toLocaleString()} — tap for breakdown</p>
+                </button>
+              ) : (
+                <p className="text-xs md:text-sm theme-text-muted font-bold mt-0.5">
+                  {isPaidOrder(order) ? '✅ PAID — No COD Due' : `💰 COD: ₨${totalRemaining.toLocaleString()}`}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -282,12 +310,11 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
               </div>
             )}
             {(() => {
-              const _isPaid = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID';
-              const _hasAdv = parseFloat(order.advanceAmount || 0) > 0;
-              const statusBanner = _isPaid
-                ? <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-2.5 flex items-center gap-3"><span className="text-emerald-400 font-black text-xs uppercase tracking-wider">Payment Status: PAID</span></div>
+              const paid = isPaidOrder(order);
+              const statusBanner = paid
+                ? <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-2.5 flex items-center gap-3"><span className="text-emerald-400 font-black text-xs uppercase tracking-wider">Payment Status: PAID — No COD Due</span></div>
                 : <div className="bg-orange-500/10 border border-orange-500/20 rounded-2xl px-4 py-2.5 flex items-center gap-3"><span className="text-orange-400 font-black text-xs uppercase tracking-wider">COD: ₨{totalRemaining.toLocaleString()}</span></div>;
-              if (_isPaid) return (
+              if (paid) return (
                 <div className="space-y-3">
                   {statusBanner}
                   <div className="grid grid-cols-3 gap-3">
@@ -430,6 +457,52 @@ const OrderCard = ({ order, idx, onAction, onAccept, loading, acceptLoading,
 
         {/* Expandable history */}
         {showHistory && <AttemptHistory attempts={attempts} noResponseLogs={noResponseLogs} />}
+
+        {/* COD Payment Summary Modal */}
+        {showCODSummary && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowCODSummary(false)}>
+            <div className="bg-gray-900 border border-gray-700 rounded-2xl max-w-sm w-full p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base font-black text-white">COD Payment Summary</h3>
+                <button onClick={() => setShowCODSummary(false)} className="p-1 text-gray-400 hover:text-white"><XCircle size={18} /></button>
+              </div>
+              <div className="space-y-2 text-xs">
+                {(() => {
+                  const pdArr = allProducts;
+                  const subtotal = pdArr.reduce((s, p) => s + (Number(p.unitPrice || p.price || 0) * Number(p.quantity || order.quantity || 1)), 0);
+                  const totalQty = pdArr.reduce((s, p) => s + Number(p.quantity || order.quantity || 1), 0);
+                  const advance = Number(order.advanceAmount || 0);
+                  const delivery = Number(order.deliveryCharges || 0);
+                  const customization = Number(order.customizationPrice || 0);
+                  const logo = Number(order.logoCharges || 0);
+                  const namePrint = Number(order.namePrintingCharges || 0);
+                  const productCost = Number(order.productCost || 0);
+                  const grossProfit = Number(order.grossProfit || 0);
+                  const lines = [];
+                  lines.push({ label: 'Products', value: pdArr.map(p => isUrdu ? toUrduName(p.productType || p.name) : (p.productType || p.name)).join(', ') || '—', isText: true });
+                  lines.push({ label: 'Subtotal', value: subtotal || Number(order.totalPrice || 0) - delivery - customization - logo - namePrint });
+                  lines.push({ label: 'Quantity', value: totalQty || order.quantity || 1 });
+                  if (delivery > 0) lines.push({ label: 'Delivery Charges', value: delivery });
+                  if (customization > 0) lines.push({ label: 'Customization', value: customization });
+                  if (logo > 0) lines.push({ label: 'Logo Charges', value: logo });
+                  if (namePrint > 0) lines.push({ label: 'Name/Engraving', value: namePrint });
+                  lines.push({ label: 'Total Invoice', value: Number(order.totalPrice || 0), bold: true });
+                  if (advance > 0) lines.push({ label: 'Advance Paid', value: -advance, color: 'text-emerald-400' });
+                  lines.push({ label: 'Remaining COD', value: totalRemaining, bold: true, highlight: true });
+                  return lines.map((l, i) => (
+                    <div key={i} className={`flex justify-between py-1.5 ${l.bold ? 'border-t border-gray-700 pt-2 mt-1' : ''} ${l.highlight ? 'bg-orange-500/10 border border-orange-500/20 rounded-lg px-2 py-2 -mx-2' : ''}`}>
+                      <span className={`font-bold ${l.highlight ? 'text-orange-400' : 'text-gray-400'}`}>{l.label}</span>
+                      {l.isText ? <span className="text-white font-bold text-right max-w-[60%] truncate">{l.value}</span>
+                        : <span className={`font-black ${l.color || (l.highlight ? 'text-orange-400 text-sm' : l.bold ? 'text-white' : 'text-gray-300')}`}>
+                            {typeof l.value === 'number' ? `₨${Math.abs(l.value).toLocaleString()}${l.value < 0 ? ' (deducted)' : ''}` : l.value}
+                          </span>}
+                    </div>
+                  ));
+                })()}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </motion.div>
   );
@@ -583,7 +656,7 @@ const CODCollectionPanel = ({ refresh }) => {
                 <span>Date</span>
               </div>
               {pendingDeliveries.map((o) => {
-                const codAmount = Math.max(0, (o.totalPrice || 0) - parseFloat(o.advanceAmount || 0));
+                const codAmount = isPaidOrder(o) ? 0 : getCodAmount(o);
                 return (
                   <div key={o.id} className="px-3 py-2 border-b border-gray-800/30 grid grid-cols-4 gap-2 text-xs font-bold text-gray-300">
                     <span className="text-blue-400">#{o.orderNumber || '—'}</span>
@@ -781,8 +854,7 @@ const DeliveryDashboard = () => {
   });
 
   const bottomBarCOD = pending
-    .filter(o => !(parseFloat(o.advanceAmount) > 0))
-    .reduce((s, o) => s + (Number(o.totalPrice) || 0), 0);
+    .reduce((s, o) => s + getCodAmount(o), 0);
 
   return (
     <div className="max-w-xl mx-auto pb-36 px-3 space-y-3">
@@ -908,7 +980,7 @@ const DeliveryDashboard = () => {
             <div className="h-8 w-px bg-gray-800" />
             <div className="text-center">
               <p className="text-[10px] theme-text-muted font-black uppercase tracking-widest">Collected</p>
-              <p className="text-lg font-black text-emerald-400">₨{completed.reduce((s, o) => s + (Number(o.totalPrice) || 0), 0).toLocaleString()}</p>
+              <p className="text-lg font-black text-emerald-400">₨{completed.reduce((s, o) => s + getCodAmount(o), 0).toLocaleString()}</p>
             </div>
             <div className="h-8 w-px bg-gray-800" />
             <div className="text-right">

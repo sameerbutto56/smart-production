@@ -7,6 +7,7 @@ import { PageLoader, LoadingSpinner } from '../components/LoadingSpinner';
 import { Truck, Search, Loader2, LogIn, User, MessageCircle, TrendingUp, Activity, BarChart3, Package, X, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import socket from '../socket';
+import { isPaidOrder, getRemainingBalance, getCodAmount } from '../utils/paymentUtils';
 
 const EMPLOYEES = {
   Khawar: { password: 'K170', label: 'Khawar', desc: 'Lahore Orders' },
@@ -602,7 +603,7 @@ const DispatchDashboard = () => {
                         </tr></thead>
                         <tbody>
                           {enamelsData.codSummary.pendingDeliveries.slice(0, 20).map(o => {
-                            const remaining = Math.max(0, (o.totalPrice || 0) - (o.advanceAmount || 0));
+                            const remaining = isPaidOrder(o) ? 0 : getCodAmount(o);
                             return (
                               <tr key={o.id} className="border-t border-gray-800">
                                 <td className="py-1 pr-2 font-bold theme-text-primary">#{o.orderNumber || o.id.slice(0, 6)}</td>

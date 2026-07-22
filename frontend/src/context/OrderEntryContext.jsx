@@ -48,7 +48,7 @@ const INITIAL_FORM_DATA = {
   instructionNotes: '', shopifyOrderDate: '',
   productType: '', fabricType: '', color: '', size: '',
   fabricSourceProduct: '', colorSourceProduct: '', designSourceProduct: '', sizeSourceProduct: '', additionalProductRef: '',
-  customProductName: '', customFabric: '', customMaterial: '', customColor: '', customDesign: '',
+  customProductName: '', customFabric: '', customMaterial: '', customDesign: '',
   customRequirements: '', customSpecifications: '',
   engravingType: '', skipEngraving: true, engravingInstructions: '',
   logoDesign: '', logoName: '', nameSpelling: '', nameColor: '', customColor: '', logoColor: '', logoPlacement: '',
@@ -72,7 +72,7 @@ const CLEAR_FORM_AFTER_CART = {
   gender: 'Male',
   femaleOptions: { dupatta: false, sleeves: 'full', shirtLength: 'long', zip: false },
   fabricSourceProduct: '', colorSourceProduct: '', designSourceProduct: '', sizeSourceProduct: '', additionalProductRef: '',
-  customProductName: '', customFabric: '', customMaterial: '', customColor: '', customDesign: '',
+  customProductName: '', customFabric: '', customMaterial: '', customDesign: '',
     customRequirements: '', customSpecifications: '', engravingType: '', skipEngraving: true, engravingInstructions: ''
 };
 

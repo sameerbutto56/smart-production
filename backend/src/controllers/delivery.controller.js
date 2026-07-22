@@ -270,30 +270,33 @@ const getCODSummary = async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Today's deliveries with CASH or CASH_ONLINE payment
+    // Today's deliveries with CASH or CASH_ONLINE payment (exclude fully PAID orders)
     const todayDeliveries = await prisma.order.findMany({
       where: {
         currentStage: 'DELIVERED',
         deliveredAt: { gte: today },
+        paymentStatus: { notIn: ['PAID', 'FULL_PAID'] },
         OR: [
           { paymentMethod: { in: ['CASH', 'CASH_ONLINE'] } },
           { paymentMethod: null }
         ]
       },
-      select: { id: true, orderNumber: true, customerName: true, totalPrice: true, deliveredAt: true, advanceAmount: true }
+      select: { id: true, orderNumber: true, customerName: true, totalPrice: true, deliveredAt: true, advanceAmount: true, paymentStatus: true }
     });
 
     const todayCODAmount = todayDeliveries.reduce((s, o) => {
+      if (o.paymentStatus === 'PAID' || o.paymentStatus === 'FULL_PAID') return s;
       const remaining = Math.max(0, (o.totalPrice || 0) - (o.advanceAmount || 0));
       return s + (o.paymentMethod === 'CASH_ONLINE' ? remaining / 2 : remaining);
     }, 0);
 
-    // All pending COD (delivered but not cleared)
+    // All pending COD (delivered but not cleared, exclude fully PAID orders)
     const clearedOrderIds = (await prisma.cODCollection.findMany({ select: { orderIds: true } }))
       .flatMap(c => Array.isArray(c.orderIds) ? c.orderIds : []);
     const pendingCODDeliveries = await prisma.order.findMany({
       where: {
         currentStage: 'DELIVERED',
+        paymentStatus: { notIn: ['PAID', 'FULL_PAID'] },
         AND: [
           {
             OR: [
@@ -305,10 +308,11 @@ const getCODSummary = async (req, res) => {
           clearedOrderIds.length > 0 ? { id: { notIn: clearedOrderIds } } : {}
         ]
       },
-      select: { id: true, orderNumber: true, customerName: true, totalPrice: true, deliveredAt: true, advanceAmount: true, paymentMethod: true }
+      select: { id: true, orderNumber: true, customerName: true, totalPrice: true, deliveredAt: true, advanceAmount: true, paymentMethod: true, paymentStatus: true }
     });
 
     const pendingCODAmount = pendingCODDeliveries.reduce((s, o) => {
+      if (o.paymentStatus === 'PAID' || o.paymentStatus === 'FULL_PAID') return s;
       const remaining = Math.max(0, (o.totalPrice || 0) - (o.advanceAmount || 0));
       return s + (o.paymentMethod === 'CASH_ONLINE' ? remaining / 2 : remaining);
     }, 0);

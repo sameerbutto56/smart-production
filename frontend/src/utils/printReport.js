@@ -1189,7 +1189,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     'OUTLET': isUrdu ? 'آؤٹ لیٹ' : 'OUTLET',
     'CASH ON DELIVERY': isUrdu ? 'نقد ڈلیوری' : 'CASH ON DELIVERY',
   };
-  const _payLabel = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? 'PAID' : 'CASH ON DELIVERY';
+  const _payLabel = order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID' ? 'PAID' : parseFloat(order.advanceAmount || 0) > 0 ? `COD: ${currency(Math.max(0, (order.totalPrice || 0) - parseFloat(order.advanceAmount || 0)))}` : 'CASH ON DELIVERY';
   [order.type, order.priority, order.outletName || order.source, _payLabel].filter(Boolean).forEach(label => {
     let color = '#6b7280';
     if (label === 'PAID' || label === 'FULL_CUSTOM') color = '#059669';
@@ -1305,7 +1305,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     // Parse order-level outlet engraving fields
     const outEngravingNames = order.engravingNames ? parseJSON(order.engravingNames) : [];
     const outEngravingLogos = order.engravingLogos ? parseJSON(order.engravingLogos) : [];
-    const outHasEngraving = outEngravingNames.length > 0 || outEngravingLogos.length > 0 || order.engravingText || order.engravingInstructions || order.logoRequired || !!order.instructionNotes;
+    const outHasEngraving = outEngravingNames.length > 0 || outEngravingLogos.length > 0 || order.engravingText || order.engravingInstructions || order.logoRequired || order.logoDesign || !!order.instructionNotes;
 
     const brandingItems = isMultiItem ? allItems : [{ productDetails: firstProduct, customization: custom }];
     const hasAnyCustomization = brandingItems.some(item => {
@@ -1400,7 +1400,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           win.document.write(`<p style="font-size:20px;font-weight:800;color:#7c3aed;margin-bottom:4px">${sec.engravingType}: ${etLabel}</p>`);
         }
         if (order.engravingText) {
-          win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;margin-bottom:4px">${sec.engravingType}: ${ru(order.engravingText)}</p>`);
+          win.document.write(`<p style="font-size:20px;font-weight:700;color:#000;margin-bottom:4px">${sec.engravingType}: ${order.engravingText}</p>`);
         }
         if (outEngravingNames.length > 0) {
           win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:3px">${sec.nameLines}</p>`);
@@ -1409,6 +1409,12 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
               win.document.write(`<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span style="background:#7c3aed20;color:#7c3aed;font-size:18px;font-weight:800;padding:2px 6px;border-radius:3px">L${ai + 1}</span><span style="font-size:24px;font-weight:700">${an}</span></div>`);
             }
           });
+        }
+        if (order.logoDesign) {
+          win.document.write(`<div style="margin-bottom:6px">`);
+          win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#000;margin-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.logos}</p>`);
+          win.document.write(`<div style="font-size:22px;font-weight:700;background:#fffbeb;padding:3px 8px;border-radius:4px;border:2px solid #fef3c7">${order.logoDesign}</div>`);
+          win.document.write(`</div>`);
         }
         if (order.logoRequired && outEngravingLogos.length > 0) {
           win.document.write(`<p style="font-size:20px;font-weight:800;text-transform:uppercase;color:#000;margin:6px 0 3px">${sec.logos}</p>`);
@@ -1526,21 +1532,22 @@ export function printDispatchSheet(order) {
     win.document.write(summaryRow('Discount', `-${currency(order.discount)}`));
   }
   if (parseFloat(order.advanceAmount || 0) > 0) {
-    win.document.write(summaryRow('Advance Paid', `-${currency(order.advanceAmount)}`));
+    win.document.write(summaryRow('Advance Received', `-${currency(order.advanceAmount)}`));
   }
   win.document.write(`<div style="display:flex;justify-content:space-between;padding:8px 0 0;border-top:3px solid #000;margin-top:6px;font-size:22px">`);
   win.document.write(`<span style="font-weight:900">Grand Total</span>`);
   win.document.write(`<span style="font-weight:900">${currency(order.totalPrice)}</span>`);
   win.document.write(`</div>`);
   if (order.paymentStatus === 'PAID' || order.paymentStatus === 'FULL_PAID') {
-    win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;background:#05966920;border:2px solid #059669;border-radius:6px;font-size:20px;font-weight:900;color:#059669">PAID ✓</div>`);
+    win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;background:#05966920;border:2px solid #059669;border-radius:6px;font-size:20px;font-weight:900;color:#059669">PAID ✓ — No COD Due</div>`);
   } else if (parseFloat(order.advanceAmount || 0) > 0) {
-    win.document.write(`<div style="display:flex;justify-content:space-between;margin-top:8px;padding:6px 10px;background:#d9770620;border:2px solid #d97706;border-radius:6px;font-size:18px;font-weight:700">`);
-    win.document.write(`<span style="color:#d97706">Advance Received: ${currency(order.advanceAmount)}</span>`);
-    win.document.write(`<span style="color:#d97706">Remaining: ${currency(parseFloat(order.totalPrice) - parseFloat(order.advanceAmount || 0))}</span>`);
+    const codAmt = Math.max(0, parseFloat(order.totalPrice || 0) - parseFloat(order.advanceAmount || 0));
+    win.document.write(`<div style="margin-top:8px;padding:6px 10px;background:#d9770620;border:2px solid #d97706;border-radius:6px;font-size:18px">`);
+    win.document.write(`<div style="display:flex;justify-content:space-between;font-weight:700;color:#d97706"><span>Advance Received:</span><span>${currency(order.advanceAmount)}</span></div>`);
+    win.document.write(`<div style="display:flex;justify-content:space-between;font-weight:900;color:#dc2626;font-size:22px;margin-top:4px;padding-top:4px;border-top:2px solid #d9770640"><span>Remaining Balance (COD):</span><span>${currency(codAmt)}</span></div>`);
     win.document.write(`</div>`);
   } else {
-    win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;background:#dc262620;border:2px solid #dc2626;border-radius:6px;font-size:20px;font-weight:900;color:#dc2626">CASH ON DELIVERY</div>`);
+    win.document.write(`<div style="text-align:center;margin-top:8px;padding:6px 0;background:#dc262620;border:2px solid #dc2626;border-radius:6px;font-size:20px;font-weight:900;color:#dc2626">CASH ON DELIVERY: ${currency(order.totalPrice)}</div>`);
   }
   win.document.write(`</div>`);
 

@@ -1591,6 +1591,7 @@ const deductInventory = async (order, userId) => {
 
 const addOrderToInventory = async (req, res) => {
   const { orderId } = req.params;
+  const { verifiedItems } = req.body || {};
   try {
     let order;
     try {
@@ -1600,12 +1601,6 @@ const addOrderToInventory = async (req, res) => {
       throw e;
     }
     if (!order) return res.status(404).json({ message: 'Order not found' });
-
-    // Check via audit log if inventory was already added
-    const alreadyAdded = await prisma.auditLog.findFirst({
-      where: { orderId, action: 'INVENTORY_ADDED' }
-    });
-    if (alreadyAdded) return res.status(400).json({ message: 'Inventory already added for this order' });
 
     // Determine which items to add — only production-manufactured items
     const { productionItems } = await classifyOrderItems(order);
@@ -1620,24 +1615,37 @@ const addOrderToInventory = async (req, res) => {
     if (!parsedDetails) return res.status(400).json({ message: 'No product details found' });
 
     const productsToAdd = [];
-    const addItemIfProduction = (pd, quantity) => {
+    const productIndices = []; // track original indices for marking produced
+
+    const addItemIfProduction = (pd, quantity, originalIdx) => {
       if (!pd?.productType) return;
       const ptLower = (pd.productType || '').toLowerCase();
       if (productionProductTypes.length === 0 || productionProductTypes.some(ppt => ptLower.includes(ppt) || ppt.includes(ptLower))) {
         productsToAdd.push({ productType: pd.productType, quantity, color: pd.color, size: pd.size });
+        productIndices.push(originalIdx);
       }
     };
 
     if (Array.isArray(parsedDetails)) {
-      parsedDetails.forEach(item => {
-        addItemIfProduction(item.productDetails || item, item.quantity || 1);
+      parsedDetails.forEach((item, idx) => {
+        // If verifiedItems is provided, only process items at those indices
+        if (Array.isArray(verifiedItems) && verifiedItems.length > 0) {
+          if (!verifiedItems.includes(idx)) return;
+        }
+        // Skip items already marked as produced
+        const pd = item.productDetails || item;
+        if (pd.availabilityStatus === 'produced') return;
+        addItemIfProduction(pd, item.quantity || 1, idx);
       });
     } else if (parsedDetails?.productType) {
-      addItemIfProduction(parsedDetails, order.quantity || 1);
+      // Single-item order: if already produced, skip
+      if (parsedDetails.availabilityStatus !== 'produced') {
+        addItemIfProduction(parsedDetails, order.quantity || 1, 0);
+      }
     }
 
     if (productsToAdd.length === 0) {
-      return res.status(400).json({ message: 'No production items to add to inventory' });
+      return res.status(400).json({ message: 'No new items to add — all selected products are already in inventory' });
     }
 
     const addedItems = [];
@@ -1731,18 +1739,18 @@ const addOrderToInventory = async (req, res) => {
       } catch (e) { if (e?.code !== 'P2021') throw e; }
     }
 
-    // Mark produced items in productDetails as 'produced'
+    // Mark only the newly-added items in productDetails as 'produced'
     try {
       let pd = order.productDetails;
-      if (pd) {
+      if (pd && Array.isArray(productIndices) && productIndices.length > 0) {
         const updated = Array.isArray(pd)
-          ? pd.map(item => {
-              if (item.availabilityStatus === 'not_available') {
+          ? pd.map((item, idx) => {
+              if (productIndices.includes(idx) && item.availabilityStatus === 'not_available') {
                 return { ...item, availabilityStatus: 'produced' };
               }
               return item;
             })
-          : pd.productType && pd.availabilityStatus === 'not_available'
+          : pd.productType && pd.availabilityStatus === 'not_available' && productIndices.includes(0)
             ? { ...pd, availabilityStatus: 'produced' }
             : pd;
         await prisma.order.update({
