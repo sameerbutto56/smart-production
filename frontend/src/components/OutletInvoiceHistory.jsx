@@ -320,7 +320,10 @@ const OutletInvoiceHistory = ({ outlet }) => {
   /* ─── Download Excel ─── */
   const downloadExcel = () => {
     try {
-      const data = filteredSales.map(s => ({
+      const fmtPayment = (s) => s.paymentMethod === 'CASH_ONLINE' ? 'Cash+Online' : s.paymentMethod === 'CASH' ? 'Cash' : s.paymentMethod === 'CARD' ? 'Card' : s.paymentMethod === 'ONLINE' ? 'Online' : s.paymentMethod || '';
+      const src = filteredSales;
+
+      const data = src.map(s => ({
         'Receipt #': s.receiptNumber || '',
         'Date': new Date(s.createdAt).toLocaleString(),
         'Cashier': s.cashierName || '',
@@ -331,12 +334,42 @@ const OutletInvoiceHistory = ({ outlet }) => {
         'Discount': s.discountAmount || 0,
         'Card Charges': s.cardChargesAmount || 0,
         'Grand Total': s.grandTotal || 0,
-        'Payment': s.paymentMethod || '',
+        'Payment': fmtPayment(s),
         'Advance': s.advanceAmount || 0,
         'Balance': s._balanceRemaining || 0,
-        'Status': s._balanceStatus || 'paid'
+        'Status': s.refundedAt ? 'RETURN' : (s._balanceStatus === 'balance' ? 'BALANCE' : '')
       }));
-      const ws = XLSX.utils.json_to_sheet(data);
+
+      const grandTotalSales = src.reduce((sum, s) => sum + (s.grandTotal || 0), 0);
+      const cashPayments = src.filter(s => s.paymentMethod === 'CASH' && !s.refundedAt).reduce((sum, s) => sum + (s.grandTotal || 0), 0);
+      const onlinePayments = src.filter(s => s.paymentMethod === 'ONLINE' && !s.refundedAt).reduce((sum, s) => sum + (s.grandTotal || 0), 0);
+      const cardPayments = src.filter(s => s.paymentMethod === 'CARD' && !s.refundedAt).reduce((sum, s) => sum + (s.grandTotal || 0), 0);
+      const cashOnlinePayments = src.filter(s => s.paymentMethod === 'CASH_ONLINE' && !s.refundedAt).reduce((sum, s) => sum + (s.grandTotal || 0), 0);
+      const returnedAmount = src.filter(s => s.refundedAt).reduce((sum, s) => sum + (s.grandTotal || 0), 0);
+      const netSales = grandTotalSales - returnedAmount;
+
+      const summaryRows = [
+        {}, {},
+        { 'Receipt #': 'SUMMARY', 'Grand Total': '' },
+        { 'Receipt #': 'Grand Total Sales', 'Grand Total': grandTotalSales },
+        { 'Receipt #': 'Cash Payments', 'Grand Total': cashPayments },
+        { 'Receipt #': 'Online Payments', 'Grand Total': onlinePayments },
+        { 'Receipt #': 'Card Payments', 'Grand Total': cardPayments },
+        { 'Receipt #': 'Cash + Online Payments', 'Grand Total': cashOnlinePayments },
+        { 'Receipt #': 'Returned Amount', 'Grand Total': returnedAmount },
+        { 'Receipt #': 'Net Sales', 'Grand Total': netSales },
+      ];
+
+      const allRows = [...data, ...summaryRows];
+      const ws = XLSX.utils.json_to_sheet(allRows);
+
+      const colWidths = [
+        { wch: 14 }, { wch: 22 }, { wch: 14 }, { wch: 18 }, { wch: 14 },
+        { wch: 40 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
+        { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 10 }
+      ];
+      ws['!cols'] = colWidths;
+
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Sales');
       const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });

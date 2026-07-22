@@ -648,25 +648,77 @@ export function POSProvider({ children }) {
   };
 
   const downloadExcel = useCallback(() => {
-    const data = (receiptSearch ? sales.filter(s => s.receiptNumber?.toLowerCase().includes(receiptSearch.toLowerCase())) : sales).map(s => ({
-      'Receipt #': s.receiptNumber || '',
-      'Date': new Date(s.createdAt).toLocaleString(),
-      'Cashier': s.cashierName || '',
-      'Customer': s.customerName || '',
-      'Phone': s.customerPhone || '',
-      'Items': (s.items || []).map(i => `${i.productName}${i.color ? ' ('+i.color+')' : ''}${i.size ? ' '+i.size : ''} x${i.quantity}`).join(', '),
-      'Subtotal': s.subtotal || 0, 'Discount': s.discountAmount || 0,
-      'Card Charges': s.cardChargesAmount || 0,
-      'Cash Amount': s.cashAmount || 0, 'Online Amount': s.onlineAmount || 0,
-      'Grand Total': s.grandTotal || 0,
-      'Payment': s.paymentMethod === 'CASH_ONLINE' ? 'Cash+Online' : s.paymentMethod === 'CASH' ? 'Cash' : s.paymentMethod === 'CARD' ? 'Card' : s.paymentMethod === 'ONLINE' ? 'Online' : s.paymentMethod || '',
-      'Advance': s.advanceAmount || 0, 'Order #': s.orderId || ''
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Sales');
-    XLSX.writeFile(wb, `sales_${selectedOutlet}_${new Date().toISOString().split('T')[0]}.xlsx`);
-    toast.success('Excel downloaded');
+    try {
+      const src = receiptSearch ? sales.filter(s => s.receiptNumber?.toLowerCase().includes(receiptSearch.toLowerCase())) : sales;
+      const fmt = (n) => `PKR ${(n || 0).toLocaleString()}`;
+      const fmtPayment = (s) => s.paymentMethod === 'CASH_ONLINE' ? 'Cash+Online' : s.paymentMethod === 'CASH' ? 'Cash' : s.paymentMethod === 'CARD' ? 'Card' : s.paymentMethod === 'ONLINE' ? 'Online' : s.paymentMethod || '';
+
+      const data = src.map(s => ({
+        'Receipt #': s.receiptNumber || '',
+        'Date': new Date(s.createdAt).toLocaleString(),
+        'Cashier': s.cashierName || '',
+        'Customer': s.customerName || '',
+        'Phone': s.customerPhone || '',
+        'Items': (s.items || []).map(i => `${i.productName}${i.color ? ' ('+i.color+')' : ''}${i.size ? ' '+i.size : ''} x${i.quantity}`).join(', '),
+        'Subtotal': s.subtotal || 0,
+        'Discount': s.discountAmount || 0,
+        'Card Charges': s.cardChargesAmount || 0,
+        'Cash Amount': s.cashAmount || 0,
+        'Online Amount': s.onlineAmount || 0,
+        'Grand Total': s.grandTotal || 0,
+        'Payment': fmtPayment(s),
+        'Advance': s.advanceAmount || 0,
+        'Order #': s.orderId || '',
+        'Status': s.refundedAt ? 'RETURN' : ''
+      }));
+
+      const grandTotalSales = src.reduce((sum, s) => sum + (s.grandTotal || 0), 0);
+      const cashPayments = src.filter(s => s.paymentMethod === 'CASH' && !s.refundedAt).reduce((sum, s) => sum + (s.grandTotal || 0), 0);
+      const onlinePayments = src.filter(s => s.paymentMethod === 'ONLINE' && !s.refundedAt).reduce((sum, s) => sum + (s.grandTotal || 0), 0);
+      const cardPayments = src.filter(s => s.paymentMethod === 'CARD' && !s.refundedAt).reduce((sum, s) => sum + (s.grandTotal || 0), 0);
+      const cashOnlinePayments = src.filter(s => s.paymentMethod === 'CASH_ONLINE' && !s.refundedAt).reduce((sum, s) => sum + (s.grandTotal || 0), 0);
+      const returnedAmount = src.filter(s => s.refundedAt).reduce((sum, s) => sum + (s.grandTotal || 0), 0);
+      const netSales = grandTotalSales - returnedAmount;
+
+      const summaryRows = [
+        {}, {},
+        { 'Receipt #': 'SUMMARY', 'Grand Total': '' },
+        { 'Receipt #': 'Grand Total Sales', 'Grand Total': grandTotalSales },
+        { 'Receipt #': 'Cash Payments', 'Grand Total': cashPayments },
+        { 'Receipt #': 'Online Payments', 'Grand Total': onlinePayments },
+        { 'Receipt #': 'Card Payments', 'Grand Total': cardPayments },
+        { 'Receipt #': 'Cash + Online Payments', 'Grand Total': cashOnlinePayments },
+        { 'Receipt #': 'Returned Amount', 'Grand Total': returnedAmount },
+        { 'Receipt #': 'Net Sales', 'Grand Total': netSales },
+      ];
+
+      const allRows = [...data, ...summaryRows];
+      const ws = XLSX.utils.json_to_sheet(allRows);
+
+      const colWidths = [
+        { wch: 14 }, { wch: 22 }, { wch: 14 }, { wch: 18 }, { wch: 14 },
+        { wch: 40 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
+        { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 10 }
+      ];
+      ws['!cols'] = colWidths;
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Sales');
+      const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([buf], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sales_${selectedOutlet}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Excel downloaded');
+    } catch (err) {
+      console.error('Excel download failed:', err);
+      toast.error('Excel download failed');
+    }
   }, [sales, receiptSearch, selectedOutlet]);
 
   const downloadDashboardExcel = useCallback(() => {
