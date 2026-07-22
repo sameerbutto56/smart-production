@@ -319,27 +319,41 @@ const OutletInvoiceHistory = ({ outlet }) => {
 
   /* ─── Download Excel ─── */
   const downloadExcel = () => {
-    const data = filteredSales.map(s => ({
-      'Receipt #': s.receiptNumber || '',
-      'Date': new Date(s.createdAt).toLocaleString(),
-      'Cashier': s.cashierName || '',
-      'Customer': s.customerName || '',
-      'Phone': s.customerPhone || '',
-      'Items': (s.items || []).map(i => `${isUrdu ? toUrduName(i.productName) : i.productName}${i.color ? ' ('+(isUrdu ? toUrduName(i.color) : i.color)+')' : ''}${i.size ? ' '+i.size : ''} x${i.quantity}`).join(', '),
-      'Subtotal': s.subtotal || 0,
-      'Discount': s.discountAmount || 0,
-      'Card Charges': s.cardChargesAmount || 0,
-      'Grand Total': s.grandTotal || 0,
-      'Payment': s.paymentMethod || '',
-      'Advance': s.advanceAmount || 0,
-      'Balance': s._balanceRemaining || 0,
-      'Status': s._balanceStatus || 'paid'
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Sales');
-    XLSX.writeFile(wb, `sales_${outlet}_${new Date().toISOString().split('T')[0]}.xlsx`);
-    toast.success('Excel downloaded');
+    try {
+      const data = filteredSales.map(s => ({
+        'Receipt #': s.receiptNumber || '',
+        'Date': new Date(s.createdAt).toLocaleString(),
+        'Cashier': s.cashierName || '',
+        'Customer': s.customerName || '',
+        'Phone': s.customerPhone || '',
+        'Items': (s.items || []).map(i => `${isUrdu ? toUrduName(i.productName) : i.productName}${i.color ? ' ('+(isUrdu ? toUrduName(i.color) : i.color)+')' : ''}${i.size ? ' '+i.size : ''} x${i.quantity}`).join(', '),
+        'Subtotal': s.subtotal || 0,
+        'Discount': s.discountAmount || 0,
+        'Card Charges': s.cardChargesAmount || 0,
+        'Grand Total': s.grandTotal || 0,
+        'Payment': s.paymentMethod || '',
+        'Advance': s.advanceAmount || 0,
+        'Balance': s._balanceRemaining || 0,
+        'Status': s._balanceStatus || 'paid'
+      }));
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Sales');
+      const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([buf], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sales_${outlet}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Excel downloaded');
+    } catch (err) {
+      console.error('Excel download failed:', err);
+      toast.error('Excel download failed');
+    }
   };
 
   /* ─── Derived ─── */
