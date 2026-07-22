@@ -106,10 +106,11 @@ const EngravingTab = () => {
                 <label className="text-xs font-black theme-text-muted uppercase tracking-[0.3em] ml-2">{t('placement')}</label>
                 <select value={formData.logoPlacement} onChange={(e) => setFormData({ ...formData, logoPlacement: e.target.value })}
                   className={`w-full theme-input rounded-2xl py-5 px-8 font-bold appearance-none ${useUrdu ? 'text-right' : ''}`}>
-                  <option value="">Left Chest</option>
+                  <option value="LeftChest">Left Chest</option>
                   <option value="RightChest">Right Chest</option>
                   <option value="Sleeve">Sleeve Cuff</option>
                   <option value="Back">Upper Back</option>
+                  <option value="Cuff">Cuff</option>
                 </select>
               </div>
             </div>

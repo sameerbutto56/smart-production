@@ -643,6 +643,8 @@ const urduDictionary = {
   'V-Neck': 'وی نیک',
   'VNeck': 'وی نیک',
   'RightChest': 'رائٹ چیسٹ',
+  'LeftChest': 'لیفٹ چیسٹ',
+  'SleeveCuff': 'سلیو کف',
 
   // Medical / Facilities
   'Clinic': 'کلینک',

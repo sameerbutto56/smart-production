@@ -809,7 +809,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                             {(ic.nameColor || ic.logoPlacement) && (
                               <div className="flex gap-1">
                                 {ic.nameColor && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-pink-900/30 text-pink-400">Color: {ic.nameColor}</span>}
-                                {ic.logoPlacement && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-teal-900/30 text-teal-400">Pos: {ic.logoPlacement}</span>}
+                                {ic.logoPlacement && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-teal-900/30 text-teal-400">Pos: {({'LeftChest':'Left Chest','RightChest':'Right Chest','Sleeve':'Sleeve Cuff','Back':'Upper Back','Cuff':'Cuff'}[ic.logoPlacement] || ic.logoPlacement)}</span>}
                               </div>
                             )}
                           </div>
@@ -870,7 +870,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         {(custom.nameColor || custom.logoPlacement) && (
                           <div className="flex gap-1">
                             {custom.nameColor && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-pink-900/30 text-pink-400">Color: {custom.nameColor}</span>}
-                            {custom.logoPlacement && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-teal-900/30 text-teal-400">Pos: {custom.logoPlacement}</span>}
+                            {custom.logoPlacement && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-teal-900/30 text-teal-400">Pos: {({'LeftChest':'Left Chest','RightChest':'Right Chest','Sleeve':'Sleeve Cuff','Back':'Upper Back','Cuff':'Cuff'}[custom.logoPlacement] || custom.logoPlacement)}</span>}
                           </div>
                         )}
                       </div>
@@ -2364,7 +2364,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                     {[
                       { l: t('Engraving Type'), v: custom?.engravingType === 'direct' ? t('Direct Engraving') : custom?.engravingType === 'patch' ? t('Patch Engraving') : null },
                       { l: t('Embroidery Color'), v: custom?.nameColor },
-                      { l: t('Logo Location'), v: custom?.logoPlacement },
+                      { l: t('Logo Location'), v: custom?.logoPlacement ? ({'LeftChest':'Left Chest','RightChest':'Right Chest','Sleeve':'Sleeve Cuff','Back':'Upper Back','Cuff':'Cuff'}[custom.logoPlacement] || custom.logoPlacement) : null },
                     ].filter(i => i.v).map((item, i) => (
                       <div key={i} className="flex justify-between items-center p-4 bg-gray-950/30 rounded-2xl border border-gray-800/30">
                         <span className="text-xs md:text-sm text-gray-500 font-bold uppercase tracking-widest">{item.l}</span>

@@ -32,6 +32,9 @@ import toast from 'react-hot-toast';
 import OrderCard from '../components/OrderCard';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 
+const POS_MAP = { 'LeftChest': 'Left Chest', 'RightChest': 'Right Chest', 'Sleeve': 'Sleeve Cuff', 'Back': 'Upper Back', 'Cuff': 'Cuff' };
+const fmtPos = (v) => POS_MAP[v] || v;
+
 const AllOrders = () => {
   const { user } = useAuth();
   const { data: orders = [], loading, refresh } = useCache('orders:all', {
@@ -931,7 +934,7 @@ const AllOrders = () => {
                                           <div className="flex flex-wrap gap-1">
                                             {c.engravingType && <span className="text-[9px] font-black text-violet-400 bg-violet-900/30 px-1.5 py-0.5 rounded">{c.engravingType === 'direct' ? 'Direct' : 'Patch'} Engraving</span>}
                                             {c.nameColor && <span className="text-[9px] font-black text-rose-400 bg-rose-900/30 px-1.5 py-0.5 rounded">Color: {c.nameColor}</span>}
-                                            {c.logoPlacement && <span className="text-[9px] font-black text-teal-400 bg-teal-900/30 px-1.5 py-0.5 rounded">Pos: {c.logoPlacement}</span>}
+                                            {c.logoPlacement && <span className="text-[9px] font-black text-teal-400 bg-teal-900/30 px-1.5 py-0.5 rounded">Pos: {fmtPos(c.logoPlacement)}</span>}
                                             {c.logoColor && <span className="text-[9px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded">Logo: {c.logoColor}</span>}
                                           </div>
                                         )}
@@ -1220,7 +1223,7 @@ const AllOrders = () => {
                                     <div className="grid grid-cols-2 gap-2">
                                       {c.engravingType && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Engraving</span><p className="text-xs font-black text-violet-400">{c.engravingType === 'direct' ? 'Direct' : 'Patch'}</p></div>}
                                       {c.nameColor && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Color</span><p className="text-xs font-black text-rose-400">{c.nameColor}</p></div>}
-                                      {c.logoPlacement && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Position</span><p className="text-xs font-black text-teal-400">{c.logoPlacement}</p></div>}
+                                      {c.logoPlacement && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Position</span><p className="text-xs font-black text-teal-400">{fmtPos(c.logoPlacement)}</p></div>}
                                       {c.logoColor && <div><span className="text-[9px] text-gray-500 font-bold uppercase">Logo Color</span><p className="text-xs font-black text-amber-400">{c.logoColor}</p></div>}
                                     </div>
                                   </div>
@@ -1270,7 +1273,7 @@ const AllOrders = () => {
                             { l: 'Engraving Type', v: custom?.engravingType === 'direct' ? 'Direct Engraving' : custom?.engravingType === 'patch' ? 'Patch Engraving' : null },
                             { l: 'Branding Name', v: custom?.nameSpelling },
                             { l: 'Embroidery Color', v: custom?.nameColor },
-                            { l: 'Logo Location', v: custom?.logoPlacement },
+                            { l: 'Logo Location', v: custom?.logoPlacement ? fmtPos(custom.logoPlacement) : null },
                           ].filter(item => item.v).map((item, i) => (
                             <div key={i} className="flex justify-between items-center p-4 theme-bg rounded-2xl border theme-border">
                               <span className="text-xs md:text-sm theme-text-muted font-bold uppercase tracking-widest">{item.l}</span>
