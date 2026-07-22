@@ -539,10 +539,8 @@ export const OrderEntryProvider = ({ children }) => {
   );
 
   const fabrics = useMemo(() =>
-    formData.productType && selectedProduct
-      ? (selectedProduct.fabric ? [selectedProduct.fabric] : [])
-      : (inventory || []).filter(i => i.category === 'FABRIC'),
-    [formData.productType, selectedProduct, inventory]
+    (inventory || []).filter(i => i.category === 'FABRIC'),
+    [inventory]
   );
 
   const defaultSizes = useMemo(() => {
