@@ -88,10 +88,10 @@ const WarehouseDashboard = () => {
           tableRows += `<tr>
             <td style="padding: 8px 10px; font-size: 14px; font-weight: 700; color: #000;">${rowIdx}</td>
             <td style="padding: 8px 10px; font-size: 16px; font-weight: 900; color: #000;">${item.name}</td>
-            <td style="padding: 8px 10px; font-size: 14px; font-weight: 700; color: #333;">${v.color || '-'}</td>
-            <td style="padding: 8px 10px; font-size: 14px; font-weight: 700; color: #333;">${v.size || '-'}</td>
-            <td style="padding: 8px 10px; font-size: 16px; font-weight: 900; text-align: right; color: ${(v.stock ?? item.stock) <= 0 ? '#dc2626' : (v.stock ?? item.stock) <= 5 ? '#d97706' : '#059669'};">${v.stock ?? item.stock}</td>
-            <td style="padding: 8px 10px; font-size: 16px; font-weight: 900; text-align: right; color: #b45309;">${qty !== '' && Number(qty) > 0 ? qty : '<span style="color:#999;font-weight:700;">—</span>'}</td>
+            <td style="padding: 8px 10px; font-size: 18px; font-weight: 900; color: #000;">${v.color || '-'}</td>
+            <td style="padding: 8px 10px; font-size: 18px; font-weight: 900; color: #000;">${v.size || '-'}</td>
+            <td style="padding: 8px 10px; font-size: 20px; font-weight: 900; text-align: right; color: ${(v.stock ?? item.stock) <= 0 ? '#dc2626' : (v.stock ?? item.stock) <= 5 ? '#d97706' : '#059669'};">${v.stock ?? item.stock}</td>
+            <td style="padding: 8px 10px; font-size: 20px; font-weight: 900; text-align: right; color: #b45309;">${qty !== '' && Number(qty) > 0 ? qty : '<span style="color:#999;font-weight:700;">—</span>'}</td>
           </tr>`;
         });
       } else {
@@ -101,10 +101,10 @@ const WarehouseDashboard = () => {
         tableRows += `<tr>
           <td style="padding: 8px 10px; font-size: 14px; font-weight: 700; color: #000;">${rowIdx}</td>
           <td style="padding: 8px 10px; font-size: 16px; font-weight: 900; color: #000;">${item.name}</td>
-          <td style="padding: 8px 10px; font-size: 14px; font-weight: 700; color: #333;">${item.color || '-'}</td>
-          <td style="padding: 8px 10px; font-size: 14px; font-weight: 700; color: #333;">${item.size || '-'}</td>
-          <td style="padding: 8px 10px; font-size: 16px; font-weight: 900; text-align: right; color: ${item.stock <= 0 ? '#dc2626' : item.stock <= 5 ? '#d97706' : '#059669'};">${item.stock}</td>
-          <td style="padding: 8px 10px; font-size: 16px; font-weight: 900; text-align: right; color: #b45309;">${qty !== '' && Number(qty) > 0 ? qty : '<span style="color:#999;font-weight:700;">—</span>'}</td>
+          <td style="padding: 8px 10px; font-size: 18px; font-weight: 900; color: #000;">${item.color || '-'}</td>
+          <td style="padding: 8px 10px; font-size: 18px; font-weight: 900; color: #000;">${item.size || '-'}</td>
+          <td style="padding: 8px 10px; font-size: 20px; font-weight: 900; text-align: right; color: ${item.stock <= 0 ? '#dc2626' : item.stock <= 5 ? '#d97706' : '#059669'};">${item.stock}</td>
+          <td style="padding: 8px 10px; font-size: 20px; font-weight: 900; text-align: right; color: #b45309;">${qty !== '' && Number(qty) > 0 ? qty : '<span style="color:#999;font-weight:700;">—</span>'}</td>
         </tr>`;
       }
     });
@@ -154,10 +154,10 @@ const WarehouseDashboard = () => {
     <thead><tr>
       <th style="width:32px;">#</th>
       <th>Product</th>
-      <th style="width:80px;">Color</th>
-      <th style="width:80px;">Size</th>
-      <th style="width:80px; text-align:right;">Stock</th>
-      <th style="width:100px; text-align:right;">Required Qty</th>
+      <th style="width:120px; text-align:center;">Color</th>
+      <th style="width:120px; text-align:center;">Size</th>
+      <th style="width:100px; text-align:right;">Stock</th>
+      <th style="width:120px; text-align:right;">Required Qty</th>
     </tr></thead>
     <tbody>${tableRows}</tbody>
   </table>
