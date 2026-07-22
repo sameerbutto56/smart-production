@@ -86,12 +86,12 @@ const WarehouseDashboard = () => {
           const qty = printQty[key] ?? '';
           rowIdx++;
           tableRows += `<tr>
-            <td style="padding: 8px 10px; font-size: 14px; color: #888;">${rowIdx}</td>
-            <td style="padding: 8px 10px; font-size: 16px; font-weight: 700; color: #fff;">${item.name}</td>
-            <td style="padding: 8px 10px; font-size: 14px; color: #aaa;">${v.color || '-'}</td>
-            <td style="padding: 8px 10px; font-size: 14px; color: #aaa;">${v.size || '-'}</td>
-            <td style="padding: 8px 10px; font-size: 16px; font-weight: 900; text-align: right; color: ${(v.stock ?? item.stock) <= 0 ? '#ef4444' : (v.stock ?? item.stock) <= 5 ? '#eab308' : '#10b981'};">${v.stock ?? item.stock}</td>
-            <td style="padding: 8px 10px; font-size: 16px; font-weight: 900; text-align: right; color: #f59e0b;">${qty !== '' && Number(qty) > 0 ? qty : '<span style="color:#555;">—</span>'}</td>
+            <td style="padding: 8px 10px; font-size: 14px; font-weight: 700; color: #000;">${rowIdx}</td>
+            <td style="padding: 8px 10px; font-size: 16px; font-weight: 900; color: #000;">${item.name}</td>
+            <td style="padding: 8px 10px; font-size: 14px; font-weight: 700; color: #333;">${v.color || '-'}</td>
+            <td style="padding: 8px 10px; font-size: 14px; font-weight: 700; color: #333;">${v.size || '-'}</td>
+            <td style="padding: 8px 10px; font-size: 16px; font-weight: 900; text-align: right; color: ${(v.stock ?? item.stock) <= 0 ? '#dc2626' : (v.stock ?? item.stock) <= 5 ? '#d97706' : '#059669'};">${v.stock ?? item.stock}</td>
+            <td style="padding: 8px 10px; font-size: 16px; font-weight: 900; text-align: right; color: #b45309;">${qty !== '' && Number(qty) > 0 ? qty : '<span style="color:#999;font-weight:700;">—</span>'}</td>
           </tr>`;
         });
       } else {
@@ -99,12 +99,12 @@ const WarehouseDashboard = () => {
         const qty = printQty[key] ?? '';
         rowIdx++;
         tableRows += `<tr>
-          <td style="padding: 8px 10px; font-size: 14px; color: #888;">${rowIdx}</td>
-          <td style="padding: 8px 10px; font-size: 16px; font-weight: 700; color: #fff;">${item.name}</td>
-          <td style="padding: 8px 10px; font-size: 14px; color: #aaa;">${item.color || '-'}</td>
-          <td style="padding: 8px 10px; font-size: 14px; color: #aaa;">${item.size || '-'}</td>
-          <td style="padding: 8px 10px; font-size: 16px; font-weight: 900; text-align: right; color: ${item.stock <= 0 ? '#ef4444' : item.stock <= 5 ? '#eab308' : '#10b981'};">${item.stock}</td>
-          <td style="padding: 8px 10px; font-size: 16px; font-weight: 900; text-align: right; color: #f59e0b;">${qty !== '' && Number(qty) > 0 ? qty : '<span style="color:#555;">—</span>'}</td>
+          <td style="padding: 8px 10px; font-size: 14px; font-weight: 700; color: #000;">${rowIdx}</td>
+          <td style="padding: 8px 10px; font-size: 16px; font-weight: 900; color: #000;">${item.name}</td>
+          <td style="padding: 8px 10px; font-size: 14px; font-weight: 700; color: #333;">${item.color || '-'}</td>
+          <td style="padding: 8px 10px; font-size: 14px; font-weight: 700; color: #333;">${item.size || '-'}</td>
+          <td style="padding: 8px 10px; font-size: 16px; font-weight: 900; text-align: right; color: ${item.stock <= 0 ? '#dc2626' : item.stock <= 5 ? '#d97706' : '#059669'};">${item.stock}</td>
+          <td style="padding: 8px 10px; font-size: 16px; font-weight: 900; text-align: right; color: #b45309;">${qty !== '' && Number(qty) > 0 ? qty : '<span style="color:#999;font-weight:700;">—</span>'}</td>
         </tr>`;
       }
     });
@@ -114,27 +114,27 @@ const WarehouseDashboard = () => {
 <style>
   @page { margin: 15mm 10mm; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f0f0f; color: #e5e5e5; padding: 20px; font-size: 16px; }
-  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #333; }
-  .header-left h1 { font-size: 28px; font-weight: 900; color: #f59e0b; text-transform: uppercase; letter-spacing: 1px; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #000; padding: 20px; font-size: 16px; }
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 3px solid #000; }
+  .header-left h1 { font-size: 28px; font-weight: 900; color: #000; text-transform: uppercase; letter-spacing: 1px; }
   .header-left h1 span { font-size: 32px; margin-right: 6px; }
-  .header-left p { font-size: 14px; color: #888; margin-top: 2px; }
+  .header-left p { font-size: 14px; color: #555; margin-top: 2px; font-weight: 700; }
   .header-right { text-align: right; }
-  .header-right .date { font-size: 15px; color: #aaa; font-weight: 600; }
-  .header-right .badge { display: inline-block; margin-top: 4px; padding: 4px 14px; background: #1a1a2e; border: 1px solid #f59e0b33; border-radius: 20px; font-size: 13px; font-weight: 700; color: #f59e0b; text-transform: uppercase; letter-spacing: 1px; }
+  .header-right .date { font-size: 15px; color: #333; font-weight: 700; }
+  .header-right .badge { display: inline-block; margin-top: 4px; padding: 4px 14px; background: #000; border-radius: 20px; font-size: 13px; font-weight: 700; color: #fff; text-transform: uppercase; letter-spacing: 1px; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-  thead th { padding: 12px 10px; font-size: 14px; font-weight: 800; color: #888; text-transform: uppercase; letter-spacing: 1.5px; text-align: left; border-bottom: 2px solid #333; background: #1a1a1a; }
+  thead th { padding: 12px 10px; font-size: 14px; font-weight: 900; color: #000; text-transform: uppercase; letter-spacing: 1.5px; text-align: left; border-bottom: 3px solid #000; background: #f0f0f0; }
   thead th:last-child, thead th:nth-last-child(2) { text-align: right; }
-  tbody tr { border-bottom: 1px solid #222; }
+  tbody tr { border-bottom: 2px solid #ccc; }
   tbody tr:last-child { border-bottom: none; }
-  .footer { margin-top: 24px; padding-top: 16px; border-top: 2px solid #333; }
-  .footer .notes-label { font-size: 14px; font-weight: 800; color: #888; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
-  .footer .notes-content { font-size: 16px; color: #ccc; line-height: 1.5; padding: 12px 16px; background: #1a1a1a; border-radius: 8px; border: 1px solid #333; min-height: 40px; }
-  .footer .print-meta { margin-top: 12px; font-size: 13px; color: #555; text-align: center; }
-  .summary-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 15px; color: #aaa; border-top: 1px solid #222; margin-top: 8px; }
-  .summary-row strong { color: #f59e0b; }
+  .footer { margin-top: 24px; padding-top: 16px; border-top: 3px solid #000; }
+  .footer .notes-label { font-size: 14px; font-weight: 900; color: #000; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
+  .footer .notes-content { font-size: 16px; color: #222; font-weight: 700; line-height: 1.5; padding: 12px 16px; background: #f9f9f9; border-radius: 8px; border: 2px solid #ccc; min-height: 40px; }
+  .footer .print-meta { margin-top: 12px; font-size: 13px; color: #666; text-align: center; font-weight: 700; }
+  .summary-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 15px; color: #333; border-top: 3px solid #000; margin-top: 8px; font-weight: 700; }
+  .summary-row strong { color: #000; font-weight: 900; }
   @media print {
-    body { background: #0f0f0f; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .no-print { display: none; }
   }
 </style></head><body>
@@ -142,8 +142,8 @@ const WarehouseDashboard = () => {
   <div class="header">
     <div class="header-left">
       <h1><span>${catIcons[invPrintCategory] || '📦'}</span>${invPrintCategory}</h1>
-      <p style="font-size: 18px; font-weight: 700; color: #f59e0b; margin-top: 4px;">${productLabel}</p>
-      <p style="font-size: 14px; color: #888; margin-top: 2px;">Stock Request Sheet</p>
+      <p style="font-size: 18px; font-weight: 900; color: #000; margin-top: 4px;">${productLabel}</p>
+      <p style="font-size: 14px; color: #555; margin-top: 2px; font-weight: 700;">Stock Request Sheet</p>
     </div>
     <div class="header-right">
       <div class="date">${dateStr} · ${timeStr}</div>
@@ -171,7 +171,7 @@ const WarehouseDashboard = () => {
   </div>
   <div class="footer">
     <div class="notes-label">Notes</div>
-    <div class="notes-content">${printNotes.trim() ? printNotes : '<span style="color:#555;">No additional notes</span>'}</div>
+    <div class="notes-content">${printNotes.trim() ? printNotes : '<span style="color:#999;font-weight:700;">No additional notes</span>'}</div>
     ${getPrintFooterHTML()}
   </div>
 </body></html>`;
