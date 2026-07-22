@@ -2,6 +2,7 @@ import React, { createContext, useContext, useReducer, useEffect, useRef, useMem
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
+import * as XLSX from 'xlsx';
 import useCache, { invalidateKey } from '../hooks/useCache';
 import { enqueue } from '../utils/syncQueue';
 import { debounce } from '../utils/debounce';
@@ -661,7 +662,6 @@ export function POSProvider({ children }) {
       'Payment': s.paymentMethod === 'CASH_ONLINE' ? 'Cash+Online' : s.paymentMethod === 'CASH' ? 'Cash' : s.paymentMethod === 'CARD' ? 'Card' : s.paymentMethod === 'ONLINE' ? 'Online' : s.paymentMethod || '',
       'Advance': s.advanceAmount || 0, 'Order #': s.orderId || ''
     }));
-    const XLSX = require('xlsx');
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Sales');
@@ -671,7 +671,6 @@ export function POSProvider({ children }) {
 
   const downloadDashboardExcel = useCallback(() => {
     if (!dashboard) return toast.error('No dashboard data to export');
-    const XLSX = require('xlsx');
     const kpiRows = [
       { Metric: 'Total Sales', Value: dashboard.totalSales || 0 },
       { Metric: 'Net Revenue', Value: dashboard.netRevenue || 0 },
