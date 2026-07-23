@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
-import { Users, Plus, Search, Edit2, Trash2, Key, CheckCircle, XCircle, RefreshCcw, ArrowLeft, UserPlus, Shield, Building2 } from 'lucide-react';
+import { Users, Plus, Search, Edit2, Trash2, Key, CheckCircle, XCircle, RefreshCcw, ArrowLeft, UserPlus, Shield, Building2, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const ROLES = [
@@ -9,12 +9,12 @@ const ROLES = [
 ];
 const SUB_ROLES = ['POS', 'GENERAL', 'ALL'];
 const ROLE_COLORS = {
-  SUPER_ADMIN: 'bg-red-500/20 text-red-400', ADMIN: 'bg-purple-500/20 text-purple-400',
-  FAISAL: 'bg-amber-500/20 text-amber-400', ORDER_ENTRY: 'bg-blue-500/20 text-blue-400',
-  OUTLET: 'bg-emerald-500/20 text-emerald-400', PRODUCTION: 'bg-indigo-500/20 text-indigo-400',
-  STORE: 'bg-orange-500/20 text-orange-400', LOGO_DESIGN: 'bg-pink-500/20 text-pink-400',
-  DISPATCH: 'bg-teal-500/20 text-teal-400', DELIVERY_BOY: 'bg-cyan-500/20 text-cyan-400',
-  INVENTORY_VIEW: 'bg-gray-500/20 text-gray-400'
+  SUPER_ADMIN: 'bg-red-500/20 text-red-400 border-red-500/40', ADMIN: 'bg-purple-500/20 text-purple-400 border-purple-500/40',
+  FAISAL: 'bg-amber-500/20 text-amber-400 border-amber-500/40', ORDER_ENTRY: 'bg-blue-500/20 text-blue-400 border-blue-500/40',
+  OUTLET: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40', PRODUCTION: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/40',
+  STORE: 'bg-orange-500/20 text-orange-400 border-orange-500/40', LOGO_DESIGN: 'bg-pink-500/20 text-pink-400 border-pink-500/40',
+  DISPATCH: 'bg-teal-500/20 text-teal-400 border-teal-500/40', DELIVERY_BOY: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40',
+  INVENTORY_VIEW: 'bg-gray-500/20 text-gray-400 border-gray-500/40'
 };
 const ROLE_LABELS = {
   SUPER_ADMIN: 'Super Admin', ADMIN: 'Admin', FAISAL: 'Faisal',
@@ -25,6 +25,7 @@ const ROLE_LABELS = {
 
 const EmployeeManagement = () => {
   const [employees, setEmployees] = useState([]);
+  const [roleCounts, setRoleCounts] = useState({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState('');
@@ -50,11 +51,19 @@ const EmployeeManagement = () => {
     setLoading(false);
   }, [filterRole, search]);
 
-  useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
+  const fetchRoleCounts = useCallback(async () => {
+    try {
+      const res = await api.get('/api/employees/role-counts');
+      setRoleCounts(res.data);
+    } catch (err) { console.error(err); }
+  }, []);
 
-  const openCreate = () => {
+  useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
+  useEffect(() => { fetchRoleCounts(); }, [fetchRoleCounts]);
+
+  const openCreate = (preselectedRole) => {
     setEditEmployee(null);
-    setForm({ name: '', email: '', password: '', role: 'OUTLET', outletName: '', subRole: '', employeeId: '' });
+    setForm({ name: '', email: '', password: '', role: preselectedRole || 'OUTLET', outletName: '', subRole: '', employeeId: '' });
     setFormError('');
     setShowModal(true);
   };
@@ -84,6 +93,7 @@ const EmployeeManagement = () => {
       }
       setShowModal(false);
       fetchEmployees();
+      fetchRoleCounts();
     } catch (err) { setFormError(err.response?.data?.message || 'Error saving employee'); }
     setSaving(false);
   };
@@ -101,6 +111,7 @@ const EmployeeManagement = () => {
     try {
       await api.put(`/api/employees/${emp.id}/deactivate`);
       fetchEmployees();
+      fetchRoleCounts();
     } catch (err) { console.error(err); }
   };
 
@@ -117,11 +128,41 @@ const EmployeeManagement = () => {
         </button>
         <div className="flex-1">
           <h1 className="text-lg font-black text-white tracking-tight flex items-center gap-2"><Users size={20} /> Employee Management</h1>
-          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Manage employees for all departments & outlets</p>
+          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Manage employees for all profiles & departments</p>
         </div>
-        <button onClick={openCreate} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2">
+        <button onClick={() => openCreate()} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2">
           <UserPlus size={14} /> Add Employee
         </button>
+      </div>
+
+      {/* Profile Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+        {ROLES.map(role => {
+          const count = roleCounts[role] || 0;
+          const isActive = filterRole === role;
+          return (
+            <button
+              key={role}
+              onClick={() => setFilterRole(isActive ? '' : role)}
+              className={`relative p-3 rounded-xl border-2 transition-all text-left group ${isActive ? ROLE_COLORS[role] + ' border-current' : 'bg-gray-900/40 border-gray-800/50 hover:border-gray-700'}`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className={`text-[10px] font-black uppercase tracking-widest ${isActive ? '' : 'text-gray-500'}`}>{ROLE_LABELS[role]}</span>
+                <span className={`text-lg font-black ${isActive ? '' : 'text-gray-600'}`}>{count}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className={`text-[9px] font-bold ${isActive ? 'opacity-80' : 'text-gray-600'}`}>employees</span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); openCreate(role); }}
+                  className="opacity-0 group-hover:opacity-100 p-1 rounded-md bg-white/10 hover:bg-white/20 transition-all"
+                  title={`Add employee to ${ROLE_LABELS[role]}`}
+                >
+                  <Plus size={10} className="text-white" />
+                </button>
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       {/* Filters */}
@@ -133,18 +174,26 @@ const EmployeeManagement = () => {
               className="w-full bg-gray-900 border-2 border-gray-800 rounded-xl pl-9 pr-4 py-2.5 text-xs font-bold text-white outline-none focus:border-purple-500 transition-colors" />
           </div>
         </div>
-        <select value={filterRole} onChange={e => setFilterRole(e.target.value)}
-          className="bg-gray-900 border-2 border-gray-800 rounded-xl px-3 py-2.5 text-xs font-bold text-white outline-none focus:border-purple-500 transition-colors">
-          <option value="">All Roles</option>
-          {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-        </select>
+        {filterRole && (
+          <div className="flex items-center gap-2">
+            <span className={`text-[10px] font-black px-3 py-2.5 rounded-xl border-2 ${ROLE_COLORS[filterRole]}`}>
+              {ROLE_LABELS[filterRole]}
+            </span>
+            <button onClick={() => setFilterRole('')} className="text-gray-500 hover:text-white transition-colors">
+              <XCircle size={16} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Employee Table */}
       {loading ? (
         <div className="text-center py-8"><RefreshCcw size={20} className="text-purple-400 animate-spin mx-auto" /></div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-8 text-gray-500 text-xs font-bold">No employees found</div>
+        <div className="text-center py-8 text-gray-500 text-xs font-bold">
+          {filterRole ? `No employees in ${ROLE_LABELS[filterRole]} profile` : 'No employees found'}
+          <p className="text-[10px] text-gray-600 mt-1">Click "Add Employee" or the + button on a profile card above</p>
+        </div>
       ) : (
         <div className="bg-gray-900/60 rounded-2xl border border-gray-800/50 overflow-hidden">
           <div className="overflow-x-auto">
@@ -153,7 +202,7 @@ const EmployeeManagement = () => {
                 <tr className="border-b border-gray-800">
                   <th className="text-left p-3 text-gray-500 font-black uppercase tracking-widest text-[10px]">Name</th>
                   <th className="text-left p-3 text-gray-500 font-black uppercase tracking-widest text-[10px]">Email</th>
-                  <th className="text-left p-3 text-gray-500 font-black uppercase tracking-widest text-[10px]">Role</th>
+                  <th className="text-left p-3 text-gray-500 font-black uppercase tracking-widest text-[10px]">Profile</th>
                   <th className="text-left p-3 text-gray-500 font-black uppercase tracking-widest text-[10px]">Outlet</th>
                   <th className="text-left p-3 text-gray-500 font-black uppercase tracking-widest text-[10px]">Sub-Role</th>
                   <th className="text-center p-3 text-gray-500 font-black uppercase tracking-widest text-[10px]">Status</th>
@@ -216,7 +265,7 @@ const EmployeeManagement = () => {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setShowModal(false)}>
           <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl w-full max-w-md p-5 space-y-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-black text-white">{editEmployee ? 'Edit Employee' : 'Create Employee'}</h2>
+              <h2 className="text-sm font-black text-white">{editEmployee ? 'Edit Employee' : 'Add Employee to Profile'}</h2>
               <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-white"><XCircle size={18} /></button>
             </div>
 
@@ -240,7 +289,7 @@ const EmployeeManagement = () => {
               )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Role</label>
+                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Profile (Role)</label>
                   <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value, subRole: e.target.value !== 'OUTLET' ? '' : form.subRole })}
                     className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2.5 text-xs font-bold text-white outline-none focus:border-purple-500">
                     {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
@@ -273,7 +322,7 @@ const EmployeeManagement = () => {
 
             <button onClick={handleSave} disabled={saving}
               className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all">
-              {saving ? 'Saving...' : editEmployee ? 'Update Employee' : 'Create Employee'}
+              {saving ? 'Saving...' : editEmployee ? 'Update Employee' : 'Add Employee'}
             </button>
           </div>
         </div>

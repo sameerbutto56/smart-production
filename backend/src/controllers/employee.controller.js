@@ -205,7 +205,7 @@ const getEmployeesByRole = async (req, res) => {
     if (outletName) where.outletName = outletName;
     const employees = await prisma.user.findMany({
       where,
-      select: { id: true, name: true, role: true, outletName: true, subRole: true },
+      select: { id: true, name: true, email: true, role: true, outletName: true, subRole: true },
       orderBy: { name: 'asc' }
     });
     res.json(employees);
@@ -215,8 +215,25 @@ const getEmployeesByRole = async (req, res) => {
   }
 };
 
+const getRoleCounts = async (req, res) => {
+  try {
+    const roles = AVAILABLE_ROLES;
+    const counts = await Promise.all(
+      roles.map(role => prisma.user.count({ where: { role, isActive: true } }))
+    );
+    const result = roles.reduce((acc, role, i) => {
+      acc[role] = counts[i];
+      return acc;
+    }, {});
+    res.json(result);
+  } catch (error) {
+    console.error('[getRoleCounts]', error.message);
+    res.status(500).json({ message: 'Error fetching role counts' });
+  }
+};
+
 module.exports = {
   getEmployees, getEmployeeById, createEmployee, updateEmployee,
   resetPassword, deleteEmployee, verifyEmployee, getEmployeesByRole,
-  AVAILABLE_ROLES, OUTLET_SUB_ROLES
+  getRoleCounts, AVAILABLE_ROLES, OUTLET_SUB_ROLES
 };

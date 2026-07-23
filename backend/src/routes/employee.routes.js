@@ -3,7 +3,8 @@ const router = express.Router();
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 const {
   getEmployees, getEmployeeById, createEmployee, updateEmployee,
-  resetPassword, deleteEmployee, verifyEmployee, getEmployeesByRole
+  resetPassword, deleteEmployee, verifyEmployee, getEmployeesByRole,
+  getRoleCounts
 } = require('../controllers/employee.controller');
 
 // Public: verify employee for module login
@@ -11,6 +12,9 @@ router.post('/verify', verifyEmployee);
 
 // Get employees by role (for dropdowns)
 router.get('/by-role', getEmployeesByRole);
+
+// Get employee counts per role (for admin dashboard)
+router.get('/role-counts', getRoleCounts);
 
 // Admin-only CRUD
 router.get('/', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), getEmployees);
