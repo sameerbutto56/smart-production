@@ -1266,10 +1266,15 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     const measEntries = Object.entries(rawS).filter(([k, v]) => v && k !== 'specialNote' && k !== '_standardSize' && k !== '_extra');
     const hasMeasValues = measEntries.length > 0;
     // Collect per-product measurement notes
+    const getItemSizeNote = (item) => {
+      if (!item.sizeData) return '';
+      const sd = typeof item.sizeData === 'string' ? (() => { try { return JSON.parse(item.sizeData); } catch(e) { return {}; } })() : item.sizeData;
+      return sd?.specialNote || '';
+    };
     let productNotes = isMultiItem
       ? allItems.map((item, idx) => {
           const p = getItemProduct(item);
-          const note = p.measurementSpecialNote || '';
+          const note = p.measurementSpecialNote || getItemSizeNote(item) || '';
           return { name: p.productType || p.name || `Product ${idx + 1}`, note };
         }).filter(x => x.note)
       : [];
@@ -1315,10 +1320,15 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   if (!showMeas) {
     const rawS2 = typeof sizes === 'object' && sizes ? sizes : {};
     const fallbackNote2 = order.measurementSpecialNote || rawS2.specialNote || '';
+    const getItemSizeNote2 = (item) => {
+      if (!item.sizeData) return '';
+      const sd = typeof item.sizeData === 'string' ? (() => { try { return JSON.parse(item.sizeData); } catch(e) { return {}; } })() : item.sizeData;
+      return sd?.specialNote || '';
+    };
     let productNotes = isMultiItem
       ? allItems.map((item, idx) => {
           const p = getItemProduct(item);
-          const note = p.measurementSpecialNote || '';
+          const note = p.measurementSpecialNote || getItemSizeNote2(item) || '';
           return { name: p.productType || p.name || `Product ${idx + 1}`, note };
         }).filter(x => x.note)
       : [];
