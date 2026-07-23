@@ -118,6 +118,18 @@ const createOutletOrder = async (req, res) => {
         }
       });
 
+      // Create routing history for ORDER_ENTRY → destStage
+      await tx.routingHistory.create({
+        data: {
+          orderId: created.id,
+          sentByUserId: req.user?.id || null,
+          previousStage: 'ORDER_ENTRY',
+          newStage: destStage,
+          sentToStage: destStage,
+          remarks: 'Order created and routed'
+        }
+      });
+
       return tx.order.findUnique({
         where: { id: created.id },
         include: { stages: { orderBy: { createdAt: 'asc' } } }
@@ -405,6 +417,10 @@ const receiveOutletReturn = async (req, res) => {
 
     await createAuditLog(orderId, 'OUTLET_RECEIVED', `Order received by outlet ${outletName}`, req.user?.id || 'SYSTEM');
 
+    await prisma.routingHistory.create({
+      data: { orderId, sentByUserId: req.user?.id || null, previousStage: 'OUTLET_RECEIVE', newStage: 'ORDER_ENTRY', sentToStage: 'ORDER_ENTRY', remarks: 'Outlet received order' }
+    });
+
     const io = req.app.get('io');
     if (io) io.emit('order-updated', { orderId });
 
@@ -470,6 +486,10 @@ const customerTaken = async (req, res) => {
 
     await createAuditLog(orderId, 'CUSTOMER_TAKEN', `Customer taken by outlet ${outletName}`, req.user?.id || 'SYSTEM');
 
+    await prisma.routingHistory.create({
+      data: { orderId, sentByUserId: req.user?.id || null, previousStage: 'OUTLET_RECEIVE', newStage: 'ORDER_ENTRY', sentToStage: 'ORDER_ENTRY', remarks: 'Customer picked up order' }
+    });
+
     const io = req.app.get('io');
     if (io) io.emit('order-updated', { orderId });
 
@@ -507,6 +527,10 @@ const sendOutletForDelivery = async (req, res) => {
     });
 
     await createAuditLog(orderId, 'SENT_FOR_DELIVERY', `Outlet order sent for delivery from ${outletName}`, req.user?.id || 'SYSTEM');
+
+    await prisma.routingHistory.create({
+      data: { orderId, sentByUserId: req.user?.id || null, previousStage: 'OUTLET_RECEIVE', newStage: 'OUT_FOR_DELIVERY', sentToStage: 'OUT_FOR_DELIVERY', remarks: 'Outlet sent for delivery' }
+    });
 
     const io = req.app.get('io');
     if (io) io.emit('order-updated', { orderId });
@@ -566,6 +590,10 @@ const inHouseDelivery = async (req, res) => {
     });
 
     await createAuditLog(orderId, 'IN_HOUSE_DELIVERED', `In-house delivery completed by outlet ${outletName}`, req.user?.id || 'SYSTEM');
+
+    await prisma.routingHistory.create({
+      data: { orderId, sentByUserId: req.user?.id || null, previousStage: 'OUT_FOR_DELIVERY', newStage: 'DELIVERED', sentToStage: 'DELIVERED', remarks: 'In-house delivery completed' }
+    });
 
     const io = req.app.get('io');
     if (io) io.emit('order-updated', { orderId });

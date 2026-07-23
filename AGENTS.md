@@ -108,6 +108,10 @@
 - **Created Store Dashboard Analytics** — new `analytics` tab in `WarehouseDashboard.jsx` with full sales/inventory/tasks/invoices/products/returns/delay/performance sections; backend controller + routes at `/api/store-dashboard`
 - **Fixed Urdu font/RTL** — `LanguageContext.jsx` sets `dir="rtl"` on wrapper + `document.documentElement.lang/dir` on toggle; `.font-urdu` CSS includes `direction:rtl` + `text-align:right`; added RTL overrides for tables/inputs/flex
 - **Warehouse POS variant selection** — Added `handleAddToCart(group)` + `confirmConfig()` to `WarehousePOSContext.jsx`; rewrote `WarehousePOSProducts.jsx` with clickable grouped cards (no per-variant buttons); added config modal to `WarehousePOSModals.jsx` with color/size selectors and qty +/- picker. Single-variant products add directly; multi-variant products open config modal on click.
+- **Per-product Measurement Special Notes fix** — `printReport.js` now checks `item.sizeData.specialNote` from outer wrapper when collecting per-product notes, fixing regular OrderEntry orders where each product's note was stored in `sizeData` but printReport only read from order-level `sizeData.specialNote` (commit `4ff235c`).
+- **Complete Order Tracking Timeline** — Rewrote `OrderTrack.jsx` with chronological timeline (employee name, date, time, color-coded entries); enhanced `getOrderTimeline` to include ALL audit actions (not just 7) with assignedEmployee names; `trackOrder` now includes `createdBy` (commit `ac50062`).
+- **Added missing STAGE_LABELS** to backend `order.controller.js` (commit `e0ec0be`).
+- **Employee Management System** — Extended User model with `outletName`, `isActive`, `subRole` fields; created `employee.controller.js` (CRUD + verify + by-role endpoints); created `employee.routes.js`; created `EmployeeManagement.jsx` (admin CRUD page); created `EmployeeLoginModal.jsx` (reusable module login); created `EmployeeContext.jsx` (active employee state); added `/employees` route and nav item (commit `36fe150`).
 
 ### In Progress
 - (none)
@@ -184,6 +188,8 @@
 - Punctuation stripping added for tokens — parentheses `(Black)`, trailing periods `C.` preserve original formatting while translating the core word
 - `C.` added as standalone dictionary key to bypass the stripping path for this common token
 - Balance revenue uses payment-date-based methodology (advance on sale date, balance payments on their dates) for accurate daily tracking.
+- **Employee Management uses `User` model** (not separate Employee model) — extends existing auth with `outletName`, `isActive`, `subRole` fields for multi-employee per department/outlet.
+- **Employee Login Modal is reusable** — any module can import `EmployeeLoginModal` and pass `role`/`outletName` props to filter eligible employees.
 - `printReceipt` accepts options parameter instead of creating separate functions for invoice vs gate pass.
 - Client measurements stored flat in `clientMeasurements` state; per-product nesting built dynamically when product is added to cart.
 - Backend write-back to `Client.sizeDetails` removed to prevent corruption of flat measurement format.
@@ -201,7 +207,7 @@
 - (none — all current work is complete)
 
 ## Critical Context
-- Latest commits: `124a8b0` — auto-reload stale chunk; `033af46` — Logo Design cart option; `76579d5` + `371b346` — Urdu labels; `3bad1ba` — Close Book sync + drill-down; `fcac5a7` — summary sync fix, employee auth for Open/Close, print register info; `d644db2` — Extract modals to sharedModals, fix Dashboard/History/Returns tabs missing modals; `757a6a0` — OrderEntry split context + 4 tab components; `722fb60` — toUrduName() rewrite (token-only, no exact-match, punctuation stripping, ~360 entries); latest — deploy to production
+- Latest commits: `124a8b0` — auto-reload stale chunk; `033af46` — Logo Design cart option; `76579d5` + `371b346` — Urdu labels; `3bad1ba` — Close Book sync + drill-down; `fcac5a7` — summary sync fix, employee auth for Open/Close, print register info; `d644db2` — Extract modals to sharedModals, fix Dashboard/History/Returns tabs missing modals; `757a6a0` — OrderEntry split context + 4 tab components; `722fb60` — toUrduName() rewrite (token-only, no exact-match, punctuation stripping, ~360 entries); `4ff235c` — per-product measurement notes fix; `ac50062` — complete order tracking timeline; `e0ec0be` — missing STAGE_LABELS; `36fe150` — employee management system; latest — deploy to production
 - Build passes with 0 errors.
 - `isAccessory` uses substring matching (`catUpper.includes('COAT')`).
 - `calculateAndRecordRevenue` at line 2482 of `order.controller.js` is idempotent.
@@ -273,6 +279,9 @@
 - **Warehouse POS Modals** (`WarehousePOSModals.jsx`): Config modal with color selector (when >1 color), size selector (when >1 size), qty +/- picker, and "Add to Cart" button.
 - **Store Dashboard Analytics** (`StoreDashboardAnalytics.jsx` / `storeDashboard.controller.js`): 8-section analytics (sales, inventory, tasks, invoices/orders, products, returns, delay, performance) via single `/api/store-dashboard` endpoint.
 - **Language/RTL** (`LanguageContext.jsx` / `index.css`): Urdu toggle sets `dir="rtl"` at document + wrapper level; `.font-urdu` class with `direction:rtl` + `text-align:right`; RTL overrides for tables/inputs/flex.
+- **Employee Management** (`employee.controller.js` + `employee.routes.js` + `EmployeeManagement.jsx`): Full CRUD for User model with role/outlet/subRole filtering; `verify` endpoint for module-level login; `by-role` endpoint for dropdown population.
+- **Employee Login Modal** (`EmployeeLoginModal.jsx`): Reusable modal — fetches employees by role/outlet, authenticates against User table, stores active employee in `EmployeeContext`.
+- **Employee Context** (`EmployeeContext.jsx`): Provider storing `activeEmployee` in sessionStorage; exposes `login`, `logout`, `isLoggedIn`.
 
 ## Vercel Deployment Lessons
 - **SSO Deployment Protection** must be **disabled** for the project (`vercel project protection disable <name> --sso`) — otherwise Vercel intercepts ALL requests (including API) and shows the Vercel Dashboard login page.

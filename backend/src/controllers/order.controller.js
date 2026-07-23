@@ -1821,6 +1821,18 @@ const sendForDelivery = async (req, res) => {
 
     await createAuditLog(orderId, 'SENT_FOR_DELIVERY', 'Order sent for delivery', req.user.id);
 
+    // Create routing history for DISPATCH → OUT_FOR_DELIVERY
+    await prisma.routingHistory.create({
+      data: {
+        orderId,
+        sentByUserId: req.user.id,
+        previousStage: 'DISPATCH',
+        newStage: 'OUT_FOR_DELIVERY',
+        sentToStage: 'OUT_FOR_DELIVERY',
+        remarks: 'Sent for delivery'
+      }
+    });
+
     const io = req.app.get('io');
     io.emit('order-updated', { orderId, createdById: order.createdById });
 
@@ -2542,11 +2554,56 @@ const getOrderTimeline = async (req, res) => {
       })
     ]);
 
+    // Build actor lookup: stageName -> { actor, timestamp } from audit logs
+    // This fills in actors when assignedEmployeeId is null
+    const stageActorMap = {};
+    auditLogs.forEach(al => {
+      if (al.action === 'STAGE_ACCEPTED' && al.details) {
+        const match = al.details.match(/stage[:\s]+(\w+)/i);
+        if (match) stageActorMap[match[1].toUpperCase()] = { actor: al.user?.name || al.performedBy, time: al.timestamp };
+      }
+      if (al.action === 'STORE_ACCEPT') stageActorMap['STORE'] = { actor: al.user?.name || al.performedBy, time: al.timestamp };
+      if (al.action === 'DELIVERY_ACCEPTED') stageActorMap['OUT_FOR_DELIVERY'] = { actor: al.user?.name || al.performedBy, time: al.timestamp };
+      if (al.action === 'DISPATCH_ACCEPTED') stageActorMap['DISPATCH'] = { actor: al.user?.name || al.performedBy, time: al.timestamp };
+    });
+
+    // Human-readable action labels
+    const ACTION_LABELS = {
+      ORDER_CREATED: 'Order Created', OUTLET_ORDER_CREATED: 'Order Created',
+      STAGE_ACCEPTED: 'Task Accepted', STAGE_APPROVED: 'Stage Approved',
+      STAGE_REJECTED: 'Stage Rejected', STORE_ACCEPT: 'Store Accepted',
+      STORE_ROUTE: 'Store Routed', STORE_RETURN_TO_SOURCE: 'Returned to Source',
+      MANUAL_ROUTE: 'Manual Route', BULK_ROUTE: 'Bulk Route',
+      FORCE_MOVE: 'Force Moved', FORCE_COMPLETE: 'Force Completed',
+      RETURN_TO_STORE: 'Returned to Store', RETURN_TO_OUTLET: 'Returned to Outlet',
+      SENT_FOR_DELIVERY: 'Sent for Delivery', DISPATCHED_ENAMELS: 'Dispatched (ENAMELS)',
+      DISPATCHED_IMMENT: 'Dispatched (Imment)', DISPATCHED_COURIER: 'Dispatched (Courier)',
+      DISPATCH_DELIVERED: 'Delivered via Dispatch', DISPATCH_RETURNED: 'Returned via Dispatch',
+      DISPATCH_ACCEPTED: 'Dispatch Accepted', OUTLET_RECEIVED: 'Outlet Received',
+      CUSTOMER_TAKEN: 'Customer Pickup', IN_HOUSE_DELIVERED: 'In-House Delivered',
+      DELIVERED: 'Delivered', DELIVERY_ACCEPTED: 'Delivery Accepted',
+      DELIVERY_FAILED: 'Delivery Failed', DELIVERY_RESCHEDULED: 'Delivery Rescheduled',
+      DELIVERY_STATUS_UPDATED: 'Delivery Status Updated',
+      PAYMENT_UPDATED: 'Payment Updated', PRIORITY_UPDATED: 'Priority Updated',
+      DELIVERY_TYPE_SET: 'Delivery Type Set', ORDER_COMPLETED: 'Order Completed',
+      ORDER_CANCELLED: 'Order Cancelled', ORDER_ON_HOLD: 'Order On Hold',
+      ORDER_RESUMED: 'Order Resumed', INVENTORY_DEDUCTED: 'Inventory Deducted',
+      INVENTORY_RESTORED: 'Inventory Restored', INVENTORY_ADDED: 'Inventory Added',
+      PRODUCT_VERIFIED: 'Product Verified', AVAILABILITY_UPDATED: 'Availability Updated',
+      DEADLINE_EXTENDED: 'Deadline Extended', ROUTE_BLOCKED: 'Route Blocked',
+      COURIER_DISPATCH_REQUESTED: 'Courier Requested', PICKED_UP: 'Picked Up',
+      REFUND_REQUESTED: 'Refund Requested', REFUND_COMPLETED: 'Refund Completed',
+      REFUND_PROCESSING: 'Refund Processing', EDIT_REQUESTED: 'Edit Requested',
+      EDIT_APPROVED: 'Edit Approved', EDIT_REJECTED: 'Edit Rejected'
+    };
+
     const entries = [];
 
-    // Stage entries — each stage gets up to 2 events (received + accepted + completed)
+    // Stage entries
     stages.forEach(s => {
       const stageLabel = STAGE_LABELS[s.stageName] || s.stageName;
+      const derivedActor = s.assignedEmployee?.name || stageActorMap[s.stageName]?.actor || null;
+
       // Stage received / created
       entries.push({
         id: `${s.id}-received`,
@@ -2556,7 +2613,7 @@ const getOrderTimeline = async (req, res) => {
         timestamp: s.createdAt,
         action: 'RECEIVED',
         label: `${stageLabel} — Received`,
-        actor: s.assignedEmployee?.name || null,
+        actor: derivedActor,
         status: s.status,
         details: s.returnedFrom ? `Returned from ${STAGE_LABELS[s.returnedFrom] || s.returnedFrom}` : null,
         returnReason: s.returnReason || null
@@ -2571,7 +2628,7 @@ const getOrderTimeline = async (req, res) => {
           timestamp: s.startedAt,
           action: 'ACCEPTED',
           label: `${stageLabel} — Accepted`,
-          actor: s.assignedEmployee?.name || null,
+          actor: derivedActor,
           status: 'IN_PROGRESS'
         });
       }
@@ -2585,7 +2642,7 @@ const getOrderTimeline = async (req, res) => {
           timestamp: s.completedAt,
           action: 'COMPLETED',
           label: `${stageLabel} — Completed`,
-          actor: s.assignedEmployee?.name || null,
+          actor: derivedActor,
           status: 'COMPLETED'
         });
       }
@@ -2602,14 +2659,17 @@ const getOrderTimeline = async (req, res) => {
         stageLabel: toLabel,
         timestamp: rh.createdAt,
         action: 'ROUTED',
-        label: `${fromLabel} → ${toLabel}`,
+        label: `Sent to ${toLabel}`,
         actor: rh.sentByUser?.name || 'System',
         remarks: rh.remarks || null
       });
     });
 
-    // Audit log entries
+    // Audit log entries — skip stage-related duplicates (already handled by stage entries)
+    const stageActions = new Set(['STAGE_ACCEPTED', 'STORE_ACCEPT', 'STORE_ROUTE', 'DELIVERY_ACCEPTED']);
     auditLogs.forEach(al => {
+      // Skip audit entries that are already represented by stage/route entries
+      if (stageActions.has(al.action)) return;
       entries.push({
         id: al.id,
         type: 'audit',
@@ -2617,7 +2677,7 @@ const getOrderTimeline = async (req, res) => {
         stageLabel: null,
         timestamp: al.timestamp,
         action: al.action,
-        label: al.action.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase()),
+        label: ACTION_LABELS[al.action] || al.action.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase()),
         actor: al.user?.name || al.performedBy || 'System',
         details: al.details || null
       });

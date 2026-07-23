@@ -50,6 +50,11 @@ const acceptDelivery = async (req, res) => {
     await prisma.orderAcceptance.create({
       data: { orderId, assignedAt: now, acceptedAt: now, riderName }
     });
+
+    await prisma.routingHistory.create({
+      data: { orderId, sentByUserId: req.user?.id || null, previousStage: 'OUT_FOR_DELIVERY', newStage: 'OUT_FOR_DELIVERY', sentToStage: 'OUT_FOR_DELIVERY', remarks: `Rider ${riderName} accepted delivery` }
+    });
+
     res.json({ message: 'Order accepted', riderAcceptedAt: now });
   } catch (error) {
     res.status(500).json({ message: 'Accept failed', error: error.message });
@@ -128,6 +133,10 @@ const deliverOrder = async (req, res) => {
       }
     });
 
+    await prisma.routingHistory.create({
+      data: { orderId, sentByUserId: req.user?.id || null, previousStage: 'OUT_FOR_DELIVERY', newStage: 'DELIVERED', sentToStage: 'DELIVERED', remarks: `Delivered by ${riderName}` }
+    });
+
     res.json({ message: 'Order delivered successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Delivery failed', error: error.message });
@@ -203,6 +212,10 @@ const returnOrder = async (req, res) => {
         attemptedAt: now,
         notes: reason || 'Returned by delivery boy'
       }
+    });
+
+    await prisma.routingHistory.create({
+      data: { orderId, sentByUserId: req.user?.id || null, previousStage: 'OUT_FOR_DELIVERY', newStage: 'DISPATCH', sentToStage: 'DISPATCH', remarks: `Returned by ${riderName}: ${reason || 'No reason'}` }
     });
 
     res.json({ message: 'Order returned to dispatch' });
