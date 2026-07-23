@@ -447,6 +447,22 @@ const createOrder = async (req, res) => {
 
     await createAuditLog(order.id, 'ORDER_CREATED', `Order initiated with status: ${initialStatus}`, req.user?.id);
 
+    // Create routing history for ORDER_ENTRY → first stage
+    const stages = NEXT_STAGES[type || 'STANDARD'] || NEXT_STAGES['STANDARD'];
+    const firstStage = stages[0];
+    if (firstStage) {
+      await prisma.routingHistory.create({
+        data: {
+          orderId: order.id,
+          sentByUserId: req.user?.id || null,
+          previousStage: 'ORDER_ENTRY',
+          newStage: firstStage,
+          sentToStage: firstStage,
+          remarks: 'Order created and routed'
+        }
+      });
+    }
+
     // If order is prepaid, record revenue immediately
     if (paymentStatus === 'PAID') {
       await calculateAndRecordRevenue(order);
@@ -2665,8 +2681,8 @@ const getOrderTimeline = async (req, res) => {
       });
     });
 
-    // Audit log entries — skip stage-related duplicates (already handled by stage entries)
-    const stageActions = new Set(['STAGE_ACCEPTED', 'STORE_ACCEPT', 'STORE_ROUTE', 'DELIVERY_ACCEPTED']);
+    // Audit log entries — skip stage-related duplicates (already handled by stage/route entries)
+    const stageActions = new Set(['STAGE_ACCEPTED', 'STORE_ACCEPT', 'STORE_ROUTE', 'DISPATCH_ACCEPTED', 'DELIVERY_ACCEPTED']);
     auditLogs.forEach(al => {
       // Skip audit entries that are already represented by stage/route entries
       if (stageActions.has(al.action)) return;

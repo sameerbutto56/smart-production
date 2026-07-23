@@ -55,6 +55,10 @@ const acceptDelivery = async (req, res) => {
       data: { orderId, sentByUserId: req.user?.id || null, previousStage: 'OUT_FOR_DELIVERY', newStage: 'OUT_FOR_DELIVERY', sentToStage: 'OUT_FOR_DELIVERY', remarks: `Rider ${riderName} accepted delivery` }
     });
 
+    await prisma.auditLog.create({
+      data: { orderId, action: 'DELIVERY_ACCEPTED', details: `Rider ${riderName} accepted delivery`, performedBy: req.user?.id || 'SYSTEM' }
+    });
+
     res.json({ message: 'Order accepted', riderAcceptedAt: now });
   } catch (error) {
     res.status(500).json({ message: 'Accept failed', error: error.message });
@@ -91,6 +95,11 @@ const deliverOrder = async (req, res) => {
     if (stage) {
       await prisma.orderStage.update({ where: { id: stage.id }, data: { status: 'COMPLETED', completedAt: now } });
     }
+
+    // Create DELIVERED stage record
+    await prisma.orderStage.create({
+      data: { orderId, stageName: 'DELIVERED', status: 'COMPLETED', completedAt: now }
+    });
 
     // Record delivery payment
     await prisma.deliveryPayment.create({
@@ -137,6 +146,10 @@ const deliverOrder = async (req, res) => {
       data: { orderId, sentByUserId: req.user?.id || null, previousStage: 'OUT_FOR_DELIVERY', newStage: 'DELIVERED', sentToStage: 'DELIVERED', remarks: `Delivered by ${riderName}` }
     });
 
+    await prisma.auditLog.create({
+      data: { orderId, action: 'DELIVERED', details: `Order delivered by ${riderName} via ${paymentMethod || 'CASH'}`, performedBy: req.user?.id || 'SYSTEM' }
+    });
+
     res.json({ message: 'Order delivered successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Delivery failed', error: error.message });
@@ -181,6 +194,10 @@ const noResponse = async (req, res) => {
       }
     });
 
+    await prisma.auditLog.create({
+      data: { orderId, action: 'DELIVERY_FAILED', details: `Day ${currentCount} – No Response by ${riderName}`, performedBy: req.user?.id || 'SYSTEM' }
+    });
+
     res.json({ message: `Day ${currentCount} – No Response logged`, noResponseCount: currentCount });
   } catch (error) {
     res.status(500).json({ message: 'Failed to log no response', error: error.message });
@@ -216,6 +233,10 @@ const returnOrder = async (req, res) => {
 
     await prisma.routingHistory.create({
       data: { orderId, sentByUserId: req.user?.id || null, previousStage: 'OUT_FOR_DELIVERY', newStage: 'DISPATCH', sentToStage: 'DISPATCH', remarks: `Returned by ${riderName}: ${reason || 'No reason'}` }
+    });
+
+    await prisma.auditLog.create({
+      data: { orderId, action: 'DISPATCH_RETURNED', details: `Returned by ${riderName}: ${reason || 'No reason'}`, performedBy: req.user?.id || 'SYSTEM' }
     });
 
     res.json({ message: 'Order returned to dispatch' });

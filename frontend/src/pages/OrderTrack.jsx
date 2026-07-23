@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import api from '../services/api';
-import { Search, ArrowLeft, RefreshCcw, User, Calendar, Clock, Package, ArrowRight, CheckCircle2, Play, AlertTriangle } from 'lucide-react';
+import { Search, ArrowLeft, RefreshCcw, User, Calendar, Clock, Package, ArrowRight, CheckCircle2, Play, AlertTriangle, Truck, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const STAGE_LABELS = {
@@ -11,35 +11,42 @@ const STAGE_LABELS = {
   OUTLET_RECEIVE: 'Outlet Receive', DELIVERED: 'Delivered'
 };
 
-const STAGE_ORDER = ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+const STAGE_ORDER = ['ORDER_ENTRY', 'STORE', 'WORKERS', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY', 'OUTLET_RECEIVE', 'DELIVERED'];
 
-const formatDateTime = (ts) => {
-  if (!ts) return { date: '—', time: '—' };
-  const d = new Date(ts);
-  return {
-    date: d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-    time: d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-  };
+const STAGE_ICONS = {
+  ORDER_ENTRY: Package, STORE: Package, WORKERS: Package,
+  LOGO_DESIGN: Package, PRODUCTION_ACCEPTANCE: Package,
+  PRODUCTION: Package, STORE_RECEIVE: Package,
+  DISPATCH: Truck, OUT_FOR_DELIVERY: Truck,
+  OUTLET_RECEIVE: MapPin, DELIVERED: CheckCircle2
 };
 
-const getEntryStyle = (action) => {
-  switch (action) {
-    case 'COMPLETED': return 'border-emerald-500 bg-emerald-500/10';
-    case 'ACCEPTED': return 'border-blue-500 bg-blue-500/10';
-    case 'ROUTED': return 'border-purple-500 bg-purple-500/10';
-    case 'RECEIVED': return 'border-amber-500 bg-amber-500/10';
-    default: return 'border-gray-600 bg-gray-600/10';
-  }
+const ENTRY_COLORS = {
+  COMPLETED: { dot: 'bg-emerald-500', border: 'border-emerald-500', bg: 'bg-emerald-500/10', text: 'text-emerald-400', badge: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' },
+  ACCEPTED: { dot: 'bg-blue-500', border: 'border-blue-500', bg: 'bg-blue-500/10', text: 'text-blue-400', badge: 'bg-blue-500/20 text-blue-400 border-blue-500/40' },
+  ROUTED: { dot: 'bg-purple-500', border: 'border-purple-500', bg: 'bg-purple-500/10', text: 'text-purple-400', badge: 'bg-purple-500/20 text-purple-400 border-purple-500/40' },
+  RECEIVED: { dot: 'bg-amber-500', border: 'border-amber-500', bg: 'bg-amber-500/10', text: 'text-amber-400', badge: 'bg-amber-500/20 text-amber-400 border-amber-500/40' },
+  FAILED: { dot: 'bg-red-500', border: 'border-red-500', bg: 'bg-red-500/10', text: 'text-red-400', badge: 'bg-red-500/20 text-red-400 border-red-500/40' },
+  audit: { dot: 'bg-gray-500', border: 'border-gray-500', bg: 'bg-gray-500/10', text: 'text-gray-400', badge: 'bg-gray-500/20 text-gray-400 border-gray-500/40' },
 };
 
-const getDotColor = (action) => {
-  switch (action) {
-    case 'COMPLETED': return 'bg-emerald-500';
-    case 'ACCEPTED': return 'bg-blue-500';
-    case 'ROUTED': return 'bg-purple-500';
-    case 'RECEIVED': return 'bg-amber-500';
-    default: return 'bg-gray-500';
-  }
+const getEntryColors = (entry) => {
+  if (entry.action === 'COMPLETED') return ENTRY_COLORS.COMPLETED;
+  if (entry.action === 'ACCEPTED') return ENTRY_COLORS.ACCEPTED;
+  if (entry.action === 'ROUTED') return ENTRY_COLORS.ROUTED;
+  if (entry.action === 'RECEIVED') return ENTRY_COLORS.RECEIVED;
+  if (entry.action?.includes('FAIL') || entry.action?.includes('RETURN')) return ENTRY_COLORS.FAILED;
+  return ENTRY_COLORS.audit;
+};
+
+const formatDate = (ts) => {
+  if (!ts) return '—';
+  return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
+const formatTime = (ts) => {
+  if (!ts) return '—';
+  return new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 };
 
 const OrderTrack = () => {
@@ -67,7 +74,8 @@ const OrderTrack = () => {
     } finally { setLoading(false); }
   };
 
-  const currentStageIdx = STAGE_ORDER.indexOf(order?.currentStage);
+  const completedStages = new Set(order?.stages?.filter(s => s.status === 'COMPLETED').map(s => s.stageName) || []);
+  const activeStage = order?.currentStage;
 
   return (
     <div className="p-2 md:p-4 max-w-4xl mx-auto space-y-4">
@@ -137,13 +145,15 @@ const OrderTrack = () => {
           {/* Stage Pipeline */}
           <div className="bg-gray-900/60 rounded-2xl border border-gray-800/50 p-4">
             <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-3">Stage Pipeline</p>
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1 items-center">
               {STAGE_ORDER.map((stage, idx) => {
-                const completed = order.stages?.some(s => s.stageName === stage && s.status === 'COMPLETED');
-                const active = order.currentStage === stage;
+                const completed = completedStages.has(stage);
+                const active = activeStage === stage && order.status !== 'COMPLETED';
+                const Icon = STAGE_ICONS[stage] || Package;
                 return (
                   <React.Fragment key={stage}>
-                    <div className={`px-2 py-1 rounded-lg text-[10px] font-black transition-all ${completed ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : active ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40 animate-pulse' : 'bg-gray-800/40 text-gray-600'}`}>
+                    <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black transition-all ${completed ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : active ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40 animate-pulse' : 'bg-gray-800/40 text-gray-600'}`}>
+                      <Icon size={10} />
                       {STAGE_LABELS[stage]}
                     </div>
                     {idx < STAGE_ORDER.length - 1 && <ArrowRight size={10} className="text-gray-700 mx-0.5 shrink-0" />}
@@ -165,20 +175,20 @@ const OrderTrack = () => {
             ) : (
               <div className="relative">
                 {timeline.map((entry, idx) => {
-                  const dt = formatDateTime(entry.timestamp);
-                  const dotColor = getDotColor(entry.action);
-                  const borderCol = getEntryStyle(entry.action);
+                  const colors = getEntryColors(entry);
                   const isLast = idx === timeline.length - 1;
+                  const dt = formatDate(entry.timestamp);
+                  const tm = formatTime(entry.timestamp);
                   return (
                     <div key={entry.id || idx} className="flex gap-3">
                       <div className="flex flex-col items-center shrink-0">
-                        <div className={`w-3 h-3 rounded-full ${dotColor} mt-1.5 shadow-lg`} />
-                        {!isLast && <div className="w-0.5 flex-1 bg-gray-800 min-h-[20px]" />}
+                        <div className={`w-3 h-3 rounded-full ${colors.dot} mt-1.5 shadow-lg`} />
+                        {!isLast && <div className={`w-0.5 flex-1 ${colors.border} border-l-2 border-dashed min-h-[20px] opacity-30`} />}
                       </div>
-                      <div className={`flex-1 border-l-2 ${borderCol} rounded-r-lg p-2.5 mb-2`}>
+                      <div className={`flex-1 border-l-2 ${colors.border} ${colors.bg} rounded-r-lg p-2.5 mb-2`}>
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1">
-                            <span className={`inline-flex items-center gap-1 text-[10px] font-black px-1.5 py-0.5 rounded ${borderCol}`}>
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-black px-1.5 py-0.5 rounded border ${colors.badge}`}>
                               {entry.label}
                             </span>
                             <div className="flex flex-wrap items-center gap-2 mt-1.5">
@@ -188,10 +198,10 @@ const OrderTrack = () => {
                                 </span>
                               )}
                               <span className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-400">
-                                <Calendar size={9} /> {dt.date}
+                                <Calendar size={9} /> {dt}
                               </span>
                               <span className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-400">
-                                <Clock size={9} /> {dt.time}
+                                <Clock size={9} /> {tm}
                               </span>
                             </div>
                             {entry.details && <p className="text-[10px] text-gray-400 font-bold mt-1 italic">{entry.details}</p>}

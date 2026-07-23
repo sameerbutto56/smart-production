@@ -592,7 +592,7 @@ const inHouseDelivery = async (req, res) => {
     await createAuditLog(orderId, 'IN_HOUSE_DELIVERED', `In-house delivery completed by outlet ${outletName}`, req.user?.id || 'SYSTEM');
 
     await prisma.routingHistory.create({
-      data: { orderId, sentByUserId: req.user?.id || null, previousStage: 'OUT_FOR_DELIVERY', newStage: 'DELIVERED', sentToStage: 'DELIVERED', remarks: 'In-house delivery completed' }
+      data: { orderId, sentByUserId: req.user?.id || null, previousStage: 'OUTLET_RECEIVE', newStage: 'DELIVERED', sentToStage: 'DELIVERED', remarks: 'In-house delivery completed' }
     });
 
     const io = req.app.get('io');
