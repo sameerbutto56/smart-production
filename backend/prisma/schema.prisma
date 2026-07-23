@@ -15,6 +15,9 @@ model User {
   email      String       @unique
   password   String
   role       String       @default("ORDER_ENTRY")
+  outletName String?      // Assigned outlet (for OUTLET role employees)
+  subRole    String?      // Sub-role within outlet: 'POS', 'GENERAL', 'ALL'
+  isActive   Boolean      @default(true)
   employeeId String?      @unique
   theme      String?      @default("luxe")
   createdAt  DateTime     @default(now())
@@ -27,6 +30,10 @@ model User {
   editRequestsReviewed  OrderEditRequest[] @relation("EditReviewedBy")
   deletedOrders         DeletedOrder[] @relation("OrderDeletedBy")
   routingHistoryEntries  RoutingHistory[] @relation("RoutingHistorySentBy")
+
+  @@index([role])
+  @@index([outletName])
+  @@index([isActive])
 }
 
 model Order {
