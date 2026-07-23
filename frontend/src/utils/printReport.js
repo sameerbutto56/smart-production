@@ -1266,13 +1266,24 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
     const measEntries = Object.entries(rawS).filter(([k, v]) => v && k !== 'specialNote' && k !== '_standardSize' && k !== '_extra');
     const hasMeasValues = measEntries.length > 0;
     // Collect per-product measurement notes
-    const productNotes = isMultiItem
+    let productNotes = isMultiItem
       ? allItems.map((item, idx) => {
           const p = getItemProduct(item);
           const note = p.measurementSpecialNote || '';
           return { name: p.productType || p.name || `Product ${idx + 1}`, note };
         }).filter(x => x.note)
-      : (order.measurementSpecialNote ? [{ name: firstProduct.productType || firstProduct.name || '', note: order.measurementSpecialNote }] : []);
+      : [];
+    // Fallback: for multi-item orders without per-product notes, use order-level note
+    if (productNotes.length === 0 && order.measurementSpecialNote) {
+      if (isMultiItem) {
+        productNotes = allItems.map((item, idx) => {
+          const p = getItemProduct(item);
+          return { name: p.productType || p.name || `Product ${idx + 1}`, note: order.measurementSpecialNote };
+        });
+      } else {
+        productNotes = [{ name: firstProduct.productType || firstProduct.name || '', note: order.measurementSpecialNote }];
+      }
+    }
     const hasAnyNote = productNotes.length > 0;
     if (selectedSize || hasAnyNote || measSpecialNote || hasMeasValues) {
       win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
@@ -1301,13 +1312,24 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
 
   // ─── MEASUREMENT NOTES (standalone when engraving is disabled) ───
   if (!showMeas) {
-    const productNotes = isMultiItem
+    let productNotes = isMultiItem
       ? allItems.map((item, idx) => {
           const p = getItemProduct(item);
           const note = p.measurementSpecialNote || '';
           return { name: p.productType || p.name || `Product ${idx + 1}`, note };
         }).filter(x => x.note)
-      : (order.measurementSpecialNote ? [{ name: firstProduct.productType || firstProduct.name || '', note: order.measurementSpecialNote }] : []);
+      : [];
+    // Fallback: for multi-item orders without per-product notes, use order-level note
+    if (productNotes.length === 0 && order.measurementSpecialNote) {
+      if (isMultiItem) {
+        productNotes = allItems.map((item, idx) => {
+          const p = getItemProduct(item);
+          return { name: p.productType || p.name || `Product ${idx + 1}`, note: order.measurementSpecialNote };
+        });
+      } else {
+        productNotes = [{ name: firstProduct.productType || firstProduct.name || '', note: order.measurementSpecialNote }];
+      }
+    }
     if (productNotes.length > 0) {
       win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
       win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px">`);
