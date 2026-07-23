@@ -33,7 +33,7 @@ const DESTINATION_STAGES = {
 
 const createOutletOrder = async (req, res) => {
   try {
-    const { orderNumber: customOrderNumber, clientNumber, isNewCustomer, customerName, customerPhone, address, city, notes, products, engravingRequired, engravingText, engravingType, engravingInstructions, logoRequired, logoDesign, engravingNames, engravingLogos, sizeData, standardSize, measurementChart, advanceAmount, orderDestination, placedBy } = req.body;
+    const { orderNumber: customOrderNumber, clientNumber, isNewCustomer, customerName, customerPhone, address, city, notes, measurementSpecialNote, products, engravingRequired, engravingText, engravingType, engravingInstructions, logoRequired, logoDesign, engravingNames, engravingLogos, sizeData, standardSize, measurementChart, advanceAmount, orderDestination, placedBy } = req.body;
 
     if (!customerName) return res.status(400).json({ message: 'Customer name is required' });
     if (!products || !Array.isArray(products) || products.length === 0) return res.status(400).json({ message: 'At least one product is required' });
@@ -71,6 +71,7 @@ const createOutletOrder = async (req, res) => {
           productDetails,
           sizeData: sizeDataStr,
           instructionNotes: notes || null,
+          measurementSpecialNote: measurementSpecialNote || null,
           engravingRequired: engravingRequired || false,
           engravingText: engravingText || null,
           engravingType: engravingType || null,
@@ -272,7 +273,7 @@ const lookupClientByNumber = async (req, res) => {
           where: { customerPhone: entry.client.phone, source: 'OUTLET' },
           orderBy: { createdAt: 'desc' },
           take: 3,
-          select: { id: true, orderNumber: true, createdAt: true, productDetails: true, totalPrice: true, advanceAmount: true, currentStage: true, sizeData: true, engravingRequired: true, engravingText: true, engravingInstructions: true, logoRequired: true, engravingNames: true, engravingLogos: true, instructionNotes: true, orderDestination: true }
+          select: { id: true, orderNumber: true, createdAt: true, productDetails: true, totalPrice: true, advanceAmount: true, currentStage: true, sizeData: true, engravingRequired: true, engravingText: true, engravingInstructions: true, logoRequired: true, engravingNames: true, engravingLogos: true, instructionNotes: true, measurementSpecialNote: true, orderDestination: true }
         });
         entry.recentOrders = orders || [];
       }
@@ -303,7 +304,7 @@ const lookupClientByNumber = async (req, res) => {
         where: { customerPhone: entry.client.phone, source: 'OUTLET' },
         orderBy: { createdAt: 'desc' },
         take: 3,
-        select: { id: true, orderNumber: true, createdAt: true, productDetails: true, totalPrice: true, advanceAmount: true, currentStage: true, sizeData: true, engravingRequired: true, engravingText: true, engravingInstructions: true, logoRequired: true, engravingNames: true, engravingLogos: true, instructionNotes: true, orderDestination: true }
+        select: { id: true, orderNumber: true, createdAt: true, productDetails: true, totalPrice: true, advanceAmount: true, currentStage: true, sizeData: true, engravingRequired: true, engravingText: true, engravingInstructions: true, logoRequired: true, engravingNames: true, engravingLogos: true, instructionNotes: true, measurementSpecialNote: true, orderDestination: true }
       });
       entry.recentOrders = orders || [];
     }
@@ -360,7 +361,7 @@ const getOutletReturns = async (req, res) => {
       where: { source: 'OUTLET', outletName, currentStage: 'OUTLET_RECEIVE', status: { notIn: ['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'] } },
       orderBy: { createdAt: 'desc' },
       take: 50,
-      select: { id: true, orderNumber: true, customerName: true, customerPhone: true, productDetails: true, totalPrice: true, advanceAmount: true, currentStage: true, orderDestination: true, createdAt: true, engravingRequired: true, status: true, sizeData: true, instructionNotes: true }
+      select: { id: true, orderNumber: true, customerName: true, customerPhone: true, productDetails: true, totalPrice: true, advanceAmount: true, currentStage: true, orderDestination: true, createdAt: true, engravingRequired: true, status: true, sizeData: true, instructionNotes: true, measurementSpecialNote: true }
     });
     const parsed = orders.map(o => ({ ...o, productDetails: o.productDetails || [] }));
     res.json(parsed);

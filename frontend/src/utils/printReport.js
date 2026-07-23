@@ -946,6 +946,7 @@ const urduSection = {
   engraving: 'کڑھائی',
   measurements: 'پیمائش',
   instructionNotes: 'ہدایات (نوٹس)',
+  measurementSpecialNote: 'پیمائش کی خصوصی ہدایات',
   product: 'آرٹیکل',
   fabricColor: 'کپڑا اور رنگ',
   sizeGender: 'سائز اور جنس',
@@ -1002,6 +1003,7 @@ const enSection = {
   engraving: 'Engraving',
   measurements: 'Measurements',
   instructionNotes: 'Instruction Notes',
+  measurementSpecialNote: 'Measurement Special Note',
   product: 'Article',
   fabricColor: 'Fabric & Color',
   sizeGender: 'Size & Gender',
@@ -1260,7 +1262,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   if (showMeas) {
     const rawS = typeof sizes === 'object' && sizes ? sizes : {};
     const selectedSize = order.size || rawS._standardSize || '';
-    const measNote = order.instructionNotes || '';
+    const measNote = order.measurementSpecialNote || '';
     const measSpecialNote = rawS.specialNote || '';
     const measEntries = Object.entries(rawS).filter(([k, v]) => v && k !== 'specialNote' && k !== '_standardSize' && k !== '_extra');
     const hasMeasValues = measEntries.length > 0;
@@ -1290,8 +1292,8 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   }
 
   // ─── MEASUREMENT NOTES (standalone when engraving is disabled) ───
-  if (order.instructionNotes && !showMeas) {
-    const notesDisplay = isUrdu ? romanToUrdu(order.instructionNotes) : order.instructionNotes;
+  if (order.measurementSpecialNote && !showMeas) {
+    const notesDisplay = isUrdu ? romanToUrdu(order.measurementSpecialNote) : order.measurementSpecialNote;
     win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
     win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px">`);
     win.document.write(`<div style="background:#fef3c7;border-${borderAccent}:4px solid #d97706;padding:6px 10px;border-radius:4px">`);

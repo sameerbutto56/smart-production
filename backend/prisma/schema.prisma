@@ -79,6 +79,7 @@ model Order {
   storeRequestedAt DateTime?
   storeAcceptedAt   DateTime?
   instructionNotes String?
+  measurementSpecialNote String?
   shopifyOrderDate  DateTime?
   orderDestination  String?    // STORE / LOGO_DESIGN / PRODUCTION
   engravingRequired Boolean   @default(false)

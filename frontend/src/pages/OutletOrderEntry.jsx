@@ -17,6 +17,18 @@ const EMPTY_MEASUREMENT_FIELDS = {
   'Chest': '', 'Bottom': '', 'Waist': '', 'Length': '', 'Pancha': '', 'Thighs': '', 'Asan': ''
 };
 
+const SLEEVE_LENGTH_OPTIONS = [
+  { value: 'Full', label: 'Full', labelUrdu: 'پوری بازو' },
+  { value: 'Half', label: 'Half', labelUrdu: 'آدھی بازو' },
+  { value: 'Three-Quarter', label: 'Three-Quarter', labelUrdu: 'تین چوتھائی بازو' }
+];
+
+const SHIRT_LENGTH_OPTIONS = [
+  { value: 'Short', label: 'Short', labelUrdu: 'چھوٹی شرٹ' },
+  { value: 'Regular', label: 'Regular', labelUrdu: 'نارمل شرٹ' },
+  { value: 'Long', label: 'Long', labelUrdu: 'لمبی شرٹ' }
+];
+
 const FIELD_NAME_MAP = {
   chest: 'Chest', waist: 'Waist', shoulder: 'Shoulder',
   length: 'Length', sleeve: 'Sleeves Length', thigh: 'Thighs',
@@ -68,6 +80,9 @@ const OutletOrderEntry = () => {
 
   // --- Special Notes ---
   const [specialNotes, setSpecialNotes] = useState('');
+
+  // --- Measurement Special Note ---
+  const [measurementSpecialNote, setMeasurementSpecialNote] = useState('');
 
   // --- Measurements ---
   const [sizeData, setSizeData] = useState({});
@@ -290,6 +305,7 @@ const OutletOrderEntry = () => {
         address: customer.address,
         city: customer.city,
         notes: specialNotes || null,
+        measurementSpecialNote: measurementSpecialNote || null,
         products: products.map(p => ({
           name: p.name,
           fabric: p.fabric,
@@ -345,6 +361,7 @@ const OutletOrderEntry = () => {
     setEngravingInstructions('');
     setLogoDesign('');
     setSpecialNotes('');
+    setMeasurementSpecialNote('');
     setSizeData({});
     setClientMeasurements({});
     setAdvanceAmount(0);
@@ -648,15 +665,23 @@ const OutletOrderEntry = () => {
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-gray-500">Sleeve Length</label>
-                  <input value={newProduct.sleeveLength} onChange={e => updateNewProduct('sleeveLength', e.target.value)}
-                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-bold text-white placeholder-gray-500 outline-none focus:border-amber-500"
-                    placeholder="e.g. 25" />
+                  <select value={newProduct.sleeveLength} onChange={e => updateNewProduct('sleeveLength', e.target.value)}
+                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-bold text-white outline-none focus:border-amber-500">
+                    <option value="">Select</option>
+                    {SLEEVE_LENGTH_OPTIONS.map(o => (
+                      <option key={o.value} value={o.value}>{o.label} — {o.labelUrdu}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-gray-500">Shirt Length</label>
-                  <input value={newProduct.shirtLength} onChange={e => updateNewProduct('shirtLength', e.target.value)}
-                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-bold text-white placeholder-gray-500 outline-none focus:border-amber-500"
-                    placeholder="e.g. 30" />
+                  <select value={newProduct.shirtLength} onChange={e => updateNewProduct('shirtLength', e.target.value)}
+                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-bold text-white outline-none focus:border-amber-500">
+                    <option value="">Select</option>
+                    {SHIRT_LENGTH_OPTIONS.map(o => (
+                      <option key={o.value} value={o.value}>{o.label} — {o.labelUrdu}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <button onClick={addProduct}
@@ -820,97 +845,15 @@ const OutletOrderEntry = () => {
         {/* ═══════════════════ Step 3: Measurements ═══════════════════ */}
         {step === 3 && (
           <div className="space-y-4">
-            <h2 className="text-lg font-black text-white flex items-center gap-2"><Ruler size={18} />Measurement Chart</h2>
+            <h2 className="text-lg font-black text-white flex items-center gap-2"><Ruler size={18} />Measurement Special Note</h2>
 
-            {customerMode === 'new' && !clientData ? (
-              <p className="text-xs font-bold text-gray-500">Enter measurements for this new customer. They will be saved to their profile.</p>
-            ) : (
-              <p className="text-xs font-bold text-gray-500">Client measurements loaded. Edit if needed.</p>
-            )}
+            <p className="text-xs font-bold text-gray-500">Enter any measurement instructions, size details, custom fitting, alterations, or special measurement requests.</p>
 
-            {/* Sizing Mode Toggles (existing customer) */}
-            {clientData && products.length > 0 && (clientStandardSizes.length > 0 || Object.keys(clientMeasurements).length > 0) && (
-              <div className="flex gap-3">
-                {clientStandardSizes.length > 0 && (
-                  <button type="button" onClick={() => setSizingMode('standard')}
-                    className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all border-2 ${
-                      sizingMode === 'standard' ? 'bg-blue-600/20 text-blue-400 border-blue-500' : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-600'
-                    }`}>
-                    Standard Size{clientMeasurementChart ? ` (${clientMeasurementChart})` : ''}
-                  </button>
-                )}
-                {Object.keys(clientMeasurements).length > 0 && (
-                  <button type="button" onClick={() => setSizingMode('custom')}
-                    className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all border-2 ${
-                      sizingMode === 'custom' ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500' : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-600'
-                    }`}>
-                    Custom Measurements
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Standard Size Selector */}
-            {sizingMode === 'standard' && clientStandardSizes.length > 0 && (
-              <div className="bg-blue-900/20 border border-blue-700 rounded-xl p-3">
-                <p className="text-xs font-bold text-blue-400 mb-2">Select Standard Size</p>
-                <div className="flex flex-wrap gap-2">
-                  {clientStandardSizes.map(s => (
-                    <button key={s} type="button" onClick={() => {
-                      setSelectedStandardSize(s);
-                      setProducts(prev => prev.map(p => ({ ...p, size: s })));
-                      setSizeData(prev => {
-                        const copy = { ...prev };
-                        Object.keys(copy).forEach(pname => { copy[pname] = { ...(copy[pname] || {}), _standardSize: s }; });
-                        return copy;
-                      });
-                    }}
-                      className={`px-5 py-3 text-sm font-black rounded-xl border-2 transition-all ${
-                        selectedStandardSize === s ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white'
-                      }`}>
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Custom Measurements */}
-            {(sizingMode === 'custom' || !clientData || products.length > 0) && (
-              <div className="space-y-3 max-h-80 overflow-y-auto">
-                {(products.length > 0 ? products : [{ name: 'Measurements', _tempId: 'default' }]).map((p) => {
-                  const prodName = p.name;
-                  const allFields = Object.keys(EMPTY_MEASUREMENT_FIELDS);
-                  const existingKeys = Object.keys(sizeData[prodName] || {});
-                  const extraKeys = existingKeys.filter(k => !allFields.includes(k) && k !== '_extra' && k !== '_standardSize');
-                  return (
-                    <div key={p._tempId} className="bg-gray-800 rounded-xl p-3">
-                      {products.length > 1 && <p className="text-sm font-black text-white mb-2">{prodName}</p>}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                        {[...allFields, ...extraKeys].map(m => (
-                          <div key={m}>
-                            <label className="text-[10px] text-gray-500">{m}</label>
-                            <input type="text" value={sizeData[prodName]?.[m] || ''}
-                              onChange={e => setSizeData(prev => ({
-                                ...prev,
-                                [prodName]: { ...(prev[prodName] || {}), [m]: e.target.value }
-                              }))}
-                              className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white outline-none" placeholder="in" />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* No sizing data available */}
-            {products.length === 0 && (
-              <div className="bg-gray-800 rounded-xl p-4">
-                <p className="text-sm text-gray-400">Add products first — measurements will appear here per product.</p>
-              </div>
-            )}
+            <div>
+              <textarea value={measurementSpecialNote} onChange={e => setMeasurementSpecialNote(e.target.value)}
+                className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-amber-500 outline-none resize-none" rows={6}
+                placeholder="e.g. Chest 42, Waist 34, Loose fitting, Extra 2 inches on sleeves..." />
+            </div>
           </div>
         )}
 
@@ -999,7 +942,8 @@ const OutletOrderEntry = () => {
 
             {/* Special Notes */}
             <div className="bg-gray-800 rounded-xl p-4 text-sm">
-              <p className="text-gray-400">Special Notes: <span className="text-white font-black">{specialNotes || '—'}</span></p>
+              {measurementSpecialNote && <p className="text-gray-400 mb-1">Measurement Note: <span className="text-white font-black">{measurementSpecialNote}</span></p>}
+              {specialNotes && <p className="text-gray-400">Engraving Note: <span className="text-white font-black">{specialNotes}</span></p>}
               {logoDesign && <p className="text-gray-400">Logo: <span className="text-white font-black">{logoDesign}</span></p>}
             </div>
 
