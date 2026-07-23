@@ -1262,15 +1262,23 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   if (showMeas) {
     const rawS = typeof sizes === 'object' && sizes ? sizes : {};
     const selectedSize = order.size || rawS._standardSize || '';
-    const measNote = order.measurementSpecialNote || '';
     const measSpecialNote = rawS.specialNote || '';
     const measEntries = Object.entries(rawS).filter(([k, v]) => v && k !== 'specialNote' && k !== '_standardSize' && k !== '_extra');
     const hasMeasValues = measEntries.length > 0;
-    if (selectedSize || measNote || measSpecialNote || hasMeasValues) {
+    // Collect per-product measurement notes
+    const productNotes = isMultiItem
+      ? allItems.map((item, idx) => {
+          const p = getItemProduct(item);
+          const note = p.measurementSpecialNote || '';
+          return { name: p.productType || p.name || `Product ${idx + 1}`, note };
+        }).filter(x => x.note)
+      : (order.measurementSpecialNote ? [{ name: firstProduct.productType || firstProduct.name || '', note: order.measurementSpecialNote }] : []);
+    const hasAnyNote = productNotes.length > 0;
+    if (selectedSize || hasAnyNote || measSpecialNote || hasMeasValues) {
       win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
       win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px">`);
       if (selectedSize) {
-        win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;margin-bottom:${(measSpecialNote || measNote) ? '6px' : '0'}">${isUrdu ? 'منتخب سائز:' : 'Selected Size:'} ${selectedSize}</p>`);
+        win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;margin-bottom:${(measSpecialNote || hasAnyNote) ? '6px' : '0'}">${isUrdu ? 'منتخب سائز:' : 'Selected Size:'} ${selectedSize}</p>`);
       }
       if (measSpecialNote) {
         const noteDisplay = isUrdu ? measSpecialNote.split('\n').map(l => romanToUrdu(l)).join('\n') : measSpecialNote;
@@ -1278,28 +1286,40 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
         win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
         win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${noteDisplay}</p></div>`);
       }
-      if (measNote) {
-        const notesDisplay = isUrdu ? romanToUrdu(measNote) : measNote;
-        const noteBg = measSpecialNote ? 'dbeafe' : 'fef3c7';
-        const noteBorder = measSpecialNote ? '3b82f6' : 'd97706';
-        const noteLabel = measSpecialNote ? sec.instructionNotes : sec.specialNote;
-        win.document.write(`<div style="background:#${noteBg};border-${borderAccent}:4px solid #${noteBorder};padding:6px 10px;border-radius:4px;margin-top:${(selectedSize || hasMeasValues || measSpecialNote) ? '6px' : '0'}">`);
-        win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #${noteBorder}60;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${noteLabel}</p>`);
-        win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
+      if (hasAnyNote) {
+        productNotes.forEach((pn) => {
+          const noteDisplay = isUrdu ? romanToUrdu(pn.note) : pn.note;
+          const productNameDisplay = isUrdu ? romanToUrdu(pn.name) : pn.name;
+          win.document.write(`<div style="background:#dbeafe;border-${borderAccent}:4px solid #3b82f6;padding:6px 10px;border-radius:4px;margin-top:${(selectedSize || hasMeasValues || measSpecialNote) ? '6px' : '0'}">`);
+          win.document.write(`<p style="font-size:20px;font-weight:900;text-transform:uppercase;color:#1e40af;margin-bottom:2px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote} — ${productNameDisplay}</p>`);
+          win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${noteDisplay}</p></div>`);
+        });
       }
       win.document.write(`</div>`);
     }
   }
 
   // ─── MEASUREMENT NOTES (standalone when engraving is disabled) ───
-  if (order.measurementSpecialNote && !showMeas) {
-    const notesDisplay = isUrdu ? romanToUrdu(order.measurementSpecialNote) : order.measurementSpecialNote;
-    win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
-    win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px">`);
-    win.document.write(`<div style="background:#fef3c7;border-${borderAccent}:4px solid #d97706;padding:6px 10px;border-radius:4px">`);
-    win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
-    win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${notesDisplay}</p></div>`);
-    win.document.write(`</div>`);
+  if (!showMeas) {
+    const productNotes = isMultiItem
+      ? allItems.map((item, idx) => {
+          const p = getItemProduct(item);
+          const note = p.measurementSpecialNote || '';
+          return { name: p.productType || p.name || `Product ${idx + 1}`, note };
+        }).filter(x => x.note)
+      : (order.measurementSpecialNote ? [{ name: firstProduct.productType || firstProduct.name || '', note: order.measurementSpecialNote }] : []);
+    if (productNotes.length > 0) {
+      win.document.write(`<div class="section-title" style="font-size:26px">${sec.measurements}</div>`);
+      win.document.write(`<div style="border:2px solid #ddd;border-radius:8px;padding:8px 10px;margin-bottom:8px">`);
+      productNotes.forEach((pn) => {
+        const noteDisplay = isUrdu ? romanToUrdu(pn.note) : pn.note;
+        const productNameDisplay = isUrdu ? romanToUrdu(pn.name) : pn.name;
+        win.document.write(`<div style="background:#fef3c7;border-${borderAccent}:4px solid #d97706;padding:6px 10px;border-radius:4px;margin-bottom:4px">`);
+        win.document.write(`<p style="font-size:20px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:2px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote} — ${productNameDisplay}</p>`);
+        win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;line-height:1.4;word-wrap:break-word;white-space:pre-wrap"${isUrdu ? ' class="urdu"' : ''}>${noteDisplay}</p></div>`);
+      });
+      win.document.write(`</div>`);
+    }
   }
 
   // ─── ENGRAVING / BRANDING ───

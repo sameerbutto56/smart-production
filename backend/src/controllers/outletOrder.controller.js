@@ -56,6 +56,12 @@ const createOutletOrder = async (req, res) => {
     const totalPrice = products.reduce((sum, p) => sum + (parseFloat(p.unitPrice) || 0) * (p.quantity || 1), 0);
     const adv = parseFloat(advanceAmount) || 0;
 
+    // Aggregate per-product measurement notes into order-level field as fallback
+    const aggregatedNote = measurementSpecialNote || products
+      .filter(p => p.measurementSpecialNote)
+      .map(p => `${p.name}${p.color ? ' (' + p.color + ')' : ''}: ${p.measurementSpecialNote}`)
+      .join('\n') || null;
+
     const order = await prisma.$transaction(async (tx) => {
       const created = await tx.order.create({
         data: {
@@ -71,7 +77,7 @@ const createOutletOrder = async (req, res) => {
           productDetails,
           sizeData: sizeDataStr,
           instructionNotes: notes || null,
-          measurementSpecialNote: measurementSpecialNote || null,
+          measurementSpecialNote: aggregatedNote,
           engravingRequired: engravingRequired || false,
           engravingText: engravingText || null,
           engravingType: engravingType || null,

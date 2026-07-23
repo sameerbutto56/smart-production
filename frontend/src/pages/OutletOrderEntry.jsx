@@ -65,7 +65,7 @@ const OutletOrderEntry = () => {
   const [products, setProducts] = useState([]);
   const [newProduct, setNewProduct] = useState({
     name: '', fabric: '', color: '', size: '', quantity: 1, unitPrice: 0,
-    design: '', stitchingNotes: '', accessories: '', sleeveLength: '', shirtLength: ''
+    design: '', stitchingNotes: '', accessories: '', sleeveLength: '', shirtLength: '', measurementSpecialNote: ''
   });
 
   // --- Engraving ---
@@ -80,9 +80,6 @@ const OutletOrderEntry = () => {
 
   // --- Special Notes ---
   const [specialNotes, setSpecialNotes] = useState('');
-
-  // --- Measurement Special Note ---
-  const [measurementSpecialNote, setMeasurementSpecialNote] = useState('');
 
   // --- Measurements ---
   const [sizeData, setSizeData] = useState({});
@@ -257,7 +254,7 @@ const OutletOrderEntry = () => {
   const addProduct = useCallback(() => {
     if (!newProduct.name.trim()) return toast.error('Enter product name');
     setProducts(prev => [...prev, { ...newProduct, _tempId: Date.now() + Math.random() }]);
-    setNewProduct({ name: '', fabric: '', color: '', size: '', quantity: 1, unitPrice: 0, design: '', stitchingNotes: '', accessories: '', sleeveLength: '', shirtLength: '' });
+    setNewProduct({ name: '', fabric: '', color: '', size: '', quantity: 1, unitPrice: 0, design: '', stitchingNotes: '', accessories: '', sleeveLength: '', shirtLength: '', measurementSpecialNote: '' });
   }, [newProduct]);
 
   const removeProduct = useCallback((idx) => setProducts(prev => prev.filter((_, i) => i !== idx)), []);
@@ -305,7 +302,7 @@ const OutletOrderEntry = () => {
         address: customer.address,
         city: customer.city,
         notes: specialNotes || null,
-        measurementSpecialNote: measurementSpecialNote || null,
+        measurementSpecialNote: null,
         products: products.map(p => ({
           name: p.name,
           fabric: p.fabric,
@@ -317,7 +314,8 @@ const OutletOrderEntry = () => {
           stitchingNotes: p.stitchingNotes,
           accessories: p.accessories,
           sleeveLength: p.sleeveLength || '',
-          shirtLength: p.shirtLength || ''
+          shirtLength: p.shirtLength || '',
+          measurementSpecialNote: p.measurementSpecialNote || ''
         })),
         engravingRequired,
         engravingText: engravingText || null,
@@ -683,6 +681,12 @@ const OutletOrderEntry = () => {
                     ))}
                   </select>
                 </div>
+                <div className="col-span-2">
+                  <label className="text-[10px] font-bold text-gray-500">Measurement Special Note</label>
+                  <input value={newProduct.measurementSpecialNote} onChange={e => updateNewProduct('measurementSpecialNote', e.target.value)}
+                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-bold text-white placeholder-gray-500 outline-none focus:border-amber-500"
+                    placeholder="e.g. Chest 42, Waist 34, Loose fitting..." />
+                </div>
               </div>
               <button onClick={addProduct}
                 className="w-full bg-amber-600 hover:bg-amber-500 text-white font-black py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-all">
@@ -711,6 +715,7 @@ const OutletOrderEntry = () => {
                         {p.shirtLength && <p className="text-[10px] text-gray-500 mt-0.5">Shirt Length: {p.shirtLength}</p>}
                         {p.stitchingNotes && <p className="text-[10px] text-gray-500">Stitching: {p.stitchingNotes}</p>}
                         {p.accessories && <p className="text-[10px] text-gray-500">Accessories: {p.accessories}</p>}
+                        {p.measurementSpecialNote && <p className="text-[10px] text-amber-400 font-bold mt-0.5">Measurement Note: {p.measurementSpecialNote}</p>}
                       </div>
                       <button onClick={() => removeProduct(idx)} className="text-red-400 hover:text-red-300 p-1"><X size={14} /></button>
                     </div>
@@ -845,15 +850,26 @@ const OutletOrderEntry = () => {
         {/* ═══════════════════ Step 3: Measurements ═══════════════════ */}
         {step === 3 && (
           <div className="space-y-4">
-            <h2 className="text-lg font-black text-white flex items-center gap-2"><Ruler size={18} />Measurement Special Note</h2>
+            <h2 className="text-lg font-black text-white flex items-center gap-2"><Ruler size={18} />Measurement Special Notes</h2>
 
-            <p className="text-xs font-bold text-gray-500">Enter any measurement instructions, size details, custom fitting, alterations, or special measurement requests.</p>
+            <p className="text-xs font-bold text-gray-500">Enter measurement instructions for each product separately. Each product gets its own note.</p>
 
-            <div>
-              <textarea value={measurementSpecialNote} onChange={e => setMeasurementSpecialNote(e.target.value)}
-                className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-amber-500 outline-none resize-none" rows={6}
-                placeholder="e.g. Chest 42, Waist 34, Loose fitting, Extra 2 inches on sleeves..." />
-            </div>
+            {products.map((p, idx) => (
+              <div key={p._tempId} className="bg-gray-800 rounded-xl p-4 space-y-2 border border-gray-700">
+                <p className="text-sm font-black text-amber-400">{idx + 1}. {p.name} {p.color ? `(${p.color})` : ''}</p>
+                <textarea
+                  value={p.measurementSpecialNote}
+                  onChange={e => {
+                    const updated = [...products];
+                    updated[idx] = { ...updated[idx], measurementSpecialNote: e.target.value };
+                    setProducts(updated);
+                  }}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-amber-500 outline-none resize-none"
+                  rows={3}
+                  placeholder={`Measurement instructions for ${p.name}...`}
+                />
+              </div>
+            ))}
           </div>
         )}
 
@@ -942,7 +958,14 @@ const OutletOrderEntry = () => {
 
             {/* Special Notes */}
             <div className="bg-gray-800 rounded-xl p-4 text-sm">
-              {measurementSpecialNote && <p className="text-gray-400 mb-1">Measurement Note: <span className="text-white font-black">{measurementSpecialNote}</span></p>}
+              {products.filter(p => p.measurementSpecialNote).length > 0 && (
+                <div className="mb-1">
+                  <p className="text-gray-400 font-bold mb-1">Measurement Notes:</p>
+                  {products.filter(p => p.measurementSpecialNote).map((p, i) => (
+                    <p key={p._tempId} className="text-amber-400 font-bold ml-2">• {p.name}: <span className="text-white">{p.measurementSpecialNote}</span></p>
+                  ))}
+                </div>
+              )}
               {specialNotes && <p className="text-gray-400">Engraving Note: <span className="text-white font-black">{specialNotes}</span></p>}
               {logoDesign && <p className="text-gray-400">Logo: <span className="text-white font-black">{logoDesign}</span></p>}
             </div>
