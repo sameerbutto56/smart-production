@@ -2520,7 +2520,8 @@ const getOrderTimeline = async (req, res) => {
     const [stages, routingHistory, auditLogs] = await Promise.all([
       prisma.orderStage.findMany({
         where: { orderId },
-        orderBy: { createdAt: 'asc' }
+        orderBy: { createdAt: 'asc' },
+        include: { assignedEmployee: { select: { id: true, name: true } } }
       }),
       prisma.routingHistory.findMany({
         where: { orderId },
@@ -2528,63 +2529,93 @@ const getOrderTimeline = async (req, res) => {
         include: { sentByUser: { select: { id: true, name: true } } }
       }),
       prisma.auditLog.findMany({
-        where: { orderId, action: { in: ['STAGE_ACCEPTED', 'STORE_ACCEPT', 'STORE_ROUTE', 'DELIVERY_ACCEPTED', 'INVENTORY_ADDED', 'INVENTORY_CONFIRMED', 'STORE_RETURN_TO_SOURCE'] } },
+        where: { orderId },
         orderBy: { timestamp: 'asc' },
         include: { user: { select: { id: true, name: true } } }
       })
     ]);
 
-    // Build timeline entries
     const entries = [];
 
-    // Add routing history entries
+    // Stage entries — each stage gets up to 2 events (received + accepted + completed)
+    stages.forEach(s => {
+      const stageLabel = STAGE_LABELS[s.stageName] || s.stageName;
+      // Stage received / created
+      entries.push({
+        id: `${s.id}-received`,
+        type: 'stage',
+        stage: s.stageName,
+        stageLabel,
+        timestamp: s.createdAt,
+        action: 'RECEIVED',
+        label: `${stageLabel} — Received`,
+        actor: s.assignedEmployee?.name || null,
+        status: s.status,
+        details: s.returnedFrom ? `Returned from ${STAGE_LABELS[s.returnedFrom] || s.returnedFrom}` : null,
+        returnReason: s.returnReason || null
+      });
+      // Stage accepted / started
+      if (s.startedAt) {
+        entries.push({
+          id: `${s.id}-accepted`,
+          type: 'stage',
+          stage: s.stageName,
+          stageLabel,
+          timestamp: s.startedAt,
+          action: 'ACCEPTED',
+          label: `${stageLabel} — Accepted`,
+          actor: s.assignedEmployee?.name || null,
+          status: 'IN_PROGRESS'
+        });
+      }
+      // Stage completed
+      if (s.completedAt) {
+        entries.push({
+          id: `${s.id}-completed`,
+          type: 'stage',
+          stage: s.stageName,
+          stageLabel,
+          timestamp: s.completedAt,
+          action: 'COMPLETED',
+          label: `${stageLabel} — Completed`,
+          actor: s.assignedEmployee?.name || null,
+          status: 'COMPLETED'
+        });
+      }
+    });
+
+    // Routing history entries
     routingHistory.forEach(rh => {
+      const fromLabel = STAGE_LABELS[rh.previousStage] || rh.previousStage;
+      const toLabel = STAGE_LABELS[rh.newStage] || rh.newStage;
       entries.push({
         id: rh.id,
         type: 'route',
-        stage: rh.sentToStage,
+        stage: rh.newStage,
+        stageLabel: toLabel,
         timestamp: rh.createdAt,
-        label: 'Routed',
-        from: rh.previousStage,
-        to: rh.newStage,
+        action: 'ROUTED',
+        label: `${fromLabel} → ${toLabel}`,
         actor: rh.sentByUser?.name || 'System',
         remarks: rh.remarks || null
       });
     });
 
-    // Add stage entries with calculated delays
-    stages.forEach(s => {
-      const delay = s.startedAt ? Math.round((new Date(s.startedAt) - new Date(s.createdAt)) / 60000) : null;
-      entries.push({
-        id: s.id,
-        type: 'stage',
-        stage: s.stageName,
-        timestamp: s.createdAt,
-        label: s.status === 'COMPLETED' ? 'Completed' : s.startedAt ? 'Accepted' : 'Received',
-        status: s.status,
-        receivedAt: s.createdAt,
-        acceptedAt: s.startedAt || null,
-        completedAt: s.completedAt || null,
-        delay,
-        returnedFrom: s.returnedFrom || null,
-        returnReason: s.returnReason || null
-      });
-    });
-
-    // Add audit log entries for acceptances
+    // Audit log entries
     auditLogs.forEach(al => {
       entries.push({
         id: al.id,
         type: 'audit',
         stage: null,
+        stageLabel: null,
         timestamp: al.timestamp,
-        label: al.action,
-        details: al.details,
-        actor: al.user?.name || al.performedBy
+        action: al.action,
+        label: al.action.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase()),
+        actor: al.user?.name || al.performedBy || 'System',
+        details: al.details || null
       });
     });
 
-    // Sort by timestamp
     entries.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
     res.json(entries);
@@ -3202,13 +3233,14 @@ const trackOrder = async (req, res) => {
     let order = await prisma.order.findUnique({
       where: { orderNumber },
       include: {
-        stages: { orderBy: { createdAt: 'asc' } }
+        stages: { orderBy: { createdAt: 'asc' } },
+        createdBy: { select: { id: true, name: true } }
       }
     });
     if (!order) {
       const matches = await prisma.order.findMany({
         where: { orderNumber: { contains: orderNumber } },
-        include: { stages: { orderBy: { createdAt: 'asc' } } },
+        include: { stages: { orderBy: { createdAt: 'asc' } }, createdBy: { select: { id: true, name: true } } },
         orderBy: { createdAt: 'desc' },
         take: 1
       });
