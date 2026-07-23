@@ -23,7 +23,6 @@ import {
   Factory,
   RotateCcw,
   UserPlus,
-  Users,
   ShoppingCart,
   ShoppingBag,
   ArrowRightLeft,
@@ -44,7 +43,6 @@ import toast from 'react-hot-toast';
 import { useSearch } from '../context/SearchContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
-import { useEmployee } from '../context/EmployeeContext';
 import { Palette } from 'lucide-react';
 
 const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => {
@@ -88,7 +86,6 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Dashboard', path: '/dispatch-dashboard', icon: LayoutDashboard, roles: ['DISPATCH'] },
     { name: 'My Tasks', path: '/dispatch', icon: Truck, roles: ['DISPATCH'] },
     { name: 'Branches', path: '/pos-inventory', icon: Building2, roles: ['SUPER_ADMIN', 'ADMIN'] },
-    { name: 'Employees', path: '/employees', icon: Users, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Orders', path: '/orders', icon: ClipboardList, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'OUTLET'] },
     { name: 'Transfers', path: '/transfers', icon: ArrowRightLeft, roles: ['SUPER_ADMIN', 'ADMIN', 'OUTLET'] },
     { name: 'Analytics', path: '/analytics', icon: BarChart3, roles: ['SUPER_ADMIN', 'ADMIN'] },
@@ -276,6 +273,11 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
   );
 });
 
+const FAISAL_EMPLOYEES = {
+  Faisal: { password: 'F170', label: 'Faisal' },
+  Khawar: { password: 'K170', label: 'Khawar' }
+};
+
 const Layout = () => {
   const navigate = useNavigate();
   const { t, LanguageToggle, isUrdu } = useLanguage();
@@ -283,51 +285,34 @@ const Layout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { user } = useAuth();
-  const { activeEmployee, login: setEmployee, logout: clearEmployee } = useEmployee();
   const [systemPaused, setSystemPaused] = useState(false);
 
-  // Generic employee selection for ALL profiles
-  const [profileEmployees, setProfileEmployees] = useState([]);
-  const [empLoading, setEmpLoading] = useState(true);
-  const [empSelectedEmail, setEmpSelectedEmail] = useState('');
-  const [empPwd, setEmpPwd] = useState('');
-  const [empShowPwd, setEmpShowPwd] = useState(false);
-  const [empLoginLoading, setEmpLoginLoading] = useState(false);
+  // Faisal employee login
+  const [faisalEmployee, setFaisalEmployee] = useState(() => localStorage.getItem('faisalEmployee') || '');
+  const [faisalPwd, setFaisalPwd] = useState('');
+  const [faisalShowPwd, setFaisalShowPwd] = useState(false);
+  const [faisalLoggedIn, setFaisalLoggedIn] = useState(() => !!localStorage.getItem('faisalEmployee'));
+  const [faisalLoginLoading, setFaisalLoginLoading] = useState(false);
 
-  // Fetch employees for current profile on mount
-  useEffect(() => {
-    if (!user?.role) return;
-    setEmpLoading(true);
-    api.get('/api/employees/by-role', { params: { role: user.role, isActive: 'true' } })
-      .then(res => setProfileEmployees(res.data || []))
-      .catch(() => setProfileEmployees([]))
-      .finally(() => setEmpLoading(false));
-  }, [user?.role]);
-
-  // Check if employee selection is needed:
-  // - Role has employees AND
-  // - No active employee OR active employee is from a different role
-  const needsEmployeeSelection = !empLoading && profileEmployees.length > 0 && (!activeEmployee || activeEmployee.role !== user?.role);
-
-  const handleEmployeeLogin = async () => {
-    if (!empSelectedEmail) { toast.error('Please select an employee'); return; }
-    if (!empPwd) { toast.error('Please enter password'); return; }
-    setEmpLoginLoading(true);
-    try {
-      const res = await api.post('/api/employees/verify', { email: empSelectedEmail, password: empPwd });
-      setEmployee(res.data);
-      setEmpPwd('');
-      toast.success(`Logged in as ${res.data.name}`);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Invalid credentials');
-    }
-    setEmpLoginLoading(false);
+  const handleFaisalLogin = () => {
+    const emp = FAISAL_EMPLOYEES[faisalEmployee];
+    if (!emp) { toast.error('Please select an employee'); return; }
+    if (faisalPwd !== emp.password) { toast.error('Invalid password'); return; }
+    setFaisalLoginLoading(true);
+    setTimeout(() => {
+      setFaisalLoggedIn(true);
+      setFaisalPwd('');
+      localStorage.setItem('faisalEmployee', faisalEmployee);
+      toast.success(`Logged in as ${emp.label}`);
+      setFaisalLoginLoading(false);
+    }, 400);
   };
 
-  const handleEmployeeLogout = () => {
-    clearEmployee();
-    setEmpSelectedEmail('');
-    setEmpPwd('');
+  const handleFaisalLogout = () => {
+    setFaisalLoggedIn(false);
+    setFaisalEmployee('');
+    setFaisalPwd('');
+    localStorage.removeItem('faisalEmployee');
   };
 
   useEffect(() => {
@@ -426,7 +411,7 @@ const Layout = () => {
 
   const { activeAlert, acknowledge } = useDemandNotification();
 
-  if (needsEmployeeSelection) {
+  if (user?.role === 'FAISAL' && !faisalLoggedIn) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'var(--background)', color: 'var(--text-primary)' }}>
         <motion.div
@@ -439,20 +424,20 @@ const Layout = () => {
               <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-blue-500/10 flex items-center justify-center">
                 <UserCheck className="text-blue-400" size={32} />
               </div>
-              <h1 className="text-3xl font-black text-white uppercase tracking-tight">{user?.role?.replace(/_/g, ' ')}</h1>
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mt-2">Select Employee</p>
+              <h1 className="text-3xl font-black text-white uppercase tracking-tight">Faisal Profile</h1>
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mt-2">Employee Login</p>
             </div>
             <div className="space-y-5">
               <div>
-                <label className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2 block">Employee</label>
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2 block">Select Employee</label>
                 <select
-                  value={empSelectedEmail}
-                  onChange={(e) => { setEmpSelectedEmail(e.target.value); setEmpPwd(''); }}
+                  value={faisalEmployee}
+                  onChange={(e) => { setFaisalEmployee(e.target.value); setFaisalPwd(''); }}
                   className="w-full bg-gray-900 border border-gray-800 rounded-xl py-3 px-4 text-white focus:border-blue-500 outline-none font-black appearance-none"
                 >
                   <option value="">— Select Employee —</option>
-                  {profileEmployees.map(emp => (
-                    <option key={emp.id} value={emp.email}>{emp.name}{emp.subRole ? ` (${emp.subRole})` : ''}</option>
+                  {Object.entries(FAISAL_EMPLOYEES).map(([key, emp]) => (
+                    <option key={key} value={key}>{emp.label}</option>
                   ))}
                 </select>
               </div>
@@ -461,39 +446,37 @@ const Layout = () => {
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
                   <input
-                    type={empShowPwd ? 'text' : 'password'}
-                    value={empPwd}
-                    onChange={(e) => setEmpPwd(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleEmployeeLogin(); }}
+                    type={faisalShowPwd ? 'text' : 'password'}
+                    value={faisalPwd}
+                    onChange={(e) => setFaisalPwd(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleFaisalLogin(); }}
                     className="w-full bg-gray-900 border border-gray-800 rounded-xl py-3 pl-12 pr-12 text-white focus:border-blue-500 outline-none font-black"
                     placeholder="Enter password..."
                   />
                   <button
                     type="button"
-                    onClick={() => setEmpShowPwd(!empShowPwd)}
+                    onClick={() => setFaisalShowPwd(!faisalShowPwd)}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
                   >
-                    {empShowPwd ? <EyeOff size={18} /> : <Eye size={18} />}
+                    {faisalShowPwd ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
               </div>
               <button
-                onClick={handleEmployeeLogin}
-                disabled={empLoginLoading || !empSelectedEmail || !empPwd}
+                onClick={handleFaisalLogin}
+                disabled={faisalLoginLoading || !faisalEmployee || !faisalPwd}
                 className="w-full py-3 rounded-xl font-black text-sm uppercase tracking-widest transition-all bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {empLoginLoading ? (
+                {faisalLoginLoading ? (
                   <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
                 ) : (
                   <LogOut className="rotate-180" size={16} />
                 )}
-                {empLoginLoading ? 'Verifying...' : 'Login'}
+                Login as {faisalEmployee || 'Employee'}
               </button>
             </div>
             <div className="mt-6 pt-6 border-t border-gray-800">
-              <button onClick={() => { navigate('/login'); }} className="text-xs font-bold text-gray-500 hover:text-white text-center w-full transition-colors">
-                ← Back to Login
-              </button>
+              <p className="text-xs font-bold text-gray-500 text-center">Secure Faisal profile access</p>
             </div>
           </div>
         </motion.div>
@@ -547,21 +530,21 @@ const Layout = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            {activeEmployee && (
+            {user?.role === 'FAISAL' && (
               <button
-                onClick={handleEmployeeLogout}
+                onClick={handleFaisalLogout}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest bg-red-600/20 text-red-400 hover:bg-red-600/30 transition-all"
                 title="Switch Employee"
               >
                 <UserCheck size={14} />
-                {activeEmployee.name}
+                {faisalEmployee}
                 <LogOut size={14} />
               </button>
             )}
             <LanguageToggle />
             <div className="hidden md:flex flex-col items-end text-right">
-              <span className="text-xs md:text-sm font-black text-white uppercase tracking-widest">{activeEmployee?.name || user?.role?.replace('_', ' ')}</span>
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-tighter">{activeEmployee ? user?.role?.replace('_', ' ') : 'Active Session'}</span>
+              <span className="text-xs md:text-sm font-black text-white uppercase tracking-widest">{user?.role?.replace('_', ' ')}</span>
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-tighter">Active Session</span>
             </div>
           </div>
         </header>

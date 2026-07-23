@@ -112,7 +112,6 @@
 - **Complete Order Tracking Timeline** — Rewrote `OrderTrack.jsx` with chronological timeline (employee name, date, time, color-coded entries); enhanced `getOrderTimeline` to include ALL audit actions (not just 7) with assignedEmployee names; `trackOrder` now includes `createdBy` (commit `ac50062`).
 - **Added missing STAGE_LABELS** to backend `order.controller.js` (commit `e0ec0be`).
 - **Employee Management System** — Extended User model with `outletName`, `isActive`, `subRole` fields; created `employee.controller.js` (CRUD + verify + by-role endpoints); created `employee.routes.js`; created `EmployeeManagement.jsx` (admin CRUD page); created `EmployeeLoginModal.jsx` (reusable module login); created `EmployeeContext.jsx` (active employee state); added `/employees` route and nav item (commit `36fe150`).
-- **Generic Employee Selection for ALL Profiles** — Replaced hardcoded Faisal-only employee login in `Layout.jsx` with generic employee selection screen that works for every profile (FAISAL, STORE, PRODUCTION, DISPATCH, OUTLET, etc.); backend `getEmployeesByRole` now returns `email` field; new `GET /api/employees/role-counts` endpoint for admin dashboard; `EmployeeManagement.jsx` redesigned with profile cards showing employee counts per role (click to filter); "Add Employee" button per profile pre-fills the role; "Switch Employee" button in top bar works for all roles (commit `9713d2a`).
 
 ### In Progress
 - (none)
@@ -191,7 +190,6 @@
 - Balance revenue uses payment-date-based methodology (advance on sale date, balance payments on their dates) for accurate daily tracking.
 - **Employee Management uses `User` model** (not separate Employee model) — extends existing auth with `outletName`, `isActive`, `subRole` fields for multi-employee per department/outlet.
 - **Employee Login Modal is reusable** — any module can import `EmployeeLoginModal` and pass `role`/`outletName` props to filter eligible employees.
-- **Generic Employee Selection for ALL Profiles** — Replaced hardcoded Faisal-only login with role-based employee selection; `GET /api/employees/by-role?role=X` fetches employees for current profile; `Layout.jsx` shows selection screen when role has employees; `EmployeeContext` stores active employee; "Switch Employee" button in top bar for all roles.
 - `printReceipt` accepts options parameter instead of creating separate functions for invoice vs gate pass.
 - Client measurements stored flat in `clientMeasurements` state; per-product nesting built dynamically when product is added to cart.
 - Backend write-back to `Client.sizeDetails` removed to prevent corruption of flat measurement format.
@@ -209,7 +207,7 @@
 - (none — all current work is complete)
 
 ## Critical Context
-- Latest commits: `124a8b0` — auto-reload stale chunk; `033af46` — Logo Design cart option; `76579d5` + `371b346` — Urdu labels; `3bad1ba` — Close Book sync + drill-down; `fcac5a7` — summary sync fix, employee auth for Open/Close, print register info; `d644db2` — Extract modals to sharedModals, fix Dashboard/History/Returns tabs missing modals; `757a6a0` — OrderEntry split context + 4 tab components; `722fb60` — toUrduName() rewrite (token-only, no exact-match, punctuation stripping, ~360 entries); `4ff235c` — per-product measurement notes fix; `ac50062` — complete order tracking timeline; `e0ec0be` — missing STAGE_LABELS; `36fe150` — employee management system; `9713d2a` — generic employee selection for all profiles; latest — deploy to production
+- Latest commits: `124a8b0` — auto-reload stale chunk; `033af46` — Logo Design cart option; `76579d5` + `371b346` — Urdu labels; `3bad1ba` — Close Book sync + drill-down; `fcac5a7` — summary sync fix, employee auth for Open/Close, print register info; `d644db2` — Extract modals to sharedModals, fix Dashboard/History/Returns tabs missing modals; `757a6a0` — OrderEntry split context + 4 tab components; `722fb60` — toUrduName() rewrite (token-only, no exact-match, punctuation stripping, ~360 entries); `4ff235c` — per-product measurement notes fix; `ac50062` — complete order tracking timeline; `e0ec0be` — missing STAGE_LABELS; `36fe150` — employee management system; latest — deploy to production
 - Build passes with 0 errors.
 - `isAccessory` uses substring matching (`catUpper.includes('COAT')`).
 - `calculateAndRecordRevenue` at line 2482 of `order.controller.js` is idempotent.

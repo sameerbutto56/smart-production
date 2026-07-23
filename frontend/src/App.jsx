@@ -4,7 +4,6 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SearchProvider } from './context/SearchContext';
 import { LanguageProvider } from './context/LanguageContext';
-import { EmployeeProvider } from './context/EmployeeContext';
 import Layout from './components/Layout';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ThemeProvider } from './context/ThemeContext';
@@ -41,7 +40,6 @@ const DispatchDashboard = lazy(() => import('./pages/DispatchDashboard'));
 const DispatchPage = lazy(() => import('./pages/DispatchPage'));
 const WarehousePOS = lazy(() => import('./pages/WarehousePOS'));
 const StoreDashboardPage = lazy(() => import('./pages/StoreDashboardPage'));
-const EmployeeManagement = lazy(() => import('./pages/EmployeeManagement'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -71,7 +69,6 @@ const AuthRedirectHandler = () => {
 function App() {
   return (
     <AuthProvider>
-      <EmployeeProvider>
       <ThemeProvider>
         <LanguageProvider>
           <SearchProvider>
@@ -133,7 +130,6 @@ function App() {
                   <Route path="dispatch-dashboard" element={<DispatchDashboard />} />
                   <Route path="warehouse-pos" element={<WarehousePOS />} />
                   <Route path="store-dashboard" element={<StoreDashboardPage />} />
-                  <Route path="employees" element={<EmployeeManagement />} />
                 </Route>
               </Routes>
               </ErrorBoundary>
@@ -141,7 +137,6 @@ function App() {
           </SearchProvider>
         </LanguageProvider>
       </ThemeProvider>
-      </EmployeeProvider>
     </AuthProvider>
   );
 }
