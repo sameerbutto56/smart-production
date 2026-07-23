@@ -2571,7 +2571,6 @@ const getOrderTimeline = async (req, res) => {
     ]);
 
     // Build actor lookup: stageName -> { actor, timestamp } from audit logs
-    // This fills in actors when assignedEmployeeId is null
     const stageActorMap = {};
     auditLogs.forEach(al => {
       if (al.action === 'STAGE_ACCEPTED' && al.details) {
@@ -2583,7 +2582,14 @@ const getOrderTimeline = async (req, res) => {
       if (al.action === 'DISPATCH_ACCEPTED') stageActorMap['DISPATCH'] = { actor: al.user?.name || al.performedBy, time: al.timestamp };
     });
 
-    // Human-readable action labels
+    const STAGE_LABELS_MAP = {
+      ORDER_ENTRY: 'Order Entry', STORE: 'Store', WORKERS: 'Workers',
+      LOGO_DESIGN: 'Logo Design', PRODUCTION_ACCEPTANCE: 'Production Acceptance',
+      PRODUCTION: 'Production', STORE_RECEIVE: 'Store Receive',
+      DISPATCH: 'Dispatch', OUT_FOR_DELIVERY: 'Out for Delivery',
+      OUTLET_RECEIVE: 'Outlet Receive', DELIVERED: 'Delivered'
+    };
+
     const ACTION_LABELS = {
       ORDER_CREATED: 'Order Created', OUTLET_ORDER_CREATED: 'Order Created',
       STAGE_ACCEPTED: 'Task Accepted', STAGE_APPROVED: 'Stage Approved',
@@ -2613,95 +2619,94 @@ const getOrderTimeline = async (req, res) => {
       EDIT_APPROVED: 'Edit Approved', EDIT_REJECTED: 'Edit Rejected'
     };
 
-    const entries = [];
-
-    // Stage entries
-    stages.forEach(s => {
-      const stageLabel = STAGE_LABELS[s.stageName] || s.stageName;
+    // --- Build CONSOLIDATED stage entries (one per OrderStage) ---
+    const stageEntries = stages.map(s => {
       const derivedActor = s.assignedEmployee?.name || stageActorMap[s.stageName]?.actor || null;
-
-      // Stage received / created
-      entries.push({
-        id: `${s.id}-received`,
+      let delay = null;
+      if (s.startedAt && s.completedAt) {
+        delay = Math.round((new Date(s.completedAt) - new Date(s.startedAt)) / 60000);
+      }
+      return {
+        id: s.id,
         type: 'stage',
         stage: s.stageName,
-        stageLabel,
-        timestamp: s.createdAt,
-        action: 'RECEIVED',
-        label: `${stageLabel} — Received`,
-        actor: derivedActor,
+        stageLabel: STAGE_LABELS_MAP[s.stageName] || s.stageName,
         status: s.status,
-        details: s.returnedFrom ? `Returned from ${STAGE_LABELS[s.returnedFrom] || s.returnedFrom}` : null,
+        receivedAt: s.createdAt,
+        acceptedAt: s.startedAt || null,
+        completedAt: s.completedAt || null,
+        actor: derivedActor,
+        delay,
+        returnedFrom: s.returnedFrom || null,
+        returnReason: s.returnReason || null
+      };
+    });
+
+    // --- Build route entries with from/to ---
+    const routeEntries = routingHistory.map(rh => ({
+      id: rh.id,
+      type: 'route',
+      from: rh.previousStage,
+      to: rh.newStage,
+      fromLabel: STAGE_LABELS_MAP[rh.previousStage] || rh.previousStage,
+      toLabel: STAGE_LABELS_MAP[rh.newStage] || rh.newStage,
+      actor: rh.sentByUser?.name || 'System',
+      timestamp: rh.createdAt,
+      remarks: rh.remarks || null
+    }));
+
+    // --- Build flat audit entries (for OrderTrack.jsx chronological view) ---
+    const stageActions = new Set(['STAGE_ACCEPTED', 'STORE_ACCEPT', 'STORE_ROUTE', 'DISPATCH_ACCEPTED', 'DELIVERY_ACCEPTED']);
+    const flatEntries = [];
+
+    // Flat stage entries for OrderTrack.jsx
+    stages.forEach(s => {
+      const derivedActor = s.assignedEmployee?.name || stageActorMap[s.stageName]?.actor || null;
+      const sLabel = STAGE_LABELS_MAP[s.stageName] || s.stageName;
+      flatEntries.push({
+        id: `${s.id}-received`, type: 'stage', stage: s.stageName, stageLabel: sLabel,
+        timestamp: s.createdAt, action: 'RECEIVED', label: `${sLabel} — Received`,
+        actor: derivedActor, status: s.status,
+        details: s.returnedFrom ? `Returned from ${STAGE_LABELS_MAP[s.returnedFrom] || s.returnedFrom}` : null,
         returnReason: s.returnReason || null
       });
-      // Stage accepted / started
       if (s.startedAt) {
-        entries.push({
-          id: `${s.id}-accepted`,
-          type: 'stage',
-          stage: s.stageName,
-          stageLabel,
-          timestamp: s.startedAt,
-          action: 'ACCEPTED',
-          label: `${stageLabel} — Accepted`,
-          actor: derivedActor,
-          status: 'IN_PROGRESS'
+        flatEntries.push({
+          id: `${s.id}-accepted`, type: 'stage', stage: s.stageName, stageLabel: sLabel,
+          timestamp: s.startedAt, action: 'ACCEPTED', label: `${sLabel} — Accepted`,
+          actor: derivedActor, status: 'IN_PROGRESS'
         });
       }
-      // Stage completed
       if (s.completedAt) {
-        entries.push({
-          id: `${s.id}-completed`,
-          type: 'stage',
-          stage: s.stageName,
-          stageLabel,
-          timestamp: s.completedAt,
-          action: 'COMPLETED',
-          label: `${stageLabel} — Completed`,
-          actor: derivedActor,
-          status: 'COMPLETED'
+        flatEntries.push({
+          id: `${s.id}-completed`, type: 'stage', stage: s.stageName, stageLabel: sLabel,
+          timestamp: s.completedAt, action: 'COMPLETED', label: `${sLabel} — Completed`,
+          actor: derivedActor, status: 'COMPLETED'
         });
       }
     });
-
-    // Routing history entries
     routingHistory.forEach(rh => {
-      const fromLabel = STAGE_LABELS[rh.previousStage] || rh.previousStage;
-      const toLabel = STAGE_LABELS[rh.newStage] || rh.newStage;
-      entries.push({
-        id: rh.id,
-        type: 'route',
-        stage: rh.newStage,
-        stageLabel: toLabel,
-        timestamp: rh.createdAt,
-        action: 'ROUTED',
-        label: `Sent to ${toLabel}`,
-        actor: rh.sentByUser?.name || 'System',
-        remarks: rh.remarks || null
+      flatEntries.push({
+        id: rh.id, type: 'route', stage: rh.newStage,
+        stageLabel: STAGE_LABELS_MAP[rh.newStage] || rh.newStage,
+        timestamp: rh.createdAt, action: 'ROUTED',
+        label: `Sent to ${STAGE_LABELS_MAP[rh.newStage] || rh.newStage}`,
+        actor: rh.sentByUser?.name || 'System', remarks: rh.remarks || null
       });
     });
-
-    // Audit log entries — skip stage-related duplicates (already handled by stage/route entries)
-    const stageActions = new Set(['STAGE_ACCEPTED', 'STORE_ACCEPT', 'STORE_ROUTE', 'DISPATCH_ACCEPTED', 'DELIVERY_ACCEPTED']);
     auditLogs.forEach(al => {
-      // Skip audit entries that are already represented by stage/route entries
       if (stageActions.has(al.action)) return;
-      entries.push({
-        id: al.id,
-        type: 'audit',
-        stage: null,
-        stageLabel: null,
-        timestamp: al.timestamp,
-        action: al.action,
+      flatEntries.push({
+        id: al.id, type: 'audit', stage: null, stageLabel: null,
+        timestamp: al.timestamp, action: al.action,
         label: ACTION_LABELS[al.action] || al.action.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase()),
-        actor: al.user?.name || al.performedBy || 'System',
-        details: al.details || null
+        actor: al.user?.name || al.performedBy || 'System', details: al.details || null
       });
     });
+    flatEntries.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
-    entries.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-
-    res.json(entries);
+    // Return both formats — consolidated for AdminDashboard, flat for OrderTrack
+    res.json({ stageEntries, routeEntries, flatEntries });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching timeline', error: error.message });
   }

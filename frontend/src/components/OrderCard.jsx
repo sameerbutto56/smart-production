@@ -161,7 +161,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
   useEffect(() => {
     if (!showTimelineModal || !order?.id) return;
     setTimelineLoading(true);
-    api.get(`/api/orders/${order.id}/timeline`).then(res => setTimelineData(res.data))
+    api.get(`/api/orders/${order.id}/timeline`).then(res => setTimelineData(res.data?.flatEntries || res.data || []))
       .catch(() => toast.error('Failed to load timeline'))
       .finally(() => setTimelineLoading(false));
   }, [showTimelineModal, order?.id]);

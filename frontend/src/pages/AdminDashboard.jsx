@@ -253,7 +253,12 @@ const AdminDashboard = () => {
   useEffect(() => {
     if (!trackedOrder?.id) { setTrackingTimeline([]); return; }
     setTrackingTimelineLoading(true);
-    api.get(`/api/orders/${trackedOrder.id}/timeline`).then(res => setTrackingTimeline(res.data))
+    api.get(`/api/orders/${trackedOrder.id}/timeline`).then(res => {
+      setTrackingTimeline([
+        ...(res.data.stageEntries || []),
+        ...(res.data.routeEntries || [])
+      ]);
+    })
       .catch(() => setTrackingTimeline([]))
       .finally(() => setTrackingTimelineLoading(false));
   }, [trackedOrder?.id]);

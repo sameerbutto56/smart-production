@@ -67,7 +67,7 @@ const OrderTrack = () => {
       setTimelineLoading(true);
       try {
         const tlRes = await api.get(`/api/orders/${res.data.id}/timeline`);
-        setTimeline(tlRes.data || []);
+        setTimeline(tlRes.data?.flatEntries || tlRes.data || []);
       } catch { } finally { setTimelineLoading(false); }
     } catch (e) {
       setError(e.response?.status === 404 ? 'Order not found' : 'Error fetching order');

@@ -243,7 +243,7 @@ const OutletDashboard = () => {
       const orderRes = await api.get(`/api/orders/track/${trackingNumber.trim()}`);
       setTrackedOrder(orderRes.data);
       const timelineRes = await api.get(`/api/orders/${orderRes.data.id}/timeline`);
-      setTimeline(timelineRes.data);
+      setTimeline(timelineRes.data?.flatEntries || timelineRes.data || []);
     } catch (e) {
       toast.error(e.response?.data?.message || 'Order not found');
     } finally {
