@@ -547,6 +547,8 @@ const getOrders = async (req, res) => {
       // Default: If no status specified, load active orders + the 100 most recent completed orders to keep payload tiny!
       // This is backward-compatible with older frontend code that filters in memory!
       if (!limit || limit !== 'all') {
+        const isDeliveryQuery = filterStatus === 'delivery';
+        const deliveryPaymentsInclude = isDeliveryQuery ? { deliveryPayments: { orderBy: { createdAt: 'desc' }, select: { paymentMethod: true, cashAmount: true, onlineAmount: true, collectedBy: true, createdAt: true } } } : {};
         const [activeOrders, completedOrders] = await prisma.$transaction([
           prisma.order.findMany({
             where: {
@@ -556,7 +558,8 @@ const getOrders = async (req, res) => {
             include: {
               stages: { orderBy: { createdAt: 'desc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
               auditLogs: { orderBy: { timestamp: 'desc' }, take: 5, select: { action: true, timestamp: true, details: true, performedBy: true } },
-              createdBy: { select: { name: true } }
+              createdBy: { select: { name: true } },
+              ...deliveryPaymentsInclude
             },
             orderBy: { createdAt: 'desc' },
             take: 500
@@ -569,7 +572,8 @@ const getOrders = async (req, res) => {
             include: {
               stages: { orderBy: { createdAt: 'desc' }, select: { id: true, stageName: true, status: true, deadlineAt: true, completedAt: true, startedAt: true, rejectionReason: true, returnedFrom: true, returnReason: true, createdAt: true, updatedAt: true, requestNextStep: true } },
               auditLogs: { orderBy: { timestamp: 'desc' }, take: 5, select: { action: true, timestamp: true, details: true, performedBy: true } },
-              createdBy: { select: { name: true } }
+              createdBy: { select: { name: true } },
+              ...deliveryPaymentsInclude
             },
             orderBy: { createdAt: 'desc' },
             take: 100
@@ -599,6 +603,10 @@ const getOrders = async (req, res) => {
         deliveryAttempts: {
           orderBy: { attemptNumber: 'asc' },
           select: { attemptNumber: true, status: true, riderName: true, attemptedAt: true, rescheduledTo: true, notes: true }
+        },
+        deliveryPayments: {
+          orderBy: { createdAt: 'desc' },
+          select: { paymentMethod: true, cashAmount: true, onlineAmount: true, collectedBy: true, createdAt: true }
         }
       },
       orderBy: { createdAt: 'desc' }

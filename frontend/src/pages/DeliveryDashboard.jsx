@@ -856,6 +856,60 @@ const DeliveryDashboard = () => {
   const bottomBarCOD = pending
     .reduce((s, o) => s + getCodAmount(o), 0);
 
+  const filteredCompleted = orders.filter(o => {
+    const isCompleted = o.currentStage === 'DELIVERED' || o.status === 'COMPLETED';
+    if (!isCompleted) return false;
+    const matchSearch = !search || o.customerName?.toLowerCase().includes(search.toLowerCase()) || o.customerPhone?.includes(search);
+    const matchOrderNo = !orderNoSearch || (o.orderNumber || '').toLowerCase().includes(orderNoSearch.toLowerCase()) || o.id?.toLowerCase().includes(orderNoSearch.toLowerCase());
+    const delStage = o.stages?.find(s => s.stageName === 'DELIVERED' || s.stageName === 'OUT_FOR_DELIVERY');
+    const stageDate = delStage?.completedAt || delStage?.updatedAt || o.updatedAt || o.createdAt;
+    const matchDate = !selectedDate || new Date(stageDate).toISOString().split('T')[0] === selectedDate;
+    return matchSearch && matchOrderNo && matchDate;
+  });
+
+  const paymentSummary = (() => {
+    let totalDeliveries = filteredCompleted.length;
+    let cashCollected = 0;
+    let onlineCollected = 0;
+    let cardCollected = 0;
+    let cashOnlineCash = 0;
+    let cashOnlineOnline = 0;
+    let codCollected = 0;
+
+    for (const o of filteredCompleted) {
+      const dps = o.deliveryPayments;
+      if (dps && dps.length > 0) {
+        for (const dp of dps) {
+          if (dp.paymentMethod === 'CASH') {
+            cashCollected += dp.cashAmount || 0;
+          } else if (dp.paymentMethod === 'ONLINE') {
+            onlineCollected += dp.onlineAmount || 0;
+          } else if (dp.paymentMethod === 'CASH_ONLINE') {
+            cashCollected += dp.cashAmount || 0;
+            onlineCollected += dp.onlineAmount || 0;
+            cashOnlineCash += dp.cashAmount || 0;
+            cashOnlineOnline += dp.onlineAmount || 0;
+          } else if (dp.paymentMethod === 'MULTIPLE_ONLINE') {
+            onlineCollected += dp.onlineAmount || 0;
+          } else if (dp.paymentMethod === 'CARD') {
+            cardCollected += (dp.cashAmount || 0) + (dp.onlineAmount || 0);
+          }
+        }
+      } else {
+        const collected = Number(o.totalPrice || 0) - Number(o.advanceAmount || 0);
+        if (o.paymentMethod === 'CASH') cashCollected += collected;
+        else if (o.paymentMethod === 'ONLINE') onlineCollected += collected;
+        else if (o.paymentMethod === 'CARD') cardCollected += collected;
+        else if (o.paymentMethod === 'CASH_ONLINE') { cashCollected += collected / 2; onlineCollected += collected / 2; }
+        else if (o.paymentMethod === 'MULTIPLE_ONLINE') onlineCollected += collected;
+        else cashCollected += collected;
+      }
+      codCollected += getCodAmount(o);
+    }
+
+    return { totalDeliveries, cashCollected, onlineCollected, cardCollected, cashOnlineCash, cashOnlineOnline, codCollected };
+  })();
+
   return (
     <div className="max-w-xl mx-auto pb-36 px-3 space-y-3">
       {/* Header */}
@@ -933,6 +987,38 @@ const DeliveryDashboard = () => {
             <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name or phone..."
               className="w-full theme-input rounded-2xl py-2.5 pl-12 pr-4 text-xs font-bold text-white outline-none focus:border-blue-500 transition-all" />
           </div>
+
+          {/* Payment Summary Cards */}
+          {filteredCompleted.length > 0 && (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-gray-800/60 rounded-xl p-2.5 border border-blue-500/20">
+                <p className="text-[9px] text-blue-400 font-black uppercase tracking-widest">Total Deliveries</p>
+                <p className="text-lg font-black text-blue-400">{paymentSummary.totalDeliveries}</p>
+              </div>
+              <div className="bg-gray-800/60 rounded-xl p-2.5 border border-emerald-500/20">
+                <p className="text-[9px] text-emerald-400 font-black uppercase tracking-widest">Cash Collected</p>
+                <p className="text-lg font-black text-emerald-400">₨{paymentSummary.cashCollected.toLocaleString()}</p>
+              </div>
+              <div className="bg-gray-800/60 rounded-xl p-2.5 border border-blue-500/20">
+                <p className="text-[9px] text-blue-400 font-black uppercase tracking-widest">Online Collected</p>
+                <p className="text-lg font-black text-blue-400">₨{paymentSummary.onlineCollected.toLocaleString()}</p>
+              </div>
+              <div className="bg-gray-800/60 rounded-xl p-2.5 border border-purple-500/20">
+                <p className="text-[9px] text-purple-400 font-black uppercase tracking-widest">Cash + Online</p>
+                <p className="text-lg font-black text-purple-400">₨{(paymentSummary.cashCollected + paymentSummary.onlineCollected).toLocaleString()}</p>
+              </div>
+              {paymentSummary.cardCollected > 0 && (
+                <div className="bg-gray-800/60 rounded-xl p-2.5 border border-amber-500/20">
+                  <p className="text-[9px] text-amber-400 font-black uppercase tracking-widest">Card Collected</p>
+                  <p className="text-lg font-black text-amber-400">₨{paymentSummary.cardCollected.toLocaleString()}</p>
+                </div>
+              )}
+              <div className="bg-gray-800/60 rounded-xl p-2.5 border border-orange-500/20">
+                <p className="text-[9px] text-orange-400 font-black uppercase tracking-widest">COD Collected</p>
+                <p className="text-lg font-black text-orange-400">₨{paymentSummary.codCollected.toLocaleString()}</p>
+              </div>
+            </div>
+          )}
 
           {/* Order list */}
           {loading ? <PageLoader text="Loading Delivery Dashboard..." /> : filtered.length === 0 ? (
