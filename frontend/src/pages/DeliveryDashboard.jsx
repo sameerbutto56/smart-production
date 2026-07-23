@@ -904,7 +904,10 @@ const DeliveryDashboard = () => {
         else if (o.paymentMethod === 'MULTIPLE_ONLINE') onlineCollected += collected;
         else cashCollected += collected;
       }
-      codCollected += getCodAmount(o);
+      const orderCollected = dps && dps.length > 0
+        ? dps.reduce((s, dp) => s + (dp.cashAmount || 0) + (dp.onlineAmount || 0), 0)
+        : Number(o.totalPrice || 0) - Number(o.advanceAmount || 0);
+      codCollected += orderCollected;
     }
 
     return { totalDeliveries, cashCollected, onlineCollected, cardCollected, cashOnlineCash, cashOnlineOnline, codCollected };
@@ -1066,7 +1069,11 @@ const DeliveryDashboard = () => {
             <div className="h-8 w-px bg-gray-800" />
             <div className="text-center">
               <p className="text-[10px] theme-text-muted font-black uppercase tracking-widest">Collected</p>
-              <p className="text-lg font-black text-emerald-400">₨{completed.reduce((s, o) => s + getCodAmount(o), 0).toLocaleString()}</p>
+              <p className="text-lg font-black text-emerald-400">₨{completed.reduce((s, o) => {
+                const dps = o.deliveryPayments;
+                if (dps && dps.length > 0) return s + dps.reduce((ds, dp) => ds + (dp.cashAmount || 0) + (dp.onlineAmount || 0), 0);
+                return s + Math.max(0, Number(o.totalPrice || 0) - Number(o.advanceAmount || 0));
+              }, 0).toLocaleString()}</p>
             </div>
             <div className="h-8 w-px bg-gray-800" />
             <div className="text-right">
