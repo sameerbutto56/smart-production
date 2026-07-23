@@ -1273,15 +1273,16 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           return { name: p.productType || p.name || `Product ${idx + 1}`, note };
         }).filter(x => x.note)
       : [];
-    // Fallback: for multi-item orders without per-product notes, use order-level note
-    if (productNotes.length === 0 && order.measurementSpecialNote) {
+    // Fallback: for multi-item orders without per-product notes, use order-level or sizeData note
+    const fallbackNote = order.measurementSpecialNote || measSpecialNote;
+    if (productNotes.length === 0 && fallbackNote) {
       if (isMultiItem) {
         productNotes = allItems.map((item, idx) => {
           const p = getItemProduct(item);
-          return { name: p.productType || p.name || `Product ${idx + 1}`, note: order.measurementSpecialNote };
+          return { name: p.productType || p.name || `Product ${idx + 1}`, note: fallbackNote };
         });
       } else {
-        productNotes = [{ name: firstProduct.productType || firstProduct.name || '', note: order.measurementSpecialNote }];
+        productNotes = [{ name: firstProduct.productType || firstProduct.name || '', note: fallbackNote }];
       }
     }
     const hasAnyNote = productNotes.length > 0;
@@ -1291,7 +1292,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
       if (selectedSize) {
         win.document.write(`<p style="font-size:22px;font-weight:700;color:#000;margin-bottom:${(measSpecialNote || hasAnyNote) ? '6px' : '0'}">${isUrdu ? 'منتخب سائز:' : 'Selected Size:'} ${selectedSize}</p>`);
       }
-      if (measSpecialNote) {
+      if (measSpecialNote && !hasAnyNote) {
         const noteDisplay = isUrdu ? measSpecialNote.split('\n').map(l => romanToUrdu(l)).join('\n') : measSpecialNote;
         win.document.write(`<div style="background:#fef3c7;border-${borderAccent}:4px solid #d97706;padding:6px 10px;border-radius:4px;margin-top:${(selectedSize || hasMeasValues) ? '6px' : '0'}">`);
         win.document.write(`<p style="font-size:22px;font-weight:900;text-transform:uppercase;color:#000;margin-bottom:4px;border-bottom:2px solid #d9770660;padding-bottom:3px"${isUrdu ? ' class="urdu"' : ''}>${sec.specialNote}</p>`);
@@ -1312,6 +1313,8 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
 
   // ─── MEASUREMENT NOTES (standalone when engraving is disabled) ───
   if (!showMeas) {
+    const rawS2 = typeof sizes === 'object' && sizes ? sizes : {};
+    const fallbackNote2 = order.measurementSpecialNote || rawS2.specialNote || '';
     let productNotes = isMultiItem
       ? allItems.map((item, idx) => {
           const p = getItemProduct(item);
@@ -1319,15 +1322,15 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
           return { name: p.productType || p.name || `Product ${idx + 1}`, note };
         }).filter(x => x.note)
       : [];
-    // Fallback: for multi-item orders without per-product notes, use order-level note
-    if (productNotes.length === 0 && order.measurementSpecialNote) {
+    // Fallback: for multi-item orders without per-product notes, use order-level or sizeData note
+    if (productNotes.length === 0 && fallbackNote2) {
       if (isMultiItem) {
         productNotes = allItems.map((item, idx) => {
           const p = getItemProduct(item);
-          return { name: p.productType || p.name || `Product ${idx + 1}`, note: order.measurementSpecialNote };
+          return { name: p.productType || p.name || `Product ${idx + 1}`, note: fallbackNote2 };
         });
       } else {
-        productNotes = [{ name: firstProduct.productType || firstProduct.name || '', note: order.measurementSpecialNote }];
+        productNotes = [{ name: firstProduct.productType || firstProduct.name || '', note: fallbackNote2 }];
       }
     }
     if (productNotes.length > 0) {
