@@ -55,8 +55,8 @@ const createOutletOrder = async (req, res) => {
     const existingOrder = await prisma.order.findUnique({ where: { orderNumber: trimmedOrder }, select: { id: true } });
     if (existingOrder) return res.status(400).json({ message: `Order number ${trimmedOrder} already exists` });
     const orderNumber = trimmedOrder;
-    // Add productType alias for backward compat with job sheet display
-    const enriched = products.map(p => ({ ...p, productType: p.name }));
+    // Add backward-compat aliases for job sheet display
+    const enriched = products.map(p => ({ ...p, productType: p.name, fabricType: p.fabric || '' }));
     const productDetails = enriched;
     const sizeDataStr = sizeData ? JSON.stringify(sizeData) : null;
     const totalPrice = products.reduce((sum, p) => sum + (parseFloat(p.unitPrice) || 0) * (p.quantity || 1), 0);
