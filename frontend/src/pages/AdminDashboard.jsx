@@ -39,13 +39,19 @@ import {
   Plus,
   Minus,
   XCircle,
-  CheckCircle
+  CheckCircle,
+  Store,
+  Globe,
+  Building
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import socket from '../socket';
 import OrderCard from '../components/OrderCard';
 import AdminSettings from './AdminSettings';
+import DispatchAnalyticsCard from '../components/DispatchAnalyticsCard';
+import EnamelsDeliveryCard from '../components/EnamelsDeliveryCard';
+import WarehouseAnalyticsCard from '../components/WarehouseAnalyticsCard';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 
 import { useAuth } from '../context/AuthContext';
@@ -58,7 +64,9 @@ import { isPaidOrder, getRemainingBalance } from '../utils/paymentUtils';
 
 
 const TOP_TABS = [
-  { id: 'all_phases', label: 'All Phases', icon: LayoutDashboard },
+  { id: 'all_phases', label: 'Control Center', icon: LayoutDashboard },
+  { id: 'dispatch_analytics', label: 'Dispatch', icon: BarChart3 },
+  { id: 'enamels_delivery', label: 'Enamels Delivery', icon: Truck },
   { id: 'warehouse', label: 'Warehouse', icon: Package },
   { id: 'edit_requests', label: 'Order Change Requests', icon: FileEdit },
   { id: 'recent_orders', label: 'Recent Orders', icon: History },
@@ -496,41 +504,6 @@ const AdminDashboard = () => {
       .slice(0, 20);
   }, [allOrders]);
 
-  // Warehouse dashboard data
-  const { data: warehouseInventory = [], loading: warehouseLoading } = useCache(
-    activeTab === 'warehouse' ? 'admin:warehouse:inventory' : null,
-    { fetcher: () => api.get('/api/inventory').then(r => r.data), ttl: 60000 }
-  );
-  const [warehouseAllocSummary, setWarehouseAllocSummary] = useState({ todayTotal: 0, activeTotal: 0, totalAllocated: 0 });
-  const [warehouseRecentAllocs, setWarehouseRecentAllocs] = useState([]);
-  const [warehousePendingCarts, setWarehousePendingCarts] = useState([]);
-
-  useEffect(() => {
-    if (activeTab !== 'warehouse') return;
-    api.get('/api/inventory/allocations/stats').then(r => {
-      const d = r.data;
-      if (d.perPerson) setWarehouseAllocSummary({ todayTotal: d.todayTotal || 0, activeTotal: d.activeTotal || 0, totalAllocated: d.totalAllocated || 0 });
-      else setWarehouseAllocSummary({ todayTotal: 0, activeTotal: 0, totalAllocated: 0 });
-    }).catch(() => {});
-    api.get('/api/inventory/allocations', { params: { page: 1, limit: 10 } }).then(r => setWarehouseRecentAllocs(r.data.records || [])).catch(() => {});
-    api.get('/api/inventory/carts', { params: { status: 'PENDING', page: 1, limit: 10 } }).then(r => setWarehousePendingCarts(r.data.records || [])).catch(() => {});
-  }, [activeTab]);
-
-  const whTotalStock = warehouseInventory.reduce((s, i) => s + i.stock, 0);
-  const whLowStock = warehouseInventory.filter(i => i.stock > 0 && i.stock <= 5);
-  const whOutOfStock = warehouseInventory.filter(i => i.stock === 0);
-
-  const handleWarehouseCartStatus = async (id, status) => {
-    try {
-      await api.patch(`/api/inventory/carts/${id}/status`, { status });
-      toast.success(`Cart ${status.toLowerCase()} successfully`);
-      const res = await api.get('/api/inventory/carts', { params: { status: 'PENDING', page: 1, limit: 10 } });
-      setWarehousePendingCarts(res.data.records || []);
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Error updating cart');
-    }
-  };
-
   if (loading && allOrders.length === 0) {
     return <PageLoader text="Syncing Production Hub..." />;
   }
@@ -555,368 +528,177 @@ const AdminDashboard = () => {
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl md:text-3xl font-black theme-text-primary tracking-tight">Control Center</h1>
-          <p className="theme-text-secondary font-bold uppercase tracking-widest text-xs md:text-sm mt-1">Production Approval Hub</p>
-        </div>
-        <div className="flex items-center gap-4">
-          {systemPaused && (
-            <div className="flex items-center gap-2 bg-red-500/20 border border-red-500/30 px-4 py-2.5 rounded-xl">
-              <PauseCircle className="text-red-400" size={18} />
-              <span className="text-red-400 font-black text-xs md:text-sm uppercase tracking-widest">System Paused</span>
+      {/* Module Cards Landing Page — shown when no tab is selected */}
+      {!activeTab && (
+        <>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-xl md:text-3xl font-black theme-text-primary tracking-tight">Admin Dashboard</h1>
+              <p className="theme-text-secondary font-bold uppercase tracking-widest text-xs md:text-sm mt-1">Select a module to view analytics</p>
             </div>
-          )}
-          {user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' ? (<>
-          <button
-            onClick={() => setShowPauseModal(true)}
-            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-xs md:text-sm transition-all shadow-lg active:scale-95 ${
-              systemPaused
-                ? 'bg-emerald-500/10 hover:bg-emerald-500 hover:text-white text-emerald-400 border border-emerald-500/20'
-                : 'bg-red-500/10 hover:bg-red-500 hover:text-white text-red-400 border border-red-500/20'
-            }`}
-          >
-            {systemPaused ? <PlayCircle size={16} /> : <PauseCircle size={16} />}
-            <span>{systemPaused ? 'Resume System' : 'Pause System'}</span>
-          </button>
-          <button
-            onClick={() => {
-              alert('Notification Alert Broadcasted!');
-            }}
-            className="flex items-center gap-2 bg-yellow-500/10 hover:bg-yellow-500 hover:text-white text-yellow-500 border border-yellow-500/20 px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-xs md:text-sm transition-all shadow-lg active:scale-95"
-          >
-            <BellRing size={16} />
-            <span>Send Alert</span>
-          </button>
-          </>) : null}
-        </div>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map((stat, i) => (
-          <motion.div
-            key={stat.title}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            onClick={() => stat.path && navigate(stat.path, { state: stat.state })}
-            className="glass p-6 rounded-[1.5rem] theme-border hover:border-blue-500/50 hover:scale-[1.02] transition-all group cursor-pointer active:scale-95"
-          >
-            <div className="flex justify-between items-start mb-4">
-              <div className={`p-3 rounded-xl ${stat.bg} group-hover:scale-110 transition-transform`}>
-                <stat.icon className={stat.color} size={22} />
-              </div>
-              <span className="flex items-center text-emerald-400 text-xs md:text-sm font-black bg-emerald-400/10 px-2 py-1 rounded-full uppercase tracking-widest">
-                <ArrowUpRight size={10} className="mr-1" />
-                Live
-              </span>
-            </div>
-            <h3 className="theme-text-muted text-xs md:text-sm font-black uppercase tracking-[0.2em]">{stat.title}</h3>
-            <p className="text-xl md:text-3xl font-black theme-text-primary mt-1 tracking-tighter">{stat.value}</p>
-          </motion.div>
-        ))}
-      </div>
-
-      {/* Search Bar (compact, always visible) */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-          <input
-            type="text"
-            placeholder="Search order by number or customer..."
-            value={contextSearch}
-            onChange={(e) => handleDashboardSearch(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                const query = contextSearch.trim().toLowerCase();
-                const found = allOrders.find(o => 
-                  o.orderNumber?.toLowerCase().includes(query) || 
-                  o.id?.toLowerCase().includes(query) ||
-                  o.customerName?.toLowerCase().includes(query)
-                );
-                if (found) {
-                  setTrackedOrder(found);
-                  setTrackingError('');
-                } else {
-                  setTrackedOrder(null);
-                  setTrackingError('No order found.');
-                }
-              }
-            }}
-            className="w-full theme-input rounded-xl py-3 pl-12 pr-4 text-sm font-bold"
-          />
-        </div>
-        <button
-          onClick={() => {
-            const query = contextSearch.trim().toLowerCase();
-            if (!query) return;
-            const found = allOrders.find(o => 
-              o.orderNumber?.toLowerCase().includes(query) || 
-              o.id?.toLowerCase().includes(query) ||
-              o.customerName?.toLowerCase().includes(query)
-            );
-            if (found) {
-              setTrackedOrder(found);
-              setTrackingError('');
-            } else {
-              setTrackedOrder(null);
-              setTrackingError('No order found with that ID or Name.');
-            }
-          }}
-          className="btn-solid-primary px-5 py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest"
-        >
-          Track
-        </button>
-        {trackedOrder && (
-          <button onClick={() => { setTrackedOrder(null); setTrackingError(''); }} className="text-gray-500 hover:text-white text-xs md:text-sm font-black uppercase tracking-widest">
-            Clear
-          </button>
-        )}
-      </div>
-
-      {/* Tracked Order Result — Full Timeline */}
-      <AnimatePresence mode="wait">
-        {trackingError && (
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="text-center py-4 bg-red-500/5 rounded-2xl border border-red-500/10 text-red-400 font-bold text-xs md:text-sm"
-          >
-            {trackingError}
-          </motion.div>
-        )}
-
-        {trackedOrder && (
-          <motion.div
-            key={trackedOrder.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="theme-bg rounded-2xl p-4 md:p-6 theme-border"
-          >
-            {/* Order Header */}
-            <div className="flex flex-wrap justify-between items-start gap-3 mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center font-black text-lg md:text-xl shadow-xl">
-                  {trackedOrder.customerName?.charAt(0) || '?'}
+            <div className="flex items-center gap-4">
+              {systemPaused && (
+                <div className="flex items-center gap-2 bg-red-500/20 border border-red-500/30 px-4 py-2.5 rounded-xl">
+                  <PauseCircle className="text-red-400" size={18} />
+                  <span className="text-red-400 font-black text-xs md:text-sm uppercase tracking-widest">System Paused</span>
                 </div>
-                <div>
-                  <h4 className="text-base md:text-lg font-black theme-text-primary">{trackedOrder.customerName}</h4>
-                  <p className="theme-text-muted font-bold uppercase tracking-widest text-[10px] md:text-xs">Order #{trackedOrder.orderNumber || trackedOrder.id.substring(0, 8)}</p>
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className={`px-2.5 py-1 rounded-full text-[10px] md:text-xs font-black uppercase tracking-widest border ${
-                  trackedOrder.priority === 'SUPER_URGENT' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
-                  trackedOrder.priority === 'URGENT' ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' :
-                  'bg-gray-500/10 text-gray-400 border-gray-500/20'
-                }`}>{trackedOrder.priority || 'NORMAL'}</span>
-                <span className={`px-2.5 py-1 rounded-full text-[10px] md:text-xs font-black uppercase tracking-widest border ${
-                  isPaidOrder(trackedOrder) ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
-                  getRemainingBalance(trackedOrder) > 0 ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' :
-                  'bg-red-500/20 text-red-400 border-red-500/30'
-                }`}>{isPaidOrder(trackedOrder) ? 'PAID' : getRemainingBalance(trackedOrder) > 0 ? `COD: ₨${getRemainingBalance(trackedOrder).toLocaleString()}` : 'CASH ON DELIVERY'}</span>
-                <span className="bg-blue-500/10 text-blue-400 px-2.5 py-1 rounded-full text-[10px] md:text-xs font-black uppercase tracking-widest border border-blue-500/20">
-                  {trackedOrder.status.replace(/_/g, ' ')}
-                </span>
-              </div>
+              )}
+              {(user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') && (
+                <button onClick={() => setShowPauseModal(true)}
+                  className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-xs md:text-sm transition-all shadow-lg active:scale-95 ${
+                    systemPaused ? 'bg-emerald-500/10 hover:bg-emerald-500 hover:text-white text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 hover:bg-red-500 hover:text-white text-red-400 border border-red-500/20'
+                  }`}>
+                  {systemPaused ? <PlayCircle size={16} /> : <PauseCircle size={16} />}
+                  <span>{systemPaused ? 'Resume System' : 'Pause System'}</span>
+                </button>
+              )}
             </div>
+          </div>
 
-            {/* Progress Pipeline */}
-            {(() => {
-              const stages = ['ORDER_ENTRY','STORE','LOGO_DESIGN','PRODUCTION_ACCEPTANCE','PRODUCTION','STORE_RECEIVE','DISPATCH','OUT_FOR_DELIVERY','DELIVERED'];
-              const currentIdx = stages.indexOf(trackedOrder.currentStage);
-              return (
-                <div className="mb-4 overflow-x-auto no-scrollbar">
-                  <div className="flex gap-1 min-w-max">
-                    {stages.map((s, i) => {
-                      const isPast = i < currentIdx;
-                      const isCurrent = i === currentIdx;
-                      const isFuture = i > currentIdx;
-                      return (
-                        <div key={s} className="flex items-center gap-1">
-                          <div className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider whitespace-nowrap ${
-                            isPast ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
-                            isCurrent ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30 ring-2 ring-blue-500/40' :
-                            'bg-gray-800/50 text-gray-600 border border-gray-800'
-                          }`}>
-                            {isPast && <CheckCircle2 size={10} className="inline mr-1 -mt-0.5" />}
-                            {s.replace(/_/g, ' ')}
-                          </div>
-                          {i < stages.length - 1 && (
-                            <div className={`w-3 h-[2px] ${i < currentIdx ? 'bg-emerald-500/40' : 'bg-gray-800'}`} />
-                          )}
-                        </div>
-                      );
-                    })}
+          {/* Module Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+            {[
+              { id: 'all_phases', label: 'Control Center', desc: 'Production pipeline, orders & approvals', icon: LayoutDashboard, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
+              { id: 'dispatch_analytics', label: 'Dispatch', desc: 'Dispatch operations, employee performance & tracking', icon: BarChart3, color: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
+              { id: 'enamels_delivery', label: 'Enamels Delivery', desc: 'Delivery tracking, earnings & COD collection', icon: Truck, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+              { id: 'warehouse', label: 'Warehouse', desc: 'Inventory management & allocations', icon: Warehouse, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
+              { id: 'outlet_johar', label: 'Johar Town Outlet', desc: 'Outlet operations & sales', icon: Store, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20', route: '/outlet-dashboard' },
+              { id: 'outlet_jail', label: 'Jail Road Outlet', desc: 'Outlet operations & sales', icon: Store, color: 'text-pink-400', bg: 'bg-pink-500/10', border: 'border-pink-500/20', route: '/outlet-dashboard' },
+              { id: 'outlet_abbottabad', label: 'Abbottabad Outlet', desc: 'Outlet operations & sales', icon: Building, color: 'text-teal-400', bg: 'bg-teal-500/10', border: 'border-teal-500/20', route: '/outlet-dashboard' },
+              { id: 'online_store', label: 'Online Store', desc: 'Online orders & customer management', icon: Globe, color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20', route: '/orders' },
+            ].map(card => (
+              <motion.div key={card.id} whileHover={{ scale: 1.02, y: -4 }} whileTap={{ scale: 0.98 }}
+                onClick={() => card.route ? navigate(card.route) : setActiveTab(card.id)}
+                className={`glass p-6 rounded-2xl border-2 ${card.border} cursor-pointer transition-all hover:shadow-lg hover:shadow-black/20`}>
+                <div className="flex items-start gap-4">
+                  <div className={`p-3 rounded-2xl ${card.bg} shrink-0`}>
+                    <card.icon className={card.color} size={28} />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-lg font-black theme-text-primary uppercase tracking-tight">{card.label}</h3>
+                    <p className="text-xs font-bold theme-text-muted mt-1 uppercase tracking-wider">{card.desc}</p>
                   </div>
                 </div>
-              );
-            })()}
-
-            {/* Full Timeline Entries */}
-            {trackingTimelineLoading ? (
-              <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-blue-400" /></div>
-            ) : trackingTimeline.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 font-black uppercase tracking-widest text-xs">Loading timeline...</div>
-            ) : (
-              <div className="space-y-1 mb-4">
-                <h5 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3">Stage Timeline</h5>
-                {trackingTimeline
-                  .filter(e => e.type === 'stage')
-                  .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
-                  .map((entry, idx, arr) => {
-                    const dotColor = entry.status === 'COMPLETED' ? 'bg-emerald-500' : entry.acceptedAt ? 'bg-blue-500' : 'bg-gray-500';
-                    const delay = entry.delay;
-                    const fmt = (d) => d ? new Date(d).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : null;
-                    return (
-                      <div key={entry.id || idx} className="relative pl-8 pb-3">
-                        {idx < arr.length - 1 && <div className="absolute left-[11px] top-3 bottom-0 w-[2px] bg-gray-800" />}
-                        <div className={`absolute left-0 top-1 w-[22px] h-[22px] rounded-full border-2 border-gray-900 flex items-center justify-center ${dotColor}`}>
-                          {entry.status === 'COMPLETED' ? <CheckCircle2 size={12} className="text-white" /> : entry.acceptedAt ? <Circle size={8} className="text-white fill-current" /> : <Circle size={8} className="text-white" />}
-                        </div>
-                        <div className="p-2.5 rounded-xl border border-gray-800 bg-gray-950/50">
-                          <div className="flex flex-wrap items-center justify-between gap-1">
-                            <span className={`text-[11px] font-black uppercase tracking-wider ${entry.status === 'COMPLETED' ? 'text-emerald-400' : entry.acceptedAt ? 'text-blue-400' : 'text-gray-400'}`}>
-                              {entry.stage.replace(/_/g, ' ')}
-                            </span>
-                            <span className={`text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${
-                              entry.status === 'COMPLETED' ? 'text-emerald-400 bg-emerald-500/10' :
-                              entry.acceptedAt ? 'text-blue-400 bg-blue-500/10' :
-                              'text-gray-500 bg-gray-800/50'
-                            }`}>{entry.status.replace(/_/g, ' ')}</span>
-                          </div>
-                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-gray-500 font-medium">
-                            <span>Received: {fmt(entry.receivedAt)}</span>
-                            {entry.acceptedAt && <span>Accepted: {fmt(entry.acceptedAt)}</span>}
-                            {entry.completedAt && <span>Completed: {fmt(entry.completedAt)}</span>}
-                            {delay !== null && (
-                              <span className={delay > 60 ? 'text-red-400' : delay > 0 ? 'text-yellow-400' : 'text-gray-600'}>
-                                Delay: {delay} min
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-            )}
-
-            {/* Route transitions */}
-            {trackingTimeline.filter(e => e.type === 'route').length > 0 && (
-              <div className="mb-4">
-                <h5 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Routing History</h5>
-                <div className="space-y-1">
-                  {trackingTimeline
-                    .filter(e => e.type === 'route')
-                    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
-                    .map((entry, idx) => (
-                      <div key={entry.id || idx} className="flex items-center gap-2 p-2 rounded-lg bg-amber-500/5 border border-amber-500/10">
-                        <Truck size={12} className="text-amber-400 shrink-0" />
-                        <span className="text-[10px] font-bold text-amber-400">{entry.from?.replace(/_/g, ' ')} → {entry.to?.replace(/_/g, ' ')}</span>
-                        <span className="text-[9px] text-gray-600">{new Date(entry.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                        {entry.actor && <span className="text-[9px] text-gray-700 ml-auto">by {entry.actor}</span>}
-                      </div>
-                    ))}
+                <div className="mt-4 flex items-center gap-2 text-xs font-black text-gray-600 uppercase tracking-widest">
+                  <span>Open</span>
+                  <ArrowUpRight size={12} />
                 </div>
-              </div>
-            )}
+              </motion.div>
+            ))}
+          </div>
 
-            {/* Products Summary */}
-            {(() => {
-              try {
-                const pd = trackedOrder.productDetails;
-                const items = Array.isArray(pd) ? pd : (pd?.productType ? [pd] : []);
-                if (items.length === 0) return null;
-                return (
-                  <div className="mb-4">
-                    <h5 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Products</h5>
-                    <div className="space-y-1">
-                      {items.map((item, i) => (
-                        <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-gray-900/50 border border-gray-800">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <Package size={12} className="text-purple-400 shrink-0" />
-                            <span className="text-[10px] font-bold text-white truncate">{isUrdu ? toUrduName(item.productType || 'Item') : (item.productType || 'Item')} — {item.fabricType || 'STD'} / {(isUrdu ? toUrduName(item.color) : item.color) || '—'} / {item.size || '—'}</span>
-                          </div>
-                          <span className="text-[10px] font-black text-gray-400 shrink-0 ml-2">x{item.quantity || 1}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              } catch { return null; }
-            })()}
+          {/* Quick Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {statCards.map((stat, i) => (
+              <motion.div key={stat.title} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                onClick={() => navigate(stat.path, { state: stat.state })}
+                className="glass p-4 rounded-2xl border-2 theme-border cursor-pointer hover:border-blue-500/30 transition-all">
+                <div className="flex items-center justify-between mb-2">
+                  <stat.icon className={stat.color} size={20} />
+                  <ArrowUpRight size={14} className="text-gray-600" />
+                </div>
+                <p className="text-2xl font-black theme-text-primary">{stat.value}</p>
+                <p className="text-xs font-bold theme-text-muted mt-1 uppercase tracking-wider">{stat.title}</p>
+              </motion.div>
+            ))}
+          </div>
+        </>
+      )}
 
-            {/* Customer Info */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
-              <div className="p-2 rounded-lg bg-gray-900/50 border border-gray-800">
-                <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Phone</p>
-                <p className="text-[10px] font-bold text-white">{trackedOrder.customerPhone || '—'}</p>
-              </div>
-              <div className="p-2 rounded-lg bg-gray-900/50 border border-gray-800">
-                <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest">City</p>
-                <p className="text-[10px] font-bold text-white">{trackedOrder.city || '—'}</p>
-              </div>
-              <div className="p-2 rounded-lg bg-gray-900/50 border border-gray-800">
-                <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Source</p>
-                <p className="text-[10px] font-bold text-white">{trackedOrder.source || '—'}</p>
-              </div>
-              <div className="p-2 rounded-lg bg-gray-900/50 border border-gray-800">
-                <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Total</p>
-                <p className="text-[10px] font-bold text-white">₨{parseFloat(trackedOrder.totalPrice || 0).toLocaleString()}</p>
-              </div>
-            </div>
-            {trackedOrder.address && (
-              <div className="p-2 rounded-lg bg-gray-900/50 border border-gray-800 mb-4">
-                <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Address</p>
-                <p className="text-[10px] font-bold text-white">{trackedOrder.address}</p>
-              </div>
-            )}
-
-            <button
-              onClick={() => navigate('/orders', { state: { searchTerm: trackedOrder.orderNumber } })}
-              className="w-full btn-ghost py-2.5 text-[10px] md:text-xs"
-            >
-              View Full Detailed Job Sheet →
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Tab Bar */}
-      <div className="theme-bg-subtle p-2 rounded-[2rem] theme-border overflow-x-auto no-scrollbar">
-        <div className="flex items-center gap-1.5 min-w-max">
-          {TOP_TABS.map((tab) => {
-            const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
-            if ((tab.id === 'edit_requests' || tab.id === 'warehouse' || tab.id === 'settings') && !isAdmin) return null;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setActiveTab(prev => prev === tab.id ? null : tab.id);
-                  if (tab.id === 'all_phases') setFilterStage('ALL');
-                  if (tab.id === 'edit_requests') editRequestsRefreshRef.current?.();
-                }}
-                className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
-                    : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
-                }`}
-              >
-                <tab.icon size={13} />
-                {tab.label}
-                {tab.id === 'edit_requests' && editRequests.length > 0 && (
-                  <span className="ml-1 px-1.5 py-0.5 bg-amber-500 text-white rounded text-[9px] font-black">{editRequests.length}</span>
-                )}
+      {/* Tab Header — shown when a tab is selected */}
+      {activeTab && (
+        <>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <button onClick={() => setActiveTab(null)}
+                className="p-2 rounded-xl hover:bg-gray-800 transition-all theme-text-muted hover:text-white">
+                <X size={18} />
               </button>
-            );
-          })}
-        </div>
-      </div>
+              <div>
+                <h1 className="text-xl md:text-3xl font-black theme-text-primary tracking-tight">
+                  {TOP_TABS.find(t => t.id === activeTab)?.label || 'Dashboard'}
+                </h1>
+                <p className="theme-text-secondary font-bold uppercase tracking-widest text-xs md:text-sm mt-1">
+                  {activeTab === 'all_phases' && 'Production Approval Hub'}
+                  {activeTab === 'dispatch_analytics' && 'Dispatch Operations & Analytics'}
+                  {activeTab === 'enamels_delivery' && 'Delivery Tracking & Earnings'}
+                  {activeTab === 'warehouse' && 'Inventory & Allocation Overview'}
+                  {activeTab === 'edit_requests' && 'Order Change Requests'}
+                  {activeTab === 'recent_orders' && 'Latest 20 Orders'}
+                  {activeTab === 'settings' && 'System Configuration'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              {systemPaused && (
+                <div className="flex items-center gap-2 bg-red-500/20 border border-red-500/30 px-4 py-2.5 rounded-xl">
+                  <PauseCircle className="text-red-400" size={18} />
+                  <span className="text-red-400 font-black text-xs md:text-sm uppercase tracking-widest">System Paused</span>
+                </div>
+              )}
+              {(user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') && (
+                <>
+                  <button onClick={() => setShowPauseModal(true)}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-xs md:text-sm transition-all shadow-lg active:scale-95 ${
+                      systemPaused ? 'bg-emerald-500/10 hover:bg-emerald-500 hover:text-white text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 hover:bg-red-500 hover:text-white text-red-400 border border-red-500/20'
+                    }`}>
+                    {systemPaused ? <PlayCircle size={16} /> : <PauseCircle size={16} />}
+                    <span>{systemPaused ? 'Resume System' : 'Pause System'}</span>
+                  </button>
+                  <button onClick={() => alert('Notification Alert Broadcasted!')}
+                    className="flex items-center gap-2 bg-yellow-500/10 hover:bg-yellow-500 hover:text-white text-yellow-500 border border-yellow-500/20 px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-xs md:text-sm transition-all shadow-lg active:scale-95">
+                    <BellRing size={16} />
+                    <span>Send Alert</span>
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
 
+          {/* Stats Grid — only for all_phases */}
+          {activeTab === 'all_phases' && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {statCards.map((stat, i) => (
+                  <motion.div key={stat.title} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                    onClick={() => navigate(stat.path, { state: stat.state })}
+                    className="glass p-4 rounded-2xl border-2 theme-border cursor-pointer hover:border-blue-500/30 transition-all">
+                    <div className="flex items-center justify-between mb-2">
+                      <stat.icon className={stat.color} size={20} />
+                      <ArrowUpRight size={14} className="text-gray-600" />
+                    </div>
+                    <p className="text-2xl font-black theme-text-primary">{stat.value}</p>
+                    <p className="text-xs font-bold theme-text-muted mt-1 uppercase tracking-wider">{stat.title}</p>
+                  </motion.div>
+                ))}
+              </div>
+
+              {/* Search + Track */}
+              <div className="flex items-center gap-4">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                  <input type="text" value={contextSearch} onChange={(e) => handleDashboardSearch(e.target.value)}
+                    placeholder="Search orders by ID, name, or order number..."
+                    className="w-full theme-input rounded-xl py-3 pl-12 pr-4 text-sm font-bold" />
+                </div>
+                <button onClick={async () => {
+                  if (!contextSearch.trim()) return;
+                  try {
+                    const res = await api.get(`/api/orders/track/${contextSearch.trim()}`);
+                    setTrackedOrder(res.data);
+                    setTrackingError('');
+                  } catch (err) {
+                    setTrackedOrder(null);
+                    setTrackingError('Order not found');
+                  }
+                }} className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all whitespace-nowrap">
+                  Track Order
+                </button>
+              </div>
+            </>
+          )}
+        </>
+      )}
       {/* Tab Content */}
       <AnimatePresence mode="wait">
         {activeTab && (
@@ -927,6 +709,16 @@ const AdminDashboard = () => {
             exit={{ opacity: 0, y: -10 }}
             className="space-y-6"
           >
+            {/* Dispatch Analytics Tab */}
+            {activeTab === 'dispatch_analytics' && (
+              <DispatchAnalyticsCard activeTab={activeTab} />
+            )}
+
+            {/* Enamels Delivery Tab */}
+            {activeTab === 'enamels_delivery' && (
+              <EnamelsDeliveryCard activeTab={activeTab} />
+            )}
+
             {/* All Phases Tab — Pipeline Sub-Tabs */}
             {activeTab === 'all_phases' && (
               <>
@@ -1166,160 +958,7 @@ const AdminDashboard = () => {
 
             {/* Warehouse Tab */}
             {activeTab === 'warehouse' && (
-              <div className="space-y-6">
-                <div className="flex items-center space-x-4">
-                  <div className="p-3 bg-amber-500/10 rounded-2xl">
-                    <Warehouse className="text-amber-400" size={20} />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-black theme-text-primary uppercase tracking-tight">Warehouse</h2>
-                    <p className="theme-text-muted text-xs font-bold uppercase tracking-widest">Inventory & Allocation Overview</p>
-                  </div>
-                </div>
-
-                {warehouseLoading ? (
-                  <div className="py-16 flex justify-center"><Loader2 className="animate-spin text-blue-400" size={32} /></div>
-                ) : (
-                  <>
-                    {/* Stats */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      <div className="glass p-5 rounded-2xl border-2 theme-border">
-                        <div className="flex items-center justify-between mb-2">
-                          <Package className="text-blue-400" size={20} />
-                          <span className="text-xs font-black theme-text-muted uppercase tracking-widest">Total</span>
-                        </div>
-                        <p className="text-3xl font-black theme-text-primary">{whTotalStock}</p>
-                        <p className="text-xs font-bold theme-text-muted mt-1">Units in Stock</p>
-                      </div>
-                      <div className="glass p-5 rounded-2xl border-2 theme-border">
-                        <div className="flex items-center justify-between mb-2">
-                          <AlertTriangle className="text-red-400" size={20} />
-                          <span className="text-xs font-black theme-text-muted uppercase tracking-widest">Low</span>
-                        </div>
-                        <p className="text-3xl font-black text-red-400">{whLowStock.length}</p>
-                        <p className="text-xs font-bold theme-text-muted mt-1">Low Stock Items</p>
-                      </div>
-                      <div className="glass p-5 rounded-2xl border-2 theme-border">
-                        <div className="flex items-center justify-between mb-2">
-                          <XCircle className="text-gray-400" size={20} />
-                          <span className="text-xs font-black theme-text-muted uppercase tracking-widest">Out</span>
-                        </div>
-                        <p className="text-3xl font-black text-gray-400">{whOutOfStock.length}</p>
-                        <p className="text-xs font-bold theme-text-muted mt-1">Out of Stock</p>
-                      </div>
-                      <div className="glass p-5 rounded-2xl border-2 theme-border">
-                        <div className="flex items-center justify-between mb-2">
-                          <Gift className="text-amber-400" size={20} />
-                          <span className="text-xs font-black theme-text-muted uppercase tracking-widest">Today</span>
-                        </div>
-                        <p className="text-3xl font-black text-amber-400">{warehouseAllocSummary.todayTotal}</p>
-                        <p className="text-xs font-bold theme-text-muted mt-1">Today's Allocations</p>
-                      </div>
-                    </div>
-
-                    {/* Low Stock Alert */}
-                    {whLowStock.length > 0 && (
-                      <div className="glass p-5 rounded-2xl border-2 border-red-500/20">
-                        <div className="flex items-center space-x-3 mb-4">
-                          <AlertTriangle className="text-red-400" size={18} />
-                          <h3 className="font-black theme-text-primary uppercase tracking-wider text-sm">Low Stock Alert</h3>
-                        </div>
-                        <div className="space-y-2">
-                          {whLowStock.slice(0, 5).map(item => (
-                            <div key={item.id} className="flex items-center justify-between p-3 bg-red-500/5 rounded-xl border border-red-500/10">
-                              <div>
-                                <p className="font-bold theme-text-primary text-sm">{item.name}</p>
-                                <p className="text-xs theme-text-muted font-bold uppercase">{item.category}</p>
-                              </div>
-                              <p className="font-black text-red-400">{item.stock}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Allocation Summary */}
-                    <div className="glass p-5 rounded-2xl border-2 theme-border">
-                      <div className="flex items-center space-x-3 mb-4">
-                        <Gift className="text-amber-400" size={18} />
-                        <h3 className="font-black theme-text-primary uppercase tracking-wider text-sm">Allocation Summary</h3>
-                      </div>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        <div className="p-3 theme-bg-subtle rounded-xl border theme-border">
-                          <p className="text-[10px] font-black theme-text-muted uppercase tracking-widest">Active</p>
-                          <p className="text-xl font-black text-amber-400 mt-1">{warehouseAllocSummary.activeTotal}</p>
-                        </div>
-                        <div className="p-3 theme-bg-subtle rounded-xl border theme-border">
-                          <p className="text-[10px] font-black theme-text-muted uppercase tracking-widest">Total Allocated</p>
-                          <p className="text-xl font-black text-emerald-400 mt-1">{warehouseAllocSummary.totalAllocated}</p>
-                        </div>
-                        <div className="p-3 theme-bg-subtle rounded-xl border theme-border">
-                          <p className="text-[10px] font-black theme-text-muted uppercase tracking-widest">Pending Carts</p>
-                          <p className="text-xl font-black text-yellow-400 mt-1">{warehousePendingCarts.length}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Recent Allocations */}
-                    <div className="glass p-5 rounded-2xl border-2 theme-border">
-                      <div className="flex items-center space-x-3 mb-4">
-                        <FileText className="text-amber-400" size={18} />
-                        <h3 className="font-black theme-text-primary uppercase tracking-wider text-sm">Recent Allocations</h3>
-                      </div>
-                      {warehouseRecentAllocs.length === 0 ? (
-                        <p className="text-xs theme-text-muted font-bold text-center py-6">No allocation records</p>
-                      ) : (
-                        <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                          {warehouseRecentAllocs.map(rec => (
-                            <div key={rec.id} className="flex items-center justify-between p-3 theme-bg-subtle rounded-xl border theme-border">
-                              <div className="flex-1 min-w-0">
-                                <p className="font-bold theme-text-primary text-xs">{rec.personName}</p>
-                                <p className="text-[10px] theme-text-muted">{new Date(rec.createdAt).toLocaleString()}</p>
-                              </div>
-                              <p className="font-black text-amber-400 text-xs shrink-0 ml-3">{rec.totalQuantity || 0} qty</p>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Pending Carts */}
-                    {warehousePendingCarts.length > 0 && (
-                      <div className="glass p-5 rounded-2xl border-2 border-yellow-500/20">
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center space-x-3">
-                            <ShoppingCart className="text-yellow-400" size={18} />
-                            <h3 className="font-black theme-text-primary uppercase tracking-wider text-sm">Pending Carts</h3>
-                          </div>
-                          <span className="text-xs font-bold text-yellow-400">{warehousePendingCarts.length} awaiting approval</span>
-                        </div>
-                        <div className="space-y-3">
-                          {warehousePendingCarts.map(cart => (
-                            <div key={cart.id} className="flex items-center justify-between p-3 theme-bg-subtle rounded-xl border border-yellow-500/20">
-                              <div className="flex-1 min-w-0">
-                                <p className="font-bold theme-text-primary text-xs">{cart.personName}</p>
-                                <p className="text-[10px] theme-text-muted">{cart.totalItems} products · {cart.totalQuantity} qty</p>
-                              </div>
-                              <div className="flex space-x-2 shrink-0 ml-4">
-                                <button onClick={() => handleWarehouseCartStatus(cart.id, 'APPROVED')}
-                                  className="px-3 py-1.5 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-lg text-[10px] font-black transition-all flex items-center space-x-1">
-                                  <CheckCircle size={12} />
-                                  <span>Approve</span>
-                                </button>
-                                <button onClick={() => handleWarehouseCartStatus(cart.id, 'REJECTED')}
-                                  className="px-3 py-1.5 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-lg text-[10px] font-black transition-all flex items-center space-x-1">
-                                  <XCircle size={12} />
-                                  <span>Reject</span>
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
+              <WarehouseAnalyticsCard activeTab={activeTab} />
             )}
 
             {/* Order Change Requests Tab */}
