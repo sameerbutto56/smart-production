@@ -43,20 +43,38 @@ const DESTINATION_STAGES = {
 
 const createOutletOrder = async (req, res) => {
   try {
-    const { orderNumber: customOrderNumber, invoiceNumber: customInvoiceNumber, clientNumber, isNewCustomer, customerName, customerPhone, address, city, notes, measurementSpecialNote, products, engravingRequired, engravingText, engravingType, engravingInstructions, logoRequired, logoDesign, engravingNames, engravingLogos, sizeData, standardSize, measurementChart, advanceAmount, orderDestination, placedBy } = req.body;
+    const { orderNumber: customOrderNumber, invoiceNumber: customInvoiceNumber, clientNumber, isNewCustomer, customerName, customerPhone, address, city, notes, measurementSpecialNote, products, engravingRequired, engravingText, engravingType, engravingInstructions, logoRequired, logoDesign, engravingNames, engravingLogos, sizeData, standardSize, measurementChart, advanceAmount, orderDestination, placedBy, priority, customization, engravingThreadColor, engravingPlacement } = req.body;
 
     if (!customerName) return res.status(400).json({ message: 'Customer name is required' });
     if (!products || !Array.isArray(products) || products.length === 0) return res.status(400).json({ message: 'At least one product is required' });
-    if (!customOrderNumber || !customOrderNumber.trim()) return res.status(400).json({ message: 'Order number is required' });
     if (!orderDestination || !DESTINATION_STAGES[orderDestination]) return res.status(400).json({ message: 'Order destination is required: STORE, LOGO_DESIGN, or PRODUCTION' });
 
     const outletName = getOutletName(req) || 'Unknown Outlet';
-    const trimmedOrder = customOrderNumber.trim();
-    const existingOrder = await prisma.order.findUnique({ where: { orderNumber: trimmedOrder }, select: { id: true } });
-    if (existingOrder) return res.status(400).json({ message: `Order number ${trimmedOrder} already exists` });
-    const orderNumber = trimmedOrder;
-    // Add backward-compat aliases for job sheet display
-    const enriched = products.map(p => ({ ...p, productType: p.name, fabricType: p.fabric || '' }));
+
+    // Auto-generate order number if not provided
+    let orderNumber;
+    if (customOrderNumber && customOrderNumber.trim()) {
+      const trimmedOrder = customOrderNumber.trim();
+      const existingOrder = await prisma.order.findUnique({ where: { orderNumber: trimmedOrder }, select: { id: true } });
+      if (existingOrder) return res.status(400).json({ message: `Order number ${trimmedOrder} already exists` });
+      orderNumber = trimmedOrder;
+    } else {
+      orderNumber = await generateOrderNumber(outletName);
+    }
+
+    // Enrich productDetails with backward-compat aliases and per-product fields for Job Sheet
+    const enriched = products.map(p => ({
+      ...p,
+      productType: p.name,
+      fabricType: p.fabric || '',
+      gender: p.gender || 'Male',
+      matchingCap: p.matchingCap || false,
+      matchingCapQty: p.matchingCapQty || 0,
+      sleeveLength: p.sleeveLength || '',
+      shirtLength: p.shirtLength || '',
+      femaleOptions: p.femaleOptions || null,
+      alteration: p.alteration || null
+    }));
     const productDetails = enriched;
     const sizeDataStr = sizeData ? JSON.stringify(sizeData) : null;
     const totalPrice = products.reduce((sum, p) => sum + (parseFloat(p.unitPrice) || 0) * (p.quantity || 1), 0);
@@ -95,11 +113,14 @@ const createOutletOrder = async (req, res) => {
           address: address || null,
           city: city || null,
           type: 'FULL_CUSTOM',
+          priority: priority || 'NORMAL',
+          urgent: (priority === 'URGENT' || priority === 'SUPER_URGENT'),
           source: 'OUTLET',
           outletName,
           createdById: req.user?.id,
           productDetails,
           sizeData: sizeDataStr,
+          customization: customization ? (typeof customization === 'string' ? customization : JSON.stringify(customization)) : null,
           instructionNotes: notes || null,
           measurementSpecialNote: aggregatedNote,
           engravingRequired: engravingRequired || false,
@@ -108,8 +129,8 @@ const createOutletOrder = async (req, res) => {
           engravingInstructions: engravingInstructions || null,
           logoRequired: logoRequired || false,
           logoDesign: logoDesign || null,
-          engravingNames: engravingNames ? JSON.stringify(engravingNames) : null,
-          engravingLogos: engravingLogos ? JSON.stringify(engravingLogos) : null,
+          engravingNames: engravingNames ? (typeof engravingNames === 'string' ? engravingNames : JSON.stringify(engravingNames)) : null,
+          engravingLogos: engravingLogos ? (typeof engravingLogos === 'string' ? engravingLogos : JSON.stringify(engravingLogos)) : null,
           orderDestination,
           placedBy: placedBy || null,
           advanceAmount: adv,

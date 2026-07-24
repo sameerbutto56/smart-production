@@ -2,21 +2,16 @@ import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Search, User, Phone, MapPin, ShoppingBag, Ruler, FileText, CreditCard, Send, CheckCircle, ChevronLeft, ChevronRight, Plus, X, RefreshCw } from 'lucide-react';
+import { Search, User, Phone, MapPin, ShoppingBag, Ruler, FileText, CreditCard, Send, CheckCircle, ChevronLeft, ChevronRight, Plus, X, RefreshCw, Printer, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const STEPS = ['Customer', 'Products', 'Engraving', 'Measurements', 'Destination', 'Place Order'];
+const STEPS = ['Customer', 'Products', 'Engraving', 'Measurements', 'Destination', 'Review'];
 
 const DESTINATIONS = [
   { value: 'STORE', label: 'Send to Store', desc: 'Route directly to Store' },
   { value: 'LOGO_DESIGN', label: 'Send to Logo Department', desc: 'Logo team receives immediately' },
   { value: 'PRODUCTION', label: 'Send to Production', desc: 'Production receives immediately' }
 ];
-
-const EMPTY_MEASUREMENT_FIELDS = {
-  'Shirt Length': '', 'Shoulder': '', 'Sleeves Length': '', 'Sleeves Hole': '',
-  'Chest': '', 'Bottom': '', 'Waist': '', 'Length': '', 'Pancha': '', 'Thighs': '', 'Asan': ''
-};
 
 const SLEEVE_LENGTH_OPTIONS = [
   { value: 'Full', label: 'Full', labelUrdu: 'پوری بازو' },
@@ -30,6 +25,26 @@ const SHIRT_LENGTH_OPTIONS = [
   { value: 'Long', label: 'Long', labelUrdu: 'لمبی شرٹ' }
 ];
 
+const THREAD_COLOR_OPTIONS = [
+  { value: '', label: 'Standard White' },
+  { value: 'Gold', label: 'Metallic Gold' },
+  { value: 'Silver', label: 'Polished Silver' },
+  { value: 'Navy', label: 'Royal Navy' },
+  { value: 'Wine', label: 'Premium Wine' },
+  { value: 'Custom', label: 'Custom Color' }
+];
+
+const PLACEMENT_OPTIONS = [
+  { value: 'LeftChest', label: 'Left Chest' },
+  { value: 'RightChest', label: 'Right Chest' }
+];
+
+const PRIORITY_OPTIONS = [
+  { value: 'NORMAL', label: 'Standard', desc: 'Normal processing time' },
+  { value: 'URGENT', label: 'Urgent', desc: 'Priority processing' },
+  { value: 'SUPER_URGENT', label: 'Super Urgent', desc: 'Maximum priority' }
+];
+
 const FIELD_NAME_MAP = {
   chest: 'Chest', waist: 'Waist', shoulder: 'Shoulder',
   length: 'Length', sleeve: 'Sleeves Length', thigh: 'Thighs',
@@ -41,6 +56,13 @@ const FIELD_NAME_MAP = {
   pancha: 'Pancha', thighs: 'Thighs', asan: 'Asan'
 };
 
+const EMPTY_PRODUCT = {
+  name: '', fabric: '', color: '', size: '', quantity: 1, unitPrice: 0,
+  design: '', stitchingNotes: '', accessories: '',
+  sleeveLength: '', shirtLength: '', measurementSpecialNote: '',
+  gender: 'Male', matchingCap: false, matchingCapQty: 0
+};
+
 const OutletOrderEntry = () => {
   const { user } = useAuth();
   const outletName = user?.name || 'Outlet';
@@ -49,8 +71,7 @@ const OutletOrderEntry = () => {
 
   const [step, setStep] = useState(0);
 
-  // --- Customer mode ---
-  const [customerMode, setCustomerMode] = useState(null); // 'existing' | 'new' | null
+  const [customerMode, setCustomerMode] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [showResults, setShowResults] = useState(false);
@@ -61,30 +82,24 @@ const OutletOrderEntry = () => {
 
   const [customer, setCustomer] = useState({ name: '', phone: '', address: '', city: '', notes: '' });
 
-  // --- Order number (manual input) ---
   const [orderNumber, setOrderNumber] = useState(prefilledOrderNumber || '');
+  const [generatingNumber, setGeneratingNumber] = useState(false);
 
-  // --- Products ---
   const [products, setProducts] = useState([]);
-  const [newProduct, setNewProduct] = useState({
-    name: '', fabric: '', color: '', size: '', quantity: 1, unitPrice: 0,
-    design: '', stitchingNotes: '', accessories: '', sleeveLength: '', shirtLength: '', measurementSpecialNote: ''
-  });
+  const [newProduct, setNewProduct] = useState({ ...EMPTY_PRODUCT });
 
-  // --- Engraving ---
   const [engravingRequired, setEngravingRequired] = useState(false);
-  const [engravingText, setEngravingText] = useState('');
   const [engravingType, setEngravingType] = useState('direct');
+  const [engravingLines, setEngravingLines] = useState(['']);
+  const [engravingThreadColor, setEngravingThreadColor] = useState('');
+  const [customThreadColor, setCustomThreadColor] = useState('');
+  const [engravingPlacement, setEngravingPlacement] = useState('LeftChest');
+  const [logoEntries, setLogoEntries] = useState([{ name: '', design: '' }]);
   const [engravingInstructions, setEngravingInstructions] = useState('');
-  const [logoRequired, setLogoRequired] = useState(false);
-  const [engravingNames, setEngravingNames] = useState([]);
-  const [engravingLogos, setEngravingLogos] = useState([]);
-  const [logoDesign, setLogoDesign] = useState('');
 
-  // --- Special Notes ---
+  const [logoDesign, setLogoDesign] = useState('');
   const [specialNotes, setSpecialNotes] = useState('');
 
-  // --- Measurements ---
   const [sizeData, setSizeData] = useState({});
   const [clientStandardSizes, setClientStandardSizes] = useState([]);
   const [clientMeasurements, setClientMeasurements] = useState({});
@@ -92,23 +107,48 @@ const OutletOrderEntry = () => {
   const [selectedStandardSize, setSelectedStandardSize] = useState('');
   const [clientMeasurementChart, setClientMeasurementChart] = useState('');
 
-  // --- Payment ---
   const [advanceAmount, setAdvanceAmount] = useState(0);
-
-  // --- Destination ---
   const [destination, setDestination] = useState('');
+  const [priority, setPriority] = useState('NORMAL');
 
-  // --- Submit ---
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [createdOrder, setCreatedOrder] = useState(null);
 
-  /* ─── Pre-fill order number from POS URL param ─── */
+  const [showJobSheetPreview, setShowJobSheetPreview] = useState(false);
+
   useEffect(() => {
     if (prefilledOrderNumber) setOrderNumber(prefilledOrderNumber);
   }, [prefilledOrderNumber]);
 
-  /* ─── Customer Lookup (existing) ─── */
+  useEffect(() => {
+    if (!prefilledOrderNumber && !orderNumber) {
+      const gen = async () => {
+        setGeneratingNumber(true);
+        try {
+          const res = await api.get('/api/outlet-orders/generate-number');
+          if (res.data?.orderNumber) setOrderNumber(res.data.orderNumber);
+        } catch {}
+        setGeneratingNumber(false);
+      };
+      gen();
+    }
+  }, []);
+
+  const generateNewOrderNumber = useCallback(async () => {
+    setGeneratingNumber(true);
+    try {
+      const res = await api.get('/api/outlet-orders/generate-number');
+      if (res.data?.orderNumber) {
+        setOrderNumber(res.data.orderNumber);
+        toast.success(`Generated: ${res.data.orderNumber}`);
+      }
+    } catch {
+      toast.error('Failed to generate order number');
+    }
+    setGeneratingNumber(false);
+  }, []);
+
   const handleLookup = useCallback(async () => {
     const q = searchQuery.trim();
     if (!q) return toast.error('Enter phone number or name');
@@ -243,15 +283,12 @@ const OutletOrderEntry = () => {
     setClientMeasurementChart('');
   }, []);
 
-  const handleStartExistingCustomer = useCallback(() => {
-    setCustomerMode('existing');
-  }, []);
+  const handleStartExistingCustomer = useCallback(() => setCustomerMode('existing'), []);
 
-  /* ─── Product Management ─── */
   const addProduct = useCallback(() => {
     if (!newProduct.name.trim()) return toast.error('Enter product name');
     setProducts(prev => [...prev, { ...newProduct, _tempId: Date.now() + Math.random() }]);
-    setNewProduct({ name: '', fabric: '', color: '', size: '', quantity: 1, unitPrice: 0, design: '', stitchingNotes: '', accessories: '', sleeveLength: '', shirtLength: '', measurementSpecialNote: '' });
+    setNewProduct({ ...EMPTY_PRODUCT });
   }, [newProduct]);
 
   const removeProduct = useCallback((idx) => setProducts(prev => prev.filter((_, i) => i !== idx)), []);
@@ -260,12 +297,10 @@ const OutletOrderEntry = () => {
     setNewProduct(prev => ({ ...prev, [field]: value }));
   }, []);
 
-  /* ─── Totals ─── */
   const totalAmount = useMemo(() => products.reduce((sum, p) => sum + (parseFloat(p.unitPrice) || 0) * (p.quantity || 1), 0), [products]);
   const advance = parseFloat(advanceAmount) || 0;
   const balance = totalAmount - advance;
 
-  /* ─── Validation ─── */
   const canProceed = useMemo(() => {
     const hasOrderNumber = orderNumber.trim().length > 0;
     switch (step) {
@@ -285,12 +320,31 @@ const OutletOrderEntry = () => {
   const nextStep = () => { if (canProceed) setStep(s => Math.min(s + 1, STEPS.length - 1)); };
   const prevStep = () => setStep(s => Math.max(s - 1, 0));
 
-  /* ─── Submit ─── */
+  const buildCustomization = useCallback(() => {
+    const filteredNames = engravingLines.filter(l => l.trim());
+    const filteredLogos = logoEntries.filter(l => l.name?.trim() || l.design?.trim());
+    return {
+      articleNames: filteredNames,
+      nameSpelling: filteredNames.join(', '),
+      nameColor: engravingThreadColor === 'Custom' ? customThreadColor : (engravingThreadColor || ''),
+      logoColor: '',
+      logoPlacement: engravingPlacement || '',
+      designNotes: '',
+      designReference: '',
+      additionalFeatures: [],
+      logos: filteredLogos,
+      engravingType: engravingType || '',
+      skipEngraving: !engravingRequired
+    };
+  }, [engravingLines, logoEntries, engravingThreadColor, customThreadColor, engravingPlacement, engravingType, engravingRequired]);
+
   const handleSubmit = async () => {
     if (products.length === 0) return toast.error('Add at least one product');
     if (!destination) return toast.error('Select an order destination');
     setSubmitting(true);
     try {
+      const engravingNames = engravingLines.filter(l => l.trim());
+      const engravingLogos = logoEntries.filter(l => l.name?.trim() || l.design?.trim()).map(l => `${l.name}${l.design ? ' — ' + l.design : ''}`);
       const payload = {
         orderNumber: orderNumber.trim() || undefined,
         clientNumber: clientData?.clientNumber || null,
@@ -313,22 +367,26 @@ const OutletOrderEntry = () => {
           accessories: p.accessories,
           sleeveLength: p.sleeveLength || '',
           shirtLength: p.shirtLength || '',
-          measurementSpecialNote: p.measurementSpecialNote || ''
+          measurementSpecialNote: p.measurementSpecialNote || '',
+          gender: p.gender || 'Male',
+          matchingCap: p.matchingCap || false,
+          matchingCapQty: p.matchingCapQty || 0
         })),
         engravingRequired,
-        engravingText: engravingText || null,
-        engravingType: engravingType || null,
+        engravingType: engravingRequired ? engravingType : null,
         engravingInstructions: engravingInstructions || null,
-        logoRequired,
+        logoRequired: logoEntries.some(l => l.name?.trim() || l.design?.trim()),
         logoDesign: logoDesign || null,
         engravingNames: engravingNames.length > 0 ? engravingNames : null,
         engravingLogos: engravingLogos.length > 0 ? engravingLogos : null,
+        customization: buildCustomization(),
         sizeData: Object.keys(sizeData).length > 0 ? sizeData : null,
         standardSize: sizingMode === 'standard' ? selectedStandardSize : null,
         measurementChart: sizingMode === 'custom' ? 'Custom Measurements' : (selectedStandardSize || null),
         advanceAmount: advance,
         orderDestination: destination,
-        placedBy: user?.name || user?.id || null
+        placedBy: user?.name || user?.id || null,
+        priority
       };
       const res = await api.post('/api/outlet-orders', payload);
       setCreatedOrder(res.data);
@@ -351,17 +409,21 @@ const OutletOrderEntry = () => {
     setLookedUp(false);
     setCustomer({ name: '', phone: '', address: '', city: '', notes: '' });
     setProducts([]);
-    setNewProduct({ name: '', fabric: '', color: '', size: '', quantity: 1, unitPrice: 0, design: '', stitchingNotes: '', accessories: '', sleeveLength: '', shirtLength: '' });
+    setNewProduct({ ...EMPTY_PRODUCT });
     setEngravingRequired(false);
-    setEngravingText('');
+    setEngravingLines(['']);
+    setEngravingThreadColor('');
+    setCustomThreadColor('');
+    setEngravingPlacement('LeftChest');
+    setLogoEntries([{ name: '', design: '' }]);
     setEngravingInstructions('');
     setLogoDesign('');
     setSpecialNotes('');
-    setMeasurementSpecialNote('');
     setSizeData({});
     setClientMeasurements({});
     setAdvanceAmount(0);
     setDestination('');
+    setPriority('NORMAL');
     setSubmitted(false);
     setCreatedOrder(null);
     setClientStandardSizes([]);
@@ -371,7 +433,6 @@ const OutletOrderEntry = () => {
     setOrderNumber('');
   };
 
-  /* ─── Render ─── */
   if (submitted) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
@@ -383,6 +444,7 @@ const OutletOrderEntry = () => {
           <p className="text-lg font-bold text-blue-400">{createdOrder?.orderNumber}</p>
           {createdOrder?.invoiceNumber && <p className="text-sm font-bold text-amber-400">Invoice: {createdOrder.invoiceNumber}</p>}
           <p className="text-sm font-bold text-gray-400">Routed to: {DESTINATIONS.find(d => d.value === destination)?.label || destination}</p>
+          {priority !== 'NORMAL' && <p className="text-xs font-bold text-red-400">Priority: {PRIORITY_OPTIONS.find(p => p.value === priority)?.label}</p>}
           {customerMode === 'new' && (
             <p className="text-xs font-bold text-emerald-400">Customer saved to Client Registration</p>
           )}
@@ -401,7 +463,6 @@ const OutletOrderEntry = () => {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-20 px-4">
-      {/* Header */}
       <div className="flex items-center gap-4">
         <div className="p-3 bg-amber-600 rounded-2xl"><ShoppingBag className="text-white" size={24} /></div>
         <div>
@@ -410,7 +471,6 @@ const OutletOrderEntry = () => {
         </div>
       </div>
 
-      {/* Step Indicator */}
       <div className="flex gap-1.5 overflow-x-auto pb-1">
         {STEPS.map((s, i) => (
           <button key={s} onClick={() => { if (i <= step) setStep(i); }}
@@ -424,7 +484,6 @@ const OutletOrderEntry = () => {
         ))}
       </div>
 
-      {/* Step Content */}
       <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-4 md:p-6 space-y-4 min-h-[300px]">
 
         {/* ═══════════════════ Step 0: Customer ═══════════════════ */}
@@ -432,7 +491,6 @@ const OutletOrderEntry = () => {
           <div className="space-y-4">
             <h2 className="text-lg font-black text-white flex items-center gap-2"><User size={18} />Customer</h2>
 
-            {/* Mode Selection */}
             {!customerMode && (
               <div className="space-y-3">
                 <p className="text-sm font-bold text-gray-400">How would you like to proceed?</p>
@@ -453,7 +511,6 @@ const OutletOrderEntry = () => {
               </div>
             )}
 
-            {/* Existing Customer: Search */}
             {customerMode === 'existing' && !clientData && (
               <div className="space-y-3">
                 <button onClick={() => setCustomerMode(null)} className="text-xs font-bold text-gray-500 hover:text-white flex items-center gap-1">
@@ -495,7 +552,6 @@ const OutletOrderEntry = () => {
               </div>
             )}
 
-            {/* Existing Customer: loaded */}
             {customerMode === 'existing' && clientData && (
               <div className="space-y-3">
                 <div className="bg-blue-900/20 border border-blue-700 rounded-xl p-3">
@@ -540,7 +596,6 @@ const OutletOrderEntry = () => {
               </div>
             )}
 
-            {/* New Customer: Form */}
             {customerMode === 'new' && (
               <div className="space-y-3">
                 <button onClick={() => setCustomerMode(null)} className="text-xs font-bold text-gray-500 hover:text-white flex items-center gap-1">
@@ -584,21 +639,26 @@ const OutletOrderEntry = () => {
               </div>
             )}
 
-            {/* Order Number (manual input, required) */}
             <div className="bg-gray-800 rounded-xl p-3 space-y-2">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-gray-400">Order Number *</label>
-                {prefilledOrderNumber && (
-                  <span className="text-[10px] font-bold text-blue-400 bg-blue-900/30 px-2 py-0.5 rounded-lg">From POS</span>
-                )}
+                <div className="flex items-center gap-2">
+                  {prefilledOrderNumber && (
+                    <span className="text-[10px] font-bold text-blue-400 bg-blue-900/30 px-2 py-0.5 rounded-lg">From POS</span>
+                  )}
+                  {!prefilledOrderNumber && (
+                    <button onClick={generateNewOrderNumber} disabled={generatingNumber}
+                      className="text-[10px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1">
+                      <RefreshCw size={10} className={generatingNumber ? 'animate-spin' : ''} /> Generate New
+                    </button>
+                  )}
+                </div>
               </div>
               <input
                 value={orderNumber}
                 onChange={e => setOrderNumber(e.target.value)}
                 className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-black text-white placeholder-gray-500 outline-none focus:border-amber-500 tracking-wider uppercase"
-                placeholder="e.g. JT-000123, JL-000456, AB-000789"
-              />
-              <p className="text-[10px] font-bold text-gray-500">Must match the outlet where this order was created</p>
+                placeholder="Auto-generated" />
             </div>
           </div>
         )}
@@ -609,7 +669,6 @@ const OutletOrderEntry = () => {
             <h2 className="text-lg font-black text-white flex items-center gap-2"><ShoppingBag size={18} />Product Details</h2>
             <p className="text-xs font-bold text-gray-500">Enter each product manually. Add as many as needed.</p>
 
-            {/* Add Product Form */}
             <div className="bg-gray-800 rounded-2xl p-4 space-y-3 border border-gray-700">
               <h3 className="text-xs font-black text-amber-400 uppercase tracking-wider">Add Product</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -618,6 +677,14 @@ const OutletOrderEntry = () => {
                   <input value={newProduct.name} onChange={e => updateNewProduct('name', e.target.value)}
                     className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-bold text-white placeholder-gray-500 outline-none focus:border-amber-500"
                     placeholder="e.g. Men's Scrub Top, Lab Coat" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-500">Gender</label>
+                  <select value={newProduct.gender} onChange={e => updateNewProduct('gender', e.target.value)}
+                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-bold text-white outline-none focus:border-amber-500">
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                  </select>
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-gray-500">Fabric</label>
@@ -687,6 +754,22 @@ const OutletOrderEntry = () => {
                     ))}
                   </select>
                 </div>
+                <div className="col-span-2 flex items-end gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={newProduct.matchingCap}
+                      onChange={e => updateNewProduct('matchingCap', e.target.checked)}
+                      className="accent-amber-500 w-4 h-4" />
+                    <span className="text-[10px] font-bold text-gray-500">Matching Cap</span>
+                  </label>
+                  {newProduct.matchingCap && (
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] font-bold text-gray-500">Qty:</span>
+                      <input type="number" value={newProduct.matchingCapQty} min="0"
+                        onChange={e => updateNewProduct('matchingCapQty', Math.max(0, parseInt(e.target.value) || 0))}
+                        className="w-16 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1 text-xs font-bold text-white outline-none focus:border-amber-500" />
+                    </div>
+                  )}
+                </div>
                 <div className="col-span-2">
                   <label className="text-[10px] font-bold text-gray-500">Measurement Special Note</label>
                   <input value={newProduct.measurementSpecialNote} onChange={e => updateNewProduct('measurementSpecialNote', e.target.value)}
@@ -700,7 +783,6 @@ const OutletOrderEntry = () => {
               </button>
             </div>
 
-            {/* Products List */}
             {products.length > 0 && (
               <div className="space-y-2 border-t border-gray-700 pt-4">
                 <h3 className="text-xs font-black text-gray-400 uppercase tracking-wider">Products ({products.length}) — Total: ₨{totalAmount.toLocaleString()}</h3>
@@ -710,15 +792,17 @@ const OutletOrderEntry = () => {
                       <div className="flex-1">
                         <p className="text-sm font-black text-white">{p.name}</p>
                         <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[11px] text-gray-400 font-bold">
+                          <span className="text-blue-400">{p.gender}</span>
                           {p.fabric && <span>Fabric: {p.fabric}</span>}
                           {p.color && <span>Color: {p.color}</span>}
                           {p.size && <span>Size: {p.size}</span>}
                           <span>Qty: {p.quantity}</span>
                           <span className="text-amber-400 font-black">₨{((p.unitPrice || 0) * (p.quantity || 1)).toLocaleString()}</span>
                         </div>
-                        {p.design && <p className="text-[10px] text-gray-500 mt-0.5">Design: {p.design}</p>}
+                        {p.matchingCap && <p className="text-[10px] text-purple-400 mt-0.5">Matching Cap × {p.matchingCapQty}</p>}
                         {p.sleeveLength && <p className="text-[10px] text-gray-500 mt-0.5">Sleeve: {p.sleeveLength}</p>}
                         {p.shirtLength && <p className="text-[10px] text-gray-500 mt-0.5">Shirt Length: {p.shirtLength}</p>}
+                        {p.design && <p className="text-[10px] text-gray-500 mt-0.5">Design: {p.design}</p>}
                         {p.stitchingNotes && <p className="text-[10px] text-gray-500">Stitching: {p.stitchingNotes}</p>}
                         {p.accessories && <p className="text-[10px] text-gray-500">Accessories: {p.accessories}</p>}
                         {p.measurementSpecialNote && <p className="text-[10px] text-amber-400 font-bold mt-0.5">Measurement Note: {p.measurementSpecialNote}</p>}
@@ -735,7 +819,7 @@ const OutletOrderEntry = () => {
         {/* ═══════════════════ Step 2: Engraving ═══════════════════ */}
         {step === 2 && (
           <div className="space-y-4">
-            <h2 className="text-lg font-black text-white flex items-center gap-2"><FileText size={18} />Engraving / Customization</h2>
+            <h2 className="text-lg font-black text-white flex items-center gap-2"><FileText size={18} />Engraving / Branding</h2>
             <label className="flex items-center gap-2 text-sm font-bold text-white cursor-pointer">
               <input type="checkbox" checked={engravingRequired} onChange={e => setEngravingRequired(e.target.checked)}
                 className="accent-amber-500 w-5 h-5" />
@@ -744,92 +828,101 @@ const OutletOrderEntry = () => {
             {engravingRequired && (
               <div className="space-y-4 pl-6">
                 <div>
-                  <label className="text-xs font-bold text-gray-400 block mb-1">Engraving Type</label>
+                  <label className="text-xs font-bold text-gray-400 block mb-1">Engraving Method</label>
                   <div className="flex gap-2">
-                    {['direct', 'patch'].map(type => (
-                      <button key={type} type="button" onClick={() => setEngravingType(type)}
+                    {[{ value: 'direct', label: 'Direct Engraving' }, { value: 'patch', label: 'Patch Engraving' }].map(opt => (
+                      <button key={opt.value} type="button" onClick={() => setEngravingType(opt.value)}
                         className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all border-2 ${
-                          engravingType === type
-                            ? 'bg-amber-500/20 text-amber-400 border-amber-500'
+                          engravingType === opt.value
+                            ? 'bg-purple-600/20 text-purple-400 border-purple-500'
                             : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-600'
                         }`}>
-                        {type === 'direct' ? 'Direct Engraving' : 'Patch Engraving'}
+                        {opt.label}
                       </button>
                     ))}
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-gray-400 block mb-1">Engraving Text</label>
-                  <input value={engravingText} onChange={e => setEngravingText(e.target.value)}
-                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-amber-500 outline-none"
-                    placeholder="Text to engrave" />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-gray-400">Engraving Lines</label>
+                    {engravingLines.length < 5 && (
+                      <button type="button" onClick={() => setEngravingLines(prev => [...prev, ''])}
+                        className="text-[10px] font-black text-purple-400 hover:text-purple-300 flex items-center gap-1">
+                        <Plus size={12} /> Add Line
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    {engravingLines.map((line, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="bg-purple-500/20 text-purple-400 text-[10px] font-black px-2 py-1 rounded-lg shrink-0">L{i + 1}</span>
+                        <input value={line} onChange={e => { const next = [...engravingLines]; next[i] = e.target.value; setEngravingLines(next); }}
+                          className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white placeholder-gray-500 outline-none"
+                          placeholder={`Engraving line ${i + 1}`} />
+                        {engravingLines.length > 1 && (
+                          <button onClick={() => setEngravingLines(prev => prev.filter((_, j) => j !== i))}
+                            className="text-red-400 hover:text-red-300 p-1"><X size={14} /></button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 block mb-1">Thread / Text Color</label>
+                    <select value={engravingThreadColor === 'Custom' ? 'Custom' : (engravingThreadColor || '')}
+                      onChange={e => setEngravingThreadColor(e.target.value)}
+                      className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white focus:border-purple-500 outline-none appearance-none">
+                      {THREAD_COLOR_OPTIONS.map(o => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                    {engravingThreadColor === 'Custom' && (
+                      <input value={customThreadColor} onChange={e => setCustomThreadColor(e.target.value)}
+                        className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-purple-500 outline-none mt-2"
+                        placeholder="Enter custom color" />
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 block mb-1">Placement</label>
+                    <select value={engravingPlacement} onChange={e => setEngravingPlacement(e.target.value)}
+                      className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white focus:border-purple-500 outline-none appearance-none">
+                      {PLACEMENT_OPTIONS.map(o => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-bold text-gray-400">Names for Engraving</label>
-                    <button type="button" onClick={() => setEngravingNames(prev => [...prev, ''])}
-                      className="text-[10px] font-black text-amber-400 hover:text-amber-300 flex items-center gap-1">
-                      <Plus size={12} /> Add Name
+                    <label className="text-xs font-bold text-gray-400">Logos</label>
+                    <button type="button" onClick={() => setLogoEntries(prev => [...prev, { name: '', design: '' }])}
+                      className="text-[10px] font-black text-purple-400 hover:text-purple-300 flex items-center gap-1">
+                      <Plus size={12} /> Add Logo
                     </button>
                   </div>
                   <div className="space-y-2">
-                    {engravingNames.map((name, i) => (
+                    {logoEntries.map((logo, i) => (
                       <div key={i} className="flex items-center gap-2">
-                        <input value={name} onChange={e => { const next = [...engravingNames]; next[i] = e.target.value; setEngravingNames(next); }}
+                        <input value={logo.name} onChange={e => { const next = [...logoEntries]; next[i] = { ...next[i], name: e.target.value }; setLogoEntries(next); }}
                           className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white placeholder-gray-500 outline-none"
-                          placeholder={`Name ${i + 1}`} />
-                        <button onClick={() => setEngravingNames(prev => prev.filter((_, j) => j !== i))}
-                          className="text-red-400 hover:text-red-300 p-1"><X size={14} /></button>
+                          placeholder="Logo name" />
+                        <input value={logo.design} onChange={e => { const next = [...logoEntries]; next[i] = { ...next[i], design: e.target.value }; setLogoEntries(next); }}
+                          className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white placeholder-gray-500 outline-none"
+                          placeholder="Design description" />
+                        {logoEntries.length > 1 && (
+                          <button onClick={() => setLogoEntries(prev => prev.filter((_, j) => j !== i))}
+                            className="text-red-400 hover:text-red-300 p-1"><X size={14} /></button>
+                        )}
                       </div>
                     ))}
                   </div>
                 </div>
                 <div>
-                  <label className="flex items-center gap-2 text-sm font-bold text-white cursor-pointer">
-                    <input type="checkbox" checked={logoRequired} onChange={e => setLogoRequired(e.target.checked)}
-                      className="accent-amber-500 w-5 h-5" />
-                    Add Logo
-                  </label>
-                </div>
-                {logoRequired && (
-                  <div className="pl-6">
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs font-bold text-gray-400">Logos</label>
-                      <button type="button" onClick={() => setEngravingLogos(prev => [...prev, ''])}
-                        className="text-[10px] font-black text-amber-400 hover:text-amber-300 flex items-center gap-1">
-                        <Plus size={12} /> Add Logo
-                      </button>
-                    </div>
-                    <div className="space-y-2">
-                      {engravingLogos.map((logo, i) => (
-                        <div key={i} className="flex items-center gap-2">
-                          <input value={logo} onChange={e => { const next = [...engravingLogos]; next[i] = e.target.value; setEngravingLogos(next); }}
-                            className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white placeholder-gray-500 outline-none"
-                            placeholder={`Logo ${i + 1} description`} />
-                          <button onClick={() => setEngravingLogos(prev => prev.filter((_, j) => j !== i))}
-                            className="text-red-400 hover:text-red-300 p-1"><X size={14} /></button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div>
                   <label className="text-xs font-bold text-gray-400 block mb-1">Engraving Instructions</label>
                   <textarea value={engravingInstructions} onChange={e => setEngravingInstructions(e.target.value)}
-                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-amber-500 outline-none resize-none" rows={2}
-                    placeholder="Font, position, style, etc." />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-400 block mb-1">Logo Design</label>
-                  <input value={logoDesign} onChange={e => setLogoDesign(e.target.value)}
-                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-amber-500 outline-none"
-                    placeholder="Logo name or design description" />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-400 block mb-1">Special Notes</label>
-                  <textarea value={specialNotes} onChange={e => setSpecialNotes(e.target.value)}
-                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-amber-500 outline-none resize-none" rows={2}
-                    placeholder="Production instructions, fabric notes, urgent delivery..." />
+                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-purple-500 outline-none resize-none" rows={2}
+                    placeholder="Font, style, special instructions..." />
                 </div>
               </div>
             )}
@@ -850,6 +943,22 @@ const OutletOrderEntry = () => {
                 </div>
               </div>
             )}
+            {engravingRequired && (
+              <div className="pl-6">
+                <div>
+                  <label className="text-xs font-bold text-gray-400 block mb-1">Logo Design</label>
+                  <input value={logoDesign} onChange={e => setLogoDesign(e.target.value)}
+                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-purple-500 outline-none"
+                    placeholder="Logo name or design description" />
+                </div>
+                <div className="mt-3">
+                  <label className="text-xs font-bold text-gray-400 block mb-1">Special Notes</label>
+                  <textarea value={specialNotes} onChange={e => setSpecialNotes(e.target.value)}
+                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-gray-500 focus:border-purple-500 outline-none resize-none" rows={2}
+                    placeholder="Production instructions, fabric notes, urgent delivery..." />
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -857,9 +966,7 @@ const OutletOrderEntry = () => {
         {step === 3 && (
           <div className="space-y-4">
             <h2 className="text-lg font-black text-white flex items-center gap-2"><Ruler size={18} />Measurement Special Notes</h2>
-
-            <p className="text-xs font-bold text-gray-500">Enter measurement instructions for each product separately. Each product gets its own note.</p>
-
+            <p className="text-xs font-bold text-gray-500">Enter measurement instructions for each product separately.</p>
             {products.map((p, idx) => (
               <div key={p._tempId} className="bg-gray-800 rounded-xl p-4 space-y-2 border border-gray-700">
                 <p className="text-sm font-black text-amber-400">{idx + 1}. {p.name} {p.color ? `(${p.color})` : ''}</p>
@@ -895,53 +1002,90 @@ const OutletOrderEntry = () => {
                 </button>
               ))}
             </div>
+            <div className="bg-gray-800 rounded-xl p-4 space-y-3">
+              <label className="text-xs font-bold text-gray-400 block">Order Priority</label>
+              <div className="space-y-2">
+                {PRIORITY_OPTIONS.map(p => (
+                  <button key={p.value} onClick={() => setPriority(p.value)}
+                    className={`w-full text-left p-3 rounded-xl border-2 transition-all flex items-center justify-between ${
+                      priority === p.value
+                        ? p.value === 'SUPER_URGENT' ? 'border-red-500 bg-red-900/20' : p.value === 'URGENT' ? 'border-orange-500 bg-orange-900/20' : 'border-emerald-500 bg-emerald-900/20'
+                        : 'border-gray-700 bg-gray-800 hover:bg-gray-750'
+                    }`}>
+                    <div>
+                      <p className={`text-sm font-black ${p.value === 'SUPER_URGENT' ? 'text-red-400' : p.value === 'URGENT' ? 'text-orange-400' : 'text-white'}`}>{p.label}</p>
+                      <p className="text-[10px] font-bold text-gray-400">{p.desc}</p>
+                    </div>
+                    {priority === p.value && <CheckCircle size={16} className={p.value === 'SUPER_URGENT' ? 'text-red-400' : p.value === 'URGENT' ? 'text-orange-400' : 'text-emerald-400'} />}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
-        {/* ═══════════════════ Step 5: Place Order ═══════════════════ */}
+        {/* ═══════════════════ Step 5: Review & Place ═══════════════════ */}
         {step === 5 && (
           <div className="space-y-4">
             <h2 className="text-lg font-black text-white flex items-center gap-2"><CheckCircle size={18} />Review & Place Order</h2>
 
-            {/* Customer Info */}
             <div className="bg-gray-800 rounded-xl p-4 space-y-1 text-sm">
               <p className="text-gray-400">Customer: <span className="text-white font-black">{customer.name}</span></p>
               <p className="text-gray-400">Phone: <span className="text-white font-black">{customer.phone}</span></p>
               {customer.address && <p className="text-gray-400">Address: <span className="text-white font-bold">{customer.address}</span></p>}
               {customer.city && <p className="text-gray-400">City: <span className="text-white font-bold">{customer.city}</span></p>}
               {orderNumber && <p className="text-gray-400">Order #: <span className="text-white font-black">{orderNumber}</span></p>}
+              {priority !== 'NORMAL' && (
+                <p className="text-gray-400">Priority: <span className={`font-black ${priority === 'SUPER_URGENT' ? 'text-red-400' : 'text-orange-400'}`}>{PRIORITY_OPTIONS.find(p => p.value === priority)?.label}</span></p>
+              )}
+              <p className="text-gray-400">Destination: <span className="text-white font-black">{DESTINATIONS.find(d => d.value === destination)?.label}</span></p>
               {customerMode === 'new' && !clientData && (
                 <p className="text-[10px] font-bold text-emerald-400 mt-1">New customer — will be saved to Client Registration</p>
               )}
             </div>
 
-            {/* Products */}
             <div className="bg-gray-800 rounded-xl p-4 space-y-2 text-sm">
               <p className="text-gray-400 mb-2">Products: <span className="text-white font-black">{products.length} item(s)</span></p>
               {products.map((p, i) => (
-                <div key={p._tempId} className="bg-gray-900 rounded-lg px-3 py-2 text-xs flex items-center justify-between">
-                  <div>
-                    <span className="text-white font-bold">{p.name}</span>
-                    {p.fabric && <span className="text-gray-500 ml-1">({p.fabric})</span>}
-                    {p.color && <span className="text-gray-500 ml-1">{p.color}</span>}
-                    {p.size && <span className="text-gray-500 ml-1">/ {p.size}</span>}
-                    {p.quantity > 1 && <span className="text-gray-500 ml-1">×{p.quantity}</span>}
+                <div key={p._tempId} className="bg-gray-900 rounded-lg px-3 py-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-white font-bold">{p.name}</span>
+                      <span className="text-blue-400 ml-1">({p.gender})</span>
+                      {p.fabric && <span className="text-gray-500 ml-1">{p.fabric}</span>}
+                      {p.color && <span className="text-gray-500 ml-1">{p.color}</span>}
+                      {p.size && <span className="text-gray-500 ml-1">{`/ ${p.size}`}</span>}
+                      {p.quantity > 1 && <span className="text-gray-500 ml-1">{`x${p.quantity}`}</span>}
+                    </div>
+                    <span className="text-amber-400 font-black">₨{((p.unitPrice || 0) * (p.quantity || 1)).toLocaleString()}</span>
                   </div>
-                  <span className="text-amber-400 font-black">₨{((p.unitPrice || 0) * (p.quantity || 1)).toLocaleString()}</span>
+                  <div className="flex flex-wrap gap-x-3 mt-1 text-[10px] text-gray-500">
+                    {p.sleeveLength && <span>Sleeve: {p.sleeveLength}</span>}
+                    {p.shirtLength && <span>Shirt: {p.shirtLength}</span>}
+                    {p.matchingCap && <span className="text-purple-400">Cap ×{p.matchingCapQty}</span>}
+                  </div>
                 </div>
               ))}
             </div>
 
-            {/* Engraving */}
             <div className="bg-gray-800 rounded-xl p-4 text-sm space-y-1">
               <p className="text-gray-400">Engraving: <span className="text-white font-black">{engravingRequired ? 'Yes' : 'No'}</span></p>
-              {engravingRequired && engravingNames.length > 0 && (
-                <p className="text-gray-400">Names: <span className="text-white font-black">{engravingNames.filter(Boolean).join(', ')}</span></p>
+              {engravingRequired && (
+                <>
+                  <p className="text-gray-400">Method: <span className="text-white font-black">{engravingType === 'direct' ? 'Direct' : 'Patch'}</span></p>
+                  {engravingLines.some(l => l.trim()) && (
+                    <p className="text-gray-400">Lines: <span className="text-white font-black">{engravingLines.filter(l => l.trim()).join(' | ')}</span></p>
+                  )}
+                  {engravingThreadColor && <p className="text-gray-400">Thread: <span className="text-purple-400 font-black">{engravingThreadColor === 'Custom' ? customThreadColor : engravingThreadColor}</span></p>}
+                  <p className="text-gray-400">Placement: <span className="text-white font-black">{PLACEMENT_OPTIONS.find(p => p.value === engravingPlacement)?.label}</span></p>
+                  {logoEntries.some(l => l.name?.trim() || l.design?.trim()) && (
+                    <p className="text-gray-400">Logos: <span className="text-white font-black">{logoEntries.filter(l => l.name?.trim() || l.design?.trim()).map(l => `${l.name}${l.design ? ' — ' + l.design : ''}`).join(', ')}</span></p>
+                  )}
+                </>
               )}
-              {logoDesign && <p className="text-gray-400">Logo: <span className="text-white font-black">{logoDesign}</span></p>}
+              {logoDesign && <p className="text-gray-400">Logo Design: <span className="text-white font-black">{logoDesign}</span></p>}
             </div>
 
-            {/* Payment */}
             <div className="bg-gray-800 rounded-xl p-4 space-y-3">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-400 font-bold">Total Amount</span>
@@ -950,12 +1094,6 @@ const OutletOrderEntry = () => {
               <p className="text-[10px] font-bold text-gray-500">Payment handled at POS — no advance required here.</p>
             </div>
 
-            {/* Destination */}
-            <div className="bg-gray-800 rounded-xl p-4 text-sm">
-              <p className="text-gray-400">Destination: <span className="text-white font-black">{DESTINATIONS.find(d => d.value === destination)?.label || destination}</span></p>
-            </div>
-
-            {/* Special Notes */}
             <div className="bg-gray-800 rounded-xl p-4 text-sm">
               {products.filter(p => p.measurementSpecialNote).length > 0 && (
                 <div className="mb-1">
@@ -965,20 +1103,24 @@ const OutletOrderEntry = () => {
                   ))}
                 </div>
               )}
-              {specialNotes && <p className="text-gray-400">Engraving Note: <span className="text-white font-black">{specialNotes}</span></p>}
-              {logoDesign && <p className="text-gray-400">Logo: <span className="text-white font-black">{logoDesign}</span></p>}
+              {specialNotes && <p className="text-gray-400">Special Notes: <span className="text-white font-black">{specialNotes}</span></p>}
             </div>
 
-            <button onClick={handleSubmit} disabled={submitting}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-2xl text-lg disabled:opacity-50 flex items-center justify-center gap-2">
-              {submitting ? 'Placing Order...' : `Place Order — ₨${totalAmount.toLocaleString()}`}
-            </button>
+            <div className="flex gap-3">
+              <button onClick={() => setShowJobSheetPreview(true)}
+                className="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-black py-4 rounded-2xl text-lg flex items-center justify-center gap-2">
+                <Printer size={20} /> Preview Job Sheet
+              </button>
+              <button onClick={handleSubmit} disabled={submitting}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-2xl text-lg disabled:opacity-50 flex items-center justify-center gap-2">
+                {submitting ? 'Placing Order...' : `Place Order — ₨${totalAmount.toLocaleString()}`}
+              </button>
+            </div>
           </div>
         )}
 
       </div>
 
-      {/* Navigation */}
       <div className="flex gap-3">
         {step > 0 && (
           <button onClick={prevStep} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2">
@@ -992,6 +1134,103 @@ const OutletOrderEntry = () => {
           </button>
         )}
       </div>
+
+      {/* ═══════════════════ Job Sheet Preview Modal ═══════════════════ */}
+      {showJobSheetPreview && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto text-black p-6 space-y-4">
+            <div className="flex items-center justify-between border-b-4 border-black pb-3">
+              <div className="text-center flex-1">
+                <h1 className="text-xl font-black uppercase tracking-wider">Job Sheet</h1>
+                <p className="text-xs font-bold text-gray-600">{outletName}</p>
+              </div>
+              <button onClick={() => setShowJobSheetPreview(false)} className="text-gray-400 hover:text-black"><X size={20} /></button>
+            </div>
+            <div className="flex justify-between text-xs font-black uppercase">
+              <span>Order: {orderNumber}</span>
+              <span>{new Date().toLocaleDateString()}</span>
+            </div>
+            {priority !== 'NORMAL' && (
+              <div className={`text-center py-1 rounded font-black text-xs uppercase ${priority === 'SUPER_URGENT' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
+                {PRIORITY_OPTIONS.find(p => p.value === priority)?.label} PRIORITY
+              </div>
+            )}
+            <div className="text-xs font-bold space-y-0.5 border-b border-gray-200 pb-2">
+              <p>Customer: {customer.name} — {customer.phone}</p>
+              {customer.address && <p>Address: {customer.address}{customer.city ? `, ${customer.city}` : ''}</p>}
+              <p>Destination: {DESTINATIONS.find(d => d.value === destination)?.label}</p>
+            </div>
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="border-b-2 border-black">
+                  <th className="text-left py-1 font-black">#</th>
+                  <th className="text-left py-1 font-black">Product</th>
+                  <th className="text-left py-1 font-black">Details</th>
+                  <th className="text-right py-1 font-black">Qty</th>
+                  <th className="text-right py-1 font-black">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {products.map((p, i) => (
+                  <tr key={p._tempId} className="border-b border-gray-200">
+                    <td className="py-1 font-bold">{i + 1}</td>
+                    <td className="py-1 font-bold">{p.name}<span className="text-gray-500 ml-1">({p.gender})</span></td>
+                    <td className="py-1 text-gray-600">
+                      {[p.fabric, p.color, p.size, p.sleeveLength ? `Sleeve: ${p.sleeveLength}` : '', p.shirtLength ? `Shirt: ${p.shirtLength}` : ''].filter(Boolean).join(' • ')}
+                      {p.matchingCap && <span className="text-purple-600 block">Cap ×{p.matchingCapQty}</span>}
+                    </td>
+                    <td className="py-1 text-right font-bold">{p.quantity}</td>
+                    <td className="py-1 text-right font-black">₨{((p.unitPrice || 0) * (p.quantity || 1)).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {engravingRequired && (
+              <div className="border-2 border-purple-300 rounded-lg p-3 space-y-2">
+                <p className="text-xs font-black uppercase text-purple-700">Engraving / Branding</p>
+                <p className="text-xs">Method: <span className="font-black">{engravingType === 'direct' ? 'Direct' : 'Patch'}</span></p>
+                {engravingLines.filter(l => l.trim()).map((line, i) => (
+                  <p key={i} className="text-xs">Line {i + 1}: <span className="font-black">{line}</span></p>
+                ))}
+                {engravingThreadColor && <p className="text-xs">Thread Color: <span className="font-black">{engravingThreadColor === 'Custom' ? customThreadColor : engravingThreadColor}</span></p>}
+                <p className="text-xs">Placement: <span className="font-black">{PLACEMENT_OPTIONS.find(p => p.value === engravingPlacement)?.label}</span></p>
+                {logoEntries.filter(l => l.name?.trim() || l.design?.trim()).map((l, i) => (
+                  <p key={i} className="text-xs">Logo: <span className="font-black">{l.name}{l.design ? ` — ${l.design}` : ''}</span></p>
+                ))}
+                {engravingInstructions && <p className="text-xs mt-1">Instructions: <span className="font-black">{engravingInstructions}</span></p>}
+              </div>
+            )}
+            {products.some(p => p.measurementSpecialNote) && (
+              <div className="border-2 border-amber-300 rounded-lg p-3 space-y-1">
+                <p className="text-xs font-black uppercase text-amber-700">Measurement Notes</p>
+                {products.filter(p => p.measurementSpecialNote).map((p, i) => (
+                  <p key={p._tempId} className="text-xs">{p.name}: <span className="font-bold">{p.measurementSpecialNote}</span></p>
+                ))}
+              </div>
+            )}
+            {specialNotes && (
+              <div className="bg-gray-100 rounded-lg p-3">
+                <p className="text-xs font-black uppercase mb-1">Special Notes</p>
+                <p className="text-xs font-bold">{specialNotes}</p>
+              </div>
+            )}
+            <div className="flex justify-between text-sm font-black border-t-2 border-black pt-2">
+              <span>Total</span>
+              <span>₨{totalAmount.toLocaleString()}</span>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setShowJobSheetPreview(false)}
+                className="flex-1 bg-gray-200 hover:bg-gray-300 text-black font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2">
+                <X size={16} /> Reject
+              </button>
+              <button onClick={async () => { setShowJobSheetPreview(false); await handleSubmit(); }}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2">
+                <CheckCircle size={16} /> Accept & Place Order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
