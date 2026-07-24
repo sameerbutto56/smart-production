@@ -24,6 +24,7 @@ const POSCart = () => {
     employees, orderNumber, setOrderNumber,
     lookedUpOrder, setLookedUpOrder,
     checkoutLoading, handleCheckout,
+    createOrderNumber, setCreateOrderNumber,
     setTab,
   } = usePOS();
 
@@ -274,6 +275,17 @@ const POSCart = () => {
               <span className="text-amber-400">Balance</span>
               <span className="text-amber-400">{formatCurrency(grandTotal - parseFloat(advanceAmount))}</span>
             </div>
+          )}
+          {!faisalTake && !lookedUpOrder && (
+            <label className="flex items-center gap-3 bg-gray-800 rounded-xl px-3 py-2 cursor-pointer hover:bg-gray-750 border border-gray-700">
+              <div onClick={() => setCreateOrderNumber(!createOrderNumber)}
+                className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${createOrderNumber ? 'bg-blue-500 border-blue-500' : 'border-gray-600 bg-gray-800'}`}>
+                {createOrderNumber && <span className="text-white text-[10px] font-black">✓</span>}
+              </div>
+              <span className={`text-[10px] font-black uppercase tracking-widest ${createOrderNumber ? 'text-blue-400' : 'text-gray-600'}`}>
+                Create Order Number
+              </span>
+            </label>
           )}
           <button onClick={handleCheckout} disabled={cart.length === 0 || checkoutLoading || !employeeLoggedIn || !paymentMethod}
             className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2 mt-2">

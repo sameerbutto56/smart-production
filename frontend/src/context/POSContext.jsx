@@ -30,9 +30,10 @@ const STATE_KEYS = [
   'balanceInvoices', 'balanceInvoicesLoading', 'selectedBalanceInvoice',
   'showPayBalanceModal', 'payAmount', 'balancePaymentMethod', 'paying',
   'balanceCollectionRange', 'balanceCollectionDateFrom', 'balanceCollectionDateTo',
-  'balanceCollectionData', 'balanceHistory', 'showBalanceHistoryModal',
-  'lastBalancePayment', 'loadingBalanceAction', 'bookPrintOpts',
-];
+    'balanceCollectionData', 'balanceHistory', 'showBalanceHistoryModal',
+    'lastBalancePayment', 'loadingBalanceAction', 'bookPrintOpts',
+    'createOrderNumber', 'generatedOrderNumber',
+  ];
 
 function posReducer(state, action) {
   switch (action.type) {
@@ -138,6 +139,8 @@ function createInitialState(user) {
     lastBalancePayment: null,
     loadingBalanceAction: false,
     bookPrintOpts: { thermal: false, a4: false },
+    createOrderNumber: false,
+    generatedOrderNumber: '',
   };
 }
 
@@ -178,6 +181,7 @@ export function POSProvider({ children }) {
     balanceCollectionRange, balanceCollectionDateFrom, balanceCollectionDateTo,
     balanceCollectionData, balanceHistory, showBalanceHistoryModal,
     lastBalancePayment, loadingBalanceAction, bookPrintOpts,
+    createOrderNumber, generatedOrderNumber,
   } = state;
 
   const {
@@ -204,6 +208,7 @@ export function POSProvider({ children }) {
     setBalanceCollectionDateFrom, setBalanceCollectionDateTo, setBalanceCollectionData,
     setBalanceHistory, setShowBalanceHistoryModal, setLastBalancePayment,
     setLoadingBalanceAction, setBookPrintOpts,
+    setCreateOrderNumber, setGeneratedOrderNumber,
   } = setters;
 
   const CACHE_VERSION = 'v3';
@@ -512,6 +517,14 @@ export function POSProvider({ children }) {
       if (!pr) { setCheckoutLoading(false); return toast.error(`"${c.productName}" not found in outlet inventory`); }
       if (pr.stock != null && pr.stock < c.qty) { setCheckoutLoading(false); return toast.error(`"${c.productName}" has only ${pr.stock} in stock (need ${c.qty})`); }
     }
+    // Generate order number if checkbox is enabled
+    let orderNum = null;
+    if (createOrderNumber) {
+      try {
+        const ordRes = await api.get('/api/outlet-orders/generate-number');
+        orderNum = ordRes.data.orderNumber;
+      } catch { /* proceed without order number */ }
+    }
     const payload = {
       items: cart.map(i => ({ variantId: i.variantId, quantity: i.qty, unitPrice: i.unitPrice, alterationCharges: i.alterationAmount, discountPct: parseFloat(i.discountPct) || 0, discountFixed: parseFloat(i.discountFixed) || 0, customization1: i.customization1 || false, customization2: i.customization2 || false, nameEngrave: i.nameEngrave || false, logoDesign: i.logoDesign || false, otherCharges: parseFloat(i.otherCharges) || 0 })),
       customerName: customerName || null, customerPhone: customerPhone || null,
@@ -520,14 +533,16 @@ export function POSProvider({ children }) {
       cardChargesPct: parseFloat(cardChargesPct) || 0, orderId: lookedUpOrder?.id || null,
       paymentMethod, receiptNumber: orderNumber || undefined, outlet: selectedOutlet,
       cashierName: employeeName, faisalTake,
-      cashAmount: parseFloat(cashAmount) || 0, onlineAmount: parseFloat(onlineAmount) || 0
+      cashAmount: parseFloat(cashAmount) || 0, onlineAmount: parseFloat(onlineAmount) || 0,
+      orderNumber: orderNum || undefined
     };
     try {
       const res = await api.post(`/api/pos/sales?outlet=${selectedOutlet}`, payload);
+      const saleData = { ...res.data, orderNumber: orderNum };
       if (faisalTake) {
-        setLastSale({ ...res.data, isFaisalTake: true });
+        setLastSale({ ...saleData, isFaisalTake: true });
       } else {
-        setLastSale(res.data);
+        setLastSale(saleData);
       }
       setShowCheckout(true);
       setCart([]); setDiscountPct(0); setDiscountFixed(0); setAdvanceAmount(0);
@@ -543,7 +558,7 @@ export function POSProvider({ children }) {
       await enqueue('sale', 'create', payload);
     }
     setCheckoutLoading(false);
-  }, [cart, products, customerName, customerPhone, discountPct, discountFixed, advanceAmount, cardChargesPct, lookedUpOrder, paymentMethod, cashAmount, onlineAmount, orderNumber, selectedOutlet, employeeLoggedIn, faisalTake, employeeName, productsKey, dashboardKey, salesKey, returnsKey, deliveryCharge, grandTotal]);
+  }, [cart, products, customerName, customerPhone, discountPct, discountFixed, advanceAmount, cardChargesPct, lookedUpOrder, paymentMethod, cashAmount, onlineAmount, orderNumber, selectedOutlet, employeeLoggedIn, faisalTake, employeeName, productsKey, dashboardKey, salesKey, returnsKey, deliveryCharge, grandTotal, createOrderNumber]);
 
   const handleReturn = async (variantId) => {
     const qty = prompt('Return quantity:');
@@ -871,6 +886,7 @@ export function POSProvider({ children }) {
     balanceHistory, setBalanceHistory, showBalanceHistoryModal, setShowBalanceHistoryModal,
     lastBalancePayment, setLastBalancePayment, loadingBalanceAction, setLoadingBalanceAction,
     bookPrintOpts, setBookPrintOpts,
+    createOrderNumber, setCreateOrderNumber, generatedOrderNumber, setGeneratedOrderNumber,
     productsKey, dashboardKey, salesKey, returnsKey,
     subtotal, altCharges, cust1Total, cust2Total, engraveTotal, logoDesignTotal, otherChargesTotal,
     perItemDiscount, deliveryCharge, globalDiscountAmt, cardChargesAmt, grandTotal,

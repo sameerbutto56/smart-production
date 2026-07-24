@@ -112,6 +112,9 @@
 - **Complete Order Tracking Timeline** — Rewrote `OrderTrack.jsx` with chronological timeline (employee name, date, time, color-coded entries); enhanced `getOrderTimeline` to include ALL audit actions (not just 7) with assignedEmployee names; `trackOrder` now includes `createdBy` (commit `ac50062`).
 - **Added missing STAGE_LABELS** to backend `order.controller.js` (commit `e0ec0be`).
 - **Employee Management System** — Extended User model with `outletName`, `isActive`, `subRole` fields; created `employee.controller.js` (CRUD + verify + by-role endpoints); created `employee.routes.js`; created `EmployeeManagement.jsx` (admin CRUD page); created `EmployeeLoginModal.jsx` (reusable module login); created `EmployeeContext.jsx` (active employee state); added `/employees` route and nav item (commit `36fe150`).
+- **Permanent unique Invoice Number** — Added `invoiceNumber String? @unique` to Order model; `InvoiceSequence` model tracks per-outlet auto-incrementing counter; `generateInvoiceNumber()` uses atomic `upsert` inside `$transaction`; format `INV-{JT|JL|OUT}-00001`; never resets regardless of date.
+- **Invoice Number in OutletOrderEntry** — Auto-generates order number + invoice number on mount via parallel API calls; shows both as read-only badges in Customer step; includes both in Review step; saved with order payload; shown in success screen.
+- **Outlet Order Tracking by Order/Invoice** — `trackOrder` (outlet + global) now searches by `orderNumber` OR `invoiceNumber` (exact match first, then contains fallback); placeholder updated to "Enter Order # or Invoice #"; tracked order details show Invoice # when available.
 
 ### In Progress
 - (none)
@@ -207,7 +210,7 @@
 - (none — all current work is complete)
 
 ## Critical Context
-- Latest commits: `124a8b0` — auto-reload stale chunk; `033af46` — Logo Design cart option; `76579d5` + `371b346` — Urdu labels; `3bad1ba` — Close Book sync + drill-down; `fcac5a7` — summary sync fix, employee auth for Open/Close, print register info; `d644db2` — Extract modals to sharedModals, fix Dashboard/History/Returns tabs missing modals; `757a6a0` — OrderEntry split context + 4 tab components; `722fb60` — toUrduName() rewrite (token-only, no exact-match, punctuation stripping, ~360 entries); `4ff235c` — per-product measurement notes fix; `ac50062` — complete order tracking timeline; `e0ec0be` — missing STAGE_LABELS; `36fe150` — employee management system; latest — deploy to production
+- Latest commits: `124a8b0` — auto-reload stale chunk; `033af46` — Logo Design cart option; `76579d5` + `371b346` — Urdu labels; `3bad1ba` — Close Book sync + drill-down; `fcac5a7` — summary sync fix, employee auth for Open/Close, print register info; `d644db2` — Extract modals to sharedModals, fix Dashboard/History/Returns tabs missing modals; `757a6a0` — OrderEntry split context + 4 tab components; `722fb60` — toUrduName() rewrite (token-only, no exact-match, punctuation stripping, ~360 entries); `4ff235c` — per-product measurement notes fix; `ac50062` — complete order tracking timeline; `e0ec0be` — missing STAGE_LABELS; `36fe150` — employee management system (reverted); `6414717` — permanent unique invoice number + outlet order tracking by order/invoice
 - Build passes with 0 errors.
 - `isAccessory` uses substring matching (`catUpper.includes('COAT')`).
 - `calculateAndRecordRevenue` at line 2482 of `order.controller.js` is idempotent.
@@ -241,11 +244,11 @@
 - **OrderCard.jsx:14 stage fallback**: When `order.stages` has no entry matching `order.currentStage`, creates synthetic `{ stageName: order.currentStage, status: 'PENDING', id: null }` to prevent wrong button rendering. Old cleanup script deleted ~142 stage records from DB — recreated via one-time script (since deleted).
 
 ## Relevant Files
-- `backend/prisma/schema.prisma`: PosSale + PosBalancePayment models; Client model with `measurementChart`, `sizeDetails`, `standardSizes`
+- `backend/prisma/schema.prisma`: PosSale + PosBalancePayment models; Client model with `measurementChart`, `sizeDetails`, `standardSizes`; Order model with `invoiceNumber String? @unique`; InvoiceSequence model
 - `backend/src/controllers/pos.controller.js`: `getSales` (now includes `balancePayments`, computes `_balanceRemaining`/`_balanceStatus`, filters by `statusFilter`), `getBalanceInvoices`, `getInvoiceBalance`, `payBalance`, `getBalanceCollections` (month range fixed), `getBalancePaymentHistory`, `getSalesDashboard` — all with fixes (TDZ, faisalTake NULL, revenue calc)
 - `backend/src/routes/pos.routes.js`: 5 balance routes + existing POS routes
-- `backend/src/controllers/outletOrder.controller.js`: Destination stage PENDING; `createOutletOrder` with optional `orderNumber`, auto-generate; write-back removed; `generateOrderNumberEndpoint` (GET /generate-number)
-- `backend/src/routes/outletOrder.routes.js`: Added `GET /generate-number` route with auth
+- `backend/src/controllers/outletOrder.controller.js`: `createOutletOrder` with optional `orderNumber`, auto-generate; write-back removed; `generateInvoiceNumberEndpoint` (GET /generate-invoice-number); `trackOrder` with orderNumber + invoiceNumber lookup; `generateOrderNumberEndpoint` (GET /generate-number)
+- `backend/src/routes/outletOrder.routes.js`: Added `GET /generate-number` and `GET /generate-invoice-number` routes with auth; added `GET /track/:query` for outlet-specific order/invoice tracking
 - `backend/src/controllers/order.controller.js`: `calculateAndRecordRevenue` at line 2482, `storeRouteOrder` transaction at line 2722, `requestStageCompletion` validation-before-complete at line 698
 - `backend/prisma/fix-stuck-store-orders.js`: Diagnostic script to find and fix orders stuck at STORE with completed/inactive stage records
 - `backend/src/controllers/route.controller.js`: `manualRouteOrder`, `requestStageCompletion`

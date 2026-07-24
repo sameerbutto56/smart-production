@@ -1637,7 +1637,7 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                       return (
                         <div className="space-y-2">
                           <div className="flex flex-wrap gap-1">
-                            {['LOGO_DESIGN','PRODUCTION_ACCEPTANCE','PRODUCTION','WORKERS','DISPATCH','OUT_FOR_DELIVERY','ORDER_ENTRY'].map(dest => (
+                            {['LOGO_DESIGN','PRODUCTION_ACCEPTANCE','PRODUCTION','WORKERS','DISPATCH','OUT_FOR_DELIVERY','OUTLET_RECEIVE','ORDER_ENTRY'].map(dest => (
                               <button key={dest} onClick={() => setStoreRouteDest(dest)}
                                 className={`px-2 py-1 rounded-lg text-[9px] font-black border transition-all ${
                                   storeRouteDest === dest
@@ -1987,6 +1987,32 @@ const OrderCard = ({ order, onUpdateStage, userRole, isUnseen = false, onMarkSee
                         >
                           REPORT PROBLEM
                         </button>
+                      </div>
+                    ) : currentStage?.stageName === 'OUTLET_RECEIVE' ? (
+                      <div className="flex flex-col gap-2 w-full">
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => {
+                              if (window.confirm('Confirm delivery complete? This will mark order as DELIVERED.')) {
+                                api.put(`/api/orders/${order.id}/delivery`, {
+                                  deliveryStatus: 'DELIVERED',
+                                  remarks: 'Delivered at outlet'
+                                }).then(() => { toast.success('Marked as DELIVERED'); }).catch(err => { alert('Failed: ' + (err.response?.data?.message || err.message)); });
+                              }
+                            }}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all active:scale-95 shadow-lg shadow-emerald-900/30"
+                          >
+                            <CheckCircle size={12} className="mx-auto mb-0.5" />
+                            DELIVER
+                          </button>
+                          <button
+                            onClick={() => setShowProblemModal(true)}
+                            className="bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white py-2.5 md:py-3 rounded-xl text-xs md:text-sm font-black uppercase transition-all flex items-center justify-center space-x-2 border border-red-500/20 active:scale-95"
+                          >
+                            <AlertCircle size={14} />
+                            PROBLEM
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <div className="grid grid-cols-2 gap-2">

@@ -426,7 +426,7 @@ const updateVariant = async (req, res) => {
 /* ─── Sales ─── */
 const createSale = async (req, res) => {
   try {
-    const { items, customerName, customerPhone, extraCharges, discountPercent, discountFixed, paymentMethod, advanceAmount, deliveryCharges, cardChargesPct, orderId, receiptNumber: manualReceipt, cashierName, faisalTake, cashAmount, onlineAmount } = req.body;
+    const { items, customerName, customerPhone, extraCharges, discountPercent, discountFixed, paymentMethod, advanceAmount, deliveryCharges, cardChargesPct, orderId, orderNumber, receiptNumber: manualReceipt, cashierName, faisalTake, cashAmount, onlineAmount } = req.body;
     if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'At least one item is required' });
 
     const outletName = getOutletName(req);
@@ -548,6 +548,7 @@ const createSale = async (req, res) => {
           advanceAmount: isFaisalTake ? 0 : (parseFloat(advanceAmount || 0)),
           deliveryCharges: isFaisalTake ? 0 : deliveryCharge,
           orderId: isFaisalTake ? null : (orderId || null),
+          orderNumber: isFaisalTake ? null : (orderNumber || null),
           cardChargesPct: isFaisalTake ? 0 : cardPct,
           cardChargesAmount: isFaisalTake ? 0 : cardChargesAmount,
           paymentMethod: isFaisalTake ? 'FAISAL_TAKE' : (paymentMethod || 'CASH'),
@@ -716,7 +717,7 @@ const getSalesDashboard = async (req, res) => {
       where: whereClause,
       orderBy: { createdAt: 'desc' },
       take: 500,
-      select: { id: true, createdAt: true, grandTotal: true, advanceAmount: true, receiptNumber: true, outletName: true, paymentMethod: true, orderId: true, cashierName: true, cashAmount: true, onlineAmount: true }
+      select: { id: true, createdAt: true, grandTotal: true, advanceAmount: true, receiptNumber: true, outletName: true, paymentMethod: true, orderId: true, orderNumber: true, cashierName: true, cashAmount: true, onlineAmount: true }
     });
     const saleIds = allSales.map(s => s.id);
     const balancePayments = saleIds.length > 0 ? await prisma.posBalancePayment.findMany({
@@ -1337,6 +1338,7 @@ const getBalanceInvoices = async (req, res) => {
         return {
           id: s.id,
           receiptNumber: s.receiptNumber,
+          orderNumber: s.orderNumber,
           customerName: s.customerName,
           customerPhone: s.customerPhone,
           grandTotal: s.grandTotal,

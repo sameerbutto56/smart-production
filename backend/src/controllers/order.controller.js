@@ -2305,6 +2305,7 @@ const getRolesForStageBasedOnRole = (role) => {
     'DISPATCH': ['DISPATCH'],
     'MAIN_EMPLOYEE': ['DISPATCH'],
     'OUT_FOR_DELIVERY': ['OUT_FOR_DELIVERY'],
+    'OUTLET': ['OUTLET_RECEIVE'],
   };
   return map[role] || [];
 };
