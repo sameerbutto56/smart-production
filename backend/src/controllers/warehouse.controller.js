@@ -213,15 +213,31 @@ const lookupBarcode = async (req, res) => {
 /* ─── Create Sale (deduct from warehouse InventoryItem) ─── */
 const createSale = async (req, res) => {
   try {
-    const { items, customerName, customerPhone, extraCharges, discountPercent, discountFixed, paymentMethod, advanceAmount, deliveryCharges, cardChargesPct, receiptNumber: manualReceipt, cashierName, cashAmount, onlineAmount } = req.body;
+    const { items, customerName, customerPhone, extraCharges, discountPercent, discountFixed, paymentMethod, advanceAmount, deliveryCharges, cardChargesPct, receiptNumber: manualReceipt, cashierName, cashAmount, onlineAmount, clientRequestId } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: 'At least one item is required' });
     }
 
+    // Idempotency check — return existing sale if same clientRequestId was already processed
+    if (clientRequestId) {
+      const existing = await prisma.posSale.findUnique({
+        where: { clientRequestId },
+        include: { items: true }
+      });
+      if (existing) return res.status(201).json(existing);
+    }
+
     const receiptNumber = manualReceipt || await generateReceiptNumber();
 
-    // Build sale items and validate stock
+    // Bulk-fetch all required products in ONE query (replaces N individual findUnique calls)
+    const productIds = [...new Set(items.map(i => i.productId))];
+    const storeItems = await prisma.inventoryItem.findMany({
+      where: { id: { in: productIds } }
+    });
+    const storeItemMap = new Map(storeItems.map(si => [si.id, si]));
+
+    // Build sale items and validate stock using pre-fetched data
     const saleItems = [];
     const stockErrors = [];
     let subtotal = 0;
@@ -232,12 +248,12 @@ const createSale = async (req, res) => {
     for (const item of items) {
       const { productId, color, size, quantity, unitPrice, alterationCharges, customization1, customization2, nameEngrave, logoDesign, otherCharges, discountPct, discountFixed: itemDiscountFixed } = item;
 
-      const storeItem = await prisma.inventoryItem.findUnique({ where: { id: productId } });
+      const storeItem = storeItemMap.get(productId);
       if (!storeItem) {
         return res.status(400).json({ message: `Product ${productId} not found` });
       }
 
-      // Check variant stock
+      // Check variant stock from pre-fetched data
       let availableStock = 0;
       if (color || size) {
         const variants = typeof storeItem.variants === 'string' ? JSON.parse(storeItem.variants) : (Array.isArray(storeItem.variants) ? storeItem.variants : []);
@@ -308,15 +324,12 @@ const createSale = async (req, res) => {
     const grandTotal = netAfterGlobal + cardChargesAmount + deliveryCharge;
 
     const sale = await prisma.$transaction(async (tx) => {
-      // Decrement stock from InventoryItem
+      // Decrement stock from InventoryItem — use pre-fetched data, no re-fetch
       for (const item of items) {
-        const storeItem = await tx.inventoryItem.findUnique({ where: { id: item.productId } });
-        if (!storeItem) throw new Error(`Product ${item.productId} not found`);
-
+        const storeItem = storeItemMap.get(item.productId);
         const qty = item.quantity || 1;
 
         if (item.color || item.size) {
-          // Decrement variant stock
           let variants = typeof storeItem.variants === 'string' ? JSON.parse(storeItem.variants) : (Array.isArray(storeItem.variants) ? [...storeItem.variants] : []);
           const idx = variants.findIndex(v =>
             (v.color || null) === (item.color || null) &&
@@ -345,6 +358,7 @@ const createSale = async (req, res) => {
       return tx.posSale.create({
         data: {
           receiptNumber,
+          clientRequestId: clientRequestId || null,
           outletName: 'Warehouse',
           cashierName: cashierName || req.user?.name || 'Cashier',
           customerName: customerName || null,

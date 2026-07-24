@@ -558,6 +558,7 @@ model Client {
 model PosSale {
   id               String   @id @default(uuid())
   receiptNumber    String   @unique
+  clientRequestId  String?  @unique
   outletName       String?
   cashierName      String?
   customerName     String?

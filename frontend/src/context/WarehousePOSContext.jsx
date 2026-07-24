@@ -6,7 +6,6 @@ import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
 import toast from 'react-hot-toast';
 import useCache from '../hooks/useCache';
 import { debounce } from '../utils/debounce';
-import { enqueue } from '../utils/syncQueue';
 
 const WarehousePOSContext = createContext(null);
 
@@ -276,10 +275,11 @@ export const WarehousePOSProvider = ({ children }) => {
     set('onlineAmount', 0);
   }, [set]);
 
-  // Checkout — try direct API first; on failure, queue to IndexedDB for background sync
+  // Checkout — direct API with idempotency key to prevent duplicate sales
   const handleCheckout = async () => {
     if (state.cart.length === 0) return toast.error('Cart is empty');
     set('checkoutLoading', true);
+    const clientRequestId = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
     const payload = {
       items: state.cart.map(c => ({
         productId: c.id,
@@ -297,6 +297,7 @@ export const WarehousePOSProvider = ({ children }) => {
       cashierName: user?.name || 'Cashier',
       discountPercent: state.discountPct || 0,
       discountFixed: state.discountFixed || 0,
+      clientRequestId,
     };
     try {
       const res = await api.post('/api/warehouse/sales', payload);
@@ -308,44 +309,25 @@ export const WarehousePOSProvider = ({ children }) => {
       set('showPrintOptions', true);
       set('pendingPrintSale', res.data);
     } catch (err) {
-      // Validation errors (400) — show error, don't queue
+      const msg = err.response?.data?.message || err.message;
+      // Validation errors — show directly
       if (err.response?.status === 400) {
-        toast.error(err.response?.data?.message || 'Checkout failed');
+        toast.error(msg);
         set('checkoutLoading', false);
         return;
       }
-      // Network/timeout/500 — queue to IndexedDB, process in background
+      // Network/server error — retry once with same idempotency key (no duplicate risk)
       try {
-        await enqueue('sale', 'create', payload, { url: '/api/warehouse/sales' });
-        // Build a temporary sale object from payload for immediate UI feedback
-        const tempSale = {
-          id: `pending-${Date.now()}`,
-          receiptNumber: `WRH-${Date.now()}`,
-          createdAt: new Date().toISOString(),
-          outletName: 'Warehouse',
-          cashierName: payload.cashierName,
-          customerName: payload.customerName,
-          customerPhone: payload.customerPhone,
-          items: state.cart.map(c => ({
-            productName: c.name, color: c.color, size: c.size,
-            quantity: c.quantity, unitPrice: c.unitPrice,
-            lineTotal: c.unitPrice * c.quantity
-          })),
-          subtotal: cartSummary.subtotal,
-          discountAmount: cartSummary.discountAmount,
-          grandTotal: cartSummary.grandTotal,
-          paymentMethod: payload.paymentMethod,
-          _pendingSync: true,
-        };
-        set('lastSale', tempSale);
+        const retryRes = await api.post('/api/warehouse/sales', payload);
+        set('lastSale', retryRes.data);
         clearCart();
         set('showCheckout', false);
         refreshAll();
-        toast.success('Sale saved locally — syncing in background');
+        toast.success('Sale completed (retry)!');
         set('showPrintOptions', true);
-        set('pendingPrintSale', tempSale);
-      } catch (qErr) {
-        toast.error('Checkout failed: ' + (err.response?.data?.message || err.message));
+        set('pendingPrintSale', retryRes.data);
+      } catch {
+        toast.error('Checkout failed: ' + msg);
       }
     } finally {
       set('checkoutLoading', false);
