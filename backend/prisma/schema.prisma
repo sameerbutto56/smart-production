@@ -32,6 +32,7 @@ model User {
 model Order {
   id              String       @id @default(uuid())
   orderNumber     String?      @unique
+  invoiceNumber   String?      @unique
   shopifyOrderId  String?      @unique
   customerName    String
   customerPhone   String?
@@ -125,6 +126,7 @@ model Order {
   @@index([currentStage, status])
   @@index([type, createdAt])
   @@index([createdAt])
+  @@index([invoiceNumber])
   dispatchOfficer   String?
   forwardedBy       String?
   deliveryPayments  DeliveryPayment[]
@@ -949,4 +951,12 @@ model ArchivedChatMessage {
   @@index([archivedAt])
   @@index([createdAt])
   @@index([senderId])
+}
+
+model InvoiceSequence {
+  id         String @id @default(uuid())
+  outletName String
+  nextValue  Int    @default(1)
+
+  @@unique([outletName])
 }

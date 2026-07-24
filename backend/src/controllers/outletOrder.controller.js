@@ -25,6 +25,16 @@ const generateOrderNumber = async (outletName) => {
   return orderNumber;
 };
 
+const generateInvoiceNumber = async (outletName) => {
+  const prefix = outletName === 'Johar Town' ? 'JT' : outletName === 'Jail Road' ? 'JL' : 'OUT';
+  const seq = await prisma.invoiceSequence.upsert({
+    where: { outletName },
+    update: { nextValue: { increment: 1 } },
+    create: { outletName, nextValue: 1 }
+  });
+  return `INV-${prefix}-${String(seq.nextValue).padStart(5, '0')}`;
+};
+
 const DESTINATION_STAGES = {
   STORE: 'STORE',
   LOGO_DESIGN: 'LOGO_DESIGN',
@@ -33,7 +43,7 @@ const DESTINATION_STAGES = {
 
 const createOutletOrder = async (req, res) => {
   try {
-    const { orderNumber: customOrderNumber, clientNumber, isNewCustomer, customerName, customerPhone, address, city, notes, measurementSpecialNote, products, engravingRequired, engravingText, engravingType, engravingInstructions, logoRequired, logoDesign, engravingNames, engravingLogos, sizeData, standardSize, measurementChart, advanceAmount, orderDestination, placedBy } = req.body;
+    const { orderNumber: customOrderNumber, invoiceNumber: customInvoiceNumber, clientNumber, isNewCustomer, customerName, customerPhone, address, city, notes, measurementSpecialNote, products, engravingRequired, engravingText, engravingType, engravingInstructions, logoRequired, logoDesign, engravingNames, engravingLogos, sizeData, standardSize, measurementChart, advanceAmount, orderDestination, placedBy } = req.body;
 
     if (!customerName) return res.status(400).json({ message: 'Customer name is required' });
     if (!products || !Array.isArray(products) || products.length === 0) return res.status(400).json({ message: 'At least one product is required' });
@@ -63,9 +73,27 @@ const createOutletOrder = async (req, res) => {
       .join('\n') || null;
 
     const order = await prisma.$transaction(async (tx) => {
+      // Generate invoice number atomically inside the transaction
+      let invoiceNumber;
+      if (customInvoiceNumber && customInvoiceNumber.trim()) {
+        const trimmedInv = customInvoiceNumber.trim();
+        const existingInv = await tx.order.findUnique({ where: { invoiceNumber: trimmedInv }, select: { id: true } });
+        if (existingInv) throw new Error(`Invoice number ${trimmedInv} already exists`);
+        invoiceNumber = trimmedInv;
+      } else {
+        const invPrefix = outletName === 'Johar Town' ? 'JT' : outletName === 'Jail Road' ? 'JL' : 'OUT';
+        const seq = await tx.invoiceSequence.upsert({
+          where: { outletName },
+          update: { nextValue: { increment: 1 } },
+          create: { outletName, nextValue: 1 }
+        });
+        invoiceNumber = `INV-${invPrefix}-${String(seq.nextValue).padStart(5, '0')}`;
+      }
+
       const created = await tx.order.create({
         data: {
           orderNumber,
+          invoiceNumber,
           customerName,
           customerPhone: customerPhone || null,
           address: address || null,
@@ -364,7 +392,7 @@ const getOutletOrders = async (req, res) => {
       where: { source: 'OUTLET', outletName, currentStage: { not: 'ORDER_ENTRY' } },
       orderBy: { createdAt: 'desc' },
       take: 50,
-      select: { id: true, orderNumber: true, customerName: true, customerPhone: true, totalPrice: true, advanceAmount: true, currentStage: true, orderDestination: true, createdAt: true, engravingRequired: true, status: true }
+      select: { id: true, orderNumber: true, invoiceNumber: true, customerName: true, customerPhone: true, totalPrice: true, advanceAmount: true, currentStage: true, orderDestination: true, createdAt: true, engravingRequired: true, status: true }
     });
     res.json(orders);
   } catch (error) {
@@ -614,6 +642,65 @@ const generateOrderNumberEndpoint = async (req, res) => {
   }
 };
 
+const generateInvoiceNumberEndpoint = async (req, res) => {
+  try {
+    const outletName = getOutletName(req) || 'Unknown Outlet';
+    const invoiceNumber = await generateInvoiceNumber(outletName);
+    res.json({ invoiceNumber });
+  } catch (error) {
+    res.status(500).json({ message: 'Error generating invoice number', error: error.message });
+  }
+};
+
+const trackOrder = async (req, res) => {
+  try {
+    const query = (req.params.query || '').trim();
+    if (!query) return res.status(400).json({ message: 'Order number or invoice number is required' });
+
+    // Try exact match on orderNumber first
+    let order = await prisma.order.findUnique({
+      where: { orderNumber: query },
+      include: { stages: { orderBy: { createdAt: 'asc' } }, createdBy: { select: { id: true, name: true } } }
+    });
+
+    // Try exact match on invoiceNumber
+    if (!order) {
+      order = await prisma.order.findUnique({
+        where: { invoiceNumber: query },
+        include: { stages: { orderBy: { createdAt: 'asc' } }, createdBy: { select: { id: true, name: true } } }
+      });
+    }
+
+    // Fallback: contains search on orderNumber
+    if (!order) {
+      const matches = await prisma.order.findMany({
+        where: { orderNumber: { contains: query } },
+        include: { stages: { orderBy: { createdAt: 'asc' } }, createdBy: { select: { id: true, name: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: 1
+      });
+      order = matches[0] || null;
+    }
+
+    // Fallback: contains search on invoiceNumber
+    if (!order) {
+      const matches = await prisma.order.findMany({
+        where: { invoiceNumber: { contains: query } },
+        include: { stages: { orderBy: { createdAt: 'asc' } }, createdBy: { select: { id: true, name: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: 1
+      });
+      order = matches[0] || null;
+    }
+
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    res.json(order);
+  } catch (error) {
+    console.error('[trackOrder] error:', error.message);
+    res.status(500).json({ message: 'Error tracking order' });
+  }
+};
+
 const getOutletAnalytics = async (req, res) => {
   try {
     const outletName = getOutletName(req) || 'Unknown Outlet';
@@ -807,4 +894,4 @@ const getOutletAnalytics = async (req, res) => {
   }
 };
 
-module.exports = { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint, getOutletAnalytics };
+module.exports = { createOutletOrder, lookupClientByNumber, saveUnregisteredClient, getOutletOrders, getOutletReturns, receiveOutletReturn, getOutletDashboardStats, customerTaken, sendOutletForDelivery, getOutletTasks, inHouseDelivery, generateOrderNumberEndpoint, generateInvoiceNumberEndpoint, trackOrder, getOutletAnalytics };

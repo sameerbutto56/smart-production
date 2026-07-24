@@ -240,7 +240,7 @@ const OutletDashboard = () => {
     setTimeline([]);
     setTrackedOrder(null);
     try {
-      const orderRes = await api.get(`/api/orders/track/${trackingNumber.trim()}`);
+      const orderRes = await api.get(`/api/outlet-orders/track/${trackingNumber.trim()}`);
       setTrackedOrder(orderRes.data);
       const timelineRes = await api.get(`/api/orders/${orderRes.data.id}/timeline`);
       setTimeline(timelineRes.data?.flatEntries || timelineRes.data || []);
@@ -673,7 +673,7 @@ const OutletDashboard = () => {
             <form onSubmit={handleTrackOrder} className="flex gap-3">
               <div className="flex-1 relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-                <input type="text" placeholder="Enter order number (JT-, JL-, AB-...)" value={trackingNumber} onChange={e => setTrackingNumber(e.target.value)}
+                <input type="text" placeholder="Enter Order # or Invoice # (JT-, JL-, INV-...)" value={trackingNumber} onChange={e => setTrackingNumber(e.target.value)}
                   className="w-full bg-gray-800 border border-gray-700 rounded-xl py-3 pl-12 pr-4 text-white font-bold text-sm focus:outline-none focus:border-blue-500/50 uppercase tracking-wider" />
               </div>
               <button type="submit" disabled={trackingLoading}
@@ -705,6 +705,12 @@ const OutletDashboard = () => {
                     <p className="text-[10px] text-gray-500 uppercase tracking-widest">Order #</p>
                     <p className="text-white font-black">{trackedOrder.orderNumber}</p>
                   </div>
+                  {trackedOrder.invoiceNumber && (
+                    <div>
+                      <p className="text-[10px] text-gray-500 uppercase tracking-widest">Invoice #</p>
+                      <p className="text-amber-400 font-black">{trackedOrder.invoiceNumber}</p>
+                    </div>
+                  )}
                   <div>
                     <p className="text-[10px] text-gray-500 uppercase tracking-widest">Customer</p>
                     <p className="text-white font-bold">{trackedOrder.customerName}</p>

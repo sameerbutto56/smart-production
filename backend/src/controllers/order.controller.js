@@ -3316,18 +3316,24 @@ const toggleProductVerification = async (req, res) => {
 
 const trackOrder = async (req, res) => {
   try {
-    const orderNumber = (req.params.orderNumber || '').trim();
-    if (!orderNumber) return res.status(400).json({ message: 'Order number is required' });
+    const query = (req.params.orderNumber || '').trim();
+    if (!query) return res.status(400).json({ message: 'Order number or invoice number is required' });
     let order = await prisma.order.findUnique({
-      where: { orderNumber },
+      where: { orderNumber: query },
       include: {
         stages: { orderBy: { createdAt: 'asc' } },
         createdBy: { select: { id: true, name: true } }
       }
     });
     if (!order) {
+      order = await prisma.order.findUnique({
+        where: { invoiceNumber: query },
+        include: { stages: { orderBy: { createdAt: 'asc' } }, createdBy: { select: { id: true, name: true } } }
+      });
+    }
+    if (!order) {
       const matches = await prisma.order.findMany({
-        where: { orderNumber: { contains: orderNumber } },
+        where: { OR: [{ orderNumber: { contains: query } }, { invoiceNumber: { contains: query } }] },
         include: { stages: { orderBy: { createdAt: 'asc' } }, createdBy: { select: { id: true, name: true } } },
         orderBy: { createdAt: 'desc' },
         take: 1
