@@ -531,74 +531,39 @@ const AdminDashboard = () => {
       {/* Module Cards Landing Page — shown when no tab is selected */}
       {!activeTab && (
         <>
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-xl md:text-3xl font-black theme-text-primary tracking-tight">Admin Dashboard</h1>
-              <p className="theme-text-secondary font-bold uppercase tracking-widest text-xs md:text-sm mt-1">Select a module to view analytics</p>
-            </div>
-            <div className="flex items-center gap-4">
-              {systemPaused && (
-                <div className="flex items-center gap-2 bg-red-500/20 border border-red-500/30 px-4 py-2.5 rounded-xl">
-                  <PauseCircle className="text-red-400" size={18} />
-                  <span className="text-red-400 font-black text-xs md:text-sm uppercase tracking-widest">System Paused</span>
-                </div>
-              )}
-              {(user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') && (
-                <button onClick={() => setShowPauseModal(true)}
-                  className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-xs md:text-sm transition-all shadow-lg active:scale-95 ${
-                    systemPaused ? 'bg-emerald-500/10 hover:bg-emerald-500 hover:text-white text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 hover:bg-red-500 hover:text-white text-red-400 border border-red-500/20'
-                  }`}>
-                  {systemPaused ? <PlayCircle size={16} /> : <PauseCircle size={16} />}
-                  <span>{systemPaused ? 'Resume System' : 'Pause System'}</span>
-                </button>
-              )}
-            </div>
+          <div className="flex flex-col items-center text-center gap-2 pt-4">
+            <h1 className="text-2xl md:text-4xl font-black theme-text-primary tracking-tight uppercase">Admin Dashboard</h1>
+            <p className="theme-text-muted text-xs md:text-sm font-bold uppercase tracking-[0.3em]">Select a department to view analytics</p>
           </div>
 
-          {/* Module Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+          {/* Module Cards Grid — Large Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6 pt-4">
             {[
-              { id: 'all_phases', label: 'Control Center', desc: 'Production pipeline, orders & approvals', icon: LayoutDashboard, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
-              { id: 'dispatch_analytics', label: 'Dispatch', desc: 'Dispatch operations, employee performance & tracking', icon: BarChart3, color: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
-              { id: 'enamels_delivery', label: 'Enamels Delivery', desc: 'Delivery tracking, earnings & COD collection', icon: Truck, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
-              { id: 'warehouse', label: 'Warehouse', desc: 'Inventory management & allocations', icon: Warehouse, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
-              { id: 'outlet_johar', label: 'Johar Town Outlet', desc: 'Outlet operations & sales', icon: Store, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20', route: '/outlet-dashboard' },
-              { id: 'outlet_jail', label: 'Jail Road Outlet', desc: 'Outlet operations & sales', icon: Store, color: 'text-pink-400', bg: 'bg-pink-500/10', border: 'border-pink-500/20', route: '/outlet-dashboard' },
-              { id: 'outlet_abbottabad', label: 'Abbottabad Outlet', desc: 'Outlet operations & sales', icon: Building, color: 'text-teal-400', bg: 'bg-teal-500/10', border: 'border-teal-500/20', route: '/outlet-dashboard' },
-              { id: 'online_store', label: 'Online Store', desc: 'Online orders & customer management', icon: Globe, color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20', route: '/orders' },
-            ].map(card => (
-              <motion.div key={card.id} whileHover={{ scale: 1.02, y: -4 }} whileTap={{ scale: 0.98 }}
+              { id: 'warehouse', label: 'Warehouse', desc: 'Inventory management, stock levels, allocations & warehouse POS analytics', icon: Warehouse, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30', glow: 'hover:shadow-amber-500/20' },
+              { id: 'dispatch_analytics', label: 'Dispatch', desc: 'Dispatch operations, employee performance, delivery tracking & urgent orders', icon: BarChart3, color: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/30', glow: 'hover:shadow-indigo-500/20' },
+              { id: 'enamels_delivery', label: 'Enamels Delivery', desc: 'Delivery tracking, earnings at Rs.200/order, COD collection & payment analytics', icon: Truck, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', glow: 'hover:shadow-emerald-500/20' },
+              { id: 'outlet_johar', label: 'Johar Town Outlet', desc: 'Outlet operations, sales, invoices & POS management', icon: Store, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/30', glow: 'hover:shadow-purple-500/20', route: '/outlet-dashboard' },
+              { id: 'outlet_jail', label: 'Jail Road Outlet', desc: 'Outlet operations, sales, invoices & POS management', icon: Store, color: 'text-pink-400', bg: 'bg-pink-500/10', border: 'border-pink-500/30', glow: 'hover:shadow-pink-500/20', route: '/outlet-dashboard' },
+              { id: 'outlet_abbottabad', label: 'Abbottabad Outlet', desc: 'Outlet operations, sales, invoices & POS management', icon: Building, color: 'text-teal-400', bg: 'bg-teal-500/10', border: 'border-teal-500/30', glow: 'hover:shadow-teal-500/20', route: '/outlet-dashboard' },
+              { id: 'online_store', label: 'Online Store', desc: 'Online orders, customer management & order processing', icon: Globe, color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', glow: 'hover:shadow-cyan-500/20', route: '/orders' },
+            ].map((card, i) => (
+              <motion.div key={card.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
+                whileHover={{ scale: 1.015, y: -3 }} whileTap={{ scale: 0.985 }}
                 onClick={() => card.route ? navigate(card.route) : setActiveTab(card.id)}
-                className={`glass p-6 rounded-2xl border-2 ${card.border} cursor-pointer transition-all hover:shadow-lg hover:shadow-black/20`}>
-                <div className="flex items-start gap-4">
-                  <div className={`p-3 rounded-2xl ${card.bg} shrink-0`}>
-                    <card.icon className={card.color} size={28} />
+                className={`glass p-6 md:p-8 rounded-3xl border-2 ${card.border} cursor-pointer transition-all hover:shadow-xl ${card.glow} group`}>
+                <div className="flex items-start gap-5">
+                  <div className={`p-4 rounded-2xl ${card.bg} shrink-0 transition-transform group-hover:scale-110`}>
+                    <card.icon className={card.color} size={36} />
                   </div>
-                  <div className="min-w-0">
-                    <h3 className="text-lg font-black theme-text-primary uppercase tracking-tight">{card.label}</h3>
-                    <p className="text-xs font-bold theme-text-muted mt-1 uppercase tracking-wider">{card.desc}</p>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-xl md:text-2xl font-black theme-text-primary uppercase tracking-tight">{card.label}</h3>
+                    <p className="text-xs md:text-sm font-bold theme-text-muted mt-1.5 uppercase tracking-wider leading-relaxed">{card.desc}</p>
                   </div>
                 </div>
-                <div className="mt-4 flex items-center gap-2 text-xs font-black text-gray-600 uppercase tracking-widest">
-                  <span>Open</span>
-                  <ArrowUpRight size={12} />
+                <div className="mt-5 flex items-center gap-2 text-xs font-black text-gray-600 uppercase tracking-widest group-hover:text-gray-400 transition-colors">
+                  <span>Open Dashboard</span>
+                  <ArrowUpRight size={14} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                 </div>
-              </motion.div>
-            ))}
-          </div>
-
-          {/* Quick Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {statCards.map((stat, i) => (
-              <motion.div key={stat.title} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-                onClick={() => navigate(stat.path, { state: stat.state })}
-                className="glass p-4 rounded-2xl border-2 theme-border cursor-pointer hover:border-blue-500/30 transition-all">
-                <div className="flex items-center justify-between mb-2">
-                  <stat.icon className={stat.color} size={20} />
-                  <ArrowUpRight size={14} className="text-gray-600" />
-                </div>
-                <p className="text-2xl font-black theme-text-primary">{stat.value}</p>
-                <p className="text-xs font-bold theme-text-muted mt-1 uppercase tracking-wider">{stat.title}</p>
               </motion.div>
             ))}
           </div>
