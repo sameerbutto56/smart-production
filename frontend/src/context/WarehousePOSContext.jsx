@@ -6,6 +6,7 @@ import { getPrintLogoHTML, getPrintFooterHTML } from '../utils/printTemplate';
 import toast from 'react-hot-toast';
 import useCache from '../hooks/useCache';
 import { debounce } from '../utils/debounce';
+import { enqueue } from '../utils/syncQueue';
 
 const WarehousePOSContext = createContext(null);
 
@@ -275,29 +276,29 @@ export const WarehousePOSProvider = ({ children }) => {
     set('onlineAmount', 0);
   }, [set]);
 
-  // Checkout
+  // Checkout — try direct API first; on failure, queue to IndexedDB for background sync
   const handleCheckout = async () => {
     if (state.cart.length === 0) return toast.error('Cart is empty');
     set('checkoutLoading', true);
+    const payload = {
+      items: state.cart.map(c => ({
+        productId: c.id,
+        color: c.color,
+        size: c.size,
+        quantity: c.quantity,
+        unitPrice: c.unitPrice,
+        otherCharges: c.otherCharges || 0,
+        discountPct: c.discountPct || 0,
+        discountFixed: c.discountFixed || 0,
+      })),
+      customerName: state.customerName || undefined,
+      customerPhone: state.customerPhone || undefined,
+      paymentMethod: state.paymentMethod,
+      cashierName: user?.name || 'Cashier',
+      discountPercent: state.discountPct || 0,
+      discountFixed: state.discountFixed || 0,
+    };
     try {
-      const payload = {
-        items: state.cart.map(c => ({
-          productId: c.id,
-          color: c.color,
-          size: c.size,
-          quantity: c.quantity,
-          unitPrice: c.unitPrice,
-          otherCharges: c.otherCharges || 0,
-          discountPct: c.discountPct || 0,
-          discountFixed: c.discountFixed || 0,
-        })),
-        customerName: state.customerName || undefined,
-        customerPhone: state.customerPhone || undefined,
-        paymentMethod: state.paymentMethod,
-        cashierName: user?.name || 'Cashier',
-        discountPercent: state.discountPct || 0,
-        discountFixed: state.discountFixed || 0,
-      };
       const res = await api.post('/api/warehouse/sales', payload);
       set('lastSale', res.data);
       clearCart();
@@ -306,8 +307,46 @@ export const WarehousePOSProvider = ({ children }) => {
       toast.success('Sale completed!');
       set('showPrintOptions', true);
       set('pendingPrintSale', res.data);
-    } catch (e) {
-      toast.error(e.response?.data?.message || 'Checkout failed');
+    } catch (err) {
+      // Validation errors (400) — show error, don't queue
+      if (err.response?.status === 400) {
+        toast.error(err.response?.data?.message || 'Checkout failed');
+        set('checkoutLoading', false);
+        return;
+      }
+      // Network/timeout/500 — queue to IndexedDB, process in background
+      try {
+        await enqueue('sale', 'create', payload, { url: '/api/warehouse/sales' });
+        // Build a temporary sale object from payload for immediate UI feedback
+        const tempSale = {
+          id: `pending-${Date.now()}`,
+          receiptNumber: `WRH-${Date.now()}`,
+          createdAt: new Date().toISOString(),
+          outletName: 'Warehouse',
+          cashierName: payload.cashierName,
+          customerName: payload.customerName,
+          customerPhone: payload.customerPhone,
+          items: state.cart.map(c => ({
+            productName: c.name, color: c.color, size: c.size,
+            quantity: c.quantity, unitPrice: c.unitPrice,
+            lineTotal: c.unitPrice * c.quantity
+          })),
+          subtotal: cartSummary.subtotal,
+          discountAmount: cartSummary.discountAmount,
+          grandTotal: cartSummary.grandTotal,
+          paymentMethod: payload.paymentMethod,
+          _pendingSync: true,
+        };
+        set('lastSale', tempSale);
+        clearCart();
+        set('showCheckout', false);
+        refreshAll();
+        toast.success('Sale saved locally — syncing in background');
+        set('showPrintOptions', true);
+        set('pendingPrintSale', tempSale);
+      } catch (qErr) {
+        toast.error('Checkout failed: ' + (err.response?.data?.message || err.message));
+      }
     } finally {
       set('checkoutLoading', false);
     }
