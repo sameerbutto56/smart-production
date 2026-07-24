@@ -115,6 +115,16 @@
 - **Permanent unique Invoice Number** — Added `invoiceNumber String? @unique` to Order model; `InvoiceSequence` model tracks per-outlet auto-incrementing counter; `generateInvoiceNumber()` uses atomic `upsert` inside `$transaction`; format `INV-{JT|JL|OUT}-00001`; never resets regardless of date.
 - **Invoice Number in OutletOrderEntry** — Auto-generates order number + invoice number on mount via parallel API calls; shows both as read-only badges in Customer step; includes both in Review step; saved with order payload; shown in success screen.
 - **Outlet Order Tracking by Order/Invoice** — `trackOrder` (outlet + global) now searches by `orderNumber` OR `invoiceNumber` (exact match first, then contains fallback); placeholder updated to "Enter Order # or Invoice #"; tracked order details show Invoice # when available.
+- **POS-Outlet Order Entry Integration** — Full pipeline from POS checkout to outlet order creation and delivery:
+  - **Backend OUTLET unseen-tasks**: Added `OUTLET: ['OUTLET_RECEIVE']` to `getRolesForStageBasedOnRole` in `order.controller.js` so unseen-tasks endpoint returns outlet orders.
+  - **POS checkout order number**: `POSContext.jsx` `handleCheckout` generates order number when "Create Order Number" checkbox is enabled; `POSCart.jsx` checkbox UI; `POSModals.jsx` checkout success shows order number + "Create Order" button navigating to `/outlet-order-entry?orderNumber=JT-XXX`.
+  - **OutletOrderEntry URL pre-fill**: Reads `orderNumber` from `useSearchParams`, pre-fills field, shows "From POS" badge instead of "Auto-generated"; still generates invoice number on mount.
+  - **OutletOrderEntry payment removal**: Review step shows total amount only; removed advance/balance/payment-method fields (POS handles payment).
+  - **Store "Send to Outlet"**: Added `OUTLET_RECEIVE` to destination chip list in OrderCard STORE_RECEIVE stage.
+  - **Outlet "Deliver" action**: Added DELIVER + PROBLEM buttons for OUTLET role at OUTLET_RECEIVE stage; calls `/api/orders/:id/delivery` with `deliveryStatus: 'DELIVERED'`.
+  - **Outlet "My Tasks" nav**: Added `'OUTLET'` to nav item roles in `Layout.jsx` + whitelist for `/tasks` route.
+  - **PosSale orderNumber field**: Added `orderNumber String?` to PosSale schema; stored from checkout payload; returned in `getSalesDashboard`, `getSales`, and `getBalanceInvoices`.
+  - **Print receipt order number**: `POSPrint.js` shows "Your Order #: JT-XXX" prominently in receipt header when `sale.orderNumber` is present.
 
 ### In Progress
 - (none)
@@ -210,7 +220,7 @@
 - (none — all current work is complete)
 
 ## Critical Context
-- Latest commits: `124a8b0` — auto-reload stale chunk; `033af46` — Logo Design cart option; `76579d5` + `371b346` — Urdu labels; `3bad1ba` — Close Book sync + drill-down; `fcac5a7` — summary sync fix, employee auth for Open/Close, print register info; `d644db2` — Extract modals to sharedModals, fix Dashboard/History/Returns tabs missing modals; `757a6a0` — OrderEntry split context + 4 tab components; `722fb60` — toUrduName() rewrite (token-only, no exact-match, punctuation stripping, ~360 entries); `4ff235c` — per-product measurement notes fix; `ac50062` — complete order tracking timeline; `e0ec0be` — missing STAGE_LABELS; `36fe150` — employee management system (reverted); `6414717` — permanent unique invoice number + outlet order tracking by order/invoice
+- Latest commits: `124a8b0` — auto-reload stale chunk; `033af46` — Logo Design cart option; `76579d5` + `371b346` — Urdu labels; `3bad1ba` — Close Book sync + drill-down; `fcac5a7` — summary sync fix, employee auth for Open/Close, print register info; `d644db2` — Extract modals to sharedModals, fix Dashboard/History/Returns tabs missing modals; `757a6a0` — OrderEntry split context + 4 tab components; `722fb60` — toUrduName() rewrite (token-only, no exact-match, punctuation stripping, ~360 entries); `4ff235c` — per-product measurement notes fix; `ac50062` — complete order tracking timeline; `e0ec0be` — missing STAGE_LABELS; `36fe150` — employee management system (reverted); `6414717` — permanent unique invoice number + outlet order tracking by order/invoice; `c6431c0` — POS-Outlet integration (pre-fill, deliver, send to outlet, order number on receipt)
 - Build passes with 0 errors.
 - `isAccessory` uses substring matching (`catUpper.includes('COAT')`).
 - `calculateAndRecordRevenue` at line 2482 of `order.controller.js` is idempotent.
@@ -236,6 +246,10 @@
 - **Balance status calculation** (backend `getSales`): `_balanceRemaining = max(0, grandTotal − advanceAmount − sum(balancePayments.amountPaidNow))`; `_balanceStatus = remaining > 0.01 ? 'balance' : 'paid'`.
 - **`getBalanceCollections` month range**: `startLimit = 1st of current month`, `endLimit = now` — returns collections from start of current month only.
 - **Balance Collection custom range**: Frontend `balanceCollectionDateFrom`/`balanceCollectionDateTo` states passed as `dateFrom`/`dateTo` query params only when `range === 'custom'`; date inputs appear inline in the card.
+- **POSContext checkout flow**: `handleCheckout` → validates → optionally generates order number → builds payload → POST `/api/pos/sales?outlet=...` → sets `lastSale` → opens checkout success modal
+- **POSContext `createOrderNumber` state**: Checkbox in POSCart, checked = generate order number on checkout
+- **POSContext `lastSale.orderNumber`**: Set from generated order number; used by checkout success modal to show "Create Order" button
+- **OUTLET_RECEIVE stage routing**: `storeRouteOrder` in backend already validates against `validAllStages` which includes `OUTLET_RECEIVE`; no backend change needed for Store→Outlet routing
 
 - `sendTextMessage` now adds message to local state from API response — eliminates race with `chat:status-update`.
 - `pendingStatusRef` (useRef) stores status updates for messages not yet in state; applied in `handleNewMessage`.
