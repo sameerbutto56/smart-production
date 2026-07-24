@@ -1138,6 +1138,13 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   win.document.write(`<p style="font-size:20px;color:#000;margin-top:2px;font-weight:700">${isUrdu ? 'آرڈر #' : 'Order #'}${order.orderNumber || order.id?.slice(0, 8)}</p>`);
   win.document.write(`<p style="font-size:18px;color:#555;font-weight:600;margin-top:2px">ENAMELS Production</p>`);
   win.document.write(`<p style="font-size:15px;color:#999;font-weight:500;margin-top:2px">${isUrdu ? 'تیار کردہ:' : 'Generated:'} ${generatedDate} ${generatedTime}</p>`);
+  if (order.createdAt) {
+    const createdDt = new Date(order.createdAt);
+    const createdDate = fmtDate(order.createdAt);
+    const createdTime = createdDt && !isNaN(createdDt.getTime()) ? createdDt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
+    const createdLabel = isUrdu ? 'آرڈر کی تاریخ:' : 'Order Created:';
+    win.document.write(`<p style="font-size:15px;color:#333;font-weight:700;margin-top:2px">${createdLabel} ${createdDate} ${createdTime}</p>`);
+  }
   win.document.write(`</div>`);
 
   // ─── CUSTOMER INFO (always LTR — customer data is English/Roman script) ───

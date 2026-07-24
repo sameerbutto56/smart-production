@@ -47,18 +47,14 @@ const createOutletOrder = async (req, res) => {
 
     if (!customerName) return res.status(400).json({ message: 'Customer name is required' });
     if (!products || !Array.isArray(products) || products.length === 0) return res.status(400).json({ message: 'At least one product is required' });
+    if (!customOrderNumber || !customOrderNumber.trim()) return res.status(400).json({ message: 'Order number is required' });
     if (!orderDestination || !DESTINATION_STAGES[orderDestination]) return res.status(400).json({ message: 'Order destination is required: STORE, LOGO_DESIGN, or PRODUCTION' });
 
     const outletName = getOutletName(req) || 'Unknown Outlet';
-    let orderNumber;
-    if (customOrderNumber && customOrderNumber.trim()) {
-      const trimmed = customOrderNumber.trim();
-      const existing = await prisma.order.findUnique({ where: { orderNumber: trimmed }, select: { id: true } });
-      if (existing) return res.status(400).json({ message: `Order number ${trimmed} already exists` });
-      orderNumber = trimmed;
-    } else {
-      orderNumber = await generateOrderNumber(outletName);
-    }
+    const trimmedOrder = customOrderNumber.trim();
+    const existingOrder = await prisma.order.findUnique({ where: { orderNumber: trimmedOrder }, select: { id: true } });
+    if (existingOrder) return res.status(400).json({ message: `Order number ${trimmedOrder} already exists` });
+    const orderNumber = trimmedOrder;
     // Add productType alias for backward compat with job sheet display
     const enriched = products.map(p => ({ ...p, productType: p.name }));
     const productDetails = enriched;
