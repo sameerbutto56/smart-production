@@ -138,6 +138,7 @@ app.use('/api/warehouse', warehouseRoutes);
 app.use('/api/store-dashboard', storeDashboardRoutes);
 app.use('/api/online-dashboard', onlineDashboardRoutes);
 app.use('/api/alterations', alterationRoutes);
+app.use('/api/outlet-detailed', require('./routes/outletDetailed.routes'));
 
 // Global error handler (must be last)
 app.use(errorHandler);

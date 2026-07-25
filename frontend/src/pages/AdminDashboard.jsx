@@ -54,6 +54,7 @@ import EnamelsDeliveryCard from '../components/EnamelsDeliveryCard';
 import WarehouseAnalyticsCard from '../components/WarehouseAnalyticsCard';
 import OnlineStoreCard from '../components/OnlineStoreCard';
 import AlterationTrackingCard from '../components/AlterationTrackingCard';
+import OutletDetailedCard from '../components/OutletDetailedCard';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 
 import { useAuth } from '../context/AuthContext';
@@ -552,14 +553,14 @@ const AdminDashboard = () => {
               { id: 'warehouse', label: 'Warehouse', desc: 'Inventory management, stock levels, allocations & warehouse POS analytics', icon: Warehouse, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30', glow: 'hover:shadow-amber-500/20' },
               { id: 'dispatch_analytics', label: 'Dispatch', desc: 'Dispatch operations, employee performance, delivery tracking & urgent orders', icon: BarChart3, color: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/30', glow: 'hover:shadow-indigo-500/20' },
               { id: 'enamels_delivery', label: 'Enamels Delivery', desc: 'Delivery tracking, earnings at Rs.200/order, COD collection & payment analytics', icon: Truck, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', glow: 'hover:shadow-emerald-500/20' },
-              { id: 'outlet_johar', label: 'Johar Town Outlet', desc: 'Outlet operations, sales, invoices & POS management', icon: Store, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/30', glow: 'hover:shadow-purple-500/20', route: '/outlet-dashboard' },
-              { id: 'outlet_jail', label: 'Jail Road Outlet', desc: 'Outlet operations, sales, invoices & POS management', icon: Store, color: 'text-pink-400', bg: 'bg-pink-500/10', border: 'border-pink-500/30', glow: 'hover:shadow-pink-500/20', route: '/outlet-dashboard' },
-              { id: 'outlet_abbottabad', label: 'Abbottabad Outlet', desc: 'Outlet operations, sales, invoices & POS management', icon: Building, color: 'text-teal-400', bg: 'bg-teal-500/10', border: 'border-teal-500/30', glow: 'hover:shadow-teal-500/20', route: '/outlet-dashboard' },
+              { id: 'outlet_johar', label: 'Johar Town Outlet', desc: 'Complete 360° operational dashboard — sales, orders, inventory, transfers & more', icon: Store, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/30', glow: 'hover:shadow-purple-500/20', outletName: 'Johar Town' },
+              { id: 'outlet_jail', label: 'Jail Road Outlet', desc: 'Complete 360° operational dashboard — sales, orders, inventory, transfers & more', icon: Store, color: 'text-pink-400', bg: 'bg-pink-500/10', border: 'border-pink-500/30', glow: 'hover:shadow-pink-500/20', outletName: 'Jail Road' },
+              { id: 'outlet_abbottabad', label: 'Abbottabad Outlet', desc: 'Complete 360° operational dashboard — sales, orders, inventory, transfers & more', icon: Building, color: 'text-teal-400', bg: 'bg-teal-500/10', border: 'border-teal-500/30', glow: 'hover:shadow-teal-500/20', outletName: 'Abbottabad' },
               { id: 'online_store', label: 'Online Store', desc: 'Online orders, revenue analytics, customer management & order processing', icon: Globe, color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', glow: 'hover:shadow-cyan-500/20' },
             ].map((card, i) => (
               <motion.div key={card.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
                 whileHover={{ scale: 1.015, y: -3 }} whileTap={{ scale: 0.985 }}
-                onClick={() => card.route ? navigate(card.route) : setActiveTab(card.id)}
+                onClick={() => setActiveTab(card.id)}
                 className={`glass p-6 md:p-8 rounded-3xl border-2 ${card.border} cursor-pointer transition-all hover:shadow-xl ${card.glow} group`}>
                 <div className="flex items-start gap-5">
                   <div className={`p-4 rounded-2xl ${card.bg} shrink-0 transition-transform group-hover:scale-110`}>
@@ -1305,6 +1306,11 @@ const AdminDashboard = () => {
 
       {/* Admin Settings */}
       {activeTab === 'settings' && <AdminSettings />}
+
+      {/* Outlet Detailed Dashboards */}
+      {activeTab === 'outlet_johar' && <OutletDetailedCard outlet="Johar Town" />}
+      {activeTab === 'outlet_jail' && <OutletDetailedCard outlet="Jail Road" />}
+      {activeTab === 'outlet_abbottabad' && <OutletDetailedCard outlet="Abbottabad" />}
 
       {/* Pause Modal */}
       <AnimatePresence>
