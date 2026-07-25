@@ -213,6 +213,7 @@ export function POSProvider({ children }) {
     setBalanceHistory, setShowBalanceHistoryModal, setLastBalancePayment,
     setLoadingBalanceAction, setBookPrintOpts,
     setCreateOrderNumber, setGeneratedOrderNumber,
+    setCreateAlterationNumber, setGeneratedAlterationNumber,
   } = setters;
 
   const CACHE_VERSION = 'v3';
