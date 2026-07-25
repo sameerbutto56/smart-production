@@ -289,6 +289,42 @@ const WarehouseAnalyticsCard = ({ activeTab }) => {
     { label: 'Daily Average', value: fmt(pos.dailyAvg), icon: Target, color: { bg: 'bg-rose-500/10', text: 'text-rose-400', border: 'border-rose-500/20' }, filterKey: null },
   ], [pos]);
 
+  const categoryStockData = useMemo(() => inv.categories.map(c => ({ name: c.name, stock: c.stock })), [inv]);
+  const monthlySalesData = useMemo(() => {
+    const months = {};
+    sales.forEach(s => {
+      const d = new Date(s.createdAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!months[key]) months[key] = { month: key, count: 0, revenue: 0 };
+      months[key].count++;
+      months[key].revenue += (s.cashAmount || 0) + (s.onlineAmount || 0) || s.grandTotal || 0;
+    });
+    return Object.values(months).sort((a, b) => a.month.localeCompare(b.month));
+  }, [sales]);
+  const demandByStatus = useMemo(() => [
+    { label: 'Pending', value: demandStats.pending || 0 },
+    { label: 'Approved', value: demandStats.approved || 0 },
+    { label: 'Partial', value: demandStats.partiallyApproved || 0 },
+    { label: 'Rejected', value: demandStats.rejected || 0 },
+  ], [demandStats]);
+  const filteredItems = useMemo(() => {
+    if (!selectedFilter) return [];
+    if (['available', 'low', 'outOfStock'].includes(selectedFilter)) {
+      return inv[selectedFilter] || [];
+    }
+    return [];
+  }, [selectedFilter, inv]);
+  const filteredTitle = useMemo(() => {
+    if (!selectedFilter) return '';
+    const map = { available: 'In Stock Items', low: 'Low Stock Items', outOfStock: 'Out of Stock Items' };
+    return map[selectedFilter] || selectedFilter;
+  }, [selectedFilter]);
+  const filteredColumns = useMemo(() => [
+    { key: 'name', label: 'Name' },
+    { key: 'category', label: 'Category' },
+    { key: 'stock', label: 'Stock' },
+  ], []);
+
   const handleFilterClick = (filterKey) => {
     setSelectedFilter(prev => prev === filterKey ? null : filterKey);
   };
