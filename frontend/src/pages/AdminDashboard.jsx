@@ -153,6 +153,18 @@ const AdminDashboard = () => {
   const loading = ordersLoading;
   const fetchingError = !!ordersError;
 
+  const refreshTimerRef = useRef(null);
+  const queueRefresh = useCallback(() => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      refreshTimerRef.current = null;
+      dashboardRefreshRef.current?.();
+      analyticsRefreshRef.current?.();
+      unseenRefreshRef.current?.();
+      prodReturnedRefreshRef.current?.();
+    }, 100);
+  }, []);
+
   useEffect(() => {
     dashboardRefreshRef.current = refreshDashboard;
     analyticsRefreshRef.current = refreshAnalytics;
@@ -474,18 +486,6 @@ const AdminDashboard = () => {
       return new Date(a.createdAt) - new Date(b.createdAt);
     })
   , [allOrders, contextSearch]);
-
-  const refreshTimerRef = useRef(null);
-  const queueRefresh = useCallback(() => {
-    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-    refreshTimerRef.current = setTimeout(() => {
-      refreshTimerRef.current = null;
-      dashboardRefreshRef.current?.();
-      analyticsRefreshRef.current?.();
-      unseenRefreshRef.current?.();
-      prodReturnedRefreshRef.current?.();
-    }, 100);
-  }, []);
 
   const activeOrdersCount = useMemo(() => 
     allOrders.filter(o => o.status !== 'COMPLETED').length
