@@ -19,6 +19,7 @@ const COLORS = {
 };
 
 const PRESETS = [
+  { key: 'all', label: 'All Time' },
   { key: 'today', label: 'Today', getRange: () => { const d = new Date(); d.setHours(0,0,0,0); return { dateFrom: d.toISOString(), dateTo: new Date().toISOString() }; } },
   { key: 'yesterday', label: 'Yesterday', getRange: () => { const d = new Date(); d.setDate(d.getDate()-1); d.setHours(0,0,0,0); const e = new Date(d); e.setHours(23,59,59,999); return { dateFrom: d.toISOString(), dateTo: e.toISOString() }; } },
   { key: 'week', label: 'This Week', getRange: () => { const d = new Date(); const s = new Date(d); s.setDate(s.getDate()-s.getDay()); s.setHours(0,0,0,0); return { dateFrom: s.toISOString(), dateTo: new Date().toISOString() }; } },
@@ -373,10 +374,10 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
   const [historyEmployee, setHistoryEmployee] = useState('');
   const refreshRef = useRef(null);
 
-  const [datePreset, setDatePreset] = useState('today');
+  const [datePreset, setDatePreset] = useState('all');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
-  const [dateParams, setDateParams] = useState(() => PRESETS[0].getRange());
+  const [dateParams, setDateParams] = useState(null);
 
   useEffect(() => {
     if (datePreset === 'custom') {
@@ -386,6 +387,7 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
     } else {
       const preset = PRESETS.find(p => p.key === datePreset);
       if (preset?.getRange) setDateParams(preset.getRange());
+      else setDateParams(null);
     }
   }, [datePreset, customFrom, customTo]);
 
