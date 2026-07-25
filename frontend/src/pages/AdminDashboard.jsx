@@ -554,6 +554,7 @@ const AdminDashboard = () => {
           {/* Module Cards Grid — Large Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6 pt-4">
             {[
+              { id: 'all_phases', label: 'Control Center', desc: 'Production pipeline overview, order approval workflow & real-time stage tracking', icon: LayoutDashboard, color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/30', glow: 'hover:shadow-red-500/20' },
               { id: 'warehouse', label: 'Warehouse', desc: 'Inventory management, stock levels, allocations & warehouse POS analytics', icon: Warehouse, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30', glow: 'hover:shadow-amber-500/20' },
               { id: 'dispatch_analytics', label: 'Dispatch', desc: 'Dispatch operations, employee performance, delivery tracking & urgent orders', icon: BarChart3, color: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/30', glow: 'hover:shadow-indigo-500/20' },
               { id: 'enamels_delivery', label: 'Enamels Delivery', desc: 'Delivery tracking, earnings at Rs.200/order, COD collection & payment analytics', icon: Truck, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', glow: 'hover:shadow-emerald-500/20' },
