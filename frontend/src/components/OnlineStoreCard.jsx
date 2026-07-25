@@ -198,13 +198,16 @@ const OnlineStoreCard = ({ activeTab }) => {
   }, [activeTab, fetchData]);
 
   const filteredOrdersByFilter = useMemo(() => {
-    if (!data?.recentOrders) return {};
-    const orders = data.recentOrders;
+    const orders = data?.allOrders || data?.recentOrders || [];
+    const activeStages = ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
     return {
-      pending: orders.filter(o => o.status === 'PENDING' || (!o.deliveredAt && o.currentStage !== 'DELIVERED')),
+      all: orders,
+      active: orders.filter(o => activeStages.includes(o.currentStage) && o.status !== 'CANCELLED'),
+      pending: orders.filter(o => o.status === 'PENDING'),
       inProgress: orders.filter(o => o.status === 'IN_PROGRESS'),
       delivered: orders.filter(o => o.currentStage === 'DELIVERED' || o.status === 'DELIVERED' || o.status === 'COMPLETED'),
       returned: orders.filter(o => o.status === 'RETURNED'),
+      replaced: orders.filter(o => o.status === 'REPLACED'),
       cancelled: orders.filter(o => o.status === 'CANCELLED'),
       urgent: orders.filter(o => o.priority === 'URGENT' || o.priority === 'SUPER_URGENT'),
       cod: orders.filter(o => o.paymentStatus === 'PENDING' || o.paymentStatus === 'WAITING_PAYMENT'),
@@ -214,13 +217,22 @@ const OnlineStoreCard = ({ activeTab }) => {
       readyLogo: orders.filter(o => o.type === 'READY_LOGO'),
       customLogo: orders.filter(o => o.type === 'CUSTOM_LOGO'),
       fullCustom: orders.filter(o => o.type === 'FULL_CUSTOM'),
+      ORDER_ENTRY: orders.filter(o => o.currentStage === 'ORDER_ENTRY'),
+      STORE: orders.filter(o => o.currentStage === 'STORE'),
+      LOGO_DESIGN: orders.filter(o => o.currentStage === 'LOGO_DESIGN'),
+      PRODUCTION_ACCEPTANCE: orders.filter(o => o.currentStage === 'PRODUCTION_ACCEPTANCE'),
+      PRODUCTION: orders.filter(o => o.currentStage === 'PRODUCTION'),
+      STORE_RECEIVE: orders.filter(o => o.currentStage === 'STORE_RECEIVE'),
+      DISPATCH: orders.filter(o => o.currentStage === 'DISPATCH'),
+      OUT_FOR_DELIVERY: orders.filter(o => o.currentStage === 'OUT_FOR_DELIVERY'),
     };
   }, [data]);
 
   const filteredSearchOrders = useMemo(() => {
-    if (!data?.recentOrders || !searchTerm) return data?.recentOrders || [];
+    const orders = data?.allOrders || data?.recentOrders || [];
+    if (!searchTerm) return orders;
     const s = searchTerm.toLowerCase();
-    return data.recentOrders.filter(o =>
+    return orders.filter(o =>
       (o.orderNumber || '').toLowerCase().includes(s) ||
       (o.customerName || '').toLowerCase().includes(s) ||
       (o.customerPhone || '').includes(s) ||
@@ -247,10 +259,14 @@ const OnlineStoreCard = ({ activeTab }) => {
     if (!filteredOrdersByFilter[selectedFilter]) return { items: [], title: '', columns: [] };
     const orders = filteredOrdersByFilter[selectedFilter];
     const titles = {
-      pending: 'Pending Orders', inProgress: 'In Progress', delivered: 'Delivered Orders',
-      returned: 'Returned Orders', cancelled: 'Cancelled Orders', urgent: 'Urgent Orders',
-      cod: 'COD Orders', paid: 'Paid Orders', normal: 'Normal Priority',
-      standard: 'Standard Orders', readyLogo: 'Ready Logo', customLogo: 'Custom Logo', fullCustom: 'Full Custom',
+      all: 'All Orders', active: 'Active Orders', pending: 'Pending Orders', inProgress: 'In Progress',
+      delivered: 'Delivered Orders', returned: 'Returned Orders', replaced: 'Replaced Orders',
+      cancelled: 'Cancelled Orders', urgent: 'Urgent Orders', cod: 'COD Orders', paid: 'Paid Orders',
+      normal: 'Normal Priority', standard: 'Standard Orders', readyLogo: 'Ready Logo',
+      customLogo: 'Custom Logo', fullCustom: 'Full Custom',
+      ORDER_ENTRY: 'Order Entry', STORE: 'Store', LOGO_DESIGN: 'Logo Design',
+      PRODUCTION_ACCEPTANCE: 'Production Acceptance', PRODUCTION: 'Production',
+      STORE_RECEIVE: 'Store Receive', DISPATCH: 'Dispatch', OUT_FOR_DELIVERY: 'Out for Delivery',
     };
     return {
       items: orders,
@@ -259,6 +275,9 @@ const OnlineStoreCard = ({ activeTab }) => {
         { label: 'Order #', key: 'orderNumber' },
         { label: 'Customer', key: 'customerName' },
         { label: 'Amount', render: (r) => fmt(r.totalPrice) },
+        { label: 'Stage', render: (r) => (
+          <span className="text-[10px] font-bold theme-text-muted">{STAGE_LABELS[r.currentStage] || r.currentStage}</span>
+        )},
         { label: 'Status', render: (r) => (
           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${STATUS_COLORS[r.status] || 'text-gray-400 bg-gray-500/10 border-gray-500/30'}`}>{r.status}</span>
         )},
@@ -342,10 +361,10 @@ const OnlineStoreCard = ({ activeTab }) => {
           {/* KPI Row */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { label: 'Total Orders', value: summary.total, icon: ShoppingCart, color: 'cyan', filterKey: 'pending' },
-              { label: 'Revenue', value: fmt(revenue.totalRevenue), icon: DollarSign, color: 'emerald' },
+              { label: 'Total Orders', value: summary.total, icon: ShoppingCart, color: 'cyan', filterKey: 'all' },
+              { label: 'Active Orders', value: summary.activeOrders, icon: Activity, color: 'blue', filterKey: 'active' },
               { label: 'Delivered', value: summary.delivered, icon: CheckCircle2, color: 'emerald', filterKey: 'delivered' },
-              { label: 'Avg Order Value', value: fmt(revenue.avgOrderValue), icon: Target, color: 'blue' },
+              { label: 'Revenue', value: fmt(revenue.totalRevenue), icon: DollarSign, color: 'emerald' },
             ].map((card, i) => (
               <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
                 className={`glass rounded-2xl border-2 ${COLORS[card.color].border} p-4 ${card.filterKey ? 'cursor-pointer hover:scale-[1.02] active:scale-[0.98]' : ''} transition-transform`}
@@ -370,12 +389,12 @@ const OnlineStoreCard = ({ activeTab }) => {
               {[
                 { label: 'Pending', value: summary.pending, color: 'amber', filterKey: 'pending' },
                 { label: 'In Progress', value: summary.inProgress, color: 'blue', filterKey: 'inProgress' },
-                { label: 'Completed', value: summary.completed, color: 'emerald' },
                 { label: 'Returned', value: summary.returned, color: 'red', filterKey: 'returned' },
                 { label: 'Replaced', value: summary.replaced, color: 'amber' },
                 { label: 'Cancelled', value: summary.cancelled, color: 'gray' },
                 { label: 'COD Orders', value: payments.codOrders, color: 'purple', filterKey: 'cod' },
                 { label: 'Paid Orders', value: payments.paidOrders, color: 'emerald', filterKey: 'paid' },
+                { label: 'Avg Order Value', value: fmt(revenue.avgOrderValue), color: 'indigo' },
               ].map((item, i) => (
                 <motion.div key={i} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
                   className={`rounded-xl border ${COLORS[item.color].border} ${COLORS[item.color].bg} p-3 ${item.filterKey ? 'cursor-pointer' : ''}`}
@@ -485,7 +504,7 @@ const OnlineStoreCard = ({ activeTab }) => {
                 const color = STAGE_COLORS[key] || 'gray';
                 return (
                   <div key={key} className="flex items-center gap-4 py-3 px-4 rounded-xl hover:bg-white/5 transition-colors cursor-pointer"
-                    onClick={() => handleFilterClick(key === 'DELIVERED' ? 'delivered' : key === 'OUT_FOR_DELIVERY' ? 'pending' : 'inProgress')}>
+                    onClick={() => handleFilterClick(key)}>
                     <div className={`w-2 h-2 rounded-full bg-${color}-400 shrink-0`} />
                     <span className="theme-text-secondary text-xs font-bold w-40">{STAGE_LABELS[key]}</span>
                     <div className="flex-1 h-4 bg-white/5 rounded-full overflow-hidden">
@@ -505,7 +524,9 @@ const OnlineStoreCard = ({ activeTab }) => {
             {Object.entries(stages).map(([key, count]) => {
               const color = STAGE_COLORS[key] || 'gray';
               return (
-                <motion.div key={key} whileHover={{ scale: 1.03 }} className={`rounded-xl border ${COLORS[color].border} ${COLORS[color].bg} p-3 text-center`}>
+                <motion.div key={key} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                  className={`rounded-xl border ${COLORS[color].border} ${COLORS[color].bg} p-3 text-center cursor-pointer`}
+                  onClick={() => handleFilterClick(key)}>
                   <p className="theme-text-muted text-[10px] font-bold uppercase truncate">{STAGE_LABELS[key]}</p>
                   <p className={`font-black text-xl ${COLORS[color].text}`}>{count}</p>
                 </motion.div>
@@ -908,7 +929,7 @@ const OnlineStoreCard = ({ activeTab }) => {
           <div className="glass rounded-2xl border theme-border p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="theme-text-primary font-black text-sm flex items-center gap-2">
-                <Globe size={16} className="text-cyan-400" /> ALL ONLINE ORDERS ({recentOrders?.length || 0})
+                <Globe size={16} className="text-cyan-400" /> ALL ONLINE ORDERS ({(data?.allOrders || data?.recentOrders || []).length})
               </h3>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 theme-text-muted" size={16} />

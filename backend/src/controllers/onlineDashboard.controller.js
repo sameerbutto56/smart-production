@@ -76,12 +76,19 @@ const getOnlineDashboardStats = async (req, res) => {
     ordersByType.forEach(r => { typeMap[r.type] = r._count; });
 
     const total = allOrders.length;
+
+    const activeStages = ['ORDER_ENTRY', 'STORE', 'LOGO_DESIGN', 'PRODUCTION_ACCEPTANCE', 'PRODUCTION', 'STORE_RECEIVE', 'DISPATCH', 'OUT_FOR_DELIVERY'];
+    const activeOrders = allOrders.filter(o => activeStages.includes(o.currentStage) && o.status !== 'CANCELLED').length;
+
+    const deliveredCount = allOrders.filter(o => o.currentStage === 'DELIVERED' || o.status === 'DELIVERED' || o.status === 'COMPLETED').length;
+
     const summary = {
       total,
+      activeOrders,
       pending: statusMap['PENDING'] || 0,
       inProgress: statusMap['IN_PROGRESS'] || 0,
       completed: statusMap['COMPLETED'] || 0,
-      delivered: (statusMap['DELIVERED'] || 0) + stageMap['DELIVERED'] || 0,
+      delivered: deliveredCount,
       returned: statusMap['RETURNED'] || 0,
       replaced: statusMap['REPLACED'] || 0,
       cancelled: statusMap['CANCELLED'] || 0,
@@ -221,7 +228,7 @@ const getOnlineDashboardStats = async (req, res) => {
 
     const avgOrderValue = total > 0 ? Math.round(totalRevenue / total) : 0;
 
-    const recentOrders = allOrders.slice(0, 50).map(o => ({
+    const allOrdersList = allOrders.map(o => ({
       id: o.id,
       orderNumber: o.orderNumber,
       invoiceNumber: o.invoiceNumber,
@@ -278,7 +285,8 @@ const getOnlineDashboardStats = async (req, res) => {
       employees,
       productPerformance,
       customers,
-      recentOrders,
+      allOrders: allOrdersList,
+      recentOrders: allOrdersList.slice(0, 50),
       dailyTrend,
     });
   } catch (err) {
