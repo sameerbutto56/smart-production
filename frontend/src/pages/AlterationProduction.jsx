@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle, Send, RefreshCcw, Calendar, Package, Clock, ArrowRight } from 'lucide-react';
+import { CheckCircle, RefreshCcw, Calendar, Package, ArrowRight, Ban } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
@@ -8,48 +8,32 @@ import { useAuth } from '../context/AuthContext';
 const AlterationProduction = () => {
   const { user } = useAuth();
   const userRole = (user?.role || '').toUpperCase();
-  const defaultTab = userRole === 'PRODUCTION_OUT' ? 'out' : 'in';
-  const [activeTab, setActiveTab] = useState(defaultTab);
-  const [pendingAlterations, setPendingAlterations] = useState([]);
-  const [acceptedAlterations, setAcceptedAlterations] = useState([]);
+  const isIn = userRole === 'PRODUCTION_IN';
+  const [alterations, setAlterations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
 
-  const fetchPending = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get('/api/alterations/production');
-      setPendingAlterations(res.data);
+      const endpoint = isIn ? '/api/alterations/production' : '/api/alterations/production-out';
+      const res = await api.get(endpoint);
+      setAlterations(res.data);
     } catch (e) {
-      console.error('Error fetching pending alterations:', e);
+      console.error('Error fetching alterations:', e);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isIn]);
 
-  const fetchAccepted = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await api.get('/api/alterations/production-out');
-      setAcceptedAlterations(res.data);
-    } catch (e) {
-      console.error('Error fetching accepted alterations:', e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === 'in') fetchPending();
-    else fetchAccepted();
-  }, [activeTab, fetchPending, fetchAccepted]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleAccept = async (id) => {
     setActionLoading(id + 'accept');
     try {
       await api.patch(`/api/alterations/${id}/accept`);
       toast.success('Alteration accepted');
-      fetchPending();
+      fetchData();
     } catch (e) {
       toast.error(e.response?.data?.message || 'Failed to accept');
     } finally {
@@ -62,7 +46,7 @@ const AlterationProduction = () => {
     try {
       await api.patch(`/api/alterations/${id}/complete`);
       toast.success('Alteration completed — returned to source');
-      fetchAccepted();
+      fetchData();
     } catch (e) {
       toast.error(e.response?.data?.message || 'Failed to complete');
     } finally {
@@ -75,7 +59,7 @@ const AlterationProduction = () => {
     try {
       await api.patch(`/api/alterations/${id}/reject`, { reason: 'Rejected by production' });
       toast.success('Alteration rejected');
-      fetchPending();
+      fetchData();
     } catch (e) {
       toast.error(e.response?.data?.message || 'Failed to reject');
     } finally {
@@ -83,7 +67,7 @@ const AlterationProduction = () => {
     }
   };
 
-  const renderAlterationCard = (alt, mode) => {
+  const renderAlterationCard = (alt) => {
     let products = [];
     try {
       products = typeof alt.products === 'string' ? JSON.parse(alt.products) : (alt.products || []);
@@ -92,19 +76,19 @@ const AlterationProduction = () => {
     return (
       <motion.div key={alt.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
         className={`bg-gray-900/80 backdrop-blur-sm border rounded-2xl p-6 space-y-3 shadow-lg ${
-          mode === 'in' ? 'border-amber-500/20' : 'border-emerald-500/20'
+          isIn ? 'border-amber-500/20' : 'border-emerald-500/20'
         }`}>
         <div className="flex items-start justify-between">
           <div>
             <p className="text-lg font-black text-white">{alt.alterationNumber}</p>
-            {alt.orderNumber && <p className="text-xs text-gray-400">Order: {alt.orderNumber}</p>}
+            {alt.orderNumber && alt.orderNumber !== alt.alterationNumber && <p className="text-xs text-gray-400">Order: {alt.orderNumber}</p>}
             <p className="text-sm text-gray-400">{alt.customerName}</p>
             {alt.sourceOutlet && <p className="text-xs text-gray-500">From: {alt.sourceOutlet}</p>}
           </div>
           <span className={`px-3 py-1 text-xs font-bold rounded-full ${
-            mode === 'in' ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'
+            isIn ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'
           }`}>
-            {mode === 'in' ? 'PENDING' : 'IN PROGRESS'}
+            {isIn ? 'PENDING' : 'IN PROGRESS'}
           </span>
         </div>
 
@@ -131,7 +115,7 @@ const AlterationProduction = () => {
           )}
         </div>
 
-        {mode === 'in' ? (
+        {isIn ? (
           <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-800">
             <button onClick={() => handleAccept(alt.id)} disabled={actionLoading === alt.id + 'accept'}
               className="flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">
@@ -139,7 +123,7 @@ const AlterationProduction = () => {
             </button>
             <button onClick={() => handleReject(alt.id)} disabled={actionLoading === alt.id + 'reject'}
               className="flex items-center justify-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">
-              {actionLoading === alt.id + 'reject' ? <RefreshCcw className="animate-spin" size={14} /> : 'Reject'}
+              {actionLoading === alt.id + 'reject' ? <RefreshCcw className="animate-spin" size={14} /> : <Ban size={14} />} Reject
             </button>
           </div>
         ) : (
@@ -152,56 +136,42 @@ const AlterationProduction = () => {
     );
   };
 
-  const currentList = activeTab === 'in' ? pendingAlterations : acceptedAlterations;
-
   return (
     <div className="min-h-screen bg-black p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-black text-white">Alteration Management</h1>
-            <p className="text-sm text-gray-400">Production workflow</p>
+            <h1 className="text-2xl font-black text-white">{isIn ? 'Alteration In' : 'Alteration Out'}</h1>
+            <p className="text-sm text-gray-400">{isIn ? 'Review and accept incoming alteration requests' : 'Complete accepted alterations and return to source'}</p>
           </div>
-          <button onClick={() => activeTab === 'in' ? fetchPending() : fetchAccepted()}
+          <button onClick={fetchData}
             className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-gray-400 rounded-xl text-xs font-bold hover:bg-gray-700 border border-gray-700/50">
             <RefreshCcw size={14} /> Refresh
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6">
-          <button onClick={() => setActiveTab('in')}
-            className={`px-4 py-2 rounded-xl text-sm font-black transition-all ${
-              activeTab === 'in' ? 'bg-amber-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-            }`}>
-            Alteration In ({pendingAlterations.length})
-          </button>
-          <button onClick={() => setActiveTab('out')}
-            className={`px-4 py-2 rounded-xl text-sm font-black transition-all ${
-              activeTab === 'out' ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-            }`}>
-            Alteration Out ({acceptedAlterations.length})
-          </button>
+        <div className="mb-4 text-xs font-bold text-gray-500 uppercase tracking-widest">
+          {alterations.length} {isIn ? 'pending' : 'accepted'} alteration{alterations.length !== 1 ? 's' : ''}
         </div>
 
         {loading ? (
           <div className="space-y-3">
             {[1,2,3].map(i => <div key={i} className="bg-gray-800/60 rounded-2xl p-6 animate-pulse h-40" />)}
           </div>
-        ) : currentList.length === 0 ? (
+        ) : alterations.length === 0 ? (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
             className="bg-gray-900/60 backdrop-blur-sm border border-gray-800 rounded-2xl p-12 text-center shadow-lg">
             <Package className="mx-auto text-gray-600 mb-3" size={48} />
             <p className="text-gray-500 font-bold">
-              {activeTab === 'in' ? 'No pending alterations' : 'No accepted alterations'}
+              {isIn ? 'No pending alterations' : 'No accepted alterations'}
             </p>
             <p className="text-xs text-gray-600 mt-1">
-              {activeTab === 'in' ? 'New alteration requests will appear here' : 'Accepted alterations ready for work'}
+              {isIn ? 'New alteration requests will appear here' : 'Accepted alterations ready for work'}
             </p>
           </motion.div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {currentList.map(alt => renderAlterationCard(alt, activeTab))}
+            {alterations.map(alt => renderAlterationCard(alt))}
           </div>
         )}
       </div>

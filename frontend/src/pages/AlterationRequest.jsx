@@ -176,8 +176,7 @@ export default function AlterationRequest() {
     win.document.write('</style>');
 
     win.document.write('<div class="header"><h2>ALTERATION REQUEST</h2></div>');
-    win.document.write(`<div class="row"><span class="label">Alt #:</span><span>${data.alterationNumber}</span></div>`);
-    if (data.orderNumber) win.document.write(`<div class="row"><span class="label">Order #:</span><span>${data.orderNumber}</span></div>`);
+    win.document.write(`<div class="row"><span class="label">Order/Alt #:</span><span>${data.alterationNumber}</span></div>`);
     win.document.write(`<div class="row"><span class="label">Customer:</span><span>${data.customerName || 'N/A'}</span></div>`);
     win.document.write(`<div class="row"><span class="label">Phone:</span><span>${data.customerPhone || 'N/A'}</span></div>`);
     win.document.write(`<div class="row"><span class="label">Outlet:</span><span>${data.outletName || 'N/A'}</span></div>`);
@@ -213,8 +212,7 @@ export default function AlterationRequest() {
             <p className="text-sm text-gray-400 mb-4">Sent to Production In automatically</p>
 
             <div className="bg-gray-800 rounded-xl p-4 mb-4 text-left space-y-2">
-              <div className="flex justify-between"><span className="text-gray-400 text-sm">Alteration #</span><span className="text-white font-black">{data.alterationNumber}</span></div>
-              {data.orderNumber && <div className="flex justify-between"><span className="text-gray-400 text-sm">Order #</span><span className="text-white font-black">{data.orderNumber}</span></div>}
+              <div className="flex justify-between"><span className="text-gray-400 text-sm">Order / Alteration #</span><span className="text-purple-400 font-black">{data.alterationNumber}</span></div>
               {data.customerName && <div className="flex justify-between"><span className="text-gray-400 text-sm">Customer</span><span className="text-white font-bold">{data.customerName}</span></div>}
               <div className="flex justify-between"><span className="text-gray-400 text-sm">Products</span><span className="text-white font-bold">{(data.products || []).length}</span></div>
             </div>
@@ -286,7 +284,7 @@ export default function AlterationRequest() {
                       <div className="flex items-start justify-between">
                         <div>
                           <p className="text-lg font-black text-white">{alt.alterationNumber}</p>
-                          {alt.orderNumber && <p className="text-xs text-gray-400">Order: {alt.orderNumber}</p>}
+                          {alt.orderNumber && alt.orderNumber !== alt.alterationNumber && <p className="text-xs text-gray-400">Order: {alt.orderNumber}</p>}
                           <p className="text-sm text-gray-400">{alt.customerName}</p>
                         </div>
                         <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 text-xs font-bold rounded-full">RETURNED</span>
@@ -316,12 +314,11 @@ export default function AlterationRequest() {
         {activeTab === 'create' && (<>
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 mb-4">
           <div className="flex items-center justify-between mb-3">
-            <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Alteration Number</label>
-            <button onClick={generateNumber} className="text-xs font-bold text-blue-400 hover:text-blue-300">Regenerate</button>
+            <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Alteration & Order Number</label>
+            <button onClick={generateNumber} className="text-xs font-bold text-blue-400 hover:text-blue-300">Generate New</button>
           </div>
-          <div className="bg-gray-800 rounded-xl px-4 py-3">
-            <span className="text-lg font-black text-purple-400 tracking-wider">{alterationNumber || 'Generating...'}</span>
-          </div>
+          <input value={alterationNumber} onChange={e => setAlterationNumber(e.target.value)}
+            placeholder="e.g. JT-00001" className="w-full bg-gray-800 rounded-xl px-4 py-3 text-lg font-black text-purple-400 tracking-wider border border-gray-700 focus:border-purple-500 focus:outline-none" />
         </div>
 
         {/* Source + Order Lookup */}
@@ -335,9 +332,9 @@ export default function AlterationRequest() {
               </select>
             </div>
             <div>
-              <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-1">Order Number</label>
+              <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-1">Order Number (Lookup)</label>
               <div className="flex gap-1">
-                <input value={orderNumber} onChange={e => setOrderNumber(e.target.value)} placeholder="e.g. JT-123456" className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm font-bold" />
+                <input value={orderNumber} onChange={e => setOrderNumber(e.target.value)} placeholder="Lookup existing order" className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm font-bold" />
                 <button onClick={lookupOrder} className="bg-blue-600 hover:bg-blue-500 px-3 rounded-xl"><Search size={16} className="text-white" /></button>
               </div>
             </div>

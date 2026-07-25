@@ -521,21 +521,20 @@ export function POSProvider({ children }) {
       if (!pr) { setCheckoutLoading(false); return toast.error(`"${c.productName}" not found in outlet inventory`); }
       if (pr.stock != null && pr.stock < c.qty) { setCheckoutLoading(false); return toast.error(`"${c.productName}" has only ${pr.stock} in stock (need ${c.qty})`); }
     }
-    // Generate order number if checkbox is enabled
+    // Generate numbers — alteration number serves as both order + alteration number
     let orderNum = null;
-    if (createOrderNumber) {
-      try {
-        const ordRes = await api.get('/api/outlet-orders/generate-number');
-        orderNum = ordRes.data.orderNumber;
-      } catch { /* proceed without order number */ }
-    }
-    // Generate alteration number if checkbox is enabled
     let alterationNum = null;
     if (createAlterationNumber) {
       try {
         const altRes = await api.get('/api/alterations/generate-number');
         alterationNum = altRes.data.alterationNumber;
+        orderNum = alterationNum; // unified: same number for both
       } catch { /* proceed without alteration number */ }
+    } else if (createOrderNumber) {
+      try {
+        const ordRes = await api.get('/api/outlet-orders/generate-number');
+        orderNum = ordRes.data.orderNumber;
+      } catch { /* proceed without order number */ }
     }
     const payload = {
       items: cart.map(i => ({ variantId: i.variantId, quantity: i.qty, unitPrice: i.unitPrice, alterationCharges: i.alterationAmount, discountPct: parseFloat(i.discountPct) || 0, discountFixed: parseFloat(i.discountFixed) || 0, customization1: i.customization1 || false, customization2: i.customization2 || false, nameEngrave: i.nameEngrave || false, logoDesign: i.logoDesign || false, otherCharges: parseFloat(i.otherCharges) || 0 })),

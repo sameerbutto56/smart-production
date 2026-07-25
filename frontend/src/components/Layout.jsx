@@ -108,7 +108,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Deleted Orders', path: '/deleted-orders', icon: Trash2, roles: [] },
     { name: 'Production', path: '/production', icon: Factory, roles: ['PRODUCTION'] },
     { name: 'Alteration In', path: '/alteration-production', icon: Scissors, roles: ['PRODUCTION_IN'] },
-    { name: 'Alteration', path: '/alteration-production', icon: Scissors, roles: ['PRODUCTION_OUT'] },
+    { name: 'Alteration Out', path: '/alteration-production', icon: Scissors, roles: ['PRODUCTION_OUT'] },
     { name: 'Refund Management', path: '/refund-management', icon: RotateCcw, roles: ['DELIVERY_BOY'] },
     { name: 'Client Registration', path: '/clients', icon: UserPlus, roles: ['OUTLET'] },
     { name: 'POS', path: '/pos', icon: ShoppingCart, roles: ['OUTLET'] },
