@@ -542,9 +542,9 @@ const DispatchDashboard = () => {
                   </h3>
                   <div className="grid grid-cols-2 gap-3 mb-4">
                     <div className="theme-bg-subtle rounded-xl p-3 text-center">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Today COD</p>
-                      <p className="text-xl font-black text-emerald-400">₨{(enamelsData.codSummary.todayCODAmount || 0).toLocaleString()}</p>
-                      <p className="text-[10px] font-bold text-gray-500">{enamelsData.codSummary.todayCODOrders || 0} orders</p>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Filtered COD</p>
+                      <p className="text-xl font-black text-emerald-400">₨{(enamelsData.codSummary.filteredCODAmount || 0).toLocaleString()}</p>
+                      <p className="text-[10px] font-bold text-gray-500">{enamelsData.codSummary.filteredCODOrders || 0} orders</p>
                     </div>
                     <div className="theme-bg-subtle rounded-xl p-3 text-center">
                       <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Pending COD</p>

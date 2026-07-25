@@ -618,7 +618,7 @@ const CODCollectionPanel = ({ refresh }) => {
   if (loading) return <LoadingSpinner text="Loading COD..." />;
   if (!codData) return null;
 
-  const { todayCODAmount = 0, todayCODOrders = 0, pendingCODAmount = 0, pendingCODOrders = 0, pendingDeliveries = [], collections = [] } = codData || {};
+  const { filteredCODAmount = 0, filteredCODOrders = 0, pendingCODAmount = 0, pendingCODOrders = 0, pendingDeliveries = [], collections = [] } = codData || {};
 
   return (
     <div className="space-y-3">
@@ -629,9 +629,9 @@ const CODCollectionPanel = ({ refresh }) => {
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-amber-500/10 rounded-xl p-3 border border-amber-500/20">
-          <p className="text-[10px] text-amber-400 font-black uppercase tracking-widest">Today's COD</p>
-          <p className="text-xl font-black text-amber-400">₨{todayCODAmount.toLocaleString()}</p>
-          <p className="text-[10px] text-gray-500 font-bold">{todayCODOrders} orders</p>
+          <p className="text-[10px] text-amber-400 font-black uppercase tracking-widest">Filtered COD</p>
+          <p className="text-xl font-black text-amber-400">₨{filteredCODAmount.toLocaleString()}</p>
+          <p className="text-[10px] text-gray-500 font-bold">{filteredCODOrders} orders</p>
         </div>
         <div className="bg-orange-500/10 rounded-xl p-3 border border-orange-500/20">
           <p className="text-[10px] text-orange-400 font-black uppercase tracking-widest">Pending COD</p>

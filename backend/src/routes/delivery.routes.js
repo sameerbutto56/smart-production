@@ -14,7 +14,8 @@ const {
   getDispatchTracking,
   getDeliveryEmployeeStats,
   payDeliveryEmployee,
-  getDeliveryPaymentHistory
+  getDeliveryPaymentHistory,
+  getActivityTimeline
 } = require('../controllers/delivery.controller');
 
 router.get('/orders', auth, getDeliveryOrders);
@@ -31,5 +32,6 @@ router.get('/dispatch-tracking', auth, getDispatchTracking);
 router.get('/employee-stats', auth, getDeliveryEmployeeStats);
 router.post('/pay-employee', auth, payDeliveryEmployee);
 router.get('/payment-history', auth, getDeliveryPaymentHistory);
+router.get('/activity', auth, getActivityTimeline);
 
 module.exports = router;

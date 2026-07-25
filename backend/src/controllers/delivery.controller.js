@@ -1,9 +1,22 @@
 const prisma = require('../prisma');
 
+const parseDateRange = (dateFrom, dateTo) => {
+  const dateFilter = {};
+  if (dateFrom) {
+    const from = new Date(dateFrom);
+    if (!isNaN(from.getTime())) dateFilter.gte = from;
+  }
+  if (dateTo) {
+    const to = new Date(dateTo);
+    if (!isNaN(to.getTime())) { to.setHours(23, 59, 59, 999); dateFilter.lte = to; }
+  }
+  return Object.keys(dateFilter).length > 0 ? dateFilter : null;
+};
+
 // GET /api/delivery/orders — get all delivery orders for delivery boy
 const getDeliveryOrders = async (req, res) => {
   try {
-    const { deliveryType } = req.query;
+    const { deliveryType, dateFrom, dateTo } = req.query;
     const where = {
       OR: [
         { currentStage: { in: ['OUT_FOR_DELIVERY', 'DELIVERED'] } },
@@ -17,6 +30,9 @@ const getDeliveryOrders = async (req, res) => {
         { OR: [{ deliveryType }, { deliveryMethod: methodStr }] }
       ];
     }
+    const dateFilter = parseDateRange(dateFrom, dateTo);
+    if (dateFilter) where.createdAt = dateFilter;
+
     const orders = await prisma.order.findMany({
       where,
       include: {
@@ -301,47 +317,45 @@ const clearDeliveryCharges = async (req, res) => {
 // GET /api/delivery/cod — COD collection data
 const getCODSummary = async (req, res) => {
   try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const { dateFrom, dateTo } = req.query;
+    const dateFilter = parseDateRange(dateFrom, dateTo);
 
-    // Today's deliveries with CASH or CASH_ONLINE payment (exclude fully PAID orders)
-    const todayDeliveries = await prisma.order.findMany({
-      where: {
-        currentStage: 'DELIVERED',
-        deliveredAt: { gte: today },
-        paymentStatus: { notIn: ['PAID', 'FULL_PAID'] },
-        OR: [
-          { paymentMethod: { in: ['CASH', 'CASH_ONLINE'] } },
-          { paymentMethod: null }
-        ]
-      },
-      select: { id: true, orderNumber: true, customerName: true, totalPrice: true, deliveredAt: true, advanceAmount: true, paymentStatus: true }
+    const deliveredWhere = {
+      currentStage: 'DELIVERED',
+      paymentStatus: { notIn: ['PAID', 'FULL_PAID'] },
+      OR: [
+        { paymentMethod: { in: ['CASH', 'CASH_ONLINE'] } },
+        { paymentMethod: null }
+      ]
+    };
+    if (dateFilter) deliveredWhere.deliveredAt = dateFilter;
+
+    const filteredDeliveries = await prisma.order.findMany({
+      where: deliveredWhere,
+      select: { id: true, orderNumber: true, customerName: true, totalPrice: true, deliveredAt: true, advanceAmount: true, paymentMethod: true, paymentStatus: true }
     });
 
-    const todayCODAmount = todayDeliveries.reduce((s, o) => {
+    const filteredCODAmount = filteredDeliveries.reduce((s, o) => {
       if (o.paymentStatus === 'PAID' || o.paymentStatus === 'FULL_PAID') return s;
       const remaining = Math.max(0, (o.totalPrice || 0) - (o.advanceAmount || 0));
       return s + (o.paymentMethod === 'CASH_ONLINE' ? remaining / 2 : remaining);
     }, 0);
 
-    // All pending COD (delivered but not cleared, exclude fully PAID orders)
+    // All pending COD (delivered but not cleared)
     const clearedOrderIds = (await prisma.cODCollection.findMany({ select: { orderIds: true } }))
       .flatMap(c => Array.isArray(c.orderIds) ? c.orderIds : []);
+    const pendingWhere = {
+      currentStage: 'DELIVERED',
+      paymentStatus: { notIn: ['PAID', 'FULL_PAID'] },
+      AND: [
+        { OR: [{ paymentMethod: 'CASH' }, { paymentMethod: null }, { advanceAmount: { gt: 0 } }] },
+        clearedOrderIds.length > 0 ? { id: { notIn: clearedOrderIds } } : {}
+      ]
+    };
+    if (dateFilter) pendingWhere.deliveredAt = dateFilter;
+
     const pendingCODDeliveries = await prisma.order.findMany({
-      where: {
-        currentStage: 'DELIVERED',
-        paymentStatus: { notIn: ['PAID', 'FULL_PAID'] },
-        AND: [
-          {
-            OR: [
-              { paymentMethod: 'CASH' },
-              { paymentMethod: null },
-              { advanceAmount: { gt: 0 } }
-            ]
-          },
-          clearedOrderIds.length > 0 ? { id: { notIn: clearedOrderIds } } : {}
-        ]
-      },
+      where: pendingWhere,
       select: { id: true, orderNumber: true, customerName: true, totalPrice: true, deliveredAt: true, advanceAmount: true, paymentMethod: true, paymentStatus: true }
     });
 
@@ -351,13 +365,11 @@ const getCODSummary = async (req, res) => {
       return s + (o.paymentMethod === 'CASH_ONLINE' ? remaining / 2 : remaining);
     }, 0);
 
-    const collections = await prisma.cODCollection.findMany({
-      orderBy: { clearedAt: 'desc' }
-    });
+    const collections = await prisma.cODCollection.findMany({ orderBy: { clearedAt: 'desc' } });
 
     res.json({
-      todayCODAmount,
-      todayCODOrders: todayDeliveries.length,
+      filteredCODAmount: filteredCODAmount,
+      filteredCODOrders: filteredDeliveries.length,
       pendingCODAmount,
       pendingCODOrders: pendingCODDeliveries.length,
       pendingDeliveries: pendingCODDeliveries,
@@ -394,13 +406,14 @@ const clearCOD = async (req, res) => {
 // GET /api/delivery/performance — delivery boy performance stats
 const getPerformance = async (req, res) => {
   try {
-    const { riderName } = req.query;
+    const { riderName, dateFrom, dateTo } = req.query;
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const weekStart = new Date(todayStart.getTime() - todayStart.getDay() * 86400000);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const whereRider = riderName ? { riderName } : {};
+    const dateFilter = parseDateRange(dateFrom, dateTo);
 
     const deliveredToday = await prisma.deliveryAttempt.count({
       where: { ...whereRider, status: 'DELIVERED', attemptedAt: { gte: todayStart } }
@@ -432,10 +445,19 @@ const getPerformance = async (req, res) => {
       where: { ...whereRider, status: 'NO_RESPONSE', attemptedAt: { gte: monthStart } }
     });
 
-    // All-time stats
     const allTimeDelivered = await prisma.deliveryAttempt.count({
       where: { ...whereRider, status: 'DELIVERED' }
     });
+
+    // Date-filtered delivered count + earnings
+    let filteredDelivered = allTimeDelivered;
+    let filteredEarnings = allTimeDelivered * 200;
+    if (dateFilter) {
+      filteredDelivered = await prisma.deliveryAttempt.count({
+        where: { ...whereRider, status: 'DELIVERED', attemptedAt: dateFilter }
+      });
+      filteredEarnings = filteredDelivered * 200;
+    }
 
     res.json({
       assignedToday,
@@ -443,6 +465,8 @@ const getPerformance = async (req, res) => {
       deliveredThisWeek,
       deliveredThisMonth,
       allTimeDelivered,
+      filteredDelivered,
+      filteredEarnings,
       pendingDeliveries,
       activeDeliveries,
       returnedCount,
@@ -487,6 +511,8 @@ const getDispatchTracking = async (req, res) => {
 const getDeliveryEmployeeStats = async (req, res) => {
   try {
     const DELIVERY_RATE = 200;
+    const { dateFrom, dateTo } = req.query;
+    const dateFilter = parseDateRange(dateFrom, dateTo);
 
     // Get all delivery orders (source of truth for riders + delivered count)
     const allOrders = await prisma.order.findMany({
@@ -496,7 +522,7 @@ const getDeliveryEmployeeStats = async (req, res) => {
           { status: { in: ['COMPLETED', 'OUT_FOR_DELIVERY', 'RETURNED'] } }
         ]
       },
-      select: { id: true, currentStage: true, status: true, riderName: true, deliveryType: true, deliveryMethod: true, riderAcceptedAt: true }
+      select: { id: true, currentStage: true, status: true, riderName: true, deliveryType: true, deliveryMethod: true, riderAcceptedAt: true, deliveredAt: true }
     });
 
     // Get DeliveryCharge records (for payment tracking)
@@ -516,14 +542,17 @@ const getDeliveryEmployeeStats = async (req, res) => {
     if (riderNames.length === 0) return res.json({ employees: [], paymentAnalytics: {} });
 
     const employees = riderNames.map(name => {
+      const myOrders = allOrders.filter(o => o.riderName === name);
       const myCharges = allCharges.filter(c => c.riderName === name);
+
+      // Date-filtered delivered orders for earnings
+      let deliveredOrders = myOrders.filter(o => o.currentStage === 'DELIVERED' || o.status === 'COMPLETED');
+      if (dateFilter) {
+        deliveredOrders = deliveredOrders.filter(o => o.deliveredAt && dateFilter.gte && o.deliveredAt >= dateFilter.gte && (!dateFilter.lte || o.deliveredAt <= dateFilter.lte));
+      }
       const deliveredFromCharges = myCharges.length;
+      const delivered = Math.max(deliveredFromCharges, deliveredOrders.length);
 
-      // Count delivered orders for this rider (primary source)
-      const myDeliveredOrders = allOrders.filter(o => o.riderName === name && (o.currentStage === 'DELIVERED' || o.status === 'COMPLETED'));
-      const delivered = Math.max(deliveredFromCharges, myDeliveredOrders.length);
-
-      // Earnings always based on actual delivered orders
       const totalEarnings = delivered * DELIVERY_RATE;
 
       // Payment tracking from DeliveryCharge records
@@ -532,14 +561,16 @@ const getDeliveryEmployeeStats = async (req, res) => {
       const totalPaid = paidCharges.reduce((s, c) => s + c.amount, 0);
       const remainingPayable = totalEarnings - totalPaid;
 
-      // Order status counts
-      const myOrders = allOrders.filter(o => o.riderName === name);
+      // Order status counts (all-time, not date-filtered)
       const activeCount = myOrders.filter(o => o.currentStage === 'OUT_FOR_DELIVERY' && o.riderAcceptedAt).length;
       const pendingCount = myOrders.filter(o => o.currentStage === 'OUT_FOR_DELIVERY' && !o.riderAcceptedAt).length;
       const returnedCount = myOrders.filter(o => o.status === 'RETURNED').length;
 
-      // Payment history for this employee
-      const myPayments = allPayments.filter(p => p.riderName === name);
+      // Payment history for this employee (date-filtered if applicable)
+      let myPayments = allPayments.filter(p => p.riderName === name);
+      if (dateFilter) {
+        myPayments = myPayments.filter(p => p.paidAt && dateFilter.gte && p.paidAt >= dateFilter.gte && (!dateFilter.lte || p.paidAt <= dateFilter.lte));
+      }
 
       return {
         name,
@@ -641,8 +672,10 @@ const payDeliveryEmployee = async (req, res) => {
 // GET /api/delivery/payment-history — complete payment history
 const getDeliveryPaymentHistory = async (req, res) => {
   try {
-    const { riderName, page = 1, limit = 50 } = req.query;
+    const { riderName, dateFrom, dateTo, page = 1, limit = 50 } = req.query;
     const where = riderName ? { riderName } : {};
+    const dateFilter = parseDateRange(dateFrom, dateTo);
+    if (dateFilter) where.paidAt = dateFilter;
 
     const [payments, total] = await Promise.all([
       prisma.deliveryChargePayment.findMany({
@@ -666,6 +699,42 @@ const getDeliveryPaymentHistory = async (req, res) => {
   }
 };
 
+// GET /api/delivery/activity — timeline with rider names, date-filtered
+const getActivityTimeline = async (req, res) => {
+  try {
+    const { dateFrom, dateTo, limit = 100 } = req.query;
+    const dateFilter = parseDateRange(dateFrom, dateTo);
+
+    const auditWhere = {
+      action: { in: ['DELIVERED', 'DELIVERY_ACCEPTED', 'DELIVERY_FAILED', 'DISPATCH_RETURNED'] }
+    };
+    if (dateFilter) auditWhere.createdAt = dateFilter;
+
+    const [audits, orders] = await Promise.all([
+      prisma.auditLog.findMany({
+        where: auditWhere,
+        include: { order: { select: { id: true, orderNumber: true, customerName: true, city: true, currentStage: true, riderName: true, totalPrice: true, paymentMethod: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: parseInt(limit)
+      }),
+      prisma.order.findMany({
+        where: {
+          currentStage: { in: ['OUT_FOR_DELIVERY', 'DELIVERED'] },
+          ...(dateFilter ? { createdAt: dateFilter } : {})
+        },
+        select: { id: true, orderNumber: true, customerName: true, city: true, currentStage: true, riderName: true, totalPrice: true, deliveryType: true, riderAcceptedAt: true, deliveredAt: true, noResponseCount: true },
+        orderBy: { updatedAt: 'desc' },
+        take: parseInt(limit)
+      })
+    ]);
+
+    res.json({ audits, orders });
+  } catch (error) {
+    console.error('getActivityTimeline error:', error);
+    res.status(500).json({ message: 'Failed to fetch activity timeline' });
+  }
+};
+
 module.exports = {
   getDeliveryOrders,
   acceptDelivery,
@@ -680,5 +749,6 @@ module.exports = {
   getDispatchTracking,
   getDeliveryEmployeeStats,
   payDeliveryEmployee,
-  getDeliveryPaymentHistory
+  getDeliveryPaymentHistory,
+  getActivityTimeline
 };
