@@ -134,12 +134,13 @@ const AdminDashboard = () => {
   const editRequestsRefreshRef = useRef();
   const queueRefreshRef = useRef();
 
-  const { data: allOrdersData, loading: ordersLoading, error: ordersError, refresh: refreshDashboard } = useCache('admin:dashboard:orders', { fetcher: () => api.get('/api/orders').then(r => Array.isArray(r.data) ? r.data : []), ttl: 60000 });
-  const { data: analytics, refresh: refreshAnalytics } = useCache('admin:dashboard:analytics', { fetcher: () => api.get('/api/orders/analytics').then(r => r.data), ttl: 60000 });
-  const { data: systemPaused = false, refresh: refreshPause } = useCache('admin:pause-status', { fetcher: () => api.get('/api/admin/pause-status').then(r => r.data.paused), ttl: 300000 });
-  const { data: storeUnseenData, refresh: refreshUnseen } = useCache('admin:store-unseen', { fetcher: () => api.get('/api/orders/unseen-tasks').then(r => r.data), ttl: 30000 });
-  const { data: storeProductionData, refresh: refreshProdReturned } = useCache('admin:store-production', { fetcher: () => api.get('/api/orders/production-returned').then(r => r.data), ttl: 30000 });
-  const { data: editRequestsData, loading: editRequestsLoading, refresh: refreshEditRequests } = useCache('admin:edit-requests', { fetcher: () => api.get('/api/edit-requests', { params: { status: 'PENDING' } }).then(r => Array.isArray(r.data) ? r.data : []), ttl: 30000 });
+  const needsData = activeTab !== null;
+  const { data: allOrdersData, loading: ordersLoading, error: ordersError, refresh: refreshDashboard } = useCache(needsData ? 'admin:dashboard:orders' : null, { fetcher: () => api.get('/api/orders').then(r => Array.isArray(r.data) ? r.data : []), ttl: 60000 });
+  const { data: analytics, refresh: refreshAnalytics } = useCache(needsData ? 'admin:dashboard:analytics' : null, { fetcher: () => api.get('/api/orders/analytics').then(r => r.data), ttl: 60000 });
+  const { data: systemPaused = false, refresh: refreshPause } = useCache(needsData ? 'admin:pause-status' : null, { fetcher: () => api.get('/api/admin/pause-status').then(r => r.data.paused), ttl: 300000 });
+  const { data: storeUnseenData, refresh: refreshUnseen } = useCache(needsData ? 'admin:store-unseen' : null, { fetcher: () => api.get('/api/orders/unseen-tasks').then(r => r.data), ttl: 30000 });
+  const { data: storeProductionData, refresh: refreshProdReturned } = useCache(needsData ? 'admin:store-production' : null, { fetcher: () => api.get('/api/orders/production-returned').then(r => r.data), ttl: 30000 });
+  const { data: editRequestsData, loading: editRequestsLoading, refresh: refreshEditRequests } = useCache(needsData ? 'admin:edit-requests' : null, { fetcher: () => api.get('/api/edit-requests', { params: { status: 'PENDING' } }).then(r => Array.isArray(r.data) ? r.data : []), ttl: 30000 });
 
   const allOrders = allOrdersData || EMPTY_ARRAY;
   const editRequests = useMemo(() => Array.isArray(editRequestsData) ? editRequestsData : EMPTY_ARRAY, [editRequestsData]);
