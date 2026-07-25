@@ -27,6 +27,10 @@ model User {
   editRequestsReviewed  OrderEditRequest[] @relation("EditReviewedBy")
   deletedOrders         DeletedOrder[] @relation("OrderDeletedBy")
   routingHistoryEntries  RoutingHistory[] @relation("RoutingHistorySentBy")
+  alterationsAccepted    Alteration[]     @relation("AlterationAcceptedBy")
+  alterationsCompleted   Alteration[]     @relation("AlterationCompletedBy")
+  alterationsDone        Alteration[]     @relation("AlterationDoneBy")
+  alterationStages       AlterationStage[]
 }
 
 model Order {
@@ -961,4 +965,65 @@ model InvoiceSequence {
   nextValue  Int    @default(1)
 
   @@unique([outletName])
+}
+
+model AlterationSequence {
+  id         String @id @default(uuid())
+  prefix     String
+  nextValue  Int    @default(1)
+
+  @@unique([prefix])
+}
+
+model Alteration {
+  id                String   @id @default(uuid())
+  alterationNumber  String   @unique
+  sourceModule      String
+  sourceOutlet      String?
+  sourceOrderId     String?
+  orderNumber       String?
+  customerName      String?
+  customerPhone     String?
+  outletName        String?
+  products          Json
+  status            String   @default("PENDING")
+  currentStage      String   @default("ALTERATION_PENDING")
+  acceptedById      String?
+  completedById     String?
+  doneById          String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  acceptedAt        DateTime?
+  completedAt       DateTime?
+  doneAt            DateTime?
+
+  acceptedBy        User?    @relation("AlterationAcceptedBy", fields: [acceptedById], references: [id])
+  completedBy       User?    @relation("AlterationCompletedBy", fields: [completedById], references: [id])
+  doneBy            User?    @relation("AlterationDoneBy", fields: [doneById], references: [id])
+
+  stages            AlterationStage[]
+
+  @@index([alterationNumber])
+  @@index([sourceModule])
+  @@index([currentStage])
+  @@index([outletName])
+  @@index([status])
+  @@index([sourceOrderId])
+}
+
+model AlterationStage {
+  id                 String    @id @default(uuid())
+  alterationId       String
+  stageName          String
+  status             String    @default("PENDING")
+  assignedEmployeeId String?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime  @default(now())
+
+  alteration         Alteration @relation(fields: [alterationId], references: [id], onDelete: Cascade)
+  assignedEmployee   User?     @relation(fields: [assignedEmployeeId], references: [id])
+
+  @@index([alterationId])
+  @@index([stageName, status])
 }

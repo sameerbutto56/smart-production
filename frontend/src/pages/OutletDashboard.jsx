@@ -162,6 +162,8 @@ const OutletDashboard = () => {
   const [tasks, setTasks] = useState([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
+  const [alterationTasks, setAlterationTasks] = useState([]);
+  const [alterationTasksLoading, setAlterationTasksLoading] = useState(false);
 
   const fetchAnalytics = useCallback(async (preset) => {
     setAnalyticsLoading(true);
@@ -205,13 +207,38 @@ const OutletDashboard = () => {
     }
   }, []);
 
+  const fetchAlterationTasks = useCallback(async () => {
+    setAlterationTasksLoading(true);
+    try {
+      const res = await api.get('/api/alterations/outlet-tasks');
+      setAlterationTasks(res.data);
+    } catch (e) {
+      console.error('Alteration tasks error:', e);
+    } finally {
+      setAlterationTasksLoading(false);
+    }
+  }, []);
+
+  const handleAlterationDone = async (alterationId) => {
+    setActionLoading(alterationId + 'done');
+    try {
+      await api.patch(`/api/alterations/${alterationId}/done`);
+      toast.success('Alteration marked as done');
+      fetchAlterationTasks();
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed to mark done');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'dashboard') {
       fetchAnalytics(datePreset);
       fetchRecentOrders();
     }
-    if (activeTab === 'tasks') fetchTasks();
-  }, [activeTab, datePreset, fetchAnalytics, fetchRecentOrders, fetchTasks]);
+    if (activeTab === 'tasks') { fetchTasks(); fetchAlterationTasks(); }
+  }, [activeTab, datePreset, fetchAnalytics, fetchRecentOrders, fetchTasks, fetchAlterationTasks]);
 
   useEffect(() => {
     if (!showTabDropdown) return;
@@ -361,7 +388,7 @@ const OutletDashboard = () => {
     { id: 'pos-dashboard', label: 'POS Dashboard', icon: BarChart3 },
     { id: 'invoices', label: 'Total Invoices', icon: DollarSign },
     { id: 'tracking', label: 'Order Track', icon: Search },
-    { id: 'tasks', label: 'Tasks', icon: ListChecks, badge: tasks.length },
+    { id: 'tasks', label: 'Tasks', icon: ListChecks, badge: tasks.length + alterationTasks.length },
     { id: 'registers', label: 'Registers', icon: Clock }
   ];
 
@@ -811,6 +838,58 @@ const OutletDashboard = () => {
                   </motion.div>
                 );
               })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'tasks' && (
+        <div className="space-y-4 mt-6">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-400">{alterationTasks.length} alteration{alterationTasks.length !== 1 ? 's' : ''} returned</p>
+            <button onClick={fetchAlterationTasks} className="flex items-center gap-2 px-4 py-2 bg-gray-800/80 text-gray-400 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all border border-gray-700/50">
+              <RefreshCcw size={14} /> Refresh
+            </button>
+          </div>
+
+          {alterationTasksLoading ? (
+            <div className="space-y-3">
+              {[1,2].map(i => <div key={i} className="bg-gray-800/60 rounded-2xl p-6 animate-pulse h-32" />)}
+            </div>
+          ) : alterationTasks.length === 0 ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-gray-900/60 backdrop-blur-sm border border-gray-800 rounded-2xl p-8 text-center shadow-lg">
+              <CheckCircle className="mx-auto text-gray-600 mb-3" size={36} />
+              <p className="text-gray-500 font-bold text-sm">No alteration returns pending</p>
+            </motion.div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {alterationTasks.map(alt => (
+                <motion.div key={alt.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                  className="bg-gray-900/80 backdrop-blur-sm border border-purple-500/20 rounded-2xl p-6 space-y-3 shadow-lg">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-lg font-black text-white">{alt.alterationNumber}</p>
+                      {alt.orderNumber && <p className="text-xs text-gray-400">Order: {alt.orderNumber}</p>}
+                      <p className="text-sm text-gray-400">{alt.customerName}</p>
+                    </div>
+                    <span className="px-3 py-1 bg-purple-500/20 text-purple-400 text-xs font-bold rounded-full">ALTERATION</span>
+                  </div>
+                  {alt.products && (() => { try { const prods = typeof alt.products === 'string' ? JSON.parse(alt.products) : alt.products; return prods.map((p, i) => (
+                    <div key={i} className="bg-gray-800 rounded-lg px-3 py-2">
+                      <p className="text-xs font-bold text-white">{p.productName} {p.color ? `(${p.color})` : ''} {p.size ? `(${p.size})` : ''}</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">Note: {p.alterationNote}</p>
+                    </div>
+                  )); } catch { return null; } })()}
+                  <div className="flex items-center gap-2 text-xs text-gray-400">
+                    <Calendar size={12} />
+                    {alt.completedAt && new Date(alt.completedAt).toLocaleDateString('en-PK')}
+                  </div>
+                  <button onClick={() => handleAlterationDone(alt.id)} disabled={actionLoading === alt.id + 'done'}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">
+                    {actionLoading === alt.id + 'done' ? <RefreshCcw className="animate-spin" size={14} /> : <CheckCircle size={14} />} Done
+                  </button>
+                </motion.div>
+              ))}
             </div>
           )}
         </div>

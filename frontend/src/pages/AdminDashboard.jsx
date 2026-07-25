@@ -53,6 +53,7 @@ import DispatchAnalyticsCard from '../components/DispatchAnalyticsCard';
 import EnamelsDeliveryCard from '../components/EnamelsDeliveryCard';
 import WarehouseAnalyticsCard from '../components/WarehouseAnalyticsCard';
 import OnlineStoreCard from '../components/OnlineStoreCard';
+import AlterationTrackingCard from '../components/AlterationTrackingCard';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 
 import { useAuth } from '../context/AuthContext';
@@ -70,6 +71,7 @@ const TOP_TABS = [
   { id: 'dispatch_analytics', label: 'Dispatch', icon: BarChart3 },
   { id: 'enamels_delivery', label: 'Enamels Delivery', icon: Truck },
   { id: 'warehouse', label: 'Warehouse', icon: Package },
+  { id: 'alterations', label: 'Alterations', icon: Clock },
   { id: 'edit_requests', label: 'Order Change Requests', icon: FileEdit },
   { id: 'recent_orders', label: 'Recent Orders', icon: History },
   { id: 'settings', label: 'System Settings', icon: ShieldAlert },
@@ -597,6 +599,7 @@ const AdminDashboard = () => {
                   {activeTab === 'dispatch_analytics' && 'Dispatch Operations & Analytics'}
                   {activeTab === 'enamels_delivery' && 'Delivery Tracking & Earnings'}
                   {activeTab === 'warehouse' && 'Inventory & Allocation Overview'}
+                  {activeTab === 'alterations' && 'Alteration Tracking & Management'}
                   {activeTab === 'edit_requests' && 'Order Change Requests'}
                   {activeTab === 'recent_orders' && 'Latest 20 Orders'}
                   {activeTab === 'settings' && 'System Configuration'}
@@ -938,6 +941,11 @@ const AdminDashboard = () => {
             {/* Warehouse Tab */}
             {activeTab === 'warehouse' && (
               <WarehouseAnalyticsCard activeTab={activeTab} />
+            )}
+
+            {/* Alterations Tab */}
+            {activeTab === 'alterations' && (
+              <AlterationTrackingCard />
             )}
 
             {/* Order Change Requests Tab */}

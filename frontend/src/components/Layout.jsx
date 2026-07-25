@@ -35,6 +35,7 @@ import {
   Lock,
   Eye,
   EyeOff,
+  Scissors,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import socket from '../socket';
@@ -93,7 +94,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     // Operational roles links (hidden from Admin to keep it simplified)
     { name: 'Order Entry', path: '/order-entry', icon: ClipboardList, roles: ['ORDER_ENTRY', 'FAISAL'] },
     { name: 'Edit Request', path: '/edit-requests', icon: FileEdit, roles: [] },
-    { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['STORE', 'PRODUCTION', 'LOGO_DESIGN', 'OUT_FOR_DELIVERY', 'OUTLET'] },
+    { name: 'My Tasks', path: '/tasks', icon: Activity, roles: ['STORE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'LOGO_DESIGN', 'OUT_FOR_DELIVERY', 'OUTLET'] },
     { name: 'Dashboard', path: '/store-dashboard', icon: LayoutDashboard, roles: ['STORE'] },
     { name: 'Warehouse', path: '/warehouse', icon: Warehouse, roles: ['STORE'] },
     { name: 'Warehouse POS', path: '/warehouse-pos', icon: ShoppingCart, roles: ['SUPER_ADMIN', 'ADMIN', 'STORE'] },
@@ -106,9 +107,12 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Deliveries', path: '/delivery', icon: Truck, roles: ['DELIVERY_BOY'] },
     { name: 'Deleted Orders', path: '/deleted-orders', icon: Trash2, roles: [] },
     { name: 'Production', path: '/production', icon: Factory, roles: ['PRODUCTION'] },
+    { name: 'Alteration In', path: '/alteration-production', icon: Scissors, roles: ['PRODUCTION_IN'] },
+    { name: 'Alteration', path: '/alteration-production', icon: Scissors, roles: ['PRODUCTION_OUT'] },
     { name: 'Refund Management', path: '/refund-management', icon: RotateCcw, roles: ['DELIVERY_BOY'] },
     { name: 'Client Registration', path: '/clients', icon: UserPlus, roles: ['OUTLET'] },
     { name: 'POS', path: '/pos', icon: ShoppingCart, roles: ['OUTLET'] },
+    { name: 'Alteration', path: '/alteration-request', icon: Scissors, roles: ['OUTLET'] },
     { name: 'General Entries', path: '/journal', icon: FileText, roles: ['OUTLET'] },
     { name: 'Chat', path: '/chat', icon: MessageCircle, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET', 'STORE', 'PRODUCTION', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY', 'DELIVERY_BOY'] },
     { name: 'Notes', path: '/notes', icon: StickyNote, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET', 'STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH', 'MAIN_EMPLOYEE', 'DELIVERY_BOY', 'OUT_FOR_DELIVERY'] }
@@ -124,7 +128,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     
     // 2. Extra safety for Outlets
     if (userRole === 'OUTLET') {
-      return ['Outlet Dashboard', 'Orders', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'General Entries', 'Chat', 'Notes', 'My Tasks'].includes(item.name);
+      return ['Outlet Dashboard', 'Orders', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'Alteration', 'General Entries', 'Chat', 'Notes', 'My Tasks'].includes(item.name);
     }
     
     // 3. Explicit Restriction for Delivery Boy

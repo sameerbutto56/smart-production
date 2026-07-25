@@ -25,6 +25,7 @@ const POSCart = () => {
     lookedUpOrder, setLookedUpOrder,
     checkoutLoading, handleCheckout,
     createOrderNumber, setCreateOrderNumber,
+    createAlterationNumber, setCreateAlterationNumber,
     setTab,
   } = usePOS();
 
@@ -284,6 +285,17 @@ const POSCart = () => {
               </div>
               <span className={`text-[10px] font-black uppercase tracking-widest ${createOrderNumber ? 'text-blue-400' : 'text-gray-600'}`}>
                 Create Order Number
+              </span>
+            </label>
+          )}
+          {!faisalTake && !lookedUpOrder && (
+            <label className="flex items-center gap-3 bg-gray-800 rounded-xl px-3 py-2 cursor-pointer hover:bg-gray-750 border border-gray-700">
+              <div onClick={() => setCreateAlterationNumber(!createAlterationNumber)}
+                className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${createAlterationNumber ? 'bg-purple-500 border-purple-500' : 'border-gray-600 bg-gray-800'}`}>
+                {createAlterationNumber && <span className="text-white text-[10px] font-black">✓</span>}
+              </div>
+              <span className={`text-[10px] font-black uppercase tracking-widest ${createAlterationNumber ? 'text-purple-400' : 'text-gray-600'}`}>
+                Create Alteration Number
               </span>
             </label>
           )}

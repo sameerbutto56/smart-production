@@ -30,6 +30,7 @@ const POSModals = () => {
     currentBook, verifiedCloser, setVerifiedCloser,
     setCloseBookSummary,
     createOrderNumber, setCreateOrderNumber,
+    createAlterationNumber, setCreateAlterationNumber,
   } = usePOS();
 
   const navigate = useNavigate();
@@ -128,28 +129,41 @@ const POSModals = () => {
 
       {/* Checkout Success Modal */}
       {showCheckout && lastSale && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => { setShowCheckout(false); setCreateOrderNumber(false); }}>
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => { setShowCheckout(false); setCreateOrderNumber(false); setCreateAlterationNumber(false); }}>
           <div className="bg-gray-900 border-2 border-gray-700 rounded-2xl p-6 w-full max-w-sm text-center" onClick={e => e.stopPropagation()}>
             <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4"><ShoppingCart size={32} className="text-emerald-400" /></div>
             <h3 className="text-xl font-black text-white mb-1">{lastSale.isFaisalTake ? 'Faisal Take' : 'Sale Complete!'}</h3>
             <p className="text-sm font-bold text-gray-400 mb-2">{lastSale.receiptNumber}</p>
             <p className={`text-3xl font-black mb-4 ${lastSale.isFaisalTake ? 'text-red-400' : 'text-emerald-400'}`}>{lastSale.isFaisalTake ? '₨0 — NO CHARGE' : formatCurrency(lastSale.grandTotal)}</p>
             {lastSale.orderNumber && (
-              <div className="bg-amber-900/30 border border-amber-700 rounded-xl px-4 py-2 mb-4">
+              <div className="bg-amber-900/30 border border-amber-700 rounded-xl px-4 py-2 mb-3">
                 <p className="text-xs font-bold text-amber-400">Your Order Number</p>
                 <p className="text-lg font-black text-white tracking-wider">{lastSale.orderNumber}</p>
               </div>
             )}
-            <div className="flex gap-2">
-              <button onClick={() => { setPendingPrintSale(lastSale); setPrintOpts({ invoice: true, gatePass: true }); setShowPrintOptions(true); }} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2">
-                <Printer size={16} />Print
-              </button>
-              {lastSale.orderNumber && (
-                <button onClick={() => { setShowCheckout(false); setCreateOrderNumber(false); navigate(`/outlet-order-entry?orderNumber=${lastSale.orderNumber}`); }} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2">
-                  <FileText size={16} />Create Order
+            {lastSale.alterationNumber && (
+              <div className="bg-purple-900/30 border border-purple-700 rounded-xl px-4 py-2 mb-4">
+                <p className="text-xs font-bold text-purple-400">Alteration Number</p>
+                <p className="text-lg font-black text-white tracking-wider">{lastSale.alterationNumber}</p>
+              </div>
+            )}
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
+                <button onClick={() => { setPendingPrintSale(lastSale); setPrintOpts({ invoice: true, gatePass: true }); setShowPrintOptions(true); }} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2">
+                  <Printer size={16} />Print
+                </button>
+                {lastSale.orderNumber && (
+                  <button onClick={() => { setShowCheckout(false); setCreateOrderNumber(false); setCreateAlterationNumber(false); navigate(`/outlet-order-entry?orderNumber=${lastSale.orderNumber}`); }} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2">
+                    <FileText size={16} />Create Order
+                  </button>
+                )}
+              </div>
+              {lastSale.alterationNumber && (
+                <button onClick={() => { setShowCheckout(false); setCreateOrderNumber(false); setCreateAlterationNumber(false); navigate(`/alteration-request?alterationNumber=${lastSale.alterationNumber}&orderNumber=${lastSale.orderNumber || ''}`); }} className="w-full bg-purple-600 hover:bg-purple-500 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2">
+                  <FileText size={16} />Create Alteration Request
                 </button>
               )}
-              <button onClick={() => { setShowCheckout(false); setCreateOrderNumber(false); }} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-black py-3 rounded-xl text-sm">Done</button>
+              <button onClick={() => { setShowCheckout(false); setCreateOrderNumber(false); setCreateAlterationNumber(false); }} className="w-full bg-gray-800 hover:bg-gray-700 text-white font-black py-3 rounded-xl text-sm">Done</button>
             </div>
           </div>
         </div>

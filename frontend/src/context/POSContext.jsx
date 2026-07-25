@@ -33,6 +33,7 @@ const STATE_KEYS = [
     'balanceCollectionData', 'balanceHistory', 'showBalanceHistoryModal',
     'lastBalancePayment', 'loadingBalanceAction', 'bookPrintOpts',
     'createOrderNumber', 'generatedOrderNumber',
+    'createAlterationNumber', 'generatedAlterationNumber',
   ];
 
 function posReducer(state, action) {
@@ -141,6 +142,8 @@ function createInitialState(user) {
     bookPrintOpts: { thermal: false, a4: false },
     createOrderNumber: false,
     generatedOrderNumber: '',
+    createAlterationNumber: false,
+    generatedAlterationNumber: '',
   };
 }
 
@@ -182,6 +185,7 @@ export function POSProvider({ children }) {
     balanceCollectionData, balanceHistory, showBalanceHistoryModal,
     lastBalancePayment, loadingBalanceAction, bookPrintOpts,
     createOrderNumber, generatedOrderNumber,
+    createAlterationNumber, generatedAlterationNumber,
   } = state;
 
   const {
@@ -525,6 +529,14 @@ export function POSProvider({ children }) {
         orderNum = ordRes.data.orderNumber;
       } catch { /* proceed without order number */ }
     }
+    // Generate alteration number if checkbox is enabled
+    let alterationNum = null;
+    if (createAlterationNumber) {
+      try {
+        const altRes = await api.get('/api/alterations/generate-number');
+        alterationNum = altRes.data.alterationNumber;
+      } catch { /* proceed without alteration number */ }
+    }
     const payload = {
       items: cart.map(i => ({ variantId: i.variantId, quantity: i.qty, unitPrice: i.unitPrice, alterationCharges: i.alterationAmount, discountPct: parseFloat(i.discountPct) || 0, discountFixed: parseFloat(i.discountFixed) || 0, customization1: i.customization1 || false, customization2: i.customization2 || false, nameEngrave: i.nameEngrave || false, logoDesign: i.logoDesign || false, otherCharges: parseFloat(i.otherCharges) || 0 })),
       customerName: customerName || null, customerPhone: customerPhone || null,
@@ -538,7 +550,7 @@ export function POSProvider({ children }) {
     };
     try {
       const res = await api.post(`/api/pos/sales?outlet=${selectedOutlet}`, payload);
-      const saleData = { ...res.data, orderNumber: orderNum };
+      const saleData = { ...res.data, orderNumber: orderNum, alterationNumber: alterationNum };
       if (faisalTake) {
         setLastSale({ ...saleData, isFaisalTake: true });
       } else {
@@ -558,7 +570,7 @@ export function POSProvider({ children }) {
       await enqueue('sale', 'create', payload);
     }
     setCheckoutLoading(false);
-  }, [cart, products, customerName, customerPhone, discountPct, discountFixed, advanceAmount, cardChargesPct, lookedUpOrder, paymentMethod, cashAmount, onlineAmount, orderNumber, selectedOutlet, employeeLoggedIn, faisalTake, employeeName, productsKey, dashboardKey, salesKey, returnsKey, deliveryCharge, grandTotal, createOrderNumber]);
+  }, [cart, products, customerName, customerPhone, discountPct, discountFixed, advanceAmount, cardChargesPct, lookedUpOrder, paymentMethod, cashAmount, onlineAmount, orderNumber, selectedOutlet, employeeLoggedIn, faisalTake, employeeName, productsKey, dashboardKey, salesKey, returnsKey, deliveryCharge, grandTotal, createOrderNumber, createAlterationNumber]);
 
   const handleReturn = async (variantId) => {
     const qty = prompt('Return quantity:');
@@ -887,6 +899,7 @@ export function POSProvider({ children }) {
     lastBalancePayment, setLastBalancePayment, loadingBalanceAction, setLoadingBalanceAction,
     bookPrintOpts, setBookPrintOpts,
     createOrderNumber, setCreateOrderNumber, generatedOrderNumber, setGeneratedOrderNumber,
+    createAlterationNumber, setCreateAlterationNumber, generatedAlterationNumber, setGeneratedAlterationNumber,
     productsKey, dashboardKey, salesKey, returnsKey,
     subtotal, altCharges, cust1Total, cust2Total, engraveTotal, logoDesignTotal, otherChargesTotal,
     perItemDiscount, deliveryCharge, globalDiscountAmt, cardChargesAmt, grandTotal,
