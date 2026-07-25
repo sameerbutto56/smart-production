@@ -107,7 +107,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Order Track', path: '/order-track', icon: Search, roles: ['INVENTORY_VIEW', 'FAISAL', 'OUTLET'] },
     { name: 'Deliveries', path: '/delivery', icon: Truck, roles: ['DELIVERY_BOY'] },
     { name: 'Deleted Orders', path: '/deleted-orders', icon: Trash2, roles: ['SUPER_ADMIN', 'ADMIN'] },
-    { name: 'Customer Feedback', path: '/dashboard', icon: MessageSquare, roles: ['SUPER_ADMIN', 'ADMIN'], state: { adminTab: 'customer_feedback' } },
+    { name: 'Customer Feedback', path: '__feedback', icon: MessageSquare, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Production', path: '/production', icon: Factory, roles: ['PRODUCTION'] },
     { name: 'Alteration In', path: '/alteration-production', icon: Scissors, roles: ['PRODUCTION_IN'] },
     { name: 'Alteration Out', path: '/alteration-production', icon: Scissors, roles: ['PRODUCTION_OUT'] },
@@ -183,7 +183,30 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
         </div>
         
         <nav className="flex-1 px-3 space-y-1 overflow-y-auto custom-scrollbar">
-          {filteredNavItems.map((item) => (
+          {filteredNavItems.map((item) => {
+            if (item.path === '__feedback') {
+              return (
+                <button
+                  key="customer-feedback"
+                  onClick={() => {
+                    navigate('/dashboard', { state: { adminTab: 'customer_feedback' } });
+                    if (window.innerWidth < 1024) toggle();
+                  }}
+                  className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} p-3 rounded-xl transition-all duration-200 group w-full text-left ${
+                    location.pathname === '/dashboard' && location.state?.adminTab === 'customer_feedback'
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
+                      : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                  }`}
+                  title={isCollapsed ? t(item.name) : ""}
+                >
+                  <item.icon size={16} className={location.pathname === '/dashboard' && location.state?.adminTab === 'customer_feedback' ? 'text-white' : 'group-hover:text-blue-400'} />
+                  {!isCollapsed && (
+                    <span className="font-bold text-xs tracking-wide flex-1">{t(item.name)}</span>
+                  )}
+                </button>
+              );
+            }
+            return (
             <Link
               key={item.path + (item.state?.adminTab || '')}
               to={item.state ? { pathname: item.path, state: item.state } : item.path}
@@ -207,7 +230,8 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
                 </span>
               )}
             </Link>
-          ))}
+            );
+          })}
         </nav>
 
         <div className={`p-4 border-t ${isCollapsed ? 'flex justify-center' : ''}`} style={{ borderColor: 'var(--glass-border)', background: 'var(--nav-bg)' }}>
