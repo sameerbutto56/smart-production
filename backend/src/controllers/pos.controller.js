@@ -512,7 +512,7 @@ const createSale = async (req, res) => {
     if (paymentMethod === 'CASH_ONLINE') {
       const cash = parseFloat(cashAmount || 0);
       const online = parseFloat(onlineAmount || 0);
-      if (cash + online !== grandTotal) {
+      if (Math.abs(cash + online - grandTotal) > 0.01) {
         return res.status(400).json({ message: `Cash+Online total (${cash + online}) must equal invoice amount (${grandTotal})` });
       }
     }

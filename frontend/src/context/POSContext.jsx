@@ -267,6 +267,12 @@ export function POSProvider({ children }) {
   useEffect(() => { localStorage.setItem('pos_customer_phone', customerPhone); }, [customerPhone]);
   useEffect(() => { localStorage.setItem('pos_payment_method', paymentMethod); }, [paymentMethod]);
   useEffect(() => { localStorage.setItem('pos_active_category', activeCategory); }, [activeCategory]);
+  useEffect(() => {
+    if (paymentMethod === 'CASH_ONLINE' && grandTotal > 0) {
+      const c = parseFloat(cashAmount) || 0;
+      setOnlineAmount(Math.max(0, Math.round((grandTotal - c) * 100) / 100));
+    }
+  }, [grandTotal, paymentMethod]);
   useEffect(() => { localStorage.setItem('pos_employee_name', employeeLoggedIn ? employeeName : ''); }, [employeeLoggedIn, employeeName]);
   useEffect(() => { localStorage.setItem('pos_employee_logged_in', employeeLoggedIn ? 'true' : 'false'); }, [employeeLoggedIn]);
 
@@ -514,7 +520,7 @@ export function POSProvider({ children }) {
     if (paymentMethod === 'CASH_ONLINE') {
       const cash = parseFloat(cashAmount) || 0;
       const online = parseFloat(onlineAmount) || 0;
-      if (cash + online !== grandTotal) return toast.error(`Cash+Online total (₨${(cash + online).toLocaleString()}) must equal invoice amount (₨${grandTotal.toLocaleString()})`);
+      if (Math.abs(cash + online - grandTotal) > 0.01) return toast.error(`Cash+Online total (₨${(cash + online).toLocaleString()}) must equal invoice amount (₨${grandTotal.toLocaleString()})`);
     }
     setCheckoutLoading(true);
     for (const c of cart) {

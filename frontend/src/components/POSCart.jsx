@@ -183,17 +183,17 @@ const POSCart = () => {
               <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Split Payment</p>
               <div className="flex items-center justify-between">
                 <label className="text-[10px] font-bold text-gray-400">Cash Amount</label>
-                <input type="number" value={cashAmount} onChange={e => setCashAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                <input type="number" value={cashAmount} onChange={e => { const c = Math.max(0, parseFloat(e.target.value) || 0); setCashAmount(c); setOnlineAmount(Math.max(0, Math.round((grandTotal - c) * 100) / 100)); }}
                   className="w-28 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white text-right focus:border-amber-500 outline-none" min="0" />
               </div>
               <div className="flex items-center justify-between">
                 <label className="text-[10px] font-bold text-gray-400">Online Amount</label>
-                <input type="number" value={onlineAmount} onChange={e => setOnlineAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                <input type="number" value={onlineAmount} onChange={e => { const o = Math.max(0, parseFloat(e.target.value) || 0); setOnlineAmount(o); setCashAmount(Math.max(0, Math.round((grandTotal - o) * 100) / 100)); }}
                   className="w-28 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs font-bold text-white text-right focus:border-amber-500 outline-none" min="0" />
               </div>
               <div className="flex items-center justify-between text-[10px] font-black border-t border-amber-800/50 pt-1.5">
                 <span className="text-gray-400">Total</span>
-                <span className={parseFloat(cashAmount || 0) + parseFloat(onlineAmount || 0) === grandTotal ? 'text-emerald-400' : 'text-red-400'}>
+                <span className="text-emerald-400">
                   {formatCurrency((parseFloat(cashAmount) || 0) + (parseFloat(onlineAmount) || 0))} / {formatCurrency(grandTotal)}
                 </span>
               </div>
