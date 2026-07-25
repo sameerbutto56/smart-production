@@ -66,8 +66,16 @@ const AdminFeedbackDashboard = () => {
   };
 
   const printQR = () => {
-    const win = window.open('', '_blank');
-    win.document.write(`<!DOCTYPE html><html><head><title>ENAMELS Customer Feedback QR</title>
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.top = '-9999px';
+    iframe.style.left = '-9999px';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(`<!DOCTYPE html><html><head><title>ENAMELS Customer Feedback QR</title>
       <style>@page{size:A4 portrait;margin:0}body{margin:0;font-family:'Segoe UI',Arial,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:#fff;color:#000}
       .header{text-align:center;margin-bottom:20px}.header img{height:120px;margin-bottom:12px}
       .title{font-size:36px;font-weight:900;text-transform:uppercase;letter-spacing:4px;margin-bottom:12px}
@@ -79,10 +87,11 @@ const AdminFeedbackDashboard = () => {
       <div class="title">Give Your Feedback</div>
       <div class="subtitle">Your feedback helps us improve our products and services. Scan the QR code below to share your experience.</div>
       <div class="qr-container"><img src="${qrDataUrl}"></div>
-      <div class="footer">This software is developed by Ismail Bhatt</div>
+      <div class="footer">This software is developed by Sameer Butt</div>
       <div class="tagline">Scan the QR code to provide your valuable feedback</div>
       <script>window.onload=function(){setTimeout(function(){window.print();window.close()},500)}<\/script></body></html>`);
-    win.document.close();
+    doc.close();
+    setTimeout(() => { document.body.removeChild(iframe); }, 2000);
   };
 
   const handleDelete = async (id) => {
@@ -432,22 +441,23 @@ const AdminFeedbackDashboard = () => {
 
       {/* QR Code Modal */}
       {showQRModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowQRModal(false)}>
-          <div className="bg-gray-900 border border-white/10 rounded-3xl p-6 max-w-lg w-full" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-start justify-center p-4 pt-8 md:pt-16 overflow-y-auto" onClick={() => setShowQRModal(false)}>
+          <div className="bg-gray-900 border border-white/10 rounded-3xl p-5 md:p-6 max-w-lg w-full my-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-black text-white">QR Code — Customer Feedback</h3>
               <button onClick={() => setShowQRModal(false)} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl transition-all">
                 <X size={18} />
               </button>
             </div>
-            <div className="bg-white rounded-2xl p-8 text-center">
+            <div className="bg-white rounded-2xl p-6 md:p-8 text-center">
               <img src="/logo.png" alt="ENAMELS" className="h-16 mx-auto mb-4" />
               <h4 className="text-xl font-black text-black mb-1">Give Your Feedback</h4>
               <p className="text-gray-500 text-xs font-bold mb-4 italic">Your feedback helps us improve our products and services.</p>
-              {qrDataUrl && <img src={qrDataUrl} alt="Feedback QR Code" className="w-64 h-64 mx-auto" />}
-              <p className="text-[10px] font-black text-gray-400 mt-4 uppercase tracking-wider">This software is developed by Ismail Bhatt</p>
+              {qrDataUrl && <img src={qrDataUrl} alt="Feedback QR Code" className="w-56 h-56 sm:w-64 sm:h-64 mx-auto" />}
+              <p className="text-xs font-black text-gray-400 mt-4 uppercase tracking-wider">Scan the QR code to provide your valuable feedback</p>
+              <p className="text-[10px] font-black text-gray-400 mt-2 uppercase tracking-wider">This software is developed by Sameer Butt</p>
             </div>
-            <div className="flex gap-3 mt-4">
+            <div className="flex flex-col sm:flex-row gap-3 mt-4">
               <a href={qrDataUrl} download="enamels-feedback-qr.png"
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all">
                 <Download size={14} /> Download PNG
@@ -455,6 +465,10 @@ const AdminFeedbackDashboard = () => {
               <button onClick={printQR}
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all">
                 <Printer size={14} /> Print A4 Poster
+              </button>
+              <button onClick={() => setShowQRModal(false)}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-white/5 border border-white/10 text-gray-400 hover:text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all">
+                Back to Dashboard
               </button>
             </div>
           </div>

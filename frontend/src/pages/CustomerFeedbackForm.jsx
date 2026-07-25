@@ -183,7 +183,7 @@ const CustomerFeedbackForm = () => {
             {submitting ? 'Submitting...' : 'Submit Feedback'}
           </button>
 
-          <p className="text-center text-gray-600 font-bold text-xs">This software is developed by Ismail Bhatt</p>
+          <p className="text-center text-gray-600 font-bold text-xs">This software is developed by Sameer Butt</p>
         </form>
       </div>
     </div>
