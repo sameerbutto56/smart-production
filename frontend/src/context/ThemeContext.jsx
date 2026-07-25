@@ -29,8 +29,10 @@ export const ThemeProvider = ({ children }) => {
     localStorage.setItem('app-theme', themeId);
   }, [themeId, applyTheme]);
 
-  // Load global + personal theme on mount
+  // Load global + personal theme on mount (skip if no auth token)
   useEffect(() => {
+    const token = sessionStorage.getItem('token');
+    if (!token) return;
     const loadThemes = async () => {
       try {
         const res = await api.get('/api/users/me/theme');
