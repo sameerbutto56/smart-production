@@ -38,7 +38,6 @@ const DispatchDashboard = () => {
 
   const [enamelsData, setEnamelsData] = useState({ deliveryOrders: [], charges: { charges: [], totalPending: 0, payments: [], totalPaid: 0 }, codSummary: null, tracking: null, performance: null });
   const [enamelsLoading, setEnamelsLoading] = useState(false);
-  const [payLoading, setPayLoading] = useState(false);
   const enamelsRefreshRef = useRef(null);
 
   const fetchEnamelsData = useCallback(async () => {
@@ -465,9 +464,9 @@ const DispatchDashboard = () => {
 
             <div className="glass rounded-2xl p-5 border theme-border">
               <h3 className="text-lg font-black theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
-                <User size={18} className="text-emerald-400" /> Delivery Boy Earnings
+                <User size={18} className="text-emerald-400" /> Delivery Boy Earnings (View Only)
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="theme-bg-subtle rounded-xl p-4 text-center">
                   <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Pending Charges</p>
                   <p className="text-2xl font-black text-emerald-400">₨{(enamelsData.charges?.totalPending || 0).toLocaleString()}</p>
@@ -482,48 +481,8 @@ const DispatchDashboard = () => {
                   <p className="text-2xl font-black text-amber-400">₨200</p>
                 </div>
               </div>
-              {enamelsData.charges?.totalPending > 0 && (
-                <button onClick={() => {
-                  if (!window.confirm(`Clear ₨${(enamelsData.charges.totalPending).toLocaleString()} for ${enamelsData.charges.charges.length} deliveries?`)) return;
-                  setPayLoading(true);
-                  api.post('/api/delivery/charges/clear').then(() => {
-                    toast.success('Delivery charges cleared!');
-                    fetchEnamelsData();
-                  }).catch(err => toast.error('Failed: ' + (err.response?.data?.message || err.message)))
-                  .finally(() => setPayLoading(false));
-                }} disabled={payLoading}
-                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2 disabled:opacity-50">
-                  {payLoading ? <Loader2 className="animate-spin" size={16} /> : null}
-                  Pay ₨{(enamelsData.charges.totalPending).toLocaleString()} — Clear All Pending
-                </button>
-              )}
+              <p className="text-[10px] font-bold text-gray-500 mt-3 text-center">Payment management is handled from the Super Admin Dashboard</p>
             </div>
-
-            {enamelsData.charges?.payments?.length > 0 && (
-              <div className="glass rounded-2xl p-5 border theme-border">
-                <h3 className="text-lg font-black theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
-                  <Activity size={18} className="text-blue-400" /> Payment History
-                </h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead><tr className="text-gray-500 font-black uppercase tracking-wider text-[10px]">
-                      <th className="text-left py-2 pr-3">#</th>
-                      <th className="text-left px-2">Date</th>
-                      <th className="text-right pl-2">Amount</th>
-                    </tr></thead>
-                    <tbody>
-                      {enamelsData.charges.payments.map((p, i) => (
-                        <tr key={p.id || i} className="border-t border-gray-800">
-                          <td className="py-2 pr-3 font-bold theme-text-primary">{i + 1}</td>
-                          <td className="px-2 font-bold">{new Date(p.paidAt).toLocaleDateString()}</td>
-                          <td className="text-right pl-2 font-bold text-emerald-400">₨{(p.totalAmount || 0).toLocaleString()}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
 
             <div className="glass rounded-2xl p-5 border theme-border">
               <h3 className="text-lg font-black theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">

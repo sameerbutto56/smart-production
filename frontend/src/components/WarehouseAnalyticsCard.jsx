@@ -115,9 +115,12 @@ const WarehouseAnalyticsCard = ({ activeTab }) => {
   const [demandFilter, setDemandFilter] = useState('');
   const [allocPage, setAllocPage] = useState(1);
   const [activeSection, setActiveSection] = useState('overview');
+  const [fetchErrors, setFetchErrors] = useState([]);
   const refreshRef = useRef(null);
 
   const fetchAll = useCallback(async () => {
+    setFetchErrors([]);
+    const errors = [];
     try {
       const [invRes, salesRes, allocStatsRes, allocRecRes, demandAllRes, demandStatsRes, stockReqRes] = await Promise.allSettled([
         api.get('/api/inventory'),
@@ -129,17 +132,25 @@ const WarehouseAnalyticsCard = ({ activeTab }) => {
         api.get('/api/stock-requests', { params: { limit: 200 } }),
       ]);
       if (invRes.status === 'fulfilled') setInventory(invRes.value.data || []);
+      else errors.push('Inventory: ' + (invRes.reason?.response?.data?.message || invRes.reason?.message || 'Failed to load'));
       if (salesRes.status === 'fulfilled') setSales(salesRes.value.data || []);
+      else errors.push('Sales: ' + (salesRes.reason?.response?.data?.message || salesRes.reason?.message || 'Failed to load'));
       if (allocStatsRes.status === 'fulfilled') {
         const d = allocStatsRes.value.data;
         if (d.perPerson) setAllocStats(d);
-      }
+      } else errors.push('Allocation Stats: ' + (allocStatsRes.reason?.response?.data?.message || allocStatsRes.reason?.message || 'Failed to load'));
       if (allocRecRes.status === 'fulfilled') setAllocRecords(allocRecRes.value.data?.records || []);
+      else errors.push('Allocations: ' + (allocRecRes.reason?.response?.data?.message || allocRecRes.reason?.message || 'Failed to load'));
       if (demandAllRes.status === 'fulfilled') setDemands(demandAllRes.value.data || []);
+      else errors.push('Demands: ' + (demandAllRes.reason?.response?.data?.message || demandAllRes.reason?.message || 'Failed to load'));
       if (demandStatsRes.status === 'fulfilled') setDemandStats(demandStatsRes.value.data || {});
+      else errors.push('Demand Stats: ' + (demandStatsRes.reason?.response?.data?.message || demandStatsRes.reason?.message || 'Failed to load'));
       if (stockReqRes.status === 'fulfilled') setStockRequests(stockReqRes.value.data || []);
+      else errors.push('Stock Requests: ' + (stockReqRes.reason?.response?.data?.message || stockReqRes.reason?.message || 'Failed to load'));
+      if (errors.length > 0) setFetchErrors(errors);
     } catch (e) {
       console.error('Warehouse analytics fetch failed:', e);
+      setFetchErrors(['Unexpected error: ' + e.message]);
     } finally {
       setLoading(false);
     }
@@ -251,128 +262,27 @@ const WarehouseAnalyticsCard = ({ activeTab }) => {
     return <div className="flex items-center justify-center py-20"><Loader2 className="animate-spin text-amber-400" size={32} /></div>;
   }
 
-  const inventoryOverviewStats = [
-    { label: 'Total Inventory', value: inv.total, icon: Package, color: COLORS.blue, filterKey: 'all_inventory' },
-    { label: 'Available Stock', value: inv.available.reduce((s, i) => s + (i.stock || 0), 0), icon: CheckCircle2, color: COLORS.emerald, filterKey: 'available' },
-    { label: 'Low Stock Items', value: inv.low.length, icon: AlertTriangle, color: COLORS.amber, filterKey: 'low_stock' },
-    { label: 'Out of Stock', value: inv.outOfStock.length, icon: XCircle, color: COLORS.red, filterKey: 'out_of_stock' },
-    { label: 'Categories', value: inv.categories.length, icon: Boxes, color: COLORS.purple, filterKey: null },
-    { label: 'Products', value: new Set(inventory.map(i => i.name || i.productName)).size, icon: Warehouse, color: COLORS.indigo, filterKey: null },
-  ];
-
-  const demandOverviewStats = [
-    { label: 'Total Requests', value: demandStats.total || demands.length, icon: ShoppingCart, color: COLORS.blue, filterKey: 'demands_all' },
-    { label: 'Pending', value: demandStats.pending || 0, icon: Clock, color: COLORS.amber, filterKey: 'demands_pending' },
-    { label: 'Approved', value: demandStats.approved || 0, icon: CheckCircle2, color: COLORS.emerald, filterKey: 'demands_approved' },
-    { label: 'Rejected', value: demandStats.rejected || 0, icon: XCircle, color: COLORS.red, filterKey: 'demands_rejected' },
-    { label: 'Partially', value: demandStats.partiallyApproved || 0, icon: AlertTriangle, color: COLORS.cyan, filterKey: 'demands_partial' },
-    { label: 'Stock Requests', value: stockRequests.length, icon: FileText, color: COLORS.pink, filterKey: 'stock_requests' },
-  ];
-
-  const allocOverviewStats = [
-    { label: 'Total Allocations', value: allocStats.totalAllocated || 0, icon: Gift, color: COLORS.amber, filterKey: 'alloc_all' },
-    { label: 'Active', value: allocStats.activeTotal || 0, icon: Activity, color: COLORS.indigo, filterKey: 'alloc_active' },
-    { label: 'Today', value: allocStats.todayTotal || 0, icon: Clock, color: COLORS.emerald, filterKey: null },
-    { label: 'People', value: allocStats.perPerson?.length || 0, icon: User, color: COLORS.blue, filterKey: null },
-  ];
-
-  const posOverviewStats = [
-    { label: 'Total Sales', value: fmt(pos.totalSales), icon: DollarSign, color: COLORS.emerald, filterKey: 'pos_all' },
-    { label: 'Today', value: fmt(pos.todaySales), icon: TrendingUp, color: COLORS.blue, filterKey: null },
-    { label: 'This Week', value: fmt(pos.weeklySales), icon: BarChart3, color: COLORS.purple, filterKey: null },
-    { label: 'This Month', value: fmt(pos.monthlySales), icon: Calendar, color: COLORS.indigo, filterKey: null },
-    { label: 'Invoices', value: pos.totalInvoices, icon: FileText, color: COLORS.amber, filterKey: 'pos_invoices' },
-    { label: 'Daily Avg', value: fmt(pos.dailyAvg), icon: TrendingUp, color: COLORS.teal, filterKey: null },
-  ];
-
-  const getFilteredItems = () => {
-    if (!selectedFilter) return { items: [], title: '', columns: [] };
-    if (selectedFilter === 'all_inventory') return { items: inventory, title: 'All Inventory Items', columns: [
-      { label: 'Product', render: r => r.name || r.productName },
-      { label: 'Category', render: r => r.category || '—' },
-      { label: 'Stock', render: r => r.stock, align: 'right', color: r => (r.stock || 0) <= 0 ? 'text-red-400' : (r.stock || 0) <= 5 ? 'text-amber-400' : 'text-emerald-400' },
-    ]};
-    if (selectedFilter === 'available') return { items: inv.available, title: 'Available Stock (>5 units)', columns: [
-      { label: 'Product', render: r => r.name || r.productName },
-      { label: 'Category', render: r => r.category || '—' },
-      { label: 'Stock', render: r => r.stock, align: 'right', color: 'text-emerald-400' },
-    ]};
-    if (selectedFilter === 'low_stock') return { items: inv.low, title: 'Low Stock Items (1-5 units)', columns: [
-      { label: 'Product', render: r => r.name || r.productName },
-      { label: 'Category', render: r => r.category || '—' },
-      { label: 'Stock', render: r => r.stock, align: 'right', color: 'text-amber-400' },
-    ]};
-    if (selectedFilter === 'out_of_stock') return { items: inv.outOfStock, title: 'Out of Stock Items', columns: [
-      { label: 'Product', render: r => r.name || r.productName },
-      { label: 'Category', render: r => r.category || '—' },
-      { label: 'Stock', render: () => 0, align: 'right', color: 'text-red-400' },
-    ]};
-    if (selectedFilter.startsWith('demands_')) {
-      const statusMap = { demands_all: null, demands_pending: 'PENDING', demands_approved: 'APPROVED', demands_rejected: 'REJECTED', demands_partial: 'PARTIALLY_APPROVED' };
-      const status = statusMap[selectedFilter];
-      const filtered = status ? demands.filter(d => d.status === status) : demands;
-      return { items: filtered, title: `${selectedFilter.replace('demands_', '')} demands`, columns: [
-        { label: 'Outlet', render: r => r.outletName || '—' },
-        { label: 'Items', render: r => (r.items || []).length },
-        { label: 'Status', render: r => <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${r.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-400' : r.status === 'REJECTED' ? 'bg-red-500/20 text-red-400' : r.status === 'PARTIALLY_APPROVED' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-amber-500/20 text-amber-400'}`}>{r.status || 'PENDING'}</span> },
-        { label: 'Date', render: r => r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '—' },
-      ]};
-    }
-    if (selectedFilter === 'stock_requests') return { items: filteredStockReqs, title: 'Stock Requests', columns: [
-      { label: 'Outlet', render: r => r.outletName || '—' },
-      { label: 'Item', render: r => r.itemName || (r.items || []).map(i => i.itemName).join(', ') || '—' },
-      { label: 'Qty', render: r => r.quantity || (r.items || []).reduce((s, i) => s + (i.quantity || 0), 0), align: 'right' },
-      { label: 'Status', render: r => <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${r.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-400' : r.status === 'REJECTED' ? 'bg-red-500/20 text-red-400' : r.status === 'COMPLETED' ? 'bg-blue-500/20 text-blue-400' : 'bg-amber-500/20 text-amber-400'}`}>{r.status || 'PENDING'}</span> },
-    ]};
-    if (selectedFilter === 'alloc_all') return { items: allocRecords, title: 'All Allocations', columns: [
-      { label: 'Person', render: r => r.personName || '—' },
-      { label: 'Items', render: r => r.totalQuantity || r.items?.length || 0, align: 'right' },
-      { label: 'Date', render: r => r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '—' },
-    ]};
-    if (selectedFilter === 'alloc_active') return { items: allocRecords.filter(r => r.status === 'PENDING' || r.status === 'APPROVED'), title: 'Active Allocations', columns: [
-      { label: 'Person', render: r => r.personName || '—' },
-      { label: 'Status', render: r => <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${r.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>{r.status || 'PENDING'}</span> },
-      { label: 'Date', render: r => r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '—' },
-    ]};
-    if (selectedFilter === 'pos_all' || selectedFilter === 'pos_invoices') return { items: sales.slice(0, 100), title: 'Warehouse POS Invoices', columns: [
-      { label: 'Customer', render: r => r.customerName || 'Walk-in' },
-      { label: 'Amount', render: r => fmt((r.cashAmount || 0) + (r.onlineAmount || 0) || r.grandTotal || 0), align: 'right', color: 'text-emerald-400' },
-      { label: 'Method', render: r => r.paymentMethod || 'CASH' },
-      { label: 'Date', render: r => r.createdAt ? new Date(r.createdAt).toLocaleString() : '—' },
-    ]};
-    return { items: [], title: '', columns: [] };
-  };
-
-  const { items: filteredItems, title: filteredTitle, columns: filteredColumns } = getFilteredItems();
-
-  const monthlySalesData = useMemo(() => {
-    if (!sales.length) return [];
-    const grouped = {};
-    sales.forEach(s => {
-      const d = s.createdAt?.split('T')[0] || '';
-      const month = d.substring(0, 7);
-      if (!grouped[month]) grouped[month] = { month, count: 0, revenue: 0 };
-      grouped[month].count++;
-      grouped[month].revenue += (s.cashAmount || 0) + (s.onlineAmount || 0) || s.grandTotal || 0;
-    });
-    return Object.values(grouped).sort((a, b) => a.month.localeCompare(b.month)).slice(-12);
-  }, [sales]);
-
-  const categoryStockData = useMemo(() => {
-    return inv.categories.map(c => ({ name: c.name, stock: c.stock, count: c.count })).sort((a, b) => b.stock - a.stock);
-  }, [inv]);
-
-  const demandByStatus = useMemo(() => {
-    return [
-      { label: 'Pending', value: demandStats.pending || demands.filter(d => d.status === 'PENDING').length },
-      { label: 'Approved', value: demandStats.approved || demands.filter(d => d.status === 'APPROVED').length },
-      { label: 'Partial', value: demandStats.partiallyApproved || demands.filter(d => d.status === 'PARTIALLY_APPROVED').length },
-      { label: 'Rejected', value: demandStats.rejected || demands.filter(d => d.status === 'REJECTED').length },
-    ];
-  }, [demands, demandStats]);
-
   return (
     <div className="space-y-6">
+      {/* Fetch Error Banner */}
+      {fetchErrors.length > 0 && (
+        <div className="bg-red-900/20 border border-red-500/30 rounded-2xl p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={16} className="text-red-400" />
+              <h4 className="text-xs font-black text-red-400 uppercase tracking-wider">Data Loading Errors ({fetchErrors.length})</h4>
+            </div>
+            <button onClick={() => { fetchAll(); }} className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
+              <RefreshCw size={10} /> Retry All
+            </button>
+          </div>
+          <div className="space-y-1">
+            {fetchErrors.map((err, i) => (
+              <p key={i} className="text-[10px] font-bold text-red-300">{err}</p>
+            ))}
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">

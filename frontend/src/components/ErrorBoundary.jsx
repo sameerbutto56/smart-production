@@ -1,10 +1,11 @@
 import React from 'react';
-import { AlertCircle, Bug } from 'lucide-react';
+import { AlertCircle, Bug, Loader2 } from 'lucide-react';
 
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, showUI: false };
+    this._showTimer = null;
   }
 
   static getDerivedStateFromError(error) {
@@ -20,11 +21,30 @@ export default class ErrorBoundary extends React.Component {
       error?.name === 'ChunkLoadError'
     ) {
       window.location.reload();
+      return;
     }
+    // Delay showing error UI by 1.5s to allow transient errors to self-resolve
+    this._showTimer = setTimeout(() => {
+      this.setState({ showUI: true });
+    }, 1500);
+  }
+
+  componentWillUnmount() {
+    if (this._showTimer) clearTimeout(this._showTimer);
   }
 
   render() {
     if (this.state.hasError) {
+      if (!this.state.showUI) {
+        return (
+          <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="animate-spin text-emerald-400" size={32} />
+              <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Loading...</p>
+            </div>
+          </div>
+        );
+      }
       const err = this.state.error;
       return (
         <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">

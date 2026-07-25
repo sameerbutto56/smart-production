@@ -11,7 +11,10 @@ const {
   getCODSummary,
   clearCOD,
   getPerformance,
-  getDispatchTracking
+  getDispatchTracking,
+  getDeliveryEmployeeStats,
+  payDeliveryEmployee,
+  getDeliveryPaymentHistory
 } = require('../controllers/delivery.controller');
 
 router.get('/orders', auth, getDeliveryOrders);
@@ -25,5 +28,8 @@ router.get('/cod', auth, getCODSummary);
 router.post('/cod/clear', auth, clearCOD);
 router.get('/performance', auth, getPerformance);
 router.get('/dispatch-tracking', auth, getDispatchTracking);
+router.get('/employee-stats', auth, getDeliveryEmployeeStats);
+router.post('/pay-employee', auth, payDeliveryEmployee);
+router.get('/payment-history', auth, getDeliveryPaymentHistory);
 
 module.exports = router;

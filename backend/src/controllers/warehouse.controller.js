@@ -282,11 +282,11 @@ const createSale = async (req, res) => {
       const other = parseFloat(otherCharges || 0);
       const dpct = parseFloat(discountPct || 0);
       const dfixed = parseFloat(itemDiscountFixed || 0);
-      const itemDiscount = (lineBase * dpct / 100) + dfixed;
-      const itemNet = Math.max(0, lineBase - itemDiscount) + altCharges + custCharges + other;
+      const itemDiscount = (lineBase * dpct / 100) + dfixed * qty;
+      const itemNet = Math.max(0, lineBase - itemDiscount) + altCharges * qty + custCharges * qty + other;
 
       subtotal += lineBase;
-      totalAlt += altCharges;
+      totalAlt += altCharges * qty;
       totalItemDiscount += itemDiscount;
       netAfterItems += itemNet;
 

@@ -483,6 +483,178 @@ const getDispatchTracking = async (req, res) => {
   }
 };
 
+// GET /api/delivery/employee-stats — per-employee payment breakdown
+const getDeliveryEmployeeStats = async (req, res) => {
+  try {
+    const DELIVERY_RATE = 200;
+
+    // Get all unique delivery riders from DeliveryCharge
+    const allCharges = await prisma.deliveryCharge.findMany({
+      select: { riderName: true, orderId: true, amount: true, isPaid: true, deliveredAt: true }
+    });
+
+    const riderNames = [...new Set(allCharges.map(c => c.riderName).filter(Boolean))];
+    if (riderNames.length === 0) return res.json({ employees: [], paymentAnalytics: {} });
+
+    // Get all delivery orders
+    const allOrders = await prisma.order.findMany({
+      where: {
+        OR: [
+          { currentStage: { in: ['OUT_FOR_DELIVERY', 'DELIVERED'] } },
+          { status: { in: ['COMPLETED', 'OUT_FOR_DELIVERY', 'RETURNED'] } }
+        ]
+      },
+      select: { id: true, currentStage: true, status: true, riderName: true, deliveryType: true, deliveryMethod: true }
+    });
+
+    // Get all payment records
+    const allPayments = await prisma.deliveryChargePayment.findMany({
+      orderBy: { paidAt: 'desc' }
+    });
+
+    const employees = riderNames.map(name => {
+      const myCharges = allCharges.filter(c => c.riderName === name);
+      const delivered = myCharges.length;
+      const pendingCharges = myCharges.filter(c => !c.isPaid);
+      const paidCharges = myCharges.filter(c => c.isPaid);
+      const totalEarnings = delivered * DELIVERY_RATE;
+      const totalPaid = paidCharges.reduce((s, c) => s + c.amount, 0);
+      const remainingPayable = pendingCharges.reduce((s, c) => s + c.amount, 0);
+
+      // Order status counts
+      const myOrders = allOrders.filter(o => o.riderName === name);
+      const activeCount = myOrders.filter(o => o.currentStage === 'OUT_FOR_DELIVERY' && o.riderAcceptedAt).length;
+      const pendingCount = myOrders.filter(o => o.currentStage === 'OUT_FOR_DELIVERY' && !o.riderAcceptedAt).length;
+      const returnedCount = myOrders.filter(o => o.status === 'RETURNED').length;
+
+      // Payment history for this employee
+      const myPayments = allPayments.filter(p => p.riderName === name);
+
+      return {
+        name,
+        totalAssigned: delivered + activeCount + pendingCount + returnedCount,
+        totalDelivered: delivered,
+        pendingDeliveries: pendingCount,
+        activeDeliveries: activeCount,
+        returnedOrders: returnedCount,
+        totalEarnings,
+        totalPaid,
+        remainingPayable,
+        ratePerDelivery: DELIVERY_RATE,
+        paymentHistory: myPayments.map(p => ({
+          id: p.id,
+          totalAmount: p.totalAmount,
+          paidByName: p.paidByName,
+          remarks: p.remarks,
+          paidAt: p.paidAt,
+          chargeCount: Array.isArray(p.chargeIds) ? p.chargeIds.length : 0
+        }))
+      };
+    });
+
+    // Payment analytics summary
+    const totalEarningsAll = employees.reduce((s, e) => s + e.totalEarnings, 0);
+    const totalPaidAll = employees.reduce((s, e) => s + e.totalPaid, 0);
+    const totalOutstanding = employees.reduce((s, e) => s + e.remainingPayable, 0);
+    const paymentAnalytics = {
+      totalEarnings: totalEarningsAll,
+      totalPaid: totalPaidAll,
+      totalOutstanding,
+      totalPayments: allPayments.length,
+      lastPaymentDate: allPayments.length > 0 ? allPayments[0].paidAt : null
+    };
+
+    res.json({ employees, paymentAnalytics });
+  } catch (error) {
+    console.error('getDeliveryEmployeeStats error:', error);
+    res.status(500).json({ message: 'Failed to fetch employee stats' });
+  }
+};
+
+// POST /api/delivery/pay-employee — pay a specific delivery employee
+const payDeliveryEmployee = async (req, res) => {
+  try {
+    const { riderName, amount, paidByName, remarks } = req.body;
+    if (!riderName) return res.status(400).json({ message: 'riderName is required' });
+
+    const pendingCharges = await prisma.deliveryCharge.findMany({
+      where: { riderName, isPaid: false },
+      orderBy: { deliveredAt: 'asc' }
+    });
+
+    if (pendingCharges.length === 0) return res.status(400).json({ message: 'No pending charges for this employee' });
+
+    const totalPending = pendingCharges.reduce((s, c) => s + c.amount, 0);
+    const payAmount = Math.min(amount || totalPending, totalPending);
+    const now = new Date();
+
+    // Sort by deliveredAt, mark oldest charges as paid until amount is exhausted
+    let remaining = payAmount;
+    const toMarkPaid = [];
+    for (const charge of pendingCharges) {
+      if (remaining <= 0) break;
+      toMarkPaid.push(charge.id);
+      remaining -= charge.amount;
+    }
+
+    // Create payment record
+    await prisma.deliveryChargePayment.create({
+      data: {
+        totalAmount: payAmount,
+        chargeIds: toMarkPaid,
+        riderName,
+        paidByName: paidByName || 'Admin',
+        remarks: remarks || null,
+        paidAt: now
+      }
+    });
+
+    // Mark charges as paid
+    await prisma.deliveryCharge.updateMany({
+      where: { id: { in: toMarkPaid } },
+      data: { isPaid: true, paidAt: now }
+    });
+
+    res.json({
+      message: `Paid ₨${payAmount.toLocaleString()} to ${riderName}`,
+      paidAmount: payAmount,
+      chargesCleared: toMarkPaid.length,
+      remainingPending: totalPending - payAmount
+    });
+  } catch (error) {
+    console.error('payDeliveryEmployee error:', error);
+    res.status(500).json({ message: 'Payment failed' });
+  }
+};
+
+// GET /api/delivery/payment-history — complete payment history
+const getDeliveryPaymentHistory = async (req, res) => {
+  try {
+    const { riderName, page = 1, limit = 50 } = req.query;
+    const where = riderName ? { riderName } : {};
+
+    const [payments, total] = await Promise.all([
+      prisma.deliveryChargePayment.findMany({
+        where,
+        orderBy: { paidAt: 'desc' },
+        skip: (parseInt(page) - 1) * parseInt(limit),
+        take: parseInt(limit)
+      }),
+      prisma.deliveryChargePayment.count({ where })
+    ]);
+
+    res.json({
+      payments,
+      total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / parseInt(limit))
+    });
+  } catch (error) {
+    console.error('getDeliveryPaymentHistory error:', error);
+    res.status(500).json({ message: 'Failed to fetch payment history' });
+  }
+};
+
 module.exports = {
   getDeliveryOrders,
   acceptDelivery,
@@ -494,5 +666,8 @@ module.exports = {
   getCODSummary,
   clearCOD,
   getPerformance,
-  getDispatchTracking
+  getDispatchTracking,
+  getDeliveryEmployeeStats,
+  payDeliveryEmployee,
+  getDeliveryPaymentHistory
 };

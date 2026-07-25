@@ -798,8 +798,14 @@ model DeliveryChargePayment {
   id            String   @id @default(uuid())
   totalAmount   Float
   chargeIds     Json     // Array of DeliveryCharge IDs
+  riderName     String?  // Which employee was paid
+  paidByName    String?  // Admin who made the payment
+  remarks       String?  // Optional notes
   paidAt        DateTime @default(now())
   createdAt     DateTime @default(now())
+
+  @@index([riderName])
+  @@index([paidAt])
 }
 
 // COD collection clearance by dispatch officer
