@@ -42,7 +42,8 @@ import {
   CheckCircle,
   Store,
   Globe,
-  Building
+  Building,
+  MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -55,6 +56,7 @@ import WarehouseAnalyticsCard from '../components/WarehouseAnalyticsCard';
 import OnlineStoreCard from '../components/OnlineStoreCard';
 import AlterationTrackingCard from '../components/AlterationTrackingCard';
 import OutletDetailedCard from '../components/OutletDetailedCard';
+import AdminFeedbackDashboard from '../components/AdminFeedbackDashboard';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 
 import { useAuth } from '../context/AuthContext';
@@ -76,6 +78,7 @@ const TOP_TABS = [
   { id: 'edit_requests', label: 'Order Change Requests', icon: FileEdit },
   { id: 'recent_orders', label: 'Recent Orders', icon: History },
   { id: 'settings', label: 'System Settings', icon: ShieldAlert },
+  { id: 'customer_feedback', label: 'Customer Feedback', icon: MessageSquare },
 ];
 
 const PIPELINE_STAGES = [
@@ -604,6 +607,7 @@ const AdminDashboard = () => {
                   {activeTab === 'edit_requests' && 'Order Change Requests'}
                   {activeTab === 'recent_orders' && 'Latest 20 Orders'}
                   {activeTab === 'settings' && 'System Configuration'}
+                  {activeTab === 'customer_feedback' && 'QR Feedback Management & Analytics'}
                 </p>
               </div>
             </div>
@@ -1306,6 +1310,9 @@ const AdminDashboard = () => {
 
       {/* Admin Settings */}
       {activeTab === 'settings' && <AdminSettings />}
+
+      {/* Customer Feedback */}
+      {activeTab === 'customer_feedback' && <AdminFeedbackDashboard />}
 
       {/* Outlet Detailed Dashboards */}
       {activeTab === 'outlet_johar' && <OutletDetailedCard outlet="Johar Town" />}

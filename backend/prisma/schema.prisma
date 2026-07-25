@@ -1027,3 +1027,27 @@ model AlterationStage {
   @@index([alterationId])
   @@index([stageName, status])
 }
+
+model CustomerFeedback {
+  id            String   @id @default(uuid())
+  fullName      String
+  mobileNumber  String
+  emailAddress  String?
+  outlet        String
+  q1            Int
+  q2            Int
+  q3            Int
+  q4            Int
+  q5            Int
+  q6            Int
+  q7            Int
+  q8            Int
+  q9            Int
+  q10           Int
+  averageRating Float
+  comments      String?
+  createdAt     DateTime @default(now())
+
+  @@index([outlet])
+  @@index([createdAt])
+}

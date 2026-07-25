@@ -110,6 +110,7 @@ const warehouseRoutes = require('./routes/warehouse.routes');
 const storeDashboardRoutes = require('./routes/storeDashboard.routes');
 const onlineDashboardRoutes = require('./routes/onlineDashboard.routes');
 const alterationRoutes = require('./routes/alteration.routes');
+const feedbackRoutes = require('./routes/feedback.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
@@ -138,6 +139,7 @@ app.use('/api/warehouse', warehouseRoutes);
 app.use('/api/store-dashboard', storeDashboardRoutes);
 app.use('/api/online-dashboard', onlineDashboardRoutes);
 app.use('/api/alterations', alterationRoutes);
+app.use('/api/feedback', feedbackRoutes);
 app.use('/api/outlet-detailed', require('./routes/outletDetailed.routes'));
 
 // Global error handler (must be last)

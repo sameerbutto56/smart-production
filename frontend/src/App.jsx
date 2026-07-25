@@ -42,6 +42,7 @@ const WarehousePOS = lazy(() => import('./pages/WarehousePOS'));
 const StoreDashboardPage = lazy(() => import('./pages/StoreDashboardPage'));
 const AlterationRequest = lazy(() => import('./pages/AlterationRequest'));
 const AlterationProduction = lazy(() => import('./pages/AlterationProduction'));
+const CustomerFeedbackForm = lazy(() => import('./pages/CustomerFeedbackForm'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -81,6 +82,12 @@ function App() {
                 <Route path="/login" element={
                   <Suspense fallback={<div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>}>
                     <Login />
+                  </Suspense>
+                } />
+                
+                <Route path="/feedback" element={
+                  <Suspense fallback={<div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>}>
+                    <CustomerFeedbackForm />
                   </Suspense>
                 } />
                 
