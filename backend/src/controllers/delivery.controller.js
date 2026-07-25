@@ -488,15 +488,7 @@ const getDeliveryEmployeeStats = async (req, res) => {
   try {
     const DELIVERY_RATE = 200;
 
-    // Get all unique delivery riders from DeliveryCharge
-    const allCharges = await prisma.deliveryCharge.findMany({
-      select: { riderName: true, orderId: true, amount: true, isPaid: true, deliveredAt: true }
-    });
-
-    const riderNames = [...new Set(allCharges.map(c => c.riderName).filter(Boolean))];
-    if (riderNames.length === 0) return res.json({ employees: [], paymentAnalytics: {} });
-
-    // Get all delivery orders
+    // Get all delivery orders (source of truth for riders + delivered count)
     const allOrders = await prisma.order.findMany({
       where: {
         OR: [
@@ -504,7 +496,12 @@ const getDeliveryEmployeeStats = async (req, res) => {
           { status: { in: ['COMPLETED', 'OUT_FOR_DELIVERY', 'RETURNED'] } }
         ]
       },
-      select: { id: true, currentStage: true, status: true, riderName: true, deliveryType: true, deliveryMethod: true }
+      select: { id: true, currentStage: true, status: true, riderName: true, deliveryType: true, deliveryMethod: true, riderAcceptedAt: true }
+    });
+
+    // Get DeliveryCharge records (for payment tracking)
+    const allCharges = await prisma.deliveryCharge.findMany({
+      select: { riderName: true, orderId: true, amount: true, isPaid: true, deliveredAt: true }
     });
 
     // Get all payment records
@@ -512,14 +509,28 @@ const getDeliveryEmployeeStats = async (req, res) => {
       orderBy: { paidAt: 'desc' }
     });
 
+    // Derive rider names from BOTH orders and charges
+    const orderRiders = [...new Set(allOrders.map(o => o.riderName).filter(Boolean))];
+    const chargeRiders = [...new Set(allCharges.map(c => c.riderName).filter(Boolean))];
+    const riderNames = [...new Set([...orderRiders, ...chargeRiders])];
+    if (riderNames.length === 0) return res.json({ employees: [], paymentAnalytics: {} });
+
     const employees = riderNames.map(name => {
       const myCharges = allCharges.filter(c => c.riderName === name);
-      const delivered = myCharges.length;
+      const deliveredFromCharges = myCharges.length;
+
+      // Count delivered orders for this rider (primary source)
+      const myDeliveredOrders = allOrders.filter(o => o.riderName === name && (o.currentStage === 'DELIVERED' || o.status === 'COMPLETED'));
+      const delivered = Math.max(deliveredFromCharges, myDeliveredOrders.length);
+
+      // Earnings always based on actual delivered orders
+      const totalEarnings = delivered * DELIVERY_RATE;
+
+      // Payment tracking from DeliveryCharge records
       const pendingCharges = myCharges.filter(c => !c.isPaid);
       const paidCharges = myCharges.filter(c => c.isPaid);
-      const totalEarnings = delivered * DELIVERY_RATE;
       const totalPaid = paidCharges.reduce((s, c) => s + c.amount, 0);
-      const remainingPayable = pendingCharges.reduce((s, c) => s + c.amount, 0);
+      const remainingPayable = totalEarnings - totalPaid;
 
       // Order status counts
       const myOrders = allOrders.filter(o => o.riderName === name);
@@ -532,14 +543,14 @@ const getDeliveryEmployeeStats = async (req, res) => {
 
       return {
         name,
-        totalAssigned: delivered + activeCount + pendingCount + returnedCount,
+        totalAssigned: myOrders.length,
         totalDelivered: delivered,
         pendingDeliveries: pendingCount,
         activeDeliveries: activeCount,
         returnedOrders: returnedCount,
         totalEarnings,
         totalPaid,
-        remainingPayable,
+        remainingPayable: Math.max(0, remainingPayable),
         ratePerDelivery: DELIVERY_RATE,
         paymentHistory: myPayments.map(p => ({
           id: p.id,
@@ -550,7 +561,7 @@ const getDeliveryEmployeeStats = async (req, res) => {
           chargeCount: Array.isArray(p.chargeIds) ? p.chargeIds.length : 0
         }))
       };
-    });
+    }).filter(e => e.totalAssigned > 0);
 
     // Payment analytics summary
     const totalEarningsAll = employees.reduce((s, e) => s + e.totalEarnings, 0);
