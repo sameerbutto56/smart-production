@@ -1,6 +1,6 @@
 {
   "framework": null,
-  "installCommand": "npm install && cd backend && npx prisma generate",
+  "installCommand": "npm install && cd backend && npx prisma generate && npx prisma db push",
   "buildCommand": "npm --prefix frontend run build",
   "outputDirectory": "frontend/dist",
   "rewrites": [

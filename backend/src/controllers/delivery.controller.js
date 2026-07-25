@@ -725,13 +725,13 @@ const getActivityTimeline = async (req, res) => {
     const auditWhere = {
       action: { in: ['DELIVERED', 'DELIVERY_ACCEPTED', 'DELIVERY_FAILED', 'DISPATCH_RETURNED'] }
     };
-    if (dateFilter) auditWhere.createdAt = dateFilter;
+    if (dateFilter) auditWhere.timestamp = dateFilter;
 
     const [audits, orders] = await Promise.all([
       prisma.auditLog.findMany({
         where: auditWhere,
         include: { order: { select: { id: true, orderNumber: true, customerName: true, city: true, currentStage: true, riderName: true, totalPrice: true, paymentMethod: true } } },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { timestamp: 'desc' },
         take: parseInt(limit)
       }),
       prisma.order.findMany({
