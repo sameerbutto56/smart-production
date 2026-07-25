@@ -52,6 +52,7 @@ import AdminSettings from './AdminSettings';
 import DispatchAnalyticsCard from '../components/DispatchAnalyticsCard';
 import EnamelsDeliveryCard from '../components/EnamelsDeliveryCard';
 import WarehouseAnalyticsCard from '../components/WarehouseAnalyticsCard';
+import OnlineStoreCard from '../components/OnlineStoreCard';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 
 import { useAuth } from '../context/AuthContext';
@@ -65,6 +66,7 @@ import { isPaidOrder, getRemainingBalance } from '../utils/paymentUtils';
 
 const TOP_TABS = [
   { id: 'all_phases', label: 'Control Center', icon: LayoutDashboard },
+  { id: 'online_store', label: 'Online Store', icon: Globe },
   { id: 'dispatch_analytics', label: 'Dispatch', icon: BarChart3 },
   { id: 'enamels_delivery', label: 'Enamels Delivery', icon: Truck },
   { id: 'warehouse', label: 'Warehouse', icon: Package },
@@ -551,7 +553,7 @@ const AdminDashboard = () => {
               { id: 'outlet_johar', label: 'Johar Town Outlet', desc: 'Outlet operations, sales, invoices & POS management', icon: Store, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/30', glow: 'hover:shadow-purple-500/20', route: '/outlet-dashboard' },
               { id: 'outlet_jail', label: 'Jail Road Outlet', desc: 'Outlet operations, sales, invoices & POS management', icon: Store, color: 'text-pink-400', bg: 'bg-pink-500/10', border: 'border-pink-500/30', glow: 'hover:shadow-pink-500/20', route: '/outlet-dashboard' },
               { id: 'outlet_abbottabad', label: 'Abbottabad Outlet', desc: 'Outlet operations, sales, invoices & POS management', icon: Building, color: 'text-teal-400', bg: 'bg-teal-500/10', border: 'border-teal-500/30', glow: 'hover:shadow-teal-500/20', route: '/outlet-dashboard' },
-              { id: 'online_store', label: 'Online Store', desc: 'Online orders, customer management & order processing', icon: Globe, color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', glow: 'hover:shadow-cyan-500/20', route: '/orders' },
+              { id: 'online_store', label: 'Online Store', desc: 'Online orders, revenue analytics, customer management & order processing', icon: Globe, color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', glow: 'hover:shadow-cyan-500/20' },
             ].map((card, i) => (
               <motion.div key={card.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
                 whileHover={{ scale: 1.015, y: -3 }} whileTap={{ scale: 0.985 }}
@@ -591,6 +593,7 @@ const AdminDashboard = () => {
                 </h1>
                 <p className="theme-text-secondary font-bold uppercase tracking-widest text-xs md:text-sm mt-1">
                   {activeTab === 'all_phases' && 'Production Approval Hub'}
+                  {activeTab === 'online_store' && 'Online Business Analytics'}
                   {activeTab === 'dispatch_analytics' && 'Dispatch Operations & Analytics'}
                   {activeTab === 'enamels_delivery' && 'Delivery Tracking & Earnings'}
                   {activeTab === 'warehouse' && 'Inventory & Allocation Overview'}
@@ -680,6 +683,11 @@ const AdminDashboard = () => {
             exit={{ opacity: 0, y: -10 }}
             className="space-y-6"
           >
+            {/* Online Store Tab */}
+            {activeTab === 'online_store' && (
+              <OnlineStoreCard activeTab={activeTab} />
+            )}
+
             {/* Dispatch Analytics Tab */}
             {activeTab === 'dispatch_analytics' && (
               <DispatchAnalyticsCard activeTab={activeTab} />

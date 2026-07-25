@@ -59,6 +59,7 @@ app.use('/api/pos/sales/dashboard', heavyLimiter);
 app.use('/api/pos/book/:id/summary', heavyLimiter);
 app.use('/api/analytics/', heavyLimiter);
 app.use('/api/store-dashboard', heavyLimiter);
+app.use('/api/online-dashboard', heavyLimiter);
 app.use('/api/inventory', heavyLimiter);
 
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
@@ -107,6 +108,7 @@ const posBookRoutes = require('./routes/pos.book.routes');
 const deliveryRoutes = require('./routes/delivery.routes');
 const warehouseRoutes = require('./routes/warehouse.routes');
 const storeDashboardRoutes = require('./routes/storeDashboard.routes');
+const onlineDashboardRoutes = require('./routes/onlineDashboard.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
@@ -133,6 +135,7 @@ app.use('/api/pos/book', posBookRoutes);
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/warehouse', warehouseRoutes);
 app.use('/api/store-dashboard', storeDashboardRoutes);
+app.use('/api/online-dashboard', onlineDashboardRoutes);
 
 // Global error handler (must be last)
 app.use(errorHandler);
