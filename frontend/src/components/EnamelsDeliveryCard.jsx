@@ -605,9 +605,29 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
 
       {/* 3. Delivery Earnings */}
       <div className="glass rounded-2xl p-5 border-2 theme-border">
-        <h3 className="text-sm font-black theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
-          <User size={16} className="text-emerald-400" /> Delivery Earnings (₨200/order)
-        </h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-black theme-text-primary uppercase tracking-wider flex items-center gap-2">
+            <User size={16} className="text-emerald-400" /> Delivery Earnings (₨200/order)
+          </h3>
+          {charges.totalPending > 0 && (
+            <button onClick={async () => {
+              if (!window.confirm(`Clear ALL ₨${charges.totalPending.toLocaleString()} outstanding earnings for all delivery employees?`)) return;
+              try {
+                await api.post('/api/delivery/charges/clear');
+                toast.success(`Cleared ₨${charges.totalPending.toLocaleString()} — all employees paid`);
+                fetchData();
+              } catch (err) { toast.error(err.response?.data?.message || 'Clear failed'); }
+            }}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all">
+              <Banknote size={14} /> Clear All Payments (₨{(charges.totalPending || 0).toLocaleString()})
+            </button>
+          )}
+          {(!charges.totalPending || charges.totalPending === 0) && (
+            <span className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+              <CheckCircle2 size={14} /> All Paid
+            </span>
+          )}
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
             { label: "Today's Earnings", value: computedStats.earningsToday },
@@ -621,6 +641,15 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
             </div>
           ))}
         </div>
+        {charges.totalPending > 0 && (
+          <div className="mt-3 theme-bg-subtle rounded-xl p-3 border theme-border flex items-center justify-between">
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Total Outstanding Earnings</p>
+              <p className="text-lg font-black text-amber-400">₨{(charges.totalPending || 0).toLocaleString()}</p>
+            </div>
+            <p className="text-[10px] font-bold text-gray-500">{employeeStats.employees?.length || 0} employees • {charges.charges?.length || 0} unpaid orders</p>
+          </div>
+        )}
       </div>
 
       {/* 4. Payment Analytics */}
