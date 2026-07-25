@@ -365,7 +365,7 @@ const getCODSummary = async (req, res) => {
     });
   } catch (error) {
     console.error('getCODSummary error:', error);
-    res.status(500).json({ message: 'Failed to fetch COD summary', error: error.message, stack: error.stack });
+    res.status(500).json({ message: 'Failed to fetch COD summary' });
   }
 };
 

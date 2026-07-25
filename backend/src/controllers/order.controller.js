@@ -2140,7 +2140,7 @@ const checkOrderInventory = async (req, res) => {
     });
   } catch (error) {
     console.error('checkOrderInventory error:', error);
-    res.status(500).json({ message: 'Error checking inventory', error: error.message, stack: error.stack });
+    res.status(500).json({ message: 'Error checking inventory' });
   }
 };
 

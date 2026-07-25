@@ -6,6 +6,7 @@ const path = require('path');
 const multer = require('multer');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
+const { authenticate } = require('./middleware/auth.middleware');
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
 const prisma = require('./prisma');
@@ -78,7 +79,7 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Backend is alive!', time: new Date().toISOString() });
 });
 
-app.post('/api/upload', upload.single('image'), (req, res) => {
+app.post('/api/upload', authenticate, upload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
   const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.originalname}`;
   res.json({ url: fileUrl });

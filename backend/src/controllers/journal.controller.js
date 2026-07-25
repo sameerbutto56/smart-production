@@ -1,6 +1,5 @@
 const bcrypt = require('bcryptjs');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../prisma');
 
 const getOutletName = (req) => {
   if (req.query.outlet) return req.query.outlet;

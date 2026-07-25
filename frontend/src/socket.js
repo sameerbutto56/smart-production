@@ -8,8 +8,6 @@ const API_URL = import.meta.env.VITE_API_URL || (
 
 const WS_URL = import.meta.env.VITE_WS_URL || API_URL;
 
-const token = sessionStorage.getItem('token');
-
 function createStub() {
   return { on: () => createStub(), off: () => createStub(), emit: () => createStub(), connect: () => {}, disconnect: () => {}, id: null, connected: false };
 }
@@ -17,16 +15,32 @@ function createStub() {
 // Socket.io needs a persistent server — skip entirely on Vercel (serverless)
 const isVercel = window.location.hostname.includes('vercel.app');
 
-const socket = token && !isVercel
-  ? io(WS_URL, {
-      auth: { token },
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 2000,
-      reconnectionDelayMax: 8000,
-      timeout: 8000,
-      transports: ['polling', 'websocket'],
-    })
-  : createStub();
+let _socket = null;
 
-export default socket;
+function getSocket() {
+  if (_socket) return _socket;
+  const token = sessionStorage.getItem('token');
+  _socket = token && !isVercel
+    ? io(WS_URL, {
+        auth: { token },
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 2000,
+        reconnectionDelayMax: 8000,
+        timeout: 8000,
+        transports: ['polling', 'websocket'],
+      })
+    : createStub();
+  return _socket;
+}
+
+const socketProxy = new Proxy({}, {
+  get(_, prop) {
+    const s = getSocket();
+    const val = s[prop];
+    if (typeof val === 'function') return val.bind(s);
+    return val;
+  }
+});
+
+export default socketProxy;

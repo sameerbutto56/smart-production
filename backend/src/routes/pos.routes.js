@@ -59,7 +59,7 @@ router.get('/barcode/:barcode', authenticate, lookupBarcode);
 router.get('/order-lookup', authenticate, orderLookup);
 
 // Bulk inventory initialization (admin only)
-router.post('/initialize-inventory', authenticate, authorize('STORE', 'ADMIN', 'SUPER_ADMIN'), initializeInventory);
+router.post('/initialize-inventory', authenticate, authorize('STORE', 'OUTLET', 'ADMIN', 'SUPER_ADMIN'), initializeInventory);
 
 // Balance Payment
 router.get('/balance-invoices', authenticate, getBalanceInvoices);
