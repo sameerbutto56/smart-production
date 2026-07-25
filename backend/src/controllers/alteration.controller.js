@@ -390,7 +390,21 @@ const rejectAlteration = async (req, res) => {
 
 const getOutletAlterationTasks = async (req, res) => {
   try {
+    const userRole = (req.user?.role || '').toUpperCase();
     const outletName = getOutletName(req);
+
+    if (userRole === 'CUSTOMER_QUERY') {
+      const alterations = await prisma.alteration.findMany({
+        where: { sourceModule: 'CUSTOMER_QUERY', currentStage: 'ALTERATION_CQ_RETURN', status: 'COMPLETED' },
+        include: {
+          stages: true,
+          completedBy: { select: { id: true, name: true } }
+        },
+        orderBy: { completedAt: 'desc' }
+      });
+      return res.json(alterations);
+    }
+
     const alterations = await prisma.alteration.findMany({
       where: {
         OR: [

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FileText, Plus, Trash2, Printer, Send, ArrowLeft, Search, CheckCircle } from 'lucide-react';
+import { FileText, Plus, Trash2, Printer, Send, ArrowLeft, Search, CheckCircle, ListChecks, RefreshCcw, Calendar } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
@@ -12,11 +12,14 @@ export default function AlterationRequest() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const userRole = (user?.role || '').toUpperCase();
 
   const prefillAltNumber = searchParams.get('alterationNumber') || '';
   const prefillOrderNumber = searchParams.get('orderNumber') || '';
-  const prefillSource = searchParams.get('source') || 'OUTLET';
+  const prefillSource = searchParams.get('source') || (userRole === 'CUSTOMER_QUERY' ? 'CUSTOMER_QUERY' : 'OUTLET');
 
+  const isCQ = userRole === 'CUSTOMER_QUERY';
+  const [activeTab, setActiveTab] = useState(isCQ ? 'tasks' : 'create');
   const [alterationNumber, setAlterationNumber] = useState(prefillAltNumber);
   const [orderNumber, setOrderNumber] = useState(prefillOrderNumber);
   const [sourceModule, setSourceModule] = useState(prefillSource);
@@ -28,17 +31,41 @@ export default function AlterationRequest() {
   const [submitted, setSubmitted] = useState(!!prefillAltNumber);
   const [submittedData, setSubmittedData] = useState(null);
 
-  const getOutletPrefix = useCallback(() => {
-    const n = (outletName || '').toLowerCase();
-    if (n.includes('johar')) return 'JT-';
-    if (n.includes('jail')) return 'JL-';
-    if (n.includes('abbottabad')) return 'AB-';
-    if (sourceModule === 'CUSTOMER_QUERY') return 'CQ-';
-    return 'OT-';
-  }, [outletName, sourceModule]);
+  const [tasks, setTasks] = useState([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(null);
+
+  const fetchTasks = useCallback(async () => {
+    setTasksLoading(true);
+    try {
+      const res = await api.get('/api/alterations/outlet-tasks');
+      setTasks(res.data);
+    } catch (e) {
+      console.error('Tasks error:', e);
+    } finally {
+      setTasksLoading(false);
+    }
+  }, []);
+
+  const handleDone = async (id) => {
+    setActionLoading(id + 'done');
+    try {
+      await api.patch(`/api/alterations/${id}/done`);
+      toast.success('Alteration completed');
+      fetchTasks();
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed');
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   useEffect(() => {
-    if (!alterationNumber && !prefillAltNumber) {
+    if (activeTab === 'tasks') fetchTasks();
+  }, [activeTab, fetchTasks]);
+
+  useEffect(() => {
+    if (!alterationNumber && !prefillAltNumber && activeTab === 'create') {
       generateNumber();
     }
   }, []);
@@ -107,12 +134,12 @@ export default function AlterationRequest() {
     try {
       const payload = {
         alterationNumber,
-        sourceModule,
-        sourceOutlet: outletName,
+        sourceModule: isCQ ? 'CUSTOMER_QUERY' : sourceModule,
+        sourceOutlet: isCQ ? 'Customer Query' : outletName,
         orderNumber: orderNumber || null,
         customerName,
         customerPhone,
-        outletName,
+        outletName: isCQ ? 'Customer Query' : outletName,
         products: products.map(p => ({
           productName: p.productName,
           color: p.color,
@@ -212,12 +239,81 @@ export default function AlterationRequest() {
         <div className="flex items-center gap-3 mb-6">
           <button onClick={() => navigate(-1)} className="p-2 bg-gray-800 hover:bg-gray-700 rounded-xl"><ArrowLeft size={20} className="text-white" /></button>
           <div>
-            <h1 className="text-2xl font-black text-white">Alteration Request</h1>
-            <p className="text-sm text-gray-400">Create and submit alteration to production</p>
+            <h1 className="text-2xl font-black text-white">Customer Query</h1>
+            <p className="text-sm text-gray-400">Alteration requests & returned tasks</p>
           </div>
         </div>
 
-        {/* Alteration Number */}
+        {/* Tabs */}
+        <div className="flex gap-2 mb-6">
+          <button onClick={() => setActiveTab('create')}
+            className={`px-4 py-2 rounded-xl text-sm font-black transition-all ${activeTab === 'create' ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
+            New Alteration
+          </button>
+          <button onClick={() => setActiveTab('tasks')}
+            className={`px-4 py-2 rounded-xl text-sm font-black transition-all flex items-center gap-2 ${activeTab === 'tasks' ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
+            <ListChecks size={14} /> My Tasks ({tasks.length})
+          </button>
+        </div>
+
+        {activeTab === 'tasks' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-gray-400">{tasks.length} completed alteration{tasks.length !== 1 ? 's' : ''} returned</p>
+              <button onClick={fetchTasks} className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-gray-400 rounded-xl text-xs font-bold hover:bg-gray-700 border border-gray-700/50">
+                <RefreshCcw size={14} /> Refresh
+              </button>
+            </div>
+
+            {tasksLoading ? (
+              <div className="space-y-3">
+                {[1,2,3].map(i => <div key={i} className="bg-gray-800/60 rounded-2xl p-6 animate-pulse h-32" />)}
+              </div>
+            ) : tasks.length === 0 ? (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-gray-900/60 border border-gray-800 rounded-2xl p-12 text-center">
+                <CheckCircle className="mx-auto text-gray-600 mb-3" size={48} />
+                <p className="text-gray-500 font-bold">No completed alterations returned</p>
+                <p className="text-xs text-gray-600 mt-1">Completed alterations will appear here</p>
+              </motion.div>
+            ) : (
+              <div className="space-y-3">
+                {tasks.map(alt => {
+                  let prods = [];
+                  try { prods = typeof alt.products === 'string' ? JSON.parse(alt.products) : (alt.products || []); } catch {}
+                  return (
+                    <motion.div key={alt.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                      className="bg-gray-900/80 border border-purple-500/20 rounded-2xl p-6 space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-lg font-black text-white">{alt.alterationNumber}</p>
+                          {alt.orderNumber && <p className="text-xs text-gray-400">Order: {alt.orderNumber}</p>}
+                          <p className="text-sm text-gray-400">{alt.customerName}</p>
+                        </div>
+                        <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 text-xs font-bold rounded-full">RETURNED</span>
+                      </div>
+                      {prods.map((p, i) => (
+                        <div key={i} className="bg-gray-800 rounded-lg px-3 py-2">
+                          <p className="text-xs font-bold text-white">{p.productName} {p.color ? `(${p.color})` : ''} {p.size ? `(${p.size})` : ''}</p>
+                          <p className="text-[11px] text-purple-300 italic">{p.alterationNote}</p>
+                        </div>
+                      ))}
+                      <div className="flex items-center gap-2 text-xs text-gray-400">
+                        <Calendar size={12} />
+                        {alt.completedAt && new Date(alt.completedAt).toLocaleDateString('en-PK')}
+                      </div>
+                      <button onClick={() => handleDone(alt.id)} disabled={actionLoading === alt.id + 'done'}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">
+                        {actionLoading === alt.id + 'done' ? <RefreshCcw className="animate-spin" size={14} /> : <CheckCircle size={14} />} Done
+                      </button>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'create' && (<>
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 mb-4">
           <div className="flex items-center justify-between mb-3">
             <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Alteration Number</label>
@@ -301,6 +397,7 @@ export default function AlterationRequest() {
             {loading ? 'Submitting...' : <><Send size={16} />Submit & Send to Production</>}
           </button>
         </div>
+        </>)}
       </div>
     </div>
   );
