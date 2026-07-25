@@ -640,26 +640,9 @@ const AdminDashboard = () => {
             </div>
           </div>
 
-          {/* Stats Grid — only for all_phases */}
+          {/* Search + Track — only for all_phases */}
           {activeTab === 'all_phases' && (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {statCards.map((stat, i) => (
-                  <motion.div key={stat.title} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-                    onClick={() => navigate(stat.path, { state: stat.state })}
-                    className="glass p-4 rounded-2xl border-2 theme-border cursor-pointer hover:border-blue-500/30 transition-all">
-                    <div className="flex items-center justify-between mb-2">
-                      <stat.icon className={stat.color} size={20} />
-                      <ArrowUpRight size={14} className="text-gray-600" />
-                    </div>
-                    <p className="text-2xl font-black theme-text-primary">{stat.value}</p>
-                    <p className="text-xs font-bold theme-text-muted mt-1 uppercase tracking-wider">{stat.title}</p>
-                  </motion.div>
-                ))}
-              </div>
-
-              {/* Search + Track */}
-              <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4">
                 <div className="flex-1 relative">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
                   <input type="text" value={contextSearch} onChange={(e) => handleDashboardSearch(e.target.value)}
@@ -680,7 +663,6 @@ const AdminDashboard = () => {
                   Track Order
                 </button>
               </div>
-            </>
           )}
         </>
       )}
