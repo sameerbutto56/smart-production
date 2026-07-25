@@ -4,9 +4,10 @@ import api from '../services/api';
 import toast from 'react-hot-toast';
 import {
   Loader2, Warehouse, Package, AlertTriangle, XCircle, TrendingUp, Activity,
-  User, X, RefreshCw, BarChart3, ShoppingCart, Gift, FileText, Clock,
+  User, Users, X, RefreshCw, BarChart3, ShoppingCart, Gift, FileText, Clock,
   ChevronDown, Search, DollarSign, Eye, ChevronRight, Truck, Boxes,
-  ArrowUpRight, ArrowDownRight, RotateCcw, CheckCircle2, Calendar, CreditCard
+  ArrowUpRight, ArrowDownRight, RotateCcw, CheckCircle, CheckCircle2, Calendar, CreditCard,
+  Layers, Target
 } from 'lucide-react';
 import socket from '../socket';
 
@@ -253,6 +254,40 @@ const WarehouseAnalyticsCard = ({ activeTab }) => {
     { id: 'pos', label: 'POS Sales', icon: DollarSign },
     { id: 'charts', label: 'Charts', icon: TrendingUp },
   ];
+
+  const inventoryOverviewStats = useMemo(() => [
+    { label: 'Total SKUs', value: inventory.length, icon: Package, color: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20' }, filterKey: null },
+    { label: 'Total Stock', value: inv.total, icon: Layers, color: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20' }, filterKey: null },
+    { label: 'In Stock', value: inv.available.length, icon: CheckCircle, color: { bg: 'bg-green-500/10', text: 'text-green-400', border: 'border-green-500/20' }, filterKey: 'available' },
+    { label: 'Low Stock', value: inv.low.length, icon: AlertTriangle, color: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/20' }, filterKey: 'low' },
+    { label: 'Out of Stock', value: inv.outOfStock.length, icon: XCircle, color: { bg: 'bg-red-500/10', text: 'text-red-400', border: 'border-red-500/20' }, filterKey: 'outOfStock' },
+    { label: 'Categories', value: inv.categories.length, icon: Layers, color: { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20' }, filterKey: null },
+  ], [inventory, inv]);
+
+  const demandOverviewStats = useMemo(() => [
+    { label: 'Total Demands', value: demands.length, icon: ShoppingCart, color: { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20' }, filterKey: null },
+    { label: 'Pending', value: demandStats.pending || 0, icon: Clock, color: { bg: 'bg-yellow-500/10', text: 'text-yellow-400', border: 'border-yellow-500/20' }, filterKey: 'PENDING' },
+    { label: 'Approved', value: demandStats.approved || 0, icon: CheckCircle, color: { bg: 'bg-green-500/10', text: 'text-green-400', border: 'border-green-500/20' }, filterKey: 'APPROVED' },
+    { label: 'Partially Approved', value: demandStats.partiallyApproved || 0, icon: AlertTriangle, color: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/20' }, filterKey: 'PARTIALLY_APPROVED' },
+    { label: 'Rejected', value: demandStats.rejected || 0, icon: XCircle, color: { bg: 'bg-red-500/10', text: 'text-red-400', border: 'border-red-500/20' }, filterKey: 'REJECTED' },
+    { label: 'Stock Requests', value: stockRequests.length, icon: Layers, color: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20' }, filterKey: null },
+  ], [demands, demandStats, stockRequests]);
+
+  const allocOverviewStats = useMemo(() => [
+    { label: 'Total Allocated', value: allocStats.totalAllocated || 0, icon: Gift, color: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/20' }, filterKey: null },
+    { label: "Today's", value: allocStats.todayTotal || 0, icon: Clock, color: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20' }, filterKey: null },
+    { label: 'Active', value: allocStats.activeTotal || 0, icon: CheckCircle, color: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20' }, filterKey: null },
+    { label: 'Employees', value: allocStats.perPerson?.length || 0, icon: Users, color: { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20' }, filterKey: null },
+  ], [allocStats]);
+
+  const posOverviewStats = useMemo(() => [
+    { label: 'Total Revenue', value: fmt(pos.totalSales), icon: DollarSign, color: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20' }, filterKey: null },
+    { label: 'Total Invoices', value: pos.totalInvoices, icon: FileText, color: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20' }, filterKey: null },
+    { label: "Today's Sales", value: fmt(pos.todaySales), icon: TrendingUp, color: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/20' }, filterKey: null },
+    { label: 'Weekly Sales', value: fmt(pos.weeklySales), icon: BarChart3, color: { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20' }, filterKey: null },
+    { label: 'Monthly Sales', value: fmt(pos.monthlySales), icon: Calendar, color: { bg: 'bg-indigo-500/10', text: 'text-indigo-400', border: 'border-indigo-500/20' }, filterKey: null },
+    { label: 'Daily Average', value: fmt(pos.dailyAvg), icon: Target, color: { bg: 'bg-rose-500/10', text: 'text-rose-400', border: 'border-rose-500/20' }, filterKey: null },
+  ], [pos]);
 
   const handleFilterClick = (filterKey) => {
     setSelectedFilter(prev => prev === filterKey ? null : filterKey);

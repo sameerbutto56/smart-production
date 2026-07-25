@@ -78,21 +78,32 @@ const OutletDetailedCard = ({ outlet }) => {
     { value: 'all', label: 'All' },
   ];
 
-  const summary = data?.summary || {};
-  const sales = data?.sales || [];
+  const summary = data?.overview || {};
+  const sales = data?.invoices || [];
   const orders = data?.orders || [];
   const customers = data?.customers || [];
-  const inventory = data?.inventory || [];
+  const inventory = data?.revenueAndInventory?.inventory || {};
+  const inventoryProducts = data?.revenueAndInventory?.topProducts || [];
+  const inventoryItems = data?.revenueAndInventory?.items || [];
   const returns = data?.returns || [];
   const faisalTakes = data?.faisalTakes || [];
   const balanceInvoices = data?.balanceInvoices || [];
   const transfers = data?.transfers || [];
-  const requests = data?.requests || [];
+  const requests = data?.stockRequests || [];
   const alterations = data?.alterations || [];
   const journalEntries = data?.journalEntries || [];
-  const stageTracking = data?.stageTracking || {};
-  const paymentSummary = data?.paymentSummary || {};
+  const stageWiseTracking = data?.stageWiseTracking || [];
+  const stageTracking = useMemo(() => {
+    const map = {};
+    stageWiseTracking.forEach(s => { map[s.stage] = s.count || 0; });
+    return map;
+  }, [stageWiseTracking]);
+  const paymentSummary = data?.paymentBreakdown || {};
   const salesAnalytics = data?.salesAnalytics || {};
+  const transferStats = data?.transferStats || {};
+  const requestStats = data?.requestStats || {};
+  const alterationStats = data?.alterationStats || {};
+  const journalStats = data?.journalStats || {};
 
   const filteredSales = useMemo(() => {
     if (!searchTerm) return sales;
@@ -110,7 +121,7 @@ const OutletDetailedCard = ({ outlet }) => {
     return orders.filter(o =>
       (o.orderNumber || '').toLowerCase().includes(q) ||
       (o.invoiceNumber || '').toLowerCase().includes(q) ||
-      (o.client?.name || '').toLowerCase().includes(q)
+      (o.customerName || '').toLowerCase().includes(q)
     );
   }, [orders, searchTerm]);
 
@@ -125,15 +136,15 @@ const OutletDetailedCard = ({ outlet }) => {
   }, [customers, searchTerm]);
 
   const filteredInventory = useMemo(() => {
-    if (!searchTerm) return inventory;
+    if (!searchTerm) return inventoryItems;
     const q = searchTerm.toLowerCase();
-    return inventory.filter(i =>
+    return inventoryItems.filter(i =>
       (i.productName || i.name || '').toLowerCase().includes(q) ||
       (i.category || '').toLowerCase().includes(q) ||
       (i.color || '').toLowerCase().includes(q) ||
       (i.barcode || '').toLowerCase().includes(q)
     );
-  }, [inventory, searchTerm]);
+  }, [inventoryItems, searchTerm]);
 
   const filteredInvoices = useMemo(() => {
     if (!searchTerm) return sales;
@@ -174,15 +185,15 @@ const OutletDetailedCard = ({ outlet }) => {
     { label: 'Total Sales', value: fmt(summary.totalSales), color: 'text-emerald-400', icon: TrendingUp },
     { label: 'Net Revenue', value: fmt(summary.netRevenue), color: 'text-green-400', icon: Wallet },
     { label: 'Total Discount', value: fmt(summary.totalDiscount), color: 'text-red-400', icon: Minus },
-    { label: 'Returned Products', value: summary.returnedProducts ?? returns.length, color: 'text-orange-400', icon: RotateCcw },
+    { label: 'Returned Products', value: summary.returnCount ?? returns.length, color: 'text-orange-400', icon: RotateCcw },
     { label: 'Completed Invoices', value: summary.completedInvoices ?? 0, color: 'text-blue-400', icon: CheckCircle },
     { label: 'Generated Invoices', value: summary.generatedInvoices ?? sales.length, color: 'text-purple-400', icon: FileText },
     { label: 'Pending Orders', value: summary.pendingOrders ?? 0, color: 'text-yellow-400', icon: Clock },
     { label: 'Cancelled Orders', value: summary.cancelledOrders ?? 0, color: 'text-red-400', icon: XCircle },
   ];
 
-  const salesTrend = summary.salesTrend || [];
-  const maxTrend = Math.max(...salesTrend.map(d => d.amount || d.count || 0), 1);
+  const salesTrend = salesAnalytics.salesTrend || [];
+  const maxTrend = Math.max(...salesTrend.map(d => d.sales || d.count || 0), 1);
 
   return (
     <div className="space-y-4">
@@ -258,7 +269,7 @@ const OutletDetailedCard = ({ outlet }) => {
             {salesTrend.length > 0 ? (
               <div className="flex items-end gap-1.5 h-40">
                 {salesTrend.slice(-14).map((d, i) => {
-                  const val = d.amount || d.count || 0;
+                  const val = d.sales || d.count || 0;
                   const h = maxTrend > 0 ? (val / maxTrend) * 100 : 0;
                   return (
                     <div key={i} className="flex-1 flex flex-col items-center gap-1">
@@ -287,16 +298,16 @@ const OutletDetailedCard = ({ outlet }) => {
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
-                { key: 'CASH', label: 'Cash', color: 'emerald' },
-                { key: 'CARD', label: 'Card', color: 'purple' },
-                { key: 'ONLINE', label: 'Online', color: 'blue' },
-                { key: 'CASH_ONLINE', label: 'Cash+Online', color: 'amber' },
+                { key: 'CASH', label: 'Cash', dotClass: 'bg-emerald-500', netClass: 'text-emerald-400' },
+                { key: 'CARD', label: 'Card', dotClass: 'bg-purple-500', netClass: 'text-purple-400' },
+                { key: 'ONLINE', label: 'Online', dotClass: 'bg-blue-500', netClass: 'text-blue-400' },
+                { key: 'CASH_ONLINE', label: 'Cash+Online', dotClass: 'bg-amber-500', netClass: 'text-amber-400' },
               ].map(m => {
                 const ps = paymentSummary[m.key] || {};
                 return (
                   <div key={m.key} className={`glass rounded-2xl p-5 border-2 border-gray-700/50`}>
                     <div className="flex items-center gap-2 mb-3">
-                      <div className={`w-3 h-3 rounded-full bg-${m.color}-500`} />
+                      <div className={`w-3 h-3 rounded-full ${m.dotClass}`} />
                       <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">{m.label}</p>
                     </div>
                     <div className="space-y-2">
@@ -310,7 +321,7 @@ const OutletDetailedCard = ({ outlet }) => {
                       </div>
                       <div className="border-t border-gray-700/50 pt-2 flex justify-between">
                         <span className="text-[10px] font-bold text-gray-500">Net</span>
-                        <span className={`text-${m.color}-400 font-black text-lg`}>{fmt(ps.net)}</span>
+                        <span className={`${m.netClass} font-black text-lg`}>{fmt(ps.net)}</span>
                       </div>
                     </div>
                   </div>
@@ -366,10 +377,10 @@ const OutletDetailedCard = ({ outlet }) => {
             <h3 className="text-sm font-black text-white uppercase tracking-wider mb-4 flex items-center gap-2">
               <TrendingUp size={16} className="text-indigo-400" /> Top Selling Products
             </h3>
-            {(salesAnalytics.topProducts || []).length > 0 ? (
+            {(salesAnalytics.bestSellingProducts || []).length > 0 ? (
               <div className="space-y-2">
-                {salesAnalytics.topProducts.slice(0, 10).map((p, i) => {
-                  const maxRev = salesAnalytics.topProducts[0]?.revenue || 1;
+                {salesAnalytics.bestSellingProducts.slice(0, 10).map((p, i) => {
+                  const maxRev = salesAnalytics.bestSellingProducts[0]?.revenue || 1;
                   return (
                     <div key={i} className="flex items-center gap-3">
                       <span className="text-[10px] font-black text-gray-500 w-5 shrink-0">#{i + 1}</span>
@@ -392,10 +403,10 @@ const OutletDetailedCard = ({ outlet }) => {
             <h3 className="text-sm font-black text-white uppercase tracking-wider mb-4 flex items-center gap-2">
               <TrendingUp size={16} className="text-indigo-400" /> Sales Trend (by Date)
             </h3>
-            {(salesAnalytics.salesByDay || salesTrend).length > 0 ? (
+            {(salesAnalytics.salesTrend || salesTrend).length > 0 ? (
               <div className="flex items-end gap-1 h-36">
-                {(salesAnalytics.salesByDay || salesTrend).slice(-14).map((d, i) => {
-                  const val = d.amount || d.revenue || d.count || 0;
+                {(salesAnalytics.salesTrend || salesTrend).slice(-14).map((d, i) => {
+                  const val = d.sales || d.revenue || d.count || 0;
                   const h = maxTrend > 0 ? (val / maxTrend) * 100 : 0;
                   return (
                     <div key={i} className="flex-1 flex flex-col items-center gap-1">
@@ -423,7 +434,7 @@ const OutletDetailedCard = ({ outlet }) => {
               <Wallet size={16} className="text-amber-400" /> Outstanding Balance
             </h3>
             <div className="glass rounded-xl p-4 border border-amber-500/20 text-center mb-4">
-              <p className="text-amber-400 font-black text-2xl">{fmt(balanceInvoices.reduce((s, inv) => s + (inv._balanceRemaining || inv.balanceRemaining || 0), 0))}</p>
+              <p className="text-amber-400 font-black text-2xl">{fmt(balanceInvoices.reduce((s, inv) => s + (inv.remaining || 0), 0))}</p>
               <p className="text-gray-500 text-[10px] font-bold uppercase mt-1">{balanceInvoices.length} Invoices with Balance</p>
             </div>
             {balanceInvoices.length > 0 ? (
@@ -438,8 +449,8 @@ const OutletDetailedCard = ({ outlet }) => {
                   </tr></thead>
                   <tbody>
                     {balanceInvoices.map((inv, i) => {
-                      const paid = (inv.advanceAmount || 0) + (inv.balancePayments || []).reduce((s, bp) => s + (bp.amountPaidNow || 0), 0);
-                      const remaining = (inv._balanceRemaining != null) ? inv._balanceRemaining : Math.max(0, (inv.grandTotal || 0) - paid);
+                      const paid = inv.totalPaid || ((inv.advanceAmount || 0) + (inv.balancePayments || []).reduce((s, bp) => s + (bp.amountPaidNow || 0), 0));
+                      const remaining = inv.remaining ?? Math.max(0, (inv.grandTotal || 0) - paid);
                       return (
                         <tr key={inv.id || i} className="border-t border-gray-800 hover:bg-white/5">
                           <td className="py-2 pr-2 font-bold text-white">{inv.receiptNumber || inv.invoiceNumber || '—'}</td>
@@ -721,7 +732,7 @@ const OutletDetailedCard = ({ outlet }) => {
                           {orders.filter(o => o.currentStage === stage).slice(0, 20).map((o, i) => (
                             <div key={o.id || i} className="flex items-center justify-between p-2 bg-gray-800/30 rounded-lg border border-gray-700/30">
                               <span className="text-[10px] font-bold text-white">{o.orderNumber || o.invoiceNumber || '—'}</span>
-                              <span className="text-[10px] font-bold text-gray-400">{o.client?.name || o.customerName || '—'}</span>
+                              <span className="text-[10px] font-bold text-gray-400">{o.customerName || '—'}</span>
                               <span className="text-[10px] font-black text-indigo-400">{fmt(o.totalPrice || o.grandTotal)}</span>
                             </div>
                           ))}
@@ -749,11 +760,11 @@ const OutletDetailedCard = ({ outlet }) => {
         <div className="space-y-6">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {[
-              { label: 'In Stock', value: inventory.filter(i => (i.stock || i.quantity || 0) > 5).length, color: 'text-emerald-400' },
-              { label: 'Low Stock', value: inventory.filter(i => { const s = i.stock || i.quantity || 0; return s > 0 && s <= 5; }).length, color: 'text-amber-400' },
-              { label: 'Out of Stock', value: inventory.filter(i => (i.stock || i.quantity || 0) <= 0).length, color: 'text-red-400' },
-              { label: 'Total Items', value: inventory.length, color: 'text-white' },
-              { label: 'Total Value', value: fmt(inventory.reduce((s, i) => s + ((i.price || i.unitPrice || 0) * (i.stock || i.quantity || 0)), 0)), color: 'text-indigo-400' },
+              { label: 'In Stock', value: inventory.inStock || 0, color: 'text-emerald-400' },
+              { label: 'Low Stock', value: inventory.lowStock || 0, color: 'text-amber-400' },
+              { label: 'Out of Stock', value: inventory.outOfStock || 0, color: 'text-red-400' },
+              { label: 'Total Items', value: inventory.total || inventoryItems.length, color: 'text-white' },
+              { label: 'Total Value', value: fmt(inventory.totalValue), color: 'text-indigo-400' },
             ].map(card => (
               <div key={card.label} className="glass rounded-2xl p-5 border-2 border-gray-700/50 text-center">
                 <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">{card.label}</p>
@@ -762,23 +773,22 @@ const OutletDetailedCard = ({ outlet }) => {
             ))}
           </div>
 
-          {(inventory.filter(i => (i.stock || i.quantity || 0) > 0).length > 0) && (
+          {inventoryProducts.length > 0 && (
             <div className="glass rounded-2xl p-5 border-2 border-gray-700/50">
               <h3 className="text-sm font-black text-white uppercase tracking-wider mb-4 flex items-center gap-2">
                 <Package size={16} className="text-indigo-400" /> Top Inventory Products (by Value)
               </h3>
               <div className="space-y-2">
-                {inventory.filter(i => (i.stock || i.quantity || 0) > 0).sort((a, b) => ((b.price || b.unitPrice || 0) * (b.stock || b.quantity || 0)) - ((a.price || a.unitPrice || 0) * (a.stock || a.quantity || 0))).slice(0, 10).map((item, i) => {
-                  const val = (item.price || item.unitPrice || 0) * (item.stock || item.quantity || 0);
-                  const maxVal = Math.max(...inventory.map(it => (it.price || it.unitPrice || 0) * (it.stock || it.quantity || 0)), 1);
+                {inventoryProducts.slice(0, 10).map((item, i) => {
+                  const maxVal = inventoryProducts[0]?.value || 1;
                   return (
-                    <div key={item.id || i} className="flex items-center gap-3">
+                    <div key={item.name || i} className="flex items-center gap-3">
                       <span className="text-[10px] font-black text-gray-500 w-5 shrink-0">#{i + 1}</span>
-                      <span className="text-xs font-bold text-white w-40 shrink-0 truncate">{item.productName || item.name || '—'}</span>
+                      <span className="text-xs font-bold text-white w-40 shrink-0 truncate">{item.name || '—'}</span>
                       <div className="flex-1 h-5 bg-gray-800 rounded-lg overflow-hidden">
-                        <div className="h-full bg-indigo-500 rounded-lg" style={{ width: `${(val / maxVal) * 100}%` }} />
+                        <div className="h-full bg-indigo-500 rounded-lg" style={{ width: `${(item.value / maxVal) * 100}%` }} />
                       </div>
-                      <span className="text-[10px] font-black text-indigo-400 w-20 text-right shrink-0">{fmt(val)}</span>
+                      <span className="text-[10px] font-black text-indigo-400 w-20 text-right shrink-0">{fmt(item.value)}</span>
                     </div>
                   );
                 })}
@@ -811,7 +821,7 @@ const OutletDetailedCard = ({ outlet }) => {
                         <td className="px-2 font-bold text-gray-400">{item.category || '—'}</td>
                         <td className="px-2 font-bold text-gray-300">{item.color || '—'}</td>
                         <td className="px-2 font-bold text-gray-300">{item.size || '—'}</td>
-                        <td className={`px-2 text-right font-black ${(item.stock || item.quantity || 0) <= 0 ? 'text-red-400' : (item.stock || item.quantity || 0) <= 5 ? 'text-amber-400' : 'text-emerald-400'}`}>{item.stock || item.quantity || 0}</td>
+                        <td className={`px-2 text-right font-black ${(item.stock || 0) <= 0 ? 'text-red-400' : (item.stock || 0) <= 5 ? 'text-amber-400' : 'text-emerald-400'}`}>{item.stock || 0}</td>
                         <td className="px-2 text-right font-bold text-gray-300">{fmt(item.price || item.unitPrice)}</td>
                         <td className="pl-2 text-right font-bold text-gray-500">{item.barcode || '—'}</td>
                       </tr>

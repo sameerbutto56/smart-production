@@ -236,7 +236,7 @@ const getOutletDetailed = async (req, res) => {
       invoices: safeRecentSales,
       orders: safeOrders,
       stageWiseTracking,
-      revenueAndInventory: { netRevenue, inventory: invStats, topProducts: topInvProducts },
+      revenueAndInventory: { netRevenue, inventory: invStats, topProducts: topInvProducts, items: safeInventory },
       customers: safeClients,
       transfers: safeTransfers,
       transferStats,
