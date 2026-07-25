@@ -91,6 +91,8 @@ const BRANCHES = [
   { value: 'ONLINE', label: 'Online System' },
 ];
 
+const EMPTY_ARRAY = [];
+
 const AdminDashboard = () => {
   const { user } = useAuth();
   const { t, LanguageToggle, isUrdu } = useLanguage();
@@ -130,14 +132,17 @@ const AdminDashboard = () => {
   const unseenRefreshRef = useRef();
   const prodReturnedRefreshRef = useRef();
   const editRequestsRefreshRef = useRef();
+  const queueRefreshRef = useRef();
 
-  const { data: allOrders = [], loading: ordersLoading, error: ordersError, refresh: refreshDashboard } = useCache('admin:dashboard:orders', { fetcher: () => api.get('/api/orders').then(r => Array.isArray(r.data) ? r.data : []), ttl: 60000 });
+  const { data: allOrdersData, loading: ordersLoading, error: ordersError, refresh: refreshDashboard } = useCache('admin:dashboard:orders', { fetcher: () => api.get('/api/orders').then(r => Array.isArray(r.data) ? r.data : []), ttl: 60000 });
   const { data: analytics, refresh: refreshAnalytics } = useCache('admin:dashboard:analytics', { fetcher: () => api.get('/api/orders/analytics').then(r => r.data), ttl: 60000 });
   const { data: systemPaused = false, refresh: refreshPause } = useCache('admin:pause-status', { fetcher: () => api.get('/api/admin/pause-status').then(r => r.data.paused), ttl: 300000 });
   const { data: storeUnseenData, refresh: refreshUnseen } = useCache('admin:store-unseen', { fetcher: () => api.get('/api/orders/unseen-tasks').then(r => r.data), ttl: 30000 });
   const { data: storeProductionData, refresh: refreshProdReturned } = useCache('admin:store-production', { fetcher: () => api.get('/api/orders/production-returned').then(r => r.data), ttl: 30000 });
   const { data: editRequestsData, loading: editRequestsLoading, refresh: refreshEditRequests } = useCache('admin:edit-requests', { fetcher: () => api.get('/api/edit-requests', { params: { status: 'PENDING' } }).then(r => Array.isArray(r.data) ? r.data : []), ttl: 30000 });
-  const editRequests = Array.isArray(editRequestsData) ? editRequestsData : [];
+
+  const allOrders = allOrdersData || EMPTY_ARRAY;
+  const editRequests = useMemo(() => Array.isArray(editRequestsData) ? editRequestsData : EMPTY_ARRAY, [editRequestsData]);
   const stats = useMemo(() => ({
     totalOrders: allOrders.length,
     urgentOrders: allOrders.filter(o => o?.urgent).length,
@@ -148,14 +153,15 @@ const AdminDashboard = () => {
   const loading = ordersLoading;
   const fetchingError = !!ordersError;
 
-  dashboardRefreshRef.current = refreshDashboard;
-  analyticsRefreshRef.current = refreshAnalytics;
-  pauseRefreshRef.current = refreshPause;
-  unseenRefreshRef.current = refreshUnseen;
-  prodReturnedRefreshRef.current = refreshProdReturned;
-  editRequestsRefreshRef.current = refreshEditRequests;
-
-  const queueRefreshRef = useRef();
+  useEffect(() => {
+    dashboardRefreshRef.current = refreshDashboard;
+    analyticsRefreshRef.current = refreshAnalytics;
+    pauseRefreshRef.current = refreshPause;
+    unseenRefreshRef.current = refreshUnseen;
+    prodReturnedRefreshRef.current = refreshProdReturned;
+    editRequestsRefreshRef.current = refreshEditRequests;
+    queueRefreshRef.current = queueRefresh;
+  }, [refreshDashboard, refreshAnalytics, refreshPause, refreshUnseen, refreshProdReturned, refreshEditRequests, queueRefresh]);
 
   useEffect(() => {
     const onOrderUpdated = () => queueRefreshRef.current?.();
@@ -332,7 +338,7 @@ const AdminDashboard = () => {
   useEffect(() => {
     if (trackedOrder && allOrders.length > 0) {
       const updated = allOrders.find(o => o.id === trackedOrder.id);
-      if (updated) setTrackedOrder(updated);
+      if (updated && updated !== trackedOrder) setTrackedOrder(updated);
     }
   }, [allOrders, trackedOrder?.id]);
 
@@ -470,7 +476,7 @@ const AdminDashboard = () => {
   , [allOrders, contextSearch]);
 
   const refreshTimerRef = useRef(null);
-  const queueRefresh = () => {
+  const queueRefresh = useCallback(() => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     refreshTimerRef.current = setTimeout(() => {
       refreshTimerRef.current = null;
@@ -479,8 +485,7 @@ const AdminDashboard = () => {
       unseenRefreshRef.current?.();
       prodReturnedRefreshRef.current?.();
     }, 100);
-  };
-  queueRefreshRef.current = queueRefresh;
+  }, []);
 
   const activeOrdersCount = useMemo(() => 
     allOrders.filter(o => o.status !== 'COMPLETED').length
