@@ -36,6 +36,7 @@ import {
   Eye,
   EyeOff,
   Scissors,
+  MessageSquare,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import socket from '../socket';
@@ -106,6 +107,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Order Track', path: '/order-track', icon: Search, roles: ['INVENTORY_VIEW', 'FAISAL', 'OUTLET'] },
     { name: 'Deliveries', path: '/delivery', icon: Truck, roles: ['DELIVERY_BOY'] },
     { name: 'Deleted Orders', path: '/deleted-orders', icon: Trash2, roles: ['SUPER_ADMIN', 'ADMIN'] },
+    { name: 'Customer Feedback', path: '/dashboard', icon: MessageSquare, roles: ['SUPER_ADMIN', 'ADMIN'], state: { adminTab: 'customer_feedback' } },
     { name: 'Production', path: '/production', icon: Factory, roles: ['PRODUCTION'] },
     { name: 'Alteration In', path: '/alteration-production', icon: Scissors, roles: ['PRODUCTION_IN'] },
     { name: 'Alteration Out', path: '/alteration-production', icon: Scissors, roles: ['PRODUCTION_OUT'] },
@@ -183,11 +185,13 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
         <nav className="flex-1 px-3 space-y-1 overflow-y-auto custom-scrollbar">
           {filteredNavItems.map((item) => (
             <Link
-              key={item.path}
-              to={item.path}
+              key={item.path + (item.state?.adminTab || '')}
+              to={item.state ? { pathname: item.path, state: item.state } : item.path}
               onClick={() => { if (window.innerWidth < 1024) toggle(); }}
               className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} p-3 rounded-xl transition-all duration-200 group ${
-                (item.path.includes('?') ? (location.pathname + location.search) === item.path : location.pathname === item.path && !location.search)
+                (item.state?.adminTab
+                  ? location.pathname === item.path && location.state?.adminTab === item.state.adminTab
+                  : location.pathname === item.path && !location.state?.adminTab && !location.search)
                   ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' 
                   : 'text-gray-400 hover:bg-gray-800 hover:text-white'
               }`}

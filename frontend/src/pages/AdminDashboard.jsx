@@ -46,7 +46,7 @@ import {
   MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import socket from '../socket';
 import OrderCard from '../components/OrderCard';
 import AdminSettings from './AdminSettings';
@@ -105,7 +105,8 @@ const AdminDashboard = () => {
   const { user } = useAuth();
   const { t, LanguageToggle, isUrdu } = useLanguage();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState(null);
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState(location.state?.adminTab || null);
   const [showClearModal, setShowClearModal] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [isClearing, setIsClearing] = useState(false);
@@ -560,6 +561,7 @@ const AdminDashboard = () => {
               { id: 'outlet_jail', label: 'Jail Road Outlet', desc: 'Complete 360° operational dashboard — sales, orders, inventory, transfers & more', icon: Store, color: 'text-pink-400', bg: 'bg-pink-500/10', border: 'border-pink-500/30', glow: 'hover:shadow-pink-500/20', outletName: 'Jail Road' },
               { id: 'outlet_abbottabad', label: 'Abbottabad Outlet', desc: 'Complete 360° operational dashboard — sales, orders, inventory, transfers & more', icon: Building, color: 'text-teal-400', bg: 'bg-teal-500/10', border: 'border-teal-500/30', glow: 'hover:shadow-teal-500/20', outletName: 'Abbottabad' },
               { id: 'online_store', label: 'Online Store', desc: 'Online orders, revenue analytics, customer management & order processing', icon: Globe, color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', glow: 'hover:shadow-cyan-500/20' },
+              { id: 'customer_feedback', label: 'Customer Feedback', desc: 'QR feedback system, customer ratings, satisfaction analytics & feedback management', icon: MessageSquare, color: 'text-yellow-400', bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', glow: 'hover:shadow-yellow-500/20' },
             ].map((card, i) => (
               <motion.div key={card.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
                 whileHover={{ scale: 1.015, y: -3 }} whileTap={{ scale: 0.985 }}
