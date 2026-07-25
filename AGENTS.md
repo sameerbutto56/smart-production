@@ -191,6 +191,11 @@
 - **Fix 4** (`frontend/package.json`): Updated `"react": "19.2.5"` → `"react": "19.2.6"` and `"react-dom": "19.2.5"` → `"react-dom": "19.2.6"` to match the hoisted peer dependency version at root, eliminating the version mismatch.
 - **Verification**: `npm install` removed 355 packages (including duplicate React), added 2; `npm run build` passes with 0 errors.
 
+### Fixed This Session — QR Code /feedback Redirects to Login (ThemeProvider Auth Redirect)
+- **Root cause**: `ThemeProvider` called `api.get('/api/users/me/theme')` on mount for ALL users — including unauthenticated visitors scanning the QR code. The server returned 401 → `api.js` interceptor caught it → `window.location.href = '/login'`. Since `ThemeProvider` wraps the entire app (including the `/feedback` route which is outside `ProtectedRoute`), every unauthenticated page load triggered a 401 redirect.
+- **Fix**: Added `const token = sessionStorage.getItem('token'); if (!token) return;` at the start of the theme-loading `useEffect` in `ThemeContext.jsx:33` — skips the API call entirely when there's no auth token.
+- **Verification**: Build passes with 0 errors. Main bundle hash changed from `index-CNRAy873.js` to `index-CgJibzYQ.js`. Deployed to production. Commit `b969693`.
+
 ## Key Decisions
 - Only one React version (19.2.6) must exist in the workspace — version mismatch caused dedupe workaround which triggered TDZ error in Vite production bundle.
 - `resolve.dedupe` is no longer needed because React versions are now consistent across all workspaces.
@@ -305,3 +310,6 @@
 - The Vercel team `sameerbutt056-1019s-projects` has SSO protection enabled by default on new projects; you must disable it manually after creating a project.
 - To verify a deployment serves your app (not the Vercel Dashboard), fetch the URL and check for `data-dpl-id` in the HTML — if present, SSO protection is intercepting.
 - Deployment URL aliasing: the production domain (`smart-production-v2.vercel.app`) auto-assigns to the latest `target: production` deployment. If it shows old content, check the deployment's aliases and build logs.
+
+## Relevant Files
+- `frontend/src/context/ThemeContext.jsx`: ThemeProvider — added `sessionStorage.getItem('token')` guard to skip `/api/users/me/theme` API call for unauthenticated users (QR code visitors)
