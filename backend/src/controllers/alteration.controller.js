@@ -12,7 +12,7 @@ const getOutletName = (req) => {
 };
 
 const getPrefix = (outletName, sourceModule) => {
-  if (sourceModule === 'CUSTOMER_QUERY') return 'CQ-';
+  if (sourceModule === 'INVENTORY_VIEW') return 'IV-';
   if (outletName === 'Johar Town') return 'JT-';
   if (outletName === 'Jail Road') return 'JL-';
   if (outletName === 'Abbottabad') return 'AB-';
@@ -271,8 +271,8 @@ const completeAlteration = async (req, res) => {
     const now = new Date();
     const currentStage = alteration.stages.find(s => s.status === 'IN_PROGRESS');
 
-    const returnStage = alteration.sourceModule === 'CUSTOMER_QUERY'
-      ? 'ALTERATION_CQ_RETURN'
+    const returnStage = alteration.sourceModule === 'INVENTORY_VIEW'
+      ? 'ALTERATION_IV_RETURN'
       : 'ALTERATION_RETURN';
 
     const updated = await prisma.alteration.update({
@@ -315,7 +315,7 @@ const markAlterationDone = async (req, res) => {
     const alteration = await prisma.alteration.findUnique({ where: { id }, include: { stages: true } });
     if (!alteration) return res.status(404).json({ message: 'Alteration not found' });
 
-    const validReturnStages = ['ALTERATION_RETURN', 'ALTERATION_CQ_RETURN'];
+    const validReturnStages = ['ALTERATION_RETURN', 'ALTERATION_IV_RETURN'];
     if (!validReturnStages.includes(alteration.currentStage)) {
       return res.status(400).json({ message: 'Alteration has not been returned yet' });
     }
@@ -393,9 +393,9 @@ const getOutletAlterationTasks = async (req, res) => {
     const userRole = (req.user?.role || '').toUpperCase();
     const outletName = getOutletName(req);
 
-    if (userRole === 'CUSTOMER_QUERY') {
+    if (userRole === 'INVENTORY_VIEW') {
       const alterations = await prisma.alteration.findMany({
-        where: { sourceModule: 'CUSTOMER_QUERY', currentStage: 'ALTERATION_CQ_RETURN', status: 'COMPLETED' },
+        where: { sourceModule: 'INVENTORY_VIEW', currentStage: 'ALTERATION_IV_RETURN', status: 'COMPLETED' },
         include: {
           stages: true,
           completedBy: { select: { id: true, name: true } }
@@ -409,7 +409,7 @@ const getOutletAlterationTasks = async (req, res) => {
       where: {
         OR: [
           { outletName, currentStage: 'ALTERATION_RETURN', status: 'COMPLETED' },
-          { sourceModule: 'CUSTOMER_QUERY', currentStage: 'ALTERATION_CQ_RETURN', status: 'COMPLETED' }
+          { sourceModule: 'INVENTORY_VIEW', currentStage: 'ALTERATION_IV_RETURN', status: 'COMPLETED' }
         ]
       },
       include: {

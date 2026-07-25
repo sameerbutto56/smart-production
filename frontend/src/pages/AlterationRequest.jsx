@@ -6,7 +6,6 @@ import api from '../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { openPrintWindow, closePrintWindow } from '../utils/printReport';
-import { toUrduName } from '../utils/urduDictionary';
 
 export default function AlterationRequest() {
   const { user } = useAuth();
@@ -16,13 +15,13 @@ export default function AlterationRequest() {
 
   const prefillAltNumber = searchParams.get('alterationNumber') || '';
   const prefillOrderNumber = searchParams.get('orderNumber') || '';
-  const prefillSource = searchParams.get('source') || (userRole === 'CUSTOMER_QUERY' ? 'CUSTOMER_QUERY' : 'OUTLET');
+  const isOutlet = userRole === 'OUTLET';
+  const defaultSource = isOutlet ? 'OUTLET' : 'INVENTORY_VIEW';
 
-  const isCQ = userRole === 'CUSTOMER_QUERY';
-  const [activeTab, setActiveTab] = useState(isCQ ? 'tasks' : 'create');
+  const [activeTab, setActiveTab] = useState('create');
   const [alterationNumber, setAlterationNumber] = useState(prefillAltNumber);
   const [orderNumber, setOrderNumber] = useState(prefillOrderNumber);
-  const [sourceModule, setSourceModule] = useState(prefillSource);
+  const [sourceModule, setSourceModule] = useState(searchParams.get('source') || defaultSource);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [outletName, setOutletName] = useState(user?.name || '');
@@ -134,12 +133,12 @@ export default function AlterationRequest() {
     try {
       const payload = {
         alterationNumber,
-        sourceModule: isCQ ? 'CUSTOMER_QUERY' : sourceModule,
-        sourceOutlet: isCQ ? 'Customer Query' : outletName,
+        sourceModule,
+        sourceOutlet: outletName,
         orderNumber: orderNumber || null,
         customerName,
         customerPhone,
-        outletName: isCQ ? 'Customer Query' : outletName,
+        outletName,
         products: products.map(p => ({
           productName: p.productName,
           color: p.color,
@@ -179,7 +178,7 @@ export default function AlterationRequest() {
     win.document.write(`<div class="row"><span class="label">Order/Alt #:</span><span>${data.alterationNumber}</span></div>`);
     win.document.write(`<div class="row"><span class="label">Customer:</span><span>${data.customerName || 'N/A'}</span></div>`);
     win.document.write(`<div class="row"><span class="label">Phone:</span><span>${data.customerPhone || 'N/A'}</span></div>`);
-    win.document.write(`<div class="row"><span class="label">Outlet:</span><span>${data.outletName || 'N/A'}</span></div>`);
+    win.document.write(`<div class="row"><span class="label">Source:</span><span>${data.outletName || 'N/A'}</span></div>`);
     win.document.write(`<div class="row"><span class="label">Date:</span><span>${new Date().toLocaleDateString('en-GB')}</span></div>`);
 
     win.document.write('<div style="border-top: 1px dashed #000; margin: 6px 0;"></div>');
@@ -237,8 +236,8 @@ export default function AlterationRequest() {
         <div className="flex items-center gap-3 mb-6">
           <button onClick={() => navigate(-1)} className="p-2 bg-gray-800 hover:bg-gray-700 rounded-xl"><ArrowLeft size={20} className="text-white" /></button>
           <div>
-            <h1 className="text-2xl font-black text-white">Customer Query</h1>
-            <p className="text-sm text-gray-400">Alteration requests & returned tasks</p>
+            <h1 className="text-2xl font-black text-white">Alteration</h1>
+            <p className="text-sm text-gray-400">Create alteration requests & manage returned tasks</p>
           </div>
         </div>
 
@@ -326,10 +325,8 @@ export default function AlterationRequest() {
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div>
               <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-1">Source</label>
-              <select value={sourceModule} onChange={e => setSourceModule(e.target.value)} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm font-bold">
-                <option value="OUTLET">Outlet</option>
-                <option value="CUSTOMER_QUERY">Customer Query</option>
-              </select>
+              <input value={sourceModule === 'OUTLET' ? 'Outlet' : 'Inventory View'} readOnly
+                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm font-bold cursor-not-allowed opacity-70" />
             </div>
             <div>
               <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-1">Order Number (Lookup)</label>

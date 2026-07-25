@@ -16,7 +16,7 @@ const STAGE_LABELS = {
   ALTERATION_PENDING: 'Pending',
   ALTERATION_IN: 'In Production',
   ALTERATION_RETURN: 'Completed — Outlet',
-  ALTERATION_CQ_RETURN: 'Completed — Customer Query',
+  ALTERATION_IV_RETURN: 'Completed — Inventory View',
   DONE: 'Done',
   REJECTED: 'Rejected'
 };
