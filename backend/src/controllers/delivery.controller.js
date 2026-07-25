@@ -289,26 +289,43 @@ const getDeliveryCharges = async (req, res) => {
 const clearDeliveryCharges = async (req, res) => {
   try {
     const now = new Date();
+    const { paidByName, remarks } = req.body;
 
     const pending = await prisma.deliveryCharge.findMany({ where: { isPaid: false } });
     const totalAmount = pending.reduce((s, c) => s + c.amount, 0);
 
     if (pending.length === 0) return res.status(400).json({ message: 'No pending charges to clear' });
 
-    await prisma.deliveryChargePayment.create({
-      data: {
-        totalAmount,
-        chargeIds: pending.map(c => c.id),
-        paidAt: now
-      }
-    });
+    // Group charges by riderName for per-employee payment records
+    const riderGroups = {};
+    for (const c of pending) {
+      const rider = c.riderName || 'Unknown';
+      if (!riderGroups[rider]) riderGroups[rider] = [];
+      riderGroups[rider].push(c);
+    }
+
+    const paymentRecords = [];
+    for (const [rider, charges] of Object.entries(riderGroups)) {
+      const riderTotal = charges.reduce((s, c) => s + c.amount, 0);
+      const rec = await prisma.deliveryChargePayment.create({
+        data: {
+          totalAmount: riderTotal,
+          chargeIds: charges.map(c => c.id),
+          riderName: rider,
+          paidByName: paidByName || 'Super Admin',
+          remarks: remarks || `Bulk clear — ${charges.length} orders for ${rider}`,
+          paidAt: now
+        }
+      });
+      paymentRecords.push(rec);
+    }
 
     await prisma.deliveryCharge.updateMany({
       where: { isPaid: false },
       data: { isPaid: true, paidAt: now }
     });
 
-    res.json({ message: `${pending.length} charges cleared, total ₨${totalAmount.toLocaleString()}`, totalAmount });
+    res.json({ message: `${pending.length} charges cleared across ${Object.keys(riderGroups).length} employees, total ₨${totalAmount.toLocaleString()}`, totalAmount, paymentsCreated: paymentRecords.length });
   } catch (error) {
     res.status(500).json({ message: 'Clear failed', error: error.message });
   }

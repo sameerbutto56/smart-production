@@ -231,24 +231,26 @@ const PaymentHistoryModal = ({ payments, employeeName, onClose }) => (
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead><tr className="text-gray-500 font-black uppercase tracking-wider text-[10px]">
-              <th className="text-left py-2 pr-3">#</th>
-              <th className="text-left px-2">Date</th>
-              <th className="text-left px-2">Time</th>
-              <th className="text-left px-2">Paid By</th>
-              <th className="text-left px-2">Remarks</th>
-              <th className="text-right px-2">Amount</th>
-              <th className="text-right pl-2">Orders</th>
+              <th className="text-left py-2 pr-2">#</th>
+              <th className="text-left px-1">Employee</th>
+              <th className="text-left px-1">Date</th>
+              <th className="text-left px-1">Time</th>
+              <th className="text-left px-1">Paid By</th>
+              <th className="text-left px-1">Remarks</th>
+              <th className="text-right px-1">Amount</th>
+              <th className="text-right pl-1">Orders</th>
             </tr></thead>
             <tbody>
               {payments.map((p, i) => (
                 <tr key={p.id || i} className="border-t border-gray-800">
-                  <td className="py-2 pr-3 font-bold theme-text-primary">{i + 1}</td>
-                  <td className="px-2 font-bold">{new Date(p.paidAt).toLocaleDateString()}</td>
-                  <td className="px-2 text-gray-400">{new Date(p.paidAt).toLocaleTimeString()}</td>
-                  <td className="px-2 font-bold text-blue-400">{p.paidByName || '—'}</td>
-                  <td className="px-2 font-bold text-gray-400 max-w-[120px] truncate">{p.remarks || '—'}</td>
-                  <td className="px-2 font-black text-emerald-400 text-right">₨{(p.totalAmount || 0).toLocaleString()}</td>
-                  <td className="pl-2 font-bold text-gray-400 text-right">{p.chargeCount || 0}</td>
+                  <td className="py-2 pr-2 font-bold theme-text-primary">{i + 1}</td>
+                  <td className="px-1 font-bold text-indigo-400">{p.riderName || '—'}</td>
+                  <td className="px-1 font-bold">{new Date(p.paidAt).toLocaleDateString()}</td>
+                  <td className="px-1 text-gray-400">{new Date(p.paidAt).toLocaleTimeString()}</td>
+                  <td className="px-1 font-bold text-blue-400">{p.paidByName || '—'}</td>
+                  <td className="px-1 font-bold text-gray-400 max-w-[100px] truncate" title={p.remarks || ''}>{p.remarks || '—'}</td>
+                  <td className="px-1 font-black text-emerald-400 text-right">₨{(p.totalAmount || 0).toLocaleString()}</td>
+                  <td className="pl-1 font-bold text-gray-400 text-right">{p.chargeCount || 0}</td>
                 </tr>
               ))}
             </tbody>
@@ -613,7 +615,10 @@ const EnamelsDeliveryCard = ({ activeTab }) => {
             <button onClick={async () => {
               if (!window.confirm(`Clear ALL ₨${charges.totalPending.toLocaleString()} outstanding earnings for all delivery employees?`)) return;
               try {
-                await api.post('/api/delivery/charges/clear');
+                await api.post('/api/delivery/charges/clear', {
+                  paidByName: 'Super Admin',
+                  remarks: `Bulk clear — ₨${charges.totalPending.toLocaleString()} outstanding earnings`
+                });
                 toast.success(`Cleared ₨${charges.totalPending.toLocaleString()} — all employees paid`);
                 fetchData();
               } catch (err) { toast.error(err.response?.data?.message || 'Clear failed'); }
