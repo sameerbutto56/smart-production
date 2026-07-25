@@ -267,12 +267,6 @@ export function POSProvider({ children }) {
   useEffect(() => { localStorage.setItem('pos_customer_phone', customerPhone); }, [customerPhone]);
   useEffect(() => { localStorage.setItem('pos_payment_method', paymentMethod); }, [paymentMethod]);
   useEffect(() => { localStorage.setItem('pos_active_category', activeCategory); }, [activeCategory]);
-  useEffect(() => {
-    if (paymentMethod === 'CASH_ONLINE' && grandTotal > 0) {
-      const c = parseFloat(cashAmount) || 0;
-      setOnlineAmount(Math.max(0, Math.round((grandTotal - c) * 100) / 100));
-    }
-  }, [grandTotal, paymentMethod]);
   useEffect(() => { localStorage.setItem('pos_employee_name', employeeLoggedIn ? employeeName : ''); }, [employeeLoggedIn, employeeName]);
   useEffect(() => { localStorage.setItem('pos_employee_logged_in', employeeLoggedIn ? 'true' : 'false'); }, [employeeLoggedIn]);
 
@@ -486,6 +480,13 @@ export function POSProvider({ children }) {
   const grandTotal = useMemo(() => {
     return Math.max(0, subtotal + altCharges + cust1Total + cust2Total + engraveTotal + logoDesignTotal + otherChargesTotal - perItemDiscount - globalDiscountAmt + cardChargesAmt + deliveryCharge);
   }, [subtotal, altCharges, cust1Total, cust2Total, engraveTotal, logoDesignTotal, otherChargesTotal, perItemDiscount, globalDiscountAmt, cardChargesAmt, deliveryCharge]);
+
+  useEffect(() => {
+    if (paymentMethod === 'CASH_ONLINE' && grandTotal > 0) {
+      const c = parseFloat(cashAmount) || 0;
+      setOnlineAmount(Math.max(0, Math.round((grandTotal - c) * 100) / 100));
+    }
+  }, [grandTotal, paymentMethod]);
 
   const filteredSales = useMemo(() => {
     const bySearch = receiptSearch ? sales.filter(s => s.receiptNumber?.toLowerCase().includes(receiptSearch.toLowerCase())) : sales;
