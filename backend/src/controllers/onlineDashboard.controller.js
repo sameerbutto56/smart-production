@@ -22,7 +22,7 @@ const getOnlineDashboardStats = async (req, res) => {
       createdAtFilter = { gte: start, lte: now };
     }
 
-    const baseWhere = { source: 'ONLINE' };
+    const baseWhere = { source: { in: ['ONLINE', 'INTERNAL'] } };
     if (createdAtFilter.gte) baseWhere.createdAt = createdAtFilter;
 
     const [
