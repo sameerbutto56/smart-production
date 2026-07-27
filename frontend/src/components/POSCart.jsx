@@ -26,6 +26,8 @@ const POSCart = () => {
     checkoutLoading, handleCheckout,
     createOrderNumber, setCreateOrderNumber,
     createAlterationNumber, setCreateAlterationNumber,
+    createEngravingNumber, setCreateEngravingNumber,
+    additionalNote, setAdditionalNote,
     setTab,
   } = usePOS();
 
@@ -298,6 +300,29 @@ const POSCart = () => {
                 Create Alteration Number
               </span>
             </label>
+          )}
+          {!faisalTake && !lookedUpOrder && (
+            <label className="flex items-center gap-3 bg-gray-800 rounded-xl px-3 py-2 cursor-pointer hover:bg-gray-750 border border-gray-700">
+              <div onClick={() => setCreateEngravingNumber(!createEngravingNumber)}
+                className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${createEngravingNumber ? 'bg-cyan-500 border-cyan-500' : 'border-gray-600 bg-gray-800'}`}>
+                {createEngravingNumber && <span className="text-white text-[10px] font-black">✓</span>}
+              </div>
+              <span className={`text-[10px] font-black uppercase tracking-widest ${createEngravingNumber ? 'text-cyan-400' : 'text-gray-600'}`}>
+                Generate Engraving Number
+              </span>
+            </label>
+          )}
+          {!faisalTake && !lookedUpOrder && (
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase tracking-widest text-gray-500">Additional Note</label>
+              <textarea
+                value={additionalNote}
+                onChange={(e) => setAdditionalNote(e.target.value)}
+                placeholder="Optional note for invoice..."
+                rows={2}
+                className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-gray-500 focus:border-cyan-500 outline-none resize-none"
+              />
+            </div>
           )}
           <button onClick={handleCheckout} disabled={cart.length === 0 || checkoutLoading || !employeeLoggedIn || !paymentMethod}
             className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2 mt-2">

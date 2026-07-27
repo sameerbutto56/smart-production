@@ -426,7 +426,7 @@ const updateVariant = async (req, res) => {
 /* ─── Sales ─── */
 const createSale = async (req, res) => {
   try {
-    const { items, customerName, customerPhone, extraCharges, discountPercent, discountFixed, paymentMethod, advanceAmount, deliveryCharges, cardChargesPct, orderId, orderNumber, receiptNumber: manualReceipt, cashierName, faisalTake, cashAmount, onlineAmount } = req.body;
+    const { items, customerName, customerPhone, extraCharges, discountPercent, discountFixed, paymentMethod, advanceAmount, deliveryCharges, cardChargesPct, orderId, orderNumber, receiptNumber: manualReceipt, cashierName, faisalTake, cashAmount, onlineAmount, additionalNote } = req.body;
     if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'At least one item is required' });
 
     const outletName = getOutletName(req);
@@ -554,6 +554,7 @@ const createSale = async (req, res) => {
           paymentMethod: isFaisalTake ? 'FAISAL_TAKE' : (paymentMethod || 'CASH'),
           cashAmount: isFaisalTake ? 0 : (parseFloat(cashAmount || 0)),
           onlineAmount: isFaisalTake ? 0 : (parseFloat(onlineAmount || 0)),
+          additionalNote: isFaisalTake ? null : (additionalNote || null),
           faisalTake: isFaisalTake,
           faisalTakenAt: isFaisalTake ? new Date() : null,
           items: { create: saleItems.map(si => ({ ...si, lineTotal: isFaisalTake ? 0 : si.lineTotal })) }

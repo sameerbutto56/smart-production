@@ -155,6 +155,9 @@ export async function printReceipt(sale, { includeInvoice = true, includeGatePas
         }
       }
       doc.write('<div style="font-size:11px;font-weight:bold;margin:6px 0 0;border-top:2px solid #000;padding-top:4px;"><p style="font-size:12px;font-weight:900;text-align:center;margin:0 0 3px;">TERMS &amp; CONDITIONS</p><p style="margin:2px 0;text-align:center;">Exchanges are allowed only within 7 days with original tags and invoice.</p></div>');
+      if (sale.additionalNote) {
+        doc.write(`<div style="border:1px solid #000;border-radius:4px;padding:4px 6px;margin:6px 0;"><p style="font-size:11px;font-weight:900;margin:0 0 2px;">Note:</p><p style="font-size:12px;font-weight:bold;margin:0;white-space:pre-wrap;">${sale.additionalNote}</p></div>`);
+      }
       doc.write(`<div style="text-align:center;margin:6px 0 0;padding:3px;"><img src="${qrDataUrl || 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(reviewUrl)}" width="150" height="150" alt="Review QR" style="display:inline-block;"><p style="font-size:8px;margin:3px 0 0;font-weight:bold;">Scan to Review us and Avail Special Offers</p><p style="font-size:13px;font-weight:900;margin:4px 0 0;">Thank you for shopping! Visit Again!</p></div>`);
       doc.write(getPrintFooterHTML());
       doc.write('<br><br>');

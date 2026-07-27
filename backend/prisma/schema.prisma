@@ -31,6 +31,10 @@ model User {
   alterationsCompleted   Alteration[]     @relation("AlterationCompletedBy")
   alterationsDone        Alteration[]     @relation("AlterationDoneBy")
   alterationStages       AlterationStage[]
+  engravingsAccepted    EngravingRequest[] @relation("EngravingAcceptedBy")
+  engravingsCompleted   EngravingRequest[] @relation("EngravingCompletedBy")
+  engravingsDone        EngravingRequest[] @relation("EngravingDoneBy")
+  engravingStages       EngravingStage[]
 }
 
 model Order {
@@ -597,6 +601,7 @@ model PosSale {
    createdAt        DateTime @default(now())
    updatedAt        DateTime @updatedAt
    refundedAt       DateTime?
+   additionalNote   String?
    refundReason     String?
     items            PosSaleItem[]
     returns          PosReturn[]
@@ -1076,6 +1081,68 @@ model AlterationStage {
   assignedEmployee   User?     @relation(fields: [assignedEmployeeId], references: [id])
 
   @@index([alterationId])
+  @@index([stageName, status])
+}
+
+model EngravingSequence {
+  id         String @id @default(uuid())
+  prefix     String
+  nextValue  Int    @default(1)
+
+  @@unique([prefix])
+}
+
+model EngravingRequest {
+  id                  String   @id @default(uuid())
+  engravingNumber     String   @unique
+  sourceModule        String
+  sourceOutlet        String?
+  sourceOrderId       String?
+  orderNumber         String?
+  customerName        String?
+  customerPhone       String?
+  outletName          String?
+  products            Json
+  status              String   @default("PENDING")
+  currentStage        String   @default("ENGRAVING_PENDING")
+  acceptedById        String?
+  completedById       String?
+  doneById            String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  acceptedAt          DateTime?
+  completedAt         DateTime?
+  doneAt              DateTime?
+
+  acceptedBy          User?    @relation("EngravingAcceptedBy", fields: [acceptedById], references: [id])
+  completedBy         User?    @relation("EngravingCompletedBy", fields: [completedById], references: [id])
+  doneBy              User?    @relation("EngravingDoneBy", fields: [doneById], references: [id])
+
+  stages              EngravingStage[]
+
+  @@index([engravingNumber])
+  @@index([sourceModule])
+  @@index([currentStage])
+  @@index([outletName])
+  @@index([status])
+  @@index([sourceOrderId])
+  @@index([createdAt])
+}
+
+model EngravingStage {
+  id                 String    @id @default(uuid())
+  engravingRequestId String
+  stageName          String
+  status             String    @default("PENDING")
+  assignedEmployeeId String?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime  @default(now())
+
+  engravingRequest   EngravingRequest @relation(fields: [engravingRequestId], references: [id], onDelete: Cascade)
+  assignedEmployee   User?     @relation(fields: [assignedEmployeeId], references: [id])
+
+  @@index([engravingRequestId])
   @@index([stageName, status])
 }
 

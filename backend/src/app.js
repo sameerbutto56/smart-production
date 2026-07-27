@@ -112,6 +112,7 @@ const storeDashboardRoutes = require('./routes/storeDashboard.routes');
 const onlineDashboardRoutes = require('./routes/onlineDashboard.routes');
 const alterationRoutes = require('./routes/alteration.routes');
 const feedbackRoutes = require('./routes/feedback.routes');
+const engravingRoutes = require('./routes/engraving.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
@@ -145,6 +146,7 @@ app.use('/api/verification', require('./routes/verification.routes'));
 app.use('/api/return-exchange', require('./routes/returnExchange.routes'));
 app.use('/api/outlet-detailed', require('./routes/outletDetailed.routes'));
 app.use('/api/bank-deposit', require('./routes/bankDeposit.routes'));
+app.use('/api/engravings', engravingRoutes);
 
 // Global error handler (must be last)
 app.use(errorHandler);
