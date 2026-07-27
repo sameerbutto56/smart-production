@@ -83,22 +83,23 @@ const getDispatchProfileOrders = async (req, res) => {
       const seen = [];
       const active = [];
       for (const order of dispatchOrders) {
-        if (order.forwardedBy === 'Khawar') continue; // forwarded to Faisal
-        if (order.dispatchOfficer === 'Faisal') continue; // owned by Faisal
+        if (order.forwardedBy === 'Khawar') continue;
+        if (order.dispatchOfficer === 'Faisal') continue;
 
         if (order.currentStage === 'OUT_FOR_DELIVERY') {
-          if (order.dispatchOfficer === 'Khawar') active.push(order);
+          if (order.dispatchOfficer === 'Khawar' || (!order.dispatchOfficer && order.forwardedBy !== 'Khawar')) active.push(order);
           continue;
         }
 
         const dispatchStage = order.stages.find(s => s.stageName === 'DISPATCH');
         const isAccepted = dispatchStage?.startedAt != null;
-        const isAssignedToKhawar = order.dispatchOfficer === 'Khawar';
 
-        if (order.dispatchOfficer === null && !isAccepted) {
-          unseen.push(order); // shared queue — no owner yet
-        } else if (isAssignedToKhawar) {
+        if (!isAccepted || order.dispatchOfficer === null) {
+          unseen.push(order);
+        } else if (order.dispatchOfficer === 'Khawar') {
           seen.push(order);
+        } else {
+          unseen.push(order);
         }
       }
 
@@ -126,10 +127,10 @@ const getDispatchProfileOrders = async (req, res) => {
     const seen = [];
     const active = [];
     for (const order of dispatchOrders) {
-      if (order.dispatchOfficer === 'Khawar') continue; // owned by Khawar
+      if (order.dispatchOfficer === 'Khawar') continue;
 
       if (order.currentStage === 'OUT_FOR_DELIVERY') {
-        if (order.dispatchOfficer === 'Faisal') active.push(order);
+        if (order.dispatchOfficer === 'Faisal' || (!order.dispatchOfficer && order.forwardedBy === 'Khawar')) active.push(order);
         continue;
       }
 
@@ -137,10 +138,12 @@ const getDispatchProfileOrders = async (req, res) => {
       const isAccepted = dispatchStage?.startedAt != null;
       const isAssignedToFaisal = order.dispatchOfficer === 'Faisal' || order.forwardedBy === 'Khawar';
 
-      if (order.dispatchOfficer === null && !isAccepted) {
-        unseen.push(order); // shared queue — no owner yet
+      if (!isAccepted || order.dispatchOfficer === null) {
+        unseen.push(order);
       } else if (isAssignedToFaisal) {
         seen.push(order);
+      } else {
+        unseen.push(order);
       }
     }
 

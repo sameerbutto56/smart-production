@@ -225,13 +225,18 @@ const getBookSummary = async (req, res) => {
     const totalOnlineSales = paymentSummary.ONLINE + paymentSummary.CASH_ONLINE_ONLINE;
     const totalRevenueSales = sales.reduce((s, sale) => s + saleRevenue(sale), 0) + balancePayments.reduce((s, bp) => s + bp.amountPaidNow, 0);
 
-    // Cash actually collected (raw amounts, matches Dashboard's getCashSummary)
+    // Cash actually collected — only count what was received, not invoice total
     const rawCashCollected = sales
       .filter(s => s.paymentMethod === 'CASH')
-      .reduce((sum, s) => sum + s.grandTotal, 0)
+      .reduce((sum, s) => sum + saleRevenue(s), 0)
       + sales
         .filter(s => s.paymentMethod === 'CASH_ONLINE')
-        .reduce((sum, s) => sum + (s.cashAmount || 0), 0);
+        .reduce((sum, s) => {
+          const revenue = saleRevenue(s);
+          const totalCO = (s.cashAmount || 0) + (s.onlineAmount || 0);
+          const ratio = totalCO > 0 ? (s.cashAmount || 0) / totalCO : 1;
+          return sum + revenue * ratio;
+        }, 0);
 
     // Available cash — using raw cash amounts to match Dashboard
     // returnSummary.CASH includes CASH_ONLINE cash returns portion (necessary for till calculation)
