@@ -67,7 +67,7 @@ const DispatchPage = () => {
 
   const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || sessionStorage.getItem('dispatchActiveTab') || 'unseen');
   const [search, setSearch] = useState(() => sessionStorage.getItem('dispatchSearch') || '');
-  const [cityFilter, setCityFilter] = useState(() => sessionStorage.getItem('dispatchCityFilter') || '');
+
   const [methodFilter, setMethodFilter] = useState(() => sessionStorage.getItem('dispatchMethodFilter') || '');
   const [bookModal, setBookModal] = useState(null);
   const [requestModal, setRequestModal] = useState(null);
@@ -89,12 +89,8 @@ const DispatchPage = () => {
   const [loading, setLoading] = useState(false);
 
   const dataUrl = loggedIn && (isKhawar || isFaisal)
-    ? `/api/dispatch-profile/orders?employeeName=${employeeName}${cityFilter ? `&cityFilter=${cityFilter}` : ''}`
+    ? `/api/dispatch-profile/orders?employeeName=${employeeName}`
     : '/api/dispatch/dashboard';
-
-  const cityFilterOptions = isKhawar
-    ? [{ value: '', label: 'Lahore' }, { value: 'all', label: 'All Cities' }]
-    : [{ value: '', label: 'Default (Excl. Lahore)' }, { value: 'all', label: 'All Cities' }];
 
   const doRefresh = useCallback(async () => {
     setLoading(true);
@@ -136,7 +132,7 @@ const DispatchPage = () => {
 
   useEffect(() => { if (loggedIn) sessionStorage.setItem('dispatchActiveTab', activeTab); }, [activeTab, loggedIn]);
   useEffect(() => { if (loggedIn) sessionStorage.setItem('dispatchSearch', search); }, [search, loggedIn]);
-  useEffect(() => { if (loggedIn) sessionStorage.setItem('dispatchCityFilter', cityFilter); }, [cityFilter, loggedIn]);
+
   useEffect(() => { if (loggedIn) sessionStorage.setItem('dispatchMethodFilter', methodFilter); }, [methodFilter, loggedIn]);
 
   useEffect(() => {
@@ -352,12 +348,9 @@ const DispatchPage = () => {
     let list = items;
     const q = search.toLowerCase();
     if (q) list = list.filter(o => o.customerName?.toLowerCase().includes(q) || (o.orderNumber || '').toLowerCase().includes(q) || o.outletName?.toLowerCase().includes(q) || o.city?.toLowerCase().includes(q));
-    if (cityFilter && cityFilter !== 'all') list = list.filter(o => (o.city || '').toLowerCase() === cityFilter.toLowerCase());
     if (methodFilter) list = list.filter(o => (o.deliveryMethod || '').toLowerCase().includes(methodFilter.toLowerCase()));
     return list;
   };
-
-  const allCities = [...new Set([...data.seen, ...data.active].map(o => o.city).filter(Boolean))];
 
   const tabs = [
     { id: 'unseen', label: 'Unseen Tasks', icon: Eye, count: data.counts.unseen },
@@ -441,10 +434,6 @@ const DispatchPage = () => {
         <div className="flex items-center gap-3">
           {isEmployeeMode && (
             <>
-              <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)}
-                className="theme-input rounded-xl py-2 px-3 text-xs font-black uppercase tracking-wider border-2 min-w-[130px]">
-                {cityFilterOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
               <button onClick={() => navigate('/chat')}
                 className="px-4 py-2.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5">
                 <MessageCircle size={14} /> {employeeName}'s Chat
@@ -462,7 +451,7 @@ const DispatchPage = () => {
           {tabs.map(tab => {
             const Icon = tab.icon;
             return (
-              <button key={tab.id} onClick={() => { setActiveTab(tab.id); setSearch(''); setCityFilter(''); setMethodFilter(''); }}
+              <button key={tab.id} onClick={() => { setActiveTab(tab.id); setSearch(''); setMethodFilter(''); }}
                 className={`flex-1 flex flex-col items-center gap-1 py-3 px-4 rounded-xl text-xs md:text-sm font-black uppercase tracking-widest transition-all relative ${
                   activeTab === tab.id
                     ? (isEmployeeMode ? 'bg-emerald-600 text-white shadow-lg' : 'bg-purple-600 text-white shadow-lg')
@@ -487,13 +476,6 @@ const DispatchPage = () => {
               className="w-full theme-input border-2 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-purple-500 transition-all text-sm font-bold" />
           </div>
           <div className="flex flex-wrap gap-2">
-            {!isEmployeeMode && (
-              <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)}
-                className="theme-input rounded-xl py-2.5 px-3 text-xs font-black uppercase tracking-wider border-2">
-                <option value="">All Cities</option>
-                {allCities.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            )}
             <select value={methodFilter} onChange={(e) => setMethodFilter(e.target.value)}
               className="theme-input rounded-xl py-2.5 px-3 text-xs font-black uppercase tracking-wider border-2">
               <option value="">All Methods</option>

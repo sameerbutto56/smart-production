@@ -41,7 +41,7 @@ const getStageDurations = async (priority = 'NORMAL') => {
 // GET /api/dispatch-profile/orders?employeeName=Khawar&cityFilter=all
 const getDispatchProfileOrders = async (req, res) => {
   try {
-    const { employeeName, cityFilter } = req.query;
+    const { employeeName } = req.query;
     if (!employeeName || !['Khawar', 'Faisal'].includes(employeeName)) {
       return res.status(400).json({ message: 'employeeName must be Khawar or Faisal' });
     }
@@ -69,7 +69,6 @@ const getDispatchProfileOrders = async (req, res) => {
 
     // ─── KHAWAR: 3-way split ───
     if (employeeName === 'Khawar') {
-      const showAllCities = cityFilter === 'all';
 
       const dispatchOrders = await prisma.order.findMany({
         where: {
@@ -84,7 +83,6 @@ const getDispatchProfileOrders = async (req, res) => {
       const seen = [];
       const active = [];
       for (const order of dispatchOrders) {
-        if (!showAllCities && !isLahore(order.city)) continue;
         if (order.forwardedBy === 'Khawar') continue; // forwarded to Faisal
         if (order.dispatchOfficer === 'Faisal') continue; // owned by Faisal
 
@@ -114,7 +112,6 @@ const getDispatchProfileOrders = async (req, res) => {
     }
 
     // ─── FAISAL: 3-way split ───
-    const showAllCities = cityFilter === 'all';
 
     const dispatchOrders = await prisma.order.findMany({
       where: {
@@ -129,7 +126,6 @@ const getDispatchProfileOrders = async (req, res) => {
     const seen = [];
     const active = [];
     for (const order of dispatchOrders) {
-      if (!showAllCities && isLahore(order.city) && order.forwardedBy !== 'Khawar') continue;
       if (order.dispatchOfficer === 'Khawar') continue; // owned by Khawar
 
       if (order.currentStage === 'OUT_FOR_DELIVERY') {
