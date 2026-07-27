@@ -210,7 +210,7 @@ export function POSProvider({ children }) {
     setShowAuthModal, setAuthMode, setAuthEmployee, setAuthPassword, setAuthError,
     setVerifiedCloser, setBalanceInvoices, setBalanceInvoicesLoading,
     setSelectedBalanceInvoice, setShowPayBalanceModal, setPayAmount,
-    setBalancePaymentMethod, setPaying, setBalanceCollectionRange,
+    setBalancePaymentMethod, setBalanceCashAmount, setBalanceOnlineAmount, setPaying, setBalanceCollectionRange,
     setBalanceCollectionDateFrom, setBalanceCollectionDateTo, setBalanceCollectionData,
     setBalanceHistory, setShowBalanceHistoryModal, setLastBalancePayment,
     setLoadingBalanceAction, setBookPrintOpts,
