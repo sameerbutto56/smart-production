@@ -267,7 +267,7 @@ const OutletDashboard = () => {
     setTimeline([]);
     setTrackedOrder(null);
     try {
-      const orderRes = await api.get(`/api/outlet-orders/track/${trackingNumber.trim()}`);
+      const orderRes = await api.get(`/api/outlet-orders/track/${trackingNumber.trim().replace(/^#/, '')}`);
       setTrackedOrder(orderRes.data);
       const timelineRes = await api.get(`/api/orders/${orderRes.data.id}/timeline`);
       setTimeline(timelineRes.data?.flatEntries || timelineRes.data || []);

@@ -650,7 +650,7 @@ const AdminDashboard = () => {
                 <button onClick={async () => {
                   if (!contextSearch.trim()) return;
                   try {
-                    const res = await api.get(`/api/orders/track/${contextSearch.trim()}`);
+                    const res = await api.get(`/api/orders/track/${contextSearch.trim().replace(/^#/, '')}`);
                     setTrackedOrder(res.data);
                     setTrackingError('');
                   } catch (err) {
