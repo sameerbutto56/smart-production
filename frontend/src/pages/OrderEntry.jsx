@@ -42,7 +42,8 @@ const SmartOrderForm = () => {
     toggleEditMode, fetchOrderByNumber, submitOrderEditRequest,
     validateCurrentTab, handleAddToCart, removeCartItem, editCartItem,
     handleAddMoreProducts, handleCheckout, setShowAddMore, setIsCartOpen, setShowProductSelector,
-    setShowEditReview, setError, filteredTabs, setLoading, setIsSubmitting
+    setShowEditReview, setError, filteredTabs, setLoading, setIsSubmitting,
+    goForVerification, setGoForVerification
   } = useOrderEntry();
 
   if (dataLoading) return <PageLoader text="Loading Order Entry..." />;
@@ -618,6 +619,16 @@ const SmartOrderForm = () => {
                   );
                 })()}
               </div>
+              <div className="bg-gray-800/50 rounded-2xl p-4 mb-4 border border-amber-500/20">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" checked={goForVerification} onChange={e => setGoForVerification(e.target.checked)}
+                    className="accent-amber-500 w-5 h-5" />
+                  <div>
+                    <span className="text-sm font-black text-amber-400">Go for Verification</span>
+                    <p className="text-[10px] text-gray-500 mt-0.5">Send to Inventory View for payment verification before Store allocation</p>
+                  </div>
+                </label>
+              </div>
               <div className="flex gap-3">
                 <button onClick={() => setShowReview(false)}
                   className="flex-1 py-5 bg-gray-800 text-gray-400 rounded-[1.5rem] font-black text-sm uppercase tracking-widest hover:bg-gray-700 transition-all active:scale-95 border border-gray-700">
@@ -626,7 +637,7 @@ const SmartOrderForm = () => {
                 <button onClick={() => { setShowReview(false); handleCheckout(); }} disabled={loading || isSubmitting}
                   className="flex-1 py-5 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-emerald-900/50 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50">
                   <CheckCircle2 size={16} />
-                  <span>{loading || isSubmitting ? (useUrdu ? 'جمع کر رہا ہے...' : 'SUBMITTING...') : (useUrdu ? 'تصدیق کریں' : 'CONFIRM & SUBMIT')}</span>
+                  <span>{loading || isSubmitting ? (useUrdu ? 'جمع کر رہا ہے...' : 'SUBMITTING...') : goForVerification ? (useUrdu ? 'تصدیق کو بھیجیں' : 'SEND FOR VERIFICATION') : (useUrdu ? 'تصدیق کریں' : 'CONFIRM & SUBMIT')}</span>
                 </button>
               </div>
             </motion.div>

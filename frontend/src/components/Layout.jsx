@@ -37,6 +37,7 @@ import {
   EyeOff,
   Scissors,
   MessageSquare,
+  Shield,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import socket from '../socket';
@@ -83,7 +84,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
   };
 
   const navItems = [
-    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY'] },
+    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'ADMIN', 'ORDER_ENTRY'] },
     { name: 'Outlet Dashboard', path: '/outlet-dashboard', icon: LayoutDashboard, roles: ['OUTLET'] },
     { name: 'Dashboard', path: '/dispatch-dashboard', icon: LayoutDashboard, roles: ['DISPATCH'] },
     { name: 'My Tasks', path: '/dispatch', icon: Truck, roles: ['DISPATCH'] },
@@ -107,7 +108,6 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Order Track', path: '/order-track', icon: Search, roles: ['INVENTORY_VIEW', 'FAISAL', 'OUTLET'] },
     { name: 'Deliveries', path: '/delivery', icon: Truck, roles: ['DELIVERY_BOY'] },
     { name: 'Deleted Orders', path: '/deleted-orders', icon: Trash2, roles: ['SUPER_ADMIN', 'ADMIN'] },
-    { name: 'Customer Feedback', path: '__feedback', icon: MessageSquare, roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Production', path: '/production', icon: Factory, roles: ['PRODUCTION'] },
     { name: 'Alteration In', path: '/alteration-production', icon: Scissors, roles: ['PRODUCTION_IN'] },
     { name: 'Alteration Out', path: '/alteration-production', icon: Scissors, roles: ['PRODUCTION_OUT'] },
@@ -115,6 +115,8 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Client Registration', path: '/clients', icon: UserPlus, roles: ['OUTLET'] },
     { name: 'POS', path: '/pos', icon: ShoppingCart, roles: ['OUTLET'] },
     { name: 'Alteration', path: '/alteration-request', icon: Scissors, roles: ['OUTLET', 'INVENTORY_VIEW'] },
+    { name: 'Verification', path: '/verification', icon: Shield, roles: ['INVENTORY_VIEW'] },
+    { name: 'Return & Exchange', path: '/return-exchange', icon: RotateCcw, roles: ['INVENTORY_VIEW'] },
     { name: 'General Entries', path: '/journal', icon: FileText, roles: ['OUTLET'] },
     { name: 'Chat', path: '/chat', icon: MessageCircle, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET', 'STORE', 'PRODUCTION', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY', 'DELIVERY_BOY'] },
     { name: 'Notes', path: '/notes', icon: StickyNote, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET', 'STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH', 'MAIN_EMPLOYEE', 'DELIVERY_BOY', 'OUT_FOR_DELIVERY'] }
@@ -130,7 +132,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     
     // 2. Extra safety for Outlets
     if (userRole === 'OUTLET') {
-      return ['Outlet Dashboard', 'Orders', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'Alteration', 'General Entries', 'Chat', 'Notes', 'My Tasks'].includes(item.name);
+      return ['Outlet Dashboard', 'Orders', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'Alteration', 'General Entries', 'Chat', 'Notes', 'My Tasks', 'Order Track'].includes(item.name);
     }
     
     // 3. Explicit Restriction for Delivery Boy
@@ -184,28 +186,6 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
         
         <nav className="flex-1 px-3 space-y-1 overflow-y-auto custom-scrollbar">
           {filteredNavItems.map((item) => {
-            if (item.path === '__feedback') {
-              return (
-                <button
-                  key="customer-feedback"
-                  onClick={() => {
-                    navigate('/dashboard', { state: { adminTab: 'customer_feedback' } });
-                    if (window.innerWidth < 1024) toggle();
-                  }}
-                  className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} p-3 rounded-xl transition-all duration-200 group w-full text-left ${
-                    location.pathname === '/dashboard' && location.state?.adminTab === 'customer_feedback'
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
-                      : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-                  }`}
-                  title={isCollapsed ? t(item.name) : ""}
-                >
-                  <item.icon size={16} className={location.pathname === '/dashboard' && location.state?.adminTab === 'customer_feedback' ? 'text-white' : 'group-hover:text-blue-400'} />
-                  {!isCollapsed && (
-                    <span className="font-bold text-xs tracking-wide flex-1">{t(item.name)}</span>
-                  )}
-                </button>
-              );
-            }
             return (
             <Link
               key={item.path + (item.state?.adminTab || '')}

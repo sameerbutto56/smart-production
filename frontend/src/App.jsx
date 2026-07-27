@@ -42,6 +42,8 @@ const WarehousePOS = lazy(() => import('./pages/WarehousePOS'));
 const StoreDashboardPage = lazy(() => import('./pages/StoreDashboardPage'));
 const AlterationRequest = lazy(() => import('./pages/AlterationRequest'));
 const AlterationProduction = lazy(() => import('./pages/AlterationProduction'));
+const VerificationPage = lazy(() => import('./pages/VerificationPage'));
+const ReturnExchangePage = lazy(() => import('./pages/ReturnExchangePage'));
 const CustomerFeedbackForm = lazy(() => import('./pages/CustomerFeedbackForm'));
 
 const ProtectedRoute = ({ children }) => {
@@ -58,7 +60,8 @@ const AuthRedirectHandler = () => {
   const role = String(user.role || '').toUpperCase().trim();
   
   if (role === 'SUPER_ADMIN' || role === 'ADMIN') return <Navigate to="/dashboard" replace={true} />;
-  if (role === 'FAISAL' || role === 'ORDER_ENTRY') return <Navigate to="/dashboard" replace={true} />;
+  if (role === 'FAISAL') return <Navigate to="/order-entry" replace={true} />;
+  if (role === 'ORDER_ENTRY') return <Navigate to="/dashboard" replace={true} />;
   if (role === 'OUTLET') return <Navigate to="/outlet-dashboard" replace={true} />;
   if (role === 'PRODUCTION') return <Navigate to="/tasks" replace={true} />;
   if (role === 'DISPATCH') return <Navigate to="/dispatch" replace={true} />;
@@ -141,6 +144,8 @@ function App() {
                   <Route path="store-dashboard" element={<StoreDashboardPage />} />
                   <Route path="alteration-request" element={<AlterationRequest />} />
                   <Route path="alteration-production" element={<AlterationProduction />} />
+                  <Route path="verification" element={<VerificationPage />} />
+                  <Route path="return-exchange" element={<ReturnExchangePage />} />
                 </Route>
               </Routes>
               </ErrorBoundary>

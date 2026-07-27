@@ -722,7 +722,7 @@ const getSalesDashboard = async (req, res) => {
     const saleIds = allSales.map(s => s.id);
     const balancePayments = saleIds.length > 0 ? await prisma.posBalancePayment.findMany({
       where: { posSaleId: { in: saleIds } },
-      select: { posSaleId: true, amountPaidNow: true, paidAt: true, paymentMethod: true }
+      select: { posSaleId: true, amountPaidNow: true, paidAt: true, paymentMethod: true, cashAmount: true, onlineAmount: true }
     }) : [];
 
     // Calculate total sales by actual payment dates
@@ -763,7 +763,14 @@ const getSalesDashboard = async (req, res) => {
     // Add balance payments by their payment method
     balancePayments.forEach(bp => {
       const method = KNOWN_METHODS.includes(bp.paymentMethod) ? bp.paymentMethod : 'CASH';
-      paymentTotals[method] = (paymentTotals[method] || 0) + bp.amountPaidNow;
+      if (method === 'CASH_ONLINE') {
+        const cashAmt = bp.cashAmount || bp.amountPaidNow * 0.5;
+        const onlineAmt = bp.onlineAmount || bp.amountPaidNow * 0.5;
+        paymentTotals['CASH'] = (paymentTotals['CASH'] || 0) + cashAmt;
+        paymentTotals['ONLINE'] = (paymentTotals['ONLINE'] || 0) + onlineAmt;
+      } else {
+        paymentTotals[method] = (paymentTotals[method] || 0) + bp.amountPaidNow;
+      }
     });
 
     const returnsWithSale = await prisma.posReturn.findMany({
@@ -1410,10 +1417,14 @@ const getInvoiceBalance = async (req, res) => {
 const payBalance = async (req, res) => {
   try {
     const { saleId } = req.params;
-    const { amountPaidNow, paymentMethod } = req.body;
+    const { amountPaidNow, paymentMethod, cashAmount: cashSplit, onlineAmount: onlineSplit } = req.body;
     const outletName = getOutletName(req);
 
     if (!amountPaidNow || amountPaidNow <= 0) return res.status(400).json({ message: 'Amount must be greater than 0' });
+    if (paymentMethod === 'CASH_ONLINE') {
+      const total = (cashSplit || 0) + (onlineSplit || 0);
+      if (Math.abs(total - amountPaidNow) > 0.01) return res.status(400).json({ message: `Cash (${cashSplit || 0}) + Online (${onlineSplit || 0}) must equal total amount (${amountPaidNow})` });
+    }
 
     const sale = await prisma.posSale.findUnique({
       where: { id: saleId },
@@ -1443,6 +1454,8 @@ const payBalance = async (req, res) => {
         amountPaidNow,
         outstandingBalanceAfterPayment: outstandingAfter,
         paymentMethod: paymentMethod || 'CASH',
+        cashAmount: paymentMethod === 'CASH_ONLINE' ? (cashSplit || 0) : (paymentMethod === 'CASH' ? amountPaidNow : 0),
+        onlineAmount: paymentMethod === 'CASH_ONLINE' ? (onlineSplit || 0) : (paymentMethod === 'ONLINE' ? amountPaidNow : 0),
         cashierName: req.user?.name || 'Cashier',
         paidAt: new Date()
       }
@@ -1499,7 +1512,18 @@ const getBalanceCollections = async (req, res) => {
     const totalCollected = payments.reduce((sum, p) => sum + p.amountPaidNow, 0);
     const count = payments.length;
 
-    res.json({ totalCollected, count, payments });
+    const methodBreakdown = {};
+    payments.forEach(p => {
+      const m = p.paymentMethod || 'CASH';
+      if (m === 'CASH_ONLINE') {
+        methodBreakdown.CASH = (methodBreakdown.CASH || 0) + (p.cashAmount || 0);
+        methodBreakdown.ONLINE = (methodBreakdown.ONLINE || 0) + (p.onlineAmount || 0);
+      } else {
+        methodBreakdown[m] = (methodBreakdown[m] || 0) + p.amountPaidNow;
+      }
+    });
+
+    res.json({ totalCollected, count, payments, methodBreakdown });
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch balance collections', error: error.message });
   }

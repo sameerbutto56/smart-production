@@ -15,6 +15,7 @@ const POSModals = () => {
     printOpts, setPrintOpts,
     showPayBalanceModal, setShowPayBalanceModal, selectedBalanceInvoice,
     payAmount, setPayAmount, balancePaymentMethod, setBalancePaymentMethod,
+    balanceCashAmount, setBalanceCashAmount, balanceOnlineAmount, setBalanceOnlineAmount,
     paying, handlePayBalance,
     showBalanceHistoryModal, setShowBalanceHistoryModal, balanceHistory,
     showCloseBook, setShowCloseBook, closeBookSummary, summaryLoading,
@@ -227,15 +228,32 @@ const POSModals = () => {
 
             <div className="mb-4">
               <label className="text-xs font-bold text-gray-400 block mb-2">Payment Method</label>
-              <div className="flex gap-2">
-                {['CASH', 'CARD', 'ONLINE'].map(m => (
-                  <button key={m} onClick={() => setBalancePaymentMethod(m)}
-                    className={`flex-1 px-3 py-2 rounded-xl text-xs font-bold border-2 ${balancePaymentMethod === m ? 'border-emerald-500 bg-emerald-600/20 text-emerald-300' : 'border-gray-700 text-gray-500'}`}>
-                    {m === 'CASH' ? 'Cash' : m === 'CARD' ? 'Card' : 'Online'}
+              <div className="flex gap-2 flex-wrap">
+                {['CASH', 'CARD', 'ONLINE', 'CASH_ONLINE'].map(m => (
+                  <button key={m} onClick={() => { setBalancePaymentMethod(m); if (m !== 'CASH_ONLINE') { setBalanceCashAmount(0); setBalanceOnlineAmount(0); } }}
+                    className={`flex-1 px-2 py-2 rounded-xl text-xs font-bold border-2 ${balancePaymentMethod === m ? 'border-emerald-500 bg-emerald-600/20 text-emerald-300' : 'border-gray-700 text-gray-500'}`}>
+                    {m === 'CASH' ? 'Cash' : m === 'CARD' ? 'Card' : m === 'ONLINE' ? 'Online' : 'Cash+Online'}
                   </button>
                 ))}
               </div>
             </div>
+            {balancePaymentMethod === 'CASH_ONLINE' && (
+              <div className="mb-4 space-y-2">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 block mb-1">Cash Amount</label>
+                  <input type="number" value={balanceCashAmount} min="0" max={payAmount}
+                    onChange={e => { const v = parseFloat(e.target.value) || 0; setBalanceCashAmount(v); setBalanceOnlineAmount(Math.max(0, payAmount - v)); }}
+                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-2 text-sm font-bold text-white focus:border-emerald-500 outline-none" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 block mb-1">Online Amount</label>
+                  <input type="number" value={balanceOnlineAmount} min="0" max={payAmount}
+                    onChange={e => { const v = parseFloat(e.target.value) || 0; setBalanceOnlineAmount(v); setBalanceCashAmount(Math.max(0, payAmount - v)); }}
+                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl px-4 py-2 text-sm font-bold text-white focus:border-emerald-500 outline-none" />
+                </div>
+                <p className="text-[10px] text-gray-500 text-center">Total: {formatCurrency(balanceCashAmount + balanceOnlineAmount)} / {formatCurrency(payAmount)}</p>
+              </div>
+            )}
             <div className="mb-4">
               <label className="text-xs font-bold text-gray-400 block mb-1">Amount to Pay</label>
               <input type="number" value={payAmount} onChange={e => setPayAmount(parseFloat(e.target.value) || 0)}

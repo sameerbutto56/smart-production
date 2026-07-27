@@ -110,6 +110,7 @@ export const OrderEntryProvider = ({ children }) => {
   const [cartItems, setCartItems] = useState([]);
   const [showAddMore, setShowAddMore] = useState(false);
   const [showProductSelector, setShowProductSelector] = useState(false);
+  const [goForVerification, setGoForVerification] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const dateInputRef = useRef(null);
 
@@ -353,7 +354,6 @@ export const OrderEntryProvider = ({ children }) => {
     if (!formData.orderNumber.trim()) return t('orderNo') + ' ' + t('required');
     if (!formData.customerName.trim()) return t('customerName') + ' ' + t('required');
     if (!formData.customerPhone.trim()) return t('customerPhone') + ' ' + t('required');
-    if (formData.type === 'FULL_CUSTOM' && !(parseFloat(formData.advanceAmount) > 0)) return 'Advance payment is compulsory for custom orders.';
     if (!formData.productType && formData.type !== 'FULL_CUSTOM') return 'Please select a Product first.';
 
     return null;
@@ -484,7 +484,8 @@ export const OrderEntryProvider = ({ children }) => {
         engravingRequired: !formData.skipEngraving,
         instructionNotes: [formData.instructionNotes, formData.measurements.specialNote].filter(Boolean).join('\n---\n') || '',
         shopifyOrderDate: formData.shopifyOrderDate || null,
-        placedBy: faisalEmp
+        placedBy: faisalEmp,
+        goForVerification
       });
       setCartItems([]); setSuccess(true);
       resetFormData();
@@ -497,7 +498,7 @@ export const OrderEntryProvider = ({ children }) => {
       setError(error.response?.data?.message || error.response?.data?.error || 'Error processing checkout. Please try again.');
     }
     setLoading(false); setIsSubmitting(false);
-  }, [cartItems, isSubmitting, formData, resetFormData]);
+  }, [cartItems, isSubmitting, formData, resetFormData, goForVerification]);
 
   // Derived data
   const productCategories = useMemo(() => {
@@ -678,6 +679,7 @@ export const OrderEntryProvider = ({ children }) => {
     setEditReason, setEditOrderNumber, setEditOrderData, setEditOrderLoading, setEditOrderError,
     setLogoEntries, setArticleNameEntries, setFormData, setCartItems, setShowAddMore,
     setShowProductSelector, setIsCartOpen, setError, setLoading, setSuccess, setIsSubmitting,
+    goForVerification, setGoForVerification,
     // Handlers
     t, useUrdu, isUrdu, isOutlet, LanguageToggle,
     fetchInventory, toggleEditMode, fetchOrderByNumber, submitOrderEditRequest,

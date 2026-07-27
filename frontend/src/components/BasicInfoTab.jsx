@@ -184,7 +184,7 @@ const BasicInfoTab = () => {
               {useUrdu ? 'لوگو ڈیزائن' : 'LOGO'}
             </button>
             <button type="button"
-              onClick={() => setFormData({ ...formData, type: 'FULL_CUSTOM', advancePaid: true, advanceAmount: '' })}
+              onClick={() => setFormData({ ...formData, type: 'FULL_CUSTOM', advancePaid: false, advanceAmount: '' })}
               className={`flex-1 py-3 md:py-4 px-1 rounded-lg md:rounded-xl text-xs md:text-sm font-black transition-all leading-tight text-center ${formData.type === 'FULL_CUSTOM' ? 'bg-indigo-600 text-white shadow-2xl' : 'text-gray-600 hover:text-white'}`}>
               {useUrdu ? 'کسٹم آرڈر' : 'CUSTOM'}
             </button>

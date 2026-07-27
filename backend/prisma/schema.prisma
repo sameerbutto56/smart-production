@@ -110,6 +110,14 @@ model Order {
     orderTakenBy     String?
     placedBy         String?
     productVerification Json?   // { "0": true, "2": true } — product indices marked as verified in Store
+    // Order verification fields
+    goForVerification    Boolean   @default(false)
+    verifiedAt          DateTime?
+    verifiedBy          String?
+    verifiedByName      String?
+    verifiedAdvanceAmount Float?
+    verifiedRemainingBalance Float?
+    verificationNote    String?
     auditLogs       AuditLog[]
    stages          OrderStage[]
    editRequests    OrderEditRequest[]
@@ -131,12 +139,14 @@ model Order {
   @@index([type, createdAt])
   @@index([createdAt])
   @@index([invoiceNumber])
+  @@index([goForVerification, verifiedAt])
   dispatchOfficer   String?
   forwardedBy       String?
   deliveryPayments  DeliveryPayment[]
   noResponseLogs    NoResponseLog[]
   deliveryChargeRecords DeliveryCharge[] @relation("DeliveryChargeToOrder")
   orderAcceptances  OrderAcceptance[]
+  returnExchangeCases ReturnExchange[]
 }
 
 model DispatchLog {
@@ -611,11 +621,14 @@ model PosBalancePayment {
   amountPaidNow          Float
   outstandingBalanceAfterPayment Float
   paymentMethod          String   @default("CASH")
+  cashAmount             Float    @default(0)
+  onlineAmount           Float    @default(0)
   cashierName            String?
   paidAt                 DateTime @default(now())
 
   @@index([posSaleId])
   @@index([paidAt])
+  @@index([paymentMethod])
 }
 
 model PosSaleItem {
@@ -771,6 +784,38 @@ model NoResponseLog {
   createdAt     DateTime @default(now())
 
   @@index([orderId, attemptNumber])
+}
+
+// Return, Replacement & No Response management
+model ReturnExchange {
+  id               String   @id @default(uuid())
+  orderId          String
+  order            Order    @relation(fields: [orderId], references: [id])
+  orderNumber      String?
+  customerName     String?
+  customerPhone    String?
+  type             String   // RETURN, REPLACEMENT, NO_RESPONSE
+  status           String   @default("PENDING") // PENDING, WAREHOUSE_APPROVED, WAREHOUSE_REJECTED, DISPATCH_READY, COMPLETED, CANCELLED
+  returnReason     String?
+  originalProducts Json?    // original order items snapshot
+  replacementItems Json?    // replacement items (for REPLACEMENT type)
+  deliveryAttempts Int      @default(0)
+  nextDeliveryDate DateTime?
+  warehouseNotes   String?
+  dispatchNotes    String?
+  handledBy        String?  // inventory view user name
+  handledById      String?
+  warehouseApprovedBy String?
+  warehouseApprovedAt  DateTime?
+  dispatchedAt     DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([type, status])
+  @@index([orderId])
+  @@index([orderNumber])
+  @@index([createdAt])
+  @@index([status, createdAt])
 }
 
 // PKR 200 per delivered order — delivery boy earnings

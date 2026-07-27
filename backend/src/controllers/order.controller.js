@@ -224,7 +224,7 @@ const createProductionRecordFromOrder = async (order, stageCompleted) => {
 
 
 const createOrder = async (req, res) => {
-  const { orderNumber: requestedOrderNumber, customerName, customerPhone, address, city, type, urgent, priority, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, advanceAmount, shopifyOrderId, paymentDeadline, productImage, items, paymentStatus, deliveryCharges, instructionNotes, engravingInstructions, shopifyOrderDate, placedBy } = req.body;
+  const { orderNumber: requestedOrderNumber, customerName, customerPhone, address, city, type, urgent, priority, quantity, logoDesign, logoName, customization, productDetails, sizeData, advancePaid, advanceAmount, shopifyOrderId, paymentDeadline, productImage, items, paymentStatus, deliveryCharges, instructionNotes, engravingInstructions, shopifyOrderDate, placedBy, goForVerification } = req.body;
 
   // Derive priority and urgent
   const finalPriority = priority || (urgent ? 'URGENT' : 'NORMAL');
@@ -268,7 +268,7 @@ const createOrder = async (req, res) => {
     }
 
     // Check if advance payment is required for FULL_CUSTOM
-    const initialStatus = (type === 'FULL_CUSTOM' && !advancePaid) ? 'WAITING_PAYMENT' : 'PENDING';
+    const initialStatus = 'PENDING';
 
     // If items array is provided (multi-item cart), store all items in productDetails
     let finalProductDetails = productDetails;
@@ -402,6 +402,7 @@ const createOrder = async (req, res) => {
         shopifyOrderId,
         paymentDeadline: paymentDeadline ? new Date(paymentDeadline) : (type === 'READY_LOGO' ? new Date(Date.now() + 48 * 60 * 60 * 1000) : null),
         placedBy: placedBy || null,
+        goForVerification: !!goForVerification,
         currentStage: 'ORDER_ENTRY',
         status: initialStatus
       }
@@ -417,8 +418,9 @@ const createOrder = async (req, res) => {
       }
     });
  
-    // Automatically start the first stage for STANDARD and READY_LOGO orders
-    if (type !== 'FULL_CUSTOM' || (type === 'FULL_CUSTOM' && advancePaid)) {
+    // Automatically start the first stage for all order types
+    // Skip auto-advance to STORE when goForVerification is true — order stays at ORDER_ENTRY for verification
+    if (!goForVerification) {
       const stages = NEXT_STAGES[type || 'STANDARD'] || NEXT_STAGES['STANDARD'];
       const firstStage = stages[0]; // Usually 'STORE'
       
@@ -447,10 +449,10 @@ const createOrder = async (req, res) => {
 
     await createAuditLog(order.id, 'ORDER_CREATED', `Order initiated with status: ${initialStatus}`, req.user?.id);
 
-    // Create routing history for ORDER_ENTRY → first stage
+    // Create routing history for ORDER_ENTRY → first stage (skip when verification is pending)
     const stages = NEXT_STAGES[type || 'STANDARD'] || NEXT_STAGES['STANDARD'];
     const firstStage = stages[0];
-    if (firstStage) {
+    if (firstStage && !goForVerification) {
       await prisma.routingHistory.create({
         data: {
           orderId: order.id,
@@ -466,6 +468,11 @@ const createOrder = async (req, res) => {
     // If order is prepaid, record revenue immediately
     if (paymentStatus === 'PAID') {
       await calculateAndRecordRevenue(order);
+    }
+
+    // If go for verification, log it
+    if (goForVerification) {
+      await createAuditLog(order.id, 'SENT_FOR_VERIFICATION', 'Order sent for verification before Store allocation', req.user?.id);
     }
 
     // Re-fetch order with stages so frontend has currentStage info immediately
@@ -2581,6 +2588,7 @@ const getOrderTimeline = async (req, res) => {
       if (al.action === 'STORE_ACCEPT') stageActorMap['STORE'] = { actor: al.user?.name || al.performedBy, time: al.timestamp };
       if (al.action === 'DELIVERY_ACCEPTED') stageActorMap['OUT_FOR_DELIVERY'] = { actor: al.user?.name || al.performedBy, time: al.timestamp };
       if (al.action === 'DISPATCH_ACCEPTED') stageActorMap['DISPATCH'] = { actor: al.user?.name || al.performedBy, time: al.timestamp };
+      if (al.action === 'ORDER_VERIFIED') stageActorMap['ORDER_ENTRY'] = { actor: al.user?.name || al.performedBy, time: al.timestamp };
     });
 
     const STAGE_LABELS_MAP = {
@@ -2616,8 +2624,10 @@ const getOrderTimeline = async (req, res) => {
       DEADLINE_EXTENDED: 'Deadline Extended', ROUTE_BLOCKED: 'Route Blocked',
       COURIER_DISPATCH_REQUESTED: 'Courier Requested', PICKED_UP: 'Picked Up',
       REFUND_REQUESTED: 'Refund Requested', REFUND_COMPLETED: 'Refund Completed',
-      REFUND_PROCESSING: 'Refund Processing', EDIT_REQUESTED: 'Edit Requested',
-      EDIT_APPROVED: 'Edit Approved', EDIT_REJECTED: 'Edit Rejected'
+      REFUND_PROCESSING: 'Refund Processing',       EDIT_REQUESTED: 'Edit Requested',
+      EDIT_APPROVED: 'Edit Approved', EDIT_REJECTED: 'Edit Rejected',
+      SENT_FOR_VERIFICATION: 'Sent for Verification', ORDER_VERIFIED: 'Order Verified',
+      VERIFICATION_PENDING: 'Verification Pending'
     };
 
     // --- Build CONSOLIDATED stage entries (one per OrderStage) ---

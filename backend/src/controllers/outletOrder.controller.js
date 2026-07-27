@@ -70,6 +70,7 @@ const createOutletOrder = async (req, res) => {
       gender: p.gender || 'Male',
       matchingCap: p.matchingCap || false,
       matchingCapQty: p.matchingCapQty || 0,
+      capCharges: p.matchingCap ? (parseInt(p.matchingCapQty) || 0) * 500 : 0,
       sleeveLength: p.sleeveLength || '',
       shirtLength: p.shirtLength || '',
       femaleOptions: p.femaleOptions || null,
@@ -77,7 +78,11 @@ const createOutletOrder = async (req, res) => {
     }));
     const productDetails = enriched;
     const sizeDataStr = sizeData ? JSON.stringify(sizeData) : null;
-    const totalPrice = products.reduce((sum, p) => sum + (parseFloat(p.unitPrice) || 0) * (p.quantity || 1), 0);
+    const totalPrice = products.reduce((sum, p) => {
+      const line = (parseFloat(p.unitPrice) || 0) * (p.quantity || 1);
+      const cap = p.matchingCap ? (parseInt(p.matchingCapQty) || 0) * 500 : 0;
+      return sum + line + cap;
+    }, 0);
     const adv = parseFloat(advanceAmount) || 0;
 
     // Aggregate per-product measurement notes into order-level field as fallback

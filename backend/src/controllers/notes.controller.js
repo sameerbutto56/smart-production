@@ -69,4 +69,16 @@ const createNote = async (req, res) => {
   }
 };
 
-module.exports = { getNotes, createNote };
+const deleteNote = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const note = await prisma.personalNote.findUnique({ where: { id } });
+    if (!note) return res.status(404).json({ message: 'Note not found' });
+    await prisma.personalNote.delete({ where: { id } });
+    res.json({ message: 'Note deleted' });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to delete note', error: error.message });
+  }
+};
+
+module.exports = { getNotes, createNote, deleteNote };

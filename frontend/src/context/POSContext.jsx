@@ -28,7 +28,7 @@ const STATE_KEYS = [
   'showPaymentDetail', 'showEmployeeDetail', 'showAuthModal', 'authMode',
   'authEmployee', 'authPassword', 'authError', 'verifiedCloser',
   'balanceInvoices', 'balanceInvoicesLoading', 'selectedBalanceInvoice',
-  'showPayBalanceModal', 'payAmount', 'balancePaymentMethod', 'paying',
+  'showPayBalanceModal', 'payAmount', 'balancePaymentMethod', 'balanceCashAmount', 'balanceOnlineAmount', 'paying',
   'balanceCollectionRange', 'balanceCollectionDateFrom', 'balanceCollectionDateTo',
     'balanceCollectionData', 'balanceHistory', 'showBalanceHistoryModal',
     'lastBalancePayment', 'loadingBalanceAction', 'bookPrintOpts',
@@ -130,6 +130,8 @@ function createInitialState(user) {
     showPayBalanceModal: false,
     payAmount: 0,
     balancePaymentMethod: 'CASH',
+    balanceCashAmount: 0,
+    balanceOnlineAmount: 0,
     paying: false,
     balanceCollectionRange: 'today',
     balanceCollectionDateFrom: '',
@@ -180,7 +182,7 @@ export function POSProvider({ children }) {
     showPaymentDetail, showEmployeeDetail, showAuthModal, authMode,
     authEmployee, authPassword, authError, verifiedCloser,
     balanceInvoices, balanceInvoicesLoading, selectedBalanceInvoice,
-    showPayBalanceModal, payAmount, balancePaymentMethod, paying,
+    showPayBalanceModal, payAmount, balancePaymentMethod, balanceCashAmount, balanceOnlineAmount, paying,
     balanceCollectionRange, balanceCollectionDateFrom, balanceCollectionDateTo,
     balanceCollectionData, balanceHistory, showBalanceHistoryModal,
     lastBalancePayment, loadingBalanceAction, bookPrintOpts,
@@ -820,9 +822,18 @@ export function POSProvider({ children }) {
   const handlePayBalance = async () => {
     if (!selectedBalanceInvoice || payAmount <= 0) return toast.error('Enter a valid amount');
     if (payAmount > selectedBalanceInvoice.remaining) return toast.error(`Amount exceeds remaining balance of ₨${selectedBalanceInvoice.remaining.toLocaleString()}`);
+    if (balancePaymentMethod === 'CASH_ONLINE') {
+      if (balanceCashAmount + balanceOnlineAmount <= 0) return toast.error('Enter cash or online amount');
+      if (Math.abs((balanceCashAmount + balanceOnlineAmount) - payAmount) > 0.01) return toast.error(`Cash + Online must equal payment amount`);
+    }
     setPaying(true);
     try {
-      const res = await api.post(`/api/pos/balance-invoices/${selectedBalanceInvoice.id}/pay`, { amountPaidNow: payAmount, paymentMethod: balancePaymentMethod });
+      const payload = { amountPaidNow: payAmount, paymentMethod: balancePaymentMethod };
+      if (balancePaymentMethod === 'CASH_ONLINE') {
+        payload.cashAmount = balanceCashAmount;
+        payload.onlineAmount = balanceOnlineAmount;
+      }
+      const res = await api.post(`/api/pos/balance-invoices/${selectedBalanceInvoice.id}/pay`, payload);
       setLastBalancePayment(res.data);
       setShowPayBalanceModal(false);
       toast.success('Balance payment recorded');
@@ -898,7 +909,7 @@ export function POSProvider({ children }) {
     balanceInvoices, setBalanceInvoices, balanceInvoicesLoading, setBalanceInvoicesLoading,
     selectedBalanceInvoice, setSelectedBalanceInvoice,
     showPayBalanceModal, setShowPayBalanceModal, payAmount, setPayAmount,
-    balancePaymentMethod, setBalancePaymentMethod, paying, setPaying,
+    balancePaymentMethod, setBalancePaymentMethod, balanceCashAmount, setBalanceCashAmount, balanceOnlineAmount, setBalanceOnlineAmount, paying, setPaying,
     balanceCollectionRange, setBalanceCollectionRange,
     balanceCollectionDateFrom, setBalanceCollectionDateFrom, balanceCollectionDateTo, setBalanceCollectionDateTo,
     balanceCollectionData, setBalanceCollectionData,

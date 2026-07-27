@@ -27,6 +27,7 @@ const ENTRY_COLORS = {
   ROUTED: { dot: 'bg-purple-500', border: 'border-purple-500', bg: 'bg-purple-500/10', text: 'text-purple-400', badge: 'bg-purple-500/20 text-purple-400 border-purple-500/40' },
   RECEIVED: { dot: 'bg-amber-500', border: 'border-amber-500', bg: 'bg-amber-500/10', text: 'text-amber-400', badge: 'bg-amber-500/20 text-amber-400 border-amber-500/40' },
   FAILED: { dot: 'bg-red-500', border: 'border-red-500', bg: 'bg-red-500/10', text: 'text-red-400', badge: 'bg-red-500/20 text-red-400 border-red-500/40' },
+  VERIFIED: { dot: 'bg-cyan-500', border: 'border-cyan-500', bg: 'bg-cyan-500/10', text: 'text-cyan-400', badge: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40' },
   audit: { dot: 'bg-gray-500', border: 'border-gray-500', bg: 'bg-gray-500/10', text: 'text-gray-400', badge: 'bg-gray-500/20 text-gray-400 border-gray-500/40' },
 };
 
@@ -35,6 +36,7 @@ const getEntryColors = (entry) => {
   if (entry.action === 'ACCEPTED') return ENTRY_COLORS.ACCEPTED;
   if (entry.action === 'ROUTED') return ENTRY_COLORS.ROUTED;
   if (entry.action === 'RECEIVED') return ENTRY_COLORS.RECEIVED;
+  if (entry.action === 'VERIFIED' || entry.action === 'ORDER_VERIFIED') return ENTRY_COLORS.VERIFIED;
   if (entry.action?.includes('FAIL') || entry.action?.includes('RETURN')) return ENTRY_COLORS.FAILED;
   return ENTRY_COLORS.audit;
 };
@@ -47,6 +49,19 @@ const formatDate = (ts) => {
 const formatTime = (ts) => {
   if (!ts) return '—';
   return new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+};
+
+const formatDuration = (startTs, endTs) => {
+  if (!startTs || !endTs) return null;
+  const diffMs = new Date(endTs) - new Date(startTs);
+  if (diffMs < 0) return null;
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  const rem = mins % 60;
+  if (hrs < 24) return `${hrs}h ${rem}m`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ${hrs % 24}h`;
 };
 
 const OrderTrack = () => {
@@ -120,6 +135,11 @@ const OrderTrack = () => {
                     {order.paymentStatus}
                   </span>
                 )}
+                {order.goForVerification && (
+                  <span className={`text-[10px] font-black px-2 py-1 rounded-lg ${order.verifiedAt ? 'bg-cyan-500/20 text-cyan-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                    {order.verifiedAt ? `VERIFIED by ${order.verifiedByName || 'Admin'}` : 'PENDING VERIFICATION'}
+                  </span>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
@@ -139,6 +159,18 @@ const OrderTrack = () => {
                 <p className="text-gray-500 font-bold uppercase text-[10px]">Source</p>
                 <p className="text-white font-bold mt-0.5">{order.source || order.outletName || '—'}</p>
               </div>
+              {order.goForVerification && order.verifiedAt && (
+                <>
+                  <div className="bg-gray-800/50 rounded-lg p-2">
+                    <p className="text-gray-500 font-bold uppercase text-[10px]">Advance Collected</p>
+                    <p className="text-emerald-400 font-black mt-0.5">₨{(order.verifiedAdvanceAmount || 0).toLocaleString()}</p>
+                  </div>
+                  <div className="bg-gray-800/50 rounded-lg p-2">
+                    <p className="text-gray-500 font-bold uppercase text-[10px]">Remaining Balance</p>
+                    <p className="text-orange-400 font-black mt-0.5">₨{(order.verifiedRemainingBalance || 0).toLocaleString()}</p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -179,6 +211,8 @@ const OrderTrack = () => {
                   const isLast = idx === timeline.length - 1;
                   const dt = formatDate(entry.timestamp);
                   const tm = formatTime(entry.timestamp);
+                  const nextTs = idx < timeline.length - 1 ? timeline[idx + 1]?.timestamp : null;
+                  const duration = formatDuration(entry.timestamp, nextTs);
                   return (
                     <div key={entry.id || idx} className="flex gap-3">
                       <div className="flex flex-col items-center shrink-0">
@@ -203,6 +237,11 @@ const OrderTrack = () => {
                               <span className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-400">
                                 <Clock size={9} /> {tm}
                               </span>
+                              {duration && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">
+                                  ⏱ {duration}
+                                </span>
+                              )}
                             </div>
                             {entry.details && <p className="text-[10px] text-gray-400 font-bold mt-1 italic">{entry.details}</p>}
                             {entry.remarks && <p className="text-[10px] text-gray-400 font-bold mt-1 italic">Remarks: {entry.remarks}</p>}

@@ -3,13 +3,21 @@ import api from '../services/api';
 import {
   LayoutDashboard, CreditCard, TrendingUp, Wallet, User, RotateCcw, FileText,
   ShoppingBag, Layers, Package, Users, ArrowLeftRight, ClipboardList, Scissors,
-  BookOpen, Search, Filter, ChevronDown, ChevronRight, RefreshCw, Calendar, X,
-  ArrowUpRight, Minus, AlertTriangle, CheckCircle, Clock, XCircle
+  BookOpen, Book, Search, ChevronRight, RefreshCw, Calendar, X,
+  Minus, CheckCircle, Clock, Phone,
+  ChevronLeft, ChevronsLeft, ChevronsRight
 } from 'lucide-react';
+import OutletRegisters from './OutletRegisters';
 
-const fmt = (n) => `₨${(n || 0).toLocaleString()}`;
+const saleRevenue = (s) => s.advanceAmount > 0 ? Math.min(s.advanceAmount, s.grandTotal) : s.grandTotal;
+const fmt = (n) => `PKR ${(n || 0).toLocaleString()}`;
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-PK') : '-';
 const fmtTime = (d) => d ? new Date(d).toLocaleTimeString('en-PK') : '';
+const fmtShortDate = (d) => {
+  if (!d) return '-';
+  const dt = new Date(d);
+  return `${dt.getDate()}/${dt.getMonth() + 1}`;
+};
 
 const sectionNav = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -27,9 +35,35 @@ const sectionNav = [
   { id: 'requests', label: 'Requests', icon: ClipboardList },
   { id: 'alterations', label: 'Alterations', icon: Scissors },
   { id: 'journal', label: 'General Entries', icon: BookOpen },
+  { id: 'registers', label: 'Registers', icon: Book },
 ];
 
-const STAGE_ORDER = ['Order Entry', 'Store', 'Logo Design', 'Production Acceptance', 'Production', 'Store Receive', 'Dispatch', 'Out for Delivery', 'Delivered'];
+const ITEMS_PER_PAGE = 25;
+
+const Pagination = ({ currentPage, totalPages, onPageChange }) => {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex items-center justify-center gap-2 mt-4">
+      <button onClick={() => onPageChange(1)} disabled={currentPage === 1}
+        className="p-1 rounded-lg bg-gray-800/50 border border-gray-700/50 text-gray-400 hover:text-white disabled:opacity-30 transition-all">
+        <ChevronsLeft size={14} />
+      </button>
+      <button onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 1}
+        className="p-1 rounded-lg bg-gray-800/50 border border-gray-700/50 text-gray-400 hover:text-white disabled:opacity-30 transition-all">
+        <ChevronLeft size={14} />
+      </button>
+      <span className="text-[10px] font-black text-gray-400 px-2">Page {currentPage} of {totalPages}</span>
+      <button onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages}
+        className="p-1 rounded-lg bg-gray-800/50 border border-gray-700/50 text-gray-400 hover:text-white disabled:opacity-30 transition-all">
+        <ChevronRight size={14} />
+      </button>
+      <button onClick={() => onPageChange(totalPages)} disabled={currentPage === totalPages}
+        className="p-1 rounded-lg bg-gray-800/50 border border-gray-700/50 text-gray-400 hover:text-white disabled:opacity-30 transition-all">
+        <ChevronsRight size={14} />
+      </button>
+    </div>
+  );
+};
 
 const OutletDetailedCard = ({ outlet }) => {
   const [data, setData] = useState(null);
@@ -40,6 +74,11 @@ const OutletDetailedCard = ({ outlet }) => {
   const [dateTo, setDateTo] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedId, setExpandedId] = useState(null);
+  const [invoicePage, setInvoicePage] = useState(1);
+  const [orderPage, setOrderPage] = useState(1);
+  const [customerPage, setCustomerPage] = useState(1);
+  const [journalPage, setJournalPage] = useState(1);
+  const [returnDetailId, setReturnDetailId] = useState(null);
   const refreshRef = useRef(null);
 
   const fetchData = useCallback(async () => {
@@ -83,7 +122,6 @@ const OutletDetailedCard = ({ outlet }) => {
   const orders = data?.orders || [];
   const customers = data?.customers || [];
   const inventory = data?.revenueAndInventory?.inventory || {};
-  const inventoryProducts = data?.revenueAndInventory?.topProducts || [];
   const inventoryItems = data?.revenueAndInventory?.items || [];
   const returns = data?.returns || [];
   const faisalTakes = data?.faisalTakes || [];
@@ -93,27 +131,28 @@ const OutletDetailedCard = ({ outlet }) => {
   const alterations = data?.alterations || [];
   const journalEntries = data?.journalEntries || [];
   const stageWiseTracking = data?.stageWiseTracking || [];
+  const paymentSummary = data?.paymentBreakdown || {};
+  const salesAnalytics = data?.salesAnalytics || {};
+  const orderStatusCounts = summary.orderStatusCounts || {};
+
   const stageTracking = useMemo(() => {
     const map = {};
     stageWiseTracking.forEach(s => { map[s.stage] = s.count || 0; });
     return map;
   }, [stageWiseTracking]);
-  const paymentSummary = data?.paymentBreakdown || {};
-  const salesAnalytics = data?.salesAnalytics || {};
-  const transferStats = data?.transferStats || {};
-  const requestStats = data?.requestStats || {};
-  const alterationStats = data?.alterationStats || {};
-  const journalStats = data?.journalStats || {};
+
+  const nonFaisalSales = useMemo(() => sales.filter(s => !s.faisalTake), [sales]);
 
   const filteredSales = useMemo(() => {
-    if (!searchTerm) return sales;
+    if (!searchTerm) return nonFaisalSales;
     const q = searchTerm.toLowerCase();
-    return sales.filter(s =>
+    return nonFaisalSales.filter(s =>
       (s.receiptNumber || '').toLowerCase().includes(q) ||
       (s.customerName || '').toLowerCase().includes(q) ||
-      (s.paymentMethod || '').toLowerCase().includes(q)
+      (s.paymentMethod || '').toLowerCase().includes(q) ||
+      (s.cashierName || '').toLowerCase().includes(q)
     );
-  }, [sales, searchTerm]);
+  }, [nonFaisalSales, searchTerm]);
 
   const filteredOrders = useMemo(() => {
     if (!searchTerm) return orders;
@@ -121,7 +160,8 @@ const OutletDetailedCard = ({ outlet }) => {
     return orders.filter(o =>
       (o.orderNumber || '').toLowerCase().includes(q) ||
       (o.invoiceNumber || '').toLowerCase().includes(q) ||
-      (o.customerName || '').toLowerCase().includes(q)
+      (o.customerName || '').toLowerCase().includes(q) ||
+      (o.customerPhone || '').toLowerCase().includes(q)
     );
   }, [orders, searchTerm]);
 
@@ -131,6 +171,7 @@ const OutletDetailedCard = ({ outlet }) => {
     return customers.filter(c =>
       (c.name || '').toLowerCase().includes(q) ||
       (c.phone || '').toLowerCase().includes(q) ||
+      (c.clientNumber || '').toLowerCase().includes(q) ||
       (c.city || '').toLowerCase().includes(q)
     );
   }, [customers, searchTerm]);
@@ -146,20 +187,12 @@ const OutletDetailedCard = ({ outlet }) => {
     );
   }, [inventoryItems, searchTerm]);
 
-  const filteredInvoices = useMemo(() => {
-    if (!searchTerm) return sales;
-    const q = searchTerm.toLowerCase();
-    return sales.filter(s =>
-      (s.receiptNumber || '').toLowerCase().includes(q) ||
-      (s.customerName || '').toLowerCase().includes(q)
-    );
-  }, [sales, searchTerm]);
-
   const filteredAlterations = useMemo(() => {
     if (!searchTerm) return alterations;
     const q = searchTerm.toLowerCase();
     return alterations.filter(a =>
       (a.customerName || '').toLowerCase().includes(q) ||
+      (a.alterationNumber || '').toLowerCase().includes(q) ||
       (a.id || '').toString().includes(q)
     );
   }, [alterations, searchTerm]);
@@ -169,9 +202,49 @@ const OutletDetailedCard = ({ outlet }) => {
     const q = searchTerm.toLowerCase();
     return journalEntries.filter(j =>
       (j.employeeName || '').toLowerCase().includes(q) ||
-      (j.title || '').toLowerCase().includes(q)
+      (j.expenseTitle || j.title || '').toLowerCase().includes(q) ||
+      (j.notes || '').toLowerCase().includes(q)
     );
   }, [journalEntries, searchTerm]);
+
+  const filteredReturns = useMemo(() => {
+    if (!searchTerm) return returns;
+    const q = searchTerm.toLowerCase();
+    return returns.filter(r =>
+      (r.sale?.receiptNumber || '').toLowerCase().includes(q) ||
+      (r.sale?.customerName || '').toLowerCase().includes(q) ||
+      (r.reason || '').toLowerCase().includes(q)
+    );
+  }, [returns, searchTerm]);
+
+  const paginatedInvoices = useMemo(() => {
+    const start = (invoicePage - 1) * ITEMS_PER_PAGE;
+    return filteredSales.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredSales, invoicePage]);
+  const totalInvoicePages = Math.ceil(filteredSales.length / ITEMS_PER_PAGE);
+
+  const paginatedOrders = useMemo(() => {
+    const start = (orderPage - 1) * ITEMS_PER_PAGE;
+    return filteredOrders.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredOrders, orderPage]);
+  const totalOrderPages = Math.ceil(filteredOrders.length / ITEMS_PER_PAGE);
+
+  const paginatedCustomers = useMemo(() => {
+    const start = (customerPage - 1) * ITEMS_PER_PAGE;
+    return filteredCustomers.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredCustomers, customerPage]);
+  const totalCustomerPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE);
+
+  const paginatedJournal = useMemo(() => {
+    const start = (journalPage - 1) * ITEMS_PER_PAGE;
+    return filteredJournal.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredJournal, journalPage]);
+  const totalJournalPages = Math.ceil(filteredJournal.length / ITEMS_PER_PAGE);
+
+  useEffect(() => { setInvoicePage(1); }, [searchTerm]);
+  useEffect(() => { setOrderPage(1); }, [searchTerm]);
+  useEffect(() => { setCustomerPage(1); }, [searchTerm]);
+  useEffect(() => { setJournalPage(1); }, [searchTerm]);
 
   if (loading && !data) {
     return (
@@ -186,20 +259,22 @@ const OutletDetailedCard = ({ outlet }) => {
     { label: 'Net Revenue', value: fmt(summary.netRevenue), color: 'text-green-400', icon: Wallet },
     { label: 'Total Discount', value: fmt(summary.totalDiscount), color: 'text-red-400', icon: Minus },
     { label: 'Returned Products', value: summary.returnCount ?? returns.length, color: 'text-orange-400', icon: RotateCcw },
-    { label: 'Completed Invoices', value: summary.completedInvoices ?? 0, color: 'text-blue-400', icon: CheckCircle },
-    { label: 'Generated Invoices', value: summary.generatedInvoices ?? sales.length, color: 'text-purple-400', icon: FileText },
-    { label: 'Pending Orders', value: summary.pendingOrders ?? 0, color: 'text-yellow-400', icon: Clock },
-    { label: 'Cancelled Orders', value: summary.cancelledOrders ?? 0, color: 'text-red-400', icon: XCircle },
+    { label: 'Total Invoices', value: summary.totalInvoices ?? nonFaisalSales.length, color: 'text-blue-400', icon: FileText },
+    { label: 'General Entries', value: summary.totalJournalExpenses != null ? fmt(summary.totalJournalExpenses) : fmt(journalEntries.reduce((s, j) => s + (j.amount || 0), 0)), color: 'text-pink-400', icon: BookOpen },
+    { label: 'Completed Orders', value: orderStatusCounts.completed + orderStatusCounts.delivered || 0, color: 'text-emerald-400', icon: CheckCircle },
+    { label: 'Pending Orders', value: orderStatusCounts.pending + orderStatusCounts.inProgress + orderStatusCounts.waitingPayment || 0, color: 'text-yellow-400', icon: Clock },
   ];
 
   const salesTrend = salesAnalytics.salesTrend || [];
   const maxTrend = Math.max(...salesTrend.map(d => d.sales || d.count || 0), 1);
 
+  const totalAllPayments = Object.values(paymentSummary).reduce((s, m) => s + (m.net || 0), 0);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
         <h2 className="text-xl font-black text-white uppercase">{outlet}</h2>
-        <span className="text-xs font-bold text-gray-500">360° Operational Dashboard</span>
+        <span className="text-xs font-bold text-gray-500">360 Degree Operational Dashboard</span>
         <button onClick={handleRefresh} disabled={loading}
           className="ml-auto px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-50 transition-all">
           {loading ? <RefreshCw className="animate-spin" size={12} /> : <RefreshCw size={12} />}
@@ -233,14 +308,17 @@ const OutletDetailedCard = ({ outlet }) => {
         ))}
       </div>
 
-      {(activeSection === 'overview' || activeSection === 'sales' || activeSection === 'balance' || activeSection === 'faisal-takes' || activeSection === 'returns' || activeSection === 'invoices' || activeSection === 'orders' || activeSection === 'customers' || activeSection === 'transfers' || activeSection === 'requests' || activeSection === 'alterations' || activeSection === 'journal' || activeSection === 'payments' || activeSection === 'inventory' || activeSection === 'tracking') && (
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-          <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-            placeholder="Search..."
-            className="w-full pl-10 pr-4 py-2.5 bg-gray-800/50 border border-gray-700/50 rounded-xl text-xs font-bold text-gray-300 placeholder-gray-600 focus:outline-none focus:border-indigo-500/50" />
-        </div>
-      )}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+        <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+          placeholder="Search across all sections..."
+          className="w-full pl-10 pr-4 py-2.5 bg-gray-800/50 border border-gray-700/50 rounded-xl text-xs font-bold text-gray-300 placeholder-gray-600 focus:outline-none focus:border-indigo-500/50" />
+        {searchTerm && (
+          <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white">
+            <X size={14} />
+          </button>
+        )}
+      </div>
 
       {/* ==================== OVERVIEW ==================== */}
       {activeSection === 'overview' && (
@@ -256,7 +334,7 @@ const OutletDetailedCard = ({ outlet }) => {
                     <card.icon size={14} className={card.color} />
                     <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">{card.label}</p>
                   </div>
-                  <p className={`text-white font-black text-xl`}>{card.value}</p>
+                  <p className="text-white font-black text-xl">{card.value}</p>
                 </div>
               ))}
             </div>
@@ -267,17 +345,17 @@ const OutletDetailedCard = ({ outlet }) => {
               <TrendingUp size={16} className="text-indigo-400" /> Sales Trend
             </h3>
             {salesTrend.length > 0 ? (
-              <div className="flex items-end gap-1.5 h-40">
+              <div className="flex items-end gap-1 h-40">
                 {salesTrend.slice(-14).map((d, i) => {
                   const val = d.sales || d.count || 0;
                   const h = maxTrend > 0 ? (val / maxTrend) * 100 : 0;
                   return (
                     <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                      <span className="text-[8px] font-black text-indigo-400">{val > 0 ? (val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val) : ''}</span>
+                      <span className="text-[8px] font-black text-indigo-400">{val > 0 ? (val >= 1000 ? `${(val / 1000).toFixed(0)}k` : Math.round(val)) : ''}</span>
                       <div className="w-full bg-gray-800 rounded-t-lg overflow-hidden" style={{ height: `${Math.max(h, 2)}%` }}>
                         <div className="w-full h-full bg-indigo-500 rounded-t-lg" />
                       </div>
-                      <span className="text-[7px] font-bold text-gray-500 truncate w-full text-center">{d.label || d.date || ''}</span>
+                      <span className="text-[7px] font-bold text-gray-500 truncate w-full text-center">{fmtShortDate(d.date || d.label)}</span>
                     </div>
                   );
                 })}
@@ -303,9 +381,9 @@ const OutletDetailedCard = ({ outlet }) => {
                 { key: 'ONLINE', label: 'Online', dotClass: 'bg-blue-500', netClass: 'text-blue-400' },
                 { key: 'CASH_ONLINE', label: 'Cash+Online', dotClass: 'bg-amber-500', netClass: 'text-amber-400' },
               ].map(m => {
-                const ps = paymentSummary[m.key] || {};
+                const ps = paymentSummary[m.key] || { gross: 0, returns: 0, net: 0 };
                 return (
-                  <div key={m.key} className={`glass rounded-2xl p-5 border-2 border-gray-700/50`}>
+                  <div key={m.key} className="glass rounded-2xl p-5 border-2 border-gray-700/50">
                     <div className="flex items-center gap-2 mb-3">
                       <div className={`w-3 h-3 rounded-full ${m.dotClass}`} />
                       <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">{m.label}</p>
@@ -330,17 +408,25 @@ const OutletDetailedCard = ({ outlet }) => {
             </div>
           </div>
 
-          {paymentSummary.totalRefunds != null && (
-            <div className="glass rounded-2xl p-5 border-2 border-gray-700/50">
-              <h3 className="text-sm font-black text-white uppercase tracking-wider mb-3 flex items-center gap-2">
-                <RotateCcw size={16} className="text-red-400" /> Total Refunds
-              </h3>
-              <div className="glass rounded-xl p-4 border border-red-500/20 text-center">
-                <p className="text-red-400 font-black text-2xl">{fmt(paymentSummary.totalRefunds)}</p>
-                <p className="text-gray-500 text-[10px] font-bold uppercase mt-1">Across all methods</p>
+          <div className="glass rounded-2xl p-5 border-2 border-gray-700/50">
+            <h3 className="text-sm font-black text-white uppercase tracking-wider mb-3 flex items-center gap-2">
+              <CreditCard size={16} className="text-indigo-400" /> Payment Summary
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div className="glass rounded-xl p-4 border border-gray-700/50 text-center">
+                <p className="text-gray-400 text-[10px] font-bold uppercase mb-1">Total Gross</p>
+                <p className="text-white font-black text-lg">{fmt(Object.values(paymentSummary).reduce((s, m) => s + (m.gross || 0), 0))}</p>
+              </div>
+              <div className="glass rounded-xl p-4 border border-gray-700/50 text-center">
+                <p className="text-gray-400 text-[10px] font-bold uppercase mb-1">Total Returns</p>
+                <p className="text-red-400 font-black text-lg">-{fmt(data?.totalRefunds || Object.values(paymentSummary).reduce((s, m) => s + (m.returns || 0), 0))}</p>
+              </div>
+              <div className="glass rounded-xl p-4 border border-gray-700/50 text-center">
+                <p className="text-gray-400 text-[10px] font-bold uppercase mb-1">Total Net</p>
+                <p className="text-emerald-400 font-black text-lg">{fmt(totalAllPayments)}</p>
               </div>
             </div>
-          )}
+          </div>
         </div>
       )}
 
@@ -356,7 +442,7 @@ const OutletDetailedCard = ({ outlet }) => {
                   <p className="text-gray-500 text-xs font-bold">{salesAnalytics.highestSale.receiptNumber || '—'}</p>
                 </div>
               ) : (
-                <p className="text-gray-600 text-xs font-bold">No sales today</p>
+                <p className="text-gray-600 text-xs font-bold">No sales in this period</p>
               )}
             </div>
             <div className="glass rounded-2xl p-5 border-2 border-gray-700/50">
@@ -368,7 +454,7 @@ const OutletDetailedCard = ({ outlet }) => {
                   <p className="text-gray-500 text-[10px] font-bold">{salesAnalytics.highestInvoice.customerName || 'Walk-in'}</p>
                 </div>
               ) : (
-                <p className="text-gray-600 text-xs font-bold">No invoices today</p>
+                <p className="text-gray-600 text-xs font-bold">No invoices in this period</p>
               )}
             </div>
           </div>
@@ -389,13 +475,13 @@ const OutletDetailedCard = ({ outlet }) => {
                         <div className="h-full bg-indigo-500 rounded-lg" style={{ width: `${((p.revenue || 0) / maxRev) * 100}%` }} />
                       </div>
                       <span className="text-[10px] font-black text-indigo-400 w-16 text-right shrink-0">{fmt(p.revenue)}</span>
-                      <span className="text-[10px] font-bold text-gray-500 w-10 text-right shrink-0">{p.qty || p.quantity || 0} qty</span>
+                      <span className="text-[10px] font-bold text-gray-500 w-10 text-right shrink-0">{p.qty || 0} qty</span>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <p className="text-xs text-gray-500 font-bold text-center py-8">No product data</p>
+              <p className="text-xs text-gray-500 font-bold text-center py-8">No product data in this period</p>
             )}
           </div>
 
@@ -403,18 +489,18 @@ const OutletDetailedCard = ({ outlet }) => {
             <h3 className="text-sm font-black text-white uppercase tracking-wider mb-4 flex items-center gap-2">
               <TrendingUp size={16} className="text-indigo-400" /> Sales Trend (by Date)
             </h3>
-            {(salesAnalytics.salesTrend || salesTrend).length > 0 ? (
+            {salesTrend.length > 0 ? (
               <div className="flex items-end gap-1 h-36">
-                {(salesAnalytics.salesTrend || salesTrend).slice(-14).map((d, i) => {
+                {salesTrend.slice(-14).map((d, i) => {
                   const val = d.sales || d.revenue || d.count || 0;
                   const h = maxTrend > 0 ? (val / maxTrend) * 100 : 0;
                   return (
                     <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                      <span className="text-[7px] font-black text-indigo-400">{val > 1000 ? `${(val / 1000).toFixed(0)}k` : val || ''}</span>
+                      <span className="text-[7px] font-black text-indigo-400">{val > 0 ? (val >= 1000 ? `${(val / 1000).toFixed(0)}k` : Math.round(val)) : ''}</span>
                       <div className="w-full bg-gray-800 rounded-t-lg overflow-hidden" style={{ height: `${Math.max(h, 2)}%` }}>
                         <div className="w-full h-full bg-indigo-500 rounded-t-lg" />
                       </div>
-                      <span className="text-[7px] font-bold text-gray-500 truncate w-full text-center">{d.label || d.date || ''}</span>
+                      <span className="text-[7px] font-bold text-gray-500 truncate w-full text-center">{fmtShortDate(d.date || d.label)}</span>
                     </div>
                   );
                 })}
@@ -435,7 +521,7 @@ const OutletDetailedCard = ({ outlet }) => {
             </h3>
             <div className="glass rounded-xl p-4 border border-amber-500/20 text-center mb-4">
               <p className="text-amber-400 font-black text-2xl">{fmt(balanceInvoices.reduce((s, inv) => s + (inv.remaining || 0), 0))}</p>
-              <p className="text-gray-500 text-[10px] font-bold uppercase mt-1">{balanceInvoices.length} Invoices with Balance</p>
+              <p className="text-gray-500 text-[10px] font-bold uppercase mt-1">{balanceInvoices.length} Invoice{balanceInvoices.length !== 1 ? 's' : ''} with Outstanding Balance</p>
             </div>
             {balanceInvoices.length > 0 ? (
               <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
@@ -449,15 +535,13 @@ const OutletDetailedCard = ({ outlet }) => {
                   </tr></thead>
                   <tbody>
                     {balanceInvoices.map((inv, i) => {
-                      const paid = inv.totalPaid || ((inv.advanceAmount || 0) + (inv.balancePayments || []).reduce((s, bp) => s + (bp.amountPaidNow || 0), 0));
-                      const remaining = inv.remaining ?? Math.max(0, (inv.grandTotal || 0) - paid);
                       return (
                         <tr key={inv.id || i} className="border-t border-gray-800 hover:bg-white/5">
-                          <td className="py-2 pr-2 font-bold text-white">{inv.receiptNumber || inv.invoiceNumber || '—'}</td>
+                          <td className="py-2 pr-2 font-bold text-white">{inv.receiptNumber || '—'}</td>
                           <td className="px-2 font-bold text-gray-300">{inv.customerName || 'Walk-in'}</td>
                           <td className="px-2 text-right font-black text-white">{fmt(inv.grandTotal)}</td>
-                          <td className="px-2 text-right font-black text-emerald-400">{fmt(paid)}</td>
-                          <td className={`pl-2 text-right font-black ${remaining > 0.01 ? 'text-red-400' : 'text-emerald-400'}`}>{fmt(remaining)}</td>
+                          <td className="px-2 text-right font-black text-emerald-400">{fmt(inv.totalPaid)}</td>
+                          <td className="pl-2 text-right font-black text-red-400">{fmt(inv.remaining)}</td>
                         </tr>
                       );
                     })}
@@ -481,7 +565,7 @@ const OutletDetailedCard = ({ outlet }) => {
             </div>
             <div className="glass rounded-2xl p-5 border-2 border-gray-700/50 text-center">
               <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">Total Value</p>
-              <p className="text-indigo-400 font-black text-xl">{fmt(faisalTakes.reduce((s, ft) => s + (ft.totalAmount || ft.grandTotal || 0), 0))}</p>
+              <p className="text-indigo-400 font-black text-xl">{fmt(faisalTakes.reduce((s, ft) => s + (ft.grandTotal || 0), 0))}</p>
             </div>
           </div>
 
@@ -500,15 +584,15 @@ const OutletDetailedCard = ({ outlet }) => {
                         </span>
                         <div>
                           <p className="text-xs font-black text-white">{ft.receiptNumber || '—'}</p>
-                          <p className="text-[10px] font-bold text-gray-500">{ft.cashierName || ft.cashier || '—'}</p>
+                          <p className="text-[10px] font-bold text-gray-500">{ft.cashierName || '—'}</p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs font-black text-indigo-400">{fmt(ft.totalAmount || ft.grandTotal || 0)}</p>
+                        <p className="text-xs font-black text-indigo-400">{fmt(ft.grandTotal || 0)}</p>
                         <p className="text-[10px] font-bold text-gray-500">{fmtDate(ft.createdAt)} {fmtTime(ft.createdAt)}</p>
                       </div>
                     </div>
-                    {expandedId === `ft-${i}` && (ft.items || ft.saleItems || []).length > 0 && (
+                    {expandedId === `ft-${i}` && (ft.items || []).length > 0 && (
                       <div className="border-t border-gray-800 p-3 bg-gray-900/30">
                         <table className="w-full text-[10px]">
                           <thead><tr className="text-gray-500 font-black uppercase">
@@ -519,13 +603,13 @@ const OutletDetailedCard = ({ outlet }) => {
                             <th className="text-right pl-2">Price</th>
                           </tr></thead>
                           <tbody>
-                            {(ft.items || ft.saleItems || []).map((item, j) => (
+                            {ft.items.map((item, j) => (
                               <tr key={j} className="border-t border-gray-800">
-                                <td className="py-1 font-bold text-white">{item.productName || item.name || '—'}</td>
-                                <td className="px-2 text-gray-300">{item.quantity || item.qty || 0}</td>
+                                <td className="py-1 font-bold text-white">{item.productName || '—'}</td>
+                                <td className="px-2 text-gray-300">{item.quantity || 0}</td>
                                 <td className="px-2 text-gray-300">{item.size || '—'}</td>
                                 <td className="px-2 text-gray-300">{item.color || '—'}</td>
-                                <td className="pl-2 text-right font-bold text-indigo-400">{fmt((item.unitPrice || item.price || 0) * (item.quantity || item.qty || 1))}</td>
+                                <td className="pl-2 text-right font-bold text-indigo-400">{fmt((item.unitPrice || 0) * (item.quantity || 1))}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -545,51 +629,60 @@ const OutletDetailedCard = ({ outlet }) => {
       {/* ==================== RETURNS ==================== */}
       {activeSection === 'returns' && (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div className="glass rounded-2xl p-5 border-2 border-gray-700/50 text-center">
               <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">Total Returns</p>
               <p className="text-white font-black text-xl">{returns.length}</p>
             </div>
             <div className="glass rounded-2xl p-5 border-2 border-gray-700/50 text-center">
               <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">Total Refunded</p>
-              <p className="text-red-400 font-black text-xl">{fmt(returns.reduce((s, r) => s + (r.refundAmount || r.totalAmount || 0), 0))}</p>
+              <p className="text-red-400 font-black text-xl">{fmt(returns.reduce((s, r) => s + (r.refundAmount || 0), 0))}</p>
+            </div>
+            <div className="glass rounded-2xl p-5 border-2 border-gray-700/50 text-center">
+              <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">Total Items Returned</p>
+              <p className="text-orange-400 font-black text-xl">{returns.reduce((s, r) => s + (r.quantity || 1), 0)}</p>
             </div>
           </div>
 
           <div className="glass rounded-2xl p-5 border-2 border-gray-700/50">
             <h3 className="text-sm font-black text-white uppercase tracking-wider mb-4 flex items-center gap-2">
-              <RotateCcw size={16} className="text-red-400" /> Return History ({returns.length})
+              <RotateCcw size={16} className="text-red-400" /> Return History ({filteredReturns.length})
             </h3>
-            {returns.length > 0 ? (
-              <div className="space-y-2">
-                {(() => {
-                  const grouped = {};
-                  returns.forEach(r => {
-                    const d = fmtDate(r.createdAt);
-                    if (!grouped[d]) grouped[d] = [];
-                    grouped[d].push(r);
-                  });
-                  return Object.entries(grouped).map(([date, items]) => (
-                    <div key={date}>
-                      <p className="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-2 mt-3">{date} ({items.length})</p>
-                      {items.map((r, i) => (
-                        <div key={r.id || i} className="glass rounded-xl p-3 border border-gray-700/50 mb-2 hover:bg-white/5">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-xs font-black text-white">{r.receiptNumber || '—'}</p>
-                              <p className="text-[10px] font-bold text-gray-500">{r.productName || (r.items || []).map(it => it.productName).join(', ') || '—'}</p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-xs font-black text-red-400">{fmt(r.refundAmount || r.totalAmount || 0)}</p>
-                              <p className="text-[10px] font-bold text-gray-500">{r.paymentMethod || '—'}</p>
-                            </div>
-                          </div>
-                          <p className="text-[9px] font-bold text-gray-600 mt-1">{fmtTime(r.createdAt)}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ));
-                })()}
+            {filteredReturns.length > 0 ? (
+              <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-gray-900"><tr className="text-gray-500 font-black uppercase tracking-wider text-[10px]">
+                    <th className="text-left py-2 pr-2">Invoice #</th>
+                    <th className="text-left px-2">Customer</th>
+                    <th className="text-left px-2">Product(s)</th>
+                    <th className="text-right px-2">Qty</th>
+                    <th className="text-right px-2">Refund</th>
+                    <th className="text-left px-2">Reason</th>
+                    <th className="text-left px-2">Payment</th>
+                    <th className="text-right pl-2">Date</th>
+                  </tr></thead>
+                  <tbody>
+                    {filteredReturns.map((r, i) => {
+                      const sale = r.sale || {};
+                      const saleItems = sale.items || [];
+                      const productNames = saleItems.length > 0
+                        ? saleItems.map(it => `${it.productName || '—'}${it.color ? ` (${it.color})` : ''}${it.size ? ` [${it.size}]` : ''}`).join(', ')
+                        : '—';
+                      return (
+                        <tr key={r.id || i} className="border-t border-gray-800 hover:bg-white/5 cursor-pointer" onClick={() => setReturnDetailId(returnDetailId === r.id ? null : r.id)}>
+                          <td className="py-2 pr-2 font-bold text-white">{sale.receiptNumber || '—'}</td>
+                          <td className="px-2 font-bold text-gray-300">{sale.customerName || 'Walk-in'}</td>
+                          <td className="px-2 text-gray-300 max-w-[200px] truncate">{productNames}</td>
+                          <td className="px-2 text-right font-bold text-gray-300">{r.quantity || 1}</td>
+                          <td className="px-2 text-right font-black text-red-400">{fmt(r.refundAmount)}</td>
+                          <td className="px-2 text-gray-400 max-w-[120px] truncate">{r.reason || '—'}</td>
+                          <td className="px-2 font-bold text-gray-300">{r.refundPaymentMethod || sale.paymentMethod || '—'}</td>
+                          <td className="pl-2 text-right text-[10px] text-gray-500">{fmtDate(r.createdAt)} {fmtTime(r.createdAt)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             ) : (
               <p className="text-xs text-gray-500 font-bold text-center py-8">No returns recorded</p>
@@ -603,40 +696,44 @@ const OutletDetailedCard = ({ outlet }) => {
         <div className="space-y-6">
           <div className="grid grid-cols-3 gap-3">
             <div className="glass rounded-2xl p-5 border-2 border-gray-700/50 text-center">
-              <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">Total</p>
-              <p className="text-white font-black text-xl">{sales.length}</p>
+              <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">Total Invoices</p>
+              <p className="text-white font-black text-xl">{nonFaisalSales.length}</p>
             </div>
             <div className="glass rounded-2xl p-5 border-2 border-gray-700/50 text-center">
-              <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">Today</p>
-              <p className="text-indigo-400 font-black text-xl">{sales.filter(s => fmtDate(s.createdAt) === fmtDate(new Date())).length}</p>
+              <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">Faisal Takes</p>
+              <p className="text-indigo-400 font-black text-xl">{sales.length - nonFaisalSales.length}</p>
             </div>
             <div className="glass rounded-2xl p-5 border-2 border-gray-700/50 text-center">
-              <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">This Week</p>
-              <p className="text-amber-400 font-black text-xl">{sales.filter(s => { const d = new Date(s.createdAt); const now = new Date(); return (now - d) < 7 * 86400000; }).length}</p>
+              <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">Total Sales</p>
+              <p className="text-emerald-400 font-black text-xl">{fmt(nonFaisalSales.reduce((s, inv) => s + saleRevenue(inv), 0))}</p>
             </div>
           </div>
 
           <div className="glass rounded-2xl p-5 border-2 border-gray-700/50">
             <h3 className="text-sm font-black text-white uppercase tracking-wider mb-4 flex items-center gap-2">
-              <FileText size={16} className="text-indigo-400" /> Invoice List ({filteredInvoices.length})
+              <FileText size={16} className="text-indigo-400" /> All Invoices ({filteredSales.length})
             </h3>
-            {filteredInvoices.length > 0 ? (
-              <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+            {filteredSales.length > 0 ? (
+              <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
                 <table className="w-full text-xs">
                   <thead className="sticky top-0 bg-gray-900"><tr className="text-gray-500 font-black uppercase tracking-wider text-[10px]">
-                    <th className="text-left py-2 pr-2">Receipt #</th>
+                    <th className="text-left py-2 pr-2">Invoice #</th>
                     <th className="text-left px-2">Customer</th>
-                    <th className="text-right px-2">Grand Total</th>
-                    <th className="text-left px-2">Method</th>
+                    <th className="text-right px-2">Amount</th>
+                    <th className="text-left px-2">Payment</th>
+                    <th className="text-left px-2">Cashier</th>
                     <th className="text-right pl-2">Date</th>
                   </tr></thead>
                   <tbody>
-                    {filteredInvoices.slice(0, 200).map((s, i) => (
+                    {paginatedInvoices.map((s, i) => (
                       <tr key={s.id || i} className="border-t border-gray-800 hover:bg-white/5">
                         <td className="py-2 pr-2 font-bold text-white">{s.receiptNumber || '—'}</td>
                         <td className="px-2 font-bold text-gray-300">{s.customerName || 'Walk-in'}</td>
-                        <td className="px-2 text-right font-black text-emerald-400">{fmt(s.grandTotal)}</td>
-                        <td className="px-2 font-bold text-gray-400">{s.paymentMethod || 'CASH'}</td>
+                        <td className="px-2 text-right font-black text-emerald-400">{fmt(saleRevenue(s))}</td>
+                        <td className="px-2">
+                          <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${s.paymentMethod === 'CASH' ? 'bg-emerald-500/20 text-emerald-400' : s.paymentMethod === 'CARD' ? 'bg-purple-500/20 text-purple-400' : s.paymentMethod === 'ONLINE' ? 'bg-blue-500/20 text-blue-400' : 'bg-amber-500/20 text-amber-400'}`}>{s.paymentMethod || 'CASH'}</span>
+                        </td>
+                        <td className="px-2 text-[10px] font-bold text-gray-500">{s.cashierName || '—'}</td>
                         <td className="pl-2 text-right text-[10px] text-gray-500">{fmtDate(s.createdAt)} {fmtTime(s.createdAt)}</td>
                       </tr>
                     ))}
@@ -646,6 +743,7 @@ const OutletDetailedCard = ({ outlet }) => {
             ) : (
               <p className="text-xs text-gray-500 font-bold text-center py-8">No invoices found</p>
             )}
+            <Pagination currentPage={invoicePage} totalPages={totalInvoicePages} onPageChange={setInvoicePage} />
           </div>
         </div>
       )}
@@ -653,48 +751,61 @@ const OutletDetailedCard = ({ outlet }) => {
       {/* ==================== ORDERS ==================== */}
       {activeSection === 'orders' && (
         <div className="space-y-6">
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+            {[
+              { label: 'Total', value: orderStatusCounts.total || orders.length, color: 'text-white' },
+              { label: 'Pending', value: orderStatusCounts.pending || 0, color: 'text-yellow-400' },
+              { label: 'In Progress', value: orderStatusCounts.inProgress || 0, color: 'text-blue-400' },
+              { label: 'Completed', value: orderStatusCounts.completed || 0, color: 'text-emerald-400' },
+              { label: 'Delivered', value: orderStatusCounts.delivered || 0, color: 'text-green-400' },
+              { label: 'Cancelled', value: orderStatusCounts.cancelled || 0, color: 'text-red-400' },
+            ].map(card => (
+              <div key={card.label} className="glass rounded-2xl p-4 border-2 border-gray-700/50 text-center">
+                <p className="text-gray-400 text-[9px] font-bold uppercase tracking-widest mb-1">{card.label}</p>
+                <p className={`font-black text-lg ${card.color}`}>{card.value}</p>
+              </div>
+            ))}
+          </div>
+
           <div className="glass rounded-2xl p-5 border-2 border-gray-700/50">
             <h3 className="text-sm font-black text-white uppercase tracking-wider mb-4 flex items-center gap-2">
-              <ShoppingBag size={16} className="text-indigo-400" /> Order List ({filteredOrders.length})
+              <ShoppingBag size={16} className="text-indigo-400" /> All Orders ({filteredOrders.length})
             </h3>
             {filteredOrders.length > 0 ? (
               <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
                 <table className="w-full text-xs">
                   <thead className="sticky top-0 bg-gray-900"><tr className="text-gray-500 font-black uppercase tracking-wider text-[10px]">
                     <th className="text-left py-2 pr-2">Order #</th>
+                    <th className="text-left px-2">Invoice #</th>
                     <th className="text-left px-2">Customer</th>
                     <th className="text-right px-2">Amount</th>
-                    <th className="text-left px-2">Stage</th>
                     <th className="text-left px-2">Status</th>
-                    <th className="text-left px-2">Priority</th>
+                    <th className="text-left px-2">Stage</th>
                     <th className="text-right pl-2">Date</th>
                   </tr></thead>
                   <tbody>
-                    {filteredOrders.slice(0, 200).map((o, i) => (
-                      <tr key={o.id || i} className="border-t border-gray-800 hover:bg-white/5">
-                        <td className="py-2 pr-2 font-bold text-white">{o.orderNumber || o.invoiceNumber || '—'}</td>
-                        <td className="px-2 font-bold text-gray-300">{o.client?.name || o.customerName || '—'}</td>
-                        <td className="px-2 text-right font-black text-emerald-400">{fmt(o.totalPrice || o.grandTotal)}</td>
-                        <td className="px-2 font-bold text-gray-400">{o.currentStage || '—'}</td>
-                        <td className="px-2">
-                          <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${(o.paymentStatus || o.status) === 'COMPLETED' || (o.paymentStatus || o.status) === 'DELIVERED' ? 'bg-emerald-500/20 text-emerald-400' : (o.paymentStatus || o.status) === 'CANCELLED' ? 'bg-red-500/20 text-red-400' : (o.paymentStatus || o.status) === 'PENDING' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'}`}>
-                            {o.paymentStatus || o.status || 'PENDING'}
-                          </span>
-                        </td>
-                        <td className="px-2">
-                          <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${o.priority === 'URGENT' ? 'bg-red-500/20 text-red-400' : 'bg-gray-500/20 text-gray-400'}`}>
-                            {o.priority || 'NORMAL'}
-                          </span>
-                        </td>
-                        <td className="pl-2 text-right text-[10px] text-gray-500">{fmtDate(o.createdAt)}</td>
-                      </tr>
-                    ))}
+                    {paginatedOrders.map((o, i) => {
+                      const st = (o.status || '').toUpperCase();
+                      const stColor = st === 'DELIVERED' ? 'text-green-400 bg-green-500/20' : st === 'COMPLETED' ? 'text-emerald-400 bg-emerald-500/20' : st === 'CANCELLED' || st === 'REJECTED' ? 'text-red-400 bg-red-500/20' : st === 'IN_PROGRESS' ? 'text-blue-400 bg-blue-500/20' : 'text-yellow-400 bg-yellow-500/20';
+                      return (
+                        <tr key={o.id || i} className="border-t border-gray-800 hover:bg-white/5">
+                          <td className="py-2 pr-2 font-bold text-white">{o.orderNumber || '—'}</td>
+                          <td className="px-2 font-bold text-gray-400">{o.invoiceNumber || '—'}</td>
+                          <td className="px-2 font-bold text-gray-300">{o.customerName || '—'}</td>
+                          <td className="px-2 text-right font-black text-emerald-400">{fmt(o.totalPrice)}</td>
+                          <td className="px-2"><span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${stColor}`}>{o.status || 'PENDING'}</span></td>
+                          <td className="px-2 text-[10px] font-bold text-gray-500">{o.currentStage || '—'}</td>
+                          <td className="pl-2 text-right text-[10px] text-gray-500">{fmtDate(o.createdAt)} {fmtTime(o.createdAt)}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             ) : (
               <p className="text-xs text-gray-500 font-bold text-center py-8">No orders found</p>
             )}
+            <Pagination currentPage={orderPage} totalPages={totalOrderPages} onPageChange={setOrderPage} />
           </div>
         </div>
       )}
@@ -704,52 +815,50 @@ const OutletDetailedCard = ({ outlet }) => {
         <div className="space-y-6">
           <div className="glass rounded-2xl p-5 border-2 border-gray-700/50">
             <h3 className="text-sm font-black text-white uppercase tracking-wider mb-4 flex items-center gap-2">
-              <Layers size={16} className="text-indigo-400" /> Stage-wise Order Distribution
+              <Layers size={16} className="text-indigo-400" /> Order Status Distribution
             </h3>
-            {STAGE_ORDER.length > 0 ? (
-              <div className="space-y-2">
-                {STAGE_ORDER.map(stage => {
-                  const count = stageTracking[stage] || 0;
-                  const maxCount = Math.max(...Object.values(stageTracking).map(v => typeof v === 'number' ? v : 0), 1);
-                  const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
-                  const isExpanded = expandedId === `stage-${stage}`;
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+              {[
+                { label: 'Pending', value: orderStatusCounts.pending || 0, color: 'text-yellow-400', bg: 'bg-yellow-500/20' },
+                { label: 'In Progress', value: orderStatusCounts.inProgress || 0, color: 'text-blue-400', bg: 'bg-blue-500/20' },
+                { label: 'Completed', value: orderStatusCounts.completed || 0, color: 'text-emerald-400', bg: 'bg-emerald-500/20' },
+                { label: 'Delivered', value: orderStatusCounts.delivered || 0, color: 'text-green-400', bg: 'bg-green-500/20' },
+                { label: 'Cancelled', value: orderStatusCounts.cancelled || 0, color: 'text-red-400', bg: 'bg-red-500/20' },
+                { label: 'Waiting Payment', value: orderStatusCounts.waitingPayment || 0, color: 'text-purple-400', bg: 'bg-purple-500/20' },
+                { label: 'Total Orders', value: orderStatusCounts.total || orders.length, color: 'text-white', bg: 'bg-white/10' },
+                { label: 'Active', value: (orderStatusCounts.pending || 0) + (orderStatusCounts.inProgress || 0) + (orderStatusCounts.waitingPayment || 0), color: 'text-indigo-400', bg: 'bg-indigo-500/20' },
+              ].map(c => (
+                <div key={c.label} className={`glass rounded-xl p-4 border border-gray-700/50 text-center ${c.bg}`}>
+                  <p className="text-gray-400 text-[9px] font-bold uppercase tracking-widest mb-1">{c.label}</p>
+                  <p className={`font-black text-xl ${c.color}`}>{c.value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="glass rounded-2xl p-5 border-2 border-gray-700/50">
+            <h3 className="text-sm font-black text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+              <Layers size={16} className="text-indigo-400" /> Pipeline (Active Orders per Stage)
+            </h3>
+            {stageWiseTracking.length > 0 ? (
+              <div className="space-y-3">
+                {stageWiseTracking.map((s, i) => {
+                  const maxCount = Math.max(...stageWiseTracking.map(st => st.count || 0), 1);
+                  const w = ((s.count || 0) / maxCount) * 100;
                   return (
-                    <div key={stage}>
-                      <div className="flex items-center gap-3 cursor-pointer hover:bg-white/5 rounded-lg p-2 transition-all" onClick={() => setExpandedId(isExpanded ? null : `stage-${stage}`)}>
-                        <span className={`transition-transform ${isExpanded ? 'rotate-90' : ''}`}>
-                          <ChevronRight size={14} className="text-gray-500" />
-                        </span>
-                        <span className="text-xs font-bold text-gray-300 w-40 shrink-0">{stage}</span>
-                        <div className="flex-1 h-6 bg-gray-800 rounded-lg overflow-hidden">
-                          <div className="h-full bg-indigo-500 rounded-lg flex items-center justify-end pr-2" style={{ width: `${Math.max(pct, 2)}%` }}>
-                            {count > 0 && <span className="text-[9px] font-black text-white">{count}</span>}
-                          </div>
+                    <div key={i} className="flex items-center gap-3">
+                      <span className="text-[10px] font-black text-gray-400 w-32 shrink-0 text-right">{s.label || s.stage}</span>
+                      <div className="flex-1 h-6 bg-gray-800 rounded-lg overflow-hidden">
+                        <div className="h-full bg-indigo-500 rounded-lg flex items-center pl-2" style={{ width: `${Math.max(w, 4)}%` }}>
+                          <span className="text-[9px] font-black text-white">{s.count}</span>
                         </div>
-                        <span className="text-xs font-black text-white w-8 text-right">{count}</span>
                       </div>
-                      {isExpanded && (
-                        <div className="ml-8 mb-2 mt-1 space-y-1">
-                          {orders.filter(o => o.currentStage === stage).slice(0, 20).map((o, i) => (
-                            <div key={o.id || i} className="flex items-center justify-between p-2 bg-gray-800/30 rounded-lg border border-gray-700/30">
-                              <span className="text-[10px] font-bold text-white">{o.orderNumber || o.invoiceNumber || '—'}</span>
-                              <span className="text-[10px] font-bold text-gray-400">{o.customerName || '—'}</span>
-                              <span className="text-[10px] font-black text-indigo-400">{fmt(o.totalPrice || o.grandTotal)}</span>
-                            </div>
-                          ))}
-                          {orders.filter(o => o.currentStage === stage).length > 20 && (
-                            <p className="text-[9px] text-gray-600 font-bold text-center">+{orders.filter(o => o.currentStage === stage).length - 20} more</p>
-                          )}
-                          {orders.filter(o => o.currentStage === stage).length === 0 && (
-                            <p className="text-[10px] text-gray-600 font-bold text-center py-2">No orders at this stage</p>
-                          )}
-                        </div>
-                      )}
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <p className="text-xs text-gray-500 font-bold text-center py-8">No tracking data</p>
+              <p className="text-xs text-gray-500 font-bold text-center py-8">No active orders in pipeline</p>
             )}
           </div>
         </div>
@@ -758,13 +867,12 @@ const OutletDetailedCard = ({ outlet }) => {
       {/* ==================== INVENTORY ==================== */}
       {activeSection === 'inventory' && (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
+              { label: 'Total Products', value: inventory.total || 0, color: 'text-white' },
               { label: 'In Stock', value: inventory.inStock || 0, color: 'text-emerald-400' },
-              { label: 'Low Stock', value: inventory.lowStock || 0, color: 'text-amber-400' },
+              { label: 'Low Stock', value: inventory.lowStock || 0, color: 'text-yellow-400' },
               { label: 'Out of Stock', value: inventory.outOfStock || 0, color: 'text-red-400' },
-              { label: 'Total Items', value: inventory.total || inventoryItems.length, color: 'text-white' },
-              { label: 'Total Value', value: fmt(inventory.totalValue), color: 'text-indigo-400' },
             ].map(card => (
               <div key={card.label} className="glass rounded-2xl p-5 border-2 border-gray-700/50 text-center">
                 <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">{card.label}</p>
@@ -773,64 +881,41 @@ const OutletDetailedCard = ({ outlet }) => {
             ))}
           </div>
 
-          {inventoryProducts.length > 0 && (
-            <div className="glass rounded-2xl p-5 border-2 border-gray-700/50">
-              <h3 className="text-sm font-black text-white uppercase tracking-wider mb-4 flex items-center gap-2">
-                <Package size={16} className="text-indigo-400" /> Top Inventory Products (by Value)
-              </h3>
-              <div className="space-y-2">
-                {inventoryProducts.slice(0, 10).map((item, i) => {
-                  const maxVal = inventoryProducts[0]?.value || 1;
-                  return (
-                    <div key={item.name || i} className="flex items-center gap-3">
-                      <span className="text-[10px] font-black text-gray-500 w-5 shrink-0">#{i + 1}</span>
-                      <span className="text-xs font-bold text-white w-40 shrink-0 truncate">{item.name || '—'}</span>
-                      <div className="flex-1 h-5 bg-gray-800 rounded-lg overflow-hidden">
-                        <div className="h-full bg-indigo-500 rounded-lg" style={{ width: `${(item.value / maxVal) * 100}%` }} />
-                      </div>
-                      <span className="text-[10px] font-black text-indigo-400 w-20 text-right shrink-0">{fmt(item.value)}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
           <div className="glass rounded-2xl p-5 border-2 border-gray-700/50">
             <h3 className="text-sm font-black text-white uppercase tracking-wider mb-4 flex items-center gap-2">
-              <Package size={16} className="text-indigo-400" /> Full Inventory ({filteredInventory.length})
+              <Package size={16} className="text-indigo-400" /> Inventory Items ({filteredInventory.length})
             </h3>
             {filteredInventory.length > 0 ? (
               <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
                 <table className="w-full text-xs">
                   <thead className="sticky top-0 bg-gray-900"><tr className="text-gray-500 font-black uppercase tracking-wider text-[10px]">
-                    <th className="text-left py-2 pr-2">#</th>
-                    <th className="text-left px-2">Name</th>
+                    <th className="text-left py-2 pr-2">Product</th>
                     <th className="text-left px-2">Category</th>
                     <th className="text-left px-2">Color</th>
                     <th className="text-left px-2">Size</th>
                     <th className="text-right px-2">Stock</th>
                     <th className="text-right px-2">Price</th>
-                    <th className="text-right pl-2">Barcode</th>
+                    <th className="text-right pl-2">Value</th>
                   </tr></thead>
                   <tbody>
-                    {filteredInventory.slice(0, 200).map((item, idx) => (
-                      <tr key={item.id || idx} className="border-t border-gray-800 hover:bg-white/5">
-                        <td className="py-2 pr-2 text-gray-500">{idx + 1}</td>
-                        <td className="px-2 font-bold text-white">{item.productName || item.name || '—'}</td>
+                    {filteredInventory.map((item, i) => (
+                      <tr key={item.id || i} className="border-t border-gray-800 hover:bg-white/5">
+                        <td className="py-2 pr-2 font-bold text-white">{item.name || '—'}</td>
                         <td className="px-2 font-bold text-gray-400">{item.category || '—'}</td>
                         <td className="px-2 font-bold text-gray-300">{item.color || '—'}</td>
                         <td className="px-2 font-bold text-gray-300">{item.size || '—'}</td>
-                        <td className={`px-2 text-right font-black ${(item.stock || 0) <= 0 ? 'text-red-400' : (item.stock || 0) <= 5 ? 'text-amber-400' : 'text-emerald-400'}`}>{item.stock || 0}</td>
-                        <td className="px-2 text-right font-bold text-gray-300">{fmt(item.price || item.unitPrice)}</td>
-                        <td className="pl-2 text-right font-bold text-gray-500">{item.barcode || '—'}</td>
+                        <td className="px-2 text-right font-black">
+                          <span className={(item.stock || 0) === 0 ? 'text-red-400' : (item.stock || 0) <= 5 ? 'text-yellow-400' : 'text-emerald-400'}>{item.stock || 0}</span>
+                        </td>
+                        <td className="px-2 text-right font-bold text-gray-300">{fmt(item.price)}</td>
+                        <td className="pl-2 text-right font-black text-indigo-400">{fmt((item.stock || 0) * (item.price || 0))}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             ) : (
-              <p className="text-xs text-gray-500 font-bold text-center py-8">No inventory items found</p>
+              <p className="text-xs text-gray-500 font-bold text-center py-8">No inventory items</p>
             )}
           </div>
         </div>
@@ -839,34 +924,52 @@ const OutletDetailedCard = ({ outlet }) => {
       {/* ==================== CUSTOMERS ==================== */}
       {activeSection === 'customers' && (
         <div className="space-y-6">
-          <div className="glass rounded-2xl p-5 border-2 border-gray-700/50 text-center">
-            <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">Total Customers</p>
-            <p className="text-white font-black text-xl">{customers.length}</p>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="glass rounded-2xl p-5 border-2 border-gray-700/50 text-center">
+              <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">Registered Clients</p>
+              <p className="text-white font-black text-xl">{customers.length}</p>
+            </div>
+            <div className="glass rounded-2xl p-5 border-2 border-gray-700/50 text-center">
+              <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">Male Clients</p>
+              <p className="text-blue-400 font-black text-xl">{customers.filter(c => (c.gender || '').toUpperCase() === 'MALE').length}</p>
+            </div>
+            <div className="glass rounded-2xl p-5 border-2 border-gray-700/50 text-center">
+              <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">Female Clients</p>
+              <p className="text-pink-400 font-black text-xl">{customers.filter(c => (c.gender || '').toUpperCase() === 'FEMALE').length}</p>
+            </div>
           </div>
 
           <div className="glass rounded-2xl p-5 border-2 border-gray-700/50">
             <h3 className="text-sm font-black text-white uppercase tracking-wider mb-4 flex items-center gap-2">
-              <Users size={16} className="text-indigo-400" /> Customer List ({filteredCustomers.length})
+              <Users size={16} className="text-indigo-400" /> Registered Clients ({filteredCustomers.length})
             </h3>
             {filteredCustomers.length > 0 ? (
-              <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+              <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
                 <table className="w-full text-xs">
                   <thead className="sticky top-0 bg-gray-900"><tr className="text-gray-500 font-black uppercase tracking-wider text-[10px]">
-                    <th className="text-left py-2 pr-2">#</th>
+                    <th className="text-left py-2 pr-2">Client #</th>
                     <th className="text-left px-2">Name</th>
                     <th className="text-left px-2">Phone</th>
                     <th className="text-left px-2">Gender</th>
                     <th className="text-left px-2">City</th>
+                    <th className="text-right px-2">Orders</th>
                     <th className="text-right pl-2">Registered</th>
                   </tr></thead>
                   <tbody>
-                    {filteredCustomers.slice(0, 200).map((c, i) => (
+                    {paginatedCustomers.map((c, i) => (
                       <tr key={c.id || i} className="border-t border-gray-800 hover:bg-white/5">
-                        <td className="py-2 pr-2 text-gray-500">{i + 1}</td>
-                        <td className="px-2 font-bold text-white">{c.name || '—'}</td>
-                        <td className="px-2 font-bold text-gray-300">{c.phone || '—'}</td>
-                        <td className="px-2 font-bold text-gray-400">{c.gender || '—'}</td>
+                        <td className="py-2 pr-2 font-bold text-white">{c.clientNumber || '—'}</td>
+                        <td className="px-2 font-bold text-gray-300">{c.name || '—'}</td>
+                        <td className="px-2">
+                          <span className="flex items-center gap-1 text-gray-300">
+                            <Phone size={10} className="text-gray-600" />{c.phone || '—'}
+                          </span>
+                        </td>
+                        <td className="px-2">
+                          <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${(c.gender || '').toUpperCase() === 'MALE' ? 'bg-blue-500/20 text-blue-400' : 'bg-pink-500/20 text-pink-400'}`}>{c.gender || '—'}</span>
+                        </td>
                         <td className="px-2 font-bold text-gray-400">{c.city || '—'}</td>
+                        <td className="px-2 text-right font-black text-indigo-400">{c._count?.Order || 0}</td>
                         <td className="pl-2 text-right text-[10px] text-gray-500">{fmtDate(c.createdAt)}</td>
                       </tr>
                     ))}
@@ -874,8 +977,9 @@ const OutletDetailedCard = ({ outlet }) => {
                 </table>
               </div>
             ) : (
-              <p className="text-xs text-gray-500 font-bold text-center py-8">No customers found</p>
+              <p className="text-xs text-gray-500 font-bold text-center py-8">No registered clients</p>
             )}
+            <Pagination currentPage={customerPage} totalPages={totalCustomerPages} onPageChange={setCustomerPage} />
           </div>
         </div>
       )}
@@ -886,10 +990,10 @@ const OutletDetailedCard = ({ outlet }) => {
           <div className="grid grid-cols-5 gap-3">
             {[
               { label: 'Total', value: transfers.length, color: 'text-white' },
-              { label: 'Incoming', value: transfers.filter(t => t.type === 'INCOMING' || t.toOutlet === outlet).length, color: 'text-emerald-400' },
-              { label: 'Outgoing', value: transfers.filter(t => t.type === 'OUTGOING' || t.fromOutlet === outlet).length, color: 'text-amber-400' },
+              { label: 'Incoming', value: transfers.filter(t => t.toOutlet === outlet).length, color: 'text-emerald-400' },
+              { label: 'Outgoing', value: transfers.filter(t => t.fromOutlet === outlet).length, color: 'text-amber-400' },
               { label: 'Pending', value: transfers.filter(t => t.status === 'PENDING').length, color: 'text-yellow-400' },
-              { label: 'Completed', value: transfers.filter(t => t.status === 'COMPLETED' || t.status === 'APPROVED').length, color: 'text-blue-400' },
+              { label: 'Completed', value: transfers.filter(t => t.status === 'COMPLETED' || t.status === 'ACCEPTED').length, color: 'text-blue-400' },
             ].map(card => (
               <div key={card.label} className="glass rounded-2xl p-5 border-2 border-gray-700/50 text-center">
                 <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">{card.label}</p>
@@ -917,7 +1021,7 @@ const OutletDetailedCard = ({ outlet }) => {
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-gray-500/20 text-gray-400">{(t.items || []).length || t.itemCount || 0} items</span>
+                        <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-gray-500/20 text-gray-400">{(t.items || []).length || t.totalItems || 0} items</span>
                         <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${t.status === 'COMPLETED' || t.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-400' : t.status === 'REJECTED' ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{t.status || 'PENDING'}</span>
                         <span className="text-[10px] font-bold text-gray-500">{fmtDate(t.createdAt)}</span>
                       </div>
@@ -961,7 +1065,7 @@ const OutletDetailedCard = ({ outlet }) => {
             {[
               { label: 'Total', value: requests.length, color: 'text-white' },
               { label: 'Pending', value: requests.filter(r => r.status === 'PENDING').length, color: 'text-yellow-400' },
-              { label: 'Approved', value: requests.filter(r => r.status === 'APPROVED').length, color: 'text-emerald-400' },
+              { label: 'Approved', value: requests.filter(r => r.status === 'APPROVED' || r.status === 'COMPLETED').length, color: 'text-emerald-400' },
               { label: 'Rejected', value: requests.filter(r => r.status === 'REJECTED').length, color: 'text-red-400' },
             ].map(card => (
               <div key={card.label} className="glass rounded-2xl p-5 border-2 border-gray-700/50 text-center">
@@ -990,7 +1094,7 @@ const OutletDetailedCard = ({ outlet }) => {
                     {requests.map((r, i) => (
                       <tr key={r.id || i} className="border-t border-gray-800 hover:bg-white/5">
                         <td className="py-2 pr-2 font-bold text-white">{r.itemName || r.productName || '—'}</td>
-                        <td className="px-2 font-bold text-gray-400">{r.category || '—'}</td>
+                        <td className="px-2 font-bold text-gray-400">{r.category || r.itemCategory || '—'}</td>
                         <td className="px-2 text-right font-bold text-gray-300">{r.quantity || r.requestedQty || 0}</td>
                         <td className="px-2 text-right font-bold text-emerald-400">{r.approvedQty || '—'}</td>
                         <td className="px-2">
@@ -1043,7 +1147,7 @@ const OutletDetailedCard = ({ outlet }) => {
                           <ChevronRight size={14} className="text-gray-500" />
                         </span>
                         <div>
-                          <p className="text-xs font-black text-white">#{a.id || i + 1}</p>
+                          <p className="text-xs font-black text-white">{a.alterationNumber || `#${(a.id || '').slice(0, 8)}`}</p>
                           <p className="text-[10px] font-bold text-gray-500">{a.customerName || '—'}</p>
                         </div>
                       </div>
@@ -1054,7 +1158,7 @@ const OutletDetailedCard = ({ outlet }) => {
                     </div>
                     {expandedId === `alt-${i}` && (
                       <div className="border-t border-gray-800 p-3 bg-gray-900/30">
-                        {(a.products || a.items || []).length > 0 ? (
+                        {(a.products || []).length > 0 ? (
                           <table className="w-full text-[10px]">
                             <thead><tr className="text-gray-500 font-black uppercase">
                               <th className="text-left py-1">Product</th>
@@ -1062,7 +1166,7 @@ const OutletDetailedCard = ({ outlet }) => {
                               <th className="text-right pl-2">Price</th>
                             </tr></thead>
                             <tbody>
-                              {(a.products || a.items || []).map((p, j) => (
+                              {(a.products || []).map((p, j) => (
                                 <tr key={j} className="border-t border-gray-800">
                                   <td className="py-1 font-bold text-white">{p.productName || p.name || '—'}</td>
                                   <td className="px-2 text-gray-300">{p.description || p.notes || '—'}</td>
@@ -1091,9 +1195,9 @@ const OutletDetailedCard = ({ outlet }) => {
         <div className="space-y-6">
           <div className="grid grid-cols-3 gap-3">
             {[
-              { label: 'Total Entries', value: journalEntries.length, color: 'text-white' },
-              { label: 'Total Deducted', value: fmt(journalEntries.reduce((s, j) => s + (j.amount || 0), 0)), color: 'text-red-400' },
-              { label: 'Unique Employees', value: [...new Set(journalEntries.map(j => j.employeeName))].filter(Boolean).length, color: 'text-indigo-400' },
+              { label: 'Total Entries', value: filteredJournal.length, color: 'text-white' },
+              { label: 'Total Deducted', value: fmt(filteredJournal.reduce((s, j) => s + (j.amount || 0), 0)), color: 'text-red-400' },
+              { label: 'Unique Employees', value: [...new Set(filteredJournal.map(j => j.employeeName))].filter(Boolean).length, color: 'text-indigo-400' },
             ].map(card => (
               <div key={card.label} className="glass rounded-2xl p-5 border-2 border-gray-700/50 text-center">
                 <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">{card.label}</p>
@@ -1110,19 +1214,19 @@ const OutletDetailedCard = ({ outlet }) => {
               <div className="space-y-2">
                 {(() => {
                   const grouped = {};
-                  filteredJournal.forEach(j => {
+                  paginatedJournal.forEach(j => {
                     const emp = j.employeeName || 'Unknown';
                     if (!grouped[emp]) grouped[emp] = [];
                     grouped[emp].push(j);
                   });
                   return Object.entries(grouped).map(([emp, entries]) => (
                     <div key={emp}>
-                      <p className="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-2 mt-3">{emp} ({entries.length} entries · {fmt(entries.reduce((s, e) => s + (e.amount || 0), 0))})</p>
+                      <p className="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-2 mt-3">{emp} ({entries.length} entries - {fmt(entries.reduce((s, e) => s + (e.amount || 0), 0))})</p>
                       {entries.map((j, i) => (
                         <div key={j.id || i} className="glass rounded-xl p-3 border border-gray-700/50 mb-2 hover:bg-white/5">
                           <div className="flex items-center justify-between">
                             <div>
-                              <p className="text-xs font-black text-white">{j.title || '—'}</p>
+                              <p className="text-xs font-black text-white">{j.expenseTitle || j.title || '—'}</p>
                               <p className="text-[10px] font-bold text-gray-500">{j.notes || '—'}</p>
                             </div>
                             <div className="text-right">
@@ -1135,11 +1239,19 @@ const OutletDetailedCard = ({ outlet }) => {
                     </div>
                   ));
                 })()}
+                <Pagination currentPage={journalPage} totalPages={totalJournalPages} onPageChange={setJournalPage} />
               </div>
             ) : (
               <p className="text-xs text-gray-500 font-bold text-center py-8">No journal entries found</p>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ==================== REGISTER HISTORY ==================== */}
+      {activeSection === 'registers' && (
+        <div className="space-y-4">
+          <OutletRegisters outlet={outlet} />
         </div>
       )}
     </div>

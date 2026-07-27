@@ -44,6 +44,9 @@ const OutletInvoiceHistory = ({ outlet }) => {
   const [showPayModal, setShowPayModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [payAmount, setPayAmount] = useState(0);
+  const [payMethod, setPayMethod] = useState('CASH');
+  const [payCashAmount, setPayCashAmount] = useState(0);
+  const [payOnlineAmount, setPayOnlineAmount] = useState(0);
   const [paying, setPaying] = useState(false);
   const [lastPayment, setLastPayment] = useState(null);
   const [showReceipt, setShowReceipt] = useState(false);
@@ -229,6 +232,9 @@ const OutletInvoiceHistory = ({ outlet }) => {
       const res = await api.get(`/api/pos/balance-invoices/${sale.id}`);
       setSelectedInvoice(res.data);
       setPayAmount(Math.ceil(res.data.remaining));
+      setPayMethod('CASH');
+      setPayCashAmount(Math.ceil(res.data.remaining));
+      setPayOnlineAmount(0);
       setShowPayModal(true);
     } catch (e) {
       toast.error('Failed to load invoice');
@@ -238,14 +244,20 @@ const OutletInvoiceHistory = ({ outlet }) => {
   const handlePayBalance = async () => {
     if (!selectedInvoice || payAmount <= 0) return toast.error('Enter a valid amount');
     if (payAmount > selectedInvoice.remaining) return toast.error(`Amount exceeds remaining balance of ₨${selectedInvoice.remaining.toLocaleString()}`);
+    if (payMethod === 'CASH_ONLINE' && Math.abs((payCashAmount + payOnlineAmount) - payAmount) > 0.01) {
+      return toast.error(`Cash + Online must equal payment amount`);
+    }
     setPaying(true);
     try {
-      const res = await api.post(`/api/pos/balance-invoices/${selectedInvoice.id}/pay`, {
-        amountPaidNow: payAmount,
-        paymentMethod: 'CASH'
-      });
+      const payload = { amountPaidNow: payAmount, paymentMethod: payMethod };
+      if (payMethod === 'CASH_ONLINE') {
+        payload.cashAmount = payCashAmount;
+        payload.onlineAmount = payOnlineAmount;
+      }
+      const res = await api.post(`/api/pos/balance-invoices/${selectedInvoice.id}/pay`, payload);
       setLastPayment(res.data);
       setShowPayModal(false);
+      setShowReceipt(true);
       toast.success('Balance payment recorded — invoice status will update automatically');
       fetchSales();
     } catch (e) {
@@ -659,6 +671,34 @@ const OutletInvoiceHistory = ({ outlet }) => {
               <p className="flex justify-between"><span className="text-gray-500">Original Total</span><span className="font-bold text-white">{formatCurrency(selectedInvoice.grandTotal)}</span></p>
               <p className="flex justify-between"><span className="text-gray-500">Already Paid</span><span className="font-bold text-emerald-400">{formatCurrency(selectedInvoice.totalPaid || (selectedInvoice.grandTotal - selectedInvoice.remaining))}</span></p>
               <p className="flex justify-between"><span className="text-gray-500">Remaining</span><span className="font-bold text-amber-400">{formatCurrency(selectedInvoice.remaining)}</span></p>
+            </div>
+            <div>
+              <p className="text-[10px] text-gray-500 font-bold mb-1">Payment Method</p>
+              <div className="flex gap-1.5 mb-3">
+                {[{ v: 'CASH', l: 'Cash' }, { v: 'CARD', l: 'Card' }, { v: 'ONLINE', l: 'Online' }, { v: 'CASH_ONLINE', l: 'Cash+Online' }].map(({ v, l }) => (
+                  <button key={v} onClick={() => { setPayMethod(v); if (v !== 'CASH_ONLINE') { setPayCashAmount(0); setPayOnlineAmount(0); } else { setPayCashAmount(Math.ceil(selectedInvoice.remaining)); setPayOnlineAmount(0); } }}
+                    className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-bold border ${payMethod === v ? 'border-emerald-500 bg-emerald-600/20 text-emerald-300' : 'border-gray-700 text-gray-500'}`}>{l}</button>
+                ))}
+              </div>
+              {payMethod === 'CASH_ONLINE' && (
+                <div className="space-y-2 mb-3">
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <p className="text-[10px] text-gray-500 font-bold mb-0.5">Cash</p>
+                      <input type="number" value={payCashAmount} min="0" max={payAmount}
+                        onChange={e => { const v = parseFloat(e.target.value) || 0; setPayCashAmount(v); setPayOnlineAmount(Math.max(0, payAmount - v)); }}
+                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs font-bold text-white focus:outline-none focus:border-blue-500/50" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-[10px] text-gray-500 font-bold mb-0.5">Online</p>
+                      <input type="number" value={payOnlineAmount} min="0" max={payAmount}
+                        onChange={e => { const v = parseFloat(e.target.value) || 0; setPayOnlineAmount(v); setPayCashAmount(Math.max(0, payAmount - v)); }}
+                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs font-bold text-white focus:outline-none focus:border-blue-500/50" />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-gray-500 text-center">Total: {formatCurrency(payCashAmount + payOnlineAmount)} / {formatCurrency(payAmount)}</p>
+                </div>
+              )}
             </div>
             <div>
               <p className="text-[10px] text-gray-500 font-bold mb-1">Payment Amount</p>

@@ -74,10 +74,9 @@ const TOP_TABS = [
   { id: 'dispatch_analytics', label: 'Dispatch', icon: BarChart3 },
   { id: 'enamels_delivery', label: 'Enamels Delivery', icon: Truck },
   { id: 'warehouse', label: 'Warehouse', icon: Package },
-  { id: 'alterations', label: 'Alterations', icon: Clock },
-  { id: 'edit_requests', label: 'Order Change Requests', icon: FileEdit },
-  { id: 'recent_orders', label: 'Recent Orders', icon: History },
-  { id: 'settings', label: 'System Settings', icon: ShieldAlert },
+  { id: 'outlet_johar', label: 'Johar Town Outlet', icon: Store },
+  { id: 'outlet_jail', label: 'Jail Road Outlet', icon: Store },
+  { id: 'outlet_abbottabad', label: 'Abbottabad Outlet', icon: Building },
   { id: 'customer_feedback', label: 'Customer Feedback', icon: MessageSquare },
 ];
 
@@ -606,10 +605,9 @@ const AdminDashboard = () => {
                   {activeTab === 'dispatch_analytics' && 'Dispatch Operations & Analytics'}
                   {activeTab === 'enamels_delivery' && 'Delivery Tracking & Earnings'}
                   {activeTab === 'warehouse' && 'Inventory & Allocation Overview'}
-                  {activeTab === 'alterations' && 'Alteration Tracking & Management'}
-                  {activeTab === 'edit_requests' && 'Order Change Requests'}
-                  {activeTab === 'recent_orders' && 'Latest 20 Orders'}
-                  {activeTab === 'settings' && 'System Configuration'}
+                  {activeTab === 'outlet_johar' && 'Johar Town Operations'}
+                  {activeTab === 'outlet_jail' && 'Jail Road Operations'}
+                  {activeTab === 'outlet_abbottabad' && 'Abbottabad Operations'}
                   {activeTab === 'customer_feedback' && 'QR Feedback Management & Analytics'}
                 </p>
               </div>
@@ -694,6 +692,33 @@ const AdminDashboard = () => {
             {/* All Phases Tab — Pipeline Sub-Tabs */}
             {activeTab === 'all_phases' && (
               <>
+                {/* Module Shortcuts */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { label: 'Warehouse', desc: 'Inventory & stock', icon: Warehouse, color: 'text-amber-400', bg: 'bg-amber-500/10', tab: 'warehouse' },
+                    { label: 'Dispatch', desc: 'Delivery operations', icon: Truck, color: 'text-indigo-400', bg: 'bg-indigo-500/10', tab: 'dispatch_analytics' },
+                    { label: 'Enamels Delivery', desc: 'Rider earnings & COD', icon: Truck, color: 'text-emerald-400', bg: 'bg-emerald-500/10', tab: 'enamels_delivery' },
+                    { label: 'Online Store', desc: 'E-commerce orders', icon: Globe, color: 'text-cyan-400', bg: 'bg-cyan-500/10', tab: 'online_store' },
+                    { label: 'Customer Feedback', desc: 'QR ratings & reviews', icon: MessageSquare, color: 'text-yellow-400', bg: 'bg-yellow-500/10', tab: 'customer_feedback' },
+                    { label: 'Johar Town', desc: 'JT Outlet dashboard', icon: Store, color: 'text-purple-400', bg: 'bg-purple-500/10', tab: 'outlet_johar' },
+                    { label: 'Jail Road', desc: 'JR Outlet dashboard', icon: Store, color: 'text-pink-400', bg: 'bg-pink-500/10', tab: 'outlet_jail' },
+                    { label: 'Abbottabad', desc: 'AB Outlet dashboard', icon: Building, color: 'text-teal-400', bg: 'bg-teal-500/10', tab: 'outlet_abbottabad' },
+                  ].map((mod) => (
+                    <button key={mod.tab} onClick={() => setActiveTab(mod.tab)}
+                      className={`glass p-3 rounded-xl border border-gray-800/50 hover:border-gray-700 text-left transition-all hover:shadow-lg group`}>
+                      <div className="flex items-center gap-2.5">
+                        <div className={`p-2 rounded-lg ${mod.bg} shrink-0`}>
+                          <mod.icon className={mod.color} size={16} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-black theme-text-primary uppercase tracking-tight truncate">{mod.label}</p>
+                          <p className="text-[10px] font-bold theme-text-muted uppercase tracking-wider truncate">{mod.desc}</p>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
                 {/* Pipeline Sub-Tab Bar */}
                 <div className="theme-bg-subtle p-2 rounded-[2rem] theme-border overflow-x-auto no-scrollbar">
                   <div className="flex items-center gap-1.5 min-w-max">

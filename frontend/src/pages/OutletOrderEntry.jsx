@@ -297,7 +297,12 @@ const OutletOrderEntry = () => {
     setNewProduct(prev => ({ ...prev, [field]: value }));
   }, []);
 
-  const totalAmount = useMemo(() => products.reduce((sum, p) => sum + (parseFloat(p.unitPrice) || 0) * (p.quantity || 1), 0), [products]);
+  const CAP_UNIT_PRICE = 500;
+  const totalAmount = useMemo(() => products.reduce((sum, p) => {
+    const line = (parseFloat(p.unitPrice) || 0) * (p.quantity || 1);
+    const cap = p.matchingCap ? (p.matchingCapQty || 0) * CAP_UNIT_PRICE : 0;
+    return sum + line + cap;
+  }, 0), [products]);
   const advance = parseFloat(advanceAmount) || 0;
   const balance = totalAmount - advance;
 
@@ -370,7 +375,8 @@ const OutletOrderEntry = () => {
           measurementSpecialNote: p.measurementSpecialNote || '',
           gender: p.gender || 'Male',
           matchingCap: p.matchingCap || false,
-          matchingCapQty: p.matchingCapQty || 0
+          matchingCapQty: p.matchingCapQty || 0,
+          capCharges: p.matchingCap ? (p.matchingCapQty || 0) * CAP_UNIT_PRICE : 0
         })),
         engravingRequired,
         engravingType: engravingRequired ? engravingType : null,
@@ -785,7 +791,7 @@ const OutletOrderEntry = () => {
 
             {products.length > 0 && (
               <div className="space-y-2 border-t border-gray-700 pt-4">
-                <h3 className="text-xs font-black text-gray-400 uppercase tracking-wider">Products ({products.length}) — Total: ₨{totalAmount.toLocaleString()}</h3>
+                <h3 className="text-xs font-black text-gray-400 uppercase tracking-wider">Products ({products.length}) — Total: ₨{totalAmount.toLocaleString()}{products.some(p => p.matchingCap) ? ` (incl. ₨${products.reduce((s, p) => s + (p.matchingCap ? (p.matchingCapQty || 0) * CAP_UNIT_PRICE : 0), 0).toLocaleString()} caps)` : ''}</h3>
                 {products.map((p, idx) => (
                   <div key={p._tempId} className="bg-gray-800 rounded-xl p-3 space-y-2">
                     <div className="flex items-start justify-between gap-2">
@@ -799,9 +805,9 @@ const OutletOrderEntry = () => {
                           <span>Qty: {p.quantity}</span>
                           <span className="text-amber-400 font-black">₨{((p.unitPrice || 0) * (p.quantity || 1)).toLocaleString()}</span>
                         </div>
-                        {p.matchingCap && <p className="text-[10px] text-purple-400 mt-0.5">Matching Cap × {p.matchingCapQty}</p>}
-                        {p.sleeveLength && <p className="text-[10px] text-gray-500 mt-0.5">Sleeve: {p.sleeveLength}</p>}
-                        {p.shirtLength && <p className="text-[10px] text-gray-500 mt-0.5">Shirt Length: {p.shirtLength}</p>}
+                         {p.matchingCap && <p className="text-[10px] text-purple-400 mt-0.5">Matching Cap × {p.matchingCapQty} (₨{(p.matchingCapQty || 0) * CAP_UNIT_PRICE})</p>}
+                         {p.sleeveLength && <p className="text-[10px] text-gray-500 mt-0.5">Sleeve: {SLEEVE_LENGTH_OPTIONS.find(o => o.value === p.sleeveLength)?.labelUrdu || p.sleeveLength}</p>}
+                         {p.shirtLength && <p className="text-[10px] text-gray-500 mt-0.5">Shirt Length: {SHIRT_LENGTH_OPTIONS.find(o => o.value === p.shirtLength)?.labelUrdu || p.shirtLength}</p>}
                         {p.design && <p className="text-[10px] text-gray-500 mt-0.5">Design: {p.design}</p>}
                         {p.stitchingNotes && <p className="text-[10px] text-gray-500">Stitching: {p.stitchingNotes}</p>}
                         {p.accessories && <p className="text-[10px] text-gray-500">Accessories: {p.accessories}</p>}
@@ -1057,12 +1063,12 @@ const OutletOrderEntry = () => {
                       {p.size && <span className="text-gray-500 ml-1">{`/ ${p.size}`}</span>}
                       {p.quantity > 1 && <span className="text-gray-500 ml-1">{`x${p.quantity}`}</span>}
                     </div>
-                    <span className="text-amber-400 font-black">₨{((p.unitPrice || 0) * (p.quantity || 1)).toLocaleString()}</span>
+                    <span className="text-amber-400 font-black">₨{((p.unitPrice || 0) * (p.quantity || 1) + (p.matchingCap ? (p.matchingCapQty || 0) * CAP_UNIT_PRICE : 0)).toLocaleString()}</span>
                   </div>
                   <div className="flex flex-wrap gap-x-3 mt-1 text-[10px] text-gray-500">
-                    {p.sleeveLength && <span>Sleeve: {p.sleeveLength}</span>}
-                    {p.shirtLength && <span>Shirt: {p.shirtLength}</span>}
-                    {p.matchingCap && <span className="text-purple-400">Cap ×{p.matchingCapQty}</span>}
+                    {p.sleeveLength && <span>Sleeve: {SLEEVE_LENGTH_OPTIONS.find(o => o.value === p.sleeveLength)?.labelUrdu || p.sleeveLength}</span>}
+                    {p.shirtLength && <span>Shirt: {SHIRT_LENGTH_OPTIONS.find(o => o.value === p.shirtLength)?.labelUrdu || p.shirtLength}</span>}
+                    {p.matchingCap && <span className="text-purple-400">Cap ×{p.matchingCapQty} (₨{(p.matchingCapQty || 0) * CAP_UNIT_PRICE})</span>}
                   </div>
                 </div>
               ))}

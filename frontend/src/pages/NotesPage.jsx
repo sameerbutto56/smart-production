@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Plus, X, Clock, User, FileText } from 'lucide-react';
+import { Plus, X, Clock, User, FileText, Trash2 } from 'lucide-react';
 
 const ROLE_TO_PROFILE = {
   SUPER_ADMIN: 'ADMIN',
@@ -59,6 +59,20 @@ const NotesPage = () => {
     } catch {
     } finally {
       setSaving(false);
+    }
+  };
+
+  const [deleting, setDeleting] = useState(null);
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this note?')) return;
+    setDeleting(id);
+    try {
+      await api.delete(`/api/notes/${id}`);
+      await fetchNotes();
+    } catch {
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -159,6 +173,14 @@ const NotesPage = () => {
                       <span>{formatDateTime(note.createdAt)}</span>
                     </div>
                   </div>
+                  <button
+                    onClick={() => handleDelete(note.id)}
+                    disabled={deleting === note.id}
+                    className="text-gray-600 hover:text-red-400 transition-colors shrink-0 p-1"
+                    title="Delete note"
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </div>
               </div>
             ))}
