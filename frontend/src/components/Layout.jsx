@@ -38,6 +38,7 @@ import {
   Scissors,
   MessageSquare,
   Shield,
+  Landmark,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import socket from '../socket';
@@ -118,6 +119,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Verification', path: '/verification', icon: Shield, roles: ['INVENTORY_VIEW'] },
     { name: 'Return & Exchange', path: '/return-exchange', icon: RotateCcw, roles: ['INVENTORY_VIEW'] },
     { name: 'General Entries', path: '/journal', icon: FileText, roles: ['OUTLET'] },
+    { name: 'Bank Deposit', path: '/bank-deposit', icon: Landmark, roles: ['OUTLET'] },
     { name: 'Chat', path: '/chat', icon: MessageCircle, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET', 'STORE', 'PRODUCTION', 'LOGO_DESIGN', 'DISPATCH', 'OUT_FOR_DELIVERY', 'DELIVERY_BOY'] },
     { name: 'Notes', path: '/notes', icon: StickyNote, roles: ['SUPER_ADMIN', 'ADMIN', 'FAISAL', 'ORDER_ENTRY', 'OUTLET', 'STORE', 'STORE_EMPLOYEE', 'PRODUCTION', 'PRODUCTION_IN', 'PRODUCTION_OUT', 'LOGO_DESIGN', 'LOGO_DESIGN_EMPLOYEE', 'LOGO_DESIGNER', 'DISPATCH', 'MAIN_EMPLOYEE', 'DELIVERY_BOY', 'OUT_FOR_DELIVERY'] }
   ];
@@ -132,7 +134,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     
     // 2. Extra safety for Outlets
     if (userRole === 'OUTLET') {
-      return ['Outlet Dashboard', 'Orders', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'Alteration', 'General Entries', 'Chat', 'Notes', 'My Tasks', 'Order Track'].includes(item.name);
+      return ['Outlet Dashboard', 'Orders', 'Transfers', 'Outlet Requests', 'Client Registration', 'POS', 'POS Inventory', 'Outlet Order Entry', 'Alteration', 'General Entries', 'Bank Deposit', 'Chat', 'Notes', 'My Tasks', 'Order Track'].includes(item.name);
     }
     
     // 3. Explicit Restriction for Delivery Boy

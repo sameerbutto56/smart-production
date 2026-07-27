@@ -4,7 +4,7 @@ import {
   LayoutDashboard, CreditCard, TrendingUp, Wallet, User, RotateCcw, FileText,
   ShoppingBag, Layers, Package, Users, ArrowLeftRight, ClipboardList, Scissors,
   BookOpen, Book, Search, ChevronRight, RefreshCw, Calendar, X,
-  Minus, CheckCircle, Clock, Phone,
+  Minus, CheckCircle, Clock, Phone, Landmark,
   ChevronLeft, ChevronsLeft, ChevronsRight
 } from 'lucide-react';
 import OutletRegisters from './OutletRegisters';
@@ -36,6 +36,7 @@ const sectionNav = [
   { id: 'alterations', label: 'Alterations', icon: Scissors },
   { id: 'journal', label: 'General Entries', icon: BookOpen },
   { id: 'registers', label: 'Registers', icon: Book },
+  { id: 'bank-deposits', label: 'Bank Deposits', icon: Landmark },
 ];
 
 const ITEMS_PER_PAGE = 25;
@@ -1252,6 +1253,121 @@ const OutletDetailedCard = ({ outlet }) => {
       {activeSection === 'registers' && (
         <div className="space-y-4">
           <OutletRegisters outlet={outlet} />
+        </div>
+      )}
+
+      {/* ==================== BANK DEPOSITS ==================== */}
+      {activeSection === 'bank-deposits' && (
+        <BankDepositsSection outlet={outlet} />
+      )}
+    </div>
+  );
+};
+
+const BankDepositsSection = ({ outlet }) => {
+  const [deposits, setDeposits] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [search, setSearch] = useState('');
+  const [summary, setSummary] = useState({ totalAmount: 0, count: 0, todayAmount: 0, todayCount: 0, monthAmount: 0, monthCount: 0 });
+
+  const fetchDeposits = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (dateFrom) params.set('dateFrom', dateFrom);
+      if (dateTo) params.set('dateTo', dateTo);
+      if (search) params.set('search', search);
+      const res = await api.get(`/api/bank-deposit/deposits/${encodeURIComponent(outlet)}?${params.toString()}`);
+      setDeposits(res.data.deposits || []);
+      setSummary({
+        totalAmount: res.data.totalAmount || 0,
+        count: res.data.count || 0,
+        todayAmount: res.data.todayAmount || 0,
+        todayCount: res.data.todayCount || 0,
+        monthAmount: res.data.monthAmount || 0,
+        monthCount: res.data.monthCount || 0,
+      });
+    } catch (err) {
+      console.error('Failed to fetch deposits:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [outlet, dateFrom, dateTo, search]);
+
+  useEffect(() => { fetchDeposits(); }, [fetchDeposits]);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-4">
+          <p className="text-[10px] text-gray-500 font-bold uppercase">Today's Deposits</p>
+          <p className="text-xl font-black text-emerald-400 mt-1">{fmt(summary.todayAmount)}</p>
+          <p className="text-[10px] text-gray-500">{summary.todayCount} deposit{summary.todayCount !== 1 ? 's' : ''}</p>
+        </div>
+        <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-4">
+          <p className="text-[10px] text-gray-500 font-bold uppercase">This Month</p>
+          <p className="text-xl font-black text-blue-400 mt-1">{fmt(summary.monthAmount)}</p>
+          <p className="text-[10px] text-gray-500">{summary.monthCount} deposit{summary.monthCount !== 1 ? 's' : ''}</p>
+        </div>
+        <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-4">
+          <p className="text-[10px] text-gray-500 font-bold uppercase">All Time Total</p>
+          <p className="text-xl font-black text-purple-400 mt-1">{fmt(summary.totalAmount)}</p>
+          <p className="text-[10px] text-gray-500">{summary.count} deposit{summary.count !== 1 ? 's' : ''}</p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={14} />
+          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search slip # or employee..."
+            className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl pl-9 pr-3 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-indigo-500 transition-all" />
+        </div>
+        <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+          className="bg-gray-800/50 border border-gray-700/50 rounded-xl px-3 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-indigo-500 transition-all" />
+        <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+          className="bg-gray-800/50 border border-gray-700/50 rounded-xl px-3 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-indigo-500 transition-all" />
+        {(dateFrom || dateTo || search) && (
+          <button onClick={() => { setDateFrom(''); setDateTo(''); setSearch(''); }}
+            className="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl text-xs font-bold transition-all">
+            <X size={12} />
+          </button>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="text-center py-8"><RefreshCw size={16} className="animate-spin text-gray-500 mx-auto" /></div>
+      ) : deposits.length === 0 ? (
+        <div className="text-center py-8">
+          <Landmark size={32} className="text-gray-600 mx-auto mb-2" />
+          <p className="text-xs text-gray-500 font-bold">No deposits found</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-gray-700/50">
+                <th className="text-left py-2 px-3 text-[10px] text-gray-500 font-bold uppercase">Slip #</th>
+                <th className="text-left py-2 px-3 text-[10px] text-gray-500 font-bold uppercase">Employee</th>
+                <th className="text-left py-2 px-3 text-[10px] text-gray-500 font-bold uppercase">Date</th>
+                <th className="text-right py-2 px-3 text-[10px] text-gray-500 font-bold uppercase">Amount</th>
+                <th className="text-left py-2 px-3 text-[10px] text-gray-500 font-bold uppercase">Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {deposits.map(d => (
+                <tr key={d.id} className="border-b border-gray-700/20 hover:bg-gray-800/30 transition-all">
+                  <td className="py-2.5 px-3 font-black text-emerald-400">{d.slipNumber}</td>
+                  <td className="py-2.5 px-3 font-bold text-white">{d.employeeName}</td>
+                  <td className="py-2.5 px-3 text-gray-400">{fmtDate(d.createdAt)} {fmtTime(d.createdAt)}</td>
+                  <td className="py-2.5 px-3 text-right font-black text-white">{fmt(d.amount)}</td>
+                  <td className="py-2.5 px-3 text-gray-500 max-w-[150px] truncate">{d.notes || '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

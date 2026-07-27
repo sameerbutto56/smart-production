@@ -34,6 +34,7 @@ const OrderTrack = lazy(() => import('./pages/OrderTrack'));
 const OutletOrderEntry = lazy(() => import('./pages/OutletOrderEntry'));
 const OutletDashboard = lazy(() => import('./pages/OutletDashboard'));
 const OutletJournalPage = lazy(() => import('./pages/OutletJournalPage'));
+const BankDepositPage = lazy(() => import('./pages/BankDepositPage'));
 const ChatPage = lazy(() => import('./pages/ChatPage'));
 const NotesPage = lazy(() => import('./pages/NotesPage'));
 const DispatchDashboard = lazy(() => import('./pages/DispatchDashboard'));
@@ -136,6 +137,7 @@ function App() {
                   <Route path="transfers" element={<OutletTransfers />} />
                   <Route path="order-track" element={<OrderTrack />} />
                   <Route path="journal" element={<OutletJournalPage />} />
+                  <Route path="bank-deposit" element={<BankDepositPage />} />
                   <Route path="chat" element={<ChatPage />} />
                   <Route path="notes" element={<NotesPage />} />
                   <Route path="dispatch" element={<DispatchPage />} />

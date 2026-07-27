@@ -1102,3 +1102,19 @@ model CustomerFeedback {
   @@index([outlet])
   @@index([createdAt])
 }
+
+model BankDeposit {
+  id              String   @id @default(uuid())
+  outletName      String
+  employeeName    String
+  slipNumber      String
+  amount          Float
+  notes           String?
+  status          String   @default("COMPLETED")
+  createdBy       String?
+  createdAt       DateTime @default(now())
+
+  @@index([outletName])
+  @@index([createdAt])
+  @@index([slipNumber])
+}

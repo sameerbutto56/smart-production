@@ -144,6 +144,7 @@ app.use('/api/feedback', feedbackRoutes);
 app.use('/api/verification', require('./routes/verification.routes'));
 app.use('/api/return-exchange', require('./routes/returnExchange.routes'));
 app.use('/api/outlet-detailed', require('./routes/outletDetailed.routes'));
+app.use('/api/bank-deposit', require('./routes/bankDeposit.routes'));
 
 // Global error handler (must be last)
 app.use(errorHandler);
