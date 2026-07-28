@@ -20,6 +20,7 @@ const MyTasks = () => {
   const showProductionTab = ['STORE', 'STORE_EMPLOYEE'].includes(user?.role);
   const isProductionIn = user?.role === 'PRODUCTION_IN';
   const isProductionOut = user?.role === 'PRODUCTION_OUT';
+  const isOutlet = user?.role === 'OUTLET';
   const [taskFilter, setTaskFilter] = useState(isOutlet ? 'orders' : (isProductionOut ? 'assigned' : 'unseen'));
   const { searchTerm: contextSearch, setSearchTerm: setContextSearch } = useSearch();
   const [searchTerm, setSearchTerm] = useState(contextSearch);
@@ -30,7 +31,6 @@ const MyTasks = () => {
   const [bulkRouting, setBulkRouting] = useState(false);
 
   // OUTLET-specific: alteration and engraving returned tasks
-  const isOutlet = user?.role === 'OUTLET';
   const [altTasks, setAltTasks] = useState([]);
   const [altTasksLoading, setAltTasksLoading] = useState(false);
   const [engTasks, setEngTasks] = useState([]);
