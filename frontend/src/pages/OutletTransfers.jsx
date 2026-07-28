@@ -30,9 +30,9 @@ const statusIcons = {
 
 const OutletTransfers = () => {
   const { user } = useAuth();
-  const userOutlet = user?.role === 'OUTLET' ? user?.name : null;
   const isWarehouse = user?.role === 'STORE';
   const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(user?.role);
+  const userOutlet = user?.role === 'OUTLET' ? user?.name : (isWarehouse ? 'Warehouse' : null);
   const canCreate = userOutlet || isAdmin;
 
   const [transfers, setTransfers] = useState([]);

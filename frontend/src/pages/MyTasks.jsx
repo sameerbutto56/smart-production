@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Navigate } from 'react-router-dom';
-import { Search, Filter, Loader2, Sparkles, AlertCircle, Activity, Clock, Target, History, X, Eye, CheckCircle, RefreshCcw } from 'lucide-react';
+import { Search, Filter, Loader2, Sparkles, AlertCircle, Activity, Clock, Target, History, X, Eye, CheckCircle, RefreshCcw, Scissors, FileText, Calendar } from 'lucide-react';
 import { PageLoader, SkeletonLoader, CardSkeleton, TableSkeleton } from '../components/LoadingSpinner';
 import socket from '../socket';
 import toast from 'react-hot-toast';
@@ -20,7 +20,7 @@ const MyTasks = () => {
   const showProductionTab = ['STORE', 'STORE_EMPLOYEE'].includes(user?.role);
   const isProductionIn = user?.role === 'PRODUCTION_IN';
   const isProductionOut = user?.role === 'PRODUCTION_OUT';
-  const [taskFilter, setTaskFilter] = useState(isProductionOut ? 'assigned' : 'unseen');
+  const [taskFilter, setTaskFilter] = useState(isOutlet ? 'orders' : (isProductionOut ? 'assigned' : 'unseen'));
   const { searchTerm: contextSearch, setSearchTerm: setContextSearch } = useSearch();
   const [searchTerm, setSearchTerm] = useState(contextSearch);
   const [routingHistory, setRoutingHistory] = useState([]);
@@ -28,6 +28,39 @@ const MyTasks = () => {
   const [selectedOrderIds, setSelectedOrderIds] = useState(new Set());
   const [bulkDestination, setBulkDestination] = useState('');
   const [bulkRouting, setBulkRouting] = useState(false);
+
+  // OUTLET-specific: alteration and engraving returned tasks
+  const isOutlet = user?.role === 'OUTLET';
+  const [altTasks, setAltTasks] = useState([]);
+  const [altTasksLoading, setAltTasksLoading] = useState(false);
+  const [engTasks, setEngTasks] = useState([]);
+  const [engTasksLoading, setEngTasksLoading] = useState(false);
+  const [altActionLoading, setAltActionLoading] = useState(null);
+  const [engActionLoading, setEngActionLoading] = useState(null);
+
+  const fetchAltTasks = useCallback(async () => {
+    setAltTasksLoading(true);
+    try { const res = await api.get('/api/alterations/outlet-tasks'); setAltTasks(res.data); } catch {}
+    setAltTasksLoading(false);
+  }, []);
+
+  const fetchEngTasks = useCallback(async () => {
+    setEngTasksLoading(true);
+    try { const res = await api.get('/api/engravings/outlet-tasks'); setEngTasks(res.data); } catch {}
+    setEngTasksLoading(false);
+  }, []);
+
+  const handleAltDone = async (id) => {
+    setAltActionLoading(id);
+    try { await api.patch(`/api/alterations/${id}/done`); toast.success('Alteration completed'); fetchAltTasks(); } catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
+    setAltActionLoading(null);
+  };
+
+  const handleEngDone = async (id) => {
+    setEngActionLoading(id);
+    try { await api.patch(`/api/engravings/${id}/done`); toast.success('Engraving received'); fetchEngTasks(); } catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
+    setEngActionLoading(null);
+  };
 
   // Cache-first: unseen tasks (hasTaskFilters users)
   const { data: unseenData = null, loading: unseenLoading, refresh: refreshUnseen } = useCache(
@@ -125,6 +158,10 @@ const MyTasks = () => {
     } else {
       refreshOrders();
     }
+    if (isOutlet) {
+      fetchAltTasks();
+      fetchEngTasks();
+    }
   };
 
   // Listen for stage-rejected toasts only (no auto-refresh)
@@ -141,6 +178,12 @@ const MyTasks = () => {
 
   // Refresh once on mount
   useEffect(() => { refreshTasks(); }, []);
+
+  // Fetch alteration/engraving tasks when those tabs are selected
+  useEffect(() => {
+    if (isOutlet && taskFilter === 'alterations') fetchAltTasks();
+    if (isOutlet && taskFilter === 'engravings') fetchEngTasks();
+  }, [taskFilter, isOutlet]);
 
   const fetchUnseenTasks = () => refreshUnseen();
 
@@ -277,8 +320,35 @@ const MyTasks = () => {
       {/* Multi-filter tabs + Routing History */}
       <div className="flex items-center justify-between gap-4 mb-4">
         {hasTaskFilters ? (
-          <div className="flex theme-bg-subtle p-1 rounded-xl theme-border shrink-0">
-            {(!isProductionOut) && (
+          <div className="flex theme-bg-subtle p-1 rounded-xl theme-border shrink-0 flex-wrap">
+            {isOutlet && (
+              <button onClick={() => setTaskFilter('orders')}
+                className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${
+                  taskFilter === 'orders' ? 'bg-blue-600 text-white shadow-lg' : 'theme-text-muted hover:theme-text-primary hover:bg-gray-800/50'
+                }`}
+              >
+                <Activity size={14} /> Orders ({unseenData?.unseen?.length || 0})
+              </button>
+            )}
+            {isOutlet && (
+              <button onClick={() => setTaskFilter('alterations')}
+                className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${
+                  taskFilter === 'alterations' ? 'bg-purple-600 text-white shadow-lg' : 'theme-text-muted hover:theme-text-primary hover:bg-gray-800/50'
+                }`}
+              >
+                <Scissors size={14} /> Alterations {altTasks.length > 0 && <span className="ml-1 bg-purple-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{altTasks.length}</span>}
+              </button>
+            )}
+            {isOutlet && (
+              <button onClick={() => setTaskFilter('engravings')}
+                className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${
+                  taskFilter === 'engravings' ? 'bg-cyan-600 text-white shadow-lg' : 'theme-text-muted hover:theme-text-primary hover:bg-gray-800/50'
+                }`}
+              >
+                <Sparkles size={14} /> Engravings {engTasks.length > 0 && <span className="ml-1 bg-cyan-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{engTasks.length}</span>}
+              </button>
+            )}
+            {(!isOutlet) && (!isProductionOut) && (
               <button onClick={() => setTaskFilter('unseen')}
                 className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${
                   taskFilter === 'unseen' ? 'bg-blue-600 text-white shadow-lg' : 'theme-text-muted hover:theme-text-primary hover:bg-gray-800/50'
@@ -490,6 +560,138 @@ const MyTasks = () => {
                     renderEmpty(<RefreshCcw size={36} className="theme-text-muted" />, 'No Production Tasks', 'No orders returned from production yet.')
                   }
                 </>
+              )}
+            </div>
+          )}
+
+          {/* OUTLET: Orders tab (unseen + accepted orders) */}
+          {isOutlet && taskFilter === 'orders' && (
+            <div className="space-y-6">
+              {(unseenData?.unseen?.length > 0 || unseenData?.seen?.length > 0) ? (
+                <>
+                  {filterBySearch(unseenData?.unseen).length > 0 && (
+                    <div>
+                      <h3 className="font-black text-xs theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                        New Orders ({filterBySearch(unseenData.unseen).length})
+                      </h3>
+                      {renderOrderCards(filterBySearch(unseenData.unseen), { showUnseen: true, onMarkSeen: handleMarkSeen })}
+                    </div>
+                  )}
+                  {filterBySearch(unseenData?.seen).length > 0 && (
+                    <div>
+                      <h3 className="font-black text-xs theme-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <CheckCircle size={14} className="text-emerald-400" />
+                        Accepted Orders ({filterBySearch(unseenData.seen).length})
+                      </h3>
+                      {renderOrderCards(filterBySearch(unseenData.seen))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                renderEmpty(<Activity size={36} className="theme-text-muted" />, 'No Orders', 'No order tasks assigned to you.')
+              )}
+            </div>
+          )}
+
+          {/* OUTLET: Alterations tab */}
+          {isOutlet && taskFilter === 'alterations' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-400">{altTasks.length} completed alteration{altTasks.length !== 1 ? 's' : ''} returned</p>
+                <button onClick={fetchAltTasks} className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-gray-400 rounded-xl text-xs font-bold hover:bg-gray-700 border border-gray-700/50">
+                  <RefreshCcw size={14} /> Refresh
+                </button>
+              </div>
+              {altTasksLoading ? (
+                <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="bg-gray-800/60 rounded-2xl p-6 animate-pulse h-32" />)}</div>
+              ) : altTasks.length === 0 ? (
+                renderEmpty(<Scissors size={36} className="theme-text-muted" />, 'No Alterations', 'No completed alterations returned yet.')
+              ) : (
+                <div className="space-y-3">
+                  {altTasks.map(alt => {
+                    let prods = [];
+                    try { prods = typeof alt.products === 'string' ? JSON.parse(alt.products) : (alt.products || []); } catch {}
+                    return (
+                      <div key={alt.id} className="bg-gray-900/80 border border-purple-500/20 rounded-2xl p-6 space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="text-lg font-black text-white">{alt.alterationNumber}</p>
+                            {alt.orderNumber && alt.orderNumber !== alt.alterationNumber && <p className="text-xs text-gray-400">Order: {alt.orderNumber}</p>}
+                            <p className="text-sm text-gray-400">{alt.customerName}</p>
+                          </div>
+                          <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 text-xs font-bold rounded-full">RETURNED</span>
+                        </div>
+                        {prods.map((p, i) => (
+                          <div key={i} className="bg-gray-800 rounded-lg px-3 py-2">
+                            <p className="text-xs font-bold text-white">{p.productName} {p.color ? `(${p.color})` : ''} {p.size ? `(${p.size})` : ''}</p>
+                            {p.alterationNote && <p className="text-[11px] text-purple-300 italic mt-1">Special Note: {p.alterationNote}</p>}
+                          </div>
+                        ))}
+                        <div className="flex items-center gap-2 text-xs text-gray-400">
+                          <Calendar size={12} />
+                          {alt.completedAt && new Date(alt.completedAt).toLocaleDateString('en-PK')}
+                        </div>
+                        <button onClick={() => handleAltDone(alt.id)} disabled={altActionLoading === alt.id}
+                          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">
+                          {altActionLoading === alt.id ? <RefreshCcw className="animate-spin" size={14} /> : <CheckCircle size={14} />} Done
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* OUTLET: Engravings tab */}
+          {isOutlet && taskFilter === 'engravings' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-400">{engTasks.length} completed engraving{engTasks.length !== 1 ? 's' : ''} returned</p>
+                <button onClick={fetchEngTasks} className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-gray-400 rounded-xl text-xs font-bold hover:bg-gray-700 border border-gray-700/50">
+                  <RefreshCcw size={14} /> Refresh
+                </button>
+              </div>
+              {engTasksLoading ? (
+                <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="bg-gray-800/60 rounded-2xl p-6 animate-pulse h-32" />)}</div>
+              ) : engTasks.length === 0 ? (
+                renderEmpty(<Sparkles size={36} className="theme-text-muted" />, 'No Engravings', 'No completed engravings returned yet.')
+              ) : (
+                <div className="space-y-3">
+                  {engTasks.map(eng => {
+                    let prods = [];
+                    try { prods = typeof eng.products === 'string' ? JSON.parse(eng.products) : (eng.products || []); } catch {}
+                    return (
+                      <div key={eng.id} className="bg-gray-900/80 border border-cyan-500/20 rounded-2xl p-6 space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="text-lg font-black text-white">{eng.engravingNumber}</p>
+                            {eng.orderNumber && eng.orderNumber !== eng.engravingNumber && <p className="text-xs text-gray-400">Order: {eng.orderNumber}</p>}
+                            <p className="text-sm text-gray-400">{eng.customerName}</p>
+                          </div>
+                          <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 text-xs font-bold rounded-full">RETURNED</span>
+                        </div>
+                        {prods.map((p, i) => (
+                          <div key={i} className="bg-gray-800 rounded-lg px-3 py-2">
+                            <p className="text-xs font-bold text-white">{p.productName} {p.color ? `(${p.color})` : ''} {p.size ? `(${p.size})` : ''}</p>
+                            {p.engravingText && <p className="text-[11px] text-cyan-300">Text: {p.engravingText}</p>}
+                            {p.position && <p className="text-[11px] text-gray-400">Position: {p.position}</p>}
+                            {p.instructions && <p className="text-[11px] text-gray-400 italic">{p.instructions}</p>}
+                          </div>
+                        ))}
+                        <div className="flex items-center gap-2 text-xs text-gray-400">
+                          <Calendar size={12} />
+                          {eng.completedAt && new Date(eng.completedAt).toLocaleDateString('en-PK')}
+                        </div>
+                        <button onClick={() => handleEngDone(eng.id)} disabled={engActionLoading === eng.id}
+                          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">
+                          {engActionLoading === eng.id ? <RefreshCcw className="animate-spin" size={14} /> : <CheckCircle size={14} />} Done
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
           )}

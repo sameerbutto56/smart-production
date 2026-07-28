@@ -160,42 +160,66 @@ export default function AlterationRequest() {
 
   const printAlterationSlip = () => {
     const data = submittedData || { alterationNumber, orderNumber, customerName, customerPhone, outletName, products };
-    const win = openPrintWindow('Alteration Request', false);
-    win.document.write('<style>');
-    win.document.write('@page { size: 80mm auto; margin: 2mm; }');
-    win.document.write('body { font-family: "Courier New", monospace; font-size: 12px; margin: 0; padding: 4px; color: #000; }');
-    win.document.write('.header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 4px; margin-bottom: 6px; }');
-    win.document.write('.header h2 { font-size: 14px; margin: 0; text-transform: uppercase; }');
-    win.document.write('.row { display: flex; justify-content: space-between; margin: 2px 0; }');
-    win.document.write('.label { font-weight: bold; }');
-    win.document.write('.product { border: 1px solid #000; padding: 4px; margin: 4px 0; }');
-    win.document.write('.product-name { font-weight: bold; font-size: 12px; border-bottom: 1px dashed #000; padding-bottom: 2px; margin-bottom: 2px; }');
-    win.document.write('.note { font-style: italic; margin-top: 2px; }');
-    win.document.write('.footer { text-align: center; border-top: 2px solid #000; padding-top: 4px; margin-top: 6px; font-size: 10px; }');
-    win.document.write('</style>');
+    const win = openPrintWindow('Alteration Job Sheet', false);
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Alteration Job Sheet</title><style>
+      @page{margin:15mm;size:A4}
+      body{font-family:'Courier New',monospace;font-size:13px;color:#000;margin:0;padding:0}
+      .header{text-align:center;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #000}
+      .header h1{font-size:28px;font-weight:900;letter-spacing:2px;text-transform:uppercase;margin:0}
+      .header p{font-size:11px;color:#555;margin:2px 0}
+      .meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;margin:12px 0;padding:12px;border:2px solid #000;border-radius:6px}
+      .meta .item{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dotted #ccc}
+      .meta .label{font-weight:bold;font-size:11px;color:#333;text-transform:uppercase}
+      .meta .value{font-weight:900;font-size:13px}
+      .products{margin:16px 0}
+      .products h2{font-size:16px;font-weight:900;text-transform:uppercase;border-bottom:2px solid #000;padding-bottom:4px;margin-bottom:10px}
+      .product-card{border:2px solid #000;border-radius:6px;padding:12px;margin-bottom:10px;page-break-inside:avoid}
+      .product-card h3{font-size:14px;font-weight:900;margin:0 0 6px 0;border-bottom:1px dashed #999;padding-bottom:4px}
+      .product-card .detail{display:flex;justify-content:space-between;font-size:12px;margin:2px 0}
+      .special-note{background:#f0f0f0;border-left:4px solid #000;padding:8px 12px;margin-top:8px;border-radius:0 4px 4px 0}
+      .special-note .title{font-weight:900;font-size:11px;text-transform:uppercase;margin-bottom:3px}
+      .special-note .text{font-size:13px;font-style:italic;line-height:1.4}
+      .footer{text-align:center;border-top:2px solid #000;padding-top:8px;margin-top:16px;font-size:10px;color:#666}
+    </style></head><body>`);
 
-    win.document.write('<div class="header"><h2>ALTERATION REQUEST</h2></div>');
-    win.document.write(`<div class="row"><span class="label">Order/Alt #:</span><span>${data.alterationNumber}</span></div>`);
-    win.document.write(`<div class="row"><span class="label">Customer:</span><span>${data.customerName || 'N/A'}</span></div>`);
-    win.document.write(`<div class="row"><span class="label">Phone:</span><span>${data.customerPhone || 'N/A'}</span></div>`);
-    win.document.write(`<div class="row"><span class="label">Source:</span><span>${data.outletName || 'N/A'}</span></div>`);
-    win.document.write(`<div class="row"><span class="label">Date:</span><span>${new Date().toLocaleDateString('en-GB')}</span></div>`);
+    win.document.write(`<div class="header">
+      <h1>ALTERATION JOB SHEET</h1>
+      <p>Enamels Production</p>
+      <p>Generated: ${new Date().toLocaleString()}</p>
+    </div>`);
 
-    win.document.write('<div style="border-top: 1px dashed #000; margin: 6px 0;"></div>');
-    win.document.write(`<div style="font-weight: bold; margin-bottom: 4px;">PRODUCTS (${data.products.length})</div>`);
-
-    data.products.forEach((p, i) => {
-      win.document.write('<div class="product">');
-      win.document.write(`<div class="product-name">${i + 1}. ${p.productName}${p.color ? ' — ' + p.color : ''}${p.size ? ' (' + p.size + ')' : ''} × ${p.quantity}</div>`);
-      win.document.write(`<div class="note">Note: ${p.alterationNote}</div>`);
-      win.document.write('</div>');
-    });
-
-    win.document.write('<div class="footer">');
-    win.document.write(`<p>Generated: ${new Date().toLocaleString()}</p>`);
+    win.document.write('<div class="meta">');
+    win.document.write(`<div class="item"><span class="label">Alteration #</span><span class="value">${data.alterationNumber}</span></div>`);
+    if (data.orderNumber) win.document.write(`<div class="item"><span class="label">Order #</span><span class="value">${data.orderNumber}</span></div>`);
+    win.document.write(`<div class="item"><span class="label">Customer</span><span class="value">${data.customerName || 'N/A'}</span></div>`);
+    win.document.write(`<div class="item"><span class="label">Phone</span><span class="value">${data.customerPhone || 'N/A'}</span></div>`);
+    win.document.write(`<div class="item"><span class="label">Source</span><span class="value">${data.outletName || 'N/A'}</span></div>`);
+    win.document.write(`<div class="item"><span class="label">Date</span><span class="value">${new Date().toLocaleDateString('en-GB')}</span></div>`);
+    win.document.write(`<div class="item"><span class="label">Status</span><span class="value">PENDING</span></div>`);
     win.document.write('</div>');
 
-    closePrintWindow(win);
+    win.document.write('<div class="products">');
+    win.document.write(`<h2>Products (${data.products.length})</h2>`);
+    data.products.forEach((p, i) => {
+      win.document.write('<div class="product-card">');
+      win.document.write(`<h3>${i + 1}. ${p.productName}</h3>`);
+      if (p.color) win.document.write(`<div class="detail"><span>Color</span><span>${p.color}</span></div>`);
+      if (p.size) win.document.write(`<div class="detail"><span>Size</span><span>${p.size}</span></div>`);
+      win.document.write(`<div class="detail"><span>Quantity</span><span>${p.quantity}</span></div>`);
+      if (p.alterationNote) {
+        win.document.write('<div class="special-note">');
+        win.document.write('<div class="title">Special Note (Alteration Instructions)</div>');
+        win.document.write(`<div class="text">${p.alterationNote}</div>`);
+        win.document.write('</div>');
+      }
+      win.document.write('</div>');
+    });
+    win.document.write('</div>');
+
+    win.document.write(`<div class="footer"><p>Alteration #${data.alterationNumber} | Generated ${new Date().toLocaleString()}</p></div>`);
+    win.document.write('</body></html>');
+    win.document.close();
+    setTimeout(() => win.print(), 300);
   };
 
   if (submitted) {

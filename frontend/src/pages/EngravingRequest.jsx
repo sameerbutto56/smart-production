@@ -90,13 +90,12 @@ export default function EngravingRequest() {
         const mapped = order.productDetails.map((p, i) => ({
           id: Date.now() + i,
           productName: p.productName || p.name || '',
-          color: p.color || '',
-          size: p.size || '',
+          gender: p.gender || 'Male',
           quantity: p.quantity || 1,
-          position: '',
-          engravingText: '',
-          threadColor: '',
-          instructions: ''
+          line1: '',
+          line2: '',
+          line3: '',
+          logoRequired: false
         }));
         setProducts(mapped);
         toast.success(`Loaded ${mapped.length} product(s) from order`);
@@ -110,13 +109,12 @@ export default function EngravingRequest() {
     setProducts([...products, {
       id: Date.now(),
       productName: '',
-      color: '',
-      size: '',
+      gender: 'Male',
       quantity: 1,
-      position: '',
-      engravingText: '',
-      threadColor: '',
-      instructions: ''
+      line1: '',
+      line2: '',
+      line3: '',
+      logoRequired: false
     }]);
   };
 
@@ -147,13 +145,12 @@ export default function EngravingRequest() {
         outletName,
         products: products.map(p => ({
           productName: p.productName,
-          color: p.color,
-          size: p.size,
+          gender: p.gender,
           quantity: p.quantity,
-          position: p.position,
-          engravingText: p.engravingText,
-          threadColor: p.threadColor,
-          instructions: p.instructions
+          line1: p.line1,
+          line2: p.line2,
+          line3: p.line3,
+          logoRequired: p.logoRequired
         }))
       };
       const res = await api.post('/api/engravings', payload);
@@ -169,46 +166,72 @@ export default function EngravingRequest() {
 
   const printEngravingSlip = () => {
     const data = submittedData || { engravingNumber, orderNumber, customerName, customerPhone, outletName, products };
-    const win = openPrintWindow('Engraving Request', false);
-    win.document.write('<style>');
-    win.document.write('@page { size: 80mm auto; margin: 2mm; }');
-    win.document.write('body { font-family: "Courier New", monospace; font-size: 12px; margin: 0; padding: 4px; color: #000; }');
-    win.document.write('.header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 4px; margin-bottom: 6px; }');
-    win.document.write('.header h2 { font-size: 14px; margin: 0; text-transform: uppercase; }');
-    win.document.write('.row { display: flex; justify-content: space-between; margin: 2px 0; }');
-    win.document.write('.label { font-weight: bold; }');
-    win.document.write('.product { border: 1px solid #000; padding: 4px; margin: 4px 0; }');
-    win.document.write('.product-name { font-weight: bold; font-size: 12px; border-bottom: 1px dashed #000; padding-bottom: 2px; margin-bottom: 2px; }');
-    win.document.write('.detail { font-size: 11px; margin: 1px 0; }');
-    win.document.write('.footer { text-align: center; border-top: 2px solid #000; padding-top: 4px; margin-top: 6px; font-size: 10px; }');
-    win.document.write('</style>');
+    const win = openPrintWindow('Engraving Job Sheet', false);
+    win.document.write(`<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Engraving Job Sheet</title><style>
+      @page{margin:15mm;size:A4}
+      body{font-family:'Courier New',monospace;font-size:13px;color:#000;margin:0;padding:0}
+      .header{text-align:center;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #000}
+      .header h1{font-size:28px;font-weight:900;letter-spacing:2px;text-transform:uppercase;margin:0}
+      .header p{font-size:11px;color:#555;margin:2px 0}
+      .meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;margin:12px 0;padding:12px;border:2px solid #000;border-radius:6px}
+      .meta .item{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dotted #ccc}
+      .meta .label{font-weight:bold;font-size:11px;color:#333;text-transform:uppercase}
+      .meta .value{font-weight:900;font-size:13px}
+      .products{margin:16px 0}
+      .products h2{font-size:16px;font-weight:900;text-transform:uppercase;border-bottom:2px solid #000;padding-bottom:4px;margin-bottom:10px}
+      .product-card{border:2px solid #000;border-radius:6px;padding:12px;margin-bottom:10px;page-break-inside:avoid}
+      .product-card h3{font-size:14px;font-weight:900;margin:0 0 6px 0;border-bottom:1px dashed #999;padding-bottom:4px}
+      .product-card .detail{display:flex;justify-content:space-between;font-size:12px;margin:2px 0}
+      .engraving-box{background:#f8f8f0;border:2px solid #000;border-left:6px solid #e6a817;padding:10px 14px;margin-top:8px;border-radius:0 6px 6px 0}
+      .engraving-box .line{font-size:15px;font-weight:900;margin:3px 0;line-height:1.5}
+      .engraving-box .line-label{font-size:10px;color:#666;text-transform:uppercase;font-weight:700;margin-right:6px}
+      .logo-badge{display:inline-block;background:#1a5276;color:#fff;font-size:10px;font-weight:900;padding:2px 8px;border-radius:4px;margin-top:4px;text-transform:uppercase}
+      .footer{text-align:center;border-top:2px solid #000;padding-top:8px;margin-top:16px;font-size:10px;color:#666}
+    </style></head><body>`);
 
-    win.document.write('<div class="header"><h2>ENGRAVING REQUEST</h2></div>');
-    win.document.write(`<div class="row"><span class="label">Engraving #:</span><span>${data.engravingNumber}</span></div>`);
-    if (data.orderNumber) win.document.write(`<div class="row"><span class="label">Order #:</span><span>${data.orderNumber}</span></div>`);
-    win.document.write(`<div class="row"><span class="label">Customer:</span><span>${data.customerName || 'N/A'}</span></div>`);
-    win.document.write(`<div class="row"><span class="label">Phone:</span><span>${data.customerPhone || 'N/A'}</span></div>`);
-    win.document.write(`<div class="row"><span class="label">Source:</span><span>${data.outletName || 'N/A'}</span></div>`);
-    win.document.write(`<div class="row"><span class="label">Date:</span><span>${new Date().toLocaleDateString('en-GB')}</span></div>`);
+    win.document.write(`<div class="header">
+      <h1>ENGRAVING JOB SHEET</h1>
+      <p>Enamels Production</p>
+      <p>Generated: ${new Date().toLocaleString()}</p>
+    </div>`);
 
-    win.document.write('<div style="border-top: 1px dashed #000; margin: 6px 0;"></div>');
-    win.document.write(`<div style="font-weight: bold; margin-bottom: 4px;">PRODUCTS (${data.products.length})</div>`);
-
-    data.products.forEach((p, i) => {
-      win.document.write('<div class="product">');
-      win.document.write(`<div class="product-name">${i + 1}. ${p.productName}${p.color ? ' — ' + p.color : ''}${p.size ? ' (' + p.size + ')' : ''} × ${p.quantity}</div>`);
-      if (p.position) win.document.write(`<div class="detail">Position: ${p.position}</div>`);
-      if (p.engravingText) win.document.write(`<div class="detail">Text: ${p.engravingText}</div>`);
-      if (p.threadColor) win.document.write(`<div class="detail">Thread Color: ${p.threadColor}</div>`);
-      if (p.instructions) win.document.write(`<div class="detail">Instructions: ${p.instructions}</div>`);
-      win.document.write('</div>');
-    });
-
-    win.document.write('<div class="footer">');
-    win.document.write(`<p>Generated: ${new Date().toLocaleString()}</p>`);
+    win.document.write('<div class="meta">');
+    win.document.write(`<div class="item"><span class="label">Engraving #</span><span class="value">${data.engravingNumber}</span></div>`);
+    if (data.orderNumber) win.document.write(`<div class="item"><span class="label">Order #</span><span class="value">${data.orderNumber}</span></div>`);
+    win.document.write(`<div class="item"><span class="label">Customer</span><span class="value">${data.customerName || 'N/A'}</span></div>`);
+    win.document.write(`<div class="item"><span class="label">Phone</span><span class="value">${data.customerPhone || 'N/A'}</span></div>`);
+    win.document.write(`<div class="item"><span class="label">Source</span><span class="value">${data.outletName || 'N/A'}</span></div>`);
+    win.document.write(`<div class="item"><span class="label">Date</span><span class="value">${new Date().toLocaleDateString('en-GB')}</span></div>`);
+    win.document.write(`<div class="item"><span class="label">Status</span><span class="value">PENDING</span></div>`);
     win.document.write('</div>');
 
-    closePrintWindow(win);
+    win.document.write('<div class="products">');
+    win.document.write(`<h2>Products (${data.products.length})</h2>`);
+    data.products.forEach((p, i) => {
+      win.document.write('<div class="product-card">');
+      win.document.write(`<h3>${i + 1}. ${p.productName}</h3>`);
+      win.document.write(`<div class="detail"><span>Gender</span><span>${p.gender || 'N/A'}</span></div>`);
+      win.document.write(`<div class="detail"><span>Quantity</span><span>${p.quantity}</span></div>`);
+      // Engraving text — printed verbatim, NO translation (lang="en" on html tag)
+      const hasEngraving = p.line1 || p.line2 || p.line3;
+      if (hasEngraving) {
+        win.document.write('<div class="engraving-box">');
+        if (p.line1) win.document.write(`<div class="line"><span class="line-label">Line 1:</span>${p.line1}</div>`);
+        if (p.line2) win.document.write(`<div class="line"><span class="line-label">Line 2:</span>${p.line2}</div>`);
+        if (p.line3) win.document.write(`<div class="line"><span class="line-label">Line 3:</span>${p.line3}</div>`);
+        win.document.write('</div>');
+      }
+      if (p.logoRequired) {
+        win.document.write('<div class="logo-badge">★ Logo Required</div>');
+      }
+      win.document.write('</div>');
+    });
+    win.document.write('</div>');
+
+    win.document.write(`<div class="footer"><p>Engraving #${data.engravingNumber} | Generated ${new Date().toLocaleString()}</p></div>`);
+    win.document.write('</body></html>');
+    win.document.close();
+    setTimeout(() => win.print(), 300);
   };
 
   if (submitted) {
@@ -303,10 +326,11 @@ export default function EngravingRequest() {
                       </div>
                       {prods.map((p, i) => (
                         <div key={i} className="bg-gray-800 rounded-lg px-3 py-2">
-                          <p className="text-xs font-bold text-white">{p.productName} {p.color ? `(${p.color})` : ''} {p.size ? `(${p.size})` : ''}</p>
-                          {p.engravingText && <p className="text-[11px] text-cyan-300">Text: {p.engravingText}</p>}
-                          {p.position && <p className="text-[11px] text-gray-400">Position: {p.position}</p>}
-                          {p.instructions && <p className="text-[11px] text-gray-400 italic">{p.instructions}</p>}
+                          <p className="text-xs font-bold text-white">{p.productName} {p.gender ? `(${p.gender})` : ''} × {p.quantity || 1}</p>
+                          {p.line1 && <p className="text-[11px] text-cyan-300">Line 1: {p.line1}</p>}
+                          {p.line2 && <p className="text-[11px] text-cyan-300">Line 2: {p.line2}</p>}
+                          {p.line3 && <p className="text-[11px] text-cyan-300">Line 3: {p.line3}</p>}
+                          {p.logoRequired && <p className="text-[11px] text-amber-400">★ Logo Required</p>}
                         </div>
                       ))}
                       <div className="flex items-center gap-2 text-xs text-gray-400">
@@ -388,18 +412,26 @@ export default function EngravingRequest() {
                 </div>
                 <div className="grid grid-cols-3 gap-2 mb-2">
                   <input value={p.productName} onChange={e => updateProduct(p.id, 'productName', e.target.value)} placeholder="Product Name" className="bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-xs font-bold" />
-                  <input value={p.color} onChange={e => updateProduct(p.id, 'color', e.target.value)} placeholder="Color" className="bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-xs font-bold" />
-                  <div className="flex gap-1">
-                    <input value={p.size} onChange={e => updateProduct(p.id, 'size', e.target.value)} placeholder="Size" className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-xs font-bold" />
-                    <input type="number" value={p.quantity} onChange={e => updateProduct(p.id, 'quantity', parseInt(e.target.value) || 1)} min="1" className="w-12 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-xs font-bold text-center" />
+                  <select value={p.gender} onChange={e => updateProduct(p.id, 'gender', e.target.value)} className="bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-xs font-bold">
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Unisex">Unisex</option>
+                  </select>
+                  <div className="flex gap-1 items-center">
+                    <input type="number" value={p.quantity} onChange={e => updateProduct(p.id, 'quantity', parseInt(e.target.value) || 1)} min="1" className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-xs font-bold text-center" />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2 mb-2">
-                  <input value={p.position} onChange={e => updateProduct(p.id, 'position', e.target.value)} placeholder="Position (e.g. Left Chest, Back)" className="bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-xs font-bold" />
-                  <input value={p.threadColor} onChange={e => updateProduct(p.id, 'threadColor', e.target.value)} placeholder="Thread/Text Color" className="bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-xs font-bold" />
+                <div className="space-y-1.5 mb-2">
+                  <input value={p.line1} onChange={e => updateProduct(p.id, 'line1', e.target.value)} placeholder="Line 1 (engraving text)" className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-xs font-bold" />
+                  <input value={p.line2} onChange={e => updateProduct(p.id, 'line2', e.target.value)} placeholder="Line 2 (optional)" className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-xs font-bold" />
+                  <input value={p.line3} onChange={e => updateProduct(p.id, 'line3', e.target.value)} placeholder="Line 3 (optional)" className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-xs font-bold" />
                 </div>
-                <textarea value={p.engravingText} onChange={e => updateProduct(p.id, 'engravingText', e.target.value)} placeholder="Engraving text/names..." rows={2} className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-xs font-bold resize-none mb-2" />
-                <textarea value={p.instructions} onChange={e => updateProduct(p.id, 'instructions', e.target.value)} placeholder="Special instructions..." rows={1} className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-white text-xs font-bold resize-none" />
+                <div className="flex items-center gap-2">
+                  <button onClick={() => updateProduct(p.id, 'logoRequired', !p.logoRequired)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${p.logoRequired ? 'bg-cyan-600/20 border border-cyan-500/30 text-cyan-400' : 'bg-gray-900 border border-gray-700 text-gray-400'}`}>
+                    {p.logoRequired ? '✓' : '○'} Logo Required
+                  </button>
+                </div>
               </motion.div>
             ))}
           </div>

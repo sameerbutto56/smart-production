@@ -261,8 +261,8 @@ export function POSProvider({ children }) {
   const barcodeRef = useRef(null);
 
   const employees = selectedOutlet === 'Jail Road'
-    ? { Junaid: '123456', Ibrar: 'Ibrar562', Aamir: '123456' }
-    : { Junaid: '123456', Sajawal: 'Sajawal12', Zain: '123456', Gul: '123456' };
+    ? { Junaid: 'J125', Ibrar: 'Ibrar562', Aamir: '123456' }
+    : { Junaid: 'J125', Sajawal: 'Sajawal12', Zain: '123456', Gul: '123456' };
 
   const categories = useMemo(() => [...new Set(products.map(p => p.category).filter(Boolean))], [products]);
   const barcodeMap = useMemo(() => {
