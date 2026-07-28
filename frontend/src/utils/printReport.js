@@ -1073,6 +1073,7 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const showEngraving = sections.engraving !== false;
   const showPrice = ['SUPER_ADMIN', 'ADMIN'].includes(userRole);
 
+  const _slLower = (v) => v ? v.toLowerCase() : '';
   const slMap = { 'full':'Full', 'half':'Half', 'three-quarter':'3 Quarter' };
   const shMap = { 'long':'Long', 'short':'Short', 'regular':'Regular' };
   const femSlMap = { 'full':'Full', 'half':'Half', 'medium':'Medium' };
@@ -1086,10 +1087,10 @@ export function printJobSheet(order, userRole, lang = 'ur', sections = {}) {
   const colSleeveUR = { 'full':'فل', 'half':'ہاف', 'three-quarter':'تھری کوارٹر', 'regular':'ریگولر', 'medium':'میڈیم' };
   const colLengthEN = { 'long':'Long', 'regular':'Regular', 'short':'Short' };
   const colLengthUR = { 'long':'لانگ', 'regular':'ریگولر', 'short':'شارٹ' };
-  const colSleeveDisp = (v) => v ? (isUrdu ? (colSleeveUR[v] || v) : (colSleeveEN[v] || v)) : '—';
-  const colLengthDisp = (v) => v ? (isUrdu ? (colLengthUR[v] || v) : (colLengthEN[v] || v)) : '—';
-  const slDisplay = (v) => v ? (isUrdu ? (urduSlMap[v] || v) : (slMap[v] || v)) : '';
-  const shDisplay = (v) => v ? (isUrdu ? (urduShMap[v] || v) : (shMap[v] || v)) : '';
+  const colSleeveDisp = (v) => { const n = _slLower(v); return n ? (isUrdu ? (colSleeveUR[n] || v) : (colSleeveEN[n] || v)) : '—'; };
+  const colLengthDisp = (v) => { const n = _slLower(v); return n ? (isUrdu ? (colLengthUR[n] || v) : (colLengthEN[n] || v)) : '—'; };
+  const slDisplay = (v) => { const n = _slLower(v); return n ? (isUrdu ? (urduSlMap[n] || v) : (slMap[n] || v)) : ''; };
+  const shDisplay = (v) => { const n = _slLower(v); return n ? (isUrdu ? (urduShMap[n] || v) : (shMap[n] || v)) : ''; };
   const genDisplay = (g) => g ? (isUrdu ? (g === 'Male' ? 'مرد' : g === 'Female' ? 'عورت' : g) : g) : '';
   const sec = lang === 'en' ? enSection : urduSection;
   const isUrdu = lang === 'ur';

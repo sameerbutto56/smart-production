@@ -14,15 +14,15 @@ const DESTINATIONS = [
 ];
 
 const SLEEVE_LENGTH_OPTIONS = [
-  { value: 'Full', label: 'Full', labelUrdu: 'پوری بازو' },
-  { value: 'Half', label: 'Half', labelUrdu: 'آدھی بازو' },
-  { value: 'Three-Quarter', label: 'Three-Quarter', labelUrdu: 'تین چوتھائی بازو' }
+  { value: 'full', label: 'Full', labelUrdu: 'پوری بازو' },
+  { value: 'half', label: 'Half', labelUrdu: 'آدھی بازو' },
+  { value: 'three-quarter', label: 'Three-Quarter', labelUrdu: 'تین چوتھائی بازو' }
 ];
 
 const SHIRT_LENGTH_OPTIONS = [
-  { value: 'Short', label: 'Short', labelUrdu: 'چھوٹی شرٹ' },
-  { value: 'Regular', label: 'Regular', labelUrdu: 'نارمل شرٹ' },
-  { value: 'Long', label: 'Long', labelUrdu: 'لمبی شرٹ' }
+  { value: 'short', label: 'Short', labelUrdu: 'چھوٹی شرٹ' },
+  { value: 'regular', label: 'Regular', labelUrdu: 'نارمل شرٹ' },
+  { value: 'long', label: 'Long', labelUrdu: 'لمبی شرٹ' }
 ];
 
 const THREAD_COLOR_OPTIONS = [

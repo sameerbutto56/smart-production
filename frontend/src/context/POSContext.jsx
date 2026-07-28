@@ -223,6 +223,8 @@ export function POSProvider({ children }) {
     setLoadingBalanceAction, setBookPrintOpts,
     setCreateOrderNumber, setGeneratedOrderNumber,
     setCreateAlterationNumber, setGeneratedAlterationNumber,
+    setCreateEngravingNumber, setGeneratedEngravingNumber,
+    setAdditionalNote,
   } = setters;
 
   const CACHE_VERSION = 'v3';

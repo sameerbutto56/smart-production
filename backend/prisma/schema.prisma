@@ -682,16 +682,23 @@ model PosReturn {
 model OutletTransfer {
   id              String   @id @default(uuid())
   transferNumber  String   @unique
+  type            String   @default("OUTLET_OUTLET") // OUTLET_OUTLET, OUTLET_WAREHOUSE, WAREHOUSE_OUTLET
   fromOutlet      String
   toOutlet        String
-  status          String   @default("PENDING")
+  status          String   @default("PENDING") // PENDING, APPROVED, REJECTED, DISPATCHED, COMPLETED, CANCELLED
   totalItems      Int      @default(0)
-  pickupMethod    String?  // RIDER, CUSTOMER
+  pickupMethod    String?
+  dispatchMethod  String?  // RIDER, CUSTOMER, COURIER
   notes           String?
+  rejectionReason String?
   requestedById   String?
   requestedByName String?
   approvedById    String?
   approvedAt      DateTime?
+  rejectedById    String?
+  rejectedAt      DateTime?
+  dispatchedById  String?
+  dispatchedAt    DateTime?
   completedById   String?
   completedAt     DateTime?
   createdAt       DateTime @default(now())
@@ -701,24 +708,28 @@ model OutletTransfer {
   @@index([fromOutlet])
   @@index([toOutlet])
   @@index([status])
+  @@index([type])
 }
 
 model OutletTransferItem {
   id              String   @id @default(uuid())
   transferId      String
   transfer        OutletTransfer @relation(fields: [transferId], references: [id])
-  outletVariantId String?  // Historical reference ID (plain string, no FK constraint)
+  outletVariantId String?
   outletInventoryId String?
+  inventoryItemId String?  // For warehouse stock references
   productName     String
   color           String?
   size            String?
   barcode         String
   quantity        Int      @default(1)
   unitPrice       Float?
+  approvedQty     Int?     // Quantity approved by source (may differ from requested)
 
   @@index([transferId])
   @@index([outletVariantId])
   @@index([outletInventoryId])
+  @@index([inventoryItemId])
 }
 
 model PosBookSession {

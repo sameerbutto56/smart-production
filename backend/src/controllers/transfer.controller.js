@@ -13,96 +13,235 @@ const generateTransferNumber = (() => {
   };
 })();
 
-const createTransfer = async (req, res) => {
+const createTransferRequest = async (req, res) => {
   try {
-    const { toOutlet, items, notes, fromOutlet: bodyFromOutlet, pickupMethod } = req.body;
+    const { toOutlet, items, notes, fromOutlet: bodyFromOutlet, dispatchMethod } = req.body;
     const fromOutlet = req.user?.role === 'OUTLET' ? req.user?.name : (bodyFromOutlet || null);
-    if (!fromOutlet) return res.status(400).json({ message: 'Source outlet not determined' });
-    if (!toOutlet || !OUTLETS.includes(toOutlet)) return res.status(400).json({ message: 'Invalid destination outlet' });
+    if (!fromOutlet) return res.status(400).json({ message: 'Source location not determined' });
+
+    const isWarehouseDest = toOutlet === 'Warehouse';
+    const isWarehouseSource = fromOutlet === 'Warehouse';
+
+    if (isWarehouseSource) {
+      if (!toOutlet || (!OUTLETS.includes(toOutlet) && toOutlet !== 'Warehouse')) {
+        return res.status(400).json({ message: 'Invalid destination' });
+      }
+    } else if (!isWarehouseDest) {
+      if (!toOutlet || !OUTLETS.includes(toOutlet)) {
+        return res.status(400).json({ message: 'Invalid destination outlet' });
+      }
+    }
+
     if (fromOutlet === toOutlet) return res.status(400).json({ message: 'Source and destination cannot be the same' });
     if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'At least one item is required' });
 
-    // Batch load source inventory items
-    const variantIds = items.map(i => i.variantId);
-    const sourceVariants = await prisma.outletInventory.findMany({
-      where: { id: { in: variantIds }, outletName: fromOutlet }
-    });
-    const srcMap = Object.fromEntries(sourceVariants.map(v => [v.id, v]));
+    let type = 'OUTLET_OUTLET';
+    if (isWarehouseDest) type = 'OUTLET_WAREHOUSE';
+    if (isWarehouseSource) type = 'WAREHOUSE_OUTLET';
 
-    let totalItems = 0;
     const transferItems = [];
 
-    for (const item of items) {
-      if (!item.variantId || !item.quantity) return res.status(400).json({ message: 'Each item must have variantId and quantity' });
-      const ov = srcMap[item.variantId];
-      if (!ov) return res.status(400).json({ message: `Variant ${item.variantId} not found in ${fromOutlet}` });
-      if (ov.stock < item.quantity) return res.status(400).json({ message: `Insufficient stock for ${ov.name}. Available: ${ov.stock}, requested: ${item.quantity}` });
-      totalItems += item.quantity;
-      transferItems.push({
-        outletVariantId: ov.id,
-        outletInventoryId: ov.id,
-        productName: ov.name,
-        color: ov.color,
-        size: ov.size,
-        barcode: ov.barcode,
-        quantity: item.quantity,
-        unitPrice: ov.price || 0
+    if (type === 'OUTLET_WAREHOUSE') {
+      const variantIds = items.map(i => i.variantId).filter(Boolean);
+      const sourceVariants = await prisma.outletInventory.findMany({
+        where: { id: { in: variantIds }, outletName: fromOutlet }
       });
+      const srcMap = Object.fromEntries(sourceVariants.map(v => [v.id, v]));
+
+      let totalItems = 0;
+      for (const item of items) {
+        if (!item.variantId || !item.quantity) return res.status(400).json({ message: 'Each item must have variantId and quantity' });
+        const ov = srcMap[item.variantId];
+        if (!ov) return res.status(400).json({ message: `Variant ${item.variantId} not found in ${fromOutlet}` });
+        if (ov.stock < item.quantity) return res.status(400).json({ message: `Insufficient stock for ${ov.name}. Available: ${ov.stock}, requested: ${item.quantity}` });
+        totalItems += item.quantity;
+        transferItems.push({
+          outletVariantId: ov.id,
+          outletInventoryId: ov.id,
+          productName: ov.name,
+          color: ov.color,
+          size: ov.size,
+          barcode: ov.barcode,
+          quantity: item.quantity,
+          unitPrice: ov.price || 0
+        });
+      }
+
+      const transferNumber = generateTransferNumber();
+      const transfer = await prisma.outletTransfer.create({
+        data: {
+          transferNumber, type, fromOutlet, toOutlet: 'Warehouse',
+          totalItems, dispatchMethod: dispatchMethod || null,
+          notes: notes || null,
+          requestedById: req.user?.id || null,
+          requestedByName: req.user?.name || null,
+          status: 'PENDING',
+          items: { create: transferItems }
+        },
+        include: { items: true }
+      });
+      cache.delPattern('pos:');
+      return res.status(201).json(transfer);
+
+    } else if (type === 'OUTLET_OUTLET') {
+      const variantIds = items.map(i => i.variantId).filter(Boolean);
+      const sourceVariants = await prisma.outletInventory.findMany({
+        where: { id: { in: variantIds }, outletName: fromOutlet }
+      });
+      const srcMap = Object.fromEntries(sourceVariants.map(v => [v.id, v]));
+
+      let totalItems = 0;
+      for (const item of items) {
+        if (!item.variantId || !item.quantity) return res.status(400).json({ message: 'Each item must have variantId and quantity' });
+        const ov = srcMap[item.variantId];
+        if (!ov) return res.status(400).json({ message: `Variant ${item.variantId} not found in ${fromOutlet}` });
+        if (ov.stock < item.quantity) return res.status(400).json({ message: `Insufficient stock for ${ov.name}. Available: ${ov.stock}, requested: ${item.quantity}` });
+        totalItems += item.quantity;
+        transferItems.push({
+          outletVariantId: ov.id,
+          outletInventoryId: ov.id,
+          productName: ov.name,
+          color: ov.color,
+          size: ov.size,
+          barcode: ov.barcode,
+          quantity: item.quantity,
+          unitPrice: ov.price || 0
+        });
+      }
+
+      const transferNumber = generateTransferNumber();
+      const transfer = await prisma.outletTransfer.create({
+        data: {
+          transferNumber, type, fromOutlet, toOutlet,
+          totalItems, dispatchMethod: dispatchMethod || null,
+          notes: notes || null,
+          requestedById: req.user?.id || null,
+          requestedByName: req.user?.name || null,
+          status: 'PENDING',
+          items: { create: transferItems }
+        },
+        include: { items: true }
+      });
+      cache.delPattern('pos:');
+      return res.status(201).json(transfer);
+
+    } else {
+      return res.status(400).json({ message: 'Invalid transfer type' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to create transfer request', error: error.message });
+  }
+};
+
+const approveTransfer = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { items: approvalItems } = req.body;
+    const transfer = await prisma.outletTransfer.findUnique({ where: { id }, include: { items: true } });
+    if (!transfer) return res.status(404).json({ message: 'Transfer not found' });
+    if (transfer.status !== 'PENDING') return res.status(400).json({ message: `Transfer is ${transfer.status.toLowerCase()}, cannot approve` });
+
+    const userOutlet = req.user?.name;
+    const isSource = transfer.fromOutlet === userOutlet || (transfer.fromOutlet === 'Warehouse' && ['STORE', 'ADMIN', 'SUPER_ADMIN'].includes(req.user?.role));
+    if (!isSource) return res.status(403).json({ message: 'Only the source location can approve' });
+
+    for (const item of transfer.items) {
+      const approvedItem = approvalItems?.find(ai => ai.itemId === item.id);
+      const approvedQty = approvedItem ? approvedItem.approvedQty : item.quantity;
+      if (approvedQty > item.quantity) return res.status(400).json({ message: `Approved qty for ${item.productName} exceeds requested qty` });
     }
 
-    const transferNumber = generateTransferNumber();
-
-    const transfer = await prisma.outletTransfer.create({
-      data: {
-        transferNumber,
-        fromOutlet,
-        toOutlet,
-        totalItems,
-        pickupMethod: pickupMethod || 'RIDER',
-        notes: notes || null,
-        requestedById: req.user?.id || null,
-        requestedByName: req.user?.name || null,
-        status: 'PENDING',
-        items: {
-          create: transferItems.map(ti => ({
-            outletVariantId: ti.outletVariantId,
-            outletInventoryId: ti.outletInventoryId,
-            productName: ti.productName,
-            color: ti.color,
-            size: ti.size,
-            barcode: ti.barcode,
-            quantity: ti.quantity,
-            unitPrice: ti.unitPrice
-          }))
+    if (transfer.type === 'OUTLET_WAREHOUSE' || transfer.type === 'OUTLET_OUTLET') {
+      for (const item of transfer.items) {
+        const approvedItem = approvalItems?.find(ai => ai.itemId === item.id);
+        const approvedQty = approvedItem ? approvedItem.approvedQty : item.quantity;
+        if (item.outletInventoryId) {
+          const ov = await prisma.outletInventory.findUnique({ where: { id: item.outletInventoryId } });
+          if (!ov || ov.stock < approvedQty) {
+            return res.status(400).json({ message: `Insufficient stock for ${item.productName}. Available: ${ov?.stock || 0}` });
+          }
         }
+      }
+    }
+
+    const updateData = {
+      status: 'APPROVED',
+      approvedById: req.user?.id || null,
+      approvedAt: new Date()
+    };
+
+    if (approvalItems && Array.isArray(approvalItems)) {
+      for (const ai of approvalItems) {
+        await prisma.outletTransferItem.update({
+          where: { id: ai.itemId },
+          data: { approvedQty: ai.approvedQty }
+        });
+      }
+    } else {
+      for (const item of transfer.items) {
+        await prisma.outletTransferItem.update({
+          where: { id: item.id },
+          data: { approvedQty: item.quantity }
+        });
+      }
+    }
+
+    const updated = await prisma.outletTransfer.update({ where: { id }, data: updateData, include: { items: true } });
+    cache.delPattern('pos:');
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to approve transfer', error: error.message });
+  }
+};
+
+const rejectTransfer = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const transfer = await prisma.outletTransfer.findUnique({ where: { id } });
+    if (!transfer) return res.status(404).json({ message: 'Transfer not found' });
+    if (transfer.status !== 'PENDING') return res.status(400).json({ message: `Transfer is ${transfer.status.toLowerCase()}, cannot reject` });
+
+    const userOutlet = req.user?.name;
+    const isSource = transfer.fromOutlet === userOutlet || (transfer.fromOutlet === 'Warehouse' && ['STORE', 'ADMIN', 'SUPER_ADMIN'].includes(req.user?.role));
+    if (!isSource) return res.status(403).json({ message: 'Only the source location can reject' });
+
+    const updated = await prisma.outletTransfer.update({
+      where: { id },
+      data: {
+        status: 'REJECTED',
+        rejectedById: req.user?.id || null,
+        rejectedAt: new Date(),
+        rejectionReason: reason || null
       },
       include: { items: true }
     });
-
     cache.delPattern('pos:');
-    res.status(201).json(transfer);
+    res.json(updated);
   } catch (error) {
-    res.status(500).json({ message: 'Failed to create transfer request', error: error.message });
+    res.status(500).json({ message: 'Failed to reject transfer', error: error.message });
   }
 };
 
 const dispatchTransfer = async (req, res) => {
   try {
     const { id } = req.params;
-    const transfer = await prisma.outletTransfer.findUnique({
-      where: { id },
-      include: { items: true }
-    });
+    const { dispatchMethod } = req.body;
+    const transfer = await prisma.outletTransfer.findUnique({ where: { id }, include: { items: true } });
     if (!transfer) return res.status(404).json({ message: 'Transfer not found' });
-    if (transfer.status !== 'PENDING') return res.status(400).json({ message: `Transfer is already ${transfer.status.toLowerCase()}` });
+    if (transfer.status !== 'APPROVED') return res.status(400).json({ message: `Transfer must be APPROVED before dispatch. Current: ${transfer.status}` });
 
-    // Verify source has sufficient stock at dispatch time
+    const userOutlet = req.user?.name;
+    const isSource = transfer.fromOutlet === userOutlet || (transfer.fromOutlet === 'Warehouse' && ['STORE', 'ADMIN', 'SUPER_ADMIN'].includes(req.user?.role));
+    if (!isSource) return res.status(403).json({ message: 'Only the source location can dispatch' });
+
     for (const item of transfer.items) {
-      const ov = await prisma.outletInventory.findUnique({
-        where: { id: item.outletVariantId }
-      });
-      if (!ov || ov.stock < item.quantity) {
-        return res.status(400).json({ message: `Insufficient stock for ${item.productName} at source outlet` });
+      if (item.outletInventoryId) {
+        const ov = await prisma.outletInventory.findUnique({ where: { id: item.outletInventoryId } });
+        const qty = item.approvedQty || item.quantity;
+        if (!ov || ov.stock < qty) {
+          return res.status(400).json({ message: `Insufficient stock for ${item.productName}` });
+        }
       }
     }
 
@@ -110,12 +249,12 @@ const dispatchTransfer = async (req, res) => {
       where: { id },
       data: {
         status: 'DISPATCHED',
-        approvedById: req.user?.id || null,
-        approvedAt: new Date()
+        dispatchedById: req.user?.id || null,
+        dispatchedAt: new Date(),
+        dispatchMethod: dispatchMethod || transfer.dispatchMethod || 'RIDER'
       },
       include: { items: true }
     });
-
     cache.delPattern('pos:');
     res.json(updated);
   } catch (error) {
@@ -126,95 +265,142 @@ const dispatchTransfer = async (req, res) => {
 const acceptTransfer = async (req, res) => {
   try {
     const { id } = req.params;
-    const transfer = await prisma.outletTransfer.findUnique({
-      where: { id },
-      include: { items: true }
-    });
+    const transfer = await prisma.outletTransfer.findUnique({ where: { id }, include: { items: true } });
     if (!transfer) return res.status(404).json({ message: 'Transfer not found' });
-    if (transfer.status !== 'DISPATCHED') {
-      return res.status(400).json({ message: 'Can only accept transfers that are in DISPATCHED status.' });
-    }
+    if (transfer.status !== 'DISPATCHED') return res.status(400).json({ message: 'Can only accept DISPATCHED transfers' });
 
-    // Process stock updates — run sequentially to avoid PgBouncer connection pool issues
-    for (const item of transfer.items) {
-      const srcVariantId = item.outletVariantId || item.outletInventoryId;
-      if (!srcVariantId) {
-        return res.status(400).json({ message: `Missing source inventory reference for ${item.productName}` });
-      }
-      const sourceOv = await prisma.outletInventory.findUnique({
-        where: { id: srcVariantId }
-      });
-      if (!sourceOv || sourceOv.stock < item.quantity) {
-        return res.status(400).json({ message: `Insufficient stock for ${item.productName} in source outlet` });
-      }
-      // Decrement source stock
-      await prisma.outletInventory.update({
-        where: { id: srcVariantId },
-        data: { stock: { decrement: item.quantity } }
-      });
-      // Find or create destination inventory — match by barcode, then name+color+size via JS
-      let destOv = await prisma.outletInventory.findFirst({
-        where: { barcode: item.barcode, outletName: transfer.toOutlet }
-      });
-      if (!destOv) {
-        // Use findMany + JS filter to avoid Prisma nullable where clause mismatches
-        const candidates = await prisma.outletInventory.findMany({
-          where: { outletName: transfer.toOutlet, name: sourceOv.name }
-        });
-        destOv = candidates.find(r =>
-          (item.color ? r.color === item.color : !r.color) &&
-          (item.size ? r.size === item.size : !r.size)
-        );
-      }
-      if (destOv) {
-        await prisma.outletInventory.update({
-          where: { id: destOv.id },
-          data: { stock: { increment: item.quantity } }
-        });
-      } else {
-        await prisma.outletInventory.create({
-          data: {
-            name: sourceOv.name,
-            category: sourceOv.category,
-            outletName: transfer.toOutlet,
-            color: item.color || null,
-            size: item.size || null,
-            fabric: sourceOv.fabric,
-            barcode: item.barcode,
-            stock: item.quantity,
-            price: item.unitPrice || null,
-            metadata: JSON.stringify({ sourceStoreItemId: sourceOv.id })
+    const userOutlet = req.user?.name;
+    const isDest = transfer.toOutlet === userOutlet || (transfer.toOutlet === 'Warehouse' && ['STORE', 'ADMIN', 'SUPER_ADMIN'].includes(req.user?.role));
+    if (!isDest) return res.status(403).json({ message: 'Only the destination location can accept' });
+
+    if (transfer.type === 'OUTLET_OUTLET' || transfer.type === 'OUTLET_WAREHOUSE') {
+      for (const item of transfer.items) {
+        const qty = item.approvedQty || item.quantity;
+        const srcId = item.outletInventoryId || item.outletVariantId;
+        if (!srcId) return res.status(400).json({ message: `Missing source inventory reference for ${item.productName}` });
+
+        const sourceOv = await prisma.outletInventory.findUnique({ where: { id: srcId } });
+        if (!sourceOv || sourceOv.stock < qty) {
+          return res.status(400).json({ message: `Insufficient stock for ${item.productName} at source` });
+        }
+
+        await prisma.outletInventory.update({ where: { id: srcId }, data: { stock: { decrement: qty } } });
+
+        if (transfer.type === 'OUTLET_WAREHOUSE') {
+          let destItem = await prisma.inventoryItem.findFirst({
+            where: { name: sourceOv.name, color: sourceOv.color || undefined, size: sourceOv.size || undefined }
+          });
+          if (destItem) {
+            const newStock = (destItem.stock || 0) + qty;
+            let newVariants = destItem.variants;
+            if (Array.isArray(newVariants) && newVariants.length > 0) {
+              newVariants = newVariants.map(v => {
+                if ((v.color || null) === (sourceOv.color || null) && (v.size || null) === (sourceOv.size || null)) {
+                  return { ...v, stock: (v.stock || 0) + qty };
+                }
+                return v;
+              });
+            }
+            await prisma.inventoryItem.update({ where: { id: destItem.id }, data: { stock: newStock, variants: newVariants } });
+          } else {
+            await prisma.inventoryItem.create({
+              data: {
+                name: sourceOv.name, category: sourceOv.category,
+                color: sourceOv.color || null, size: sourceOv.size || null,
+                fabric: sourceOv.fabric, stock: qty,
+                price: sourceOv.price || null,
+                variants: [{ color: sourceOv.color || null, size: sourceOv.size || null, stock: qty, price: sourceOv.price || 0 }]
+              }
+            });
           }
-        });
+        } else {
+          let destOv = await prisma.outletInventory.findFirst({
+            where: { barcode: item.barcode, outletName: transfer.toOutlet }
+          });
+          if (!destOv) {
+            const candidates = await prisma.outletInventory.findMany({
+              where: { outletName: transfer.toOutlet, name: sourceOv.name }
+            });
+            destOv = candidates.find(r =>
+              (item.color ? r.color === item.color : !r.color) &&
+              (item.size ? r.size === item.size : !r.size)
+            );
+          }
+          if (destOv) {
+            await prisma.outletInventory.update({ where: { id: destOv.id }, data: { stock: { increment: qty } } });
+          } else {
+            await prisma.outletInventory.create({
+              data: {
+                name: sourceOv.name, category: sourceOv.category,
+                outletName: transfer.toOutlet,
+                color: item.color || null, size: item.size || null,
+                fabric: sourceOv.fabric, barcode: item.barcode,
+                stock: qty, price: item.unitPrice || null,
+                metadata: JSON.stringify({ sourceStoreItemId: sourceOv.id })
+              }
+            });
+          }
+        }
       }
     }
 
-    const completed = await prisma.outletTransfer.update({
+    const updated = await prisma.outletTransfer.update({
       where: { id },
-      data: {
-        status: 'COMPLETED',
-        completedById: req.user?.id || null,
-        completedAt: new Date()
-      },
+      data: { status: 'COMPLETED', completedById: req.user?.id || null, completedAt: new Date() },
       include: { items: true }
     });
-
     cache.delPattern('pos:');
-    res.json(completed);
+    res.json(updated);
   } catch (error) {
     res.status(500).json({ message: 'Failed to accept transfer: ' + error.message });
   }
 };
 
+const cancelTransfer = async (req, res) => {
+  try {
+    const transfer = await prisma.outletTransfer.findUnique({ where: { id: req.params.id } });
+    if (!transfer) return res.status(404).json({ message: 'Transfer not found' });
+    if (!['PENDING', 'APPROVED'].includes(transfer.status)) return res.status(400).json({ message: 'Can only cancel PENDING or APPROVED transfers' });
+
+    const updated = await prisma.outletTransfer.update({
+      where: { id: req.params.id },
+      data: { status: 'CANCELLED' }
+    });
+    cache.delPattern('pos:');
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to cancel transfer', error: error.message });
+  }
+};
+
 const getTransfers = async (req, res) => {
   try {
-    const userOutlet = req.user?.role === 'OUTLET' ? req.user?.name : null;
+    const userRole = req.user?.role;
+    const userOutlet = req.user?.name;
     const where = {};
-    if (userOutlet) {
+
+    if (userRole === 'OUTLET') {
       where.OR = [{ fromOutlet: userOutlet }, { toOutlet: userOutlet }];
+    } else if (userRole === 'STORE') {
+      where.OR = [{ fromOutlet: 'Warehouse' }, { toOutlet: 'Warehouse' }];
     }
-    const status = req.query.status;
-    if (status) where.status = status;
+
+    if (req.query.status) where.status = req.query.status;
+    if (req.query.type) where.type = req.query.type;
+
+    if (req.query.tab === 'sent' && userOutlet) {
+      delete where.OR;
+      where.fromOutlet = userOutlet;
+    } else if (req.query.tab === 'received' && userOutlet) {
+      delete where.OR;
+      where.toOutlet = userOutlet;
+    } else if (req.query.tab === 'sent' && userRole === 'STORE') {
+      delete where.OR;
+      where.fromOutlet = 'Warehouse';
+    } else if (req.query.tab === 'received' && userRole === 'STORE') {
+      delete where.OR;
+      where.toOutlet = 'Warehouse';
+    }
 
     const transfers = await prisma.outletTransfer.findMany({
       where,
@@ -241,28 +427,38 @@ const getTransferById = async (req, res) => {
   }
 };
 
-const cancelTransfer = async (req, res) => {
+const getTransferStats = async (req, res) => {
   try {
-    const transfer = await prisma.outletTransfer.findUnique({ where: { id: req.params.id } });
-    if (!transfer) return res.status(404).json({ message: 'Transfer not found' });
-    if (transfer.status !== 'PENDING') return res.status(400).json({ message: 'Can only cancel PENDING transfers' });
+    const userRole = req.user?.role;
+    const userOutlet = req.user?.name;
+    const where = {};
 
-    await prisma.outletTransfer.update({
-      where: { id: req.params.id },
-      data: { status: 'CANCELLED' }
-    });
-    cache.delPattern('pos:');
-    res.json({ message: 'Transfer cancelled' });
+    if (userRole === 'OUTLET') {
+      where.OR = [{ fromOutlet: userOutlet }, { toOutlet: userOutlet }];
+    } else if (userRole === 'STORE') {
+      where.OR = [{ fromOutlet: 'Warehouse' }, { toOutlet: 'Warehouse' }];
+    }
+
+    const all = await prisma.outletTransfer.findMany({ where, select: { status: true } });
+    const stats = { total: all.length, PENDING: 0, APPROVED: 0, REJECTED: 0, DISPATCHED: 0, COMPLETED: 0, CANCELLED: 0 };
+    for (const t of all) { if (stats[t.status] !== undefined) stats[t.status]++; }
+    res.json(stats);
   } catch (error) {
-    res.status(500).json({ message: 'Failed to cancel transfer', error: error.message });
+    res.status(500).json({ message: 'Failed to fetch transfer stats', error: error.message });
+  }
+};
+
+const getWarehouseInventory = async (req, res) => {
+  try {
+    const items = await prisma.inventoryItem.findMany({ orderBy: { name: 'asc' } });
+    res.json(items);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch warehouse inventory', error: error.message });
   }
 };
 
 module.exports = {
-  createTransfer,
-  getTransfers,
-  getTransferById,
-  cancelTransfer,
-  dispatchTransfer,
-  acceptTransfer
+  createTransferRequest, approveTransfer, rejectTransfer,
+  dispatchTransfer, acceptTransfer, cancelTransfer,
+  getTransfers, getTransferById, getTransferStats, getWarehouseInventory
 };
