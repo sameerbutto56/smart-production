@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import api from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import OrderCard from '../components/OrderCard';
