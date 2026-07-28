@@ -44,7 +44,7 @@ const SmartOrderForm = () => {
     validateCurrentTab, handleAddToCart, removeCartItem, editCartItem,
     handleAddMoreProducts, handleCheckout, setShowAddMore, setIsCartOpen, setShowProductSelector,
     setShowEditReview, setError, filteredTabs, setLoading, setIsSubmitting,
-    goForVerification, setGoForVerification
+    goForVerification, setGoForVerification, fromVerification, setIsEditMode, setFromVerification
   } = useOrderEntry();
 
   if (dataLoading) return <PageLoader text="Loading Order Entry..." />;
@@ -144,7 +144,82 @@ const SmartOrderForm = () => {
         </div>
       )}
 
-      {isEditMode && originalOrder && (
+      {fromVerification && originalOrder && (
+        <div className="space-y-6">
+          <div className="glass border-2 border-emerald-500/30 rounded-[2rem] p-4 md:p-6 bg-emerald-500/5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-emerald-500/20 text-emerald-400 rounded-2xl animate-pulse"><ArrowLeft size={20} /></div>
+              <div>
+                <h3 className="text-base md:text-lg font-black text-emerald-400 uppercase tracking-wider">Return from Verification — #{originalOrder.orderNumber}</h3>
+                <p className="theme-text-muted text-xs font-bold">{originalOrder.customerName}</p>
+                {originalOrder.verificationReturnNote && (
+                  <div className="mt-2 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
+                    <p className="text-[10px] font-black text-amber-400 uppercase">Changes Requested by Verifier</p>
+                    <p className="text-xs text-amber-300 mt-0.5 whitespace-pre-wrap">{originalOrder.verificationReturnNote}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+            <button type="button" onClick={() => { setIsEditMode(false); setFromVerification(false); }}
+              className="px-5 py-2.5 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white border border-red-500/20 rounded-[1.2rem] font-black text-xs uppercase tracking-wider transition-all active:scale-95 whitespace-nowrap">
+              {useUrdu ? 'منسوخ کریں' : 'Cancel'}
+            </button>
+          </div>
+          <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
+          <AnimatePresence mode="wait">
+            {activeTab === 'basic' && <BasicInfoTab key="basic" />}
+            {activeTab === 'product' && <ProductSelectionTab key="product" />}
+            {activeTab === 'custom' && <EngravingTab key="custom" />}
+            {activeTab === 'sizes' && <SizeChartTab key="sizes" />}
+          </AnimatePresence>
+          <div className={`flex flex-col sm:flex-row items-center justify-between pt-6 md:pt-12 gap-4 md:gap-8 border-t-2 theme-border ${useUrdu ? 'flex-row-reverse' : ''}`}>
+            <div className="flex flex-col space-y-4">
+              <div className={`flex items-center space-x-3 text-gray-600 theme-bg-subtle px-6 py-3 rounded-2xl border theme-border ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.5)] animate-pulse" />
+                <span className="text-xs md:text-sm font-black uppercase tracking-[0.2em]">{useUrdu ? 'تصدیق شدہ نظام' : 'Validated System Protocol'}</span>
+              </div>
+              {error && (
+                <div className={`flex items-center space-x-3 text-red-500 bg-red-500/10 px-6 py-3 rounded-2xl border border-red-500/20 ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                  <AlertCircle size={16} /><span className="text-xs font-bold">{error}</span>
+                </div>
+              )}
+            </div>
+            <div className={`flex space-x-6 w-full sm:w-auto ${useUrdu ? 'flex-row-reverse space-x-reverse' : ''}`}>
+              {activeTab !== 'basic' && (
+                <button type="button" onClick={() => { const ci = filteredTabs.findIndex(t => t.id === activeTab); setActiveTab(filteredTabs[ci - 1].id); }}
+                  className="flex-1 sm:px-12 py-6 theme-bg theme-text-primary rounded-[1.5rem] font-black text-sm border-2 theme-border hover:bg-gray-800 hover:border-gray-700 transition-all active:scale-95 shadow-xl">
+                  {useUrdu ? 'پیچھے' : 'BACK'}
+                </button>
+              )}
+              {activeTab !== filteredTabs[filteredTabs.length - 1].id && (
+                <button type="button"
+                  onClick={() => { const err = validateCurrentTab(); if (err) { setError(err); return; } const ci = filteredTabs.findIndex(t => t.id === activeTab); setActiveTab(filteredTabs[ci + 1].id); }}
+                  className="flex-1 sm:px-16 py-6 bg-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl shadow-blue-900/50 hover:bg-blue-500 hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 group">
+                  <span className={useUrdu ? "order-2" : "order-1"}>{useUrdu ? 'اگلا مرحلہ' : 'NEXT'}</span>
+                  <ArrowRight size={22} className={`transition-transform ${useUrdu ? 'order-1 rotate-180 group-hover:-translate-x-2' : 'order-2 group-hover:translate-x-2'}`} />
+                </button>
+              )}
+              {activeTab === filteredTabs[filteredTabs.length - 1].id && (
+                <button type="button" onClick={handleAddToCart} disabled={loading || isSubmitting}
+                  className="flex-1 sm:px-16 py-6 theme-bg text-blue-400 border-2 border-blue-500/50 rounded-[1.5rem] font-black text-sm shadow-2xl hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all active:scale-95 flex items-center justify-center space-x-4 disabled:opacity-50">
+                  {loading || isSubmitting ? (useUrdu ? 'انتظار کریں...' : 'PROCESSING...') : (
+                    <><Plus size={16} className={useUrdu ? "order-2" : "order-1"} /><span className={useUrdu ? "order-1" : "order-2"}>{useUrdu ? 'کارٹ میں شامل کریں' : 'ADD ITEM TO CART'}</span></>
+                  )}
+                </button>
+              )}
+              {activeTab === filteredTabs[filteredTabs.length - 1].id && cartItems.length > 0 && (
+                <button type="button" onClick={() => fromVerification ? submitOrderEditRequest() : setShowReview(true)} disabled={loading || isSubmitting}
+                  className="flex-1 sm:px-16 py-6 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 group disabled:opacity-50">
+                  <CheckCircle2 size={16} /><span>{fromVerification ? (useUrdu ? 'اسٹور کو دوبارہ جمع کریں' : 'RESUBMIT TO STORE') : (useUrdu ? 'آرڈر چیک آؤٹ کریں' : 'CHECKOUT')}</span>
+                </button>
+              )}
+            </div>
+          </div>
+      </form>
+        </div>
+      )}
+
+      {isEditMode && originalOrder && !fromVerification && (
         <div className="space-y-6">
           <div className="glass border-2 border-amber-500/30 rounded-[2rem] p-4 md:p-6 bg-amber-500/5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -169,7 +244,7 @@ const SmartOrderForm = () => {
         </div>
       )}
 
-      {!isEditMode && (
+      {!isEditMode && !fromVerification && (
       <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
           <AnimatePresence mode="wait">
             {activeTab === 'basic' && <BasicInfoTab key="basic" />}
@@ -214,9 +289,9 @@ const SmartOrderForm = () => {
                 </button>
               )}
               {activeTab === filteredTabs[filteredTabs.length - 1].id && cartItems.length > 0 && (
-                <button type="button" onClick={() => setShowReview(true)} disabled={loading || isSubmitting}
+                <button type="button" onClick={() => fromVerification ? submitOrderEditRequest() : setShowReview(true)} disabled={loading || isSubmitting}
                   className="flex-1 sm:px-16 py-6 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm shadow-2xl hover:translate-y-[-4px] transition-all active:scale-95 flex items-center justify-center space-x-4 group disabled:opacity-50">
-                  <CheckCircle2 size={16} /><span>{useUrdu ? 'آرڈر چیک آؤٹ کریں' : 'CHECKOUT'}</span>
+                  <CheckCircle2 size={16} /><span>{fromVerification ? (useUrdu ? 'اسٹور کو دوبارہ جمع کریں' : 'RESUBMIT TO STORE') : (useUrdu ? 'آرڈر چیک آؤٹ کریں' : 'CHECKOUT')}</span>
                 </button>
               )}
             </div>
@@ -237,9 +312,9 @@ const SmartOrderForm = () => {
                   className="w-full py-5 bg-blue-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-blue-900/50 hover:bg-blue-500 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3">
                   <Plus size={16} /><span>{useUrdu ? 'دوسری پروڈکٹ شامل کریں' : 'ADD ANOTHER PRODUCT'}</span>
                 </button>
-                <button onClick={() => { setShowAddMore(false); isEditMode ? submitOrderEditRequest() : setShowReview(true); }}
+                <button onClick={() => { setShowAddMore(false); fromVerification ? submitOrderEditRequest() : isEditMode ? submitOrderEditRequest() : setShowReview(true); }}
                   className="w-full py-5 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3">
-                  <CheckCircle2 size={16} /><span>{useUrdu ? 'آرڈر چیک آؤٹ کریں' : isEditMode ? 'SUBMIT EDIT REQUEST' : 'CHECKOUT'}</span>
+                  <CheckCircle2 size={16} /><span>{fromVerification ? 'RESUBMIT TO STORE' : isEditMode ? 'SUBMIT EDIT REQUEST' : 'CHECKOUT'}</span>
                 </button>
               </div>
             </motion.div>
@@ -287,9 +362,9 @@ const SmartOrderForm = () => {
                     </div>
                   ))}
                 </div>
-                <button onClick={() => { setIsCartOpen(false); isEditMode ? submitOrderEditRequest() : handleCheckout(); }} disabled={loading || isSubmitting}
+                <button onClick={() => { setIsCartOpen(false); fromVerification ? submitOrderEditRequest() : isEditMode ? submitOrderEditRequest() : handleCheckout(); }} disabled={loading || isSubmitting}
                   className="w-full py-5 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-emerald-900/40 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center space-x-3 disabled:opacity-50">
-                  <CheckCircle2 size={16} /><span>{isEditMode ? 'Submit Edit Request' : 'Checkout Order'}</span>
+                  <CheckCircle2 size={16} /><span>{fromVerification ? 'Resubmit to Store' : isEditMode ? 'Submit Edit Request' : 'Checkout Order'}</span>
                 </button>
               </motion.div>
             )}
@@ -594,10 +669,10 @@ const SmartOrderForm = () => {
                   className="flex-1 py-5 bg-gray-800 text-gray-400 rounded-[1.5rem] font-black text-sm uppercase tracking-widest hover:bg-gray-700 transition-all active:scale-95 border border-gray-700">
                   {useUrdu ? 'ترمیم کریں' : 'EDIT'}
                 </button>
-                <button onClick={() => { setShowReview(false); handleCheckout(); }} disabled={loading || isSubmitting}
+                <button onClick={() => { setShowReview(false); fromVerification ? submitOrderEditRequest() : handleCheckout(); }} disabled={loading || isSubmitting}
                   className="flex-1 py-5 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-emerald-900/50 hover:translate-y-[-2px] transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50">
                   <CheckCircle2 size={16} />
-                  <span>{loading || isSubmitting ? (useUrdu ? 'جمع کر رہا ہے...' : 'SUBMITTING...') : goForVerification ? (useUrdu ? 'تصدیق کو بھیجیں' : 'SEND FOR VERIFICATION') : (useUrdu ? 'تصدیق کریں' : 'CONFIRM & SUBMIT')}</span>
+                  <span>{loading || isSubmitting ? (useUrdu ? 'جمع کر رہا ہے...' : 'SUBMITTING...') : fromVerification ? (useUrdu ? 'اسٹور کو دوبارہ جمع کریں' : 'RESUBMIT TO STORE') : goForVerification ? (useUrdu ? 'تصدیق کو بھیجیں' : 'SEND FOR VERIFICATION') : (useUrdu ? 'تصدیق کریں' : 'CONFIRM & SUBMIT')}</span>
                 </button>
               </div>
             </motion.div>

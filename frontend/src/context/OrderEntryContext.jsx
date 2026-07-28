@@ -112,6 +112,7 @@ export const OrderEntryProvider = ({ children }) => {
   const [showProductSelector, setShowProductSelector] = useState(false);
   const [goForVerification, setGoForVerification] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [fromVerification, setFromVerification] = useState(false);
   const dateInputRef = useRef(null);
 
   const t = useCallback((key) => {
@@ -122,6 +123,81 @@ export const OrderEntryProvider = ({ children }) => {
 
   useEffect(() => {
     if (searchParams.get('edit') === '1') setIsEditMode(true);
+    const verifReturn = searchParams.get('fromVerification');
+    const editId = searchParams.get('editOrderId');
+    if (verifReturn === 'true' && editId) {
+      setFromVerification(true);
+      setIsEditMode(true);
+      setEditOrderId(editId);
+      // Load the order data
+      (async () => {
+        try {
+          const res = await api.get('/api/orders', { params: { limit: 'all' } });
+          const orders = Array.isArray(res.data) ? res.data : [];
+          const found = orders.find(o => o.id === editId);
+          if (found) {
+            setEditOrderData(found);
+            setOriginalOrder(found);
+            // Pre-fill form data
+            setFormData(prev => ({
+              ...prev,
+              customerName: found.customerName || '',
+              customerPhone: found.customerPhone || '',
+              address: found.address || '',
+              city: found.city || '',
+              type: found.type || 'STANDARD',
+              priority: found.priority || 'NORMAL',
+              advancePaid: !!found.advancePaid,
+              advanceAmount: found.advanceAmount || '',
+              totalPrice: found.totalPrice || '',
+              quantity: found.quantity || 1,
+              logoDesign: found.logoDesign || '',
+              logoName: found.logoName || ''
+            }));
+            // Pre-fill cart items
+            let pd = [];
+            try { pd = found.productDetails; } catch { pd = []; }
+            if (Array.isArray(pd)) {
+              setCartItems(pd.map(item => {
+                const pdItem = item.productDetails || item;
+                const custItem = item.customization || {};
+                const sizeDataObj = item.sizeData || {};
+                return {
+                  orderNumber: found.orderNumber,
+                  customerName: found.customerName,
+                  quantity: item.quantity || 1,
+                  productDetails: {
+                    ...pdItem,
+                    productType: pdItem.productType || '',
+                    fabricType: pdItem.fabricType || '',
+                    color: pdItem.color || '',
+                    size: pdItem.size || '',
+                    gender: pdItem.gender || 'Male',
+                    femaleOptions: pdItem.femaleOptions || null,
+                    sleeveLength: pdItem.sleeveLength || '',
+                    shirtLength: pdItem.shirtLength || '',
+                    matchingCap: pdItem.matchingCap || false,
+                    matchingCapQty: pdItem.matchingCapQty || 0
+                  },
+                  customization: {
+                    nameSpelling: custItem.nameSpelling || '',
+                    nameColor: custItem.nameColor || '',
+                    logoColor: custItem.logoColor || '',
+                    logoPlacement: custItem.logoPlacement || '',
+                    designNotes: custItem.designNotes || ''
+                  },
+                  sizeData: sizeDataObj,
+                  totalPrice: parseFloat(item.totalPrice) || 0,
+                  logoCharges: parseFloat(item.logoCharges) || 0,
+                  namePrintingCharges: parseFloat(item.namePrintingCharges) || 0,
+                  customizationPrice: parseFloat(item.customizationPrice) || 0
+                };
+              }));
+            }
+          }
+        } catch (e) { console.error('Error loading order for verification return:', e); }
+      })();
+    }
   }, [searchParams]);
 
   const fetchInventory = useCallback(async () => {
@@ -332,13 +408,25 @@ export const OrderEntryProvider = ({ children }) => {
           reason: editReason
         };
       }
-      await api.post(`/api/orders/${editOrderId}/edit-request`, payload);
-      setIsEditMode(false); setEditOrderId(null); setOriginalOrder(null); setShowEditReview(false);
-      setEditReason(''); setEditOrderNumber(''); setEditOrderData(null); setCartItems([]);
-      resetFormData();
-      setLogoEntries([{ name: '', design: '' }]); setArticleNameEntries(['']);
-      setActiveTab('basic');
-      alert('Edit request submitted successfully!');
+      if (fromVerification) {
+        // Resubmit directly to Store (bypassing verification)
+        await api.put(`/api/verification/${editOrderId}/resubmit`, payload.requestedChanges || payload);
+        setIsEditMode(false); setEditOrderId(null); setOriginalOrder(null); setShowEditReview(false);
+        setFromVerification(false);
+        setEditReason(''); setEditOrderNumber(''); setEditOrderData(null); setCartItems([]);
+        resetFormData();
+        setLogoEntries([{ name: '', design: '' }]); setArticleNameEntries(['']);
+        setActiveTab('basic');
+        alert('Order updated and sent to Store!');
+      } else {
+        await api.post(`/api/orders/${editOrderId}/edit-request`, payload);
+        setIsEditMode(false); setEditOrderId(null); setOriginalOrder(null); setShowEditReview(false);
+        setEditReason(''); setEditOrderNumber(''); setEditOrderData(null); setCartItems([]);
+        resetFormData();
+        setLogoEntries([{ name: '', design: '' }]); setArticleNameEntries(['']);
+        setActiveTab('basic');
+        alert('Edit request submitted successfully!');
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Error submitting edit request');
     }
@@ -686,7 +774,7 @@ export const OrderEntryProvider = ({ children }) => {
     setEditReason, setEditOrderNumber, setEditOrderData, setEditOrderLoading, setEditOrderError,
     setLogoEntries, setArticleNameEntries, setFormData, setCartItems, setShowAddMore,
     setShowProductSelector, setIsCartOpen, setError, setLoading, setSuccess, setIsSubmitting,
-    goForVerification, setGoForVerification,
+    goForVerification, setGoForVerification, fromVerification, setFromVerification,
     // Handlers
     t, useUrdu, isUrdu, isOutlet, LanguageToggle,
     fetchInventory, toggleEditMode, fetchOrderByNumber, submitOrderEditRequest,

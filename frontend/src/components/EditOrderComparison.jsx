@@ -169,6 +169,28 @@ const EditOrderComparison = ({ order, onSubmit, onCancel, isSubmitting, useUrdu 
   const totalOldPrice = useMemo(() => originalItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0), [originalItems]);
   const totalNewPrice = useMemo(() => edited.items.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0), [edited.items]);
 
+  const oldPricing = useMemo(() => {
+    const productPrice = originalItems.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0);
+    const customization = originalItems.reduce((s, i) => s + (parseFloat(i.customizationPrice) || 0), 0);
+    const logoCharges = originalItems.reduce((s, i) => s + (parseFloat(i.logoCharges) || 0), 0);
+    const namePrint = originalItems.reduce((s, i) => s + (parseFloat(i.namePrintingCharges) || 0), 0);
+    const delivery = parseFloat(order.deliveryCharges) || 0;
+    const advance = parseFloat(order.advanceAmount) || 0;
+    const total = productPrice + delivery;
+    return { productPrice, customization, logoCharges, namePrint, delivery, advance, total, remaining: Math.max(0, total - advance) };
+  }, [originalItems, order]);
+
+  const newPricing = useMemo(() => {
+    const productPrice = edited.items.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0);
+    const customization = edited.items.reduce((s, i) => s + (parseFloat(i.customizationPrice) || 0), 0);
+    const logoCharges = edited.items.reduce((s, i) => s + (parseFloat(i.logoCharges) || 0), 0);
+    const namePrint = edited.items.reduce((s, i) => s + (parseFloat(i.namePrintingCharges) || 0), 0);
+    const delivery = parseFloat(edited.deliveryCharges) || 0;
+    const advance = parseFloat(edited.advanceAmount) || 0;
+    const total = productPrice + delivery;
+    return { productPrice, customization, logoCharges, namePrint, delivery, advance, total, remaining: Math.max(0, total - advance) };
+  }, [edited]);
+
   const buildPayload = () => {
     const items = edited.items.map(item => ({
       productDetails: {
@@ -367,21 +389,61 @@ const EditOrderComparison = ({ order, onSubmit, onCancel, isSubmitting, useUrdu 
           <span className="text-[11px] font-black uppercase tracking-widest text-amber-400">Pricing Summary</span>
         </div>
         <div className="p-6">
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4">
-              <p className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-1">Original Total</p>
-              <p className="text-lg font-black text-red-400">₨{totalOldPrice.toLocaleString()}</p>
-            </div>
-            <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4">
-              <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">New Total</p>
-              <p className="text-lg font-black text-emerald-400">₨{totalNewPrice.toLocaleString()}</p>
-            </div>
-            <div className={`border rounded-xl p-4 ${totalNewPrice > totalOldPrice ? 'bg-red-500/5 border-red-500/20' : totalNewPrice < totalOldPrice ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-gray-500/5 border-gray-500/20'}`}>
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Difference</p>
-              <p className={`text-lg font-black ${totalNewPrice > totalOldPrice ? 'text-red-400' : totalNewPrice < totalOldPrice ? 'text-emerald-400' : 'text-gray-400'}`}>
-                {totalNewPrice >= totalOldPrice ? '+' : ''}₨{(totalNewPrice - totalOldPrice).toLocaleString()}
-              </p>
-            </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-gray-700">
+                  <th className="text-left py-2 pr-4 text-gray-500 font-black uppercase tracking-wider">Component</th>
+                  <th className="text-right py-2 px-4 text-gray-500 font-black uppercase tracking-wider">Original</th>
+                  <th className="text-right py-2 px-4 text-gray-500 font-black uppercase tracking-wider">Edited</th>
+                  <th className="text-right py-2 pl-4 text-gray-500 font-black uppercase tracking-wider">Diff</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { label: 'Product Price', old: oldPricing.productPrice, new: newPricing.productPrice },
+                  { label: 'Customization Charges', old: oldPricing.customization, new: newPricing.customization },
+                  { label: 'Logo Charges', old: oldPricing.logoCharges, new: newPricing.logoCharges },
+                  { label: 'Name Printing Charges', old: oldPricing.namePrint, new: newPricing.namePrint },
+                  { label: 'Delivery Charges', old: oldPricing.delivery, new: newPricing.delivery },
+                ].map(row => {
+                  const diff = (row.new || 0) - (row.old || 0);
+                  return (
+                    <tr key={row.label} className="border-b border-gray-800/50">
+                      <td className="py-2 pr-4 text-gray-400">{row.label}</td>
+                      <td className={`py-2 px-4 text-right font-bold ${row.old !== row.new ? 'text-red-400' : 'theme-text-primary'}`}>₨{(row.old || 0).toLocaleString()}</td>
+                      <td className={`py-2 px-4 text-right font-bold ${row.old !== row.new ? 'text-amber-400' : 'theme-text-primary'}`}>₨{(row.new || 0).toLocaleString()}</td>
+                      <td className={`py-2 pl-4 text-right font-bold ${diff > 0 ? 'text-red-400' : diff < 0 ? 'text-emerald-400' : 'text-gray-600'}`}>{diff >= 0 ? '+' : ''}₨{diff.toLocaleString()}</td>
+                    </tr>
+                  );
+                })}
+                <tr className="border-b border-gray-600">
+                  <td className="py-3 pr-4 text-white font-black text-sm">Total Order Amount</td>
+                  <td className="py-3 px-4 text-right font-black text-lg text-red-400">₨{oldPricing.total.toLocaleString()}</td>
+                  <td className="py-3 px-4 text-right font-black text-lg text-amber-400">₨{newPricing.total.toLocaleString()}</td>
+                  <td className={`py-3 pl-4 text-right font-black text-lg ${newPricing.total > oldPricing.total ? 'text-red-400' : newPricing.total < oldPricing.total ? 'text-emerald-400' : 'text-gray-600'}`}>{newPricing.total >= oldPricing.total ? '+' : ''}₨{(newPricing.total - oldPricing.total).toLocaleString()}</td>
+                </tr>
+                {[
+                  { label: 'Advance Payment Received', old: oldPricing.advance, new: newPricing.advance },
+                ].map(row => {
+                  const diff = (row.new || 0) - (row.old || 0);
+                  return (
+                    <tr key={row.label} className="border-b border-gray-800/50">
+                      <td className="py-2 pr-4 text-gray-400">{row.label}</td>
+                      <td className="py-2 px-4 text-right font-bold text-emerald-400">₨{(row.old || 0).toLocaleString()}</td>
+                      <td className={`py-2 px-4 text-right font-bold ${row.old !== row.new ? 'text-amber-400' : 'text-emerald-400'}`}>₨{(row.new || 0).toLocaleString()}</td>
+                      <td className={`py-2 pl-4 text-right font-bold text-gray-600`}>—</td>
+                    </tr>
+                  );
+                })}
+                <tr>
+                  <td className="py-3 pr-4 text-amber-400 font-black text-sm">Remaining Balance</td>
+                  <td className="py-3 px-4 text-right font-black text-lg text-orange-400">₨{oldPricing.remaining.toLocaleString()}</td>
+                  <td className={`py-3 px-4 text-right font-black text-lg ${newPricing.remaining !== oldPricing.remaining ? 'text-amber-400' : 'text-orange-400'}`}>₨{newPricing.remaining.toLocaleString()}</td>
+                  <td className={`py-3 pl-4 text-right font-black text-lg ${newPricing.remaining > oldPricing.remaining ? 'text-red-400' : newPricing.remaining < oldPricing.remaining ? 'text-emerald-400' : 'text-gray-600'}`}>{newPricing.remaining >= oldPricing.remaining ? '+' : ''}₨{(newPricing.remaining - oldPricing.remaining).toLocaleString()}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

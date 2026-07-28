@@ -119,6 +119,7 @@ const Sidebar = React.memo(({ isOpen, isCollapsed, toggle, toggleCollapse }) => 
     { name: 'Alteration', path: '/alteration-request', icon: Scissors, roles: ['OUTLET', 'INVENTORY_VIEW'] },
     { name: 'Engraving', path: '/engraving-request', icon: Scissors, roles: ['OUTLET', 'INVENTORY_VIEW'] },
     { name: 'Verification', path: '/verification', icon: Shield, roles: ['INVENTORY_VIEW'] },
+    { name: 'Return from Verification', path: '/returned-from-verification', icon: ArrowLeft, roles: ['FAISAL'] },
     { name: 'Return & Exchange', path: '/return-exchange', icon: RotateCcw, roles: ['INVENTORY_VIEW'] },
     { name: 'General Entries', path: '/journal', icon: FileText, roles: ['OUTLET'] },
     { name: 'Bank Deposit', path: '/bank-deposit', icon: Landmark, roles: ['OUTLET'] },

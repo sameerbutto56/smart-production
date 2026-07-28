@@ -46,6 +46,7 @@ const AlterationProduction = lazy(() => import('./pages/AlterationProduction'));
 const EngravingRequest = lazy(() => import('./pages/EngravingRequest'));
 const EngravingQueue = lazy(() => import('./pages/EngravingQueue'));
 const VerificationPage = lazy(() => import('./pages/VerificationPage'));
+const ReturnedFromVerification = lazy(() => import('./pages/ReturnedFromVerification'));
 const ReturnExchangePage = lazy(() => import('./pages/ReturnExchangePage'));
 const CustomerFeedbackForm = lazy(() => import('./pages/CustomerFeedbackForm'));
 
@@ -151,6 +152,7 @@ function App() {
                   <Route path="engraving-request" element={<EngravingRequest />} />
                   <Route path="engraving-queue" element={<EngravingQueue />} />
                   <Route path="verification" element={<VerificationPage />} />
+                  <Route path="returned-from-verification" element={<ReturnedFromVerification />} />
                   <Route path="return-exchange" element={<ReturnExchangePage />} />
                 </Route>
               </Routes>

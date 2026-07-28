@@ -1,9 +1,10 @@
 const prisma = require('../prisma');
+const { getRolesForStage } = require('./order.controller');
 
 const getPendingVerifications = async (req, res) => {
   try {
     const { search, page = 1, limit = 50 } = req.query;
-    const where = { goForVerification: true, verifiedAt: null };
+    const where = { goForVerification: true, verifiedAt: null, verificationReturnedAt: null };
     if (search) {
       where.OR = [
         { orderNumber: { contains: search, mode: 'insensitive' } },
@@ -81,7 +82,6 @@ const verifyOrder = async (req, res) => {
     const remainingBalance = Math.max(0, totalAmount - advanceReceived);
 
     await prisma.$transaction(async (tx) => {
-      // 1. Update order with verification details + advance
       await tx.order.update({
         where: { id: orderId },
         data: {
@@ -96,7 +96,6 @@ const verifyOrder = async (req, res) => {
         }
       });
 
-      // 2. Complete the ORDER_ENTRY stage (it was already COMPLETED by createOrder, but just in case)
       const orderEntryStage = order.stages.find(s => s.stageName === 'ORDER_ENTRY' && s.status !== 'COMPLETED');
       if (orderEntryStage) {
         await tx.orderStage.update({
@@ -105,18 +104,24 @@ const verifyOrder = async (req, res) => {
         });
       }
 
-      // 3. Create STORE stage as PENDING
       await tx.orderStage.create({
         data: { orderId, stageName: 'STORE', status: 'PENDING' }
       });
 
-      // 4. Update currentStage to STORE
       await tx.order.update({
         where: { id: orderId },
-        data: { currentStage: 'STORE', status: 'IN_PROGRESS' }
+        data: { currentStage: 'STORE', status: 'PENDING' }
       });
 
-      // 5. Create routing history
+      // Clear seenTask for STORE so it appears as fresh
+      const storeRecipients = await prisma.user.findMany({
+        where: { role: { in: getRolesForStage('STORE') } },
+        select: { id: true }
+      });
+      await tx.seenTask.deleteMany({
+        where: { userId: { in: storeRecipients.map(u => u.id) }, orderId, stageName: 'STORE' }
+      }).catch(() => {});
+
       await tx.routingHistory.create({
         data: {
           orderId,
@@ -128,7 +133,6 @@ const verifyOrder = async (req, res) => {
         }
       });
 
-      // 6. Audit log (wrapped in try-catch to not fail the transaction)
       try {
         if (verifierId) {
           await tx.auditLog.create({
@@ -192,4 +196,200 @@ const markPendingVerification = async (req, res) => {
   }
 };
 
-module.exports = { getPendingVerifications, getVerificationHistory, verifyOrder, markPendingVerification };
+// NEW: Return order to Faisal for corrections
+const returnToFaisal = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { returnNote } = req.body;
+    const verifierName = req.user?.name || 'Unknown';
+
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (!order.goForVerification) return res.status(400).json({ message: 'Order was not sent for verification' });
+    if (order.verifiedAt) return res.status(400).json({ message: 'Order already verified, cannot return' });
+    if (order.verificationReturnedAt) return res.status(400).json({ message: 'Order already returned to Faisal' });
+
+    await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        verificationReturnedAt: new Date(),
+        verificationReturnNote: returnNote || 'Changes requested during verification'
+      }
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        orderId,
+        action: 'RETURNED_FOR_CORRECTION',
+        details: `Returned to Faisal by ${verifierName} for corrections. Note: ${returnNote || 'N/A'}`,
+        performedBy: req.user?.id || 'system'
+      }
+    }).catch(e => console.error('Audit log failed:', e.message));
+
+    try {
+      const io = req.app.get('io');
+      if (io) io.emit('order-updated', { orderId });
+    } catch (e) {}
+
+    res.json({ message: 'Order returned to Faisal for corrections' });
+  } catch (error) {
+    console.error('Error returning to Faisal:', error);
+    res.status(500).json({ message: 'Failed to return order to Faisal', error: error.message });
+  }
+};
+
+// NEW: Get orders returned to Faisal (for FAISAL role)
+const getReturnedToFaisal = async (req, res) => {
+  try {
+    const { search, page = 1, limit = 50 } = req.query;
+    const where = { goForVerification: true, verifiedAt: null, verificationReturnedAt: { not: null } };
+    if (search) {
+      where.OR = [
+        { orderNumber: { contains: search, mode: 'insensitive' } },
+        { customerName: { contains: search, mode: 'insensitive' } },
+        { customerPhone: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const [orders, total] = await Promise.all([
+      prisma.order.findMany({
+        where,
+        include: { stages: { orderBy: { createdAt: 'asc' } } },
+        orderBy: { verificationReturnedAt: 'desc' },
+        skip,
+        take: parseInt(limit)
+      }),
+      prisma.order.count({ where })
+    ]);
+    res.json({ orders, total, page: parseInt(page), totalPages: Math.ceil(total / parseInt(limit)) });
+  } catch (error) {
+    console.error('Error fetching returned orders:', error);
+    res.status(500).json({ message: 'Failed to fetch returned orders', error: error.message });
+  }
+};
+
+// NEW: Faisal resubmits a corrected order directly to Store (bypassing verification)
+const resubmitFromVerification = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const updateData = req.body;
+    const userName = req.user?.name || 'Faisal';
+
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { stages: true }
+    });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (!order.goForVerification) return res.status(400).json({ message: 'Order was not sent for verification' });
+    if (order.verifiedAt) return res.status(400).json({ message: 'Order already verified' });
+    if (!order.verificationReturnedAt) return res.status(400).json({ message: 'Order was not returned for correction' });
+
+    // Build update payload from submitted data
+    const payload = {};
+    const updatableFields = [
+      'productDetails', 'items', 'quantity', 'totalPrice', 'customization', 'sizeData',
+      'customerName', 'customerPhone', 'address', 'city', 'type', 'priority',
+      'advancePaid', 'advanceAmount', 'logoDesign', 'logoName',
+      'logoCharges', 'namePrintingCharges', 'customizationPrice',
+      'deliveryCharges', 'instructionNotes',
+      'engravingInstructions', 'engravingRequired',
+      'shopifyOrderDate'
+    ];
+    updatableFields.forEach(f => {
+      if (updateData[f] !== undefined) payload[f] = updateData[f];
+    });
+
+    // If items array is provided, format it into productDetails
+    if (updateData.items && Array.isArray(updateData.items)) {
+      const items = updateData.items.map(item => ({
+        productDetails: item.productDetails,
+        customization: item.customization,
+        sizeData: item.sizeData,
+        quantity: item.quantity || 1,
+        totalPrice: item.totalPrice || 0,
+        logoName: item.logoName || '',
+        logoDesign: item.logoDesign || '',
+        logoCharges: parseFloat(item.logoCharges) || 0,
+        namePrintingCharges: parseFloat(item.namePrintingCharges) || 0,
+        customizationPrice: parseFloat(item.customizationPrice) || 0,
+        capCharges: parseInt(item.capCharges) || 0
+      }));
+      payload.productDetails = items;
+      payload.quantity = items.reduce((s, i) => s + (i.quantity || 1), 0);
+    }
+
+    // Clear the verification return flag so it won't show in returned list
+    payload.verificationReturnedAt = null;
+    payload.verificationReturnNote = null;
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Update order data
+      await tx.order.update({ where: { id: orderId }, data: payload });
+
+      // 2. Mark any existing ORDER_ENTRY or pending stage as COMPLETED
+      await tx.orderStage.updateMany({
+        where: { orderId, status: { in: ['PENDING', 'IN_PROGRESS'] } },
+        data: { status: 'COMPLETED', completedAt: new Date() }
+      });
+
+      // 3. Create STORE stage
+      await tx.orderStage.create({
+        data: { orderId, stageName: 'STORE', status: 'PENDING' }
+      });
+
+      // 4. Update order to STORE with PENDING status
+      await tx.order.update({
+        where: { id: orderId },
+        data: { currentStage: 'STORE', status: 'PENDING' }
+      });
+
+      // 5. Clear seenTask for STORE
+      const storeRecipients = await prisma.user.findMany({
+        where: { role: { in: getRolesForStage('STORE') } },
+        select: { id: true }
+      });
+      await tx.seenTask.deleteMany({
+        where: { userId: { in: storeRecipients.map(u => u.id) }, orderId, stageName: 'STORE' }
+      }).catch(() => {});
+
+      // 6. Routing history
+      await tx.routingHistory.create({
+        data: {
+          orderId,
+          sentByUserId: req.user?.id || null,
+          previousStage: 'ORDER_ENTRY',
+          newStage: 'STORE',
+          sentToStage: 'STORE',
+          remarks: `Resubmitted after correction by ${userName}. Bypassed verification.`
+        }
+      });
+
+      // 7. Audit log
+      await tx.auditLog.create({
+        data: {
+          orderId,
+          action: 'RESUBMITTED_AFTER_VERIFICATION',
+          details: `Order corrected and resubmitted by ${userName} directly to Store (bypassed verification)`,
+          performedBy: req.user?.id || 'system'
+        }
+      }).catch(() => {});
+    });
+
+    const updated = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { stages: { orderBy: { createdAt: 'asc' } } }
+    });
+
+    try {
+      const io = req.app.get('io');
+      if (io) io.emit('order-updated', { orderId });
+    } catch (e) {}
+
+    res.json({ message: 'Order resubmitted to Store', order: updated });
+  } catch (error) {
+    console.error('Error resubmitting order:', error);
+    res.status(500).json({ message: 'Failed to resubmit order', error: error.message });
+  }
+};
+
+module.exports = { getPendingVerifications, getVerificationHistory, verifyOrder, markPendingVerification, returnToFaisal, getReturnedToFaisal, resubmitFromVerification };

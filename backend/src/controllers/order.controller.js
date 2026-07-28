@@ -758,6 +758,7 @@ const requestStageCompletion = async (req, res) => {
         where: { id: orderId },
         data: {
           currentStage: actualNextStage,
+          status: 'PENDING',
           ...(isStoreRoutingBack ? { storeRequested: true, storeRequestedAt: new Date() } : {})
         }
       });
@@ -2259,7 +2260,7 @@ const manualRouteOrder = async (req, res) => {
       where: { id: orderId },
       data: {
         currentStage: destinationStage,
-        status: 'IN_PROGRESS',
+        status: 'PENDING',
         ...(isStoreRoutingBack ? { storeRequested: true, storeRequestedAt: new Date() } : {})
       }
     });
@@ -2893,8 +2894,17 @@ const returnToStore = async (req, res) => {
 
     await prisma.order.update({
       where: { id: orderId },
-      data: { currentStage: 'STORE', status: 'IN_PROGRESS' }
+      data: { currentStage: 'STORE', status: 'PENDING' }
     });
+
+    // Clear previous seenTask for STORE so it appears as a new task
+    const storeRecipients = await prisma.user.findMany({
+      where: { role: { in: getRolesForStage('STORE') } },
+      select: { id: true }
+    });
+    await prisma.seenTask.deleteMany({
+      where: { userId: { in: storeRecipients.map(u => u.id) }, orderId, stageName: 'STORE' }
+    }).catch(() => {});
 
     await prisma.routingHistory.create({
       data: {
@@ -3397,5 +3407,6 @@ module.exports = {
   getOrderTimeline,
   updateProductAvailability,
   toggleProductVerification,
-  trackOrder
+  trackOrder,
+  getRolesForStage
 };

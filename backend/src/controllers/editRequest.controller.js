@@ -401,10 +401,20 @@ const approveEditRequest = async (req, res) => {
       data: { orderId: order.id, stageName: 'STORE', status: 'PENDING', deadlineAt: deadline }
     });
 
-    // Update order to point to STORE and mark in-progress
+    // Clear previous seenTask for STORE so it appears as a fresh task
+    const storeRoles = ['STORE', 'STORE_EMPLOYEE'];
+    const storeUsers = await prisma.user.findMany({
+      where: { role: { in: storeRoles } },
+      select: { id: true }
+    });
+    await prisma.seenTask.deleteMany({
+      where: { userId: { in: storeUsers.map(u => u.id) }, orderId: order.id, stageName: 'STORE' }
+    }).catch(() => {});
+
+    // Update order to point to STORE
     await prisma.order.update({
       where: { id: order.id },
-      data: { currentStage: 'STORE', status: 'IN_PROGRESS' }
+      data: { currentStage: 'STORE', status: 'PENDING' }
     });
 
     // 4. Rich audit trail — log the approval with field changes (DO NOT delete routingHistory, productionRecords, allocationCart, or logoPhaseSummary)

@@ -122,6 +122,8 @@ model Order {
     verifiedAdvanceAmount Float?
     verifiedRemainingBalance Float?
     verificationNote    String?
+    verificationReturnedAt DateTime?   // when order was returned to Faisal for corrections
+    verificationReturnNote String?     // note from verifier about what changes needed
     auditLogs       AuditLog[]
    stages          OrderStage[]
    editRequests    OrderEditRequest[]
