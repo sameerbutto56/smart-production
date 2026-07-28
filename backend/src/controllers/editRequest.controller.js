@@ -1,4 +1,20 @@
 const prisma = require('../prisma');
+const { calculateDeadline } = require('../utils/deadline');
+
+const getStoreDeadline = async (priority = 'NORMAL') => {
+  const slaMultiplier = { NORMAL: 1, URGENT: 0.75, SUPER_URGENT: 0.5 }[priority] || 1;
+  let storeHours = 24;
+  try {
+    const setting = await prisma.systemSetting.findUnique({ where: { key: 'DEADLINE_CONFIG' } });
+    if (setting) {
+      const cfg = JSON.parse(setting.value);
+      storeHours = cfg?.stageDurations?.STORE || 24;
+      const mult = cfg?.slaMultipliers?.[priority] ?? 1;
+      storeHours = Math.round((storeHours * mult) * 100) / 100;
+    }
+  } catch {}
+  return calculateDeadline(new Date(), storeHours);
+};
 
 const createAuditLog = async (orderId, action, details, userId) => {
   try {
@@ -359,7 +375,36 @@ const approveEditRequest = async (req, res) => {
       }
     });
 
-    await createAuditLog(order.id, 'EDIT_APPROVED', `Order edit approved by ${req.user.name}. Remarks: ${adminRemarks || 'N/A'}`, req.user.id);
+    // 5. Restart workflow: reset to STORE stage
+    // Mark any existing active stages as COMPLETED
+    await prisma.orderStage.updateMany({
+      where: { orderId: order.id, status: { in: ['PENDING', 'IN_PROGRESS'] } },
+      data: { status: 'COMPLETED', completedAt: new Date() }
+    });
+
+    // Create a fresh PENDING STORE stage
+    const deadline = await getStoreDeadline(order.priority || 'NORMAL');
+    await prisma.orderStage.create({
+      data: { orderId: order.id, stageName: 'STORE', status: 'PENDING', deadlineAt: deadline }
+    });
+
+    // Update order to point to STORE and mark in-progress
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { currentStage: 'STORE', status: 'IN_PROGRESS' }
+    });
+
+    // Clean up department-specific data so the order appears fresh
+    await prisma.routingHistory.deleteMany({ where: { orderId: order.id } });
+    await prisma.productionRecord.deleteMany({ where: { orderId: order.id } });
+    await prisma.allocationCart.deleteMany({ where: { orderId: order.id } });
+
+    // Clear logoPhaseSummary if present
+    if (order.logoPhaseSummary) {
+      await prisma.order.update({ where: { id: order.id }, data: { logoPhaseSummary: null } });
+    }
+
+    await createAuditLog(order.id, 'WORKFLOW_RESTARTED', `Order workflow restarted at STORE after edit approval. Remarks: ${adminRemarks || 'N/A'}`, req.user.id);
 
     const io = req.app.get('io');
     if (io) {
